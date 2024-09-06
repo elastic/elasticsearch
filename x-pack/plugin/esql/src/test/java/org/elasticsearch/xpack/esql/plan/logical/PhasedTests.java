@@ -13,6 +13,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -147,6 +148,11 @@ public class PhasedTests extends ESTestCase {
         @Override
         public List<Attribute> output() {
             return child().output();
+        }
+
+        @Override
+        protected AttributeSet computeReferences() {
+            return AttributeSet.EMPTY;
         }
 
         @Override

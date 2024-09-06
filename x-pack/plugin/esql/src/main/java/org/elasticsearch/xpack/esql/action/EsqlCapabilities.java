@@ -189,7 +189,7 @@ public class EsqlCapabilities {
         UNION_TYPES_MISSING_FIELD,
 
         /**
-         * Fix for widening of short numeric types in union-types.
+         * Fix for widening of short numeric types in union-types. Done in #112610
          */
         UNION_TYPES_NUMERIC_WIDENING,
 

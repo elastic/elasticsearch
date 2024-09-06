@@ -457,7 +457,9 @@ setup:
 
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: "both-docs" }
+  - match: { hits.hits.0._score: 3.0 }
   - match: { hits.hits.1._id: "parent-foo" }
+  - match: { hits.hits.1._score: 1.0 }
 
   - do:
       search:
@@ -467,8 +469,10 @@ setup:
             sparse_vector:
               field: parent.foo.bar
               query_vector:
-                baz: 2.0
+                baz: 1.0
 
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: "both-docs" }
+  - match: { hits.hits.0._score: 4.0 }
   - match: { hits.hits.1._id: "parent-foo-bar" }
+  - match: { hits.hits.1._score: 2.0 }

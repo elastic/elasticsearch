@@ -137,8 +137,6 @@ public class PercolatorFieldMapper extends FieldMapper {
         @Override
         public PercolatorFieldMapper build(MapperBuilderContext context) {
             PercolatorFieldType fieldType = new PercolatorFieldType(context.buildFullName(leafName()), meta.getValue());
-            // TODO should percolator even allow multifields?
-            MultiFields multiFields = multiFieldsBuilder.build(this, context);
             context = context.createChildContext(leafName(), null);
             KeywordFieldMapper extractedTermsField = createExtractQueryFieldBuilder(
                 EXTRACTED_TERMS_FIELD_NAME,
@@ -165,8 +163,7 @@ public class PercolatorFieldMapper extends FieldMapper {
             return new PercolatorFieldMapper(
                 leafName(),
                 fieldType,
-                multiFields,
-                copyTo,
+                builderParams(this, context),
                 searchExecutionContext,
                 extractedTermsField,
                 extractionResultField,
@@ -375,8 +372,7 @@ public class PercolatorFieldMapper extends FieldMapper {
     PercolatorFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
+        BuilderParams builderParams,
         Supplier<SearchExecutionContext> searchExecutionContext,
         KeywordFieldMapper queryTermsField,
         KeywordFieldMapper extractionResultField,
@@ -387,7 +383,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         IndexVersion indexCreatedVersion,
         Supplier<TransportVersion> clusterTransportVersion
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, builderParams);
         this.searchExecutionContext = searchExecutionContext;
         this.queryTermsField = queryTermsField;
         this.extractionResultField = extractionResultField;

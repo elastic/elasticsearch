@@ -255,7 +255,12 @@ public class MetadataUpdateSettingsService {
                 final int updatedNumberOfReplicas = IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(openSettings);
                 if (preserveExisting == false) {
                     // Verify that this won't take us over the cluster shard limit.
-                    shardLimitValidator.validateShardLimitOnReplicaUpdate(currentState, request.indices(), updatedNumberOfReplicas);
+                    shardLimitValidator.validateShardLimitOnReplicaUpdate(
+                        currentState.nodes(),
+                        currentState.metadata(),
+                        request.indices(),
+                        updatedNumberOfReplicas
+                    );
 
                     /*
                      * We do not update the in-sync allocation IDs as they will be removed upon the first index operation

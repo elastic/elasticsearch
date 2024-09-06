@@ -121,7 +121,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                         Map.of(
                             ServiceFields.MODEL_ID,
                             modelId,
-                            ServiceFields.PROJECT_ID,
+                            IbmWatsonxServiceFields.PROJECT_ID,
                             projectId,
                             ServiceFields.URL,
                             url,
@@ -169,7 +169,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                     Map.of(
                         ServiceFields.MODEL_ID,
                         modelId,
-                        ServiceFields.PROJECT_ID,
+                        IbmWatsonxServiceFields.PROJECT_ID,
                         projectId,
                         ServiceFields.URL,
                         url,
@@ -196,7 +196,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                     Map.of(
                         ServiceFields.MODEL_ID,
                         modelId,
-                        ServiceFields.PROJECT_ID,
+                        IbmWatsonxServiceFields.PROJECT_ID,
                         projectId,
                         ServiceFields.URL,
                         url,
@@ -234,7 +234,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                     Map.of(
                         ServiceFields.MODEL_ID,
                         modelId,
-                        ServiceFields.PROJECT_ID,
+                        IbmWatsonxServiceFields.PROJECT_ID,
                         projectId,
                         ServiceFields.URL,
                         url,
@@ -276,7 +276,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                     Map.of(
                         ServiceFields.MODEL_ID,
                         modelId,
-                        ServiceFields.PROJECT_ID,
+                        IbmWatsonxServiceFields.PROJECT_ID,
                         projectId,
                         ServiceFields.URL,
                         url,
@@ -313,7 +313,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                 Map.of(
                     ServiceFields.MODEL_ID,
                     modelId,
-                    ServiceFields.PROJECT_ID,
+                    IbmWatsonxServiceFields.PROJECT_ID,
                     projectId,
                     ServiceFields.URL,
                     url,
@@ -357,7 +357,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                     Map.of(
                         ServiceFields.MODEL_ID,
                         modelId,
-                        ServiceFields.PROJECT_ID,
+                        IbmWatsonxServiceFields.PROJECT_ID,
                         projectId,
                         ServiceFields.URL,
                         url,

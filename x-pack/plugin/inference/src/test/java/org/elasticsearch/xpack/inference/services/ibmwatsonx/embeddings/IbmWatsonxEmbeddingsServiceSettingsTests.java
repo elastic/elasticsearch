@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
 import java.io.IOException;
@@ -62,11 +63,11 @@ public class IbmWatsonxEmbeddingsServiceSettingsTests extends AbstractWireSerial
         var serviceSettings = IbmWatsonxEmbeddingsServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
-                    ServiceFields.PROJECT_ID,
+                    IbmWatsonxServiceFields.PROJECT_ID,
                     projectId,
                     ServiceFields.URL,
                     uri.toString(),
-                    "api_version",
+                    IbmWatsonxServiceFields.API_VERSION,
                     apiVersion,
                     ServiceFields.MODEL_ID,
                     model,

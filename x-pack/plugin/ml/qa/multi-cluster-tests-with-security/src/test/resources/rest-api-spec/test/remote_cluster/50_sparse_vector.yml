@@ -66,17 +66,17 @@ setup:
         refresh: true
         body: |
           {"index": {}}
-          {"source_text": "my words comforter", "ml.tokens":{"my":1.0, "words":1.0,"comforter":1.0}}
+          {"source_text": "my words comforter", "ml.tokens":{"my":1.1, "words":1.1,"comforter":1.1}}
           {"index": {}}
-          {"source_text": "the machine is leaking", "ml.tokens":{"the":1.0,"machine":1.0,"is":1.0,"leaking":1.0}}
+          {"source_text": "the machine is leaking", "ml.tokens":{"the":1.1,"machine":1.1,"is":1.1,"leaking":1.1}}
           {"index": {}}
-          {"source_text": "these are my words", "ml.tokens":{"these":1.0,"are":1.0,"my":1.0,"words":1.0}}
+          {"source_text": "these are my words", "ml.tokens":{"these":1.1,"are":1.1,"my":1.1,"words":1.1}}
           {"index": {}}
-          {"source_text": "the octopus comforter smells", "ml.tokens":{"the":1.0,"octopus":1.0,"comforter":1.0,"smells":1.0}}
+          {"source_text": "the octopus comforter smells", "ml.tokens":{"the":1.1,"octopus":1.1,"comforter":1.1,"smells":1.1}}
           {"index": {}}
-          {"source_text": "the octopus comforter is leaking", "ml.tokens":{"the":1.0,"octopus":1.0,"comforter":1.0,"is":1.0,"leaking":1.0}}
+          {"source_text": "the octopus comforter is leaking", "ml.tokens":{"the":1.1,"octopus":1.1,"comforter":1.1,"is":1.1,"leaking":1.1}}
           {"index": {}}
-          {"source_text": "washing machine smells", "ml.tokens":{"washing":1.0,"machine":1.0,"smells":1.0}}
+          {"source_text": "washing machine smells", "ml.tokens":{"washing":1.1,"machine":1.1,"smells":1.1}}
 
   - do:
       headers:
@@ -154,10 +154,10 @@ teardown:
             sparse_vector:
               field: ml.tokens
               query_vector:
-                the: 1.0
-                comforter: 1.0
-                smells: 1.0
-                bad: 1.0
+                the: 1.1
+                comforter: 1.1
+                smells: 1.1
+                bad: 1.1
   - match: { hits.total.value: 5 }
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
 
@@ -171,10 +171,10 @@ teardown:
             sparse_vector:
               field: ml.tokens
               query_vector:
-                the: 1.0
-                comforter: 1.0
-                smells: 1.0
-                bad: 1.0
+                the: 1.1
+                comforter: 1.1
+                smells: 1.1
+                bad: 1.1
               prune: true
               pruning_config:
                 tokens_freq_ratio_threshold: 1

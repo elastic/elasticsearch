@@ -2,7 +2,7 @@ pr: 112571
 summary: Deprecate dot-prefixed indices and composable template index patterns
 area: Indices APIs
 type: deprecation
-issues: []
+issues: [https://github.com/elastic/elasticsearch/pull/112571]
 deprecation:
   title: Deprecate dot-prefixed indices and composable template index patterns
   area: Indices APIs

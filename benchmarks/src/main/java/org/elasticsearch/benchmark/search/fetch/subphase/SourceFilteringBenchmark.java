@@ -63,7 +63,7 @@ public class SourceFilteringBenchmark {
             Strings.splitStringByCommaToArray(includes),
             Strings.splitStringByCommaToArray(excludes)
         );
-        filter = fetchContext.filter(null);
+        filter = fetchContext.filter();
     }
 
     private BytesReference read300BytesExample() throws IOException {

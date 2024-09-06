@@ -79,13 +79,13 @@ public class FetchSourcePhaseBenchmark {
     @Benchmark
     public BytesReference filterSourceMap() {
         Source bytesSource = Source.fromBytes(sourceBytes);
-        return fetchContext.filter(null).filterMap(bytesSource).internalSourceRef();
+        return fetchContext.filter().filterMap(bytesSource).internalSourceRef();
     }
 
     @Benchmark
     public BytesReference filterSourceBytes() {
         Source bytesSource = Source.fromBytes(sourceBytes);
-        return fetchContext.filter(null).filterBytes(bytesSource).internalSourceRef();
+        return fetchContext.filter().filterBytes(bytesSource).internalSourceRef();
     }
 
     @Benchmark

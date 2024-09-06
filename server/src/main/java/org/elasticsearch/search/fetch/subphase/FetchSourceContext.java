@@ -130,17 +130,26 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         return this.includeVectors;
     }
 
+    public boolean filterVectorFields() {
+        return this.includeVectors == null || this.includeVectors == Boolean.FALSE;
+    }
+
     public boolean hasFilter() {
-        return this.includes.length > 0 || this.excludes.length > 0 || this.includeVectors == Boolean.FALSE;
+        return this.includes.length > 0 || this.excludes.length > 0;
+    }
+
+    public SourceFilter filter() {
+        return new SourceFilter(includes, excludes);
     }
 
     public SourceFilter filter(MappingLookup mappingLookup) {
-        if (includeVectors()) {
+        if (filterVectorFields() == Boolean.FALSE) {
             return new SourceFilter(includes, excludes);
         } else {
             if (mappingLookup == null) {
-                throw new IllegalArgumentException("MappingLookup must not be null when filtering vectors");
+                throw new IllegalStateException("MappingLookup must not be null when filtering vectors");
             }
+
             String[] excludeFields = excludes();
             String[] inferenceFields = mappingLookup.inferenceFields()
                 .keySet()
@@ -148,25 +157,25 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                 .map(s -> s + ".inference.chunks.embedding")
                 .toArray(String[]::new);
 
-            excludeFields = ArrayUtils.concat(excludeFields, inferenceFields);
+            if (includeVectors != null) {
+                String[] denseVectors = mappingLookup.getFullNameToFieldType()
+                    .entrySet()
+                    .stream()
+                    .filter(entry -> entry.getValue() instanceof DenseVectorFieldMapper.DenseVectorFieldType)
+                    .map(Map.Entry::getKey)
+                    .toArray(String[]::new);
+                excludeFields = ArrayUtils.concat(excludeFields, denseVectors);
 
-            String[] denseVectors = mappingLookup.getFullNameToFieldType()
-                .entrySet()
-                .stream()
-                .filter(entry -> entry.getValue() instanceof DenseVectorFieldMapper.DenseVectorFieldType)
-                .map(Map.Entry::getKey)
-                .toArray(String[]::new);
-            excludeFields = ArrayUtils.concat(excludeFields, denseVectors);
+                String[] sparseVectors = mappingLookup.getFullNameToFieldType()
+                    .entrySet()
+                    .stream()
+                    .filter(entry -> entry.getValue() instanceof SparseVectorFieldMapper.SparseVectorFieldType)
+                    .map(Map.Entry::getKey)
+                    .toArray(String[]::new);
+                excludeFields = ArrayUtils.concat(excludeFields, sparseVectors);
 
-            String[] sparseVectors = mappingLookup.getFullNameToFieldType()
-                .entrySet()
-                .stream()
-                .filter(entry -> entry.getValue() instanceof SparseVectorFieldMapper.SparseVectorFieldType)
-                .map(Map.Entry::getKey)
-                .toArray(String[]::new);
-            excludeFields = ArrayUtils.concat(excludeFields, sparseVectors);
-
-            return new SourceFilter(this.includes, excludeFields);
+            }
+            return new SourceFilter(includes, excludeFields);
         }
     }
 

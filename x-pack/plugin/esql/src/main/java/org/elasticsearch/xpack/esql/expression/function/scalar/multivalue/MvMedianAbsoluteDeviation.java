@@ -128,7 +128,7 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
             for (int i = 0; i < longs.count; i++) {
                 long value = longs.values[i];
                 // We know they were ints, so we can calculate differences within a long
-                longs.values[i] = value > median ? Math.subtractExact(value, median) : Math.subtractExact(median, value);
+                longs.values[i] = value > median ? value - median : median - value;
             }
             return Math.toIntExact(longMedianOf(longs));
         } finally {
@@ -149,7 +149,7 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
             long median = count % 2 == 1 ? values.getInt(middle) : avgWithoutOverflow(values.getInt(middle - 1), values.getInt(middle));
             for (int i = 0; i < count; i++) {
                 long value = values.getInt(firstValue + i);
-                longs.values[i] = value > median ? Math.subtractExact(value, median) : Math.subtractExact(median, value);
+                longs.values[i] = value > median ? value - median : median - value;
             }
             return Math.toIntExact(longMedianOf(longs));
         } finally {

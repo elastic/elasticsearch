@@ -1,0 +1,6 @@
+pr: 112606
+summary: "[ES|QL] Extend named parameters in `EsqlQueryRequest` to support field names\
+  \ referenced in eval/where/stats/sort clause"
+area: ES|QL
+type: enhancement
+issues: []

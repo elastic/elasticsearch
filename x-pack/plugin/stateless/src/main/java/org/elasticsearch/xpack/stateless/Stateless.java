@@ -565,7 +565,8 @@ public class Stateless extends Plugin
         var ingestMetricService = new IngestMetricsService(
             clusterService.getClusterSettings(),
             threadPool::relativeTimeInNanos,
-            memoryMetricsService
+            memoryMetricsService,
+            services.telemetryProvider().getMeterRegistry()
         );
         clusterService.addListener(ingestMetricService);
         components.add(ingestMetricService);

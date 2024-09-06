@@ -17,7 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 
-import co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions;
 import co.elastic.elasticsearch.stateless.autoscaling.AutoscalingMetrics;
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 
@@ -31,21 +30,13 @@ public record NodeIngestLoadSnapshot(String nodeId, String nodeName, double load
     implements
         AutoscalingMetrics {
     public NodeIngestLoadSnapshot(StreamInput in) throws IOException {
-        // TODO: Remove version BWC once all nodes are on newer version
-        this(maybeReadString(in), maybeReadString(in), in.readDouble(), MetricQuality.readFrom(in));
-    }
-
-    public NodeIngestLoadSnapshot(double load, MetricQuality metricQuality) {
-        this("", "", load, metricQuality);
+        this(in.readString(), in.readString(), in.readDouble(), MetricQuality.readFrom(in));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // TODO: Remove version BWC once all nodes are on newer version
-        if (out.getTransportVersion().onOrAfter(ServerlessTransportVersions.NODE_NAME_IN_PUBLISH_INGEST_LOAD_REQUEST)) {
-            out.writeString(nodeId);
-            out.writeString(nodeName);
-        }
+        out.writeString(nodeId);
+        out.writeString(nodeName);
         out.writeDouble(load);
         metricQuality.writeTo(out);
     }
@@ -56,11 +47,4 @@ public record NodeIngestLoadSnapshot(String nodeId, String nodeName, double load
         return builder;
     }
 
-    private static String maybeReadString(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(ServerlessTransportVersions.NODE_NAME_IN_PUBLISH_INGEST_LOAD_REQUEST)) {
-            return in.readString();
-        } else {
-            return "";
-        }
-    }
 }

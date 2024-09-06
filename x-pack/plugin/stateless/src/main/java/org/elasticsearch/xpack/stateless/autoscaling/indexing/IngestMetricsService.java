@@ -98,9 +98,13 @@ public class IngestMetricsService implements ClusterStateListener {
     private final LongSupplier relativeTimeInNanosSupplier;
     private final MemoryMetricsService memoryMetricsService;
     private final Map<String, NodeIngestLoad> nodesIngestLoad = ConcurrentCollections.newConcurrentMap();
-    private final AtomicReference<RawAndAdjustedNodeIngestLoadSnapshots> lastNodeIngestLoadSnapshotsRef = new AtomicReference<>();
+    private final AtomicReference<RawAndAdjustedNodeIngestLoadSnapshots> lastNodeIngestLoadSnapshotsRef = new AtomicReference<>(
+        NOT_MASTER_SENTINEL
+    );
 
     record RawAndAdjustedNodeIngestLoadSnapshots(List<NodeIngestLoadSnapshot> raw, @Nullable List<NodeIngestLoadSnapshot> adjusted) {}
+
+    private static final RawAndAdjustedNodeIngestLoadSnapshots NOT_MASTER_SENTINEL = new RawAndAdjustedNodeIngestLoadSnapshots(null, null);
 
     public IngestMetricsService(
         ClusterSettings clusterSettings,
@@ -127,7 +131,7 @@ public class IngestMetricsService implements ClusterStateListener {
     private void setupMetrics(MeterRegistry meterRegistry) {
         meterRegistry.registerDoublesGauge(NODE_INGEST_LOAD_SNAPSHOTS_METRIC_NAME, "The last polled node ingest loads", "unit", () -> {
             final var lastNodeIngestLoadSnapshots = lastNodeIngestLoadSnapshotsRef.get();
-            if (lastNodeIngestLoadSnapshots == null) {
+            if (lastNodeIngestLoadSnapshots == NOT_MASTER_SENTINEL || lastNodeIngestLoadSnapshots == null) {
                 return List.of();
             }
             final List<NodeIngestLoadSnapshot> raw = lastNodeIngestLoadSnapshots.raw();
@@ -166,6 +170,7 @@ public class IngestMetricsService implements ClusterStateListener {
         if (event.localNodeMaster() == false || event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             nodesIngestLoad.clear();
             initialized = false;
+            lastNodeIngestLoadSnapshotsRef.set(event.localNodeMaster() ? null : NOT_MASTER_SENTINEL);
             return;
         }
 
@@ -176,6 +181,7 @@ public class IngestMetricsService implements ClusterStateListener {
                 }
             }
             initialized = true;
+            lastNodeIngestLoadSnapshotsRef.set(null);
         }
 
         if (event.nodesChanged()) {
@@ -246,8 +252,10 @@ public class IngestMetricsService implements ClusterStateListener {
             highIngestionLoadWeightDuringScaling,
             lowIngestionLoadWeightDuringScaling
         );
-        lastNodeIngestLoadSnapshotsRef.set(
-            new RawAndAdjustedNodeIngestLoadSnapshots(ingestLoads, adjustedIngestLoads == ingestLoads ? null : adjustedIngestLoads)
+        lastNodeIngestLoadSnapshotsRef.updateAndGet(
+            prev -> prev == NOT_MASTER_SENTINEL
+                ? prev
+                : new RawAndAdjustedNodeIngestLoadSnapshots(ingestLoads, adjustedIngestLoads == ingestLoads ? null : adjustedIngestLoads)
         );
         return new IndexTierMetrics(adjustedIngestLoads, memoryMetricsService.getMemoryMetrics());
     }

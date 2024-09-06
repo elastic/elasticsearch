@@ -8,6 +8,7 @@
 
 import org.elasticsearch.index.codec.Elasticsearch814Codec;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
+import org.elasticsearch.internal.CompletionsPostingsFormatExtension;
 import org.elasticsearch.plugins.internal.RestExtension;
 
 /** The Elasticsearch Server Module. */
@@ -420,7 +421,7 @@ module org.elasticsearch.server {
     uses org.elasticsearch.node.internal.TerminationHandlerProvider;
     uses org.elasticsearch.internal.VersionExtension;
     uses org.elasticsearch.internal.BuildExtension;
-    uses org.elasticsearch.internal.PostingsFormatExtension;
+    uses CompletionsPostingsFormatExtension;
     uses org.elasticsearch.features.FeatureSpecification;
     uses org.elasticsearch.plugins.internal.LoggingDataProvider;
     uses org.elasticsearch.cluster.metadata.DataStreamFactoryRetention;

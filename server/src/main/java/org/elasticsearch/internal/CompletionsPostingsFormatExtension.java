@@ -13,12 +13,15 @@ import org.apache.lucene.search.suggest.document.CompletionPostingsFormat;
 /**
  * Allows plugging-in the Postings Format.
  */
-public interface PostingsFormatExtension {
+public interface CompletionsPostingsFormatExtension {
 
     /**
      * Returns the name of the  {@link CompletionPostingsFormat} that Elasticsearch should use.
      */
-    String getCompletionPostingsFormatName();
+    String getFormatName();
 
-    void setFeatureEnabled(boolean isFeatureEnabled);
+    /**
+     * Sets whether this extension is enabled. If the extension is not enabled, {@link #getFormatName()} should return null.
+     */
+    void setExtensionEnabled(boolean isExtensionEnabled);
 }

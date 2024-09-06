@@ -13,13 +13,14 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.threadpool.Scheduler.Cancellable;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 /**
  * Generic resource watcher service
@@ -75,32 +76,38 @@ public class ResourceWatcherService implements Closeable {
 
     private final boolean enabled;
 
+    private final ScheduledThreadPoolExecutor executor;
+
     final ResourceMonitor lowMonitor;
     final ResourceMonitor mediumMonitor;
     final ResourceMonitor highMonitor;
 
-    private final Cancellable lowFuture;
-    private final Cancellable mediumFuture;
-    private final Cancellable highFuture;
+    private final Scheduler.Cancellable lowFuture;
+    private final Scheduler.Cancellable mediumFuture;
+    private final Scheduler.Cancellable highFuture;
 
     public ResourceWatcherService(Settings settings, ThreadPool threadPool) {
         this.enabled = ENABLED.get(settings);
 
-        TimeValue interval = RELOAD_INTERVAL_LOW.get(settings);
-        lowMonitor = new ResourceMonitor(interval, Frequency.LOW);
-        interval = RELOAD_INTERVAL_MEDIUM.get(settings);
-        mediumMonitor = new ResourceMonitor(interval, Frequency.MEDIUM);
-        interval = RELOAD_INTERVAL_HIGH.get(settings);
-        highMonitor = new ResourceMonitor(interval, Frequency.HIGH);
         if (enabled) {
-            final var executor = threadPool.generic();
+            TimeValue interval = RELOAD_INTERVAL_LOW.get(settings);
+            lowMonitor = new ResourceMonitor(interval, Frequency.LOW);
+            interval = RELOAD_INTERVAL_MEDIUM.get(settings);
+            mediumMonitor = new ResourceMonitor(interval, Frequency.MEDIUM);
+            interval = RELOAD_INTERVAL_HIGH.get(settings);
+            highMonitor = new ResourceMonitor(interval, Frequency.HIGH);
+            executor = new Scheduler.SafeScheduledThreadPoolExecutor(1);
             lowFuture = threadPool.scheduleWithFixedDelay(lowMonitor, lowMonitor.interval, executor);
             mediumFuture = threadPool.scheduleWithFixedDelay(mediumMonitor, mediumMonitor.interval, executor);
             highFuture = threadPool.scheduleWithFixedDelay(highMonitor, highMonitor.interval, executor);
         } else {
+            lowMonitor = null;
+            mediumMonitor = null;
+            highMonitor = null;
             lowFuture = null;
             mediumFuture = null;
             highFuture = null;
+            executor = null;
         }
     }
 
@@ -110,6 +117,7 @@ public class ResourceWatcherService implements Closeable {
             lowFuture.cancel();
             mediumFuture.cancel();
             highFuture.cancel();
+            executor.shutdown();
         }
     }
 

@@ -48,6 +48,7 @@ public class ResourceWatcherServiceTests extends ESTestCase {
         assertThat(service.highMonitor.interval.millis(), is(timeValueSeconds(10).millis()));
         assertThat(service.mediumMonitor.interval.millis(), is(timeValueSeconds(20).millis()));
         assertThat(service.lowMonitor.interval.millis(), is(timeValueSeconds(30).millis()));
+        service.close();
         terminate(threadPool);
     }
 
@@ -87,6 +88,7 @@ public class ResourceWatcherServiceTests extends ESTestCase {
         assertThat(service.highMonitor.watchers.size(), is(0));
         handle.resume();
         assertThat(service.highMonitor.watchers.size(), is(1));
+        service.close();
         terminate(threadPool);
     }
 }

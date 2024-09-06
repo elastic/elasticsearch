@@ -297,10 +297,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     indexOptions.getValue(),
                     meta.getValue()
                 ),
+                builderParams(this, context),
                 indexOptions.getValue(),
-                indexVersionCreated,
-                multiFieldsBuilder.build(this, context),
-                copyTo
+                indexVersionCreated
             );
         }
     }
@@ -1963,12 +1962,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
     private DenseVectorFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
+        BuilderParams params,
         IndexOptions indexOptions,
-        IndexVersion indexCreatedVersion,
-        MultiFields multiFields,
-        CopyTo copyTo
+        IndexVersion indexCreatedVersion
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, params);
         this.indexOptions = indexOptions;
         this.indexCreatedVersion = indexCreatedVersion;
     }
@@ -2015,10 +2013,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
             Mapper update = new DenseVectorFieldMapper(
                 leafName(),
                 updatedDenseVectorFieldType,
+                builderParams,
                 indexOptions,
-                indexCreatedVersion,
-                multiFields(),
-                copyTo
+                indexCreatedVersion
             );
             context.addDynamicMapper(update);
             return;
@@ -2162,7 +2159,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        if (copyTo.copyToFields().isEmpty() != true) {
+        if (copyTo().copyToFields().isEmpty() != true) {
             throw new IllegalArgumentException(
                 "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );

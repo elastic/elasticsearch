@@ -35,7 +35,6 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
     final ClusterHealthStatus status;
     final ClusterSnapshotStats clusterSnapshotStats;
     final RepositoryUsageStats repositoryUsageStats;
-
     final CCSTelemetrySnapshot ccsMetrics;
     final long timestamp;
     final String clusterUUID;
@@ -103,6 +102,10 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
 
     public CCSTelemetrySnapshot getCcsMetrics() {
         return ccsMetrics;
+    }
+
+    public Map<String, RemoteClusterStats> getRemoteClustersStats() {
+        return remoteClustersStats;
     }
 
     @Override
@@ -201,6 +204,54 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
                 this.heapBytes = 0;
                 this.memBytes = 0;
             }
+        }
+
+        public String getClusterUUID() {
+            return clusterUUID;
+        }
+
+        public String getMode() {
+            return mode;
+        }
+
+        public boolean isSkipUnavailable() {
+            return skipUnavailable;
+        }
+
+        public String getTransportCompress() {
+            return transportCompress;
+        }
+
+        public Set<String> getVersions() {
+            return versions;
+        }
+
+        public String getStatus() {
+            return status;
+        }
+
+        public long getNodesCount() {
+            return nodesCount;
+        }
+
+        public long getShardsCount() {
+            return shardsCount;
+        }
+
+        public long getIndicesCount() {
+            return indicesCount;
+        }
+
+        public long getIndicesBytes() {
+            return indicesBytes;
+        }
+
+        public long getHeapBytes() {
+            return heapBytes;
+        }
+
+        public long getMemBytes() {
+            return memBytes;
         }
 
         @Override

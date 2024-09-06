@@ -19,4 +19,8 @@ public class ClusterStatsRequestBuilder extends NodesOperationRequestBuilder<
     public ClusterStatsRequestBuilder(ElasticsearchClient client) {
         super(client, TransportClusterStatsAction.TYPE, new ClusterStatsRequest());
     }
+
+    public ClusterStatsRequestBuilder(ElasticsearchClient client, boolean doRemotes) {
+        super(client, TransportClusterStatsAction.TYPE, new ClusterStatsRequest(doRemotes));
+    }
 }

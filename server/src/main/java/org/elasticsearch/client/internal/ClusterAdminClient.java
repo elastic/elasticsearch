@@ -206,6 +206,10 @@ public class ClusterAdminClient implements ElasticsearchClient {
         return new ClusterStatsRequestBuilder(this);
     }
 
+    public ClusterStatsRequestBuilder prepareClusterStatsWithRemotes() {
+        return new ClusterStatsRequestBuilder(this, true);
+    }
+
     public ActionFuture<NodesStatsResponse> nodesStats(final NodesStatsRequest request) {
         return execute(TransportNodesStatsAction.TYPE, request);
     }

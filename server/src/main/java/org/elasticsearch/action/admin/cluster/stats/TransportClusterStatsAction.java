@@ -217,7 +217,7 @@ public class TransportClusterStatsAction extends TransportClusterStatsBaseAction
         }
 
         // TODO: make correct pool
-        final var remoteClientResponseExecutor = transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT);
+        final var remoteClientResponseExecutor = transportService.getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION);
         var remotes = remoteClusterService.getRegisteredRemoteClusterNames();
 
         var remotesFuture = new PlainActionFuture<Map<String, RemoteClusterStatsResponse>>();

@@ -376,6 +376,20 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
         apmIndexTemplateRegistry.clusterChanged(event);
     }
 
+    public void testILMComponentTemplatesInstalled() throws Exception {
+        int ilmFallbackCount = 0;
+        for (Map.Entry<String, ComponentTemplate> entry : apmIndexTemplateRegistry.getComponentTemplateConfigs().entrySet()) {
+            final String name = entry.getKey();
+            final int atIndex = name.lastIndexOf('@');
+            assertThat(atIndex, not(equalTo(-1)));
+            if ("ilm".equals(name.substring(atIndex + 1))) {
+                ilmFallbackCount++;
+            }
+        }
+        // Each index template should have a corresponding ILM fallback policy
+        assertThat(apmIndexTemplateRegistry.getComposableTemplateConfigs().size(), equalTo(ilmFallbackCount));
+    }
+
     private Map<String, ComponentTemplate> getIndependentComponentTemplateConfigs() {
         return apmIndexTemplateRegistry.getComponentTemplateConfigs().entrySet().stream().filter(template -> {
             Settings settings = template.getValue().template().settings();

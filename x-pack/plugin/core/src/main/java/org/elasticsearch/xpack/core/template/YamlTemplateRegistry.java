@@ -33,9 +33,12 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.template.ResourceUtils.loadResource;
 import static org.elasticsearch.xpack.core.template.ResourceUtils.loadVersionedResourceUTF8;
+import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.isDataStreamsLifecycleOnlyMode;
 
 /**
- * Creates index templates and ingest pipelines based on YAML files from resources.
+ * Creates index templates and ingest pipelines based on YAML files defined in resources.yaml.
+ * It also allows ILM files to be managed separately as per the DSL only mode for the cluster.
+ * The ILM names MUST end with `@ilm` for this class to mark the resource as ILM resource.
  */
 public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
     private static final Logger logger = LogManager.getLogger(YamlTemplateRegistry.class);
@@ -60,7 +63,7 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
         FeatureService featureService
     ) {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
-
+        final boolean dslOnlyMode = isDataStreamsLifecycleOnlyMode(clusterService.getSettings());
         try {
             final Map<String, Object> resources = XContentHelper.convertToMap(
                 YamlXContent.yamlXContent,
@@ -77,11 +80,13 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
                 .orElse(Collections.emptyList())
                 .stream()
                 .map(o -> (String) o)
+                .filter(tpl -> shouldLoadTemplate(tpl, dslOnlyMode))
                 .collect(Collectors.toMap(name -> name, name -> loadComponentTemplate(name, version)));
             composableIndexTemplates = Optional.ofNullable(indexTemplateNames)
                 .orElse(Collections.emptyList())
                 .stream()
                 .map(o -> (String) o)
+                .filter(tpl -> shouldLoadTemplate(tpl, dslOnlyMode))
                 .collect(Collectors.toMap(name -> name, name -> loadIndexTemplate(name, version)));
             ingestPipelines = Optional.ofNullable(ingestPipelineConfigs)
                 .orElse(Collections.emptyList())
@@ -165,6 +170,13 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
     }
 
     protected abstract String getVersionProperty();
+
+    private boolean shouldLoadTemplate(String name, boolean dslOnlyMode) {
+        if (dslOnlyMode && name.endsWith("@ilm")) {
+            return false;
+        }
+        return true;
+    }
 
     private ComponentTemplate loadComponentTemplate(String name, int version) {
         try {

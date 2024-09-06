@@ -14,6 +14,7 @@ composed_of:
 - apm-90d@lifecycle
 - metrics-apm@mappings
 - metrics-apm@settings
+- metrics-apm.internal-fallback@ilm
 - metrics@custom
 - metrics-apm.internal@custom
 - ecs@mappings

@@ -121,11 +121,17 @@ public class ClusterServiceUtils {
 
     public static ClusterService createClusterService(ThreadPool threadPool, DiscoveryNode localNode, ClusterSettings clusterSettings) {
         Settings settings = Settings.builder().put("node.name", "test").put("cluster.name", "ClusterServiceTests").build();
+        return createClusterService(threadPool, localNode, settings, clusterSettings);
+    }
+
+    public static ClusterService createClusterService(
+        ThreadPool threadPool, DiscoveryNode localNode, Settings nodeSettings, ClusterSettings clusterSettings
+    ) {
         ClusterService clusterService = new ClusterService(
-            settings,
+            nodeSettings,
             clusterSettings,
             threadPool,
-            new TaskManager(settings, threadPool, Collections.emptySet(), Tracer.NOOP)
+            new TaskManager(nodeSettings, threadPool, Collections.emptySet(), Tracer.NOOP)
         );
         clusterService.setNodeConnectionsService(createNoOpNodeConnectionsService());
         ClusterState initialClusterState = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))

@@ -46,10 +46,9 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
     protected final int rankWindowSize;
     protected final List<RetrieverSource> innerRetrievers;
 
-    protected CompoundRetrieverBuilder(List<RetrieverSource> innerRetrievers, int rankWindowSize, boolean allowPartialSearchResults) {
+    protected CompoundRetrieverBuilder(List<RetrieverSource> innerRetrievers, int rankWindowSize) {
         this.rankWindowSize = rankWindowSize;
         this.innerRetrievers = innerRetrievers;
-        this.allowPartialSearchResults = allowPartialSearchResults;
     }
 
     @SuppressWarnings("unchecked")
@@ -111,7 +110,6 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         final MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
         for (var entry : innerRetrievers) {
             SearchRequest searchRequest = new SearchRequest().source(entry.source);
-            searchRequest.allowPartialSearchResults(allowPartialSearchResults() || entry.retriever.allowPartialSearchResults());
             // The can match phase can reorder shards, so we disable it to ensure the stable ordering
             searchRequest.setPreFilterShardSize(Integer.MAX_VALUE);
             multiSearchRequest.add(searchRequest);
@@ -125,9 +123,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                     for (int i = 0; i < items.getResponses().length; i++) {
                         var item = items.getResponses()[i];
                         if (item.isFailure()) {
-                            if (false == allowPartialSearchResults()) {
-                                failures.add(item.getFailure());
-                            }
+                            failures.add(item.getFailure());
                         } else {
                             assert item.getResponse() != null;
                             var rankDocs = getRankDocs(item.getResponse());
@@ -136,10 +132,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                         }
                     }
                     if (false == failures.isEmpty()) {
-                        IllegalStateException ex = new IllegalStateException(
-                            "Search failed - some nested retrievers returned errors. "
-                                + "Please consider using [allow_partial_search_results] if you want to ignore these errors."
-                        );
+                        IllegalStateException ex = new IllegalStateException("Search failed - some nested retrievers returned errors.");
                         failures.forEach(ex::addSuppressed);
                         listener.onFailure(ex);
                     } else {
@@ -177,14 +170,12 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
     @SuppressWarnings("unchecked")
     public boolean doEquals(Object o) {
         CompoundRetrieverBuilder<?> that = (CompoundRetrieverBuilder<?>) o;
-        return rankWindowSize == that.rankWindowSize
-            && Objects.equals(innerRetrievers, that.innerRetrievers)
-            && allowPartialSearchResults() == that.allowPartialSearchResults;
+        return rankWindowSize == that.rankWindowSize && Objects.equals(innerRetrievers, that.innerRetrievers);
     }
 
     @Override
     public int doHashCode() {
-        return Objects.hash(innerRetrievers, Arrays.hashCode(rankDocs), allowPartialSearchResults);
+        return Objects.hash(innerRetrievers, Arrays.hashCode(rankDocs));
     }
 
     private SearchSourceBuilder createSearchSourceBuilder(PointInTimeBuilder pit, RetrieverBuilder retrieverBuilder) {

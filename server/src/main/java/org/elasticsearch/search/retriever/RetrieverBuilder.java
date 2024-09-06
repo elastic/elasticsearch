@@ -54,8 +54,6 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
 
     public static final ParseField NAME_FIELD = new ParseField("_name");
 
-    public static final ParseField ALLOW_PARTIAL_SEARCH_RESULTS_FIELD = new ParseField("allow_partial_search_results");
-
     protected static void declareBaseParserFields(
         String name,
         AbstractObjectParser<? extends RetrieverBuilder, RetrieverParserContext> parser
@@ -66,16 +64,10 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
             return preFilterQueryBuilder;
         }, PRE_FILTER_FIELD);
         parser.declareString(RetrieverBuilder::retrieverName, NAME_FIELD);
-        parser.declareBoolean(RetrieverBuilder::allowPartialSearchResults, ALLOW_PARTIAL_SEARCH_RESULTS_FIELD);
     }
 
     public RetrieverBuilder retrieverName(String retrieverName) {
         this.retrieverName = retrieverName;
-        return this;
-    }
-
-    public RetrieverBuilder allowPartialSearchResults(boolean allowPartialSearchResults) {
-        this.allowPartialSearchResults = allowPartialSearchResults;
         return this;
     }
 
@@ -193,7 +185,6 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
     protected List<QueryBuilder> preFilterQueryBuilders = new ArrayList<>();
 
     protected String retrieverName;
-    protected boolean allowPartialSearchResults;
 
     /**
      * Determines if this retriever contains sub-retrievers that need to be executed prior to search.
@@ -295,10 +286,6 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
 
     public String retrieverName() {
         return retrieverName;
-    }
-
-    public boolean allowPartialSearchResults() {
-        return allowPartialSearchResults;
     }
 
     // ---- END FOR TESTING ----

@@ -7,12 +7,15 @@
 
 package org.elasticsearch.xpack.core.template;
 
+import org.elasticsearch.xpack.core.template.resources.TemplateResources;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 public class ResourceUtils {
+
     static byte[] loadVersionedResourceUTF8(Class<?> clazz, String name, int version, String versionProperty) {
         return loadVersionedResourceUTF8(clazz, name, version, versionProperty, Map.of());
     }
@@ -25,7 +28,7 @@ public class ResourceUtils {
         Map<String, String> variables
     ) {
         try {
-            String content = loadResource(clazz, name);
+            String content = loadResourceWithFallback(clazz, name);
             content = TemplateUtils.replaceVariables(content, String.valueOf(version), versionProperty, variables);
             return content.getBytes(StandardCharsets.UTF_8);
         } catch (IOException e) {
@@ -33,8 +36,11 @@ public class ResourceUtils {
         }
     }
 
-    public static String loadResource(Class<?> clazz, String name) throws IOException {
+    static String loadResourceWithFallback(Class<?> clazz, String name) throws IOException {
         InputStream is = clazz.getResourceAsStream(name);
+        if (is == null) {
+            is = TemplateResources.class.getResourceAsStream("/"+clazz.getPackageName()+name);
+        }
         if (is == null) {
             throw new IOException("Resource [" + name + "] not found in classpath.");
         }

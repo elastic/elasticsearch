@@ -31,7 +31,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.template.ResourceUtils.loadResource;
+import static org.elasticsearch.xpack.core.template.ResourceUtils.loadResourceWithFallback;
 import static org.elasticsearch.xpack.core.template.ResourceUtils.loadVersionedResourceUTF8;
 
 /**
@@ -64,7 +64,7 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
         try {
             final Map<String, Object> resources = XContentHelper.convertToMap(
                 YamlXContent.yamlXContent,
-                loadResource(this.getClass(), "/resources.yaml"),
+                loadResourceWithFallback(this.getClass(), "/resources.yaml"),
                 false
             );
             version = (((Number) resources.get("version")).intValue());

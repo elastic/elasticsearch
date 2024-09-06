@@ -130,7 +130,7 @@ public class RestRequestTests extends ESTestCase {
                 .contentOrSourceParam()
                 .v2()
         );
-        e = expectThrows(IllegalStateException.class, () -> contentRestRequest("", Map.of("source", "stuff2")).contentOrSourceParam());
+        e = expectThrows(IllegalArgumentException.class, () -> contentRestRequest("", Map.of("source", "stuff2")).contentOrSourceParam());
         assertEquals("source and source_content_type parameters are required", e.getMessage());
     }
 
@@ -246,7 +246,7 @@ public class RestRequestTests extends ESTestCase {
                 .requiredContent()
         );
         assertEquals("request body is required", e.getMessage());
-        e = expectThrows(IllegalStateException.class, () -> contentRestRequest("test", null, Collections.emptyMap()).requiredContent());
+        e = expectThrows(IllegalArgumentException.class, () -> contentRestRequest("test", null, Collections.emptyMap()).requiredContent());
         assertEquals("unknown content type", e.getMessage());
     }
 

@@ -229,8 +229,17 @@ public final class Case extends EsqlScalarFunction {
             }
             if (Boolean.TRUE.equals(condition.condition.fold())) {
                 /*
-                 * multivalued fields fold to null which folds to false.
-                 * So they *are* foldable if the value is foldable.
+                 * `fold` can make four things here:
+                 * 1. `TRUE`
+                 * 2. `FALSE`
+                 * 3. null
+                 * 4. A list with more than one `TRUE` or `FALSE` in it.
+                 *
+                 * In the first case, we're foldable if the condition is foldable.
+                 * The multivalued field will make a warning, but eventually
+                 * become null. And null will become false. So cases 2-4 are
+                 * the same. In those cases we are foldable only if the *rest*
+                 * of the condition is foldable.
                  */
                 return condition.value.foldable();
             }
@@ -267,8 +276,17 @@ public final class Case extends EsqlScalarFunction {
             modified = true;
             if (Boolean.TRUE.equals(condition.condition.fold())) {
                 /*
-                 * multivalued fields fold to null which folds to false.
-                 * So they *are* foldable if the value is foldable.
+                 * `fold` can make four things here:
+                 * 1. `TRUE`
+                 * 2. `FALSE`
+                 * 3. null
+                 * 4. A list with more than one `TRUE` or `FALSE` in it.
+                 *
+                 * In the first case, we fold to the value of the condition.
+                 * The multivalued field will make a warning, but eventually
+                 * become null. And null will become false. So cases 2-4 are
+                 * the same. In those cases we fold the entire condition
+                 * away, returning just what ever's remaining in the CASE.
                  */
                 newChildren.add(condition.value);
                 return finishPartialFold(newChildren);

@@ -31,8 +31,7 @@ public class LicenseUtils {
     public static String formatMillis(long millis) {
         // DateFormatters logs a warning about the pattern on COMPAT
         // this will be confusing to users, so call DateTimeFormatter directly instead
-        return DateTimeFormatter.ofPattern("EEEE, MMMM dd, yyyy")
-            .withLocale(Locale.ENGLISH)
+        return DateTimeFormatter.ofPattern("EEEE, MMMM dd, yyyy", Locale.ENGLISH)
             .format(Instant.ofEpochMilli(millis).atOffset(ZoneOffset.UTC));
     }
 

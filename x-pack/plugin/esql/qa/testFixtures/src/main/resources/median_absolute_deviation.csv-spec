@@ -12,6 +12,7 @@ MEDIAN(salary):double | MEDIAN_ABSOLUTE_DEVIATION(salary):double
 ;
 
 medianAbsoluteDeviationFold
+required_capability: fn_mv_median_absolute_deviation
 ROW x = [0, 2, 5, 6]
 | STATS
     int_constant = MEDIAN_ABSOLUTE_DEVIATION([0, 2, 5, 6]::integer),

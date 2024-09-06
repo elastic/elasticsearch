@@ -45,7 +45,6 @@ public final class DelayedBucket<B extends InternalMultiBucketAggregation.Intern
      * It is expected the {@link AggregationReduceContext} is the one from final reduce.
      */
     public B reduced(BiFunction<List<B>, AggregationReduceContext, B> reduce, AggregationReduceContext reduceContext) {
-        assert reduceContext.isFinalReduce() : "expected a final reduce context";
         if (reduced == null) {
             reduceContext.consumeBucketsAndMaybeBreak(1);
             reduced = reduce.apply(toReduce, reduceContext);

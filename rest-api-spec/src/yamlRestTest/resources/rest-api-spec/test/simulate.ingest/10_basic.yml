@@ -261,7 +261,9 @@ setup:
 "Test mapping validation from templates":
 
   - skip:
-      features: headers
+      features:
+        - headers
+        - allowed_warnings
 
   - requires:
       cluster_features: ["simulate.mapping.validation.templates"]

@@ -5,7 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.elasticsearch.example.customsettings;
+package org.elasticsearch.example.customprocessor;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
@@ -13,9 +13,9 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
 /**
- * {@link ExampleCustomSettingsClientYamlTestSuiteIT} executes the plugin's REST API integration tests.
+ * {@link ExampleProcessorClientYamlTestSuiteIT} executes the plugin's REST API integration tests.
  * <p>
- * The tests can be executed using the command: ./gradlew :custom-settings:yamlRestTest
+ * The tests can be executed using the command: ./gradlew :custom-processor:yamlRestTest
  * <p>
  * This class extends {@link ESClientYamlSuiteTestCase}, which takes care of parsing the YAML files
  * located in the src/yamlRestTest/resources/rest-api-spec/test/ directory and validates them against the
@@ -25,9 +25,9 @@ import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
  * integration cluster which has the plugin already installed by the Gradle build script.
  * </p>
  */
-public class ExampleCustomSettingsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+public class ExampleProcessorClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
-    public ExampleCustomSettingsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
+    public ExampleProcessorClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

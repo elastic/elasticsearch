@@ -178,6 +178,9 @@ tests:
 - class: org.elasticsearch.search.basic.SearchWhileRelocatingIT
   method: testSearchAndRelocateConcurrentlyRandomReplicas
   issue: https://github.com/elastic/elasticsearch/issues/112515
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=terms_enum/10_basic/Test search after on unconfigured constant keyword field}
+  issue: https://github.com/elastic/elasticsearch/issues/112624
 
 # Examples:
 #

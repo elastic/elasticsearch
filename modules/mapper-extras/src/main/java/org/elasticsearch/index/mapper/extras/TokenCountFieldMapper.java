@@ -87,7 +87,7 @@ public class TokenCountFieldMapper extends FieldMapper {
                 nullValue.getValue(),
                 meta.getValue()
             );
-            return new TokenCountFieldMapper(leafName(), ft, multiFieldsBuilder.build(this, context), copyTo, this);
+            return new TokenCountFieldMapper(leafName(), ft, builderParams(this, context), this);
         }
     }
 
@@ -135,14 +135,8 @@ public class TokenCountFieldMapper extends FieldMapper {
     private final boolean enablePositionIncrements;
     private final Integer nullValue;
 
-    protected TokenCountFieldMapper(
-        String simpleName,
-        MappedFieldType defaultFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
-        Builder builder
-    ) {
-        super(simpleName, defaultFieldType, multiFields, copyTo);
+    protected TokenCountFieldMapper(String simpleName, MappedFieldType defaultFieldType, BuilderParams builderParams, Builder builder) {
+        super(simpleName, defaultFieldType, builderParams);
         this.analyzer = builder.analyzer.getValue();
         this.enablePositionIncrements = builder.enablePositionIncrements.getValue();
         this.nullValue = builder.nullValue.getValue();

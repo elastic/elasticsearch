@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.gradle.internal;
 
-import org.elasticsearch.gradle.Architecture;
-import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 
@@ -27,7 +25,6 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableList;
 
@@ -123,9 +120,10 @@ public class BwcVersions {
     }
 
     public void forPreviousUnreleased(Consumer<UnreleasedVersionInfo> consumer) {
-        filterSupportedVersions(
-            getUnreleased().stream().filter(version -> version.equals(currentVersion) == false).collect(Collectors.toList())
-        ).stream().map(unreleased::get).forEach(consumer);
+        getUnreleased().stream()
+            .filter(version -> version.equals(currentVersion) == false)
+            .map(unreleased::get)
+            .forEach(consumer);
     }
 
     private String getBranchFor(Version version) {
@@ -232,16 +230,9 @@ public class BwcVersions {
     }
 
     /**
-     * Return versions of Elasticsearch which are index compatible with the current version, and also work on the local machine.
+     * Return versions of Elasticsearch which are index compatible with the current version.
      */
     public List<Version> getIndexCompatible() {
-        return filterSupportedVersions(getAllIndexCompatible());
-    }
-
-    /**
-     * Return all versions of Elasticsearch which are index compatible with the current version.
-     */
-    public List<Version> getAllIndexCompatible() {
         return versions.stream().filter(v -> v.getMajor() >= (currentVersion.getMajor() - 1)).toList();
     }
 
@@ -254,7 +245,7 @@ public class BwcVersions {
     }
 
     public List<Version> getWireCompatible() {
-        return filterSupportedVersions(versions.stream().filter(v -> v.compareTo(getMinimumWireCompatibleVersion()) >= 0).toList());
+        return versions.stream().filter(v -> v.compareTo(getMinimumWireCompatibleVersion()) >= 0).toList();
     }
 
     public void withWireCompatible(BiConsumer<Version, String> versionAction) {
@@ -263,20 +254,6 @@ public class BwcVersions {
 
     public void withWireCompatible(Predicate<Version> filter, BiConsumer<Version, String> versionAction) {
         getWireCompatible().stream().filter(filter).forEach(v -> versionAction.accept(v, "v" + v.toString()));
-    }
-
-    private List<Version> filterSupportedVersions(List<Version> wireCompat) {
-        Predicate<Version> supported = v -> true;
-        if (Architecture.current() == Architecture.AARCH64) {
-            final String version;
-            if (ElasticsearchDistribution.CURRENT_PLATFORM.equals(ElasticsearchDistribution.Platform.DARWIN)) {
-                version = "7.16.0";
-            } else {
-                version = "7.12.0"; // linux shipped earlier for aarch64
-            }
-            supported = v -> v.onOrAfter(version);
-        }
-        return wireCompat.stream().filter(supported).collect(Collectors.toList());
     }
 
     public List<Version> getUnreleasedIndexCompatible() {

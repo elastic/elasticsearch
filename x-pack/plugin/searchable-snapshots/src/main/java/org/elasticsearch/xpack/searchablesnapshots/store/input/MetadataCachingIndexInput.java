@@ -552,6 +552,11 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
                 return directory.blobContainer()
                     .readBlob(OperationPurpose.SNAPSHOT_DATA, fileInfo.partName(currentPart), startInPart, length);
             }
+
+            @Override
+            public boolean markSupported() {
+                return false;
+            }
         };
     }
 

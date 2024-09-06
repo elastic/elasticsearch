@@ -157,6 +157,44 @@ public class SlicedInputStreamTests extends ESTestCase {
         assertThat(input.read(), equalTo(-1));
     }
 
+    public void testMarkResetUnsupportedStream() throws IOException {
+        final int slices = randomIntBetween(1, 20);
+        SlicedInputStream input = new SlicedInputStream(slices) {
+            @Override
+            protected InputStream openSlice(int slice) throws IOException {
+                return new ByteArrayInputStream(new byte[] { 0 }, 0, 1);
+            }
+
+            @Override
+            public boolean markSupported() {
+                return false;
+            }
+        };
+
+        input.mark(Integer.MAX_VALUE);
+        expectThrows(IOException.class, input::reset);
+        input.close();
+    }
+
+    public void testMarkResetZeroSlices() throws IOException {
+        SlicedInputStream input = new SlicedInputStream(0) {
+            @Override
+            protected InputStream openSlice(int slice) throws IOException {
+                throw new AssertionError("should not be called");
+            }
+        };
+
+        if (randomBoolean()) {
+            // randomly initialize the stream
+            assertThat(input.read(), equalTo(-1));
+        }
+
+        input.mark(Integer.MAX_VALUE);
+        input.reset();
+        assertThat(input.read(), equalTo(-1));
+        input.close();
+    }
+
     private int readFully(InputStream stream, byte[] buffer) throws IOException {
         for (int i = 0; i < buffer.length;) {
             int read = stream.read(buffer, i, buffer.length - i);

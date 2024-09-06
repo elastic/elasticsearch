@@ -53,8 +53,9 @@ public abstract class SlicedInputStream extends InputStream {
 
     /**
      * Called for each logical slice given a zero based slice ordinal.
-     * The function must be able to be called again to open a previous slice. This ensures we can support the mark/reset functionality and
-     * {@link InputStream#markSupported()} being true. The returned InputStreams do not need to support mark/reset.
+     *
+     * Note that if {@link InputStream#markSupported()} is true (can be overridden to return false), the function may be called again to
+     * open a previous slice. The returned InputStreams themselves do not need to support mark/reset.
      */
     protected abstract InputStream openSlice(int slice) throws IOException;
 
@@ -119,8 +120,8 @@ public abstract class SlicedInputStream extends InputStream {
     public void mark(int readLimit) {
         // We ignore readLimit since openSlice() can re-open previous InputStreams, and we can skip as many bytes as we'd like.
         // According to JDK documentation, marking a closed InputStream should have no effect.
-        if (closed == false) {
-            if (initialized && nextSlice > 0) { // nextSlice > 0 guards the case it is initialized and numSlices is 0.
+        if (markSupported() && closed == false && numSlices > 0) {
+            if (initialized) {
                 markedSlice = nextSlice - 1;
                 markedSliceOffset = currentSliceOffset;
             } else {
@@ -132,16 +133,20 @@ public abstract class SlicedInputStream extends InputStream {
 
     @Override
     public void reset() throws IOException {
-        // JDK documentation does not clarify if a closed InputStream (that has been previously marked) can be reset. We assume the same
-        // behavior specified for mark(), i.e., that reset on a closed InputStream has no effect.
-        if (closed == false) {
-            if (markedSlice < 0 || markedSliceOffset < 0) {
-                throw new IOException("Mark has not been set");
-            }
+        if (markSupported()) {
+            // JDK documentation does not clarify if a closed InputStream (that has been previously marked) can be reset. We assume the same
+            // behavior specified for mark(), i.e., that reset on a closed InputStream has no effect.
+            if (closed == false && numSlices > 0) {
+                if (markedSlice < 0 || markedSliceOffset < 0) {
+                    throw new IOException("Mark has not been set");
+                }
 
-            nextSlice = markedSlice;
-            nextStream();
-            skipNBytes(markedSliceOffset);
+                nextSlice = markedSlice;
+                nextStream();
+                skipNBytes(markedSliceOffset);
+            }
+        } else {
+            throw new IOException("mark/reset not supported");
         }
     }
 }

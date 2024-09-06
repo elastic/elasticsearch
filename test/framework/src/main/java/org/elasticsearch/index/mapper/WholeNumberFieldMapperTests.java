@@ -9,11 +9,15 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.index.IndexMode;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 
 public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests {
 
@@ -69,17 +73,30 @@ public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests
         }
     }
 
-    public void testDimensionMultiValuedField() throws IOException {
+    public void testDimensionMultiValuedFieldTSDB() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("time_series_dimension", true);
-        }));
+        }), IndexMode.TIME_SERIES);
 
         Exception e = expectThrows(
             DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.array("field", randomNumber(), randomNumber(), randomNumber())))
         );
         assertThat(e.getCause().getMessage(), containsString("Dimension field [field] cannot be a multi-valued field"));
+    }
+
+    public void testDimensionMultiValuedFieldNonTSDB() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_dimension", true);
+        }), randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB));
+
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.array("field", randomNumber(), randomNumber(), randomNumber());
+            b.field("@timestamp", Instant.now());
+        }));
+        assertThat(doc.docs().get(0).getFields("field"), hasSize(greaterThan(1)));
     }
 
     public void testMetricAndDimension() {

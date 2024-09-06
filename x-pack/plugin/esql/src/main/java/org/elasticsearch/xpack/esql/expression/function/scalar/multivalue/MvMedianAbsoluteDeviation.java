@@ -137,7 +137,9 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
     }
 
     /**
-     * If the values are ascending, we avoid the initial sorting.
+     * Similar to the code in `finish`, for when the values are in ascending order. The major differences are:
+     * - As values are sorted, we don't need to sort them for the first median calculation.
+     * - We take the values directly from the block instead of from the helper object.
      */
     static int ascending(Longs longs, IntBlock values, int firstValue, int count) {
         try {
@@ -184,7 +186,9 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
     }
 
     /**
-     * If the values are ascending, we avoid the initial sorting.
+     * Similar to the code in `finish`, for when the values are in ascending order. The major differences are:
+     * - As values are sorted, we don't need to sort them for the first median calculation.
+     * - We take the values directly from the block instead of from the helper object.
      */
     static long ascending(Longs longs, LongBlock values, int firstValue, int count) {
         try {
@@ -245,7 +249,9 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
     }
 
     /**
-     * If the values are ascending, we avoid the initial sorting.
+     * Similar to the code in `finish`, for when the values are in ascending order. The major differences are:
+     * - As values are sorted, we don't need to sort them for the first median calculation.
+     * - We take the values directly from the block instead of from the helper object.
      */
     static double ascending(Doubles doubles, DoubleBlock values, int firstValue, int count) {
         try {
@@ -303,7 +309,9 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
     }
 
     /**
-     * If the values are ascending, we avoid the initial sorting.
+     * Similar to the code in `finish`, for when the values are in ascending order. The major differences are:
+     * - As values are sorted, we don't need to sort them for the first median calculation.
+     * - We take the values directly from the block instead of from the helper object.
      */
     static long ascendingUnsignedLong(Longs longs, LongBlock values, int firstValue, int count) {
         try {

@@ -60,7 +60,7 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
     }
 
     void validateIndices(@Nullable Set<String> indices) {
-        if (indices != null && isOperator() == false) {
+        if (indices != null && isInternalRequest() == false) {
             for (String index : indices) {
                 if (Strings.hasLength(index)) {
                     char c = getFirstChar(index);
@@ -92,7 +92,13 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
         return c;
     }
 
-    private boolean isOperator() {
-        return Optional.ofNullable(threadContext.getHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER)).map(Strings::hasText).orElse(false);
+    private boolean isInternalRequest() {
+        final String actionOrigin = threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME);
+        final boolean isSystemContext = threadContext.isSystemContext();
+        final boolean isInternalOrigin = Optional.ofNullable(actionOrigin).map(Strings::hasText).orElse(false);
+        final boolean hasElasticOriginHeader = Optional.ofNullable(threadContext.getHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER))
+            .map(Strings::hasText)
+            .orElse(false);
+        return isSystemContext || isInternalOrigin || hasElasticOriginHeader;
     }
 }

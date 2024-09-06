@@ -109,7 +109,7 @@ public class SlicedInputStreamTests extends ESTestCase {
         expectThrows(IOException.class, input::reset);
 
         // Mark
-        input.mark(Integer.MAX_VALUE);
+        input.mark(randomNonNegativeInt());
 
         // Read up to another random point
         final int moreBytes = randomIntBetween(0, bytes.length - mark);
@@ -148,12 +148,13 @@ public class SlicedInputStreamTests extends ESTestCase {
         };
 
         input.skip(randomIntBetween(1, slices));
-        input.mark(Integer.MAX_VALUE);
+        input.mark(randomNonNegativeInt());
         input.close();
+        // SlicedInputStream supports reading -1 after close without throwing
         assertThat(input.read(), equalTo(-1));
-        input.reset();
+        expectThrows(IOException.class, input::reset);
         assertThat(input.read(), equalTo(-1));
-        input.mark(Integer.MAX_VALUE);
+        input.mark(randomNonNegativeInt());
         assertThat(input.read(), equalTo(-1));
     }
 
@@ -171,7 +172,7 @@ public class SlicedInputStreamTests extends ESTestCase {
             }
         };
 
-        input.mark(Integer.MAX_VALUE);
+        input.mark(randomNonNegativeInt());
         expectThrows(IOException.class, input::reset);
         input.close();
     }
@@ -189,7 +190,7 @@ public class SlicedInputStreamTests extends ESTestCase {
             assertThat(input.read(), equalTo(-1));
         }
 
-        input.mark(Integer.MAX_VALUE);
+        input.mark(randomNonNegativeInt());
         input.reset();
         assertThat(input.read(), equalTo(-1));
         input.close();

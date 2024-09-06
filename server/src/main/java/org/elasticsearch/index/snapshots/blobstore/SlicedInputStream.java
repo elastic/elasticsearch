@@ -98,11 +98,11 @@ public abstract class SlicedInputStream extends InputStream {
 
     @Override
     public void close() throws IOException {
-        IOUtils.close(currentStream);
         closed = true;
         initialized = true;
         currentStream = null;
         currentSliceOffset = 0;
+        IOUtils.close(currentStream);
     }
 
     public boolean isClosed() {
@@ -138,9 +138,9 @@ public abstract class SlicedInputStream extends InputStream {
     @Override
     public void reset() throws IOException {
         if (markSupported()) {
-            // JDK documentation does not clarify if a closed InputStream (that has been previously marked) can be reset. We assume the same
-            // behavior specified for mark(), i.e., that reset on a closed InputStream has no effect.
-            if (isClosed() == false && numSlices > 0) {
+            if (isClosed()) {
+                throw new IOException("reset called on a closed stream");
+            } else if (numSlices > 0) {
                 if (markedSlice < 0 || markedSliceOffset < 0) {
                     throw new IOException("Mark has not been set");
                 }

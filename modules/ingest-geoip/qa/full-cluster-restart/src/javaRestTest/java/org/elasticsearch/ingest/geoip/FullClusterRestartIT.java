@@ -12,6 +12,7 @@ import fixture.geoip.GeoIpHttpFixture;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -32,6 +33,8 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.contains;
 
+@UpdateForV9
+@LuceneTestCase.AwaitsFix(bugUrl = "we need to figure out the index migrations here for 9.0")
 public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCase {
 
     private static final boolean useFixture = Boolean.getBoolean("geoip_use_service") == false;
@@ -60,7 +63,6 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         return cluster;
     }
 
-    @UpdateForV9
     public void testGeoIpSystemFeaturesMigration() throws Exception {
         if (isRunningAgainstOldCluster()) {
             Request enableDownloader = new Request("PUT", "/_cluster/settings");

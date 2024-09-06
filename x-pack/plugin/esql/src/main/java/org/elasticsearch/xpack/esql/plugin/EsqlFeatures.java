@@ -179,6 +179,11 @@ public class EsqlFeatures implements FeatureSpecification {
      */
     public static final NodeFeature RESOLVE_FIELDS_API = new NodeFeature("esql.resolve_fields_api");
 
+    /**
+     * Support categorize
+     */
+    public static final NodeFeature CATEGORIZE = new NodeFeature("esql.categorize");
+
     private Set<NodeFeature> snapshotBuildFeatures() {
         assert Build.current().isSnapshot() : Build.current();
         return Set.of(METRICS_SYNTAX);
@@ -208,7 +213,8 @@ public class EsqlFeatures implements FeatureSpecification {
             METADATA_FIELDS,
             TIMESPAN_ABBREVIATIONS,
             COUNTER_TYPES,
-            RESOLVE_FIELDS_API
+            RESOLVE_FIELDS_API,
+            CATEGORIZE
         );
         if (Build.current().isSnapshot()) {
             return Collections.unmodifiableSet(Sets.union(features, snapshotBuildFeatures()));

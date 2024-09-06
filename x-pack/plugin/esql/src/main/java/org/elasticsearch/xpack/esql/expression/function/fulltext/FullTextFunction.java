@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -27,7 +28,9 @@ import static java.util.Collections.singletonList;
 public abstract class FullTextFunction extends Function implements EvaluatorMapper {
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-        entries.add(QueryStringFunction.ENTRY);
+        if (EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled()) {
+            entries.add(QueryStringFunction.ENTRY);
+        }
         return entries;
     }
 
@@ -60,6 +63,9 @@ public abstract class FullTextFunction extends Function implements EvaluatorMapp
     public abstract Query asQuery();
 
     protected static String unquoteQueryString(String quotedString) {
+        if (quotedString.length() < 2) {
+            return quotedString;
+        }
         return quotedString.substring(1, quotedString.length() - 1);
     }
 }

@@ -1,0 +1,17 @@
+###############################################
+# Tests for QSTR function
+#
+
+qstrWithField
+required_capability: qstr_function
+// tag::qstr-with-field[]
+from books | where qstr("author: Faulkner") | keep book_no, author | sort book_no | LIMIT 5;
+// end::qstr-with-field[]
+
+book_no:keyword | author:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;

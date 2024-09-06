@@ -7,14 +7,18 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Foldables;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
@@ -30,10 +34,15 @@ public class QueryStringFunction extends FullTextFunction {
         QueryStringFunction::new
     );
 
+    @FunctionInfo(
+        returnType = "boolean",
+        description = "Performs a query string query. Returns true if the provided query string matches the row.",
+        examples = { @Example(file = "qstr-function", tag = "qstr-with-field") }
+    )
     public QueryStringFunction(
         Source source,
         @Param(
-            name = "string",
+            name = "query",
             type = { "keyword", "text" },
             description = "Query string in Lucene query string format."
         ) Expression queryString
@@ -47,7 +56,8 @@ public class QueryStringFunction extends FullTextFunction {
 
     @Override
     public Query asQuery() {
-        return new QueryStringQuery(source(), unquoteQueryString(query().sourceText()), Map.of(),null);
+        String queryAsString = ((BytesRef)Foldables.valueOf(query())).utf8ToString();
+        return new QueryStringQuery(source(), queryAsString, Map.of(),null);
     }
 
     @Override

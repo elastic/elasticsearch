@@ -376,6 +376,55 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     /**
      * Expecting
      * LimitExec[1000[INTEGER]]
+     * \_ExchangeExec[[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, gender{f}#4, job{f}#9, job.raw{f}#10, languages{f}#5, last_na
+     * me{f}#6, long_noidx{f}#11, salary{f}#7],false]
+     *   \_ProjectExec[[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, gender{f}#4, job{f}#9, job.raw{f}#10, languages{f}#5, last_na
+     * me{f}#6, long_noidx{f}#11, salary{f}#7]]
+     *     \_FieldExtractExec[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, gen]
+     *       \_EsQueryExec[test], indexMode[standard], query[{"query_string":{"query":"last_name: Smith","fields":[]}}]
+     */
+    public void testQueryStringFunction() {
+        assumeTrue("skipping because QSTR_FUNCTION is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
+        var plan = plannerOptimizer.plan("""
+            from test
+            | where qstr("last_name: Smith")
+            """, IS_SV_STATS);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var query = as(field.child(), EsQueryExec.class);
+        assertThat(query.limit().fold(), is(1000));
+        var expected = QueryBuilders.queryStringQuery("last_name: Smith");
+        assertThat(query.query().toString(), is(expected.toString()));
+    }
+
+    public void testQueryStringFunctionMultipleWhereOperands() {
+        assumeTrue("skipping because QSTR_FUNCTION is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
+        String queryText = """
+            from test
+            | where qstr("last_name: Smith") and emp_no > 10010
+            """;
+        var plan = plannerOptimizer.plan(queryText, IS_SV_STATS);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var query = as(field.child(), EsQueryExec.class);
+        assertThat(query.limit().fold(), is(1000));
+
+        Source filterSource = new Source(2, 37, "emp_no > 10000");
+        var range = wrapWithSingleQuery(queryText, QueryBuilders.rangeQuery("emp_no").gt(10010), "emp_no", filterSource);
+        var queryString = QueryBuilders.queryStringQuery("last_name: Smith");
+        var expected = QueryBuilders.boolQuery().must(queryString).must(range);
+        assertThat(query.query().toString(), is(expected.toString()));
+    }
+
+    /**
+     * Expecting
+     * LimitExec[1000[INTEGER]]
      * \_ExchangeExec[[],false]
      *   \_ProjectExec[[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, gender{f}#4, job{f}#9, job.raw{f}#10, languages{f}#5, last_na
      * me{f}#6, long_noidx{f}#11, salary{f}#7]]

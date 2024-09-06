@@ -91,11 +91,15 @@ final class SystemJvmOptions {
          *  parsing will break in an incompatible way for some date patterns and locales.
          *  //TODO COMPAT will be deprecated in jdk14 https://bugs.openjdk.java.net/browse/JDK-8232906
          * See also: documentation in <code>server/org.elasticsearch.common.time.IsoCalendarDataProvider</code>
+         *
+         * COMPAT is removed in JDK 23, so we have to use CLDR for 23
          */
         if (JavaVersion.majorVersion(JavaVersion.CURRENT) == 8) {
             return "-Djava.locale.providers=SPI,JRE";
-        } else {
+        } else if (JavaVersion.majorVersion(JavaVersion.CURRENT) <= 22) {
             return "-Djava.locale.providers=SPI,COMPAT";
+        } else {
+            return "-Djava.locale.providers=SPI,CLDR";
         }
     }
 

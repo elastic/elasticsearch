@@ -6,30 +6,36 @@
   - do:
       warnings:
         - "Index [.myindex] name begins with a dot (.), which is deprecated, and will not be allowed in a future Elasticsearch version."
-        - "index name [.myindex] starts with a dot '.', in the next major version, index names starting with a dot are reserved for hidden indices and system indices"
       indices.create:
         index: .myindex
+        body:
+          settings:
+            index.hidden: true
 
   - do:
       headers: { X-elastic-product-origin: kibana }
-      warnings:
-        - "index name [.myindex2] starts with a dot '.', in the next major version, index names starting with a dot are reserved for hidden indices and system indices"
       indices.create:
         index: .myindex2
+        body:
+          settings:
+            index.hidden: true
 
   - do:
       warnings_regex:
         - "Index \\[.*\\] name begins with a dot \\(\\.\\), which is deprecated, and will not be allowed in a future Elasticsearch version\\."
-        - "index name \\[.*\\] starts with a dot '\\.', in the next major version, index names starting with a dot are reserved for hidden indices and system indices"
       indices.create:
         index: <.myindex-{now/d}>
+        body:
+          settings:
+            index.hidden: true
 
   - do:
       headers: { X-elastic-product-origin: kibana }
-      warnings_regex:
-        - "index name \\[.*\\] starts with a dot '\\.', in the next major version, index names starting with a dot are reserved for hidden indices and system indices"
       indices.create:
         index: <.myindex2-{now/d}>
+        body:
+          settings:
+            index.hidden: true
 
 ---
 "Reject auto-creation of dot-prefixed indices":

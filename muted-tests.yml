@@ -170,6 +170,8 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.kerberos.SimpleKdcLdapServerTests
   method: testClientServiceMutualAuthentication
   issue: https://github.com/elastic/elasticsearch/issues/112529
+- class: org.elasticsearch.ingest.geoip.IngestGeoIpClientYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/111497
 
 # Examples:
 #

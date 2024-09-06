@@ -120,10 +120,7 @@ public class BwcVersions {
     }
 
     public void forPreviousUnreleased(Consumer<UnreleasedVersionInfo> consumer) {
-        getUnreleased().stream()
-            .filter(version -> version.equals(currentVersion) == false)
-            .map(unreleased::get)
-            .forEach(consumer);
+        getUnreleased().stream().filter(version -> version.equals(currentVersion) == false).map(unreleased::get).forEach(consumer);
     }
 
     private String getBranchFor(Version version) {

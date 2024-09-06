@@ -20,7 +20,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 /**
  * Generic resource watcher service
@@ -76,7 +75,7 @@ public class ResourceWatcherService implements Closeable {
 
     private final boolean enabled;
 
-    private final ScheduledThreadPoolExecutor executor;
+    private final Scheduler.SafeScheduledThreadPoolExecutor executor;
 
     final ResourceMonitor lowMonitor;
     final ResourceMonitor mediumMonitor;

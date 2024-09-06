@@ -172,6 +172,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             (CancellableTask) task,
             physicalPlan,
             configuration,
+            executionInfo,
             resultListener
         );
 
@@ -180,6 +181,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             sessionId,
             configuration,
             enrichPolicyResolver,
+            executionInfo,
+            remoteClusterService,
             runPhase,
             listener.map(result -> toResponse(task, request, configuration, result))
         );

@@ -17,6 +17,8 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
@@ -88,6 +90,7 @@ public class EsqlSession {
     private final Mapper mapper;
     private final PhysicalPlanOptimizer physicalPlanOptimizer;
     private final PlanningMetrics planningMetrics;
+    private final RemoteClusterService remoteClusterService;
 
     public EsqlSession(
         String sessionId,
@@ -99,7 +102,8 @@ public class EsqlSession {
         LogicalPlanOptimizer logicalPlanOptimizer,
         Mapper mapper,
         Verifier verifier,
-        PlanningMetrics planningMetrics
+        PlanningMetrics planningMetrics,
+        RemoteClusterService remoteClusterService
     ) {
         this.sessionId = sessionId;
         this.configuration = configuration;
@@ -112,6 +116,7 @@ public class EsqlSession {
         this.logicalPlanOptimizer = logicalPlanOptimizer;
         this.physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
         this.planningMetrics = planningMetrics;
+        this.remoteClusterService = remoteClusterService;
     }
 
     public String sessionId() {
@@ -123,6 +128,7 @@ public class EsqlSession {
      */
     public void execute(
         EsqlQueryRequest request,
+        EsqlExecutionInfo executionInfo,
         BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase,
         ActionListener<Result> listener
     ) {

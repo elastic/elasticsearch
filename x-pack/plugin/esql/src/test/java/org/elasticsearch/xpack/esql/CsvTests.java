@@ -423,7 +423,8 @@ public class CsvTests extends ESTestCase {
             new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration)),
             mapper,
             TEST_VERIFIER,
-            new PlanningMetrics()
+            new PlanningMetrics(),
+            null  // MP TODO: need to pass in mock?
         );
         TestPhysicalOperationProviders physicalOperationProviders = testOperationProviders(testDataset);
 

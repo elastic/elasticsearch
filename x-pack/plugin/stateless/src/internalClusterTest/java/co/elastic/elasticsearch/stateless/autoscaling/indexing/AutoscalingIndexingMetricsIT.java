@@ -68,12 +68,14 @@ import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetr
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.NODE_INGEST_LOAD_SNAPSHOTS_METRIC_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 
 public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase {
 
@@ -579,6 +581,53 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
             assertThat(ingestionLoadMetrics, hasSize(numNodes));
             assertTrue(ingestionLoadMetrics.stream().allMatch(l -> l.metricQuality().equals(MetricQuality.EXACT)));
         });
+    }
+
+    public void testOnlyMasterNodePublishesIngestLoadMetrics() throws Exception {
+        final Settings nodeSettings = Settings.builder()
+            .put(IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+            .build();
+        final int numNodes = between(2, 4);
+        IntStream.range(0, numNodes).forEach(i -> startMasterAndIndexNode(nodeSettings));
+        ensureStableCluster(numNodes);
+        final String indexName = randomIdentifier();
+        createIndex(indexName, numNodes, 0);
+        ensureGreen(indexName);
+
+        for (int i = 0; i < numNodes; i++) {
+            indexDocsAndRefresh(indexName, between(10, 50));
+        }
+
+        assertBusy(() -> {
+            final List<NodeIngestLoadSnapshot> ingestNodesLoad = getNodesIngestLoad();
+            assertThat(ingestNodesLoad, hasSize(numNodes));
+        });
+        assertOnlyMasterNodePublishesIngestLoadMetrics();
+
+        for (int i = 0; i < numNodes; i++) {
+            final DiscoveryNode currentMasterNode = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).localNode();
+            markNodesForShutdown(List.of(currentMasterNode), List.of(SingleNodeShutdownMetadata.Type.SIGTERM));
+            assertBusy(() -> assertThat(internalCluster().getMasterName(), is(not(currentMasterNode.getName()))));
+            getNodesIngestLoad(); // trigger metrics recording
+            assertOnlyMasterNodePublishesIngestLoadMetrics();
+            deleteShutdownMetadataForNodes(List.of(currentMasterNode));
+        }
+    }
+
+    private void assertOnlyMasterNodePublishesIngestLoadMetrics() {
+        final String masterName = internalCluster().getMasterName();
+        for (String nodeName : internalCluster().getNodeNames()) {
+            final TestTelemetryPlugin plugin = findPlugin(nodeName, TestTelemetryPlugin.class);
+            // reset to clear previous records, a new collect call should see metrics only on the current master
+            plugin.resetMeter();
+            plugin.collect();
+            final List<Measurement> measurements = plugin.getDoubleGaugeMeasurement(NODE_INGEST_LOAD_SNAPSHOTS_METRIC_NAME);
+            if (nodeName.equals(masterName)) {
+                assertThat(nodeName, measurements, not(empty()));
+            } else {
+                assertThat(nodeName, measurements, empty());
+            }
+        }
     }
 
     public void testLogWarnForIngestionLoadsOlderThanAccurateWindow() throws Exception {

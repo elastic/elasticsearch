@@ -175,6 +175,9 @@ tests:
 - class: org.elasticsearch.script.mustache.LangMustacheClientYamlTestSuiteIT
   method: test {yaml=lang_mustache/50_multi_search_template/Multi-search template with errors}
   issue: https://github.com/elastic/elasticsearch/issues/112580
+- class: org.elasticsearch.xpack.security.authc.kerberos.SimpleKdcLdapServerTests
+  method: testClientServiceMutualAuthentication
+  issue: https://github.com/elastic/elasticsearch/issues/112529
 
 # Examples:
 #

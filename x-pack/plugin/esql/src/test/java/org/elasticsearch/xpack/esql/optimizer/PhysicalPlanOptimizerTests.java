@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -2099,7 +2100,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testProjectAwayColumns() {
-        var rule = new PhysicalPlanOptimizer.ProjectAwayColumns();
+        var rule = new ProjectAwayColumns();
 
         // FROM test | limit 10000
         //

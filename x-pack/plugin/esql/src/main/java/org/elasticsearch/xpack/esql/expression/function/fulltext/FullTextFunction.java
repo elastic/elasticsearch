@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -25,7 +24,7 @@ import java.util.List;
 
 import static java.util.Collections.singletonList;
 
-public abstract class FullTextFunction extends Function implements EvaluatorMapper {
+public abstract class FullTextFunction extends Function {
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         if (EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled()) {

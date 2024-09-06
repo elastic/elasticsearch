@@ -74,9 +74,4 @@ public class QueryStringFunction extends FullTextFunction {
     public String getWriteableName() {
         return ENTRY.name;
     }
-
-    @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator) {
-        throw new UnsupportedOperationException("Evaluator not implemented in QueryStringFunction");
-    }
 }

@@ -157,30 +157,29 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
     // visible for testing
     void startTask(ClusterChangedEvent event) {
         // Wait until every node in the cluster supports health checks
-        if (event.state().clusterRecovered() && featureService.clusterHasFeature(event.state(), HealthFeatures.SUPPORTS_HEALTH)) {
-            boolean healthNodeTaskExists = HealthNode.findTask(event.state()) != null;
-            boolean isElectedMaster = event.localNodeMaster();
-            if (isElectedMaster && healthNodeTaskExists == false) {
-                persistentTasksService.sendStartRequest(
-                    TASK_NAME,
-                    TASK_NAME,
-                    new HealthNodeTaskParams(),
-                    null,
-                    ActionListener.wrap(r -> logger.debug("Created the health node task"), e -> {
-                        if (e instanceof NodeClosedException) {
-                            logger.debug("Failed to create health node task because node is shutting down", e);
-                            return;
+        if (event.localNodeMaster()
+            && event.state().clusterRecovered()
+            && HealthNode.findTask(event.state()) == null
+            && featureService.clusterHasFeature(event.state(), HealthFeatures.SUPPORTS_HEALTH)) {
+            persistentTasksService.sendStartRequest(
+                TASK_NAME,
+                TASK_NAME,
+                new HealthNodeTaskParams(),
+                null,
+                ActionListener.wrap(r -> logger.debug("Created the health node task"), e -> {
+                    if (e instanceof NodeClosedException) {
+                        logger.debug("Failed to create health node task because node is shutting down", e);
+                        return;
+                    }
+                    Throwable t = e instanceof RemoteTransportException ? e.getCause() : e;
+                    if (t instanceof ResourceAlreadyExistsException == false) {
+                        logger.error("Failed to create the health node task", e);
+                        if (enabled) {
+                            clusterService.addListener(taskStarter);
                         }
-                        Throwable t = e instanceof RemoteTransportException ? e.getCause() : e;
-                        if (t instanceof ResourceAlreadyExistsException == false) {
-                            logger.error("Failed to create the health node task", e);
-                            if (enabled) {
-                                clusterService.addListener(taskStarter);
-                            }
-                        }
-                    })
-                );
-            }
+                    }
+                })
+            );
         }
     }
 

@@ -170,7 +170,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         }));
 
         // then validate that the generate document stored both values appropriately and we have only the max value stored
-        FeatureField barField = ((FeatureField) doc1.rootDoc().getByKey("foo.field.bar"));
+        FeatureField barField = ((FeatureField) doc1.rootDoc().getByKey("foo.field..bar"));
         assertEquals(20, barField.getFeatureValue(), 1);
 
         FeatureField storedBarField = ((FeatureField) doc1.rootDoc().getFields("foo.field").get(1));

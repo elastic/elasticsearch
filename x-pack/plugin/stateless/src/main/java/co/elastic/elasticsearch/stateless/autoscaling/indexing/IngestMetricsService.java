@@ -31,15 +31,19 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 import java.util.stream.IntStream;
 
@@ -82,6 +86,8 @@ public class IngestMetricsService implements ClusterStateListener {
         Setting.Property.Dynamic
     );
 
+    public static final String NODE_INGEST_LOAD_SNAPSHOTS_METRIC_NAME = "es.autoscaling.indexing.node_ingest_load.current";
+
     private static final Logger logger = LogManager.getLogger(IngestMetricsService.class);
 
     private volatile TimeValue accurateLoadWindow;
@@ -92,11 +98,15 @@ public class IngestMetricsService implements ClusterStateListener {
     private final LongSupplier relativeTimeInNanosSupplier;
     private final MemoryMetricsService memoryMetricsService;
     private final Map<String, NodeIngestLoad> nodesIngestLoad = ConcurrentCollections.newConcurrentMap();
+    private final AtomicReference<RawAndAdjustedNodeIngestLoadSnapshots> lastNodeIngestLoadSnapshotsRef = new AtomicReference<>();
+
+    record RawAndAdjustedNodeIngestLoadSnapshots(List<NodeIngestLoadSnapshot> raw, @Nullable List<NodeIngestLoadSnapshot> adjusted) {}
 
     public IngestMetricsService(
         ClusterSettings clusterSettings,
         LongSupplier relativeTimeInNanosSupplier,
-        MemoryMetricsService memoryMetricsService
+        MemoryMetricsService memoryMetricsService,
+        MeterRegistry meterRegistry
     ) {
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         this.memoryMetricsService = memoryMetricsService;
@@ -109,6 +119,41 @@ public class IngestMetricsService implements ClusterStateListener {
         clusterSettings.initializeAndWatch(
             LOW_INGESTION_LOAD_WEIGHT_DURING_SCALING,
             value -> this.lowIngestionLoadWeightDuringScaling = value
+        );
+
+        setupMetrics(meterRegistry);
+    }
+
+    private void setupMetrics(MeterRegistry meterRegistry) {
+        meterRegistry.registerDoublesGauge(NODE_INGEST_LOAD_SNAPSHOTS_METRIC_NAME, "The last polled node ingest loads", "unit", () -> {
+            final var lastNodeIngestLoadSnapshots = lastNodeIngestLoadSnapshotsRef.get();
+            if (lastNodeIngestLoadSnapshots == null) {
+                return List.of();
+            }
+            final List<NodeIngestLoadSnapshot> raw = lastNodeIngestLoadSnapshots.raw();
+            final List<NodeIngestLoadSnapshot> adjusted = lastNodeIngestLoadSnapshots.adjusted();
+            final List<DoubleWithAttributes> values = new ArrayList<>(raw.size() + (adjusted == null ? 0 : adjusted.size()));
+            raw.forEach(nodeIngestLoadSnapshot -> values.add(buildNodeIngestLoadMetricValue(nodeIngestLoadSnapshot, false)));
+            if (adjusted != null) {
+                adjusted.forEach(nodeIngestLoadSnapshot -> values.add(buildNodeIngestLoadMetricValue(nodeIngestLoadSnapshot, true)));
+            }
+            return values;
+        });
+    }
+
+    private static DoubleWithAttributes buildNodeIngestLoadMetricValue(NodeIngestLoadSnapshot nodeIngestLoadSnapshot, boolean adjusted) {
+        return new DoubleWithAttributes(
+            nodeIngestLoadSnapshot.load(),
+            Map.of(
+                "node_id",
+                nodeIngestLoadSnapshot.nodeId(),
+                "node_name",
+                nodeIngestLoadSnapshot.nodeName(),
+                "quality",
+                nodeIngestLoadSnapshot.metricQuality(),
+                "adjusted",
+                adjusted
+            )
         );
     }
 
@@ -127,7 +172,7 @@ public class IngestMetricsService implements ClusterStateListener {
         if (event.nodesDelta().masterNodeChanged() || initialized == false) {
             for (DiscoveryNode node : event.state().nodes()) {
                 if (isIndexNode(node)) {
-                    nodesIngestLoad.computeIfAbsent(node.getId(), unused -> new NodeIngestLoad());
+                    nodesIngestLoad.computeIfAbsent(node.getId(), unused -> new NodeIngestLoad(node.getId(), node.getName()));
                 }
             }
             initialized = true;
@@ -136,7 +181,7 @@ public class IngestMetricsService implements ClusterStateListener {
         if (event.nodesChanged()) {
             for (DiscoveryNode node : event.nodesDelta().addedNodes()) {
                 if (isIndexNode(node)) {
-                    nodesIngestLoad.computeIfAbsent(node.getId(), unused -> new NodeIngestLoad());
+                    nodesIngestLoad.computeIfAbsent(node.getId(), unused -> new NodeIngestLoad(node.getId(), node.getName()));
                 }
             }
 
@@ -159,7 +204,7 @@ public class IngestMetricsService implements ClusterStateListener {
         }
     }
 
-    void trackNodeIngestLoad(ClusterState state, String nodeId, long metricSeqNo, double newIngestLoad) {
+    void trackNodeIngestLoad(ClusterState state, String nodeId, String nodeName, long metricSeqNo, double newIngestLoad) {
         // Drop a (delayed) metric publication from a planned removal that finished successfully (i.e. left no unassigned shards behind).
         // However, if the metric arrives after the node is gone and there is no shutdown metadata, we're treating it as we
         // do for nodes that disappear w/o any shutdown marker, i.e., we assume this is a node that temporarily dropped
@@ -169,7 +214,8 @@ public class IngestMetricsService implements ClusterStateListener {
             logger.debug("dropping ingestion load metric received from removed node {} which left no shards unassigned", nodeId);
             return;
         }
-        var nodeIngestStats = nodesIngestLoad.computeIfAbsent(nodeId, unused -> new NodeIngestLoad());
+
+        var nodeIngestStats = nodesIngestLoad.computeIfAbsent(nodeId, unused -> new NodeIngestLoad(nodeId, nodeName));
         // We track ingestion loads from nodes that left unassigned shards with a MINIMUM quality, to avoid scale down.
         var quality = state.nodes().get(nodeId) != null ? MetricQuality.EXACT : MetricQuality.MINIMUM;
         nodeIngestStats.setLatestReadingTo(newIngestLoad, metricSeqNo, quality);
@@ -200,7 +246,15 @@ public class IngestMetricsService implements ClusterStateListener {
             highIngestionLoadWeightDuringScaling,
             lowIngestionLoadWeightDuringScaling
         );
+        lastNodeIngestLoadSnapshotsRef.set(
+            new RawAndAdjustedNodeIngestLoadSnapshots(ingestLoads, adjustedIngestLoads == ingestLoads ? null : adjustedIngestLoads)
+        );
         return new IndexTierMetrics(adjustedIngestLoads, memoryMetricsService.getMemoryMetrics());
+    }
+
+    // Package private for testing
+    RawAndAdjustedNodeIngestLoadSnapshots getLastNodeIngestLoadSnapshots() {
+        return lastNodeIngestLoadSnapshotsRef.get();
     }
 
     private boolean shouldRemoveIngestLoadEntry(ClusterState state, String nodeId, NodeIngestLoad nodeIngestLoad) {
@@ -255,9 +309,14 @@ public class IngestMetricsService implements ClusterStateListener {
             .count();
         ingestLoads.sort(Comparator.comparingDouble(NodeIngestLoadSnapshot::load));
         final List<NodeIngestLoadSnapshot> adjustedIngestLoads = IntStream.range(0, ingestLoads.size()).mapToObj(i -> {
-            var load = ingestLoads.get(i).load();
+            final NodeIngestLoadSnapshot ingestLoadSnapshot = ingestLoads.get(i);
             var weight = i < nodesNotShuttingDown ? lowIngestionLoadWeightDuringScaling : highIngestionLoadWeightDuringScaling;
-            return new NodeIngestLoadSnapshot(load * weight, MetricQuality.MINIMUM);
+            return new NodeIngestLoadSnapshot(
+                ingestLoadSnapshot.nodeId(),
+                ingestLoadSnapshot.nodeName(),
+                ingestLoadSnapshot.load() * weight,
+                MetricQuality.MINIMUM
+            );
         }).toList();
         logger.debug(
             () -> Strings.format(
@@ -320,10 +379,17 @@ public class IngestMetricsService implements ClusterStateListener {
     }
 
     private class NodeIngestLoad {
+        private final String nodeId;
+        private final String nodeName;
         private double ingestLoad;
         private long latestSampleTimeInNanos = relativeTimeInNanos();
         private long maxSeqNo = Long.MIN_VALUE;
         private MetricQuality quality = MetricQuality.MISSING;
+
+        NodeIngestLoad(String nodeId, String nodeName) {
+            this.nodeId = nodeId;
+            this.nodeName = nodeName;
+        }
 
         synchronized void setLatestReadingTo(double ingestLoad, long metricSeqNo, MetricQuality quality) {
             if (metricSeqNo > maxSeqNo) {
@@ -342,7 +408,7 @@ public class IngestMetricsService implements ClusterStateListener {
             if (quality == MetricQuality.EXACT && isWithinAccurateWindow() == false) {
                 quality = MetricQuality.MINIMUM;
             }
-            return new NodeIngestLoadSnapshot(ingestLoad, quality);
+            return new NodeIngestLoadSnapshot(nodeId, nodeName, ingestLoad, quality);
         }
 
         synchronized boolean isWithinAccurateWindow() {

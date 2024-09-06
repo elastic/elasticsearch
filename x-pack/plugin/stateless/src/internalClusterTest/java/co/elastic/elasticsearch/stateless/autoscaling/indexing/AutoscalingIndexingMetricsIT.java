@@ -36,7 +36,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -59,11 +59,13 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.ACCURATE_LOAD_WINDOW;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.HIGH_INGESTION_LOAD_WEIGHT_DURING_SCALING;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.LOW_INGESTION_LOAD_WEIGHT_DURING_SCALING;
+import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.NODE_INGEST_LOAD_SNAPSHOTS_METRIC_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -257,12 +259,13 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
     public void testAverageWriteLoadSamplerDynamicEwmaAlphaSetting() throws Exception {
         var master = startMasterOnlyNode();
         // Reduce the time between publications, so we can expect at least one publication per second.
-        startIndexNode(
+        final String nodeName = startIndexNode(
             Settings.builder()
                 .put(IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING.getKey(), TimeValue.timeValueSeconds(1))
                 .put(AverageWriteLoadSampler.WRITE_LOAD_SAMPLER_EWMA_ALPHA_SETTING.getKey(), 0.0)
                 .build()
         );
+        final String nodeId = getNodeId(nodeName);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName, indexSettings(1, 0).build());
         ensureGreen(indexName);
@@ -283,7 +286,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         // Wait for a new round of publication of the metrics
         publicationsProcessed.drainPermits();
         safeAcquire(publicationsProcessed);
-        assertThat(getNodesIngestLoad(), equalTo(List.of(new NodeIngestLoadSnapshot(0.0, MetricQuality.EXACT))));
+        assertThat(getNodesIngestLoad(), equalTo(List.of(new NodeIngestLoadSnapshot(nodeId, nodeName, 0.0, MetricQuality.EXACT))));
 
         // As initial value of the EWMA is 0 and Alpha is 0, the EWMA should not change as we index documents.
         logger.info("--> Indexing documents with {}=0.0", AverageWriteLoadSampler.WRITE_LOAD_SAMPLER_EWMA_ALPHA_SETTING.getKey());
@@ -295,7 +298,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         publicationsProcessed.drainPermits();
         safeAcquire(publicationsProcessed);
 
-        assertThat(getNodesIngestLoad(), equalTo(List.of(new NodeIngestLoadSnapshot(0.0, MetricQuality.EXACT))));
+        assertThat(getNodesIngestLoad(), equalTo(List.of(new NodeIngestLoadSnapshot(nodeId, nodeName, 0.0, MetricQuality.EXACT))));
 
         // Updating Alpha means the EWMA would reflect task execution time of new tasks.
         logger.info("--> Updating {} to 0.5", AverageWriteLoadSampler.WRITE_LOAD_SAMPLER_EWMA_ALPHA_SETTING.getKey());
@@ -456,10 +459,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         createIndex(indexName, indexSettings(1, 0).build());
         ensureGreen(indexName);
 
-        final TestTelemetryPlugin plugin = internalCluster().getInstance(PluginsService.class, indexNode)
-            .filterPlugins(TestTelemetryPlugin.class)
-            .findFirst()
-            .orElseThrow();
+        final TestTelemetryPlugin plugin = findPlugin(indexNode, TestTelemetryPlugin.class);
 
         // Make sure all metrics are there
         plugin.collect();
@@ -524,6 +524,13 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
             );
         });
 
+        final TestTelemetryPlugin plugin = findPlugin(internalCluster().getMasterName(), TestTelemetryPlugin.class);
+        plugin.collect();
+        List<Measurement> measurements = plugin.getDoubleGaugeMeasurement(NODE_INGEST_LOAD_SNAPSHOTS_METRIC_NAME);
+        assertThat(measurements.size(), equalTo(numNodes));
+        measurements.forEach(measurement -> assertThat(measurement.attributes().get("adjusted"), is(false)));
+        measurements.forEach(measurement -> assertThat(measurement.attributes().get("quality"), is(MetricQuality.EXACT)));
+
         final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         final List<DiscoveryNode> shuttingDownNodes = randomSubsetOf(
             Math.min(between(1, 3), numNodes),
@@ -537,6 +544,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         // Enable the setting to see ingest load metrics ignored for the nodes with shutdown metadata
         updateClusterSettings(Settings.builder().put(IngestMetricsService.HIGH_INGESTION_LOAD_WEIGHT_DURING_SCALING.getKey(), 0.0));
         updateClusterSettings(Settings.builder().put(IngestMetricsService.LOW_INGESTION_LOAD_WEIGHT_DURING_SCALING.getKey(), 1.0));
+        plugin.resetMeter();
         // Not comparing the exact metric values since new values may have been published.
         // In addition, the more granular comparison is exercised in IngestMetricsServiceTests.
         final var epsilon = 0.0000001;
@@ -550,6 +558,16 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
                 greaterThanOrEqualTo((long) shuttingDownNodes.size())
             );
         });
+
+        plugin.collect();
+        measurements = plugin.getDoubleGaugeMeasurement(NODE_INGEST_LOAD_SNAPSHOTS_METRIC_NAME);
+        assertThat(measurements.size(), equalTo(numNodes * 2));
+        final Map<Object, List<Measurement>> groupedMeasurements = measurements.stream()
+            .collect(Collectors.groupingBy(m -> m.attributes().get("adjusted")));
+        assertThat(groupedMeasurements.get(false), hasSize(numNodes));
+        groupedMeasurements.get(false).forEach(m -> assertThat(m.attributes().get("quality"), is(MetricQuality.EXACT)));
+        assertThat(groupedMeasurements.get(true), hasSize(numNodes));
+        groupedMeasurements.get(true).forEach(m -> assertThat(m.attributes().get("quality"), is(MetricQuality.MINIMUM)));
 
         // Remove shutdown metadata and ingest load metrics will be back to normal
         deleteShutdownMetadataForNodes(shuttingDownNodes);

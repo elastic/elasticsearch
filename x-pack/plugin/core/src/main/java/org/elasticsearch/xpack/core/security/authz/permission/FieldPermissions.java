@@ -33,8 +33,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.apache.lucene.util.automaton.Operations.subsetOf;
-
 /**
  * Stores patterns to fields which access is granted or denied to and maintains an automaton that can be used to check if permission is
  * allowed for a specific field.
@@ -174,10 +172,14 @@ public final class FieldPermissions implements Accountable, CacheKey {
             deniedFieldsAutomaton = Automatons.patterns(deniedFields);
         }
 
-        grantedFieldsAutomaton = Operations.determinize(grantedFieldsAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
-        deniedFieldsAutomaton = Operations.determinize(deniedFieldsAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        grantedFieldsAutomaton = Operations.removeDeadStates(
+            Operations.determinize(grantedFieldsAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
+        );
+        deniedFieldsAutomaton = Operations.removeDeadStates(
+            Operations.determinize(deniedFieldsAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
+        );
 
-        if (subsetOf(deniedFieldsAutomaton, grantedFieldsAutomaton) == false) {
+        if (Automatons.subsetOf(deniedFieldsAutomaton, grantedFieldsAutomaton) == false) {
             throw new ElasticsearchSecurityException(
                 "Exceptions for field permissions must be a subset of the "
                     + "granted fields but "

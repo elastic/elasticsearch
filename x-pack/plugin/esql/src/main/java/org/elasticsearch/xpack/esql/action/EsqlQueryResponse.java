@@ -53,7 +53,6 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     private final boolean isRunning;
     // True if this response is as a result of an async query request
     private final boolean isAsync;
-    private final EsqlExecutionInfo executionInfo;
 
     public EsqlQueryResponse(
         List<ColumnInfoImpl> columns,
@@ -62,8 +61,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         boolean columnar,
         @Nullable String asyncExecutionId,
         boolean isRunning,
-        boolean isAsync,
-        EsqlExecutionInfo executionInfo
+        boolean isAsync
     ) {
         this.columns = columns;
         this.pages = pages;
@@ -72,18 +70,10 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         this.asyncExecutionId = asyncExecutionId;
         this.isRunning = isRunning;
         this.isAsync = isAsync;
-        this.executionInfo = executionInfo;
     }
 
-    public EsqlQueryResponse(
-        List<ColumnInfoImpl> columns,
-        List<Page> pages,
-        @Nullable Profile profile,
-        boolean columnar,
-        boolean isAsync,
-        EsqlExecutionInfo executionInfo
-    ) {
-        this(columns, pages, profile, columnar, null, false, isAsync, executionInfo);
+    public EsqlQueryResponse(List<ColumnInfoImpl> columns, List<Page> pages, @Nullable Profile profile, boolean columnar, boolean isAsync) {
+        this(columns, pages, profile, columnar, null, false, isAsync);
     }
 
     /**
@@ -113,11 +103,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             profile = in.readOptionalWriteable(Profile::new);
         }
         boolean columnar = in.readBoolean();
-        EsqlExecutionInfo executionInfo = null;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_CCS_COMPUTE_RESPONSE)) {
-            in.readOptionalWriteable(EsqlExecutionInfo::new);
-        }
-        return new EsqlQueryResponse(columns, pages, profile, columnar, asyncExecutionId, isRunning, isAsync, executionInfo);
+        return new EsqlQueryResponse(columns, pages, profile, columnar, asyncExecutionId, isRunning, isAsync);
     }
 
     @Override
@@ -133,9 +119,6 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             out.writeOptionalWriteable(profile);
         }
         out.writeBoolean(columnar);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_CCS_COMPUTE_RESPONSE)) {
-            out.writeOptionalWriteable(executionInfo);
-        }
     }
 
     public List<ColumnInfoImpl> columns() {
@@ -181,10 +164,6 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         return isRunning;
     }
 
-    public EsqlExecutionInfo getExecutionInfo() {
-        return executionInfo;
-    }
-
     private Iterator<? extends ToXContent> asyncPropertiesOrEmpty() {
         if (isAsync) {
             return ChunkedToXContentHelper.singleChunk((builder, params) -> {
@@ -199,7 +178,6 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         }
     }
 
-    // MP TODO: update to have EsqlExecutionInfo
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         boolean dropNullColumns = params.paramAsBoolean(DROP_NULL_COLUMNS_OPTION, false);
@@ -256,8 +234,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             && Objects.equals(isRunning, that.isRunning)
             && columnar == that.columnar
             && Iterators.equals(values(), that.values(), (row1, row2) -> Iterators.equals(row1, row2, Objects::equals))
-            && Objects.equals(profile, that.profile)
-            && Objects.equals(executionInfo, that.executionInfo);
+            && Objects.equals(profile, that.profile);
     }
 
     @Override
@@ -267,8 +244,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             isRunning,
             columns,
             Iterators.hashCode(values(), row -> Iterators.hashCode(row, Objects::hashCode)),
-            columnar,
-            executionInfo
+            columnar
         );
     }
 

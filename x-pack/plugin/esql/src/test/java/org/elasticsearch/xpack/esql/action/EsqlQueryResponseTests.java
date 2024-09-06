@@ -123,7 +123,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             id = randomAlphaOfLengthBetween(1, 16);
             isRunning = randomBoolean();
         }
-        return new EsqlQueryResponse(columns, values, profile, columnar, id, isRunning, async, null);
+        return new EsqlQueryResponse(columns, values, profile, columnar, id, isRunning, async);
     }
 
     private ColumnInfoImpl randomColumnInfo() {
@@ -205,30 +205,21 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 List<ColumnInfoImpl> cols = new ArrayList<>(instance.columns());
                 // keep the type the same so the values are still valid but change the name
                 cols.set(mutCol, new ColumnInfoImpl(cols.get(mutCol).name() + "mut", cols.get(mutCol).type()));
-                yield new EsqlQueryResponse(
-                    cols,
-                    deepCopyOfPages(instance),
-                    instance.profile(),
-                    instance.columnar(),
-                    instance.isAsync(),
-                    null
-                );
+                yield new EsqlQueryResponse(cols, deepCopyOfPages(instance), instance.profile(), instance.columnar(), instance.isAsync());
             }
             case 1 -> new EsqlQueryResponse(
                 instance.columns(),
                 deepCopyOfPages(instance),
                 instance.profile(),
                 false == instance.columnar(),
-                instance.isAsync(),
-                null
+                instance.isAsync()
             );
             case 2 -> new EsqlQueryResponse(
                 instance.columns(),
                 deepCopyOfPages(instance),
                 randomValueOtherThan(instance.profile(), this::randomProfile),
                 instance.columnar(),
-                instance.isAsync(),
-                null
+                instance.isAsync()
             );
             case 3 -> {
                 int noPages = instance.pages().size();
@@ -242,8 +233,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     differentPages,
                     instance.profile(),
                     instance.columnar(),
-                    instance.isAsync(),
-                    null
+                    instance.isAsync()
                 );
             }
             default -> throw new IllegalArgumentException();
@@ -320,8 +310,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 false,
                 asyncExecutionId,
                 isRunning != null,
-                isAsync(asyncExecutionId, isRunning),
-                null
+                isAsync(asyncExecutionId, isRunning)
             );
         }
 
@@ -409,8 +398,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 false,
                 "id-123",
                 true,
-                (true),
-                null
+                true
             )
         ) {
             assertThat(Strings.toString(response), equalTo("""
@@ -427,8 +415,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 false,
                 null,
                 false,
-                false,
-                null
+                false
             )
         ) {
             assertThat(
@@ -457,8 +444,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     false,
                     null,
                     false,
-                    false,
-                    null
+                    false
                 )
             ) {
                 assertThat(
@@ -482,8 +468,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             List.of(new Page(blockFactory.newIntArrayVector(new int[] { 40, 80 }, 2).asBlock())),
             null,
             columnar,
-            async,
-            null
+            async
         );
     }
 
@@ -506,8 +491,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     )
                 ),
                 false,
-                false,
-                null
+                false
             );
         ) {
             assertThat(Strings.toString(response, true, false), equalTo("""
@@ -568,7 +552,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         var longBlk2 = blockFactory.newLongArrayVector(new long[] { 300L, 400L, 500L }, 3).asBlock();
         var columnInfo = List.of(new ColumnInfoImpl("foo", "integer"), new ColumnInfoImpl("bar", "long"));
         var pages = List.of(new Page(intBlk1, longBlk1), new Page(intBlk2, longBlk2));
-        try (var response = new EsqlQueryResponse(columnInfo, pages, null, false, null, false, false, null)) {
+        try (var response = new EsqlQueryResponse(columnInfo, pages, null, false, null, false, false)) {
             assertThat(columnValues(response.column(0)), contains(10, 20, 30, 40, 50));
             assertThat(columnValues(response.column(1)), contains(100L, 200L, 300L, 400L, 500L));
             expectThrows(IllegalArgumentException.class, () -> response.column(-1));
@@ -580,7 +564,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         var intBlk1 = blockFactory.newIntArrayVector(new int[] { 10 }, 1).asBlock();
         var columnInfo = List.of(new ColumnInfoImpl("foo", "integer"));
         var pages = List.of(new Page(intBlk1));
-        try (var response = new EsqlQueryResponse(columnInfo, pages, null, false, null, false, false, null)) {
+        try (var response = new EsqlQueryResponse(columnInfo, pages, null, false, null, false, false)) {
             expectThrows(IllegalArgumentException.class, () -> response.column(-1));
             expectThrows(IllegalArgumentException.class, () -> response.column(1));
         }
@@ -599,7 +583,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         }
         var columnInfo = List.of(new ColumnInfoImpl("foo", "integer"));
         var pages = List.of(new Page(blk1), new Page(blk2), new Page(blk3));
-        try (var response = new EsqlQueryResponse(columnInfo, pages, null, false, null, false, false, null)) {
+        try (var response = new EsqlQueryResponse(columnInfo, pages, null, false, null, false, false)) {
             assertThat(columnValues(response.column(0)), contains(10, null, 30, null, null, 60, null, 80, 90, null));
             expectThrows(IllegalArgumentException.class, () -> response.column(-1));
             expectThrows(IllegalArgumentException.class, () -> response.column(2));
@@ -619,7 +603,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         }
         var columnInfo = List.of(new ColumnInfoImpl("foo", "integer"));
         var pages = List.of(new Page(blk1), new Page(blk2), new Page(blk3));
-        try (var response = new EsqlQueryResponse(columnInfo, pages, null, false, null, false, false, null)) {
+        try (var response = new EsqlQueryResponse(columnInfo, pages, null, false, null, false, false)) {
             assertThat(columnValues(response.column(0)), contains(List.of(10, 20), null, List.of(40, 50), null, 70, 80, null));
             expectThrows(IllegalArgumentException.class, () -> response.column(-1));
             expectThrows(IllegalArgumentException.class, () -> response.column(2));
@@ -632,7 +616,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             List<ColumnInfoImpl> columns = randomList(numColumns, numColumns, this::randomColumnInfo);
             int noPages = randomIntBetween(1, 20);
             List<Page> pages = randomList(noPages, noPages, () -> randomPage(columns));
-            try (var resp = new EsqlQueryResponse(columns, pages, null, false, "", false, false, null)) {
+            try (var resp = new EsqlQueryResponse(columns, pages, null, false, "", false, false)) {
                 var rowValues = getValuesList(resp.rows());
                 var valValues = getValuesList(resp.values());
                 for (int i = 0; i < rowValues.size(); i++) {

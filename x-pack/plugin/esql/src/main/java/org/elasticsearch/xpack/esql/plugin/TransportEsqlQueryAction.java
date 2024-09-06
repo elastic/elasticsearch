@@ -192,25 +192,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         if (task instanceof EsqlQueryTask asyncTask && request.keepOnCompletion()) {
             String asyncExecutionId = asyncTask.getExecutionId().getEncoded();
             threadPool.getThreadContext().addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_ID_HEADER, asyncExecutionId);
-            return new EsqlQueryResponse(
-                columns,
-                result.pages(),
-                profile,
-                request.columnar(),
-                asyncExecutionId,
-                false,
-                request.async(),
-                null /*request.executionInfo()*/
-            );  // MP TODO: replace this null with the execInfo
+            return new EsqlQueryResponse(columns, result.pages(), profile, request.columnar(), asyncExecutionId, false, request.async());
         }
-        return new EsqlQueryResponse(
-            columns,
-            result.pages(),
-            profile,
-            request.columnar(),
-            request.async(),
-            null /*request.executionInfo()*/
-        );
+        return new EsqlQueryResponse(columns, result.pages(), profile, request.columnar(), request.async());
     }
 
     /**
@@ -266,8 +250,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             false,
             asyncExecutionId,
             true, // is_running
-            true, // isAsync
-            null
+            true // isAsync
         );
     }
 

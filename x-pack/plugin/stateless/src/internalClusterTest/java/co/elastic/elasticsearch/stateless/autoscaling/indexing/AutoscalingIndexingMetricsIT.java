@@ -524,7 +524,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
             );
         });
 
-        final TestTelemetryPlugin plugin = findPlugin(internalCluster().getMasterName(), TestTelemetryPlugin.class);
+        TestTelemetryPlugin plugin = findPlugin(internalCluster().getMasterName(), TestTelemetryPlugin.class);
         plugin.collect();
         List<Measurement> measurements = plugin.getDoubleGaugeMeasurement(NODE_INGEST_LOAD_SNAPSHOTS_METRIC_NAME);
         assertThat(measurements.size(), equalTo(numNodes));
@@ -544,7 +544,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         // Enable the setting to see ingest load metrics ignored for the nodes with shutdown metadata
         updateClusterSettings(Settings.builder().put(IngestMetricsService.HIGH_INGESTION_LOAD_WEIGHT_DURING_SCALING.getKey(), 0.0));
         updateClusterSettings(Settings.builder().put(IngestMetricsService.LOW_INGESTION_LOAD_WEIGHT_DURING_SCALING.getKey(), 1.0));
-        plugin.resetMeter();
+
         // Not comparing the exact metric values since new values may have been published.
         // In addition, the more granular comparison is exercised in IngestMetricsServiceTests.
         final var epsilon = 0.0000001;
@@ -559,6 +559,9 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
             );
         });
 
+        // Master may have changed due to shutdown marker, we need check the metrics on the current master
+        plugin = findPlugin(internalCluster().getMasterName(), TestTelemetryPlugin.class);
+        plugin.resetMeter();
         plugin.collect();
         measurements = plugin.getDoubleGaugeMeasurement(NODE_INGEST_LOAD_SNAPSHOTS_METRIC_NAME);
         assertThat(measurements.size(), equalTo(numNodes * 2));

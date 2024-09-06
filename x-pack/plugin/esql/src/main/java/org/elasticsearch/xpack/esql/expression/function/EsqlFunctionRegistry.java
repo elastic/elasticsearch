@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.WeightedAvg;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryStringFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
@@ -351,7 +352,7 @@ public class EsqlFunctionRegistry {
                 def(ToRadians.class, ToRadians::new, "to_radians"),
                 def(ToString.class, ToString::new, "to_string", "to_str"),
                 def(ToUnsignedLong.class, ToUnsignedLong::new, "to_unsigned_long", "to_ulong", "to_ul"),
-                def(ToVersion.class, ToVersion::new, "to_version", "to_ver"), },
+                def(ToVersion.class, ToVersion::new, "to_version", "to_ver") },
             // multivalue functions
             new FunctionDefinition[] {
                 def(MvAppend.class, MvAppend::new, "mv_append"),
@@ -370,7 +371,11 @@ public class EsqlFunctionRegistry {
                 def(MvSlice.class, MvSlice::new, "mv_slice"),
                 def(MvZip.class, MvZip::new, "mv_zip"),
                 def(MvSum.class, MvSum::new, "mv_sum"),
-                def(Split.class, Split::new, "split") } };
+                def(Split.class, Split::new, "split") },
+            // Full text functions
+            new FunctionDefinition[] {
+                def(QueryStringFunction.class, QueryStringFunction::new, "qstr") }
+        };
 
     }
 

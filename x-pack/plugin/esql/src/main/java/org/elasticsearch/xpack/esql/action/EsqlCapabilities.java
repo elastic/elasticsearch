@@ -274,7 +274,12 @@ public class EsqlCapabilities {
         /**
          * Allow mixed numeric types in coalesce
          */
-        MIXED_NUMERIC_TYPES_IN_COALESCE;
+        MIXED_NUMERIC_TYPES_IN_COALESCE,
+
+        /**
+         * QSTR function
+         */
+        QSTR_FUNCTION(true);
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

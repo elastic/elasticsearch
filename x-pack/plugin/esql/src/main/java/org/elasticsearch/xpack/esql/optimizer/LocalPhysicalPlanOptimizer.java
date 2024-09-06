@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDisjoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialIntersects;
@@ -386,6 +387,8 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             } else if (exp instanceof MatchQueryPredicate mqp) {
                 return mqp.field() instanceof FieldAttribute && DataType.isString(mqp.field().dataType());
             } else if (exp instanceof StringQueryPredicate) {
+                return true;
+            } else if (exp instanceof FullTextFunction) {
                 return true;
             }
             return false;

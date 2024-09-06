@@ -1,4 +1,4 @@
-# AD Realm Role Mapping
+# AD Realm Role Mapping - not actually used, we just want some valid file content.
 group_role:
   - "CN=Avengers,CN=users,DC=ad,DC=test,DC=elasticsearch,DC=com"
 user_role:

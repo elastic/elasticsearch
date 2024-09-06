@@ -9,7 +9,6 @@
 package org.elasticsearch.search.fetch;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -281,12 +280,5 @@ public class FetchContext {
         } else {
             return hitContext.source();
         }
-    }
-
-    /**
-     * return the SearchType associated with the search request
-     */
-    public SearchType getSearchType() {
-        return searchContext.searchType();
     }
 }

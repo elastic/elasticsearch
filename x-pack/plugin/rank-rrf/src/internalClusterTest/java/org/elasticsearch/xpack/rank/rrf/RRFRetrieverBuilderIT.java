@@ -11,8 +11,10 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.InnerHitBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -20,6 +22,7 @@ import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
 import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
+import org.elasticsearch.search.retriever.TestRetrieverBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -33,8 +36,11 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 3)
 public class RRFRetrieverBuilderIT extends ESIntegTestCase {
@@ -146,7 +152,7 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         );
         // this one retrieves docs 2 and 6 due to prefilter
         StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
-            QueryBuilders.constantScoreQuery(QueryBuilders.termsQuery(ID_FIELD, "doc_2", "doc_3", "doc_6")).boost(20L)
+            QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2", "doc_3", "doc_6")).boost(20L)
         );
         standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
         // this one retrieves docs 3, 2, 6, and 7
@@ -189,7 +195,7 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         );
         // this one retrieves docs 2 and 6 due to prefilter
         StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
-            QueryBuilders.constantScoreQuery(QueryBuilders.termsQuery(ID_FIELD, "doc_2", "doc_3", "doc_6")).boost(20L)
+            QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2", "doc_3", "doc_6")).boost(20L)
         );
         standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
         // this one retrieves docs 3, 2, 6, and 7
@@ -236,7 +242,7 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         );
         // this one retrieves docs 2 and 6 due to prefilter
         StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
-            QueryBuilders.constantScoreQuery(QueryBuilders.termsQuery(ID_FIELD, "doc_2", "doc_3", "doc_6")).boost(20L)
+            QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2", "doc_3", "doc_6")).boost(20L)
         );
         standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
         // this one retrieves docs 3, 2, 6, and 7
@@ -289,7 +295,7 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         );
         // this one retrieves docs 2 and 6 due to prefilter
         StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
-            QueryBuilders.constantScoreQuery(QueryBuilders.termsQuery(ID_FIELD, "doc_2", "doc_3", "doc_6")).boost(20L)
+            QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2", "doc_3", "doc_6")).boost(20L)
         );
         standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
         // this one retrieves docs 3, 2, 6, and 7
@@ -336,7 +342,7 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         });
     }
 
-    public void testRRFExplainWithNestedFields() {
+    public void testRRFExplainWithNamedRetrievers() {
         final int rankWindowSize = 100;
         final int rankConstant = 10;
         SearchSourceBuilder source = new SearchSourceBuilder();
@@ -347,7 +353,7 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         standard0.retrieverName("my_custom_retriever");
         // this one retrieves docs 2 and 6 due to prefilter
         StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
-            QueryBuilders.constantScoreQuery(QueryBuilders.termsQuery(ID_FIELD, "doc_2", "doc_3", "doc_6")).boost(20L)
+            QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2", "doc_3", "doc_6")).boost(20L)
         );
         standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
         // this one retrieves docs 3, 2, 6, and 7
@@ -390,5 +396,205 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
                 containsString("for rank [2] in query at index [2]")
             );
         });
+    }
+
+    public void testRRFInnerRetrieverNoErrorOnTopDocsWhenNoAggs() {
+        final int rankWindowSize = 100;
+        final int rankConstant = 10;
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        TestRetrieverBuilder failingRetriever = new TestRetrieverBuilder("some value") {
+            @Override
+            public QueryBuilder topDocsQuery() {
+                throw new UnsupportedOperationException("simulated failure");
+            }
+
+            @Override
+            public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
+                searchSourceBuilder.query(QueryBuilders.matchAllQuery());
+            }
+        };
+        StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
+            QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2", "doc_3", "doc_6")).boost(20L)
+        );
+        standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
+        source.retriever(
+            new RRFRetrieverBuilder(
+                Arrays.asList(
+                    new CompoundRetrieverBuilder.RetrieverSource(failingRetriever, null),
+                    new CompoundRetrieverBuilder.RetrieverSource(standard1, null)
+                ),
+                rankWindowSize,
+                rankConstant
+            )
+        );
+        source.size(1);
+        SearchRequestBuilder req = client().prepareSearch(INDEX).setSource(source);
+        ElasticsearchAssertions.assertNoFailures(req);
+    }
+
+    public void testRRFInnerRetrieverSearchErrorAllowPartialResults() {
+        final int rankWindowSize = 100;
+        final int rankConstant = 10;
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        // this will throw an error during evaluation
+        StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder(
+            QueryBuilders.constantScoreQuery(QueryBuilders.rangeQuery(VECTOR_FIELD).gte(10))
+        );
+        StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
+            QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2", "doc_3", "doc_6")).boost(20L)
+        );
+        source.retriever(
+            new RRFRetrieverBuilder(
+                Arrays.asList(
+                    new CompoundRetrieverBuilder.RetrieverSource(standard0, null),
+                    new CompoundRetrieverBuilder.RetrieverSource(standard1, null)
+                ),
+                rankWindowSize,
+                rankConstant
+            ).allowPartialSearchResults(true)
+        );
+        SearchRequestBuilder req = client().prepareSearch(INDEX).setSource(source);
+        ElasticsearchAssertions.assertResponse(req, resp -> {
+            // need to affect how many shards were successful, let the users know that some queries failed
+            assertNull(resp.pointInTimeId());
+            assertNotNull(resp.getHits().getTotalHits());
+            assertThat(resp.getHits().getTotalHits().value, equalTo(3L));
+            assertThat(resp.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
+            assertThat(resp.getHits().getHits().length, equalTo(3));
+            assertThat(
+                Arrays.stream(resp.getHits().getHits()).map(SearchHit::getId).toList(),
+                containsInAnyOrder(equalTo("doc_2"), equalTo("doc_3"), equalTo("doc_6"))
+            );
+        });
+    }
+
+    public void testRRFInnerRetrieverSearchErrorAllowPartialResultsWithAggs() {
+        final int rankWindowSize = 100;
+        final int rankConstant = 10;
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        // this will throw an error during evaluation
+        StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder(
+            QueryBuilders.constantScoreQuery(QueryBuilders.rangeQuery(VECTOR_FIELD).gte(10))
+        );
+        StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
+            QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2", "doc_3", "doc_6")).boost(20L)
+        );
+        source.retriever(
+            new RRFRetrieverBuilder(
+                Arrays.asList(
+                    new CompoundRetrieverBuilder.RetrieverSource(standard0, null),
+                    new CompoundRetrieverBuilder.RetrieverSource(standard1, null)
+                ),
+                rankWindowSize,
+                rankConstant
+            ).allowPartialSearchResults(true)
+        );
+        source.aggregation(AggregationBuilders.terms("topic_agg").field(TOPIC_FIELD));
+        SearchRequestBuilder req = client().prepareSearch(INDEX).setSource(source);
+        ElasticsearchAssertions.assertResponse(req, resp -> {
+            assertNull(resp.pointInTimeId());
+            assertNotNull(resp.getAggregations());
+            assertNotNull(resp.getAggregations().get("topic_agg"));
+            Terms terms = resp.getAggregations().get("topic_agg");
+
+            assertThat(terms.getBucketByKey("technology").getDocCount(), equalTo(1L));
+            assertThat(terms.getBucketByKey("astronomy").getDocCount(), equalTo(1L));
+        });
+    }
+
+    public void testRRFInnerRetrieverSearchError() {
+        final int rankWindowSize = 100;
+        final int rankConstant = 10;
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        // this will throw an error during evaluation
+        StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder(
+            QueryBuilders.constantScoreQuery(QueryBuilders.rangeQuery(VECTOR_FIELD).gte(10))
+        );
+        StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
+            QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2", "doc_3", "doc_6")).boost(20L)
+        );
+        standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
+        source.retriever(
+            new RRFRetrieverBuilder(
+                Arrays.asList(
+                    new CompoundRetrieverBuilder.RetrieverSource(standard0, null),
+                    new CompoundRetrieverBuilder.RetrieverSource(standard1, null)
+                ),
+                rankWindowSize,
+                rankConstant
+            )
+        );
+        SearchRequestBuilder req = client().prepareSearch(INDEX).setSource(source);
+        Exception ex = expectThrows(IllegalStateException.class, req::get);
+        assertThat(ex, instanceOf(IllegalStateException.class));
+        assertThat(ex.getMessage(), containsString("Search failed - some nested retrievers returned errors"));
+        assertThat(ex.getSuppressed().length, greaterThan(0));
+    }
+
+    public void testRRFInnerRetrieverErrorWhenExtractingToSource() {
+        final int rankWindowSize = 100;
+        final int rankConstant = 10;
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        TestRetrieverBuilder failingRetriever = new TestRetrieverBuilder("some value") {
+            @Override
+            public QueryBuilder topDocsQuery() {
+                return QueryBuilders.matchAllQuery();
+            }
+
+            @Override
+            public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
+                throw new UnsupportedOperationException("simulated failure");
+            }
+        };
+        StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
+            QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2", "doc_3", "doc_6")).boost(20L)
+        );
+        standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
+        source.retriever(
+            new RRFRetrieverBuilder(
+                Arrays.asList(
+                    new CompoundRetrieverBuilder.RetrieverSource(failingRetriever, null),
+                    new CompoundRetrieverBuilder.RetrieverSource(standard1, null)
+                ),
+                rankWindowSize,
+                rankConstant
+            )
+        );
+        source.size(1);
+        expectThrows(UnsupportedOperationException.class, () -> client().prepareSearch(INDEX).setSource(source).get());
+    }
+
+    public void testRRFInnerRetrieverErrorOnTopDocs() {
+        final int rankWindowSize = 100;
+        final int rankConstant = 10;
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        TestRetrieverBuilder failingRetriever = new TestRetrieverBuilder("some value") {
+            @Override
+            public QueryBuilder topDocsQuery() {
+                throw new UnsupportedOperationException("simulated failure");
+            }
+
+            @Override
+            public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
+                searchSourceBuilder.query(QueryBuilders.matchAllQuery());
+            }
+        };
+        StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
+            QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2", "doc_3", "doc_6")).boost(20L)
+        );
+        standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
+        source.retriever(
+            new RRFRetrieverBuilder(
+                Arrays.asList(
+                    new CompoundRetrieverBuilder.RetrieverSource(failingRetriever, null),
+                    new CompoundRetrieverBuilder.RetrieverSource(standard1, null)
+                ),
+                rankWindowSize,
+                rankConstant
+            )
+        );
+        source.size(1);
+        source.aggregation(AggregationBuilders.terms("topic_agg").field(TOPIC_FIELD));
+        expectThrows(UnsupportedOperationException.class, () -> client().prepareSearch(INDEX).setSource(source).get());
     }
 }

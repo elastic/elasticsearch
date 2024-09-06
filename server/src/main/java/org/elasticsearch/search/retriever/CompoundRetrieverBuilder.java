@@ -30,6 +30,7 @@ import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -45,9 +46,10 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
     protected final int rankWindowSize;
     protected final List<RetrieverSource> innerRetrievers;
 
-    protected CompoundRetrieverBuilder(List<RetrieverSource> innerRetrievers, int rankWindowSize) {
+    protected CompoundRetrieverBuilder(List<RetrieverSource> innerRetrievers, int rankWindowSize, boolean allowPartialSearchResults) {
         this.rankWindowSize = rankWindowSize;
         this.innerRetrievers = innerRetrievers;
+        this.allowPartialSearchResults = allowPartialSearchResults;
     }
 
     @SuppressWarnings("unchecked")
@@ -109,6 +111,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         final MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
         for (var entry : innerRetrievers) {
             SearchRequest searchRequest = new SearchRequest().source(entry.source);
+            searchRequest.allowPartialSearchResults(allowPartialSearchResults() || entry.retriever.allowPartialSearchResults());
             // The can match phase can reorder shards, so we disable it to ensure the stable ordering
             searchRequest.setPreFilterShardSize(Integer.MAX_VALUE);
             multiSearchRequest.add(searchRequest);
@@ -118,15 +121,31 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                 @Override
                 public void onResponse(MultiSearchResponse items) {
                     List<ScoreDoc[]> topDocs = new ArrayList<>();
+                    List<Exception> failures = new ArrayList<>();
                     for (int i = 0; i < items.getResponses().length; i++) {
                         var item = items.getResponses()[i];
-                        assert item.getResponse() != null;
-                        var rankDocs = getRankDocs(item.getResponse());
-                        innerRetrievers.get(i).retriever().setRankDocs(rankDocs);
-                        topDocs.add(rankDocs);
+                        if (item.isFailure()) {
+                            if (false == allowPartialSearchResults()) {
+                                failures.add(item.getFailure());
+                            }
+                        } else {
+                            assert item.getResponse() != null;
+                            var rankDocs = getRankDocs(item.getResponse());
+                            innerRetrievers.get(i).retriever().setRankDocs(rankDocs);
+                            topDocs.add(rankDocs);
+                        }
                     }
-                    results.set(combineInnerRetrieverResults(topDocs));
-                    listener.onResponse(null);
+                    if (false == failures.isEmpty()) {
+                        IllegalStateException ex = new IllegalStateException(
+                            "Search failed - some nested retrievers returned errors. "
+                                + "Please consider using [allow_partial_search_results] if you want to ignore these errors."
+                        );
+                        failures.forEach(ex::addSuppressed);
+                        listener.onFailure(ex);
+                    } else {
+                        results.set(combineInnerRetrieverResults(topDocs));
+                        listener.onResponse(null);
+                    }
                 }
 
                 @Override
@@ -158,12 +177,14 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
     @SuppressWarnings("unchecked")
     public boolean doEquals(Object o) {
         CompoundRetrieverBuilder<?> that = (CompoundRetrieverBuilder<?>) o;
-        return rankWindowSize == that.rankWindowSize && Objects.equals(innerRetrievers, that.innerRetrievers);
+        return rankWindowSize == that.rankWindowSize
+            && Objects.equals(innerRetrievers, that.innerRetrievers)
+            && allowPartialSearchResults() == that.allowPartialSearchResults;
     }
 
     @Override
     public int doHashCode() {
-        return Objects.hash(innerRetrievers, rankDocs);
+        return Objects.hash(innerRetrievers, Arrays.hashCode(rankDocs), allowPartialSearchResults);
     }
 
     private SearchSourceBuilder createSearchSourceBuilder(PointInTimeBuilder pit, RetrieverBuilder retrieverBuilder) {

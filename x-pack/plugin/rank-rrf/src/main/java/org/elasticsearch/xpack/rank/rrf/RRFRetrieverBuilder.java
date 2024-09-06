@@ -93,7 +93,11 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
     }
 
     RRFRetrieverBuilder(List<RetrieverSource> childRetrievers, int rankWindowSize, int rankConstant) {
-        super(childRetrievers, rankWindowSize);
+        this(childRetrievers, rankWindowSize, rankConstant, false);
+    }
+
+    RRFRetrieverBuilder(List<RetrieverSource> childRetrievers, int rankWindowSize, int rankConstant, boolean allowPartialSearchResults) {
+        super(childRetrievers, rankWindowSize, allowPartialSearchResults);
         this.rankConstant = rankConstant;
     }
 
@@ -104,7 +108,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
 
     @Override
     public RRFRetrieverBuilder clone(List<RetrieverSource> newRetrievers) {
-        return new RRFRetrieverBuilder(newRetrievers, this.rankWindowSize, this.rankConstant);
+        return new RRFRetrieverBuilder(newRetrievers, this.rankWindowSize, this.rankConstant, this.allowPartialSearchResults);
     }
 
     @Override

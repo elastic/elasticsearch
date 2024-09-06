@@ -126,7 +126,9 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
 
     @Override
     public QueryBuilder topDocsQuery() {
-        assert rankDocs != null : "{rankDocs} should have been materialized at this point";
+        if (rankDocs == null) {
+            return null;
+        }
 
         BoolQueryBuilder knnTopResultsQuery = new BoolQueryBuilder().filter(new RankDocsQueryBuilder(rankDocs))
             .queryName(this.retrieverName)

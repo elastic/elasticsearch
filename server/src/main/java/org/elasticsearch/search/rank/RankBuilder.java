@@ -73,6 +73,13 @@ public abstract class RankBuilder implements VersionedNamedWriteable, ToXContent
     }
 
     /**
+     * Specifying whether we can use custom sorts on top of this ranker
+     */
+    public boolean acceptsSorts() {
+        return false;
+    }
+
+    /**
      * Specify whether this rank builder is a compound builder or not. A compound builder is a rank builder that requires
      * two or more queries to be executed in order to generate the final result.
      */

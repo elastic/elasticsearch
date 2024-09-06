@@ -498,23 +498,28 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 // We set the keep alive to -1 to indicate that we don't need the pit id in the response.
                 // This is needed since we delete the pit prior to sending the response so the id doesn't exist anymore.
                 source.pointInTimeBuilder(new PointInTimeBuilder(resp.getPointInTimeId()).setKeepAlive(TimeValue.MINUS_ONE));
-                executeRequest(task, original, new ActionListener<>() {
-                    @Override
-                    public void onResponse(SearchResponse response) {
-                        // we need to close the PIT first so we delay the release of the response to after the closing
-                        response.incRef();
-                        closePIT(
-                            client,
-                            original.source().pointInTimeBuilder(),
-                            () -> ActionListener.respondAndRelease(listener, response)
-                        );
-                    }
+                try {
+                    executeRequest(task, original, new ActionListener<>() {
+                        @Override
+                        public void onResponse(SearchResponse response) {
+                            // we need to close the PIT first so we delay the release of the response to after the closing
+                            response.incRef();
+                            closePIT(
+                                client,
+                                original.source().pointInTimeBuilder(),
+                                () -> ActionListener.respondAndRelease(listener, response)
+                            );
+                        }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        closePIT(client, original.source().pointInTimeBuilder(), () -> listener.onFailure(e));
-                    }
-                }, searchPhaseProvider);
+                        @Override
+                        public void onFailure(Exception e) {
+                            closePIT(client, original.source().pointInTimeBuilder(), () -> listener.onFailure(e));
+                        }
+                    }, searchPhaseProvider);
+                } catch (Exception ex) {
+                    // in case we run into an exception during the retriever's rewrite step, ensure that we'll close the PIT
+                    closePIT(client, original.source().pointInTimeBuilder(), () -> listener.onFailure(ex));
+                }
             }));
         } else {
             Rewriteable.rewriteAndFetch(

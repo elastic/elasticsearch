@@ -1,4 +1,6 @@
 categorize
+required_capability: categorize
+
 FROM sample_data
   | STATS result = CATEGORIZE(message)
   | MV_EXPAND result 

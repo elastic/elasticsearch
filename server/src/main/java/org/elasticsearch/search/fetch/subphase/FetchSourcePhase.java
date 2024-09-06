@@ -47,7 +47,9 @@ public final class FetchSourcePhase implements FetchSubPhase {
             public void process(HitContext hitContext) {
                 String index = fetchContext.getIndexName();
                 if (fetchContext.getSearchExecutionContext().isSourceEnabled() == false) {
-                    if (fetchSourceContext.hasFilter() || fetchSourceContext.includeVectors() == Boolean.TRUE || fetchSourceContext.includeVectors() == Boolean.FALSE) {
+                    if (fetchSourceContext.hasFilter()
+                        || fetchSourceContext.includeVectors() == Boolean.TRUE
+                        || fetchSourceContext.includeVectors() == Boolean.FALSE) {
                         throw new IllegalArgumentException(
                             "unable to fetch fields from _source field: _source is disabled in the mappings for index [" + index + "]"
                         );
@@ -61,8 +63,11 @@ public final class FetchSourcePhase implements FetchSubPhase {
                 final boolean nestedHit = hitContext.hit().getNestedIdentity() != null;
                 Source source = hitContext.source();
 
-                // If this is a parent document and there are no source filters and include_vector is set as true, then add the source as-is.
-                if (nestedHit == false && fetchSourceContext.hasFilter() == false && fetchSourceContext.filterVectorFields() == Boolean.FALSE) {
+                // If this is a parent document and there are no source filters and include_vector is set as true, then add the source
+                // as-is.
+                if (nestedHit == false
+                    && fetchSourceContext.hasFilter() == false
+                    && fetchSourceContext.filterVectorFields() == Boolean.FALSE) {
                     hitContext.hit().sourceRef(source.internalSourceRef());
                     fastPath++;
                     return;

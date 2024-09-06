@@ -98,7 +98,12 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         return of(fetchSource, includes, excludes);
     }
 
-    private FetchSourceContext(boolean fetchSource, @Nullable String[] includes, @Nullable String[] excludes, @Nullable Boolean includeVectors) {
+    private FetchSourceContext(
+        boolean fetchSource,
+        @Nullable String[] includes,
+        @Nullable String[] excludes,
+        @Nullable Boolean includeVectors
+    ) {
         this.fetchSource = fetchSource;
         this.includes = includes == null ? Strings.EMPTY_ARRAY : includes;
         this.excludes = excludes == null ? Strings.EMPTY_ARRAY : excludes;
@@ -284,8 +289,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                             parser.getTokenLocation()
                         );
                     }
-                }
-                else {
+                } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),
                         "Unknown key for a " + token + " in [" + currentFieldName + "].",

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Foldables;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -24,7 +23,6 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
 public class QueryStringFunction extends FullTextFunction {
 
@@ -56,8 +54,8 @@ public class QueryStringFunction extends FullTextFunction {
 
     @Override
     public Query asQuery() {
-        String queryAsString = ((BytesRef)Foldables.valueOf(query())).utf8ToString();
-        return new QueryStringQuery(source(), queryAsString, Map.of(),null);
+        String queryAsString = ((BytesRef) Foldables.valueOf(query())).utf8ToString();
+        return new QueryStringQuery(source(), queryAsString, Map.of(), null);
     }
 
     @Override

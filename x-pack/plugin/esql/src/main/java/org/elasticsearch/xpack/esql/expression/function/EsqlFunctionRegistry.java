@@ -373,9 +373,7 @@ public class EsqlFunctionRegistry {
                 def(MvSum.class, MvSum::new, "mv_sum"),
                 def(Split.class, Split::new, "split") },
             // Full text functions
-            new FunctionDefinition[] {
-                def(QueryStringFunction.class, QueryStringFunction::new, "qstr") }
-        };
+            new FunctionDefinition[] { def(QueryStringFunction.class, QueryStringFunction::new, "qstr") } };
 
     }
 

@@ -587,22 +587,23 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             SearchSourceBuilder newSource = request.source() == null ? null : Rewriteable.rewrite(request.source(), ctx);
             AliasFilter newAliasFilter = Rewriteable.rewrite(request.getAliasFilter(), ctx);
             SearchExecutionContext searchExecutionContext = ctx.convertToSearchExecutionContext();
-            FieldSortBuilder primarySort = FieldSortBuilder.getPrimaryFieldSortOrNull(newSource);
-            if (searchExecutionContext != null
-                && primarySort != null
-                && primarySort.isBottomSortShardDisjoint(searchExecutionContext, request.getBottomSortValues())) {
-                assert newSource != null : "source should contain a primary sort field";
-                newSource = newSource.shallowCopy();
-                int trackTotalHitsUpTo = SearchRequest.resolveTrackTotalHitsUpTo(request.scroll, request.source);
-                if (trackTotalHitsUpTo == TRACK_TOTAL_HITS_DISABLED && newSource.suggest() == null && newSource.aggregations() == null) {
-                    newSource.query(new MatchNoneQueryBuilder());
-                } else {
-                    newSource.size(0);
+            if (searchExecutionContext != null) {
+                final FieldSortBuilder primarySort = FieldSortBuilder.getPrimaryFieldSortOrNull(newSource);
+                if (primarySort != null && primarySort.isBottomSortShardDisjoint(searchExecutionContext, request.getBottomSortValues())) {
+                    assert newSource != null : "source should contain a primary sort field";
+                    newSource = newSource.shallowCopy();
+                    int trackTotalHitsUpTo = SearchRequest.resolveTrackTotalHitsUpTo(request.scroll, request.source);
+                    if (trackTotalHitsUpTo == TRACK_TOTAL_HITS_DISABLED
+                        && newSource.suggest() == null
+                        && newSource.aggregations() == null) {
+                        newSource.query(new MatchNoneQueryBuilder());
+                    } else {
+                        newSource.size(0);
+                    }
+                    request.source(newSource);
+                    request.setBottomSortValues(null);
                 }
-                request.source(newSource);
-                request.setBottomSortValues(null);
             }
-
             if (newSource == request.source() && newAliasFilter == request.getAliasFilter()) {
                 return this;
             } else {

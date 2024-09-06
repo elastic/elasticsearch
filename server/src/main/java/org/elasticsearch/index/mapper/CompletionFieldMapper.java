@@ -210,7 +210,7 @@ public class CompletionFieldMapper extends FieldMapper {
 
             CompletionFieldType ft = new CompletionFieldType(context.buildFullName(leafName()), completionAnalyzer, meta.getValue());
             ft.setContextMappings(contexts.getValue());
-            return new CompletionFieldMapper(leafName(), ft, multiFieldsBuilder.build(this, context), copyTo, this);
+            return new CompletionFieldMapper(leafName(), ft, builderParams(this, context), this);
         }
 
         private void checkCompletionContextsLimit() {
@@ -349,14 +349,8 @@ public class CompletionFieldMapper extends FieldMapper {
 
     private final NamedAnalyzer indexAnalyzer;
 
-    public CompletionFieldMapper(
-        String simpleName,
-        MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
-        Builder builder
-    ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+    public CompletionFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams, Builder builder) {
+        super(simpleName, mappedFieldType, builderParams);
         this.builder = builder;
         this.maxInputLength = builder.maxInputLength.getValue();
         this.indexAnalyzer = builder.buildAnalyzer();
@@ -458,7 +452,7 @@ public class CompletionFieldMapper extends FieldMapper {
 
         context.addToFieldNames(fieldType().name());
         for (CompletionInputMetadata metadata : inputMap.values()) {
-            multiFields.parse(
+            multiFields().parse(
                 this,
                 context,
                 () -> context.switchParser(new MultiFieldParser(metadata, fieldType().name(), context.parser().getTokenLocation()))

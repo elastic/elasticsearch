@@ -9,7 +9,6 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.function.LongSupplier;
 
@@ -21,15 +20,12 @@ public class FrequencyCappedAction {
     private final LongSupplier currentTimeMillisSupplier;
     private TimeValue minInterval;
 
-    private long next = -1;
+    private long next;
 
-    public FrequencyCappedAction(ThreadPool threadPool) {
-        this(threadPool.relativeTimeInMillisSupplier());
-    }
-
-    public FrequencyCappedAction(LongSupplier currentTimeMillisSupplier) {
+    public FrequencyCappedAction(LongSupplier currentTimeMillisSupplier, TimeValue initialDelay) {
         this.currentTimeMillisSupplier = currentTimeMillisSupplier;
         this.minInterval = TimeValue.MAX_VALUE;
+        this.next = currentTimeMillisSupplier.getAsLong() + initialDelay.getMillis();
     }
 
     public void setMinInterval(TimeValue minInterval) {

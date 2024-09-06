@@ -14,7 +14,6 @@ import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -37,10 +36,8 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @TestCaseOrdering(FullClusterRestartTestOrdering.class)
 public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTestCase {
-    @UpdateForV9
-    // This needs to be bumped to 8.last at the time of 8.last-1 feature freeze
-    // Also need to bump BwcVersions.MINIMUM_WIRE_COMPATIBLE_VERSION at the same time
-    private static final Version MINIMUM_WIRE_COMPATIBLE_VERSION = Version.fromString("8.16.0");
+
+    private static final Version MINIMUM_WIRE_COMPATIBLE_VERSION = Version.fromString(System.getProperty("tests.minimum.wire.compatible"));
     private static final String OLD_CLUSTER_VERSION = System.getProperty("tests.old_cluster_version");
     private static IndexVersion oldIndexVersion;
     private static boolean upgradeFailed = false;

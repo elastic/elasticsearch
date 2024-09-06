@@ -67,23 +67,17 @@ public class BwcVersions {
     private static final Pattern LINE_PATTERN = Pattern.compile(
         "\\W+public static final Version V_(\\d+)_(\\d+)_(\\d+)(_alpha\\d+|_beta\\d+|_rc\\d+)?.*\\);"
     );
-    private static final Version MINIMUM_WIRE_COMPATIBLE_VERSION = Version.fromString("8.16.0");
     private static final String GLIBC_VERSION_ENV_VAR = "GLIBC_VERSION";
 
     private final Version currentVersion;
     private final List<Version> versions;
     private final Map<Version, UnreleasedVersionInfo> unreleased;
-    private final Version minimumWireCompatibleVersion;
 
     public BwcVersions(List<String> versionLines) {
-        this(versionLines, Version.fromString(VersionProperties.getElasticsearch()), MINIMUM_WIRE_COMPATIBLE_VERSION);
+        this(versionLines, Version.fromString(VersionProperties.getElasticsearch()));
     }
 
     public BwcVersions(Version currentVersionProperty, List<Version> allVersions) {
-        this(currentVersionProperty, allVersions, MINIMUM_WIRE_COMPATIBLE_VERSION);
-    }
-
-    public BwcVersions(Version currentVersionProperty, List<Version> allVersions, Version minimumWireCompatibleVersion) {
         if (allVersions.isEmpty()) {
             throw new IllegalArgumentException("Could not parse any versions");
         }
@@ -93,12 +87,11 @@ public class BwcVersions {
         assertCurrentVersionMatchesParsed(currentVersionProperty);
 
         this.unreleased = computeUnreleased();
-        this.minimumWireCompatibleVersion = minimumWireCompatibleVersion;
     }
 
     // Visible for testing
-    BwcVersions(List<String> versionLines, Version currentVersionProperty, Version minimumWireCompatibleVersion) {
-        this(currentVersionProperty, parseVersionLines(versionLines), minimumWireCompatibleVersion);
+    BwcVersions(List<String> versionLines, Version currentVersionProperty) {
+        this(currentVersionProperty, parseVersionLines(versionLines));
     }
 
     private static List<Version> parseVersionLines(List<String> versionLines) {
@@ -261,7 +254,7 @@ public class BwcVersions {
     }
 
     public List<Version> getWireCompatible() {
-        return filterSupportedVersions(versions.stream().filter(v -> v.compareTo(minimumWireCompatibleVersion) >= 0).toList());
+        return filterSupportedVersions(versions.stream().filter(v -> v.compareTo(getMinimumWireCompatibleVersion()) >= 0).toList());
     }
 
     public void withWireCompatible(BiConsumer<Version, String> versionAction) {
@@ -299,7 +292,13 @@ public class BwcVersions {
     }
 
     public Version getMinimumWireCompatibleVersion() {
-        return minimumWireCompatibleVersion;
+        // Determine minimum wire compatible version from list of known versions.
+        // Current BWC policy states the minimum wire compatible version is the last minor release or the previous major version.
+        return versions.stream()
+            .filter(v -> v.getRevision() == 0)
+            .filter(v -> v.getMajor() == currentVersion.getMajor() - 1)
+            .max(Comparator.naturalOrder())
+            .orElseThrow(() -> new IllegalStateException("Unable to determine minimum wire compatible version."));
     }
 
     public Version getCurrentVersion() {

@@ -35,7 +35,7 @@ class BwcVersionsSpec extends Specification {
         addVersion('8.1.0', '9.0.0')
 
         when:
-        def bwc = new BwcVersions(versionLines, v('8.1.0'), v('7.17.0'))
+        def bwc = new BwcVersions(versionLines, v('8.1.0'))
         def unreleased = bwc.unreleased.collectEntries { [it, bwc.unreleasedInfo(it)] }
 
         then:
@@ -47,6 +47,7 @@ class BwcVersionsSpec extends Specification {
         ]
         bwc.wireCompatible == [v('7.17.0'), v('8.0.0'), v('8.1.0')]
         bwc.indexCompatible == osFiltered([v('7.14.0'), v('7.14.1'), v('7.14.2'), v('7.15.0'), v('7.15.1'), v('7.15.2'), v('7.16.0'), v('7.16.1'), v('7.16.2'), v('7.17.0'), v('8.0.0'), v('8.1.0')])
+        bwc.minimumWireCompatibleVersion == v('7.17.0')
     }
 
     def "current version is next minor with next major and last minor both staged"() {
@@ -64,7 +65,7 @@ class BwcVersionsSpec extends Specification {
         addVersion('8.1.0', '9.1.0')
 
         when:
-        def bwc = new BwcVersions(versionLines, v('8.1.0'), v('7.17.0'))
+        def bwc = new BwcVersions(versionLines, v('8.1.0'))
         def unreleased = bwc.unreleased.collectEntries { [it, bwc.unreleasedInfo(it)] }
 
         then:
@@ -94,7 +95,7 @@ class BwcVersionsSpec extends Specification {
         addVersion('8.1.0', '9.1.0')
 
         when:
-        def bwc = new BwcVersions(versionLines, v('8.1.0'), v('7.17.0'))
+        def bwc = new BwcVersions(versionLines, v('8.1.0'))
         def unreleased = bwc.unreleased.collectEntries { [it, bwc.unreleasedInfo(it)] }
 
         then:
@@ -122,7 +123,7 @@ class BwcVersionsSpec extends Specification {
         addVersion('8.0.0', '9.0.0')
 
         when:
-        def bwc = new BwcVersions(versionLines, v('8.0.0'), v('7.17.0'))
+        def bwc = new BwcVersions(versionLines, v('8.0.0'))
         def unreleased = bwc.unreleased.collectEntries { [it, bwc.unreleasedInfo(it)] }
 
         then:
@@ -148,7 +149,7 @@ class BwcVersionsSpec extends Specification {
         addVersion('8.0.0', '9.0.0')
 
         when:
-        def bwc = new BwcVersions(versionLines, v('8.0.0'), v('7.17.0'))
+        def bwc = new BwcVersions(versionLines, v('8.0.0'))
         def unreleased = bwc.unreleased.collectEntries { [it, bwc.unreleasedInfo(it)] }
 
         then:
@@ -174,7 +175,7 @@ class BwcVersionsSpec extends Specification {
         addVersion('8.0.0', '9.0.0')
 
         when:
-        def bwc = new BwcVersions(versionLines, v('8.0.0'), v('7.17.0'))
+        def bwc = new BwcVersions(versionLines, v('8.0.0'))
         def unreleased = bwc.unreleased.collectEntries { [it, bwc.unreleasedInfo(it)] }
 
         then:
@@ -204,7 +205,7 @@ class BwcVersionsSpec extends Specification {
         addVersion('8.0.1', '9.0.0')
 
         when:
-        def bwc = new BwcVersions(versionLines, v('8.0.1'), v('7.17.0'))
+        def bwc = new BwcVersions(versionLines, v('8.0.1'))
         def unreleased = bwc.unreleased.collectEntries { [it, bwc.unreleasedInfo(it)] }
 
         then:
@@ -233,7 +234,7 @@ class BwcVersionsSpec extends Specification {
         addVersion('8.1.0', '9.1.0')
 
         when:
-        def bwc = new BwcVersions(versionLines, v('8.1.0'), v('7.17.0'))
+        def bwc = new BwcVersions(versionLines, v('8.1.0'))
         def unreleased = bwc.unreleased.collectEntries { [it, bwc.unreleasedInfo(it)] }
 
         then:

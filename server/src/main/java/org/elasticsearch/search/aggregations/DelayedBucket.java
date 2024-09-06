@@ -41,8 +41,6 @@ public final class DelayedBucket<B extends InternalMultiBucketAggregation.Intern
     /**
      * The reduced bucket. If the bucket hasn't been reduced already this
      * will reduce the sub-aggs and throw out the list to reduce.
-     *
-     * It is expected the {@link AggregationReduceContext} is the one from final reduce.
      */
     public B reduced(BiFunction<List<B>, AggregationReduceContext, B> reduce, AggregationReduceContext reduceContext) {
         if (reduced == null) {

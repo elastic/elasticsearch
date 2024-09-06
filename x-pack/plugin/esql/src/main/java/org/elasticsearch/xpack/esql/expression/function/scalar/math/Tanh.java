@@ -29,15 +29,15 @@ public class Tanh extends AbstractTrigonometricFunction {
 
     @FunctionInfo(
         returnType = "double",
-        description = "Returns the {wikipedia}/Hyperbolic_functions[Tangent] hyperbolic function of an angle.",
+        description = "Returns the {wikipedia}/Hyperbolic_functions[hyperbolic tangent] of a number.",
         examples = @Example(file = "floats", tag = "tanh")
     )
     public Tanh(
         Source source,
         @Param(
-            name = "angle",
+            name = "number",
             type = { "double", "integer", "long", "unsigned_long" },
-            description = "An angle, in radians. If `null`, the function returns `null`."
+            description = "Numeric expression. If `null`, the function returns `null`."
         ) Expression angle
     ) {
         super(source, angle);

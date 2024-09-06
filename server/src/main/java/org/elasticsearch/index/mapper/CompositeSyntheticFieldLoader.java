@@ -51,12 +51,6 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
     public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
         return parts.stream().flatMap(Layer::storedFieldLoaders).map(e -> Map.entry(e.getKey(), new StoredFieldLoader() {
             @Override
-            public void advanceToDoc(int docId) {
-                storedFieldLoadersHaveValues = false;
-                e.getValue().advanceToDoc(docId);
-            }
-
-            @Override
             public void load(List<Object> newValues) {
                 storedFieldLoadersHaveValues = true;
                 e.getValue().load(newValues);
@@ -79,8 +73,6 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
         }
 
         return docId -> {
-            this.docValuesLoadersHaveValues = false;
-
             boolean hasDocs = false;
             for (var loader : loaders) {
                 hasDocs |= loader.advanceToDoc(docId);
@@ -117,6 +109,18 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
             part.write(b);
         }
         b.endArray();
+        softReset();
+    }
+
+    private void softReset() {
+        storedFieldLoadersHaveValues = false;
+        docValuesLoadersHaveValues = false;
+    }
+
+    @Override
+    public void reset() {
+        softReset();
+        parts.forEach(SourceLoader.SyntheticFieldLoader::reset);
     }
 
     @Override
@@ -137,6 +141,19 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
          * @return
          */
         long valueCount();
+    }
+
+    public interface DocValuesLayer extends Layer {
+        @Override
+        default Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
+            return Stream.empty();
+        }
+
+        @Override
+        default void reset() {
+            // Not applicable to loaders using only doc values
+            // since DocValuesLoader#advanceToDoc will reset the state anyway.
+        }
     }
 
     /**
@@ -177,17 +194,7 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
 
         @Override
         public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-            return Stream.of(Map.entry(fieldName, new SourceLoader.SyntheticFieldLoader.StoredFieldLoader() {
-                @Override
-                public void advanceToDoc(int docId) {
-                    values = emptyList();
-                }
-
-                @Override
-                public void load(List<Object> newValues) {
-                    values = newValues;
-                }
-            }));
+            return Stream.of(Map.entry(fieldName, newValues -> values = newValues));
         }
 
         @Override
@@ -205,6 +212,12 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
             for (Object v : values) {
                 writeValue(v, b);
             }
+            reset();
+        }
+
+        @Override
+        public void reset() {
+            values = emptyList();
         }
 
         /**

@@ -368,7 +368,7 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        return new GeometricShapeSyntheticSourceSupport(ignoreMalformed);
+        return new GeometricShapeSyntheticSourceSupport(GeometricShapeSyntheticSourceSupport.FieldType.SHAPE, ignoreMalformed);
     }
 
     @Override

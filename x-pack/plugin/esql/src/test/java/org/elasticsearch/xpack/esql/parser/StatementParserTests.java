@@ -817,6 +817,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         expectError("from a | where foo like 12", "mismatched input '12'");
         expectError("from a | where foo rlike 12", "mismatched input '12'");
+
+        expectError(
+            "from a | where foo like \"(?i)(^|[^a-zA-Z0-9_-])nmap($|\\\\.)\"",
+            "line 1:17: Invalid pattern for LIKE [(?i)(^|[^a-zA-Z0-9_-])nmap($|\\.)]: "
+                + "[Invalid sequence - escape character is not followed by special wildcard char]"
+        );
     }
 
     public void testEnrich() {
@@ -1741,12 +1747,20 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     private LogicalPlan unresolvedRelation(String index) {
-        return new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, index), false, List.of(), IndexMode.STANDARD, null);
+        return new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, index), false, List.of(), IndexMode.STANDARD, null, "FROM");
     }
 
     private LogicalPlan unresolvedTSRelation(String index) {
         List<Attribute> metadata = List.of(new MetadataAttribute(EMPTY, MetadataAttribute.TSID_FIELD, DataType.KEYWORD, false));
-        return new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, index), false, metadata, IndexMode.TIME_SERIES, null);
+        return new UnresolvedRelation(
+            EMPTY,
+            new TableIdentifier(EMPTY, null, index),
+            false,
+            metadata,
+            IndexMode.TIME_SERIES,
+            null,
+            "FROM TS"
+        );
     }
 
     public void testMetricWithGroupKeyAsAgg() {

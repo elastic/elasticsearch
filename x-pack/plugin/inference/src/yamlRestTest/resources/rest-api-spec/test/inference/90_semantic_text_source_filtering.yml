@@ -1,7 +1,7 @@
 setup:
   - requires:
-      cluster_features: "gte_v8.16.0"
-      reason: semantic_text source filtering introduced in 8.16.0
+      cluster_features: "gte_v8.15.0"
+      reason: semantic_text introduced in 8.15.0
 
   - do:
       indices.create:
@@ -39,7 +39,12 @@ setup:
                     feature_7: 0.4
 
 ---
-"Filter embedding from source":
+"Filter out embedding from _source":
+
+  - requires:
+      cluster_features: "gte_v8.16.0"
+      reason: _source filtering for Semantic text added in 8.16.0
+
   - do:
       search:
         body: { query: { match_all: { } } }
@@ -59,10 +64,25 @@ setup:
   - match: { _source.sparse_field.inference.chunks.0.text: "He's free to go around" }
 
 ---
-"Does not filter embedding from source":
+"Does not filter out embedding from _source":
+
+  - requires:
+      cluster_features: "gte_v8.16.0"
+      reason: _source filtering for Semantic text added in 8.16.0
+
   - do:
       search:
         body: { _source: { include_vector: true }, query: { match_all: { } } }
+
+  - exists: _source.sparse_field.inference.chunks.0.embeddings
+  - exists: _source.sparse_field.inference.chunks.1.embeddings
+
+---
+"Always show embedding in _source":
+
+  - do:
+      search:
+        body: { query: { match_all: { } } }
 
   - exists: _source.sparse_field.inference.chunks.0.embeddings
   - exists: _source.sparse_field.inference.chunks.1.embeddings

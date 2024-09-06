@@ -482,10 +482,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     ) {
         logger.debug(
             () -> Strings.format(
-                "%s uploading batch compound commit [%s][%s]",
+                "%s uploading batch compound commit %s: %s",
                 virtualBcc.getShardId(),
-                virtualBcc.getPendingCompoundCommits().stream().map(pc -> pc.getCommitReference().getSegmentsFileName()).toList(),
-                virtualBcc.getPrimaryTermAndGeneration()
+                virtualBcc.getPrimaryTermAndGeneration(),
+                virtualBcc.getPendingCompoundCommits().stream().map(pc -> pc.getCommitReference().getSegmentsFileName()).toList()
             )
         );
         // The CommitUpload listener is called after releasing the reference to the Lucene commit,
@@ -1730,15 +1730,17 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 IOUtils.closeWhileHandlingException(virtualBcc);
             }
 
-            // Have to fork, because we are on applier thread and thus if a listener uses cluster state it will fail.
-            // using generic is safe, since we close all shards (but not the stores) before shutting down thread pools.
-            threadPool.generic()
-                .execute(
-                    () -> ActionListener.onFailure(
-                        listenersToFail,
-                        new AlreadyClosedException("shard [" + shardId + "] has already been closed")
-                    )
-                );
+            if (listenersToFail.isEmpty() == false) {
+                // Have to fork, because we are on applier thread and thus if a listener uses cluster state it will fail.
+                // using generic is safe, since we close all shards (but not the stores) before shutting down thread pools.
+                threadPool.generic()
+                    .execute(
+                        () -> ActionListener.onFailure(
+                            listenersToFail,
+                            new AlreadyClosedException("shard [" + shardId + "] has already been closed")
+                        )
+                    );
+            }
         }
 
         private void unregistered() {

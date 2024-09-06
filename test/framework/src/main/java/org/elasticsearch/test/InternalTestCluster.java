@@ -656,12 +656,17 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private NodeAndClient getRandomNodeAndClient() {
-        return getRandomNodeAndClient(Predicates.always());
+        var n = nodes;
+        ensureOpen();
+        if (n.isEmpty()) {
+            return null;
+        }
+        return randomFrom(n.values());
     }
 
-    private synchronized NodeAndClient getRandomNodeAndClient(Predicate<NodeAndClient> predicate) {
-        ensureOpen();
+    private NodeAndClient getRandomNodeAndClient(Predicate<NodeAndClient> predicate) {
         List<NodeAndClient> values = nodes.values().stream().filter(predicate).collect(Collectors.toList());
+        ensureOpen();
         if (values.isEmpty() == false) {
             return randomFrom(random, values);
         }
@@ -819,10 +824,17 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     @Override
-    public synchronized Client client() {
-        ensureOpen();
+    public Client client() {
         /* Randomly return a client to one of the nodes in the cluster */
-        return getOrBuildRandomNode().client();
+        NodeAndClient c = getRandomNodeAndClient();
+        ensureOpen();
+        if (c == null) {
+            synchronized (this) {
+                return getOrBuildRandomNode().client();
+            }
+        } else {
+            return c.client();
+        }
     }
 
     /**
@@ -923,7 +935,7 @@ public final class InternalTestCluster extends TestCluster {
     private final class NodeAndClient implements Closeable {
         private MockNode node;
         private final Settings originalNodeSettings;
-        private Client nodeClient;
+        private volatile Client nodeClient;
         private final AtomicBoolean closed = new AtomicBoolean(false);
         private final String name;
         private final int nodeAndClientId;
@@ -937,10 +949,14 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         Node node() {
+            ensureNotClosed();
+            return node;
+        }
+
+        private void ensureNotClosed() {
             if (closed.get()) {
                 throw new RuntimeException("already closed");
             }
-            return node;
         }
 
         public int nodeAndClientId() {
@@ -961,21 +977,21 @@ public final class InternalTestCluster extends TestCluster {
 
         // TODO: collapse these together?
         Client nodeClient() {
-            if (closed.get()) {
-                throw new RuntimeException("already closed");
-            }
             return getOrBuildNodeClient();
         }
 
         private Client getOrBuildNodeClient() {
+            var n = nodeClient;
+            if (n != null) {
+                ensureNotClosed();
+                return n;
+            }
             synchronized (InternalTestCluster.this) {
-                if (closed.get()) {
-                    throw new RuntimeException("already closed");
-                }
+                ensureNotClosed();
                 if (nodeClient == null) {
-                    nodeClient = node.client();
+                    nodeClient = clientWrapper.apply(node.client());
                 }
-                return clientWrapper.apply(nodeClient);
+                return nodeClient;
             }
         }
 

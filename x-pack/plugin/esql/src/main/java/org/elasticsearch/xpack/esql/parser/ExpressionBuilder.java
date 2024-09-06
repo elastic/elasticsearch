@@ -720,7 +720,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     private Object visitParam(EsqlBaseParser.ParamsContext ctx, QueryParam param) {
         Source source = source(ctx);
         DataType type = param.type();
-        return new Literal(source, param.value(), type);
+        return param.isField() ? new UnresolvedAttribute(source, (String) param.value()) : new Literal(source, param.value(), type);
     }
 
     QueryParam paramByToken(TerminalNode node) {

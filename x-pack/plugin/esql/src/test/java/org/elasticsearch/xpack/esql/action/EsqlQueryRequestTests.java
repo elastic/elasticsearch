@@ -49,6 +49,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -92,24 +93,35 @@ public class EsqlQueryRequestTests extends ESTestCase {
         QueryBuilder filter = randomQueryBuilder();
 
         String paramsString = """
-            ,"params":[ {"n1" : "8.15.0" }, { "n2" : 0.05 }, {"n3" : -799810013 },
-             {"n4" : "127.0.0.1"}, {"n5" : "esql"}, {"n_6" : null}, {"n7_" : false},
-             {"_n1" : "8.15.0" }, { "__n2" : 0.05 }, {"__3" : -799810013 },
-             {"__4n" : "127.0.0.1"}, {"_n5" : "esql"}, {"_n6" : null}, {"_n7" : false}] }""";
+            ,"params":[ {"n1" : {"value" : "8.15.0", "identifier" : true}},
+             {"n2" : {"value" : 0.05, "identifier" : true}},
+             {"n3" : {"value" : -799810013, "identifier" : true}},
+             {"n4" : {"value" : "127.0.0.1", "identifier" : true}},
+             {"n5" : {"value" : "esql", "identifier" : true}},
+             {"n_6" : {"value" : null, "identifier" : true}},
+             {"n7_" : {"value" : false, "identifier" : true}},
+             {"_n1" : "8.15.0"},
+             { "__n2" : 0.05},
+             {"__3" : -799810013},
+             {"__4n" : "127.0.0.1"},
+             {"_n5" : "esql"},
+             {"_n6" : null},
+             {"_n7" : false}] }""";
+
         List<QueryParam> params = new ArrayList<>(4);
-        params.add(new QueryParam("n1", "8.15.0", DataType.KEYWORD));
-        params.add(new QueryParam("n2", 0.05, DataType.DOUBLE));
-        params.add(new QueryParam("n3", -799810013, DataType.INTEGER));
-        params.add(new QueryParam("n4", "127.0.0.1", DataType.KEYWORD));
-        params.add(new QueryParam("n5", "esql", DataType.KEYWORD));
-        params.add(new QueryParam("n_6", null, DataType.NULL));
-        params.add(new QueryParam("n7_", false, DataType.BOOLEAN));
+        params.add(new QueryParam("n1", "8.15.0", NULL, true));
+        params.add(new QueryParam("n2", 0.05, NULL, true));
+        params.add(new QueryParam("n3", -799810013, NULL, true));
+        params.add(new QueryParam("n4", "127.0.0.1", NULL, true));
+        params.add(new QueryParam("n5", "esql", NULL, true));
+        params.add(new QueryParam("n_6", null, NULL, true));
+        params.add(new QueryParam("n7_", false, NULL, true));
         params.add(new QueryParam("_n1", "8.15.0", DataType.KEYWORD));
         params.add(new QueryParam("__n2", 0.05, DataType.DOUBLE));
         params.add(new QueryParam("__3", -799810013, DataType.INTEGER));
         params.add(new QueryParam("__4n", "127.0.0.1", DataType.KEYWORD));
         params.add(new QueryParam("_n5", "esql", DataType.KEYWORD));
-        params.add(new QueryParam("_n6", null, DataType.NULL));
+        params.add(new QueryParam("_n6", null, NULL));
         params.add(new QueryParam("_n7", false, DataType.BOOLEAN));
         String json = String.format(Locale.ROOT, """
             {
@@ -523,7 +535,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
                     () -> new QueryParam(null, randomInt(), DataType.INTEGER),
                     () -> new QueryParam(null, randomLong(), DataType.LONG),
                     () -> new QueryParam(null, randomDouble(), DataType.DOUBLE),
-                    () -> new QueryParam(null, null, DataType.NULL),
+                    () -> new QueryParam(null, null, NULL),
                     () -> new QueryParam(null, randomAlphaOfLength(10), DataType.KEYWORD)
                 );
                 arr.add(supplier.get());
@@ -546,7 +558,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
                     paramsString.append("\"");
                     paramsString.append(param.value());
                     paramsString.append("\"");
-                } else if (param.type().isNumeric() || param.type() == DataType.BOOLEAN || param.type() == DataType.NULL) {
+                } else if (param.type().isNumeric() || param.type() == DataType.BOOLEAN || param.type() == NULL) {
                     paramsString.append(param.value());
                 }
             }

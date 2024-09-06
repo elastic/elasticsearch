@@ -394,6 +394,33 @@ setup:
   - match: {values.2: ["1",2.0,null,true,123,1674835275193]}
 
 ---
+"Test Named Input Params For Field Names":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ named_positional_parameter_field_name ]
+      reason: "named or positional parameters for field names"
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test | stats x = count(?f1), y = sum(?f2) by ?f3 | sort ?f3 | keep x, y, color | limit 3'
+          params: [{"f1" : {"value" : "time", "identifier" : true } }, {"f2" : { "value" : "count", "identifier": true }}, {"f3" : { "value":"color", "identifier":true }}]
+
+  - length: {columns: 2}
+  - match: {columns.0.name: "x"}
+  - match: {columns.0.type: "long"}
+  - match: {columns.1.name: "y"}
+  - match: {columns.1.type: "long"}
+  - length: {values: 3}
+  - match: {values.0: ["blue",123,1674835275193]}
+  - match: {values.1: ["green",123,1674835275193]}
+  - match: {values.2: ["red",123,1674835275193]}
+
+---
 version is not allowed:
   - requires:
       cluster_features: ["gte_v8.14.0"]

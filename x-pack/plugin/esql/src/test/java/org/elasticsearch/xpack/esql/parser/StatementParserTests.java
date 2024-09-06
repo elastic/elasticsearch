@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
@@ -63,6 +64,7 @@ import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy.DEFAULT;
 import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.breakIntoFragments;
 import static org.hamcrest.Matchers.allOf;
@@ -1405,6 +1407,75 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "Inconsistent parameter declaration, "
                 + "use one of positional, named or anonymous params but not a combination of positional and anonymous"
         );
+    }
+
+    public void testParamInFieldName() {
+        LogicalPlan plan = statement(
+            "from test | eval  x = f(?f1) | sort ?f2 | limit 1",
+            new QueryParams(List.of(new QueryParam("f1", "f1", KEYWORD, true), new QueryParam("f2", "f2", NULL, true)))
+        );
+        assertThat(plan, instanceOf(Limit.class));
+        Limit limit = (Limit) plan;
+        assertThat(limit.child(), instanceOf(OrderBy.class));
+        OrderBy ob = (OrderBy) limit.child();
+        assertEquals(ob.order().size(), 1);
+        assertThat(ob.order().get(0), instanceOf(Order.class));
+        Order o = ob.order().get(0);
+        assertThat(o.child(), instanceOf(UnresolvedAttribute.class));
+        UnresolvedAttribute ua = (UnresolvedAttribute) o.child();
+        assertEquals(ua.name(), "f2");
+        assertThat(ob.child(), instanceOf(Eval.class));
+        Eval eval = (Eval) ob.child();
+        assertEquals(1, eval.fields().size());
+        Alias alias = eval.fields().get(0);
+        assertThat(alias.child(), instanceOf(UnresolvedFunction.class));
+        UnresolvedFunction uf = (UnresolvedFunction) alias.child();
+        assertEquals(uf.name(), "f");
+        assertEquals(uf.children().size(), 1);
+        assertThat(uf.children().get(0), instanceOf(UnresolvedAttribute.class));
+        ua = (UnresolvedAttribute) uf.children().get(0);
+        assertEquals(ua.name(), "f1");
+
+        plan = statement(
+            "from test | stats x = f(?f1) by ?f2 | limit 1",
+            new QueryParams(List.of(new QueryParam("f1", "f1", NULL, true), new QueryParam("f2", "f2", NULL, true)))
+        );
+        assertThat(plan, instanceOf(Limit.class));
+        limit = (Limit) plan;
+        assertThat(limit.child(), instanceOf(Aggregate.class));
+        Aggregate agg = (Aggregate) limit.child();
+        assertEquals(2, agg.aggregates().size());
+        assertEquals(1, agg.groupings().size());
+        assertThat(agg.groupings().get(0), instanceOf(UnresolvedAttribute.class));
+        ua = (UnresolvedAttribute) agg.groupings().get(0);
+        assertEquals(ua.name(), "f2");
+        assertThat(agg.aggregates().get(1), instanceOf(UnresolvedAttribute.class));
+        ua = (UnresolvedAttribute) agg.aggregates().get(1);
+        assertEquals(ua.name(), "f2");
+        assertThat(agg.aggregates().get(0), instanceOf(Alias.class));
+        alias = (Alias) agg.aggregates().get(0);
+        assertThat(alias.child(), instanceOf(UnresolvedFunction.class));
+        uf = (UnresolvedFunction) alias.child();
+        assertEquals(uf.name(), "f");
+        assertEquals(uf.children().size(), 1);
+        assertThat(uf.children().get(0), instanceOf(UnresolvedAttribute.class));
+        ua = (UnresolvedAttribute) uf.children().get(0);
+        assertEquals(ua.name(), "f1");
+
+        plan = statement(
+            "from test | where ?f1 == ?f2 |  limit 1",
+            new QueryParams(List.of(new QueryParam("f1", "f1", NULL, true), new QueryParam("f2", "f2", NULL, true)))
+        );
+        assertThat(plan, instanceOf(Limit.class));
+        limit = (Limit) plan;
+        assertThat(limit.child(), instanceOf(Filter.class));
+        Filter filter = (Filter) limit.child();
+        assertThat(filter.condition(), instanceOf(Equals.class));
+        Equals equals = (Equals) filter.condition();
+        ua = (UnresolvedAttribute) equals.left();
+        assertEquals(ua.name(), "f1");
+        ua = (UnresolvedAttribute) equals.right();
+        assertEquals(ua.name(), "f2");
     }
 
     public void testFieldContainingDotsAndNumbers() {

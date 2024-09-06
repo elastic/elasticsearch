@@ -19,11 +19,11 @@ import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.tasks.Task;
@@ -123,6 +123,7 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
             final List<Exception> exceptions = new ArrayList<>();
             // broadcast the new settings object (with the open embedded keystore) to all reloadable plugins
             pluginsService.filterPlugins(ReloadablePlugin.class).forEach(p -> {
+                logger.debug("Reloading plugin [" + p.getClass().getSimpleName() + "]");
                 try {
                     p.reload(settingsWithKeystore);
                 } catch (final Exception e) {

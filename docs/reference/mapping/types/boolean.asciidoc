@@ -223,6 +223,13 @@ The following parameters are accepted by `boolean` fields:
 
     Metadata about the field.
 
+`time_series_dimension`::
+(Optional, Boolean)
++
+--
+include::keyword.asciidoc[tag=dimension]
+--
+
 [[boolean-synthetic-source]]
 ==== Synthetic `_source`
 

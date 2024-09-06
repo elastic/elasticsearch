@@ -25,11 +25,11 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.spatial.XYQueriesUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import org.elasticsearch.xpack.spatial.index.fielddata.plain.CartesianPointIndexFieldData;
-import org.elasticsearch.xpack.spatial.index.query.ShapeQueryPointProcessor;
 import org.elasticsearch.xpack.spatial.script.field.CartesianPointDocValuesField;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianPointValuesSourceType;
 
@@ -116,7 +116,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
                 nullValue.get(),
                 meta.get()
             );
-            return new PointFieldMapper(leafName(), ft, multiFieldsBuilder.build(this, context), copyTo, parser, this);
+            return new PointFieldMapper(leafName(), ft, builderParams(this, context), parser, this);
         }
 
     }
@@ -128,19 +128,17 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
     public PointFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
+        BuilderParams builderParams,
         CartesianPointParser parser,
         Builder builder
     ) {
         super(
             simpleName,
             mappedFieldType,
-            multiFields,
+            builderParams,
             builder.ignoreMalformed.get(),
             builder.ignoreZValue.get(),
             builder.nullValue.get(),
-            copyTo,
             parser
         );
         this.builder = builder;
@@ -178,8 +176,6 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
 
     public static class PointFieldType extends AbstractPointFieldType<CartesianPoint> implements ShapeQueryable {
 
-        private final ShapeQueryPointProcessor queryProcessor;
-
         private PointFieldType(
             String name,
             boolean indexed,
@@ -190,7 +186,6 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
             Map<String, String> meta
         ) {
             super(name, indexed, stored, hasDocValues, parser, nullValue, meta);
-            this.queryProcessor = new ShapeQueryPointProcessor();
         }
 
         // only used in test
@@ -215,7 +210,8 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
 
         @Override
         public Query shapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
-            return queryProcessor.shapeQuery(shape, fieldName, relation, context);
+            failIfNotIndexedNorDocValuesFallback(context);
+            return XYQueriesUtils.toXYPointQuery(shape, fieldName, relation, isIndexed(), hasDocValues());
         }
 
         @Override

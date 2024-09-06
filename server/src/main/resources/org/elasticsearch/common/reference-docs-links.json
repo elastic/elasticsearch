@@ -2,8 +2,8 @@
   "INITIAL_MASTER_NODES": "important-settings.html#initial_master_nodes",
   "DISCOVERY_TROUBLESHOOTING": "discovery-troubleshooting.html",
   "UNSTABLE_CLUSTER_TROUBLESHOOTING": "troubleshooting-unstable-cluster.html",
-  "LAGGING_NODE_TROUBLESHOOTING": "troubleshooting-unstable-cluster.html#_diagnosing_lagging_nodes_2",
-  "SHARD_LOCK_TROUBLESHOOTING": "troubleshooting-unstable-cluster.html#_diagnosing_shardlockobtainfailedexception_failures_2",
+  "LAGGING_NODE_TROUBLESHOOTING": "troubleshooting-unstable-cluster.html#troubleshooting-unstable-cluster-lagging",
+  "SHARD_LOCK_TROUBLESHOOTING": "troubleshooting-unstable-cluster.html#troubleshooting-unstable-cluster-shardlockobtainfailedexception",
   "CONCURRENT_REPOSITORY_WRITERS": "diagnosing-corrupted-repositories.html",
   "ARCHIVE_INDICES": "archive-indices.html",
   "HTTP_TRACER": "modules-network.html#http-rest-request-tracer",
@@ -39,5 +39,8 @@
   "SNAPSHOT_REPOSITORY_ANALYSIS": "repo-analysis-api.html",
   "S3_COMPATIBLE_REPOSITORIES": "repository-s3.html#repository-s3-compatible-services",
   "LUCENE_MAX_DOCS_LIMIT": "size-your-shards.html#troubleshooting-max-docs-limit",
-  "MAX_SHARDS_PER_NODE": "size-your-shards.html#troubleshooting-max-shards-open"
+  "MAX_SHARDS_PER_NODE": "size-your-shards.html#troubleshooting-max-shards-open",
+  "FLOOD_STAGE_WATERMARK": "fix-watermark-errors.html",
+  "X_OPAQUE_ID": "api-conventions.html#x-opaque-id",
+  "FORMING_SINGLE_NODE_CLUSTERS": "modules-discovery-bootstrap-cluster.html#modules-discovery-bootstrap-cluster-joining"
 }

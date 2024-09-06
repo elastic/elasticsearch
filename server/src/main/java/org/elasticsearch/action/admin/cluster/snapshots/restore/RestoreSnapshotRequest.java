@@ -68,11 +68,6 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         super(masterNodeTimeout);
     }
 
-    @Deprecated(forRemoval = true) // temporary compatibility shim
-    public RestoreSnapshotRequest(String repository, String snapshot) {
-        this(MasterNodeRequest.TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, repository, snapshot);
-    }
-
     /**
      * Constructs a new put repository request with the provided repository and snapshot names.
      *

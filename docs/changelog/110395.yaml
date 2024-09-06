@@ -1,9 +1,0 @@
-pr: 110395
-summary: Mark the Redact processor as Generally Available
-area: Ingest Node
-type: feature
-issues: []
-highlight:
-  title: The Redact processor is Generally Available
-  body: The Redact processor uses the Grok rules engine to obscure text in the input document matching the given Grok patterns. The Redact processor was initially released as Technical Preview in `8.7.0`, and is now released as Generally Available.
-  notable: true

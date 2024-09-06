@@ -1,5 +1,0 @@
-pr: 108602
-summary: "[Inference API] Extract optional long instead of integer in `RateLimitSettings#of`"
-area: Machine Learning
-type: bug
-issues: []

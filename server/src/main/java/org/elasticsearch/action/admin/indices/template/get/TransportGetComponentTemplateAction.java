@@ -16,14 +16,13 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionResolver;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -36,7 +35,6 @@ public class TransportGetComponentTemplateAction extends TransportMasterNodeRead
     GetComponentTemplateAction.Response> {
 
     private final ClusterSettings clusterSettings;
-    private final DataStreamGlobalRetentionResolver globalRetentionResolver;
 
     @Inject
     public TransportGetComponentTemplateAction(
@@ -44,8 +42,7 @@ public class TransportGetComponentTemplateAction extends TransportMasterNodeRead
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        DataStreamGlobalRetentionResolver globalRetentionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
             GetComponentTemplateAction.NAME,
@@ -59,7 +56,6 @@ public class TransportGetComponentTemplateAction extends TransportMasterNodeRead
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         clusterSettings = clusterService.getClusterSettings();
-        this.globalRetentionResolver = globalRetentionResolver;
     }
 
     @Override
@@ -100,12 +96,11 @@ public class TransportGetComponentTemplateAction extends TransportMasterNodeRead
             listener.onResponse(
                 new GetComponentTemplateAction.Response(
                     results,
-                    clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING),
-                    globalRetentionResolver.resolve(state)
+                    clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING)
                 )
             );
         } else {
-            listener.onResponse(new GetComponentTemplateAction.Response(results, globalRetentionResolver.resolve(state)));
+            listener.onResponse(new GetComponentTemplateAction.Response(results));
         }
     }
 }

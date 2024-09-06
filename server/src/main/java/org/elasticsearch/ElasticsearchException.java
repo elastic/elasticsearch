@@ -1646,12 +1646,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             UNKNOWN_VERSION_ADDED
         ),
         // 127 used to be org.elasticsearch.search.SearchContextException
-        SEARCH_SOURCE_BUILDER_EXCEPTION(
-            org.elasticsearch.search.builder.SearchSourceBuilderException.class,
-            org.elasticsearch.search.builder.SearchSourceBuilderException::new,
-            128,
-            UNKNOWN_VERSION_ADDED
-        ),
+        // 128 used to be org.elasticsearch.search.builder.SearchSourceBuilderException
         // 129 was EngineClosedException
         NO_SHARD_AVAILABLE_ACTION_EXCEPTION(
             org.elasticsearch.action.NoShardAvailableActionException.class,
@@ -1927,6 +1922,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             ResourceAlreadyUploadedException::new,
             181,
             TransportVersions.ADD_RESOURCE_ALREADY_UPLOADED_EXCEPTION
+        ),
+        INGEST_PIPELINE_EXCEPTION(
+            org.elasticsearch.ingest.IngestPipelineException.class,
+            org.elasticsearch.ingest.IngestPipelineException::new,
+            182,
+            TransportVersions.INGEST_PIPELINE_EXCEPTION_ADDED
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

@@ -1,0 +1,64 @@
+---
+version: ${xpack.oteldata.template.version}
+_meta:
+  description: Default mappings for all OpenTelemetry data streams
+  managed: true
+template:
+  mappings:
+    date_detection: false
+    dynamic: false
+    properties:
+      "@timestamp":
+#Ultimeately we aim to use date_nanos. Waiting for https://github.com/elastic/elasticsearch/issues/109352
+        type: date
+      data_stream.type:
+        type: constant_keyword
+      data_stream.dataset:
+        type: constant_keyword
+      data_stream.namespace:
+        type: constant_keyword
+      attributes:
+        type: passthrough
+        dynamic: true
+        priority: 10
+        time_series_dimension: true
+      dropped_attributes_count:
+        type: long
+      scope:
+        properties:
+          name:
+            type: keyword
+            ignore_above: 1024
+          version:
+            type: version
+          schema_url:
+            type: keyword
+            ignore_above: 1024
+          dropped_attributes_count:
+            type: long
+          attributes:
+            type: passthrough
+            dynamic: true
+            priority: 20
+            time_series_dimension: true
+      resource:
+        properties:
+          schema_url:
+            type: keyword
+            ignore_above: 1024
+          dropped_attributes_count:
+            type: long
+          attributes:
+            type: passthrough
+            dynamic: true
+            priority: 30
+            time_series_dimension: true
+    dynamic_templates:
+      - complex_attributes:
+          path_match:
+            - resource.attributes.*
+            - scope.attributes.*
+            - attributes.*
+          match_mapping_type: object
+          mapping:
+            type: flattened

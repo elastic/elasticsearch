@@ -67,6 +67,7 @@ import org.elasticsearch.indices.recovery.PeerRecoveryNotFound;
 import org.elasticsearch.indices.recovery.RecoverFilesRecoveryException;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
 import org.elasticsearch.ingest.GraphStructureException;
+import org.elasticsearch.ingest.IngestPipelineException;
 import org.elasticsearch.ingest.IngestProcessorException;
 import org.elasticsearch.persistent.NotPersistentTaskNodeException;
 import org.elasticsearch.persistent.PersistentTaskNodeNotAssignedException;
@@ -780,7 +781,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(125, TcpTransport.HttpRequestOnTransportException.class);
         ids.put(126, org.elasticsearch.index.mapper.MapperParsingException.class);
         ids.put(127, null); // was org.elasticsearch.search.SearchContextException.class
-        ids.put(128, org.elasticsearch.search.builder.SearchSourceBuilderException.class);
+        ids.put(128, null); // was org.elasticsearch.search.builder.SearchSourceBuilderException.class
         ids.put(129, null); // was org.elasticsearch.index.engine.EngineClosedException.class
         ids.put(130, org.elasticsearch.action.NoShardAvailableActionException.class);
         ids.put(131, org.elasticsearch.action.UnavailableShardsException.class);
@@ -834,6 +835,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(179, NotPersistentTaskNodeException.class);
         ids.put(180, PersistentTaskNodeNotAssignedException.class);
         ids.put(181, ResourceAlreadyUploadedException.class);
+        ids.put(182, IngestPipelineException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

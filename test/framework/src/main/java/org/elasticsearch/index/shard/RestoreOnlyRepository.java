@@ -27,7 +27,6 @@ import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.SnapshotShardContext;
-import org.elasticsearch.snapshots.SnapshotDeleteListener;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 
@@ -110,9 +109,10 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
         Collection<SnapshotId> snapshotIds,
         long repositoryDataGeneration,
         IndexVersion minimumNodeVersion,
-        SnapshotDeleteListener listener
+        ActionListener<RepositoryData> repositoryDataUpdateListener,
+        Runnable onCompletion
     ) {
-        listener.onFailure(new UnsupportedOperationException());
+        repositoryDataUpdateListener.onFailure(new UnsupportedOperationException());
     }
 
     @Override

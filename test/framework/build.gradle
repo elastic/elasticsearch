@@ -31,6 +31,9 @@ dependencies {
   api 'org.objenesis:objenesis:3.3'
 
   api "org.elasticsearch:mocksocket:${versions.mocksocket}"
+
+  testImplementation project(':x-pack:plugin:mapper-unsigned-long')
+  testImplementation project(":modules:mapper-extras")
 }
 
 sourceSets {

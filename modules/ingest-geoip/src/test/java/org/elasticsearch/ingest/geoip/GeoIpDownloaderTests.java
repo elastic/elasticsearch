@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -44,6 +45,7 @@ import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -91,7 +93,11 @@ public class GeoIpDownloaderTests extends ESTestCase {
         httpClient = mock(HttpClient.class);
         when(httpClient.getBytes(anyString())).thenReturn("[]".getBytes(StandardCharsets.UTF_8));
         clusterService = mock(ClusterService.class);
-        threadPool = new ThreadPool(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build(), MeterRegistry.NOOP);
+        threadPool = new ThreadPool(
+            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build(),
+            MeterRegistry.NOOP,
+            new DefaultBuiltInExecutorBuilders()
+        );
         when(clusterService.getClusterSettings()).thenReturn(
             new ClusterSettings(
                 Settings.EMPTY,
@@ -590,7 +596,9 @@ public class GeoIpDownloaderTests extends ESTestCase {
                 "index ["
                     + geoIpIndex
                     + "] blocked by: [TOO_MANY_REQUESTS/12/disk usage exceeded flood-stage watermark, "
-                    + "index has read-only-allow-delete block];"
+                    + "index has read-only-allow-delete block; for more information, see "
+                    + ReferenceDocs.FLOOD_STAGE_WATERMARK
+                    + "];"
             )
         );
         verifyNoInteractions(httpClient);

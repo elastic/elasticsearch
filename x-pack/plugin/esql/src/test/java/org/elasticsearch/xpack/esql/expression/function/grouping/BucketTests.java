@@ -73,7 +73,7 @@ public class BucketTests extends AbstractScalarFunctionTestCase {
     }
 
     // TODO once we cast above the functions we can drop these
-    private static final DataType[] DATE_BOUNDS_TYPE = new DataType[] { DataType.DATETIME };
+    private static final DataType[] DATE_BOUNDS_TYPE = new DataType[] { DataType.DATETIME, DataType.KEYWORD, DataType.TEXT };
 
     private static void dateCases(List<TestCaseSupplier> suppliers, String name, LongSupplier date) {
         for (DataType fromType : DATE_BOUNDS_TYPE) {
@@ -89,7 +89,21 @@ public class BucketTests extends AbstractScalarFunctionTestCase {
                         args,
                         "DateTruncEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding[DAY_OF_MONTH in Z][fixed to midnight]]",
                         DataType.DATETIME,
-                        dateResultsMatcher(args)
+                        resultsMatcher(args)
+                    );
+                }));
+                // same as above, but a low bucket count and datetime bounds that match it (at hour span)
+                suppliers.add(new TestCaseSupplier(name, List.of(DataType.DATETIME, DataType.INTEGER, fromType, toType), () -> {
+                    List<TestCaseSupplier.TypedData> args = new ArrayList<>();
+                    args.add(new TestCaseSupplier.TypedData(date.getAsLong(), DataType.DATETIME, "field"));
+                    args.add(new TestCaseSupplier.TypedData(4, DataType.INTEGER, "buckets").forceLiteral());
+                    args.add(dateBound("from", fromType, "2023-02-17T09:00:00Z"));
+                    args.add(dateBound("to", toType, "2023-02-17T12:00:00Z"));
+                    return new TestCaseSupplier.TestCase(
+                        args,
+                        "DateTruncEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding[3600000 in Z][fixed]]",
+                        DataType.DATETIME,
+                        equalTo(Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).build().prepareForUnknown().round(date.getAsLong()))
                     );
                 }));
             }
@@ -122,7 +136,7 @@ public class BucketTests extends AbstractScalarFunctionTestCase {
                 args,
                 "DateTruncEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding" + spanStr + "]",
                 DataType.DATETIME,
-                dateResultsMatcher(args)
+                resultsMatcher(args)
             );
         }));
     }
@@ -153,7 +167,7 @@ public class BucketTests extends AbstractScalarFunctionTestCase {
                             + ", "
                             + "rhs=LiteralsEvaluator[lit=50.0]]], rhs=LiteralsEvaluator[lit=50.0]]",
                         DataType.DOUBLE,
-                        dateResultsMatcher(args)
+                        resultsMatcher(args)
                     );
                 }));
             }
@@ -173,26 +187,29 @@ public class BucketTests extends AbstractScalarFunctionTestCase {
     }
 
     private static void numberCasesWithSpan(List<TestCaseSupplier> suppliers, String name, DataType numberType, Supplier<Number> number) {
-        suppliers.add(new TestCaseSupplier(name, List.of(numberType, DataType.DOUBLE), () -> {
-            List<TestCaseSupplier.TypedData> args = new ArrayList<>();
-            args.add(new TestCaseSupplier.TypedData(number.get(), "field"));
-            args.add(new TestCaseSupplier.TypedData(50., DataType.DOUBLE, "span").forceLiteral());
-            String attr = "Attribute[channel=0]";
-            if (numberType == DataType.INTEGER) {
-                attr = "CastIntToDoubleEvaluator[v=" + attr + "]";
-            } else if (numberType == DataType.LONG) {
-                attr = "CastLongToDoubleEvaluator[v=" + attr + "]";
-            }
-            return new TestCaseSupplier.TestCase(
-                args,
-                "MulDoublesEvaluator[lhs=FloorDoubleEvaluator[val=DivDoublesEvaluator[lhs="
-                    + attr
-                    + ", "
-                    + "rhs=LiteralsEvaluator[lit=50.0]]], rhs=LiteralsEvaluator[lit=50.0]]",
-                DataType.DOUBLE,
-                dateResultsMatcher(args)
-            );
-        }));
+        for (Number span : List.of(50, 50L, 50d)) {
+            DataType spanType = DataType.fromJava(span);
+            suppliers.add(new TestCaseSupplier(name, List.of(numberType, spanType), () -> {
+                List<TestCaseSupplier.TypedData> args = new ArrayList<>();
+                args.add(new TestCaseSupplier.TypedData(number.get(), "field"));
+                args.add(new TestCaseSupplier.TypedData(span, spanType, "span").forceLiteral());
+                String attr = "Attribute[channel=0]";
+                if (numberType == DataType.INTEGER) {
+                    attr = "CastIntToDoubleEvaluator[v=" + attr + "]";
+                } else if (numberType == DataType.LONG) {
+                    attr = "CastLongToDoubleEvaluator[v=" + attr + "]";
+                }
+                return new TestCaseSupplier.TestCase(
+                    args,
+                    "MulDoublesEvaluator[lhs=FloorDoubleEvaluator[val=DivDoublesEvaluator[lhs="
+                        + attr
+                        + ", "
+                        + "rhs=LiteralsEvaluator[lit=50.0]]], rhs=LiteralsEvaluator[lit=50.0]]",
+                    DataType.DOUBLE,
+                    resultsMatcher(args)
+                );
+            }));
+        }
 
     }
 
@@ -200,7 +217,7 @@ public class BucketTests extends AbstractScalarFunctionTestCase {
         return new TestCaseSupplier.TypedData(date, type, name).forceLiteral();
     }
 
-    private static Matcher<Object> dateResultsMatcher(List<TestCaseSupplier.TypedData> typedData) {
+    private static Matcher<Object> resultsMatcher(List<TestCaseSupplier.TypedData> typedData) {
         if (typedData.get(0).type() == DataType.DATETIME) {
             long millis = ((Number) typedData.get(0).data()).longValue();
             return equalTo(Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).build().prepareForUnknown().round(millis));
@@ -217,10 +234,5 @@ public class BucketTests extends AbstractScalarFunctionTestCase {
             to = args.get(3);
         }
         return new Bucket(source, args.get(0), args.get(1), from, to);
-    }
-
-    @Override
-    public void testSimpleWithNulls() {
-        assumeFalse("we test nulls in parameters", true);
     }
 }

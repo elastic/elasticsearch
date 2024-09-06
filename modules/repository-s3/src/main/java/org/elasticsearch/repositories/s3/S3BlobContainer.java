@@ -28,13 +28,17 @@ import com.amazonaws.services.s3.model.UploadPartRequest;
 import com.amazonaws.services.s3.model.UploadPartResult;
 import com.amazonaws.util.ValidationUtils;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.ThreadedActionListener;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -54,6 +58,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.ChunkedBlobOutputStream;
 import org.elasticsearch.repositories.s3.S3BlobStore.Operation;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -911,5 +916,95 @@ class S3BlobContainer extends AbstractBlobContainer {
                 }
             }
         });
+    }
+
+    ActionListener<Void> getMultipartUploadCleanupListener(int maxUploads, RefCountingRunnable refs) {
+        try (var clientReference = blobStore.clientReference()) {
+            final var bucket = blobStore.bucket();
+            final var request = new ListMultipartUploadsRequest(bucket).withPrefix(keyPath).withMaxUploads(maxUploads);
+            request.putCustomQueryParameter(S3BlobStore.CUSTOM_QUERY_PARAMETER_PURPOSE, OperationPurpose.SNAPSHOT_DATA.getKey());
+            final var multipartUploadListing = SocketAccess.doPrivileged(() -> clientReference.client().listMultipartUploads(request));
+            final var multipartUploads = multipartUploadListing.getMultipartUploads();
+            if (multipartUploads.isEmpty()) {
+                logger.debug("found no multipart uploads to clean up");
+                return ActionListener.noop();
+            } else {
+                // the uploads are only _possibly_ dangling because it's also possible we're no longer then master and the new master has
+                // started some more shard snapshots
+                if (multipartUploadListing.isTruncated()) {
+                    logger.info("""
+                        found at least [{}] possibly-dangling multipart uploads; will clean up the first [{}] after finalizing \
+                        the current snapshot deletions, and will check for further possibly-dangling multipart uploads in future \
+                        snapshot deletions""", multipartUploads.size(), multipartUploads.size());
+                } else {
+                    logger.info("""
+                        found [{}] possibly-dangling multipart uploads; \
+                        will clean them up after finalizing the current snapshot deletions""", multipartUploads.size());
+                }
+                return newMultipartUploadCleanupListener(
+                    refs,
+                    multipartUploads.stream().map(u -> new AbortMultipartUploadRequest(bucket, u.getKey(), u.getUploadId())).toList()
+                );
+            }
+        } catch (Exception e) {
+            // Cleanup is a best-effort thing, we can't do anything better than log and carry on here.
+            logger.warn("failure while checking for possibly-dangling multipart uploads", e);
+            return ActionListener.noop();
+        }
+    }
+
+    private ActionListener<Void> newMultipartUploadCleanupListener(
+        RefCountingRunnable refs,
+        List<AbortMultipartUploadRequest> abortMultipartUploadRequests
+    ) {
+        return new ThreadedActionListener<>(blobStore.getSnapshotExecutor(), ActionListener.releaseAfter(new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                try (var clientReference = blobStore.clientReference()) {
+                    for (final var abortMultipartUploadRequest : abortMultipartUploadRequests) {
+                        abortMultipartUploadRequest.putCustomQueryParameter(
+                            S3BlobStore.CUSTOM_QUERY_PARAMETER_PURPOSE,
+                            OperationPurpose.SNAPSHOT_DATA.getKey()
+                        );
+                        try {
+                            SocketAccess.doPrivilegedVoid(() -> clientReference.client().abortMultipartUpload(abortMultipartUploadRequest));
+                            logger.info(
+                                "cleaned up dangling multipart upload [{}] of blob [{}][{}][{}]",
+                                abortMultipartUploadRequest.getUploadId(),
+                                blobStore.getRepositoryMetadata().name(),
+                                abortMultipartUploadRequest.getBucketName(),
+                                abortMultipartUploadRequest.getKey()
+                            );
+                        } catch (Exception e) {
+                            // Cleanup is a best-effort thing, we can't do anything better than log and carry on here. Note that any failure
+                            // is surprising, even a 404 means that something else aborted/completed the upload at a point where there
+                            // should be no other processes interacting with the repository.
+                            logger.warn(
+                                Strings.format(
+                                    "failed to clean up multipart upload [{}] of blob [{}][{}][{}]",
+                                    abortMultipartUploadRequest.getUploadId(),
+                                    blobStore.getRepositoryMetadata().name(),
+                                    abortMultipartUploadRequest.getBucketName(),
+                                    abortMultipartUploadRequest.getKey()
+                                ),
+                                e
+                            );
+                        }
+                    }
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.log(
+                    MasterService.isPublishFailureException(e)
+                        || (e instanceof RepositoryException repositoryException
+                            && repositoryException.getCause() instanceof Exception cause
+                            && MasterService.isPublishFailureException(cause)) ? Level.DEBUG : Level.WARN,
+                    "failed to start cleanup of dangling multipart uploads",
+                    e
+                );
+            }
+        }, refs.acquire()));
     }
 }

@@ -90,7 +90,7 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
 
   private void addRawInput(int positionOffset, IntVector groups, BooleanBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       if (values.isNull(groupPosition + positionOffset)) {
         continue;
       }
@@ -104,7 +104,7 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
 
   private void addRawInput(int positionOffset, IntVector groups, BooleanVector values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       state.set(groupId, MaxBooleanAggregator.combine(state.getOrDefault(groupId), values.getBoolean(groupPosition + positionOffset)));
     }
   }
@@ -117,7 +117,7 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = Math.toIntExact(groups.getInt(g));
+        int groupId = groups.getInt(g);
         if (values.isNull(groupPosition + positionOffset)) {
           continue;
         }
@@ -138,7 +138,7 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = Math.toIntExact(groups.getInt(g));
+        int groupId = groups.getInt(g);
         state.set(groupId, MaxBooleanAggregator.combine(state.getOrDefault(groupId), values.getBoolean(groupPosition + positionOffset)));
       }
     }
@@ -160,7 +160,7 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
     assert max.getPositionCount() == seen.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       if (seen.getBoolean(groupPosition + positionOffset)) {
         state.set(groupId, MaxBooleanAggregator.combine(state.getOrDefault(groupId), max.getBoolean(groupPosition + positionOffset)));
       }

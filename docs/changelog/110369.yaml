@@ -1,6 +1,0 @@
-pr: 110369
-summary: Run terms concurrently when cardinality is only lower than shard size
-area: Aggregations
-type: bug
-issues:
- - 105505

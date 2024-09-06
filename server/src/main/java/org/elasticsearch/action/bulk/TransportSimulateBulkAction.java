@@ -10,17 +10,27 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.template.post.TransportSimulateIndexTemplateAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.SimulateIndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.index.IndexSettingProviders;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
@@ -31,12 +41,22 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.SimulateIngestService;
-import org.elasticsearch.plugins.internal.DocumentSizeObserver;
+import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
+
+import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.isDataStreamsLifecycleOnlyMode;
+import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findV1Templates;
+import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findV2Template;
 
 /**
  * This action simulates bulk indexing data. Pipelines are executed for all indices that the request routes to, but no data is actually
@@ -45,7 +65,10 @@ import java.util.concurrent.Executor;
  */
 public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
     public static final NodeFeature SIMULATE_MAPPING_VALIDATION = new NodeFeature("simulate.mapping.validation");
+    public static final NodeFeature SIMULATE_MAPPING_VALIDATION_TEMPLATES = new NodeFeature("simulate.mapping.validation.templates");
     private final IndicesService indicesService;
+    private final NamedXContentRegistry xContentRegistry;
+    private final Set<IndexSettingProvider> indexSettingProviders;
 
     @Inject
     public TransportSimulateBulkAction(
@@ -56,7 +79,9 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         ActionFilters actionFilters,
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
-        IndicesService indicesService
+        IndicesService indicesService,
+        NamedXContentRegistry xContentRegistry,
+        IndexSettingProviders indexSettingProviders
     ) {
         super(
             SimulateBulkAction.INSTANCE,
@@ -68,9 +93,11 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
             ingestService,
             indexingPressure,
             systemIndices,
-            System::nanoTime
+            threadPool::relativeTimeInNanos
         );
         this.indicesService = indicesService;
+        this.xContentRegistry = xContentRegistry;
+        this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
     }
 
     @Override
@@ -79,7 +106,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         BulkRequest bulkRequest,
         Executor executor,
         ActionListener<BulkResponse> listener,
-        long relativeStartTime
+        long relativeStartTimeNanos
     ) {
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
         for (int i = 0; i < bulkRequest.requests.size(); i++) {
@@ -105,7 +132,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
             );
         }
         listener.onResponse(
-            new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(relativeStartTime))
+            new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(relativeStartTimeNanos))
         );
     }
 
@@ -122,15 +149,15 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
             request.getContentType(),
             request.routing(),
             request.getDynamicTemplates(),
-            DocumentSizeObserver.EMPTY_INSTANCE
+            XContentMeteringParserDecorator.NOOP
         );
 
         ClusterState state = clusterService.state();
         Exception mappingValidationException = null;
         IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(request.index());
-        if (indexAbstraction != null) {
-            IndexMetadata imd = state.metadata().getIndexSafe(indexAbstraction.getWriteIndex(request, state.metadata()));
-            try {
+        try {
+            if (indexAbstraction != null) {
+                IndexMetadata imd = state.metadata().getIndexSafe(indexAbstraction.getWriteIndex(request, state.metadata()));
                 indicesService.withTempIndexService(imd, indexService -> {
                     indexService.mapperService().updateMapping(null, imd);
                     return IndexShard.prepareIndex(
@@ -148,9 +175,102 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                         0
                     );
                 });
-            } catch (Exception e) {
-                mappingValidationException = e;
+            } else {
+                /*
+                 * The index did not exist, so we put together the mappings from existing templates.
+                 * This reproduces a lot of the mapping resolution logic in MetadataCreateIndexService.applyCreateIndexRequest(). However,
+                 * it does not deal with aliases (since an alias cannot be created if an index does not exist, and this is the path for
+                 * when the index does not exist). And it does not deal with system indices since we do not intend for users to simulate
+                 * writing to system indices.
+                 */
+                String matchingTemplate = findV2Template(state.metadata(), request.index(), false);
+                if (matchingTemplate != null) {
+                    final Template template = TransportSimulateIndexTemplateAction.resolveTemplate(
+                        matchingTemplate,
+                        request.index(),
+                        state,
+                        isDataStreamsLifecycleOnlyMode(clusterService.getSettings()),
+                        xContentRegistry,
+                        indicesService,
+                        systemIndices,
+                        indexSettingProviders
+                    );
+                    CompressedXContent mappings = template.mappings();
+                    if (mappings != null) {
+                        MappingMetadata mappingMetadata = new MappingMetadata(mappings);
+                        Settings dummySettings = Settings.builder()
+                            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+                            .build();
+                        final IndexMetadata imd = IndexMetadata.builder(request.index())
+                            .settings(dummySettings)
+                            .putMapping(mappingMetadata)
+                            .build();
+                        indicesService.withTempIndexService(imd, indexService -> {
+                            indexService.mapperService().updateMapping(null, imd);
+                            return IndexShard.prepareIndex(
+                                indexService.mapperService(),
+                                sourceToParse,
+                                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                                -1,
+                                -1,
+                                VersionType.INTERNAL,
+                                Engine.Operation.Origin.PRIMARY,
+                                Long.MIN_VALUE,
+                                false,
+                                request.ifSeqNo(),
+                                request.ifPrimaryTerm(),
+                                0
+                            );
+                        });
+                    }
+                } else {
+                    List<IndexTemplateMetadata> matchingTemplates = findV1Templates(state.metadata(), request.index(), false);
+                    final Map<String, Object> mappingsMap = MetadataCreateIndexService.parseV1Mappings(
+                        "{}",
+                        matchingTemplates.stream().map(IndexTemplateMetadata::getMappings).collect(toList()),
+                        xContentRegistry
+                    );
+                    final CompressedXContent combinedMappings;
+                    if (mappingsMap.isEmpty()) {
+                        combinedMappings = null;
+                    } else {
+                        combinedMappings = new CompressedXContent(mappingsMap);
+                    }
+                    Settings dummySettings = Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+                        .build();
+                    MappingMetadata mappingMetadata = combinedMappings == null ? null : new MappingMetadata(combinedMappings);
+                    final IndexMetadata imd = IndexMetadata.builder(request.index())
+                        .putMapping(mappingMetadata)
+                        .settings(dummySettings)
+                        .build();
+                    indicesService.withTempIndexService(imd, indexService -> {
+                        indexService.mapperService().updateMapping(null, imd);
+                        return IndexShard.prepareIndex(
+                            indexService.mapperService(),
+                            sourceToParse,
+                            SequenceNumbers.UNASSIGNED_SEQ_NO,
+                            -1,
+                            -1,
+                            VersionType.INTERNAL,
+                            Engine.Operation.Origin.PRIMARY,
+                            Long.MIN_VALUE,
+                            false,
+                            request.ifSeqNo(),
+                            request.ifPrimaryTerm(),
+                            0
+                        );
+                    });
+                }
             }
+        } catch (Exception e) {
+            mappingValidationException = e;
         }
         return mappingValidationException;
     }
@@ -166,8 +286,8 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
     }
 
     @Override
-    protected boolean shouldStoreFailure(String indexName, Metadata metadata, long time) {
+    protected Boolean resolveFailureStore(String indexName, Metadata metadata, long epochMillis) {
         // A simulate bulk request should not change any persistent state in the system, so we never write to the failure store
-        return false;
+        return null;
     }
 }

@@ -1,0 +1,188 @@
+---
+"friendlier BUCKET interval hourly: #110916":
+  - requires:
+      test_runner_features: [allowed_warnings_regex, capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [bucket_inclusive_upper_bound]
+      reason: "BUCKET auto mode now generates different bucket sizes"
+  - do:
+      indices.create:
+        index: test_bucket
+        body:
+          mappings:
+            properties:
+              ts :
+                type : date
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "test_bucket" } }
+          - { "ts": "2024-07-16T08:10:00Z" }
+          - { "index": { "_index": "test_bucket" } }
+          - { "ts": "2024-07-16T09:20:00Z" }
+          - { "index": { "_index": "test_bucket" } }
+          - { "ts": "2024-07-16T10:30:00Z" }
+          - { "index": { "_index": "test_bucket" } }
+          - { "ts": "2024-07-16T11:40:00Z" }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test_bucket | STATS c = COUNT(*) BY b = BUCKET(ts, 4, "2024-07-16T08:00:00Z", "2024-07-16T12:00:00Z") | SORT b'
+  - match: { columns.0.name: c }
+  - match: { columns.0.type: long }
+  - match: { columns.1.name: b }
+  - match: { columns.1.type: date }
+  - length: { values: 4 }
+  - match: { values.0.0: 1 }
+  - match: { values.0.1: "2024-07-16T08:00:00.000Z" }
+  - match: { values.1.0: 1 }
+  - match: { values.1.1: "2024-07-16T09:00:00.000Z" }
+  - match: { values.2.0: 1 }
+  - match: { values.2.1: "2024-07-16T10:00:00.000Z" }
+  - match: { values.3.0: 1 }
+  - match: { values.3.1: "2024-07-16T11:00:00.000Z" }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test_bucket | STATS c = COUNT(*) BY b = BUCKET(ts, 4, "2024-07-16T08:00:00Z", "2024-07-16T12:00:00.001Z") | SORT b'
+  - match: { columns.0.name: c }
+  - match: { columns.0.type: long }
+  - match: { columns.1.name: b }
+  - match: { columns.1.type: date }
+  - length: { values: 2 }
+  - match: { values.0.0: 1 }
+  - match: { values.0.1: "2024-07-16T06:00:00.000Z" }
+  - match: { values.1.0: 3 }
+  - match: { values.1.1: "2024-07-16T09:00:00.000Z" }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test_bucket | STATS c = COUNT(*) BY b = BUCKET(ts, 4, "2024-07-16T08:09:00Z", "2024-07-16T12:00:00Z") | SORT b'
+  - match: { columns.0.name: c }
+  - match: { columns.0.type: long }
+  - match: { columns.1.name: b }
+  - match: { columns.1.type: date }
+  - length: { values: 4 }
+  - match: { values.0.0: 1 }
+  - match: { values.0.1: "2024-07-16T08:00:00.000Z" }
+  - match: { values.1.0: 1 }
+  - match: { values.1.1: "2024-07-16T09:00:00.000Z" }
+  - match: { values.2.0: 1 }
+  - match: { values.2.1: "2024-07-16T10:00:00.000Z" }
+  - match: { values.3.0: 1 }
+  - match: { values.3.1: "2024-07-16T11:00:00.000Z" }
+
+---
+"friendlier BUCKET interval: monthly #110916":
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
+      test_runner_features: [allowed_warnings_regex, capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [bucket_inclusive_upper_bound]
+      reason: "BUCKET auto mode now generates different bucket sizes"
+  - do:
+      indices.create:
+        index: test_bucket
+        body:
+          mappings:
+            properties:
+              ts :
+                type : date
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "test_bucket" } }
+          - { "ts": "2024-06-16" }
+          - { "index": { "_index": "test_bucket" } }
+          - { "ts": "2024-07-16" }
+          - { "index": { "_index": "test_bucket" } }
+          - { "ts": "2024-08-16" }
+          - { "index": { "_index": "test_bucket" } }
+          - { "ts": "2024-09-16" }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test_bucket | STATS c = COUNT(*) BY b = BUCKET(ts, 11, "2024-01-01", "2025-01-01") | SORT b'
+  - match: { columns.0.name: c }
+  - match: { columns.0.type: long }
+  - match: { columns.1.name: b }
+  - match: { columns.1.type: date }
+  - length: { values: 1 }
+  - match: { values.0.0: 4 }
+  - match: { values.0.1: "2024-01-01T00:00:00.000Z" }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test_bucket | STATS c = COUNT(*) BY b = BUCKET(ts, 12, "2024-01-01", "2025-01-01") | SORT b'
+  - match: { columns.0.name: c }
+  - match: { columns.0.type: long }
+  - match: { columns.1.name: b }
+  - match: { columns.1.type: date }
+  - length: { values: 4 }
+  - match: { values.0.0: 1 }
+  - match: { values.0.1: "2024-06-01T00:00:00.000Z" }
+  - match: { values.1.0: 1 }
+  - match: { values.1.1: "2024-07-01T00:00:00.000Z" }
+  - match: { values.2.0: 1 }
+  - match: { values.2.1: "2024-08-01T00:00:00.000Z" }
+  - match: { values.3.0: 1 }
+  - match: { values.3.1: "2024-09-01T00:00:00.000Z" }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test_bucket | STATS c = COUNT(*) BY b = BUCKET(ts, 12, "2024-01-01", "2025-01-01T00:00:00.001") | SORT b'
+  - match: { columns.0.name: c }
+  - match: { columns.0.type: long }
+  - match: { columns.1.name: b }
+  - match: { columns.1.type: date }
+  - length: { values: 1 }
+  - match: { values.0.0: 4 }
+  - match: { values.0.1: "2024-01-01T00:00:00.000Z" }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test_bucket | STATS c = COUNT(*) BY b = BUCKET(ts, 13, "2024-01-01T12:13:14Z", "2025-01-01") | SORT b'
+  - match: { columns.0.name: c }
+  - match: { columns.0.type: long }
+  - match: { columns.1.name: b }
+  - match: { columns.1.type: date }
+  - length: { values: 4 }
+  - match: { values.0.0: 1 }
+  - match: { values.0.1: "2024-06-01T00:00:00.000Z" }
+  - match: { values.1.0: 1 }
+  - match: { values.1.1: "2024-07-01T00:00:00.000Z" }
+  - match: { values.2.0: 1 }
+  - match: { values.2.1: "2024-08-01T00:00:00.000Z" }
+  - match: { values.3.0: 1 }
+  - match: { values.3.1: "2024-09-01T00:00:00.000Z" }

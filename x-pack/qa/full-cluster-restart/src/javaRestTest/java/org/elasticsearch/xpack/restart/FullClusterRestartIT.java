@@ -99,6 +99,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
             Request createDoc = new Request("PUT", docLocation);
             createDoc.addParameter("refresh", "true");
             createDoc.setJsonEntity(doc);
+            createDoc.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(fieldNamesFieldOk()));
             client().performRequest(createDoc);
         }
 
@@ -974,6 +975,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
                 .field("@timestamp", System.currentTimeMillis())
                 .endObject();
             indexRequest.setJsonEntity(Strings.toString(builder));
+            indexRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(fieldNamesFieldOk()));
             assertOK(client().performRequest(indexRequest));
         }
 

@@ -11,8 +11,6 @@ import org.apache.http.HttpHost;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -68,14 +66,7 @@ public class EqlSearchIT extends ESRestTestCase {
         bwcNodes = new ArrayList<>(nodes.getBWCNodes());
 
         String mappings = readResource(EqlSearchIT.class.getResourceAsStream("/eql_mapping.json"));
-        createIndex(
-            index,
-            Settings.builder()
-                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), numShards)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
-                .build(),
-            mappings
-        );
+        createIndex(index, indexSettings(numShards, numReplicas).build(), mappings);
     }
 
     @After

@@ -19,8 +19,8 @@ import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.xpack.esql.core.TestUtils.fieldAttribute;
-import static org.elasticsearch.xpack.esql.core.TestUtils.of;
+import static org.elasticsearch.xpack.esql.core.util.TestUtils.fieldAttribute;
+import static org.elasticsearch.xpack.esql.core.util.TestUtils.of;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.contains;

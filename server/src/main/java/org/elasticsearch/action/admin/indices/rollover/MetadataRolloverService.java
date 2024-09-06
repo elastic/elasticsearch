@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -45,6 +44,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -179,10 +179,6 @@ public class MetadataRolloverService {
         };
     }
 
-    public static void validateIndexName(ClusterState state, String index) {
-        MetadataCreateIndexService.validateIndexName(index, state);
-    }
-
     /**
      * Returns the names that rollover would use, but does not perform the actual rollover
      */
@@ -252,7 +248,8 @@ public class MetadataRolloverService {
         final Boolean isHidden = IndexMetadata.INDEX_HIDDEN_SETTING.exists(createIndexRequest.settings())
             ? IndexMetadata.INDEX_HIDDEN_SETTING.get(createIndexRequest.settings())
             : null;
-        MetadataCreateIndexService.validateIndexName(rolloverIndexName, currentState); // fails if the index already exists
+        MetadataCreateIndexService.validateIndexName(rolloverIndexName, metadata, currentState.routingTable()); // fails if the index
+                                                                                                                // already exists
         checkNoDuplicatedAliasInIndexTemplate(metadata, rolloverIndexName, aliasName, isHidden);
         if (onlyValidate) {
             return new RolloverResult(rolloverIndexName, sourceIndexName, currentState);
@@ -328,7 +325,8 @@ public class MetadataRolloverService {
         final Tuple<String, Long> nextIndexAndGeneration = dataStream.nextWriteIndexAndGeneration(metadata, dataStreamIndices);
         final String newWriteIndexName = nextIndexAndGeneration.v1();
         final long newGeneration = nextIndexAndGeneration.v2();
-        MetadataCreateIndexService.validateIndexName(newWriteIndexName, currentState); // fails if the index already exists
+        MetadataCreateIndexService.validateIndexName(newWriteIndexName, metadata, currentState.routingTable()); // fails if the index
+                                                                                                                // already exists
         if (onlyValidate) {
             return new RolloverResult(newWriteIndexName, isLazyCreation ? NON_EXISTENT_SOURCE : originalWriteIndex.getName(), currentState);
         }

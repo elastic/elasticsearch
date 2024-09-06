@@ -36,8 +36,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.repositories.RepositoriesMetrics.HTTP_REQUEST_TIME_IN_MICROS_HISTOGRAM;
+import static org.elasticsearch.repositories.RepositoriesMetrics.HTTP_REQUEST_TIME_IN_MILLIS_HISTOGRAM;
 import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_EXCEPTIONS_HISTOGRAM;
 import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_EXCEPTIONS_REQUEST_RANGE_NOT_SATISFIED_TOTAL;
 import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_EXCEPTIONS_TOTAL;
@@ -52,6 +53,7 @@ import static org.elasticsearch.rest.RestStatus.REQUESTED_RANGE_NOT_SATISFIED;
 import static org.elasticsearch.rest.RestStatus.TOO_MANY_REQUESTS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
 // Need to set up a new cluster for each test because cluster settings use randomized authentication settings
@@ -98,6 +100,35 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
         return blobStoreRepository.blobStore().blobContainer(BlobPath.EMPTY.add(randomIdentifier()));
     }
 
+    public void testHttpRequestTimeCaptureInMilliseconds() throws IOException {
+        final String repository = createRepository(randomRepositoryName());
+        final String dataNodeName = internalCluster().getNodeNameThat(DiscoveryNode::canContainData);
+        final TestTelemetryPlugin plugin = getPlugin(dataNodeName);
+        final OperationPurpose purpose = randomFrom(OperationPurpose.values());
+        final BlobContainer blobContainer = getBlobContainer(dataNodeName, repository);
+        final String blobName = randomIdentifier();
+
+        long before = System.nanoTime();
+        blobContainer.writeBlob(purpose, blobName, new BytesArray(randomBytes(between(10, 1000))), false);
+        long elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - before);
+        assertThat(getLongHistogramValue(plugin, HTTP_REQUEST_TIME_IN_MILLIS_HISTOGRAM, Operation.PUT_OBJECT), lessThanOrEqualTo(elapsed));
+
+        plugin.resetMeter();
+        before = System.nanoTime();
+        blobContainer.readBlob(purpose, blobName).close();
+        elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - before);
+        assertThat(getLongHistogramValue(plugin, HTTP_REQUEST_TIME_IN_MILLIS_HISTOGRAM, Operation.GET_OBJECT), lessThanOrEqualTo(elapsed));
+
+        plugin.resetMeter();
+        before = System.nanoTime();
+        blobContainer.deleteBlobsIgnoringIfNotExists(purpose, Iterators.single(blobName));
+        elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - before);
+        assertThat(
+            getLongHistogramValue(plugin, HTTP_REQUEST_TIME_IN_MILLIS_HISTOGRAM, Operation.DELETE_OBJECTS),
+            lessThanOrEqualTo(elapsed)
+        );
+    }
+
     public void testMetricsWithErrors() throws IOException {
         final String repository = createRepository(randomRepositoryName());
 
@@ -121,7 +152,7 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
             assertThat(getLongCounterValue(plugin, METRIC_THROTTLES_TOTAL, Operation.PUT_OBJECT), equalTo(2L * batch));
             assertThat(getLongHistogramValue(plugin, METRIC_EXCEPTIONS_HISTOGRAM, Operation.PUT_OBJECT), equalTo(batch));
             assertThat(getLongHistogramValue(plugin, METRIC_THROTTLES_HISTOGRAM, Operation.PUT_OBJECT), equalTo(2L * batch));
-            assertThat(getNumberOfMeasurements(plugin, HTTP_REQUEST_TIME_IN_MICROS_HISTOGRAM, Operation.PUT_OBJECT), equalTo(batch));
+            assertThat(getNumberOfMeasurements(plugin, HTTP_REQUEST_TIME_IN_MILLIS_HISTOGRAM, Operation.PUT_OBJECT), equalTo(batch));
         }
 
         // Get not found
@@ -141,7 +172,7 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
             assertThat(getLongCounterValue(plugin, METRIC_THROTTLES_TOTAL, Operation.GET_OBJECT), equalTo(batch));
             assertThat(getLongHistogramValue(plugin, METRIC_EXCEPTIONS_HISTOGRAM, Operation.GET_OBJECT), equalTo(batch));
             assertThat(getLongHistogramValue(plugin, METRIC_THROTTLES_HISTOGRAM, Operation.GET_OBJECT), equalTo(batch));
-            assertThat(getNumberOfMeasurements(plugin, HTTP_REQUEST_TIME_IN_MICROS_HISTOGRAM, Operation.GET_OBJECT), equalTo(batch));
+            assertThat(getNumberOfMeasurements(plugin, HTTP_REQUEST_TIME_IN_MILLIS_HISTOGRAM, Operation.GET_OBJECT), equalTo(batch));
 
             // Make sure we don't hit the request range not satisfied counters
             assertThat(getLongCounterValue(plugin, METRIC_EXCEPTIONS_REQUEST_RANGE_NOT_SATISFIED_TOTAL, Operation.GET_OBJECT), equalTo(0L));
@@ -164,7 +195,7 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
             assertThat(getLongCounterValue(plugin, METRIC_THROTTLES_TOTAL, Operation.LIST_OBJECTS), equalTo(5L * batch));
             assertThat(getLongHistogramValue(plugin, METRIC_EXCEPTIONS_HISTOGRAM, Operation.LIST_OBJECTS), equalTo(batch));
             assertThat(getLongHistogramValue(plugin, METRIC_THROTTLES_HISTOGRAM, Operation.LIST_OBJECTS), equalTo(5L * batch));
-            assertThat(getNumberOfMeasurements(plugin, HTTP_REQUEST_TIME_IN_MICROS_HISTOGRAM, Operation.LIST_OBJECTS), equalTo(batch));
+            assertThat(getNumberOfMeasurements(plugin, HTTP_REQUEST_TIME_IN_MILLIS_HISTOGRAM, Operation.LIST_OBJECTS), equalTo(batch));
         }
 
         // Delete to clean up
@@ -176,7 +207,7 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
         assertThat(getLongCounterValue(plugin, METRIC_THROTTLES_TOTAL, Operation.DELETE_OBJECTS), equalTo(0L));
         assertThat(getLongHistogramValue(plugin, METRIC_EXCEPTIONS_HISTOGRAM, Operation.DELETE_OBJECTS), equalTo(0L));
         assertThat(getLongHistogramValue(plugin, METRIC_THROTTLES_HISTOGRAM, Operation.DELETE_OBJECTS), equalTo(0L));
-        assertThat(getNumberOfMeasurements(plugin, HTTP_REQUEST_TIME_IN_MICROS_HISTOGRAM, Operation.DELETE_OBJECTS), equalTo(1L));
+        assertThat(getNumberOfMeasurements(plugin, HTTP_REQUEST_TIME_IN_MILLIS_HISTOGRAM, Operation.DELETE_OBJECTS), equalTo(1L));
     }
 
     public void testMetricsForRequestRangeNotSatisfied() {
@@ -208,7 +239,7 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
             );
             assertThat(getLongCounterValue(plugin, METRIC_THROTTLES_TOTAL, Operation.GET_OBJECT), equalTo(2 * batch));
             assertThat(getLongHistogramValue(plugin, METRIC_THROTTLES_HISTOGRAM, Operation.GET_OBJECT), equalTo(2 * batch));
-            assertThat(getNumberOfMeasurements(plugin, HTTP_REQUEST_TIME_IN_MICROS_HISTOGRAM, Operation.GET_OBJECT), equalTo(batch));
+            assertThat(getNumberOfMeasurements(plugin, HTTP_REQUEST_TIME_IN_MILLIS_HISTOGRAM, Operation.GET_OBJECT), equalTo(batch));
         }
     }
 

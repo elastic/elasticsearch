@@ -49,11 +49,15 @@ public class ValuesTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.ipCases(1, 1000),
             MultiRowTestCaseSupplier.versionCases(1, 1000),
             // Lower values for strings, as they take more space and may trigger the circuit breaker
-            MultiRowTestCaseSupplier.stringCases(1, 100, DataType.KEYWORD),
-            MultiRowTestCaseSupplier.stringCases(1, 100, DataType.TEXT)
+            MultiRowTestCaseSupplier.stringCases(1, 20, DataType.KEYWORD),
+            MultiRowTestCaseSupplier.stringCases(1, 20, DataType.TEXT)
         ).flatMap(List::stream).map(ValuesTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(
+            suppliers,
+            false,
+            (v, p) -> "any type except unsigned_long and spatial types"
+        );
     }
 
     @Override

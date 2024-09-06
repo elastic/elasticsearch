@@ -11,6 +11,19 @@ setup:
             index:
               number_of_shards: 1
               number_of_replicas: 0
+          aliases:
+            test-alias1: { }
+
+  - do:
+      indices.create:
+        index: test-index2
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+          aliases:
+            test-alias1: { }
 
   - do:
       bulk:
@@ -38,6 +51,22 @@ setup:
           - index:
               _id: doc7
           - { "text": "observability" }
+          - index:
+              _id: doc8
+          - { "text": "elasticsearch" }
+
+  - do:
+      bulk:
+        refresh: true
+        index: test-index2
+        body:
+          - index:
+              _id: another-doc
+          - { "text": "you know, for search" }
+          - index:
+              _id: doc8
+          - { "text": "elasticsearch" }
+
 
   - do:
       query_rules.put_ruleset:
@@ -82,6 +111,15 @@ setup:
               actions:
                 ids:
                   - 'doc7'
+            - rule_id: rule5
+              type: exclude
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  values: [ search ]
+              actions:
+                ids:
+                  - 'doc8'
 
   - do:
       query_rules.put_ruleset:
@@ -113,6 +151,21 @@ teardown:
   - do:
       query_rules.delete_ruleset:
         ruleset_id: combined-ruleset
+        ignore: 404
+
+  - do:
+      query_rules.delete_ruleset:
+        ruleset_id: alias-ruleset
+        ignore: 404
+
+  - do:
+      query_rules.delete_ruleset:
+        ruleset_id: double-jeopardy-ruleset
+        ignore: 404
+
+  - do:
+      query_rules.delete_ruleset:
+        ruleset_id: multiple-exclude-ruleset
         ignore: 404
 
 ---
@@ -165,7 +218,7 @@ teardown:
                 foo: bar
 
 ---
-"Perform a rule query with malformed rule":
+"Perform a search with malformed rule query":
   - do:
       catch: bad_request
       search:
@@ -184,6 +237,7 @@ teardown:
 
   - do:
       search:
+        index: test-index1
         body:
           query:
             rule:
@@ -208,6 +262,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search:
+        index: test-index1
         body:
           query:
             rule:
@@ -294,6 +349,7 @@ teardown:
 
   - do:
       search:
+        index: test-index1
         body:
           query:
             rule:
@@ -309,6 +365,190 @@ teardown:
   - match: { hits.total.value: 4 }
   - match: { hits.hits.0._id: 'doc2' }
   - match: { hits.hits.1._id: 'doc3' }
+
+---
+"Perform a query over an alias, where one document is pinned specifying the index":
+  - do:
+      query_rules.put_ruleset:
+        ruleset_id: alias-ruleset
+        body:
+          rules:
+            - rule_id: rule1
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: foo
+                  values: [ bar ]
+              actions:
+                docs:
+                  - '_index': 'test-index1'
+                    '_id': 'doc8'
+            - rule_id: rule2
+              type: exclude
+              criteria:
+                - type: exact
+                  metadata: foo
+                  values: [ baz ]
+              actions:
+                docs:
+                  - '_index': 'test-index1'
+                    '_id': 'doc8'
+
+  - do:
+      search:
+        body:
+          query:
+            rule:
+              organic:
+                match_none: { }
+              match_criteria:
+                foo: bar
+              ruleset_ids:
+                - alias-ruleset
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: 'doc8' }
+  - match: { hits.hits.0._index: 'test-index1' }
+
+  - do:
+      search:
+        body:
+          query:
+            rule:
+              organic:
+                query_string:
+                  query: elasticsearch
+              match_criteria:
+                foo: baz
+              ruleset_ids:
+                - alias-ruleset
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: 'doc8' }
+  - match: { hits.hits.0._index: 'test-index2' }
+
+  - do:
+      search:
+        body:
+          query:
+            rule:
+              organic:
+                query_string:
+                  query: elasticsearch
+              match_criteria:
+                foo: not-a-match
+              ruleset_ids:
+                - alias-ruleset
+
+  - match: { hits.total.value: 2 }
+
+---
+"Perform a query where the same ID is both pinned and excluded, leading it to be excluded":
+  - do:
+      query_rules.put_ruleset:
+        ruleset_id: double-jeopardy-ruleset
+        body:
+          rules:
+            - rule_id: rule1
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: foo
+                  values: [ bar ]
+              actions:
+                ids:
+                  - 'doc8'
+            - rule_id: rule2
+              type: exclude
+              criteria:
+                - type: exact
+                  metadata: foo
+                  values: [ bar ]
+              actions:
+                ids:
+                  - 'doc8'
+
+  - do:
+      search:
+        index: test-index2
+        body:
+          query:
+            query_string:
+              query: elasticsearch
+
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: test-index2
+        body:
+          query:
+            rule:
+              organic:
+                query_string:
+                  query: elasticsearch
+              match_criteria:
+                foo: bar
+              ruleset_ids:
+                - double-jeopardy-ruleset
+
+  - match: { hits.total.value: 0 }
+
+---
+"Perform a query that matches multiple exclude rules":
+  - do:
+      query_rules.put_ruleset:
+        ruleset_id: multiple-exclude-ruleset
+        body:
+          rules:
+            - rule_id: rule1
+              type: exclude
+              criteria:
+                - type: exact
+                  metadata: foo
+                  values: [ bar ]
+              actions:
+                ids:
+                  - 'doc1'
+            - rule_id: rule2
+              type: exclude
+              criteria:
+                - type: exact
+                  metadata: foo
+                  values: [ bar ]
+              actions:
+                ids:
+                  - 'doc8'
+
+  - do:
+      search:
+        index: test-index1
+        body:
+          query:
+            query_string:
+              query: elasticsearch is elastic search
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id: 'doc1' }
+  - match: { hits.hits.1._id: 'doc8' }
+  - match: { hits.hits.2._id: 'doc4' }
+
+  - do:
+      search:
+        index: test-index1
+        body:
+          query:
+            rule:
+              organic:
+                query_string:
+                  query: elasticsearch is elastic search
+              match_criteria:
+                foo: bar
+              ruleset_ids:
+                - multiple-exclude-ruleset
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: 'doc4' }
 
 ---
 "Perform a rule query over a ruleset with combined numeric and text rule matching":
@@ -509,6 +749,7 @@ teardown:
 
   - do:
       search:
+        index: test-index1
         body:
           query:
             rule:
@@ -634,6 +875,7 @@ teardown:
 
   - do:
       search:
+        index: test-index1
         body:
           query:
             rule_query:
@@ -651,4 +893,3 @@ teardown:
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: 'doc1' }
   - match: { hits.hits.1._id: 'doc4' }
-

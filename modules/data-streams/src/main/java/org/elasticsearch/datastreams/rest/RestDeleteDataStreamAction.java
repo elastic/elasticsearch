@@ -13,6 +13,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -37,6 +38,7 @@ public class RestDeleteDataStreamAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request(
+            RestUtils.getMasterNodeTimeout(request),
             Strings.splitStringByCommaToArray(request.param("name"))
         );
         deleteDataStreamRequest.indicesOptions(IndicesOptions.fromRequest(request, deleteDataStreamRequest.indicesOptions()));

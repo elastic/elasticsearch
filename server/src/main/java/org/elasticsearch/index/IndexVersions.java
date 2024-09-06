@@ -112,6 +112,7 @@ public class IndexVersions {
     public static final IndexVersion ADD_SECURITY_MIGRATION = def(8_510_00_0, Version.LUCENE_9_11_0);
     public static final IndexVersion UPGRADE_TO_LUCENE_9_11_1 = def(8_511_00_0, Version.LUCENE_9_11_1);
     public static final IndexVersion INDEX_SORTING_ON_NESTED = def(8_512_00_0, Version.LUCENE_9_11_1);
+    public static final IndexVersion LENIENT_UPDATEABLE_SYNONYMS = def(8_513_00_0, Version.LUCENE_9_11_1);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _
@@ -220,7 +221,7 @@ public class IndexVersions {
         return VERSION_IDS.values();
     }
 
-    static final IntFunction<String> VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(IndexVersions.class);
+    static final IntFunction<String> VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(IndexVersions.class, LATEST_DEFINED.id());
 
     // no instance
     private IndexVersions() {}

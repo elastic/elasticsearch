@@ -66,6 +66,15 @@ public final class BufferedChecksumStreamInput extends FilterStreamInput {
         digest.update(b, offset, len);
     }
 
+    @Override
+    public int read(byte[] b, int off, int len) throws IOException {
+        int read = delegate.read(b, off, len);
+        if (read > 0) {
+            digest.update(b, off, read);
+        }
+        return read;
+    }
+
     private static final ThreadLocal<byte[]> buffer = ThreadLocal.withInitial(() -> new byte[8]);
 
     @Override

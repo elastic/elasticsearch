@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ReferenceDocs;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -35,15 +37,17 @@ import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
-import org.elasticsearch.snapshots.SnapshotDeleteListener;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
+import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
@@ -183,6 +187,16 @@ class S3Repository extends MeteredBlobStoreRepository {
         S3BlobStore.MAX_BULK_DELETES
     );
 
+    /**
+     * Maximum number of uploads to request for cleanup when doing a snapshot delete.
+     */
+    static final Setting<Integer> MAX_MULTIPART_UPLOAD_CLEANUP_SIZE = Setting.intSetting(
+        "max_multipart_upload_cleanup_size",
+        1000,
+        0,
+        Setting.Property.Dynamic
+    );
+
     private final S3Service service;
 
     private final String bucket;
@@ -305,7 +319,7 @@ class S3Repository extends MeteredBlobStoreRepository {
                 finalizeSnapshotContext.clusterMetadata(),
                 finalizeSnapshotContext.snapshotInfo(),
                 finalizeSnapshotContext.repositoryMetaVersion(),
-                delayedListener(ActionListener.runAfter(finalizeSnapshotContext, () -> metadataDone.onResponse(null))),
+                wrapWithWeakConsistencyProtection(ActionListener.runAfter(finalizeSnapshotContext, () -> metadataDone.onResponse(null))),
                 info -> metadataDone.addListener(new ActionListener<>() {
                     @Override
                     public void onResponse(Void unused) {
@@ -324,50 +338,19 @@ class S3Repository extends MeteredBlobStoreRepository {
         super.finalizeSnapshot(wrappedFinalizeContext);
     }
 
-    @Override
-    protected SnapshotDeleteListener wrapWithWeakConsistencyProtection(SnapshotDeleteListener listener) {
-        return new SnapshotDeleteListener() {
-            @Override
-            public void onDone() {
-                listener.onDone();
-            }
-
-            @Override
-            public void onRepositoryDataWritten(RepositoryData repositoryData) {
-                logCooldownInfo();
-                final Scheduler.Cancellable existing = finalizationFuture.getAndSet(threadPool.schedule(() -> {
-                    final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
-                    assert cancellable != null;
-                    listener.onRepositoryDataWritten(repositoryData);
-                }, coolDown, snapshotExecutor));
-                assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                logCooldownInfo();
-                final Scheduler.Cancellable existing = finalizationFuture.getAndSet(threadPool.schedule(() -> {
-                    final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
-                    assert cancellable != null;
-                    listener.onFailure(e);
-                }, coolDown, snapshotExecutor));
-                assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
-            }
-        };
-    }
-
     /**
      * Wraps given listener such that it is executed with a delay of {@link #coolDown} on the snapshot thread-pool after being invoked.
      * See {@link #COOLDOWN_PERIOD} for details.
      */
-    private <T> ActionListener<T> delayedListener(ActionListener<T> listener) {
-        final ActionListener<T> wrappedListener = ActionListener.runBefore(listener, () -> {
+    @Override
+    protected ActionListener<RepositoryData> wrapWithWeakConsistencyProtection(ActionListener<RepositoryData> listener) {
+        final ActionListener<RepositoryData> wrappedListener = ActionListener.runBefore(listener, () -> {
             final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
             assert cancellable != null;
         });
         return new ActionListener<>() {
             @Override
-            public void onResponse(T response) {
+            public void onResponse(RepositoryData response) {
                 logCooldownInfo();
                 final Scheduler.Cancellable existing = finalizationFuture.getAndSet(
                     threadPool.schedule(ActionRunnable.wrap(wrappedListener, l -> l.onResponse(response)), coolDown, snapshotExecutor)
@@ -458,5 +441,76 @@ class S3Repository extends MeteredBlobStoreRepository {
             ReferenceDocs.SNAPSHOT_REPOSITORY_ANALYSIS,
             ReferenceDocs.S3_COMPATIBLE_REPOSITORIES
         );
+    }
+
+    // only one multipart cleanup process running at once
+    private final AtomicBoolean multipartCleanupInProgress = new AtomicBoolean();
+
+    @Override
+    public void deleteSnapshots(
+        Collection<SnapshotId> snapshotIds,
+        long repositoryDataGeneration,
+        IndexVersion minimumNodeVersion,
+        ActionListener<RepositoryData> repositoryDataUpdateListener,
+        Runnable onCompletion
+    ) {
+        getMultipartUploadCleanupListener(
+            isReadOnly() ? 0 : MAX_MULTIPART_UPLOAD_CLEANUP_SIZE.get(getMetadata().settings()),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(ActionListener<Void> multipartUploadCleanupListener) {
+                    S3Repository.super.deleteSnapshots(snapshotIds, repositoryDataGeneration, minimumNodeVersion, new ActionListener<>() {
+                        @Override
+                        public void onResponse(RepositoryData repositoryData) {
+                            multipartUploadCleanupListener.onResponse(null);
+                            repositoryDataUpdateListener.onResponse(repositoryData);
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            multipartUploadCleanupListener.onFailure(e);
+                            repositoryDataUpdateListener.onFailure(e);
+                        }
+                    }, onCompletion);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.warn("failed to get multipart uploads for cleanup during snapshot delete", e);
+                    assert false : e; // getMultipartUploadCleanupListener doesn't throw and snapshotExecutor doesn't reject anything
+                    repositoryDataUpdateListener.onFailure(e);
+                }
+            }
+        );
+    }
+
+    /**
+     * Capture the current list of multipart uploads, and (asynchronously) return a listener which, if completed successfully, aborts those
+     * uploads. Called at the start of a snapshot delete operation, at which point there should be no ongoing uploads (except in the case of
+     * a master failover). We protect against the master failover case by waiting until the delete operation successfully updates the root
+     * index-N blob before aborting any uploads.
+     */
+    void getMultipartUploadCleanupListener(int maxUploads, ActionListener<ActionListener<Void>> listener) {
+        if (maxUploads == 0) {
+            listener.onResponse(ActionListener.noop());
+            return;
+        }
+
+        if (multipartCleanupInProgress.compareAndSet(false, true) == false) {
+            logger.info("multipart upload cleanup already in progress");
+            listener.onResponse(ActionListener.noop());
+            return;
+        }
+
+        try (var refs = new RefCountingRunnable(() -> multipartCleanupInProgress.set(false))) {
+            snapshotExecutor.execute(
+                ActionRunnable.supply(
+                    ActionListener.releaseAfter(listener, refs.acquire()),
+                    () -> blobContainer() instanceof S3BlobContainer s3BlobContainer
+                        ? s3BlobContainer.getMultipartUploadCleanupListener(maxUploads, refs)
+                        : ActionListener.noop()
+                )
+            );
+        }
     }
 }

@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.DataStreamAction;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -69,8 +70,8 @@ public class ModifyDataStreamsAction extends ActionType<AcknowledgedResponse> {
             out.writeCollection(actions);
         }
 
-        public Request(List<DataStreamAction> actions) {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, List<DataStreamAction> actions) {
+            super(masterNodeTimeout, ackTimeout);
             this.actions = Collections.unmodifiableList(actions);
         }
 
@@ -98,13 +99,22 @@ public class ModifyDataStreamsAction extends ActionType<AcknowledgedResponse> {
             return null;
         }
 
+        public interface Factory {
+            Request create(List<DataStreamAction> actions);
+        }
+
         @SuppressWarnings("unchecked")
-        public static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
+        public static final ConstructingObjectParser<Request, Factory> PARSER = new ConstructingObjectParser<>(
             "data_stream_actions",
-            args -> new Request(((List<DataStreamAction>) args[0]))
+            false,
+            (args, factory) -> factory.create((List<DataStreamAction>) args[0])
         );
         static {
-            PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), DataStreamAction.PARSER, new ParseField("actions"));
+            PARSER.declareObjectArray(
+                ConstructingObjectParser.constructorArg(),
+                (p, c) -> DataStreamAction.PARSER.parse(p, null),
+                new ParseField("actions")
+            );
         }
 
         @Override

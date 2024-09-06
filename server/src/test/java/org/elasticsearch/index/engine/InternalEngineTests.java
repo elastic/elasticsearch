@@ -108,6 +108,7 @@ import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.ParsedDocument.DocumentSize;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -129,7 +130,7 @@ import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.index.translog.TranslogOperationsUtils;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.plugins.internal.DocumentSizeObserver;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -5510,7 +5511,7 @@ public class InternalEngineTests extends EngineTestCase {
                 source,
                 XContentType.JSON,
                 null,
-                DocumentSizeObserver.EMPTY_INSTANCE
+                DocumentSize.UNKNOWN
             );
 
             final Engine.Index index = new Engine.Index(
@@ -7770,6 +7771,24 @@ public class InternalEngineTests extends EngineTestCase {
         } else {
             // If no indexing after commit, translog location of the 2nd doc should be visible.
             assertThat(safeGet(future2), equalTo(engine.getLastCommittedSegmentInfos().getGeneration()));
+        }
+    }
+
+    public void testDisableRecoverySource() throws Exception {
+        Settings settings = Settings.builder()
+            .put(defaultSettings.getNodeSettings())
+            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
+            .build();
+        IndexSettings indexSettings = new IndexSettings(defaultSettings.getIndexMetadata(), settings, defaultSettings.getScopedSettings());
+        try (
+            Store store = createStore();
+            InternalEngine engine = createEngine(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE)
+        ) {
+            IllegalStateException exc = expectThrows(
+                IllegalStateException.class,
+                () -> engine.newChangesSnapshot("test", 0, 1000, true, true, true)
+            );
+            assertThat(exc.getMessage(), containsString("unavailable"));
         }
     }
 

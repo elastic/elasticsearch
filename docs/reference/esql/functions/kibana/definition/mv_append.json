@@ -62,19 +62,19 @@
       "params" : [
         {
           "name" : "field1",
-          "type" : "datetime",
+          "type" : "date",
           "optional" : false,
           "description" : ""
         },
         {
           "name" : "field2",
-          "type" : "datetime",
+          "type" : "date",
           "optional" : false,
           "description" : ""
         }
       ],
       "variadic" : false,
-      "returnType" : "datetime"
+      "returnType" : "date"
     },
     {
       "params" : [

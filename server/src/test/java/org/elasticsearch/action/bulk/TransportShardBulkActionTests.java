@@ -599,7 +599,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         IndexRequest updateResponse = new IndexRequest("index").id("id")
             .source(Requests.INDEX_CONTENT_TYPE, "field", "value")
-            .noParsedBytesToReport();// let's pretend this was modified by a script
+            .setNormalisedBytesParsed(0);// let's pretend this was modified by a script
         DocumentParsingProvider documentParsingProvider = mock(DocumentParsingProvider.class);
 
         Exception err = new VersionConflictEngineException(shardId, "id", "I'm conflicted <(;_;)>");
@@ -655,7 +655,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         // we have set 0 value on normalisedBytesParsed on the IndexRequest, like it happens with updates by script.
         ArgumentCaptor<IndexRequest> argument = ArgumentCaptor.forClass(IndexRequest.class);
-        verify(documentParsingProvider, times(retries + 1)).newDocumentSizeObserver(argument.capture());
+        verify(documentParsingProvider, times(retries + 1)).newMeteringParserDecorator(argument.capture());
         IndexRequest value = argument.getValue();
         assertThat(value.getNormalisedBytesParsed(), equalTo(0L));
     }
@@ -722,7 +722,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         assertThat(response.getSeqNo(), equalTo(13L));
 
         ArgumentCaptor<IndexRequest> argument = ArgumentCaptor.forClass(IndexRequest.class);
-        verify(documentParsingProvider, times(1)).newDocumentSizeObserver(argument.capture());
+        verify(documentParsingProvider, times(1)).newMeteringParserDecorator(argument.capture());
         IndexRequest value = argument.getValue();
         assertThat(value.getNormalisedBytesParsed(), equalTo(100L));
     }

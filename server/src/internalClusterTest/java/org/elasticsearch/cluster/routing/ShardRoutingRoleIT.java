@@ -550,7 +550,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
             }
             // search-shards API
             for (int i = 0; i < 10; i++) {
-                final var search = new ClusterSearchShardsRequest(INDEX_NAME);
+                final var search = new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, INDEX_NAME);
                 switch (randomIntBetween(0, 2)) {
                     case 0 -> search.routing(randomAlphaOfLength(10));
                     case 1 -> search.routing(randomSearchPreference(routingTableWatcher.numShards, internalCluster().getNodeNames()));

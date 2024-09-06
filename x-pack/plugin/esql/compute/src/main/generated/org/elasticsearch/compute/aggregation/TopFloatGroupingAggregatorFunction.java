@@ -96,7 +96,7 @@ public final class TopFloatGroupingAggregatorFunction implements GroupingAggrega
 
   private void addRawInput(int positionOffset, IntVector groups, FloatBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       if (values.isNull(groupPosition + positionOffset)) {
         continue;
       }
@@ -110,7 +110,7 @@ public final class TopFloatGroupingAggregatorFunction implements GroupingAggrega
 
   private void addRawInput(int positionOffset, IntVector groups, FloatVector values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       TopFloatAggregator.combine(state, groupId, values.getFloat(groupPosition + positionOffset));
     }
   }
@@ -123,7 +123,7 @@ public final class TopFloatGroupingAggregatorFunction implements GroupingAggrega
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = Math.toIntExact(groups.getInt(g));
+        int groupId = groups.getInt(g);
         if (values.isNull(groupPosition + positionOffset)) {
           continue;
         }
@@ -144,7 +144,7 @@ public final class TopFloatGroupingAggregatorFunction implements GroupingAggrega
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = Math.toIntExact(groups.getInt(g));
+        int groupId = groups.getInt(g);
         TopFloatAggregator.combine(state, groupId, values.getFloat(groupPosition + positionOffset));
       }
     }
@@ -160,7 +160,7 @@ public final class TopFloatGroupingAggregatorFunction implements GroupingAggrega
     }
     FloatBlock top = (FloatBlock) topUncast;
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       TopFloatAggregator.combineIntermediate(state, groupId, top, groupPosition + positionOffset);
     }
   }

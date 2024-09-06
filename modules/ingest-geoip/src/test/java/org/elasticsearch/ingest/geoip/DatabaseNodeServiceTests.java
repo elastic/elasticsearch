@@ -83,7 +83,7 @@ import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
-import static org.elasticsearch.ingest.geoip.GeoIpProcessorFactoryTests.copyDatabaseFiles;
+import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDefaultDatabases;
 import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.TYPE;
 import static org.hamcrest.Matchers.empty;
@@ -117,10 +117,9 @@ public class DatabaseNodeServiceTests extends ESTestCase {
     @Before
     public void setup() throws IOException {
         final Path geoIpConfigDir = createTempDir();
-        Files.createDirectories(geoIpConfigDir);
         GeoIpCache cache = new GeoIpCache(1000);
         ConfigDatabases configDatabases = new ConfigDatabases(geoIpConfigDir, cache);
-        copyDatabaseFiles(geoIpConfigDir, configDatabases);
+        copyDefaultDatabases(geoIpConfigDir, configDatabases);
 
         threadPool = new TestThreadPool(ConfigDatabases.class.getSimpleName());
         Settings settings = Settings.builder().put("resource.reload.interval.high", TimeValue.timeValueMillis(100)).build();

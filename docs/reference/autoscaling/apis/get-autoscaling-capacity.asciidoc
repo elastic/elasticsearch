@@ -7,7 +7,7 @@
 
 NOTE: {cloud-only}
 
-Get autoscaling capacity.
+Get {cloud}/ec-autoscaling.html[autoscaling] capacity.
 
 [[autoscaling-get-autoscaling-capacity-request]]
 ==== {api-request-title}

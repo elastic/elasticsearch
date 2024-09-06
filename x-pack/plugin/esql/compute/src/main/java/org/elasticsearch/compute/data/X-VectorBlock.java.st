@@ -44,8 +44,15 @@ $if(BytesRef)$
             return null;
         }
     }
-$endif$
 
+$elseif(boolean)$
+    @Override
+    public ToMask toMask() {
+        vector.incRef();
+        return new ToMask(vector, false);
+    }
+
+$endif$
     @Override
 $if(BytesRef)$
     public BytesRef getBytesRef(int valueIndex, BytesRef dest) {
@@ -69,6 +76,11 @@ $endif$
     @Override
     public $Type$Block filter(int... positions) {
         return vector.filter(positions).asBlock();
+    }
+
+    @Override
+    public $Type$Block keepMask(BooleanVector mask) {
+        return vector.keepMask(mask);
     }
 
     @Override

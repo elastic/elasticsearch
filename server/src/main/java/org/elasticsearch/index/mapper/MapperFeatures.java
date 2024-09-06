@@ -30,7 +30,12 @@ public class MapperFeatures implements FeatureSpecification {
             DocumentMapper.INDEX_SORTING_ON_NESTED,
             KeywordFieldMapper.KEYWORD_DIMENSION_IGNORE_ABOVE,
             IndexModeFieldMapper.QUERYING_INDEX_MODE,
-            NodeMappingStats.SEGMENT_LEVEL_FIELDS_STATS
+            NodeMappingStats.SEGMENT_LEVEL_FIELDS_STATS,
+            BooleanFieldMapper.BOOLEAN_DIMENSION,
+            ObjectMapper.SUBOBJECTS_AUTO,
+            KeywordFieldMapper.KEYWORD_NORMALIZER_SYNTHETIC_SOURCE,
+            SourceFieldMapper.SYNTHETIC_SOURCE_STORED_FIELDS_ADVANCE_FIX,
+            Mapper.SYNTHETIC_SOURCE_KEEP_FEATURE
         );
     }
 }

@@ -19,7 +19,7 @@ import org.elasticsearch.test.TransportVersionUtils;
 public class ClusterSearchShardsRequestTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
-        ClusterSearchShardsRequest request = new ClusterSearchShardsRequest();
+        ClusterSearchShardsRequest request = new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT);
         if (randomBoolean()) {
             int numIndices = randomIntBetween(1, 5);
             String[] indices = new String[numIndices];
@@ -66,7 +66,7 @@ public class ClusterSearchShardsRequestTests extends ESTestCase {
     }
 
     public void testIndicesMustNotBeNull() {
-        ClusterSearchShardsRequest request = new ClusterSearchShardsRequest();
+        ClusterSearchShardsRequest request = new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT);
         assertNotNull(request.indices());
         expectThrows(NullPointerException.class, () -> request.indices((String[]) null));
         expectThrows(NullPointerException.class, () -> request.indices((String) null));

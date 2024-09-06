@@ -7,53 +7,24 @@
 
 package org.elasticsearch.xpack.apmdata;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.metadata.ComponentTemplate;
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.yaml.YamlXContent;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
-import org.elasticsearch.xpack.core.template.IngestPipelineConfig;
+import org.elasticsearch.xpack.core.template.YamlTemplateRegistry;
 
-import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
-
-import static org.elasticsearch.xpack.apmdata.ResourceUtils.APM_TEMPLATE_VERSION_VARIABLE;
-import static org.elasticsearch.xpack.apmdata.ResourceUtils.loadResource;
-import static org.elasticsearch.xpack.apmdata.ResourceUtils.loadVersionedResourceUTF8;
+import static org.elasticsearch.xpack.apmdata.APMPlugin.APM_DATA_REGISTRY_ENABLED;
 
 /**
  * Creates all index templates and ingest pipelines that are required for using Elastic APM.
  */
-public class APMIndexTemplateRegistry extends IndexTemplateRegistry {
-    private static final Logger logger = LogManager.getLogger(APMIndexTemplateRegistry.class);
-    // this node feature is a redefinition of {@link DataStreamFeatures#DATA_STREAM_LIFECYCLE} and it's meant to avoid adding a
-    // dependency to the data-streams module just for this
-    public static final NodeFeature DATA_STREAM_LIFECYCLE = new NodeFeature("data_stream.lifecycle");
-    private final int version;
+public class APMIndexTemplateRegistry extends YamlTemplateRegistry {
 
-    private final Map<String, ComponentTemplate> componentTemplates;
-    private final Map<String, ComposableIndexTemplate> composableIndexTemplates;
-    private final List<IngestPipelineConfig> ingestPipelines;
-    private final FeatureService featureService;
-    private volatile boolean enabled;
+    public static final String APM_TEMPLATE_VERSION_VARIABLE = "xpack.apmdata.template.version";
 
-    @SuppressWarnings("unchecked")
     public APMIndexTemplateRegistry(
         Settings nodeSettings,
         ClusterService clusterService,
@@ -62,133 +33,29 @@ public class APMIndexTemplateRegistry extends IndexTemplateRegistry {
         NamedXContentRegistry xContentRegistry,
         FeatureService featureService
     ) {
-        super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
+        super(nodeSettings, clusterService, threadPool, client, xContentRegistry, featureService);
+    }
 
-        try {
-            final Map<String, Object> apmResources = XContentHelper.convertToMap(
-                YamlXContent.yamlXContent,
-                loadResource("/resources.yaml"),
-                false
-            );
-            version = (((Number) apmResources.get("version")).intValue());
-            final List<Object> componentTemplateNames = (List<Object>) apmResources.get("component-templates");
-            final List<Object> indexTemplateNames = (List<Object>) apmResources.get("index-templates");
-            final List<Object> ingestPipelineConfigs = (List<Object>) apmResources.get("ingest-pipelines");
+    @Override
+    public String getName() {
+        return "apm";
+    }
 
-            componentTemplates = componentTemplateNames.stream()
-                .map(o -> (String) o)
-                .collect(Collectors.toMap(name -> name, name -> loadComponentTemplate(name, version)));
-            composableIndexTemplates = indexTemplateNames.stream()
-                .map(o -> (String) o)
-                .collect(Collectors.toMap(name -> name, name -> loadIndexTemplate(name, version)));
-            ingestPipelines = ingestPipelineConfigs.stream().map(o -> (Map<String, Map<String, Object>>) o).map(map -> {
-                Map.Entry<String, Map<String, Object>> pipelineConfig = map.entrySet().iterator().next();
-                return loadIngestPipeline(pipelineConfig.getKey(), version, (List<String>) pipelineConfig.getValue().get("dependencies"));
-            }).collect(Collectors.toList());
-            this.featureService = featureService;
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+    @Override
+    public void initialize() {
+        super.initialize();
+        if (isEnabled()) {
+            clusterService.getClusterSettings().addSettingsUpdateConsumer(APM_DATA_REGISTRY_ENABLED, this::setEnabled);
         }
     }
 
-    public int getVersion() {
-        return version;
-    }
-
-    void setEnabled(boolean enabled) {
-        logger.info("APM index template registry is {}", enabled ? "enabled" : "disabled");
-        this.enabled = enabled;
-    }
-
-    public boolean isEnabled() {
-        return enabled;
-    }
-
-    public void close() {
-        clusterService.removeListener(this);
+    @Override
+    protected String getVersionProperty() {
+        return APM_TEMPLATE_VERSION_VARIABLE;
     }
 
     @Override
     protected String getOrigin() {
         return ClientHelper.APM_ORIGIN;
-    }
-
-    @Override
-    protected boolean isClusterReady(ClusterChangedEvent event) {
-        // Ensure current version of the components are installed only after versions that support data stream lifecycle
-        // due to the use of the feature in all the `@lifecycle` component templates
-        return featureService.clusterHasFeature(event.state(), DATA_STREAM_LIFECYCLE);
-    }
-
-    @Override
-    protected boolean requiresMasterNode() {
-        return true;
-    }
-
-    @Override
-    protected Map<String, ComponentTemplate> getComponentTemplateConfigs() {
-        if (enabled) {
-            return componentTemplates;
-        } else {
-            return Map.of();
-        }
-    }
-
-    @Override
-    protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
-        if (enabled) {
-            return composableIndexTemplates;
-        } else {
-            return Map.of();
-        }
-    }
-
-    @Override
-    protected List<IngestPipelineConfig> getIngestPipelines() {
-        if (enabled) {
-            return ingestPipelines;
-        } else {
-            return Collections.emptyList();
-        }
-    }
-
-    private static ComponentTemplate loadComponentTemplate(String name, int version) {
-        try {
-            final byte[] content = loadVersionedResourceUTF8("/component-templates/" + name + ".yaml", version);
-            try (var parser = YamlXContent.yamlXContent.createParser(XContentParserConfiguration.EMPTY, content)) {
-                return ComponentTemplate.parse(parser);
-            }
-        } catch (Exception e) {
-            throw new RuntimeException("failed to load APM Ingest plugin's component template: " + name, e);
-        }
-    }
-
-    private static ComposableIndexTemplate loadIndexTemplate(String name, int version) {
-        try {
-            final byte[] content = loadVersionedResourceUTF8("/index-templates/" + name + ".yaml", version);
-            try (var parser = YamlXContent.yamlXContent.createParser(XContentParserConfiguration.EMPTY, content)) {
-                return ComposableIndexTemplate.parse(parser);
-            }
-        } catch (Exception e) {
-            throw new RuntimeException("failed to load APM Ingest plugin's index template: " + name, e);
-        }
-    }
-
-    private static IngestPipelineConfig loadIngestPipeline(String name, int version, @Nullable List<String> dependencies) {
-        if (dependencies == null) {
-            dependencies = Collections.emptyList();
-        }
-        return new YamlIngestPipelineConfig(
-            name,
-            "/ingest-pipelines/" + name + ".yaml",
-            version,
-            APM_TEMPLATE_VERSION_VARIABLE,
-            dependencies
-        );
-    }
-
-    @Override
-    protected boolean applyRolloverAfterTemplateV2Upgrade() {
-        return true;
     }
 }

@@ -61,6 +61,7 @@ public class S3HttpHandler implements HttpHandler {
 
     private final String bucket;
     private final String path;
+    private final String basePrefix;
 
     private final ConcurrentMap<String, BytesReference> blobs = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, MultipartUpload> uploads = new ConcurrentHashMap<>();
@@ -71,6 +72,7 @@ public class S3HttpHandler implements HttpHandler {
 
     public S3HttpHandler(final String bucket, @Nullable final String basePath) {
         this.bucket = Objects.requireNonNull(bucket);
+        this.basePrefix = Objects.requireNonNullElse(basePath, "");
         this.path = bucket + (basePath != null && basePath.isEmpty() == false ? "/" + basePath : "");
     }
 
@@ -96,7 +98,9 @@ public class S3HttpHandler implements HttpHandler {
                 } else {
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
                 }
-            } else if (Regex.simpleMatch("GET /" + bucket + "/?uploads&prefix=*", request)) {
+            } else if (isListMultipartUploadsRequest(request)) {
+                assert request.contains("prefix=" + basePrefix) : basePrefix + " vs " + request;
+
                 final Map<String, String> params = new HashMap<>();
                 RestUtils.decodeQueryString(request, request.indexOf('?') + 1, params);
                 final var prefix = params.get("prefix");
@@ -327,6 +331,11 @@ public class S3HttpHandler implements HttpHandler {
         } finally {
             exchange.close();
         }
+    }
+
+    private boolean isListMultipartUploadsRequest(String request) {
+        return Regex.simpleMatch("GET /" + bucket + "/?uploads&prefix=*", request)
+            || Regex.simpleMatch("GET /" + bucket + "/?uploads&max-uploads=*&prefix=*", request);
     }
 
     public Map<String, BytesReference> blobs() {

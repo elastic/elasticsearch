@@ -7,10 +7,10 @@
  */
 package org.elasticsearch.index;
 
-import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.injection.guice.AbstractModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;

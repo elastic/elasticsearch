@@ -1,5 +1,0 @@
-pr: 108942
-summary: Fix NPE in trained model assignment updater
-area: Machine Learning
-type: bug
-issues: []

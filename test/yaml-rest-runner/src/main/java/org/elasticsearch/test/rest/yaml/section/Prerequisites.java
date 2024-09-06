@@ -41,32 +41,32 @@ public class Prerequisites {
     }
 
     static Predicate<ClientYamlTestExecutionContext> requireClusterFeatures(Set<String> clusterFeatures) {
-        return context -> clusterFeatures.stream().allMatch(context::clusterHasFeature);
+        return context -> clusterFeatures.stream().allMatch(f -> context.clusterHasFeature(f, false));
     }
 
     static Predicate<ClientYamlTestExecutionContext> skipOnClusterFeatures(Set<String> clusterFeatures) {
-        return context -> clusterFeatures.stream().anyMatch(context::clusterHasFeature);
+        return context -> clusterFeatures.stream().anyMatch(f -> context.clusterHasFeature(f, true));
     }
 
     static Predicate<ClientYamlTestExecutionContext> skipOnKnownIssue(List<KnownIssue> knownIssues) {
         return context -> knownIssues.stream()
-            .anyMatch(i -> context.clusterHasFeature(i.clusterFeature()) && context.clusterHasFeature(i.fixedBy()) == false);
+            .anyMatch(i -> context.clusterHasFeature(i.clusterFeature(), true) && context.clusterHasFeature(i.fixedBy(), false) == false);
     }
 
     static CapabilitiesPredicate requireCapabilities(List<CapabilitiesCheck> checks) {
         // requirement not fulfilled if unknown / capabilities API not supported
-        return context -> checks.stream().allMatch(check -> checkCapabilities(context, check).orElse(false));
+        return context -> checks.stream().allMatch(check -> checkCapabilities(context, check, false).orElse(false));
     }
 
     static CapabilitiesPredicate skipCapabilities(List<CapabilitiesCheck> checks) {
         // skip if unknown / capabilities API not supported
-        return context -> checks.stream().anyMatch(check -> checkCapabilities(context, check).orElse(true));
+        return context -> checks.stream().anyMatch(check -> checkCapabilities(context, check, true).orElse(true));
     }
 
     interface CapabilitiesPredicate extends Predicate<ClientYamlTestExecutionContext> {}
 
-    private static Optional<Boolean> checkCapabilities(ClientYamlTestExecutionContext context, CapabilitiesCheck check) {
-        Optional<Boolean> b = context.clusterHasCapabilities(check.method(), check.path(), check.parameters(), check.capabilities());
+    private static Optional<Boolean> checkCapabilities(ClientYamlTestExecutionContext context, CapabilitiesCheck check, boolean any) {
+        Optional<Boolean> b = context.clusterHasCapabilities(check.method(), check.path(), check.parameters(), check.capabilities(), any);
         return b;
     }
 }

@@ -1,6 +1,0 @@
-pr: 108891
-summary: Fix NPE during destination index creation
-area: Transform
-type: bug
-issues:
- - 108890

@@ -167,7 +167,9 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
                 if (numberOfAllocations < 1) {
                     validationException.addValidationError("[" + NUMBER_OF_ALLOCATIONS + "] must be a positive integer");
                 }
-                if (isInternal == false && adaptiveAllocationsSettings != null && adaptiveAllocationsSettings.getEnabled()) {
+                if (isInternal == false
+                    && adaptiveAllocationsSettings != null
+                    && adaptiveAllocationsSettings.getEnabled() == Boolean.TRUE) {
                     validationException.addValidationError(
                         "[" + NUMBER_OF_ALLOCATIONS + "] cannot be set if adaptive allocations is enabled"
                     );

@@ -17,6 +17,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
@@ -85,7 +86,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
                         {
                           "search": [
                             {
-                                "names": ["index*", "not_found_index", "employees", "employees2"]
+                                "names": ["index*", "alias*", "not_found_index", "employees", "employees2"]
                             },
                             {
                                 "names": ["employees3"],
@@ -347,21 +348,6 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             | LIMIT 10"""));
         assertRemoteAndLocalResults(response);
 
-        // query remote cluster only - but also include employees2 which the user does not have access to
-        response = performRequestWithRemoteSearchUser(esqlRequest("""
-            FROM my_remote_cluster:employees,my_remote_cluster:employees2
-            | SORT emp_id ASC
-            | LIMIT 2
-            | KEEP emp_id, department"""));
-        assertRemoteOnlyResults(response); // same as above since the user only has access to employees
-
-        // query remote and local cluster - but also include employees2 which the user does not have access to
-        response = performRequestWithRemoteSearchUser(esqlRequest("""
-            FROM my_remote_cluster:employees,my_remote_cluster:employees2,employees,employees2
-            | SORT emp_id ASC
-            | LIMIT 10"""));
-        assertRemoteAndLocalResults(response); // same as above since the user only has access to employees
-
         // update role to include both employees and employees2 for the remote cluster
         final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
         putRoleRequest.setJsonEntity("""
@@ -618,6 +604,37 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
                     + "this action is granted by the index privileges [read,read_cross_cluster,all]"
             )
         );
+
+        // query remote cluster only - but also include employees2 which the user does not have access to
+        error = expectThrows(ResponseException.class, () -> { performRequestWithRemoteSearchUser(esqlRequest("""
+            FROM my_remote_cluster:employees,my_remote_cluster:employees2
+            | SORT emp_id ASC
+            | LIMIT 2
+            | KEEP emp_id, department""")); });
+
+        assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(
+            error.getMessage(),
+            containsString(
+                "action [indices:data/read/esql] is unauthorized for user [remote_search_user] with effective roles "
+                    + "[remote_search], this action is granted by the index privileges [read,read_cross_cluster,all]"
+            )
+        );
+
+        // query remote and local cluster - but also include employees2 which the user does not have access to
+        error = expectThrows(ResponseException.class, () -> { performRequestWithRemoteSearchUser(esqlRequest("""
+            FROM my_remote_cluster:employees,my_remote_cluster:employees2,employees,employees2
+            | SORT emp_id ASC
+            | LIMIT 10""")); });
+
+        assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(
+            error.getMessage(),
+            containsString(
+                "action [indices:data/read/esql] is unauthorized for user [remote_search_user] with effective roles "
+                    + "[remote_search], this action is granted by the index privileges [read,read_cross_cluster,all]"
+            )
+        );
     }
 
     @SuppressWarnings("unchecked")
@@ -738,6 +755,159 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             .flatMap(innerList -> innerList instanceof List ? ((List<?>) innerList).stream() : Stream.empty())
             .collect(Collectors.toList());
         assertThat(flatList, containsInAnyOrder(1, 3, "usa", "germany"));
+    }
+
+    private void createAliases() throws Exception {
+        Request createAlias = new Request("POST", "_aliases");
+        createAlias.setJsonEntity("""
+            {
+                "actions": [
+                    {
+                        "add": {
+                            "index": "employees",
+                            "alias": "alias-employees"
+                        }
+                    },
+                    {
+                        "add": {
+                            "index": "employees",
+                            "alias": "alias-engineering",
+                            "filter": { "match": { "department": "engineering" }}
+                        }
+                    },
+                    {
+                        "add": {
+                            "index": "employees",
+                            "alias": "alias-management",
+                            "filter": { "match": { "department": "management" }}
+                        }
+                    },
+                    {
+                        "add": {
+                           "index": "employees2",
+                           "alias": "alias-employees2"
+                        }
+                    }
+                ]
+            }
+            """);
+        assertOK(performRequestAgainstFulfillingCluster(createAlias));
+    }
+
+    private void removeAliases() throws Exception {
+        var removeAlias = new Request("POST", "/_aliases/");
+        removeAlias.setJsonEntity("""
+            {
+                "actions": [
+                    {
+                        "remove": {
+                            "index": "employees",
+                            "alias": "alias-employees"
+                        }
+                    },
+                    {
+                        "remove": {
+                            "index": "employees",
+                            "alias": "alias-engineering"
+                        }
+                    },
+                    {
+                        "remove": {
+                            "index": "employees",
+                            "alias": "alias-management"
+                        }
+                    },
+                    {
+                        "remove": {
+                           "index": "employees2",
+                           "alias": "alias-employees2"
+                        }
+                    }
+                ]
+            }
+            """);
+        assertOK(performRequestAgainstFulfillingCluster(removeAlias));
+    }
+
+    public void testAlias() throws Exception {
+        configureRemoteCluster();
+        populateData();
+        createAliases();
+        var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
+        putRoleRequest.setJsonEntity("""
+            {
+              "indices": [{"names": [""], "privileges": ["read"]}],
+              "cluster": ["cross_cluster_search"],
+              "remote_indices": [
+                {
+                  "names": ["alias-engineering"],
+                  "privileges": ["read"],
+                  "clusters": ["my_remote_cluster"]
+                },
+                {
+                  "names": ["employees2"],
+                  "privileges": ["read"],
+                  "clusters": ["my_remote_cluster"]
+                },
+                {
+                  "names": ["employees3"],
+                  "privileges": ["view_index_metadata", "read_cross_cluster"],
+                  "clusters": ["my_remote_cluster"]
+                }
+              ]
+            }""");
+        assertOK(adminClient().performRequest(putRoleRequest));
+        // query `employees2`
+        for (String index : List.of("*:employees2", "*:employee*")) {
+            Request request = esqlRequest("FROM " + index + " | KEEP emp_id | SORT emp_id | LIMIT 100");
+            Response response = performRequestWithRemoteSearchUser(request);
+            assertOK(response);
+            Map<String, Object> responseAsMap = entityAsMap(response);
+            List<?> ids = (List<?>) responseAsMap.get("values");
+            assertThat(ids, equalTo(List.of(List.of("11"), List.of("13"))));
+        }
+
+        // query `employees2` and `alias-engineering`
+        for (var index : List.of("*:employees2,*:alias-engineering", "*:emp*,*:alias-engineering", "*:emp*,my*:alias*")) {
+            Request request = esqlRequest("FROM " + index + " | KEEP emp_id | SORT emp_id | LIMIT 100");
+            Response response = performRequestWithRemoteSearchUser(request);
+            assertOK(response);
+            Map<String, Object> responseAsMap = entityAsMap(response);
+            List<?> ids = (List<?>) responseAsMap.get("values");
+            assertThat(ids, equalTo(List.of(List.of("1"), List.of("11"), List.of("13"), List.of("7"))));
+        }
+        // none
+        for (var index : List.of("*:employees1", "*:employees3", "*:employees1,employees3", "*:alias-employees,*:alias-management")) {
+            Request request = esqlRequest("FROM " + index + " | KEEP emp_id | SORT emp_id | LIMIT 100");
+            ResponseException error = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(request));
+            assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+            assertThat(error.getMessage(), containsString(" Unknown index [" + index + "]"));
+        }
+
+        for (var index : List.of(
+            Tuple.tuple("*:employee*,*:alias-employees,*:employees3", "alias-employees,employees3"),
+            Tuple.tuple("*:alias*,my*:employees1", "employees1"),
+            Tuple.tuple("*:alias*,my*:employees3", "employees3")
+        )) {
+            Request request = esqlRequest("FROM " + index.v1() + " | KEEP emp_id | SORT emp_id | LIMIT 100");
+            ResponseException error = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(request));
+            assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(
+                error.getMessage(),
+                containsString("unauthorized for user [remote_search_user] with assigned roles [remote_search]")
+            );
+            assertThat(error.getMessage(), containsString("user [test_user] on indices [" + index.v2() + "]"));
+        }
+
+        // query `alias-engineering`
+        Request request = esqlRequest("FROM *:alias* | KEEP emp_id | SORT emp_id | LIMIT 100");
+        Response response = performRequestWithRemoteSearchUser(request);
+        assertOK(response);
+        Map<String, Object> responseAsMap = entityAsMap(response);
+        List<?> ids = (List<?>) responseAsMap.get("values");
+        assertThat(ids, equalTo(List.of(List.of("1"), List.of("7"))));
+
+        removeAliases();
     }
 
     protected Request esqlRequest(String command) throws IOException {

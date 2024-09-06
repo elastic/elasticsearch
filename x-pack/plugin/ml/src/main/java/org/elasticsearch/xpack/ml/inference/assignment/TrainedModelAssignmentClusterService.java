@@ -833,7 +833,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             adaptiveAllocationsSettingsUpdates
         );
         if (adaptiveAllocationsSettings != null) {
-            if (isInternal == false && adaptiveAllocationsSettings.getEnabled() && numberOfAllocations != null) {
+            if (isInternal == false && adaptiveAllocationsSettings.getEnabled() == Boolean.TRUE && numberOfAllocations != null) {
                 ValidationException validationException = new ValidationException();
                 validationException.addValidationError("[" + NUMBER_OF_ALLOCATIONS + "] cannot be set if adaptive allocations is enabled");
                 listener.onFailure(validationException);

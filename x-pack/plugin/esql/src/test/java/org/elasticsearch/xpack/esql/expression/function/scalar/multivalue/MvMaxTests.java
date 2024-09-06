@@ -38,16 +38,12 @@ public class MvMaxTests extends AbstractMultivalueFunctionTestCase {
         longs(cases, "mv_max", "MvMax", (size, values) -> equalTo(values.max().getAsLong()));
         unsignedLongs(cases, "mv_max", "MvMax", (size, values) -> equalTo(values.reduce(BigInteger::max).get()));
         dateTimes(cases, "mv_max", "MvMax", (size, values) -> equalTo(values.max().getAsLong()));
+        dateNanos(cases, "mv_max", "MvMax", DataType.DATE_NANOS, (size, values) -> equalTo(values.max().getAsLong()));
         return parameterSuppliersFromTypedDataWithDefaultChecks(false, cases, (v, p) -> "representableNonSpatial");
     }
 
     @Override
     protected Expression build(Source source, Expression field) {
         return new MvMax(source, field);
-    }
-
-    @Override
-    protected DataType[] supportedTypes() {
-        return representableNonSpatialTypes();
     }
 }

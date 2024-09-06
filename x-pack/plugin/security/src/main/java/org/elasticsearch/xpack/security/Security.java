@@ -584,6 +584,7 @@ public class Security extends Plugin
 
     private Settings settings;
     private final boolean enabled;
+    private final SetOnce<Boolean> dlsFlsEnabled = new SetOnce<>();
     private final SecuritySystemIndices systemIndices;
     private final ListenableFuture<Void> nodeStartedListenable;
 
@@ -1106,12 +1107,13 @@ public class Security extends Plugin
         );
         components.add(authcService.get());
         systemIndices.getMainIndexManager().addStateListener(authcService.get()::onSecurityIndexStateChange);
-
+        dlsFlsEnabled.set(XPackSettings.DLS_FLS_ENABLED.get(settings));
         Set<RequestInterceptor> requestInterceptors = Sets.newHashSet(
-            new ResizeRequestInterceptor(threadPool, getLicenseState(), auditTrailService),
-            new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), getLicenseState(), auditTrailService)
+            new ResizeRequestInterceptor(threadPool, getLicenseState(), auditTrailService, dlsFlsEnabled.get()),
+            new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), getLicenseState(), auditTrailService, dlsFlsEnabled.get())
         );
-        if (XPackSettings.DLS_FLS_ENABLED.get(settings)) {
+
+        if (dlsFlsEnabled.get()) {
             requestInterceptors.addAll(
                 Arrays.asList(
                     new SearchRequestInterceptor(threadPool, getLicenseState()),
@@ -2131,6 +2133,9 @@ public class Security extends Plugin
                 XPackLicenseState licenseState = getLicenseState();
                 IndicesAccessControl indicesAccessControl = threadContext.get()
                     .getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+                if (dlsFlsEnabled.get() == false) {
+                    return FieldPredicate.ACCEPT_ALL;
+                }
                 if (indicesAccessControl == null) {
                     return FieldPredicate.ACCEPT_ALL;
                 }

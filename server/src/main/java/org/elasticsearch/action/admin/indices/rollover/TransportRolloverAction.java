@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataStats;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionMultiListener;
@@ -44,11 +45,11 @@ import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -179,7 +180,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         );
         final String trialSourceIndexName = trialRolloverNames.sourceName();
         final String trialRolloverIndexName = trialRolloverNames.rolloverName();
-        MetadataRolloverService.validateIndexName(clusterState, trialRolloverIndexName);
+        MetadataCreateIndexService.validateIndexName(trialRolloverIndexName, metadata, clusterState.routingTable());
 
         boolean isDataStream = metadata.dataStreams().containsKey(rolloverRequest.getRolloverTarget());
         if (rolloverRequest.isLazy()) {

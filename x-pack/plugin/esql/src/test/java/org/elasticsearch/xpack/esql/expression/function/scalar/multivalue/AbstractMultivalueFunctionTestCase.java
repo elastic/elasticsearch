@@ -14,6 +14,7 @@ import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
@@ -35,6 +36,7 @@ import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 
@@ -388,6 +390,51 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
         }
     }
 
+    protected static void dateNanos(
+        List<TestCaseSupplier> cases,
+        String name,
+        String evaluatorName,
+        DataType expectedDataType,
+        BiFunction<Integer, LongStream, Matcher<Object>> matcher
+    ) {
+        if (EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG.isEnabled() == false) {
+            return;
+        }
+        cases.add(
+            new TestCaseSupplier(
+                name + "(epoch nanos)",
+                List.of(DataType.DATE_NANOS),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(List.of(0L), DataType.DATE_NANOS, "field")),
+                    evaluatorName + "[field=Attribute[channel=0]]",
+                    expectedDataType,
+                    matcher.apply(1, LongStream.of(0L))
+                )
+            )
+        );
+        cases.add(new TestCaseSupplier(name + "(date_nanos)", List.of(DataType.DATE_NANOS), () -> {
+            long data = randomLong();
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(List.of(data), DataType.DATE_NANOS, "field")),
+                evaluatorName + "[field=Attribute[channel=0]]",
+                expectedDataType,
+                matcher.apply(1, LongStream.of(data))
+            );
+        }));
+        for (Block.MvOrdering ordering : Block.MvOrdering.values()) {
+            cases.add(new TestCaseSupplier(name + "(<dates_nanos>) " + ordering, List.of(DataType.DATE_NANOS), () -> {
+                List<Long> mvData = randomList(1, 100, ESTestCase::randomLong);
+                putInOrder(mvData, ordering);
+                return new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(mvData, DataType.DATE_NANOS, "field")),
+                    evaluatorName + "[field=Attribute[channel=0]]",
+                    expectedDataType,
+                    matcher.apply(mvData.size(), mvData.stream().mapToLong(Long::longValue))
+                );
+            }));
+        }
+    }
+
     /**
      * Build many test cases with {@code geo_point} values.
      * This assumes that the function consumes {@code geo_point} values and produces {@code geo_point} values.
@@ -614,13 +661,6 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
     }
 
     protected abstract Expression build(Source source, Expression field);
-
-    protected abstract DataType[] supportedTypes();
-
-    protected final DataType[] representableNumerics() {
-        // TODO numeric should only include representable numbers but that is a change for a followup
-        return DataType.types().stream().filter(DataType::isNumeric).filter(DataType::isRepresentable).toArray(DataType[]::new);
-    }
 
     protected DataType expectedType(List<DataType> argTypes) {
         return argTypes.get(0);

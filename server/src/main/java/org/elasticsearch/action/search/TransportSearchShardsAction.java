@@ -18,10 +18,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -87,6 +87,14 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
 
     @Override
     protected void doExecute(Task task, SearchShardsRequest searchShardsRequest, ActionListener<SearchShardsResponse> listener) {
+        searchShards(task, searchShardsRequest, listener);
+    }
+
+    /**
+     * Notes that this method does not perform authorization for the search shards action.
+     * Callers must ensure that the request was properly authorized before calling this method.
+     */
+    public void searchShards(Task task, SearchShardsRequest searchShardsRequest, ActionListener<SearchShardsResponse> listener) {
         final long relativeStartNanos = System.nanoTime();
         SearchRequest original = new SearchRequest(searchShardsRequest.indices()).indicesOptions(searchShardsRequest.indicesOptions())
             .routing(searchShardsRequest.routing())

@@ -220,7 +220,8 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
 
     public void testScaledFloat() throws IOException {
         double value = randomBoolean() ? randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true) : randomFloat();
-        double scalingFactor = randomDoubleBetween(0, Double.MAX_VALUE, false);
+        // Scale factors less than about 5.6e-309 will result in NaN (due to 1/scaleFactor being infinity)
+        double scalingFactor = randomDoubleBetween(1e-308, Double.MAX_VALUE, false);
         new Test("scaled_float").expectedType("double")
             .randomIgnoreMalformedUnlessSynthetic()
             .randomDocValuesUnlessSynthetic()
@@ -231,7 +232,8 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     private Matcher<Double> scaledFloatMatcher(double scalingFactor, double d) {
         long encoded = Math.round(d * scalingFactor);
         double decoded = encoded / scalingFactor;
-        return closeTo(decoded, Math.ulp(decoded));
+        // We can lose a little more the ulp in the round trip.
+        return closeTo(decoded, Math.ulp(decoded) * 2);
     }
 
     public void testBoolean() throws IOException {

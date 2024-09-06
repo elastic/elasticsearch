@@ -41,6 +41,9 @@ public sealed interface LongBlock extends Block permits LongArrayBlock, LongVect
     LongBlock filter(int... positions);
 
     @Override
+    LongBlock keepMask(BooleanVector mask);
+
+    @Override
     ReleasableIterator<? extends LongBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 
     @Override

@@ -165,6 +165,22 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         verifyEcsMappings(indexName);
     }
 
+    public void testFlattenedFieldsWithinAttributes() throws IOException {
+        String indexName = "test-flattened-attributes";
+        createTestIndex(indexName);
+        Map<String, Object> flattenedFieldsMap = createTestDocument(true);
+        indexDocument(indexName, Map.of("attributes", flattenedFieldsMap));
+        verifyEcsMappings(indexName, "attributes.");
+    }
+
+    public void testFlattenedFieldsWithinResourceAttributes() throws IOException {
+        String indexName = "test-flattened-attributes";
+        createTestIndex(indexName);
+        Map<String, Object> flattenedFieldsMap = createTestDocument(true);
+        indexDocument(indexName, Map.of("resource.attributes", flattenedFieldsMap));
+        verifyEcsMappings(indexName, "resource.attributes.");
+    }
+
     public void testFlattenedFieldsWithoutSubobjects() throws IOException {
         String indexName = "test_flattened_fields_subobjects_false";
         createTestIndex(indexName, Map.of("subobjects", false));
@@ -394,12 +410,19 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
     }
 
     private void verifyEcsMappings(String indexName) throws IOException {
+        verifyEcsMappings(indexName, "");
+    }
+
+    private void verifyEcsMappings(String indexName, String fieldPrefix) throws IOException {
         final Map<String, Object> rawMappings = getMappings(indexName);
         final Map<String, Map<String, Object>> flatFieldMappings = new HashMap<>();
         final Map<String, Map<String, Object>> flatMultiFieldsMappings = new HashMap<>();
         processRawMappingsSubtree(rawMappings, flatFieldMappings, flatMultiFieldsMappings, "");
 
-        Map<String, Map<String, Object>> shallowFieldMapCopy = new HashMap<>(ecsFlatFieldDefinitions);
+        Map<String, Map<String, Object>> shallowFieldMapCopy = ecsFlatFieldDefinitions.entrySet()
+            .stream()
+            .collect(Collectors.toMap(e -> fieldPrefix + e.getKey(), Map.Entry::getValue));
+
         logger.info("Testing mapping of {} ECS fields", shallowFieldMapCopy.size());
         List<String> nonEcsFields = new ArrayList<>();
         Map<String, String> fieldToWrongMappingType = new HashMap<>();
@@ -421,7 +444,9 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
             }
         });
 
-        Map<String, Map<String, Object>> shallowMultiFieldMapCopy = new HashMap<>(ecsFlatMultiFieldDefinitions);
+        Map<String, Map<String, Object>> shallowMultiFieldMapCopy = ecsFlatMultiFieldDefinitions.entrySet()
+            .stream()
+            .collect(Collectors.toMap(e -> fieldPrefix + e.getKey(), Map.Entry::getValue));
         logger.info("Testing mapping of {} ECS multi-fields", shallowMultiFieldMapCopy.size());
         flatMultiFieldsMappings.forEach((fieldName, actualMappings) -> {
             Map<String, Object> expectedMultiFieldMappings = shallowMultiFieldMapCopy.remove(fieldName);

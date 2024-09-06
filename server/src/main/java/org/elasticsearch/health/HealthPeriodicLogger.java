@@ -299,7 +299,7 @@ public class HealthPeriodicLogger extends AbstractLifecycleComponent implements 
 
     @Override
     public void triggered(SchedulerEngine.Event event) {
-        if (event.getJobName().equals(HEALTH_PERIODIC_LOGGER_JOB_NAME) && this.enabled) {
+        if (event.jobName().equals(HEALTH_PERIODIC_LOGGER_JOB_NAME) && this.enabled) {
             this.tryToLogHealth();
         }
     }

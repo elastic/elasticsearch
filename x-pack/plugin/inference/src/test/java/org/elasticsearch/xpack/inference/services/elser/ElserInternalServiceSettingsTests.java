@@ -16,12 +16,12 @@ import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInt
 import java.io.IOException;
 import java.util.HashSet;
 
+import static org.elasticsearch.xpack.inference.services.elser.ElserModelsTests.randomElserModel;
+
 public class ElserInternalServiceSettingsTests extends AbstractWireSerializingTestCase<ElserInternalServiceSettings> {
 
     public static ElserInternalServiceSettings createRandom() {
-        return new ElserInternalServiceSettings(
-            ElasticsearchInternalServiceSettingsTests.validInstance(randomFrom(ElserInternalService.VALID_ELSER_MODEL_IDS))
-        );
+        return new ElserInternalServiceSettings(ElasticsearchInternalServiceSettingsTests.validInstance(randomElserModel()));
     }
 
     public void testBwcWrite() throws IOException {
@@ -67,7 +67,7 @@ public class ElserInternalServiceSettingsTests extends AbstractWireSerializingTe
                 )
             );
             case 2 -> {
-                var versions = new HashSet<>(ElserInternalService.VALID_ELSER_MODEL_IDS);
+                var versions = new HashSet<>(ElserModels.VALID_ELSER_MODEL_IDS);
                 versions.remove(instance.modelId());
                 yield new ElserInternalServiceSettings(
                     new ElasticsearchInternalServiceSettings(

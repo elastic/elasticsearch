@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.versionfield.Version;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -44,78 +45,14 @@ public class MinTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true),
             MultiRowTestCaseSupplier.dateCases(1, 1000),
             MultiRowTestCaseSupplier.booleanCases(1, 1000),
-            MultiRowTestCaseSupplier.ipCases(1, 1000)
+            MultiRowTestCaseSupplier.ipCases(1, 1000),
+            MultiRowTestCaseSupplier.versionCases(1, 1000),
+            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
+            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT)
         ).flatMap(List::stream).map(MinTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         suppliers.addAll(
             List.of(
-                // Surrogates
-                new TestCaseSupplier(
-                    List.of(DataType.INTEGER),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(TestCaseSupplier.TypedData.multiRow(List.of(5, 8, -2, 0, 200), DataType.INTEGER, "field")),
-                        "Min[field=Attribute[channel=0]]",
-                        DataType.INTEGER,
-                        equalTo(-2)
-                    )
-                ),
-                new TestCaseSupplier(
-                    List.of(DataType.LONG),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(TestCaseSupplier.TypedData.multiRow(List.of(5L, 8L, -2L, 0L, 200L), DataType.LONG, "field")),
-                        "Min[field=Attribute[channel=0]]",
-                        DataType.LONG,
-                        equalTo(-2L)
-                    )
-                ),
-                new TestCaseSupplier(
-                    List.of(DataType.DOUBLE),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(TestCaseSupplier.TypedData.multiRow(List.of(5., 8., -2., 0., 200.), DataType.DOUBLE, "field")),
-                        "Min[field=Attribute[channel=0]]",
-                        DataType.DOUBLE,
-                        equalTo(-2.)
-                    )
-                ),
-                new TestCaseSupplier(
-                    List.of(DataType.DATETIME),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(TestCaseSupplier.TypedData.multiRow(List.of(5L, 8L, 2L, 0L, 200L), DataType.DATETIME, "field")),
-                        "Min[field=Attribute[channel=0]]",
-                        DataType.DATETIME,
-                        equalTo(0L)
-                    )
-                ),
-                new TestCaseSupplier(
-                    List.of(DataType.BOOLEAN),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(TestCaseSupplier.TypedData.multiRow(List.of(true, false, false, true), DataType.BOOLEAN, "field")),
-                        "Min[field=Attribute[channel=0]]",
-                        DataType.BOOLEAN,
-                        equalTo(false)
-                    )
-                ),
-                new TestCaseSupplier(
-                    List.of(DataType.IP),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(
-                            TestCaseSupplier.TypedData.multiRow(
-                                List.of(
-                                    new BytesRef(InetAddressPoint.encode(InetAddresses.forString("127.0.0.1"))),
-                                    new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::1"))),
-                                    new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::"))),
-                                    new BytesRef(InetAddressPoint.encode(InetAddresses.forString("ffff::")))
-                                ),
-                                DataType.IP,
-                                "field"
-                            )
-                        ),
-                        "Min[field=Attribute[channel=0]]",
-                        DataType.IP,
-                        equalTo(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::"))))
-                    )
-                ),
-
                 // Folding
                 new TestCaseSupplier(
                     List.of(DataType.INTEGER),
@@ -176,11 +113,45 @@ public class MinTests extends AbstractAggregationTestCase {
                         DataType.IP,
                         equalTo(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("127.0.0.1"))))
                     )
-                )
+                ),
+                new TestCaseSupplier(List.of(DataType.KEYWORD), () -> {
+                    var value = new BytesRef(randomAlphaOfLengthBetween(0, 50));
+                    return new TestCaseSupplier.TestCase(
+                        List.of(TestCaseSupplier.TypedData.multiRow(List.of(value), DataType.KEYWORD, "field")),
+                        "Min[field=Attribute[channel=0]]",
+                        DataType.KEYWORD,
+                        equalTo(value)
+                    );
+                }),
+                new TestCaseSupplier(List.of(DataType.TEXT), () -> {
+                    var value = new BytesRef(randomAlphaOfLengthBetween(0, 50));
+                    return new TestCaseSupplier.TestCase(
+                        List.of(TestCaseSupplier.TypedData.multiRow(List.of(value), DataType.TEXT, "field")),
+                        "Min[field=Attribute[channel=0]]",
+                        DataType.TEXT,
+                        equalTo(value)
+                    );
+                }),
+                new TestCaseSupplier(List.of(DataType.VERSION), () -> {
+                    var value = randomBoolean()
+                        ? new Version(randomAlphaOfLengthBetween(1, 10)).toBytesRef()
+                        : new Version(randomIntBetween(0, 100) + "." + randomIntBetween(0, 100) + "." + randomIntBetween(0, 100))
+                            .toBytesRef();
+                    return new TestCaseSupplier.TestCase(
+                        List.of(TestCaseSupplier.TypedData.multiRow(List.of(value), DataType.VERSION, "field")),
+                        "Min[field=Attribute[channel=0]]",
+                        DataType.VERSION,
+                        equalTo(value)
+                    );
+                })
             )
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(
+            suppliers,
+            false,
+            (v, p) -> "representable except unsigned_long and spatial types"
+        );
     }
 
     @Override

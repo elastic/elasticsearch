@@ -45,7 +45,7 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
     public void testSingleShardAllocation() {
         indicesAdmin().prepareCreate("test").setSettings(indexSettings(1, 0).put("index.routing.allocation.include.tag", "A")).get();
         ensureGreen();
-        ClusterSearchShardsResponse response = safeExecute(new ClusterSearchShardsRequest("test"));
+        ClusterSearchShardsResponse response = safeExecute(new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, "test"));
         assertThat(response.getGroups().length, equalTo(1));
         assertThat(response.getGroups()[0].getShardId().getIndexName(), equalTo("test"));
         assertThat(response.getGroups()[0].getShardId().getId(), equalTo(0));
@@ -53,7 +53,7 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
         assertThat(response.getNodes().length, equalTo(1));
         assertThat(response.getGroups()[0].getShards()[0].currentNodeId(), equalTo(response.getNodes()[0].getId()));
 
-        response = safeExecute(new ClusterSearchShardsRequest("test").routing("A"));
+        response = safeExecute(new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, "test").routing("A"));
         assertThat(response.getGroups().length, equalTo(1));
         assertThat(response.getGroups()[0].getShardId().getIndexName(), equalTo("test"));
         assertThat(response.getGroups()[0].getShardId().getId(), equalTo(0));
@@ -67,16 +67,16 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
         indicesAdmin().prepareCreate("test").setSettings(indexSettings(4, 0).put("index.routing.allocation.include.tag", "A")).get();
         ensureGreen();
 
-        ClusterSearchShardsResponse response = safeExecute(new ClusterSearchShardsRequest("test"));
+        ClusterSearchShardsResponse response = safeExecute(new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, "test"));
         assertThat(response.getGroups().length, equalTo(4));
         assertThat(response.getGroups()[0].getShardId().getIndexName(), equalTo("test"));
         assertThat(response.getNodes().length, equalTo(1));
         assertThat(response.getGroups()[0].getShards()[0].currentNodeId(), equalTo(response.getNodes()[0].getId()));
 
-        response = safeExecute(new ClusterSearchShardsRequest("test").routing("ABC"));
+        response = safeExecute(new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, "test").routing("ABC"));
         assertThat(response.getGroups().length, equalTo(1));
 
-        response = safeExecute(new ClusterSearchShardsRequest("test").preference("_shards:2"));
+        response = safeExecute(new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, "test").preference("_shards:2"));
         assertThat(response.getGroups().length, equalTo(1));
         assertThat(response.getGroups()[0].getShardId().getId(), equalTo(2));
     }
@@ -90,7 +90,7 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
             .get();
         clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
-        ClusterSearchShardsResponse response = safeExecute(new ClusterSearchShardsRequest("routing_alias"));
+        ClusterSearchShardsResponse response = safeExecute(new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, "routing_alias"));
         assertThat(response.getGroups().length, equalTo(2));
         assertThat(response.getGroups()[0].getShards().length, equalTo(2));
         assertThat(response.getGroups()[1].getShards().length, equalTo(2));
@@ -132,7 +132,7 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
         )) {
             try {
                 enableIndexBlock("test-blocks", blockSetting);
-                ClusterSearchShardsResponse response = safeExecute(new ClusterSearchShardsRequest("test-blocks"));
+                ClusterSearchShardsResponse response = safeExecute(new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, "test-blocks"));
                 assertThat(response.getGroups().length, equalTo(numShards.numPrimaries));
             } finally {
                 disableIndexBlock("test-blocks", blockSetting);
@@ -149,7 +149,11 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
                     ExceptionsHelper.unwrapCause(
                         safeAwaitFailure(
                             ClusterSearchShardsResponse.class,
-                            l -> client().execute(TransportClusterSearchShardsAction.TYPE, new ClusterSearchShardsRequest("test-blocks"), l)
+                            l -> client().execute(
+                                TransportClusterSearchShardsAction.TYPE,
+                                new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, "test-blocks"),
+                                l
+                            )
                         )
                     )
                 )

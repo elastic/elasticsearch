@@ -20,11 +20,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.datastreams.logsdb.qa.matchers.MatchResult;
 import org.elasticsearch.datastreams.logsdb.qa.matchers.Matcher;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.logsdb.datageneration.DataGenerator;
-import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
-import org.elasticsearch.logsdb.datageneration.FieldType;
-import org.elasticsearch.logsdb.datageneration.arbitrary.RandomBasedArbitrary;
-import org.elasticsearch.logsdb.datageneration.fields.PredefinedField;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -39,54 +34,64 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
+/**
+ * Basic challenge test - we index same documents into an index with standard index mode and an index with logsdb index mode.
+ * Then we verify that results of common operations are the same modulo knows differences like synthetic source modifications.
+ * This test uses simple mapping and document structure in order to allow easier debugging of the test itself.
+ */
 public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChallengeRestTest {
-    private final DataGenerator dataGenerator;
     private final int numShards = randomBoolean() ? randomIntBetween(2, 5) : 0;
     private final int numReplicas = randomBoolean() ? randomIntBetween(1, 3) : 0;
+    private final boolean fullyDynamicMapping = randomBoolean();
 
     public StandardVersusLogsIndexModeChallengeRestIT() {
         super("standard-apache-baseline", "logs-apache-contender", "baseline-template", "contender-template", 101, 101);
-        this.dataGenerator = new DataGenerator(
-            DataGeneratorSpecification.builder()
-                // Nested fields don't work with subobjects: false.
-                .withNestedFieldsLimit(0)
-                // TODO increase depth of objects
-                // Currently matching fails because in synthetic source all fields are flat (given that we have subobjects: false)
-                // but stored source is identical to original document which has nested structure.
-                .withMaxObjectDepth(0)
-                .withArbitrary(new RandomBasedArbitrary() {
-                    // TODO enable null values
-                    // Matcher does not handle nulls currently
-                    @Override
-                    public boolean generateNullValue() {
-                        return false;
-                    }
-
-                    // TODO enable arrays
-                    // List matcher currently does not apply matching logic recursively
-                    // and equality check fails because arrays are sorted in synthetic source.
-                    @Override
-                    public boolean generateArrayOfValues() {
-                        return false;
-                    }
-                })
-                .withPredefinedFields(List.of(new PredefinedField("host.name", FieldType.KEYWORD)))
-                .build()
-        );
     }
 
     @Override
     public void baselineMappings(XContentBuilder builder) throws IOException {
-        if (randomBoolean()) {
-            dataGenerator.writeMapping(builder);
+        if (fullyDynamicMapping == false) {
+            builder.startObject()
+                .startObject("properties")
+
+                .startObject("@timestamp")
+                .field("type", "date")
+                .endObject()
+
+                .startObject("host.name")
+                .field("type", "keyword")
+                .field("ignore_above", randomIntBetween(1000, 1200))
+                .endObject()
+
+                .startObject("message")
+                .field("type", "keyword")
+                .field("ignore_above", randomIntBetween(1000, 1200))
+                .endObject()
+
+                .startObject("method")
+                .field("type", "keyword")
+                .field("ignore_above", randomIntBetween(1000, 1200))
+                .endObject()
+
+                .startObject("memory_usage_bytes")
+                .field("type", "long")
+                .field("ignore_malformed", randomBoolean())
+                .endObject()
+
+                .endObject()
+
+                .endObject();
         } else {
             // We want dynamic mapping, but we need host.name to be a keyword instead of text to support aggregations.
             builder.startObject()
@@ -104,14 +109,40 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
 
     @Override
     public void contenderMappings(XContentBuilder builder) throws IOException {
-        if (randomBoolean()) {
-            dataGenerator.writeMapping(builder, b -> builder.field("subobjects", false));
-        } else {
-            // Sometimes we go with full dynamic mapping.
-            builder.startObject();
-            builder.field("subobjects", false);
-            builder.endObject();
+        builder.startObject();
+        builder.field("subobjects", false);
+
+        if (fullyDynamicMapping == false) {
+            builder.startObject("properties")
+
+                .startObject("@timestamp")
+                .field("type", "date")
+                .endObject()
+
+                .startObject("host.name")
+                .field("type", "keyword")
+                .field("ignore_above", randomIntBetween(1000, 1200))
+                .endObject()
+
+                .startObject("message")
+                .field("type", "keyword")
+                .field("ignore_above", randomIntBetween(1000, 1200))
+                .endObject()
+
+                .startObject("method")
+                .field("type", "keyword")
+                .field("ignore_above", randomIntBetween(1000, 1200))
+                .endObject()
+
+                .startObject("memory_usage_bytes")
+                .field("type", "long")
+                .field("ignore_malformed", randomBoolean())
+                .endObject()
+
+                .endObject();
         }
+
+        builder.endObject();
     }
 
     @Override
@@ -149,20 +180,17 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         });
     }
 
-    @SuppressWarnings("unchecked")
     public void testMatchAllQuery() throws IOException {
-        final List<XContentBuilder> documents = new ArrayList<>();
         int numberOfDocuments = ESTestCase.randomIntBetween(100, 200);
-        for (int i = 0; i < numberOfDocuments; i++) {
-            documents.add(generateDocument(Instant.now().plus(i, ChronoUnit.SECONDS)));
-        }
+        final List<XContentBuilder> documents = generateDocuments(numberOfDocuments);
 
         assertDocumentIndexing(documents);
 
         final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
             .size(numberOfDocuments);
 
-        final MatchResult matchResult = Matcher.mappings(getContenderMappings(), getBaselineMappings())
+        final MatchResult matchResult = Matcher.matchSource()
+            .mappings(getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
             .expected(getQueryHits(queryBaseline(searchSourceBuilder)))
             .ignoringSort(true)
@@ -171,18 +199,16 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
     }
 
     public void testTermsQuery() throws IOException {
-        final List<XContentBuilder> documents = new ArrayList<>();
-        int numberOfDocuments = randomIntBetween(100, 200);
-        for (int i = 0; i < numberOfDocuments; i++) {
-            documents.add(generateDocument(Instant.now().plus(i, ChronoUnit.SECONDS)));
-        }
+        int numberOfDocuments = ESTestCase.randomIntBetween(100, 200);
+        final List<XContentBuilder> documents = generateDocuments(numberOfDocuments);
 
         assertDocumentIndexing(documents);
 
         final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.termQuery("method", "put"))
             .size(numberOfDocuments);
 
-        final MatchResult matchResult = Matcher.mappings(getContenderMappings(), getBaselineMappings())
+        final MatchResult matchResult = Matcher.matchSource()
+            .mappings(getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
             .expected(getQueryHits(queryBaseline(searchSourceBuilder)))
             .ignoringSort(true)
@@ -191,11 +217,8 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
     }
 
     public void testHistogramAggregation() throws IOException {
-        final List<XContentBuilder> documents = new ArrayList<>();
-        int numberOfDocuments = randomIntBetween(100, 200);
-        for (int i = 0; i < numberOfDocuments; i++) {
-            documents.add(generateDocument(Instant.now().plus(i, ChronoUnit.SECONDS)));
-        }
+        int numberOfDocuments = ESTestCase.randomIntBetween(100, 200);
+        final List<XContentBuilder> documents = generateDocuments(numberOfDocuments);
 
         assertDocumentIndexing(documents);
 
@@ -212,11 +235,8 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
     }
 
     public void testTermsAggregation() throws IOException {
-        final List<XContentBuilder> documents = new ArrayList<>();
-        int numberOfDocuments = randomIntBetween(100, 200);
-        for (int i = 0; i < numberOfDocuments; i++) {
-            documents.add(generateDocument(Instant.now().plus(i, ChronoUnit.SECONDS)));
-        }
+        int numberOfDocuments = ESTestCase.randomIntBetween(100, 200);
+        final List<XContentBuilder> documents = generateDocuments(numberOfDocuments);
 
         assertDocumentIndexing(documents);
 
@@ -233,11 +253,8 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
     }
 
     public void testDateHistogramAggregation() throws IOException {
-        final List<XContentBuilder> documents = new ArrayList<>();
-        int numberOfDocuments = randomIntBetween(100, 200);
-        for (int i = 0; i < numberOfDocuments; i++) {
-            documents.add(generateDocument(Instant.now().plus(i, ChronoUnit.SECONDS)));
-        }
+        int numberOfDocuments = ESTestCase.randomIntBetween(100, 200);
+        final List<XContentBuilder> documents = generateDocuments(numberOfDocuments);
 
         assertDocumentIndexing(documents);
 
@@ -253,17 +270,26 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         assertTrue(matchResult.getMessage(), matchResult.isMatch());
     }
 
-    private XContentBuilder generateDocument(final Instant timestamp) throws IOException {
-        var document = XContentFactory.jsonBuilder();
-        dataGenerator.generateDocument(document, doc -> {
-            doc.field("@timestamp", DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(timestamp));
-            // Needed for terms query
-            doc.field("method", randomFrom("put", "post", "get"));
-            // We can generate this but we would get "too many buckets"
-            doc.field("memory_usage_bytes", randomLongBetween(1000, 2000));
-        });
+    private List<XContentBuilder> generateDocuments(int numberOfDocuments) throws IOException {
+        final List<XContentBuilder> documents = new ArrayList<>();
+        // This is static in order to be able to identify documents between test runs.
+        var startingPoint = ZonedDateTime.of(2024, 1, 1, 10, 0, 0, 0, ZoneId.of("UTC")).toInstant();
+        for (int i = 0; i < numberOfDocuments; i++) {
+            documents.add(generateDocument(startingPoint.plus(i, ChronoUnit.SECONDS)));
+        }
 
-        return document;
+        return documents;
+    }
+
+    protected XContentBuilder generateDocument(final Instant timestamp) throws IOException {
+        return XContentFactory.jsonBuilder()
+            .startObject()
+            .field("@timestamp", DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(timestamp))
+            .field("host.name", randomFrom("foo", "bar", "baz"))
+            .field("message", randomFrom("a message", "another message", "still another message", "one more message"))
+            .field("method", randomFrom("put", "post", "get"))
+            .field("memory_usage_bytes", randomLongBetween(1000, 2000))
+            .endObject();
     }
 
     @SuppressWarnings("unchecked")
@@ -274,7 +300,10 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         final List<Map<String, Object>> hitsList = (List<Map<String, Object>>) hitsMap.get("hits");
         assertThat(hitsList.size(), greaterThan(0));
 
-        return hitsList.stream().map(hit -> (Map<String, Object>) hit.get("_source")).toList();
+        return hitsList.stream()
+            .sorted(Comparator.comparingInt((Map<String, Object> hit) -> Integer.parseInt((String) hit.get("_id"))))
+            .map(hit -> (Map<String, Object>) hit.get("_source"))
+            .toList();
     }
 
     @SuppressWarnings("unchecked")
@@ -300,5 +329,4 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         var contenderResponseBody = entityAsMap(tuple.v2());
         assertThat("errors in contender bulk response:\n " + contenderResponseBody, contenderResponseBody.get("errors"), equalTo(false));
     }
-
 }

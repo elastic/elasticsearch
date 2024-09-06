@@ -11,7 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.TestFeatureService;
-import org.elasticsearch.xpack.esql.core.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.junit.AfterClass;
 import org.junit.Before;

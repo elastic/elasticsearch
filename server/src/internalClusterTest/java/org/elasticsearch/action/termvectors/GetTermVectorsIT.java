@@ -1017,7 +1017,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         // Get search shards
         ClusterSearchShardsResponse searchShardsResponse = safeExecute(
             TransportClusterSearchShardsAction.TYPE,
-            new ClusterSearchShardsRequest("test")
+            new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, "test")
         );
         List<Integer> shardIds = Arrays.stream(searchShardsResponse.getGroups()).map(s -> s.getShardId().id()).toList();
 

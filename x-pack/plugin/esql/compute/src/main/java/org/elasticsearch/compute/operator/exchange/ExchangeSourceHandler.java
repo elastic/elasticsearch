@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.FailureCollector;
+import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.core.Releasable;
 
 import java.util.List;
@@ -53,7 +54,7 @@ public final class ExchangeSourceHandler {
         private void checkFailure() {
             Exception e = failure.getFailure();
             if (e != null) {
-                throw ExceptionsHelper.convertToElastic(e);
+                throw ExceptionsHelper.convertToRuntime(e);
             }
         }
 
@@ -70,7 +71,7 @@ public final class ExchangeSourceHandler {
         }
 
         @Override
-        public SubscribableListener<Void> waitForReading() {
+        public IsBlockedResult waitForReading() {
             return buffer.waitForReading();
         }
 
@@ -178,13 +179,13 @@ public final class ExchangeSourceHandler {
                     if (resp.finished()) {
                         onSinkComplete();
                     } else {
-                        SubscribableListener<Void> future = buffer.waitForWriting();
-                        if (future.isDone()) {
+                        IsBlockedResult future = buffer.waitForWriting();
+                        if (future.listener().isDone()) {
                             if (loopControl.tryResume() == false) {
                                 fetchPage();
                             }
                         } else {
-                            future.addListener(ActionListener.wrap(unused -> {
+                            future.listener().addListener(ActionListener.wrap(unused -> {
                                 if (loopControl.tryResume() == false) {
                                     fetchPage();
                                 }
@@ -198,7 +199,7 @@ public final class ExchangeSourceHandler {
 
         void onSinkFailed(Exception e) {
             failure.unwrapAndCollect(e);
-            buffer.waitForReading().onResponse(null); // resume the Driver if it is being blocked on reading
+            buffer.waitForReading().listener().onResponse(null); // resume the Driver if it is being blocked on reading
             onSinkComplete();
         }
 

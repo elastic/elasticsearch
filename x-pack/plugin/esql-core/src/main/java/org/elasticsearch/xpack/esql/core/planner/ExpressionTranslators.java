@@ -7,12 +7,10 @@
 
 package org.elasticsearch.xpack.esql.core.planner;
 
-import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MultiMatchQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.StringQueryPredicate;
@@ -32,30 +30,16 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.MultiMatchQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
-import org.elasticsearch.xpack.esql.core.querydsl.query.RangeQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.RegexQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 
-import java.time.OffsetTime;
-import java.time.ZonedDateTime;
-import java.time.temporal.TemporalAccessor;
 import java.util.Arrays;
 import java.util.List;
 
 public final class ExpressionTranslators {
-
-    public static final String DATE_FORMAT = "strict_date_optional_time_nanos";
-    public static final String TIME_FORMAT = "strict_hour_minute_second_fraction";
-
-    public static Object valueOf(Expression e) {
-        if (e.foldable()) {
-            return e.fold();
-        }
-        throw new QlIllegalArgumentException("Cannot determine value for {}", e);
-    }
 
     // TODO: see whether escaping is needed
     @SuppressWarnings("rawtypes")
@@ -193,55 +177,6 @@ public final class ExpressionTranslators {
         }
     }
 
-    public static class Ranges extends ExpressionTranslator<Range> {
-
-        @Override
-        protected Query asQuery(Range r, TranslatorHandler handler) {
-            return doTranslate(r, handler);
-        }
-
-        public static Query doTranslate(Range r, TranslatorHandler handler) {
-            return handler.wrapFunctionQuery(r, r.value(), () -> translate(r, handler));
-        }
-
-        private static RangeQuery translate(Range r, TranslatorHandler handler) {
-            Object lower = valueOf(r.lower());
-            Object upper = valueOf(r.upper());
-            String format = null;
-
-            // for a date constant comparison, we need to use a format for the date, to make sure that the format is the same
-            // no matter the timezone provided by the user
-            DateFormatter formatter = null;
-            if (lower instanceof ZonedDateTime || upper instanceof ZonedDateTime) {
-                formatter = DateFormatter.forPattern(DATE_FORMAT);
-            } else if (lower instanceof OffsetTime || upper instanceof OffsetTime) {
-                formatter = DateFormatter.forPattern(TIME_FORMAT);
-            }
-            if (formatter != null) {
-                // RangeQueryBuilder accepts an Object as its parameter, but it will call .toString() on the ZonedDateTime
-                // instance which can have a slightly different format depending on the ZoneId used to create the ZonedDateTime
-                // Since RangeQueryBuilder can handle date as String as well, we'll format it as String and provide the format.
-                if (lower instanceof ZonedDateTime || lower instanceof OffsetTime) {
-                    lower = formatter.format((TemporalAccessor) lower);
-                }
-                if (upper instanceof ZonedDateTime || upper instanceof OffsetTime) {
-                    upper = formatter.format((TemporalAccessor) upper);
-                }
-                format = formatter.pattern();
-            }
-            return new RangeQuery(
-                r.source(),
-                handler.nameOf(r.value()),
-                lower,
-                r.includeLower(),
-                upper,
-                r.includeUpper(),
-                format,
-                r.zoneId()
-            );
-        }
-    }
-
     public static Query or(Source source, Query left, Query right) {
         return boolQuery(source, left, right, false);
     }
@@ -260,8 +195,12 @@ public final class ExpressionTranslators {
         }
         List<Query> queries;
         // check if either side is already a bool query to an extra bool query
-        if (left instanceof BoolQuery bool && bool.isAnd() == isAnd) {
-            queries = CollectionUtils.combine(bool.queries(), right);
+        if (left instanceof BoolQuery leftBool && leftBool.isAnd() == isAnd) {
+            if (right instanceof BoolQuery rightBool && rightBool.isAnd() == isAnd) {
+                queries = CollectionUtils.combine(leftBool.queries(), rightBool.queries());
+            } else {
+                queries = CollectionUtils.combine(leftBool.queries(), right);
+            }
         } else if (right instanceof BoolQuery bool && bool.isAnd() == isAnd) {
             queries = CollectionUtils.combine(bool.queries(), left);
         } else {

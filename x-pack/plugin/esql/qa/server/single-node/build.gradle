@@ -20,10 +20,8 @@ dependencies {
   javaRestTestImplementation("org.slf4j:slf4j-nop:${versions.slf4j}")
   javaRestTestImplementation('org.apache.arrow:arrow-memory-unsafe:16.1.0')
 
-  dependencies {
-    clusterPlugins project(':plugins:mapper-size')
-    clusterPlugins project(':plugins:mapper-murmur3')
-  }
+  clusterPlugins project(':plugins:mapper-size')
+  clusterPlugins project(':plugins:mapper-murmur3')
 }
 
 restResources {

@@ -68,6 +68,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
         this(client, null, null);
     }
 
+    @SuppressWarnings("this-escape")
     public UpdateRequestBuilder(ElasticsearchClient client, String index, String id) {
         super(client, TransportUpdateAction.TYPE);
         setIndex(index);

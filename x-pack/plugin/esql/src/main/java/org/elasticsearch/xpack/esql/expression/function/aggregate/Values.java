@@ -17,10 +17,10 @@ import org.elasticsearch.compute.aggregation.ValuesIntAggregatorFunctionSupplier
 import org.elasticsearch.compute.aggregation.ValuesLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 
 public class Values extends AggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Values", Values::new);
@@ -84,7 +85,13 @@ public class Values extends AggregateFunction implements ToAggregator {
 
     @Override
     protected TypeResolution resolveType() {
-        return EsqlTypeResolutions.isNotSpatial(field(), sourceText(), DEFAULT);
+        return TypeResolutions.isType(
+            field(),
+            dt -> DataType.isSpatial(dt) == false && dt != UNSIGNED_LONG,
+            sourceText(),
+            DEFAULT,
+            "any type except unsigned_long and spatial types"
+        );
     }
 
     @Override

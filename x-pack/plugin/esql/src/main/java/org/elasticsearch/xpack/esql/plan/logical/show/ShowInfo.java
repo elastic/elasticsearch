@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan.logical.show;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -35,6 +36,16 @@ public class ShowInfo extends LeafPlan {
     }
 
     @Override
+    public void writeTo(StreamOutput out) {
+        throw new UnsupportedOperationException("not serialized");
+    }
+
+    @Override
+    public String getWriteableName() {
+        throw new UnsupportedOperationException("not serialized");
+    }
+
+    @Override
     public List<Attribute> output() {
         return attributes;
     }
@@ -45,6 +56,11 @@ public class ShowInfo extends LeafPlan {
         row.add(new BytesRef(Build.current().date()));
         row.add(new BytesRef(Build.current().hash()));
         return List.of(row);
+    }
+
+    @Override
+    public String commandName() {
+        return "SHOW";
     }
 
     @Override

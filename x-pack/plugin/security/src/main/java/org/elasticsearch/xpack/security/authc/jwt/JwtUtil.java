@@ -11,7 +11,6 @@ import com.nimbusds.jose.JWSObject;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.util.Base64URL;
-import com.nimbusds.jose.util.JSONObjectUtils;
 import com.nimbusds.jwt.JWT;
 import com.nimbusds.jwt.SignedJWT;
 
@@ -33,6 +32,7 @@ import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.nio.reactor.ConnectingIOReactor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionListener;
@@ -45,11 +45,14 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -64,6 +67,7 @@ import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -237,7 +241,13 @@ public class JwtUtil {
         if (jwkSet == null) {
             return null;
         }
-        return JSONObjectUtils.toJSONString(jwkSet.toJSONObject(publicKeysOnly));
+        Map<String, Object> jwkJson = jwkSet.toJSONObject(publicKeysOnly);
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            builder.map(jwkJson);
+            return Strings.toString(builder);
+        } catch (IOException e) {
+            throw new ElasticsearchException(e);
+        }
     }
 
     public static String serializeJwkHmacOidc(final JWK key) {

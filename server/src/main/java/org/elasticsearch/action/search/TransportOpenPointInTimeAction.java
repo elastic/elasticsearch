@@ -10,6 +10,8 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionType;
@@ -21,7 +23,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,6 +31,8 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
@@ -50,6 +54,8 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 
+import static org.elasticsearch.core.Strings.format;
+
 public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenPointInTimeRequest, OpenPointInTimeResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportOpenPointInTimeAction.class);
@@ -62,6 +68,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final TransportService transportService;
     private final SearchService searchService;
+    private final ClusterService clusterService;
 
     @Inject
     public TransportOpenPointInTimeAction(
@@ -70,7 +77,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         ActionFilters actionFilters,
         TransportSearchAction transportSearchAction,
         SearchTransportService searchTransportService,
-        NamedWriteableRegistry namedWriteableRegistry
+        NamedWriteableRegistry namedWriteableRegistry,
+        ClusterService clusterService
     ) {
         super(TYPE.name(), transportService, actionFilters, OpenPointInTimeRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
@@ -78,6 +86,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         this.searchService = searchService;
         this.searchTransportService = searchTransportService;
         this.namedWriteableRegistry = namedWriteableRegistry;
+        this.clusterService = clusterService;
         transportService.registerRequestHandler(
             OPEN_SHARD_READER_CONTEXT_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -94,17 +103,38 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
 
     @Override
     protected void doExecute(Task task, OpenPointInTimeRequest request, ActionListener<OpenPointInTimeResponse> listener) {
+        final ClusterState clusterState = clusterService.state();
+        // Check if all the nodes in this cluster know about the service
+        if (request.allowPartialSearchResults()
+            && clusterState.getMinTransportVersion().before(TransportVersions.ALLOW_PARTIAL_SEARCH_RESULTS_IN_PIT)) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    format(
+                        "The [allow_partial_search_results] parameter cannot be used while the cluster is still upgrading. "
+                            + "Please wait until the upgrade is fully completed and try again."
+                    ),
+                    RestStatus.BAD_REQUEST
+                )
+            );
+            return;
+        }
         final SearchRequest searchRequest = new SearchRequest().indices(request.indices())
             .indicesOptions(request.indicesOptions())
             .preference(request.preference())
             .routing(request.routing())
-            .allowPartialSearchResults(false)
+            .allowPartialSearchResults(request.allowPartialSearchResults())
             .source(new SearchSourceBuilder().query(request.indexFilter()));
         searchRequest.setMaxConcurrentShardRequests(request.maxConcurrentShardRequests());
         searchRequest.setCcsMinimizeRoundtrips(false);
         transportSearchAction.executeRequest((SearchTask) task, searchRequest, listener.map(r -> {
             assert r.pointInTimeId() != null : r;
-            return new OpenPointInTimeResponse(r.pointInTimeId());
+            return new OpenPointInTimeResponse(
+                r.pointInTimeId(),
+                r.getTotalShards(),
+                r.getSuccessfulShards(),
+                r.getFailedShards(),
+                r.getSkippedShards()
+            );
         }), searchListener -> new OpenPointInTimePhase(request, searchListener));
     }
 
@@ -215,7 +245,9 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             ) {
                 @Override
                 protected String missingShardsErrorMessage(StringBuilder missingShards) {
-                    return "[open_point_in_time] action requires all shards to be available. Missing shards: [" + missingShards + "]";
+                    return "[open_point_in_time] action requires all shards to be available. Missing shards: ["
+                        + missingShards
+                        + "].  Consider using `allow_partial_search_results` setting to bypass this error.";
                 }
 
                 @Override

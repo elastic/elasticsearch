@@ -45,6 +45,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceA
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.IndexVersionAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeReplacementAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeShutdownAllocationDecider;
@@ -58,7 +59,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocatio
 import org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
@@ -72,10 +72,12 @@ import org.elasticsearch.health.metadata.HealthMetadataService;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestMetadata;
+import org.elasticsearch.injection.guice.AbstractModule;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksNodeService;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.script.ScriptMetadata;
+import org.elasticsearch.snapshots.RegisteredPolicySnapshots;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskResultsService;
@@ -234,6 +236,12 @@ public class ClusterModule extends AbstractModule {
         registerMetadataCustom(entries, NodesShutdownMetadata.TYPE, NodesShutdownMetadata::new, NodesShutdownMetadata::readDiffFrom);
         registerMetadataCustom(entries, FeatureMigrationResults.TYPE, FeatureMigrationResults::new, FeatureMigrationResults::readDiffFrom);
         registerMetadataCustom(entries, DesiredNodesMetadata.TYPE, DesiredNodesMetadata::new, DesiredNodesMetadata::readDiffFrom);
+        registerMetadataCustom(
+            entries,
+            RegisteredPolicySnapshots.TYPE,
+            RegisteredPolicySnapshots::new,
+            RegisteredPolicySnapshots.RegisteredSnapshotsDiff::new
+        );
 
         // Task Status (not Diffable)
         entries.add(new Entry(Task.Status.class, PersistentTasksNodeService.Status.NAME, PersistentTasksNodeService.Status::new));
@@ -357,6 +365,7 @@ public class ClusterModule extends AbstractModule {
         addAllocationDecider(deciders, new ClusterRebalanceAllocationDecider(clusterSettings));
         addAllocationDecider(deciders, new ConcurrentRebalanceAllocationDecider(clusterSettings));
         addAllocationDecider(deciders, new EnableAllocationDecider(clusterSettings));
+        addAllocationDecider(deciders, new IndexVersionAllocationDecider());
         addAllocationDecider(deciders, new NodeVersionAllocationDecider());
         addAllocationDecider(deciders, new SnapshotInProgressAllocationDecider());
         addAllocationDecider(deciders, new RestoreInProgressAllocationDecider());

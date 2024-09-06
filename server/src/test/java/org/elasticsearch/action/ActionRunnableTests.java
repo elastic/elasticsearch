@@ -47,11 +47,9 @@ public class ActionRunnableTests extends ESTestCase {
                 assertEquals("simulated", e.getMessage());
                 assertTrue(releaseListener.isDone());
                 l.onResponse(null);
-            }), () -> safeReleaseListener.onResponse(null), l -> executor.execute(() -> ActionListener.completeWith(l, () -> {
+            }), () -> safeReleaseListener.onResponse(null), l -> executor.execute(ActionRunnable.run(l, () -> {
                 if (randomBoolean()) {
                     throw new ElasticsearchException("simulated");
-                } else {
-                    return null;
                 }
             }))));
 

@@ -101,7 +101,7 @@ public class RestBulkAction extends BaseRestHandler {
     }
 
     @Override
-    public boolean supportsContentStream() {
+    public boolean supportsBulkContent() {
         return true;
     }
 

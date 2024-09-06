@@ -22,7 +22,11 @@ import static org.elasticsearch.search.fetch.subphase.highlight.DefaultHighlight
 public class RestFeatures implements FeatureSpecification {
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(RestNodesCapabilitiesAction.CAPABILITIES_ACTION, UNIFIED_HIGHLIGHTER_MATCHED_FIELDS);
+        return Set.of(
+            RestNodesCapabilitiesAction.CAPABILITIES_ACTION,
+            RestNodesCapabilitiesAction.LOCAL_ONLY_CAPABILITIES,
+            UNIFIED_HIGHLIGHTER_MATCHED_FIELDS
+        );
     }
 
     @Override

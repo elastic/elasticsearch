@@ -11,8 +11,8 @@ package org.elasticsearch.common.settings;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Binder;
-import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.injection.guice.Binder;
+import org.elasticsearch.injection.guice.Module;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 

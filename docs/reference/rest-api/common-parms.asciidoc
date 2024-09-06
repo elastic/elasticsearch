@@ -649,8 +649,9 @@ tag::level[]
 +
 --
 (Optional, string)
-Indicates whether statistics are aggregated
-at the cluster, index, or shard level.
+Indicates whether statistics are aggregated at the cluster, index, or shard level.
+If the shards level is requested, some additional
+<<cluster-nodes-stats,shard-specific statistics>> are shown.
 
 Valid values are:
 
@@ -1326,13 +1327,21 @@ that lower ranked documents have more influence. This value must be greater than
 equal to `1`. Defaults to `60`.
 end::rrf-rank-constant[]
 
-tag::rrf-window-size[]
-`window_size`::
+tag::rrf-rank-window-size[]
+`rank_window_size`::
 (Optional, integer)
 +
 This value determines the size of the individual result sets per
 query. A higher value will improve result relevance at the cost of performance. The final
 ranked result set is pruned down to the search request's <<search-size-param, size>>.
-`window_size` must be greater than or equal to `size` and greater than or equal to `1`.
+`rank_window_size` must be greater than or equal to `size` and greater than or equal to `1`.
 Defaults to the `size` parameter.
-end::rrf-window-size[]
+end::rrf-rank-window-size[]
+
+tag::rrf-filter[]
+`filter`::
+(Optional, <<query-dsl, query object or list of query objects>>)
++
+Applies the specified <<query-dsl-bool-query, boolean query filter>> to all of the specified sub-retrievers,
+according to each retriever's specifications.
+end::rrf-filter[]

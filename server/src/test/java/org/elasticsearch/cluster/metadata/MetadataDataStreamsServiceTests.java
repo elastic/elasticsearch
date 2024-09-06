@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -400,7 +401,10 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         MetadataDataStreamsService service = new MetadataDataStreamsService(
             mock(ClusterService.class),
             mock(IndicesService.class),
-            new DataStreamGlobalRetentionResolver(DataStreamFactoryRetention.emptyFactoryRetention())
+            DataStreamGlobalRetentionSettings.create(
+                ClusterSettings.createBuiltInClusterSettings(),
+                DataStreamFactoryRetention.emptyFactoryRetention()
+            )
         );
         {
             // Remove lifecycle

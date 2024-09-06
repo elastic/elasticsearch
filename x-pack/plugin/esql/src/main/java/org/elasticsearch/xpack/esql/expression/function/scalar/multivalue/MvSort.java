@@ -276,7 +276,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
 
         @Override
         public String toString() {
-            return "MvSort" + dataType + "[field=" + field + ", order=" + order + "]";
+            return "MvSort" + dataType.pascalCaseName() + "[field=" + field + ", order=" + order + "]";
         }
     }
 
@@ -310,7 +310,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
 
         @Override
         public String toString() {
-            return "MvSort" + dataType + "[field=" + field + ", order=" + order + "]";
+            return "MvSort" + dataType.pascalCaseName() + "[field=" + field + ", order=" + order + "]";
         }
 
         @Override

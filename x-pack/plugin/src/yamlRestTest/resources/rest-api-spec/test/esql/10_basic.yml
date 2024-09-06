@@ -109,6 +109,30 @@ setup:
           - { "data": 1, "count": 44, "data_d": 1, "count_d": 44, "time": 1674835275225, "color": "green" }
           - { "index": { } }
           - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275226, "color": "red" }
+  - do:
+      indices.create:
+        index:  test_range
+        body:
+          settings:
+            number_of_shards: 5
+          mappings:
+            properties:
+              date_1:
+                type: date
+                format: "dd-MM-yyyy-MM-dd HH:mm Z"
+              date_2:
+                type: date
+  - do:
+      bulk:
+        index: "test_range"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "date_1": "12-01-1981-01-12 15:00 +0000", "date_2": "2000" }
+          - { "index": { } }
+          - { "date_1": "31-12-1999-12-31 23:59 +0300" }
+          - { "index": { } }
+          - { "date_1": "31-12-1999-12-31 23:59 -0300" }
 
 ---
 "Test From":
@@ -380,3 +404,21 @@ version is not allowed:
         body:
           query: 'from test'
           version: cat
+
+---
+"Test Internal Range":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test_range | where date_1 > "1990" and date_1 < "2000" or date_2 >= "2000" | sort date_1'
+
+  - length: {columns: 2}
+  - match: {columns.0.name: "date_1"}
+  - match: {columns.0.type: "date"}
+  - match: {columns.1.name: "date_2"}
+  - match: {columns.1.type: "date"}
+  - length: {values: 2}
+  - match: {values.0: ["1981-01-12T15:00:00.000Z","2000-01-01T00:00:00.000Z"]}
+  - match: {values.1: ["1999-12-31T20:59:00.000Z", null]}

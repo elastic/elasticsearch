@@ -55,7 +55,7 @@ public abstract class SlicedInputStream extends InputStream {
      * Called for each logical slice given a zero based slice ordinal.
      *
      * Note that if {@link InputStream#markSupported()} is true (can be overridden to return false), the function may be called again to
-     * open a previous slice. The returned InputStreams themselves do not need to support mark/reset.
+     * open a previous slice (which must have the same size as before). The returned InputStreams do not need to support mark/reset.
      */
     protected abstract InputStream openSlice(int slice) throws IOException;
 
@@ -143,7 +143,14 @@ public abstract class SlicedInputStream extends InputStream {
 
                 nextSlice = markedSlice;
                 nextStream();
-                skipNBytes(markedSliceOffset);
+
+                // We do not call the SlicedInputStream's skipNBytes but call skipNBytes directly on the returned stream, to ensure that
+                // the skip is performed on the marked slice and no other slices are involved. This may help uncover any bugs.
+                final InputStream stream = currentStream();
+                if (stream != null) {
+                    stream.skipNBytes(markedSliceOffset);
+                }
+                currentSliceOffset = markedSliceOffset;
             }
         } else {
             throw new IOException("mark/reset not supported");

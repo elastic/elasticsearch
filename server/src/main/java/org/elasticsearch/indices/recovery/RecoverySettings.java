@@ -29,6 +29,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.node.NodeRoleSettings;
 
@@ -378,6 +379,16 @@ public class RecoverySettings {
         },
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
+    );
+
+    /**
+     * Indicates whether the `recovery_source` should be enabled (see {@link SourceFieldMapper}).
+     * This setting is not registered and should be used exclusively in a serverless environment.
+     */
+    public static final Setting<Boolean> INDICES_RECOVERY_SOURCE_ENABLED_SETTING = Setting.boolSetting(
+        "indices.recovery.recovery_source.enabled",
+        true,
+        Property.NodeScope
     );
 
     public static final ByteSizeValue DEFAULT_CHUNK_SIZE = new ByteSizeValue(512, ByteSizeUnit.KB);

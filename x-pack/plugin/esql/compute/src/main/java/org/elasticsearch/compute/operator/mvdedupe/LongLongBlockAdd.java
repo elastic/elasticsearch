@@ -38,7 +38,7 @@ public class LongLongBlockAdd extends AddBlock {
         for (int p = 0; p < positions; p++) {
             add1(p);
         }
-        emitOrds();
+        flushRemaining();
     }
 
     private void add1(int position) {

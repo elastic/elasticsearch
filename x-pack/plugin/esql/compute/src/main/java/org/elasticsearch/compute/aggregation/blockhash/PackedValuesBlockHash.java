@@ -142,7 +142,7 @@ final class PackedValuesBlockHash extends BlockHash {
                     addMultipleEntries();
                 }
             }
-            emitOrds();
+            flushRemaining();
         }
 
         private void addSingleEntry() {

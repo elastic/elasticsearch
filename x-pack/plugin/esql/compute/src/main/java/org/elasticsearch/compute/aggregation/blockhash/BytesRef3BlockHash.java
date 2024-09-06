@@ -137,7 +137,7 @@ final class BytesRef3BlockHash extends BlockHash {
                 }
                 finishMv();
             }
-            emitOrds();
+            flushRemaining();
         }
     }
 

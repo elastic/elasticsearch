@@ -135,7 +135,20 @@ public class AddBlock implements Releasable {
         firstOrd = -1;
     }
 
-    protected final void emitOrds() {
+    /**
+     * Call when finished to emit all remaining ordinals to the aggs.
+     */
+    protected final void flushRemaining() {
+        if (firstOrd != -1) {
+            throw new IllegalStateException("in the middle of a position");
+        }
+        if (added % emitBatchSize != 0) {
+            // If the % is 0 then we just flushed and there isn't any need to flush an empty block.
+            emitOrds();
+        }
+    }
+
+    private void emitOrds() {
         try (IntBlock ordsBlock = ords.build()) {
             addInput.add(positionOffset, ordsBlock);
         }

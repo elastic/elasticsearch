@@ -35,7 +35,7 @@ public class AddBlockTests extends ESTestCase {
             expected.add(added(0, 0, 2, 3));
             assertThat(result.added, equalTo(expected));
             add.appendOrdSv(3, 4);
-            add.emitOrds();
+            add.flushRemaining();
         }
         expected.add(added(3, 4));
         assertThat(result.added, equalTo(expected));
@@ -57,10 +57,13 @@ public class AddBlockTests extends ESTestCase {
             expected.add(new Added(0, List.of(List.of(4), List.of(0, 2))));
             assertThat(result.added, equalTo(expected));
             add.finishMv();
-            add.emitOrds();
+            add.flushRemaining();
         }
-        // We uselessly flush an empty position if emitBatchSize lines up with the total count
-        expected.add(new Added(1, List.of(List.of())));
+        /*
+         * We do *not* uselessly flush an empty Block of ordinals. Doing so would
+         * be a slight performance hit, but, worse, makes testing harder to reason
+         * about.
+         */
         assertThat(result.added, equalTo(expected));
     }
 
@@ -78,7 +81,7 @@ public class AddBlockTests extends ESTestCase {
             add.appendOrdInMv(1, 0);
             add.appendOrdInMv(1, 2);
             add.finishMv();
-            add.emitOrds();
+            add.flushRemaining();
         }
         // Because the first position ended on a block boundary we uselessly emit an empty position there
         expected.add(new Added(0, List.of(List.of(), List.of(0, 2))));
@@ -99,7 +102,7 @@ public class AddBlockTests extends ESTestCase {
             assertThat(result.added, equalTo(expected));
             add.appendOrdInMv(1, 2);
             add.finishMv();
-            add.emitOrds();
+            add.flushRemaining();
         }
         expected.add(new Added(1, List.of(List.of(2))));
         assertThat(result.added, equalTo(expected));

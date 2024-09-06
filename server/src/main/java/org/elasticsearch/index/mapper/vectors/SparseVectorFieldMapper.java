@@ -181,7 +181,8 @@ public class SparseVectorFieldMapper extends FieldMapper {
                 } else if (token == Token.VALUE_NULL) {
                     // ignore feature, this is consistent with numeric fields
                 } else if (token == Token.VALUE_NUMBER || token == Token.VALUE_STRING) {
-                    final String key = fullPath() + "." + feature;
+                    // Use a delimiter that can't collide with subfields
+                    final String key = fullPath() + ".." + feature;
                     float value = context.parser().floatValue(true);
 
                     // if we have an existing feature of the same name we'll select for the one with the max value

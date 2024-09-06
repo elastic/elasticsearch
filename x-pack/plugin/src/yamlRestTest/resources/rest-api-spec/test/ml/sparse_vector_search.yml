@@ -417,6 +417,9 @@ setup:
           {"parent.foo": { "bar.baz": 1.0 }}
           {"index": { "_id": "parent-foo-bar" }}
           {"parent.foo.bar": { "baz": 2.0 }}
+          {"index": { "_id": "both-docs" }}
+          {"parent.foo": { "bar.baz": 3.0 }, "parent.foo.bar": { "baz": 4.0 }}
+
 
   - do:
       headers:
@@ -452,8 +455,9 @@ setup:
               query_vector:
                 bar.baz: 1.0
 
-  - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._id: "parent-foo" }
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "both-docs" }
+  - match: { hits.hits.1._id: "parent-foo" }
 
   - do:
       search:
@@ -465,5 +469,6 @@ setup:
               query_vector:
                 baz: 2.0
 
-  - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._id: "parent-foo-bar" }
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "both-docs" }
+  - match: { hits.hits.1._id: "parent-foo-bar" }

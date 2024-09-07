@@ -184,6 +184,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.EsqlAsyncSecurityIT
   method: testIndexPatternErrorMessageComparison_ESQL_SearchDSL
   issue: https://github.com/elastic/elasticsearch/issues/112630
+- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
+  method: test {yaml=simulate.ingest/10_basic/Test mapping validation from templates}
+  issue: https://github.com/elastic/elasticsearch/issues/112633
 
 # Examples:
 #

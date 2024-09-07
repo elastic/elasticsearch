@@ -44,7 +44,7 @@ public class RankDocsSortBuilderTests extends AbstractSortTestCase<RankDocsSortB
     @Override
     protected RankDocsSortBuilder mutate(RankDocsSortBuilder original) throws IOException {
         RankDocsSortBuilder mutated = new RankDocsSortBuilder(original);
-        mutated.rankDocs(randomRankDocs(original.rankDocs().length + randomInt(100)));
+        mutated.rankDocs(randomRankDocs(original.rankDocs().length + randomIntBetween(10, 100)));
         return mutated;
     }
 

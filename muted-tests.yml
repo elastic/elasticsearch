@@ -172,9 +172,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.kerberos.SimpleKdcLdapServerTests
   method: testClientServiceMutualAuthentication
   issue: https://github.com/elastic/elasticsearch/issues/112529
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  method: test {yaml=simulate.ingest/10_basic/Test mapping validation from templates}
-  issue: https://github.com/elastic/elasticsearch/issues/112597
 - class: org.elasticsearch.search.basic.SearchWhileRelocatingIT
   method: testSearchAndRelocateConcurrentlyRandomReplicas
   issue: https://github.com/elastic/elasticsearch/issues/112515

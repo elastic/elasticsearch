@@ -11,6 +11,8 @@ package org.elasticsearch.action.support;
 
 import org.elasticsearch.action.support.IndicesOptions.ConcreteTargetOptions;
 import org.elasticsearch.action.support.IndicesOptions.GatekeeperOptions;
+import org.elasticsearch.action.support.IndicesOptions.SelectorOptions;
+import org.elasticsearch.action.support.IndicesOptions.Selectors;
 import org.elasticsearch.action.support.IndicesOptions.WildcardOptions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -30,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -55,6 +58,9 @@ public class IndicesOptionsTests extends ESTestCase {
                         .ignoreThrottled(randomBoolean())
                         .allowAliasToMultipleIndices(randomBoolean())
                         .allowClosedIndices(randomBoolean())
+                )
+                .selectorOptions(
+                    SelectorOptions.builder().setDefaultSelectors(EnumSet.copyOf(randomNonEmptySubsetOf(EnumSet.allOf(Selectors.class))))
                 )
                 .build();
 
@@ -341,8 +347,11 @@ public class IndicesOptionsTests extends ESTestCase {
             randomBoolean()
         );
         GatekeeperOptions gatekeeperOptions = new GatekeeperOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
+        SelectorOptions selectorOptions = new SelectorOptions(
+            EnumSet.copyOf(randomSubsetOf(EnumSet.allOf(Selectors.class)))
+        );
 
-        IndicesOptions indicesOptions = new IndicesOptions(concreteTargetOptions, wildcardOptions, gatekeeperOptions);
+        IndicesOptions indicesOptions = new IndicesOptions(concreteTargetOptions, wildcardOptions, gatekeeperOptions, selectorOptions);
 
         XContentType type = randomFrom(XContentType.values());
         BytesReference xContentBytes = toXContentBytes(indicesOptions, type);

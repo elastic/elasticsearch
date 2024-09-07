@@ -2298,7 +2298,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 new IndicesOptions(
                     IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
                     IndicesOptions.WildcardOptions.DEFAULT,
-                    IndicesOptions.GatekeeperOptions.builder().ignoreThrottled(true).build()
+                    IndicesOptions.GatekeeperOptions.builder().ignoreThrottled(true).build(),
+                    IndicesOptions.SelectorOptions.DEFAULT
                 ),
                 "ind*",
                 "test-index"
@@ -2747,9 +2748,10 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         // Test include failure store while we do not allow failure indices and ignore unavailable
         // We expect that they will be skipped
+        // TODO: Logic removed
         {
             IndicesOptions indicesOptions = IndicesOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN)
-                .gatekeeperOptions(IndicesOptions.GatekeeperOptions.builder().allowFailureIndices(false).build())
+                .gatekeeperOptions(IndicesOptions.GatekeeperOptions.builder().allowSelectors(false).build())
                 .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
                 .build();
             Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "my-data-stream");
@@ -2760,9 +2762,10 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         // Test include failure store while we do not allow failure indices
         // We expect an error
+        // TODO: Logic removed
         {
             IndicesOptions indicesOptions = IndicesOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN)
-                .gatekeeperOptions(IndicesOptions.GatekeeperOptions.builder().allowFailureIndices(false).build())
+                .gatekeeperOptions(IndicesOptions.GatekeeperOptions.builder().allowSelectors(false).build())
                 .build();
             FailureIndexNotSupportedException failureIndexNotSupportedException = expectThrows(
                 FailureIndexNotSupportedException.class,

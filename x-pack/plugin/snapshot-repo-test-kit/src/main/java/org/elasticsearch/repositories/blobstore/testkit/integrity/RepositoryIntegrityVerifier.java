@@ -575,6 +575,7 @@ class RepositoryIntegrityVerifier {
                         }
                     }
 
+                    // NB adding a listener whether ?verify_blob_contents is set or not - we want to track the blob sizes either way
                     blobContentsListeners(indexDescription, shardContainerContents, fileInfo).addListener(
                         listener.delegateResponse((l, e) -> {
                             isRestorable = false;

@@ -292,7 +292,7 @@ public class EsqlDataTypeConverter {
 
         if ((value.isEmpty() || qualifier.isEmpty()) == false) {
             try {
-                TemporalAmount result = parseTemporalAmout(Integer.parseInt(value.toString()), qualifier.toString(), Source.EMPTY);
+                TemporalAmount result = parseTemporalAmount(Integer.parseInt(value.toString()), qualifier.toString(), Source.EMPTY);
                 if (DataType.DATE_PERIOD == expectedType && result instanceof Period
                     || DataType.TIME_DURATION == expectedType && result instanceof Duration) {
                     return result;
@@ -394,7 +394,7 @@ public class EsqlDataTypeConverter {
     }
 
     // generally supporting abbreviations from https://en.wikipedia.org/wiki/Unit_of_time
-    public static TemporalAmount parseTemporalAmout(Number value, String qualifier, Source source) throws InvalidArgumentException,
+    public static TemporalAmount parseTemporalAmount(Number value, String qualifier, Source source) throws InvalidArgumentException,
         ArithmeticException, ParsingException {
         try {
             return switch (INTERVALS.valueOf(qualifier.toUpperCase(Locale.ROOT))) {

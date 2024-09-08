@@ -57,7 +57,9 @@ public class ToDatePeriodTests extends AbstractScalarFunctionTestCase {
             for (DataType inputType : List.of(KEYWORD, TEXT)) {
                 suppliers.add(new TestCaseSupplier(List.of(inputType), () -> {
                     BytesRef field = new BytesRef(
-                        randomIntBetween(0, 36500000) + " ".repeat(randomIntBetween(1, 10)) + interval.toString()
+                        " ".repeat(randomIntBetween(0, 10)) + (randomBoolean() ? "" : "-") + randomIntBetween(0, 36500000) + " ".repeat(
+                            randomIntBetween(1, 10)
+                        ) + interval.toString() + " ".repeat(randomIntBetween(0, 10))
                     );
                     TemporalAmount result = EsqlDataTypeConverter.parseTemporalAmount(field.utf8ToString(), DATE_PERIOD);
                     return new TestCaseSupplier.TestCase(
@@ -69,10 +71,7 @@ public class ToDatePeriodTests extends AbstractScalarFunctionTestCase {
                 }));
             }
         }
-
-        return parameterSuppliersFromTypedData(
-            errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), (v, p) -> "date_period or string")
-        );
+        return parameterSuppliersFromTypedData(anyNullIsNull(true, suppliers));
     }
 
     @Override

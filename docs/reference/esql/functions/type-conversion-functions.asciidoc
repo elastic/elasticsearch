@@ -16,7 +16,7 @@
 * <<esql-to_boolean>>
 * <<esql-to_cartesianpoint>>
 * <<esql-to_cartesianshape>>
-* <<esql-to_dateperiod>>
+* experimental:[] <<esql-to_dateperiod>>
 * <<esql-to_datetime>>
 * <<esql-to_degrees>>
 * <<esql-to_double>>
@@ -27,7 +27,7 @@
 * <<esql-to_long>>
 * <<esql-to_radians>>
 * <<esql-to_string>>
-* <<esql-to_timeduration>>
+* experimental:[] <<esql-to_timeduration>>
 * experimental:[] <<esql-to_unsigned_long>>
 * <<esql-to_version>>
 // end::type_list[]

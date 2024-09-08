@@ -1248,6 +1248,52 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testToDatePeriodToTimeDurationWithField() {
+        assertEquals(
+            "1:36: argument of [first_name::date_period] must be a constant, received [first_name]",
+            error("from types | EVAL x = birth_date + first_name::date_period")
+        );
+        assertEquals(
+            "1:37: argument of [to_timeduration(first_name)] must be a constant, received [first_name]",
+            error("from types  | EVAL x = birth_date - to_timeduration(first_name)")
+        );
+    }
+
+    public void testToDatePeriodToTimeDurationWithInvalidType() {
+        assertEquals(
+            "1:36: argument of [1.5::date_period] must be [date_period or string], found value [1.5] type [double]",
+            error("from types | EVAL x = birth_date + 1.5::date_period")
+        );
+        assertEquals(
+            "1:37: argument of [to_timeduration(1)] must be [time_duration or string], found value [1] type [integer]",
+            error("from types  | EVAL x = birth_date - to_timeduration(1)")
+        );
+        assertEquals(
+            "1:45: argument of [x::date_period] must be [date_period or string], found value [x] type [double]",
+            error("from types | EVAL x = 1.5, y = birth_date + x::date_period")
+        );
+        assertEquals(
+            "1:44: argument of [to_timeduration(x)] must be [time_duration or string], found value [x] type [integer]",
+            error("from types  | EVAL x = 1, y = birth_date - to_timeduration(x)")
+        );
+        assertEquals(
+            "1:64: argument of [x::date_period] must be [date_period or string], found value [x] type [datetime]",
+            error("from types | EVAL x = \"2024-09-08\"::datetime, y = birth_date + x::date_period")
+        );
+        assertEquals(
+            "1:65: argument of [to_timeduration(x)] must be [time_duration or string], found value [x] type [datetime]",
+            error("from types  | EVAL x = \"2024-09-08\"::datetime, y = birth_date - to_timeduration(x)")
+        );
+        assertEquals(
+            "1:58: argument of [x::date_period] must be [date_period or string], found value [x] type [ip]",
+            error("from types | EVAL x = \"2024-09-08\"::ip, y = birth_date + x::date_period")
+        );
+        assertEquals(
+            "1:59: argument of [to_timeduration(x)] must be [time_duration or string], found value [x] type [ip]",
+            error("from types  | EVAL x = \"2024-09-08\"::ip, y = birth_date - to_timeduration(x)")
+        );
+    }
+
     private String error(String query) {
         return error(query, defaultAnalyzer);
     }

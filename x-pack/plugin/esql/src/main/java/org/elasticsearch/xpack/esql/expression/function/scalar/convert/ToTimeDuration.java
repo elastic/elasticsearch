@@ -7,10 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.xpack.esql.capabilities.Validatable;
-import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -18,24 +14,12 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
-import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
-import static org.elasticsearch.xpack.esql.expression.Validations.isFoldable;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.foldToTemporalAmount;
 
-public class ToTimeDuration extends AbstractConvertFunction implements Validatable {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        Expression.class,
-        "ToTimeDuration",
-        ToTimeDuration::new
-    );
+public class ToTimeDuration extends FoldablesConvertFunction {
 
     @FunctionInfo(
         returnType = "time_duration",
@@ -53,28 +37,6 @@ public class ToTimeDuration extends AbstractConvertFunction implements Validatab
         super(source, v);
     }
 
-    private ToTimeDuration(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class));
-    }
-
-    @Override
-    public String getWriteableName() {
-        return ENTRY.name;
-    }
-
-    @Override
-    protected final TypeResolution resolveType() {
-        if (childrenResolved() == false) {
-            return new TypeResolution("Unresolved children");
-        }
-        return isType(field(), dt -> isString(dt) || dt == TIME_DURATION, sourceText(), null, "string or time_duration");
-    }
-
-    @Override
-    protected Map<DataType, BuildFactory> factories() {
-        return Map.of();
-    }
-
     @Override
     public DataType dataType() {
         return TIME_DURATION;
@@ -88,16 +50,5 @@ public class ToTimeDuration extends AbstractConvertFunction implements Validatab
     @Override
     protected NodeInfo<? extends Expression> info() {
         return NodeInfo.create(this, ToTimeDuration::new, field());
-    }
-
-    @Override
-    public final Object fold() {
-        return foldToTemporalAmount(field(), sourceText(), TIME_DURATION);
-    }
-
-    @Override
-    public void validate(Failures failures) {
-        String operation = sourceText();
-        failures.add(isFoldable(field(), operation, null));
     }
 }

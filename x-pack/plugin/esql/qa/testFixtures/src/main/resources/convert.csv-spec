@@ -242,10 +242,13 @@ x:datetime |y:datetime               |z:datetime
 convertToDatePeriodTimeDuration
 required_capability: cast_string_literal_to_temporal_amount
 row x = "2024-01-01"::datetime + "3 hours"::time_duration, y = "2024-01-01"::datetime - to_timeduration("3 hours"),
-z = "2024-01-01"::datetime + "3 DAYS"::date_period, w = "2024-01-01"::datetime - to_dateperiod("3 days");
+z = "2024-01-01"::datetime + "3 DAYS"::date_period, w = "2024-01-01"::datetime - to_dateperiod("3 days"), u = "3 days",
+v = "3 hours"
+| eval a = "2024-01-01" + u::date_period, b = "2024-01-01" - v::time_duration
+| keep x, y, z, w, a, b;
 
-x:datetime               |y:datetime               |z:datetime               |w:datetime
-2024-01-01T03:00:00.000Z |2023-12-31T21:00:00.000Z |2024-01-04T00:00:00.000Z |2023-12-29T00:00:00.000Z
+x:datetime               |y:datetime               |z:datetime               |w:datetime               |a:datetime               |b:datetime
+2024-01-01T03:00:00.000Z |2023-12-31T21:00:00.000Z |2024-01-04T00:00:00.000Z |2023-12-29T00:00:00.000Z |2024-01-04T00:00:00.000Z |2023-12-31T21:00:00.000Z
 ;
 
 convertToDatePeriodNested
@@ -296,10 +299,11 @@ FROM employees
 | WHERE emp_no == 10001
 | EVAL interval_timeduration = "3 hours", x = birth_date + interval_timeduration::time_duration, y = birth_date - concat("3 ", "hours")::time_duration
 | EVAL interval_dateperiod = "3 months", z = birth_date + interval_dateperiod::date_period, w = birth_date - concat("3 ", "months")::date_period
-| KEEP birth_date, x, y, z, w;
+| EVAL a = "3", b = "hours", c = birth_date + concat(concat(a, " "), b)::time_duration
+| KEEP birth_date, x, y, z, w, c;
 
-birth_date:datetime  |x:datetime           |y:datetime           |z:datetime           |w:datetime
-1953-09-02T00:00:00Z |1953-09-02T03:00:00Z |1953-09-01T21:00:00Z |1953-12-02T00:00:00Z |1953-06-02T00:00:00Z
+birth_date:datetime  |x:datetime           |y:datetime           |z:datetime           |w:datetime           |c:datetime
+1953-09-02T00:00:00Z |1953-09-02T03:00:00Z |1953-09-01T21:00:00Z |1953-12-02T00:00:00Z |1953-06-02T00:00:00Z |1953-09-02T03:00:00Z
 ;
 
 convertToDatePeriodNull

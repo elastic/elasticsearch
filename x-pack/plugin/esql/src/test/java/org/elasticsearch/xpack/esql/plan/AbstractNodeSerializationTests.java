@@ -52,7 +52,7 @@ public abstract class AbstractNodeSerializationTests<T extends Node<? super T>> 
     }
 
     @Override
-    protected T copyInstance(T instance, TransportVersion version) throws IOException {
+    protected final T copyInstance(T instance, TransportVersion version) throws IOException {
         return copyInstance(
             instance,
             getNamedWriteableRegistry(),

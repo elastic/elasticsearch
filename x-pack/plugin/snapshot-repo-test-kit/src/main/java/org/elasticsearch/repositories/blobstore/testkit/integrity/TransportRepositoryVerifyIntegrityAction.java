@@ -39,7 +39,7 @@ import java.util.function.LongSupplier;
 /**
  * Transport action that actually runs the {@link RepositoryIntegrityVerifier} and sends response chunks back to the coordinating node.
  */
-public class TransportRepositoryVerifyIntegrityAction extends HandledTransportAction<
+class TransportRepositoryVerifyIntegrityAction extends HandledTransportAction<
     TransportRepositoryVerifyIntegrityAction.Request,
     RepositoryVerifyIntegrityResponse> {
 
@@ -63,7 +63,7 @@ public class TransportRepositoryVerifyIntegrityAction extends HandledTransportAc
         this.executor = executor;
     }
 
-    public static class Request extends ActionRequest {
+    static class Request extends ActionRequest {
         private final DiscoveryNode coordinatingNode;
         private final long coordinatingTaskId;
         private final RepositoryVerifyIntegrityParams requestParams;

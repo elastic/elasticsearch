@@ -60,7 +60,7 @@ import java.util.function.LongSupplier;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
-public class RepositoryIntegrityVerifier {
+class RepositoryIntegrityVerifier {
     private static final Logger logger = LogManager.getLogger(RepositoryIntegrityVerifier.class);
 
     private final LongSupplier currentTimeMillisSupplier;
@@ -691,7 +691,7 @@ public class RepositoryIntegrityVerifier {
                 );
             }
 
-            void load(int shardId, ActionListener<ShardContainerContents> listener) {
+            private void load(int shardId, ActionListener<ShardContainerContents> listener) {
                 final var indexDescription = new IndexDescription(indexId, null, 0);
 
                 final Map<String, BlobMetadata> blobsByName;

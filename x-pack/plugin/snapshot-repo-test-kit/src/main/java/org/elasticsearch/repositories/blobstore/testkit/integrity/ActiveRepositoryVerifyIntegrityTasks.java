@@ -17,12 +17,12 @@ import java.util.Map;
 /**
  * The repository-verify-integrity tasks that this node is currently coordinating.
  */
-public class ActiveRepositoryVerifyIntegrityTasks {
+class ActiveRepositoryVerifyIntegrityTasks {
 
     private final Map<Long, RepositoryVerifyIntegrityResponseStream> responseStreamsByCoordinatingTaskId = ConcurrentCollections
         .newConcurrentMap();
 
-    public Releasable registerResponseBuilder(long coordinatingTaskId, RepositoryVerifyIntegrityResponseStream responseStream) {
+    Releasable registerResponseBuilder(long coordinatingTaskId, RepositoryVerifyIntegrityResponseStream responseStream) {
         assert responseStream.hasReferences(); // ref held until the REST-layer listener is completed
 
         final var previous = responseStreamsByCoordinatingTaskId.putIfAbsent(coordinatingTaskId, responseStream);
@@ -46,7 +46,7 @@ public class ActiveRepositoryVerifyIntegrityTasks {
      * Obtain the response stream for the given coordinating-node task ID, and increment its refcount.
      * @throws ResourceNotFoundException if the task is not running or its refcount already reached zero (likely because it completed)
      */
-    public RepositoryVerifyIntegrityResponseStream acquireResponseStream(long taskId) {
+    RepositoryVerifyIntegrityResponseStream acquireResponseStream(long taskId) {
         final var outerRequest = responseStreamsByCoordinatingTaskId.get(taskId);
         if (outerRequest == null || outerRequest.tryIncRef() == false) {
             throw new ResourceNotFoundException("verify task [" + taskId + "] not found");

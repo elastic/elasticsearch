@@ -25,7 +25,7 @@ import java.util.concurrent.Executor;
 /**
  * Transport action that handles a response chunk on the coordinating node, sending it out to the REST client.
  */
-public class TransportRepositoryVerifyIntegrityResponseChunkAction extends HandledTransportAction<
+class TransportRepositoryVerifyIntegrityResponseChunkAction extends HandledTransportAction<
     TransportRepositoryVerifyIntegrityResponseChunkAction.Request,
     ActionResponse.Empty> {
 
@@ -33,7 +33,7 @@ public class TransportRepositoryVerifyIntegrityResponseChunkAction extends Handl
 
     private final ActiveRepositoryVerifyIntegrityTasks activeRepositoryVerifyIntegrityTasks;
 
-    public TransportRepositoryVerifyIntegrityResponseChunkAction(
+    TransportRepositoryVerifyIntegrityResponseChunkAction(
         TransportService transportService,
         ActionFilters actionFilters,
         Executor executor,
@@ -43,16 +43,16 @@ public class TransportRepositoryVerifyIntegrityResponseChunkAction extends Handl
         this.activeRepositoryVerifyIntegrityTasks = activeRepositoryVerifyIntegrityTasks;
     }
 
-    public static class Request extends ActionRequest {
+    static class Request extends ActionRequest {
         private final long coordinatingTaskId;
         private final RepositoryVerifyIntegrityResponseChunk chunkContents;
 
-        public Request(long coordinatingTaskId, RepositoryVerifyIntegrityResponseChunk chunkContents) {
+        Request(long coordinatingTaskId, RepositoryVerifyIntegrityResponseChunk chunkContents) {
             this.coordinatingTaskId = coordinatingTaskId;
             this.chunkContents = Objects.requireNonNull(chunkContents);
         }
 
-        public Request(StreamInput in) throws IOException {
+        Request(StreamInput in) throws IOException {
             super(in);
             coordinatingTaskId = in.readVLong();
             chunkContents = new RepositoryVerifyIntegrityResponseChunk(in);

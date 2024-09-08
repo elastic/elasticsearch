@@ -46,7 +46,7 @@ public class ActiveRepositoryVerifyIntegrityTasks {
      * Obtain the response stream for the given coordinating-node task ID, and increment its refcount.
      * @throws ResourceNotFoundException if the task is not running or its refcount already reached zero (likely because it completed)
      */
-    public RepositoryVerifyIntegrityResponseStream acquire(long taskId) {
+    public RepositoryVerifyIntegrityResponseStream acquireResponseStream(long taskId) {
         final var outerRequest = responseStreamsByCoordinatingTaskId.get(taskId);
         if (outerRequest == null || outerRequest.tryIncRef() == false) {
             throw new ResourceNotFoundException("verify task [" + taskId + "] not found");

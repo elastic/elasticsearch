@@ -75,15 +75,15 @@ public class TransportRepositoryVerifyIntegrityResponseChunkAction extends Handl
     @Override
     protected void doExecute(Task task, Request request, ActionListener<ActionResponse.Empty> listener) {
         ActionListener.run(listener, l -> {
-            final var ongoingRequest = activeRepositoryVerifyIntegrityTasks.acquire(request.coordinatingTaskId);
+            final var responseStream = activeRepositoryVerifyIntegrityTasks.acquireResponseStream(request.coordinatingTaskId);
             try {
                 if (request.chunkContents().type() == RepositoryVerifyIntegrityResponseChunk.Type.START_RESPONSE) {
-                    ongoingRequest.startResponse(() -> l.onResponse(ActionResponse.Empty.INSTANCE));
+                    responseStream.startResponse(() -> l.onResponse(ActionResponse.Empty.INSTANCE));
                 } else {
-                    ongoingRequest.writeChunk(request.chunkContents(), () -> l.onResponse(ActionResponse.Empty.INSTANCE));
+                    responseStream.writeChunk(request.chunkContents(), () -> l.onResponse(ActionResponse.Empty.INSTANCE));
                 }
             } finally {
-                ongoingRequest.decRef();
+                responseStream.decRef();
             }
         });
     }

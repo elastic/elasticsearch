@@ -187,6 +187,9 @@ tests:
 - class: org.elasticsearch.compute.aggregation.blockhash.BlockHashTests
   method: testBytesRefLongHashHugeCombinatorialExplosion {forcePackedHash=false}
   issue: https://github.com/elastic/elasticsearch/issues/112442
+- class: org.elasticsearch.compute.aggregation.blockhash.BlockHashTests
+  method: testBytesRefLongHashHugeCombinatorialExplosion {forcePackedHash=true}
+  issue: https://github.com/elastic/elasticsearch/issues/112443
 
 # Examples:
 #

@@ -103,6 +103,8 @@ public class TransportRepositoryVerifyIntegrityAction extends HandledTransportAc
     @Override
     protected void doExecute(Task rawTask, Request request, ActionListener<RepositoryVerifyIntegrityResponse> listener) {
         final var responseWriter = new RepositoryVerifyIntegrityResponseChunk.Writer() {
+
+            // no need to obtain a fresh connection each time - this connection shouldn't close, so if it does we can fail the verification
             final Transport.Connection responseConnection = transportService.getConnection(request.coordinatingNode);
 
             @Override

@@ -724,6 +724,8 @@ class RepositoryIntegrityVerifier {
                     anomaly("shard generation not defined").shardDescription(indexDescription, shardId)
                         .write(
                             listener.map(
+                                // NB we don't need the shard gen to do most of the rest of the verification, so we set it to null and
+                                // carry on:
                                 v -> new ShardContainerContents(shardId, blobsByName, null, null, ConcurrentCollections.newConcurrentMap())
                             )
                         );

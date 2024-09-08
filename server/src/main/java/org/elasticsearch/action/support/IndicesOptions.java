@@ -27,7 +27,9 @@ import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -407,6 +409,19 @@ public record IndicesOptions(
 
         public String getKey() {
             return key;
+        }
+
+        private static final Map<String, Selectors> REGISTRY;
+        static {
+            Map<String, Selectors> registry = new HashMap<>(Selectors.values().length);
+            for (Selectors value : Selectors.values()) {
+                registry.put(value.getKey(), value);
+            }
+            REGISTRY = Collections.unmodifiableMap(registry);
+        }
+
+        public static Selectors getByKey(String key) {
+            return REGISTRY.get(key);
         }
     }
 

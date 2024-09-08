@@ -416,9 +416,23 @@ class RepositoryIntegrityVerifier {
             }).addListener(listener);
         }
 
+        /**
+         * Information about the contents of the {@code ${REPO}/indices/${INDEX}/${SHARD}/} container, shared across the verifications of
+         * each snapshot of this shard.
+         *
+         * @param shardId the numeric shard ID.
+         * @param blobsByName the {@link BlobMetadata} for every blob in the container, keyed by blob name.
+         * @param shardGeneration the current {@link ShardGeneration} for this shard, identifying the current {@code index-${UUID}} blob.
+         * @param filesByPhysicalNameBySnapshotName a {@link BlobStoreIndexShardSnapshot.FileInfo} for every tracked file, keyed by snapshot
+         *                                          name and then by the file's physical name.
+         * @param blobContentsListeners a threadsafe mutable map, keyed by file name, for every tracked file that the verification process
+         *                              encounters. Used to avoid double-counting the size of any files, and also to deduplicate work to
+         *                              verify their contents if {@code ?verify_blob_contents} is set.
+         */
         private record ShardContainerContents(
             int shardId,
             Map<String, BlobMetadata> blobsByName,
+            @Nullable /* if shard gen is not defined */
             ShardGeneration shardGeneration,
             @Nullable /* if shard gen blob could not be read */
             Map<String, Map<String, BlobStoreIndexShardSnapshot.FileInfo>> filesByPhysicalNameBySnapshotName,

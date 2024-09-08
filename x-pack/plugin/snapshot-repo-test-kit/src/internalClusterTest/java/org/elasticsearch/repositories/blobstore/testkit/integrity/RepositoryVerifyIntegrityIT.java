@@ -420,7 +420,7 @@ public class RepositoryVerifyIntegrityIT extends AbstractSnapshotIntegTestCase {
         };
 
         masterTransportService.addRequestHandlingBehavior(
-            TransportRepositoryVerifyIntegrityMasterNodeAction.ACTION_NAME,
+            TransportRepositoryVerifyIntegrityAction.ACTION_NAME,
             failTransportMessageBehaviour
         );
 

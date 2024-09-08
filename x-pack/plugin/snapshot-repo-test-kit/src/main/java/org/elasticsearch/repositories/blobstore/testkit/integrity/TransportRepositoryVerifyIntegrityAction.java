@@ -36,24 +36,28 @@ import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.function.LongSupplier;
 
-public class TransportRepositoryVerifyIntegrityMasterNodeAction extends HandledTransportAction<
-    TransportRepositoryVerifyIntegrityMasterNodeAction.Request,
+/**
+ * Transport action that actually runs the {@link RepositoryIntegrityVerifier} and sends response chunks back to the coordinating node.
+ */
+public class TransportRepositoryVerifyIntegrityAction extends HandledTransportAction<
+    TransportRepositoryVerifyIntegrityAction.Request,
     RepositoryVerifyIntegrityResponse> {
 
-    // NB not an actual TransportMasterNodeAction, we don't want to retry on a master failover
+    // NB runs on the master because that's the expected place to read metadata blobs from the repository, but not an actual
+    // TransportMasterNodeAction since we don't want to retry on a master failover
 
     static final String ACTION_NAME = TransportRepositoryVerifyIntegrityCoordinationAction.INSTANCE.name() + "[m]";
     private final RepositoriesService repositoriesService;
     private final TransportService transportService;
     private final Executor executor;
 
-    TransportRepositoryVerifyIntegrityMasterNodeAction(
+    TransportRepositoryVerifyIntegrityAction(
         TransportService transportService,
         RepositoriesService repositoriesService,
         ActionFilters actionFilters,
         Executor executor
     ) {
-        super(ACTION_NAME, transportService, actionFilters, TransportRepositoryVerifyIntegrityMasterNodeAction.Request::new, executor);
+        super(ACTION_NAME, transportService, actionFilters, TransportRepositoryVerifyIntegrityAction.Request::new, executor);
         this.repositoriesService = repositoriesService;
         this.transportService = transportService;
         this.executor = executor;

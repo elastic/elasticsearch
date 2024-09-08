@@ -28,6 +28,10 @@ import org.elasticsearch.transport.TransportService;
 import java.util.Map;
 import java.util.concurrent.Executor;
 
+/**
+ * Transport action that coordinates the integrity verification, dispatching a request to run the verification on the master and setting up
+ * the machinery needed to send the response chunks back to the client.
+ */
 public class TransportRepositoryVerifyIntegrityCoordinationAction extends TransportAction<
     TransportRepositoryVerifyIntegrityCoordinationAction.Request,
     RepositoryVerifyIntegrityResponse> {
@@ -141,7 +145,7 @@ public class TransportRepositoryVerifyIntegrityCoordinationAction extends Transp
         this.managementExecutor = transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT);
 
         // register subsidiary actions
-        new TransportRepositoryVerifyIntegrityMasterNodeAction(transportService, repositoriesService, actionFilters, managementExecutor);
+        new TransportRepositoryVerifyIntegrityAction(transportService, repositoriesService, actionFilters, managementExecutor);
 
         new TransportRepositoryVerifyIntegrityResponseChunkAction(
             transportService,
@@ -166,8 +170,8 @@ public class TransportRepositoryVerifyIntegrityCoordinationAction extends Transp
                 }
                 transportService.sendChildRequest(
                     master,
-                    TransportRepositoryVerifyIntegrityMasterNodeAction.ACTION_NAME,
-                    new TransportRepositoryVerifyIntegrityMasterNodeAction.Request(
+                    TransportRepositoryVerifyIntegrityAction.ACTION_NAME,
+                    new TransportRepositoryVerifyIntegrityAction.Request(
                         transportService.getLocalNode(),
                         task.getId(),
                         request.requestParams()

@@ -22,6 +22,9 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 
+/**
+ * Transport action that handles a response chunk on the coordinating node, sending it out to the REST client.
+ */
 public class TransportRepositoryVerifyIntegrityResponseChunkAction extends HandledTransportAction<
     TransportRepositoryVerifyIntegrityResponseChunkAction.Request,
     ActionResponse.Empty> {

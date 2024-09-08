@@ -119,7 +119,11 @@ as well the same way that a non-simulated ingest would. No data is
 indexed into {es}. Instead, the transformed document is returned,
 along with the list of pipelines that have been executed and the name
 of the index where the document would have been indexed if this were
-not a simulation. This differs from the
+not a simulation. The transformed document is validated against the
+mappings that would apply to this index, and any validation error is
+reported in the result.
+
+This API differs from the
 <<simulate-pipeline-api,simulate pipeline API>> in that you specify a
 single pipeline for that API, and it only runs that one pipeline. The
 simulate pipeline API is more useful for developing a single pipeline,

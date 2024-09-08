@@ -13,6 +13,7 @@ import org.elasticsearch.logsdb.datageneration.fields.TopLevelObjectFieldDataGen
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * Entry point of data generation logic.
@@ -33,7 +34,7 @@ public class DataGenerator {
      */
     public void writeMapping(XContentBuilder mapping) throws IOException {
         mapping.startObject().field("_doc");
-        topLevelGenerator.mappingWriter(b -> {}).accept(mapping);
+        topLevelGenerator.mappingWriter(Map.of()).accept(mapping);
         mapping.endObject();
     }
 
@@ -44,8 +45,7 @@ public class DataGenerator {
      * @param customMappingParameters writer of custom mapping parameters of top level object mapping
      * @throws IOException
      */
-    public void writeMapping(XContentBuilder mapping, CheckedConsumer<XContentBuilder, IOException> customMappingParameters)
-        throws IOException {
+    public void writeMapping(XContentBuilder mapping, Map<String, Object> customMappingParameters) throws IOException {
         mapping.startObject().field("_doc");
         topLevelGenerator.mappingWriter(customMappingParameters).accept(mapping);
         mapping.endObject();

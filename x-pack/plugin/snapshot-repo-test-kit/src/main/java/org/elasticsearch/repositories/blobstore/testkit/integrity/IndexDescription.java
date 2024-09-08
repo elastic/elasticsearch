@@ -10,6 +10,7 @@ package org.elasticsearch.repositories.blobstore.testkit.integrity;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -20,7 +21,7 @@ import java.io.IOException;
  * Details of an index in a specific snapshot, identifying its corresponding {@link org.elasticsearch.cluster.metadata.IndexMetadata} blob
  * and the number of shards.
  */
-public record IndexDescription(IndexId indexId, String indexMetadataBlob, int shardCount) implements Writeable, ToXContentObject {
+public record IndexDescription(IndexId indexId, @Nullable String indexMetadataBlob, int shardCount) implements Writeable, ToXContentObject {
 
     public IndexDescription {
         if (indexId == null || shardCount < 0) {

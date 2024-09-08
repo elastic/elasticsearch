@@ -261,7 +261,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         });
         if (snapshotIndexCommit.acquiredInternally) {
             boolean removed = internallyAcquiredIndexCommits.remove(releasingCommit);
-            assert removed : "Try to release a non-acquired internal commit [" + releasingCommit + "]";
+            assert removed : "Trying to release a commit [" + releasingCommit + "] that hasn't been previously acquired internally";
         }
 
         assert refCount == null || refCount > 0 : "Number of references for acquired commit can not be negative [" + refCount + "]";

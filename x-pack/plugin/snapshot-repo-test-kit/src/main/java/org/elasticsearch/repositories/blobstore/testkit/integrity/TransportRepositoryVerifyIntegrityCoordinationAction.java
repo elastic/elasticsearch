@@ -38,44 +38,44 @@ public class TransportRepositoryVerifyIntegrityCoordinationAction extends Transp
      * snapshots processed, or about the restorability of the indices in the repository, or details of any verification anomalies found.
      * When the process is complete the master responds to the original transport request with the final results:
      *
-     * +---------+                         +-------------+                           +--------+
-     * | Client  |                         | Coordinator |                           | Master |
-     * +---------+                         +-------------+                           +--------+
-     *      |                                     |                                       |
-     *      |-[REST request]--------------------->|                                       |
-     *      |                                     |---[master node request]-------------->| ----------------------\
-     *      |                                     |                                       |-| Initialize verifier |
-     *      |                                     |                                       | |---------------------|
-     *      |                                     |<--[SNAPSHOT_INFO chunk request]-------|
-     *      |<---[headers & initial JSON body]----|                                       |
-     *      |                                     |---[SNAPSHOT_INFO chunk response]----->| ------------------\
-     *      |                                     |                                       |-| Verify snapshot |
-     *      |                                     |                                       | |-----------------|
-     *      |                                     |<--[SNAPSHOT_INFO chunk request]-------|
-     *      |<---[more JSON body]-----------------|                                       |
-     *      |                                     |---[SNAPSHOT_INFO chunk response]----->| ------------------\
-     *      |                                     |                                       |-| Verify snapshot |
-     *      |                                     |                                       | |-----------------|
-     *      |                                     |<--[SNAPSHOT_INFO chunk request]-------|
-     *      |<---[more JSON body]-----------------|                                       |
-     *      |                                     |---[SNAPSHOT_INFO chunk response]----->| ...
-     *      .                                     .                                       .
-     *      .                                     .                                       .
-     *      |                                     |                                       | -----------------------------\
-     *      |                                     |                                       |-| Verify index restorability |
-     *      |                                     |                                       | |----------------------------|
-     *      |                                     |<--[INDEX_RESTORABILITY chunk req.]----|
-     *      |<---[more JSON body]-----------------|                                       |
-     *      |                                     |---[INDEX_RESTORABILITY chunk resp.]-->| -----------------------------\
-     *      |                                     |                                       |-| Verify index restorability |
-     *      |                                     |                                       | |----------------------------|
-     *      |                                     |<--[INDEX_RESTORABILITY chunk req.]----|
-     *      |<---[more JSON body]-----------------|                                       |
-     *      |                                     |---[INDEX_RESTORABILITY chunk resp.]-->| ...
-     *      .                                     .                                       .
-     *      .                                     .                                       .
-     *      |                                     |<--[response to master node req.]------|
-     *      |<--[final JSON to complete body]-----|                                       |
+     * +---------+                         +-------------+                              +--------+
+     * | Client  |                         | Coordinator |                              | Master |
+     * +---------+                         +-------------+                              +--------+
+     *      |                                     |                                          |
+     *      |-[REST request]--------------------->|                                          |
+     *      |                                     |---[master node request]----------------->| ----------------------\
+     *      |                                     |                                          |-| Initialize verifier |
+     *      |                                     |                                          | |---------------------|
+     *      |                                     |<--[START_RESPONSE chunk request]---------|
+     *      |<---[headers & initial JSON body]----|                                          |
+     *      |                                     |---[START_RESPONSE chunk response]------->| ------------------\
+     *      |                                     |                                          |-| Verify snapshot |
+     *      |                                     |                                          | |-----------------|
+     *      |                                     |<--[SNAPSHOT_INFO chunk request]----------|
+     *      |<---[more JSON body]-----------------|                                          |
+     *      |                                     |---[SNAPSHOT_INFO chunk response]-------->| ------------------\
+     *      |                                     |                                          |-| Verify snapshot |
+     *      |                                     |                                          | |-----------------|
+     *      |                                     |<--[SNAPSHOT_INFO chunk request]----------|
+     *      |<---[more JSON body]-----------------|                                          |
+     *      |                                     |---[SNAPSHOT_INFO chunk response]-------->| ...
+     *      .                                     .                                          .
+     *      .                                     .                                          .
+     *      |                                     |                                          | -----------------------------\
+     *      |                                     |                                          |-| Verify index restorability |
+     *      |                                     |                                          | |----------------------------|
+     *      |                                     |<--[INDEX_RESTORABILITY chunk request]----|
+     *      |<---[more JSON body]-----------------|                                          |
+     *      |                                     |---[INDEX_RESTORABILITY chunk response]-->| -----------------------------\
+     *      |                                     |                                          |-| Verify index restorability |
+     *      |                                     |                                          | |----------------------------|
+     *      |                                     |<--[INDEX_RESTORABILITY chunk request]----|
+     *      |<---[more JSON body]-----------------|                                          |
+     *      |                                     |---[INDEX_RESTORABILITY chunk response]-->| ...
+     *      .                                     .                                          .
+     *      .                                     .                                          .
+     *      |                                     |<--[response to master node request]------|
+     *      |<--[final JSON to complete body]-----|                                          |
      *
      * This message flow ties the lifecycle of the verification process to that of the transport request sent from coordinator to master,
      * which means it integrates well with the tasks framework and handles network issues properly. An alternative would be for the

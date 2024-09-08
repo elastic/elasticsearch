@@ -20,8 +20,7 @@ public class DefaultPrimitiveTypesHandler implements DataSourceHandler {
 
     @Override
     public DataSourceResponse.UnsignedLongGenerator handle(DataSourceRequest.UnsignedLongGenerator request) {
-        // TODO there is currently an issue with handling BigInteger in some synthetic source scenarios
-        return new DataSourceResponse.UnsignedLongGenerator(() -> new BigInteger(64, ESTestCase.random()).toString());
+        return new DataSourceResponse.UnsignedLongGenerator(() -> new BigInteger(64, ESTestCase.random()));
     }
 
     @Override

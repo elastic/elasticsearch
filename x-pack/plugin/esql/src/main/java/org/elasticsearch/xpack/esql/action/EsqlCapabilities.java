@@ -184,6 +184,11 @@ public class EsqlCapabilities {
         UNION_TYPES_FIX_RENAME_RESOLUTION,
 
         /**
+         * Fix for union-types when some indexes are missing the required field. Done in #111932.
+         */
+        UNION_TYPES_MISSING_FIELD,
+
+        /**
          * Fix a parsing issue where numbers below Long.MIN_VALUE threw an exception instead of parsing as doubles.
          * see <a href="https://github.com/elastic/elasticsearch/issues/104323"> Parsing large numbers is inconsistent #104323 </a>
          */

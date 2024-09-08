@@ -239,8 +239,7 @@ public class FilteredSearchExecutionContext extends SearchExecutionContext {
     }
 
     @Override
-    @SuppressWarnings("rawtypes")
-    public void executeAsyncActions(ActionListener listener) {
+    public void executeAsyncActions(ActionListener<Void> listener) {
         in.executeAsyncActions(listener);
     }
 

@@ -51,8 +51,8 @@ $if(BytesRef)$
      * returns null. Callers must not release the returned vector as no extra reference is retained by this method.
      */
     OrdinalBytesRefVector asOrdinals();
-$endif$
 
+$endif$
     @Override
     $Type$Vector filter(int... positions);
 

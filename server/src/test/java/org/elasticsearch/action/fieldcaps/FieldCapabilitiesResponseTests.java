@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
@@ -54,7 +55,8 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         int numResponse = randomIntBetween(0, 10);
         for (int i = 0; i < numResponse; i++) {
             Map<String, IndexFieldCapabilities> fieldCaps = FieldCapabilitiesIndexResponseTests.randomFieldCaps();
-            responses.add(new FieldCapabilitiesIndexResponse("index_" + i, null, fieldCaps, randomBoolean()));
+            var indexMode = randomFrom(IndexMode.values());
+            responses.add(new FieldCapabilitiesIndexResponse("index_" + i, null, fieldCaps, randomBoolean(), indexMode));
         }
         randomResponse = new FieldCapabilitiesResponse(responses, Collections.emptyList());
         return randomResponse;
@@ -267,9 +269,10 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
                         "blue_field",
                         new IndexFieldCapabilities("blue_field", "long", false, true, true, false, null, Map.of())
                     ),
-                    true
+                    true,
+                    IndexMode.STANDARD
                 ),
-                new FieldCapabilitiesIndexResponse("index_02", null, Map.of(), false),
+                new FieldCapabilitiesIndexResponse("index_02", null, Map.of(), false, IndexMode.STANDARD),
                 new FieldCapabilitiesIndexResponse(
                     "index_03",
                     null,
@@ -279,7 +282,8 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
                         "_seq_no",
                         new IndexFieldCapabilities("_seq_no", "long", true, true, true, false, null, Map.of())
                     ),
-                    true
+                    true,
+                    IndexMode.STANDARD
                 )
             )
         );

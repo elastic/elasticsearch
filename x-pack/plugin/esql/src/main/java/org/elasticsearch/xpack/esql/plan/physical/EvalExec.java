@@ -12,10 +12,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 
 import java.io.IOException;
 import java.util.List;
@@ -60,6 +62,11 @@ public class EvalExec extends UnaryExec implements EstimatesRowSize {
     @Override
     public List<Attribute> output() {
         return mergeOutputAttributes(fields, child().output());
+    }
+
+    @Override
+    protected AttributeSet computeReferences() {
+        return Eval.computeReferences(fields);
     }
 
     @Override

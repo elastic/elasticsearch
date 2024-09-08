@@ -19,6 +19,7 @@ import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BiFunction;
 
 import static org.elasticsearch.search.aggregations.DelayedBucketTests.mockReduce;
 import static org.hamcrest.Matchers.equalTo;
@@ -28,11 +29,18 @@ public class TopBucketBuilderTests extends ESTestCase {
     public void testSizeOne() {
         int count = between(1, 1000);
         AggregationReduceContext context = InternalAggregationTestCase.emptyReduceContextBuilder().forFinalReduction();
+        BiFunction<List<InternalBucket>, AggregationReduceContext, InternalBucket> reduce = mockReduce(context);
         List<String> nonCompetitive = new ArrayList<>();
-        TopBucketBuilder<InternalBucket> builder = TopBucketBuilder.build(1, BucketOrder.key(true), b -> nonCompetitive.add(b.toString()));
+        TopBucketBuilder<InternalBucket> builder = TopBucketBuilder.build(
+            1,
+            BucketOrder.key(true),
+            b -> nonCompetitive.add(b.toString()),
+            reduce,
+            context
+        );
 
         for (int i = 0; i < count; i++) {
-            builder.add(new DelayedBucket<>(mockReduce(context), context, List.of(bucket(i))));
+            builder.add(new DelayedBucket<>(List.of(bucket(i))));
         }
 
         List<InternalBucket> top = builder.build();
@@ -48,14 +56,17 @@ public class TopBucketBuilderTests extends ESTestCase {
         int size = between(3, 1000);
         int count = between(1, size);
         AggregationReduceContext context = InternalAggregationTestCase.emptyReduceContextBuilder().forFinalReduction();
+        BiFunction<List<InternalBucket>, AggregationReduceContext, InternalBucket> reduce = mockReduce(context);
         TopBucketBuilder<InternalBucket> builder = TopBucketBuilder.build(
             size,
             BucketOrder.key(true),
-            b -> fail("unexpected uncompetitive bucket " + b)
+            b -> fail("unexpected uncompetitive bucket " + b),
+            reduce,
+            context
         );
 
         for (int i = 0; i < count; i++) {
-            builder.add(new DelayedBucket<>(mockReduce(context), context, List.of(bucket(i))));
+            builder.add(new DelayedBucket<>(List.of(bucket(i))));
         }
 
         List<InternalBucket> top = builder.build();
@@ -69,15 +80,18 @@ public class TopBucketBuilderTests extends ESTestCase {
     public void someNonCompetitiveTestCase(int size) {
         int count = between(size + 1, size * 30);
         AggregationReduceContext context = InternalAggregationTestCase.emptyReduceContextBuilder().forFinalReduction();
+        BiFunction<List<InternalBucket>, AggregationReduceContext, InternalBucket> reduce = mockReduce(context);
         List<String> nonCompetitive = new ArrayList<>();
         TopBucketBuilder<InternalBucket> builder = TopBucketBuilder.build(
             size,
             BucketOrder.key(true),
-            b -> nonCompetitive.add(b.toString())
+            b -> nonCompetitive.add(b.toString()),
+            reduce,
+            context
         );
 
         for (int i = 0; i < count; i++) {
-            builder.add(new DelayedBucket<>(mockReduce(context), context, List.of(bucket(i))));
+            builder.add(new DelayedBucket<>(List.of(bucket(i))));
         }
 
         List<InternalBucket> top = builder.build();
@@ -103,14 +117,17 @@ public class TopBucketBuilderTests extends ESTestCase {
     public void testHuge() {
         int count = between(1, 1000);
         AggregationReduceContext context = InternalAggregationTestCase.emptyReduceContextBuilder().forFinalReduction();
+        BiFunction<List<InternalBucket>, AggregationReduceContext, InternalBucket> reduce = mockReduce(context);
         TopBucketBuilder<InternalBucket> builder = TopBucketBuilder.build(
             Integer.MAX_VALUE,
             BucketOrder.key(true),
-            b -> fail("unexpected uncompetitive bucket " + b)
+            b -> fail("unexpected uncompetitive bucket " + b),
+            reduce,
+            context
         );
 
         for (int i = 0; i < count; i++) {
-            builder.add(new DelayedBucket<>(mockReduce(context), context, List.of(bucket(i))));
+            builder.add(new DelayedBucket<>(List.of(bucket(i))));
         }
 
         List<InternalBucket> top = builder.build();
@@ -129,7 +146,9 @@ public class TopBucketBuilderTests extends ESTestCase {
             () -> new TopBucketBuilder.PriorityQueueTopBucketBuilder<>(
                 ArrayUtil.MAX_ARRAY_LENGTH,
                 BucketOrder.key(true),
-                b -> fail("unexpected uncompetitive bucket " + b)
+                b -> fail("unexpected uncompetitive bucket " + b),
+                null,
+                null
             )
         );
         assertThat(e.getMessage(), equalTo("can't reduce more than [" + ArrayUtil.MAX_ARRAY_LENGTH + "] buckets"));

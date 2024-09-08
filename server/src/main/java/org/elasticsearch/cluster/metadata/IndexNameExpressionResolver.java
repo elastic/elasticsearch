@@ -53,6 +53,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -244,25 +245,55 @@ public class IndexNameExpressionResolver {
         }
     }
 
+    public record ResolvedExpression(String indexAbstraction, @Nullable String selector) {}
+
     protected static Collection<String> resolveExpressions(Context context, String... expressions) {
         if (context.getOptions().expandWildcardExpressions() == false) {
-            if (expressions == null || expressions.length == 0 || expressions.length == 1 && Metadata.ALL.equals(expressions[0])) {
+            if (expressions == null
+                || expressions.length == 0
+                || expressions.length == 1
+                    && SelectorResolver.matchesWithOrWithoutSelector(expressions[0], context, Metadata.ALL::equals)) {
                 return List.of();
             } else {
                 return ExplicitResourceNameFilter.filterUnavailable(
                     context,
-                    DateMathExpressionResolver.resolve(context, List.of(expressions))
+                    DateMathExpressionResolver.resolve(
+                        context,
+                        SelectorResolver.resolve(context, List.of(expressions)).stream().map(ResolvedExpression::indexAbstraction).toList()
+                    )
                 );
             }
         } else {
+            ResolvedExpression singularExpression = null;
+            if (expressions != null && expressions.length == 1) {
+                singularExpression = SelectorResolver.resolve(context, expressions[0]);
+            }
             if (expressions == null
                 || expressions.length == 0
-                || expressions.length == 1 && (Metadata.ALL.equals(expressions[0]) || Regex.isMatchAllPattern(expressions[0]))) {
-                return WildcardExpressionResolver.resolveAll(context);
+                || singularExpression != null
+                    && (Metadata.ALL.equals(singularExpression.indexAbstraction)
+                        || Regex.isMatchAllPattern(singularExpression.indexAbstraction))) {
+                return SelectorResolver.maybeAnnotateWithSelector(
+                    context,
+                    singularExpression,
+                    WildcardExpressionResolver.resolveAll(context)
+                )
+                    .stream()
+                    .map(ResolvedExpression::indexAbstraction)
+                    .toList();
             } else {
                 return WildcardExpressionResolver.resolve(
                     context,
-                    ExplicitResourceNameFilter.filterUnavailable(context, DateMathExpressionResolver.resolve(context, List.of(expressions)))
+                    ExplicitResourceNameFilter.filterUnavailable(
+                        context,
+                        DateMathExpressionResolver.resolve(
+                            context,
+                            SelectorResolver.resolve(context, List.of(expressions))
+                                .stream()
+                                .map(ResolvedExpression::indexAbstraction)
+                                .toList()
+                        )
+                    )
                 );
             }
         }
@@ -1699,6 +1730,106 @@ public class IndexNameExpressionResolver {
             throw new IllegalArgumentException(
                 "Cross-cluster calls are not supported in this context but remote indices were requested: " + crossClusterIndices
             );
+        }
+    }
+
+    private static final class SelectorResolver {
+        private SelectorResolver() {
+            // Utility class
+        }
+
+        /**
+         * Parses the given expressions for selector suffixes. If any suffixes are present and supported by the index options, the
+         * expression and its suffix are split apart and returned in a pair. If a suffix is not present, or selectors are not supported via
+         * the index options, then an expression will be returned as-is, with no accompanying suffix.
+         * @param context Context object
+         * @param expressions The expressions to check for selectors
+         * @return A list of resolved expressions, each optionally paired with a selector if present and supported.
+         */
+        public static List<ResolvedExpression> resolve(Context context, List<String> expressions) {
+            List<ResolvedExpression> results = new ArrayList<>(expressions.size());
+            for (String expression : expressions) {
+                results.add(resolve(context, expression));
+            }
+            return results;
+        }
+
+        /**
+         * Parses an index expression for selector suffixes. If any suffixes are present and supported by the index options, the
+         * expression and its suffix are split apart and returned in a pair. If a suffix is not present, or selectors are not supported via
+         * the index options, then the expression will be returned as-is, with no accompanying suffix.
+         * @param context Context object
+         * @param expression The expression to check for selectors
+         * @return A resolved expression, optionally paired with a selector if present and supported.
+         */
+        public static ResolvedExpression resolve(Context context, String expression) {
+            if (context.options.allowSelectors()) {
+                return processExpression(expression, ResolvedExpression::new);
+            } else {
+                return new ResolvedExpression(expression, null);
+            }
+        }
+
+        /**
+         * Determines if the given expression matches the provided predicate. If selectors are allowed and the test is negative, the test is
+         * repeated on just the index-part if the given expression has a valid selector suffix.
+         * @param expression Index expression that may contain a selector suffix.
+         * @param context Context object.
+         * @param predicate Determines match criteria. May be called multiple times if expression contains a valid selector.
+         * @return true if the expression matches the predicate, with or without its selector suffix if one is present.
+         */
+        private static boolean matchesWithOrWithoutSelector(String expression, Context context, Predicate<String> predicate) {
+            if (expression == null) {
+                return false;
+            }
+            if (predicate.test(expression)) {
+                return true;
+            }
+            if (context.options.allowSelectors()) {
+                // Parse the suffix. Skip evaluating predicate if selector suffix is null since
+                // we already evaluated the base case in the previous conditional
+                return processExpression(expression, (base, maybeSelector) -> maybeSelector != null && predicate.test(base));
+            }
+            return false;
+        }
+
+        /**
+         * When resolving all indices, this method checks the original expression to determine if a selector was used. If a selector is
+         * present and supported by the index options, this method annotates the results with it. Otherwise, it simply wraps the results
+         * as-is.
+         * @param context Context object
+         * @param expression The resolved match-all expression or null if there was no expression given
+         * @param indices The list of resolved index abstraction names from the resolve all operation
+         * @return Either a list of abstractions annotated with the selector suffix present in the original expression, or the list as-is
+         *          wrapped as ResolvedExpressions if no selector is on the expression.
+         */
+        public static Collection<ResolvedExpression> maybeAnnotateWithSelector(
+            Context context,
+            @Nullable ResolvedExpression expression,
+            Collection<String> indices
+        ) {
+            List<ResolvedExpression> results = new ArrayList<>();
+            for (String index : indices) {
+                if (context.options.allowSelectors() && expression != null) {
+                    results.add(new ResolvedExpression(index, expression.selector));
+                } else {
+                    results.add(new ResolvedExpression(index, null));
+                }
+            }
+            return results;
+        }
+
+        private static <V> V processExpression(String expression, BiFunction<String, String, V> resultFunction) {
+            int lastDollarSign = expression.lastIndexOf("$");
+            if (lastDollarSign >= 0) {
+                String suffix = expression.substring(lastDollarSign + 1);
+                if (IndicesOptions.Selectors.getByKey(suffix) != null) {
+                    String expressionBase = expression.substring(0, lastDollarSign);
+                    return resultFunction.apply(expressionBase, suffix);
+                }
+            }
+            // Otherwise accept the default
+            return resultFunction.apply(expression, null);
         }
     }
 

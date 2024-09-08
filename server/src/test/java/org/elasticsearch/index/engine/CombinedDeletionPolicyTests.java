@@ -350,7 +350,7 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
 
             @Override
             synchronized boolean releaseCommit(IndexCommit acquiredCommit) {
-                return super.releaseCommit(wrapCommit(acquiredCommit, true));
+                return super.releaseCommit(wrapCommit(acquiredCommit));
             }
         };
 

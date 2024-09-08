@@ -787,7 +787,7 @@ class RepositoryIntegrityVerifier {
     }
 
     private static String getShardSnapshotDescription(SnapshotId snapshotId, String index, int shardId) {
-        return snapshotId.getUUID() + "/" + shardId + "/" + index;
+        return snapshotId.getUUID() + "/" + index + "/" + shardId;
     }
 
     private static Map<String, BlobStoreIndexShardSnapshot.FileInfo> getFilesByPhysicalName(

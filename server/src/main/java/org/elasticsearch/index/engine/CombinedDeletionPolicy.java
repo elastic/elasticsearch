@@ -319,7 +319,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
     /**
      * Checks whether the deletion policy is holding on to acquired index commits
      */
-    synchronized boolean hasAcquiredIndexCommits() {
+    synchronized boolean hasExternallyAcquiredIndexCommits() {
         // We explicitly check only external commits and disregard internal commits acquired by the commits listener
         return acquiredIndexCommits.isEmpty() == false
             && acquiredIndexCommits.keySet().stream().anyMatch(Predicate.not(internallyAcquiredIndexCommits::contains));

@@ -317,7 +317,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
     }
 
     /**
-     * Checks whether the deletion policy is holding on to acquired index commits
+     * Checks whether the deletion policy is holding on to externally acquired index commits
      */
     synchronized boolean hasExternallyAcquiredIndexCommits() {
         // We explicitly check only external commits and disregard internal commits acquired by the commits listener

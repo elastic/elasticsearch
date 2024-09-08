@@ -96,11 +96,11 @@ public class TransportRepositoryVerifyIntegrityCoordinationAction extends Transp
 
     public static class Request extends ActionRequest {
         private final RepositoryVerifyIntegrityParams requestParams;
-        private final RepositoryVerifyIntegrityResponseStream responseBuilder;
+        private final RepositoryVerifyIntegrityResponseStream responseStream;
 
-        public Request(RepositoryVerifyIntegrityParams requestParams, RepositoryVerifyIntegrityResponseStream responseBuilder) {
+        public Request(RepositoryVerifyIntegrityParams requestParams, RepositoryVerifyIntegrityResponseStream responseStream) {
             this.requestParams = requestParams;
-            this.responseBuilder = responseBuilder;
+            this.responseStream = responseStream;
         }
 
         @Override
@@ -112,8 +112,8 @@ public class TransportRepositoryVerifyIntegrityCoordinationAction extends Transp
             return requestParams;
         }
 
-        public RepositoryVerifyIntegrityResponseStream responseBuilder() {
-            return responseBuilder;
+        public RepositoryVerifyIntegrityResponseStream responseStream() {
+            return responseStream;
         }
 
         @Override
@@ -156,7 +156,7 @@ public class TransportRepositoryVerifyIntegrityCoordinationAction extends Transp
         ActionListener.run(
             ActionListener.releaseAfter(
                 listener,
-                activeRepositoryVerifyIntegrityTasks.registerResponseBuilder(task.getId(), request.responseBuilder())
+                activeRepositoryVerifyIntegrityTasks.registerResponseBuilder(task.getId(), request.responseStream())
             ),
             l -> {
                 final var master = clusterService.state().nodes().getMasterNode();

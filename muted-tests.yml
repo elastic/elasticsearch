@@ -5,9 +5,6 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/esql/esql-async-query-api/line_17}
   issue: https://github.com/elastic/elasticsearch/issues/109260
-- class: "org.elasticsearch.index.engine.frozen.FrozenIndexIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/109315"
-  method: "testTimestampFieldTypeExposedByAllIndicesServices"
 - class: "org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109318"
   method: "test {yaml=analysis-common/50_char_filters/pattern_replace error handling (too complex pattern)}"

@@ -21,6 +21,7 @@
 
 package org.elasticsearch.tdigest;
 
+import org.elasticsearch.tdigest.arrays.MockTDigestArrays;
 import org.elasticsearch.test.ESTestCase;
 
 public class MedianTests extends ESTestCase {
@@ -49,7 +50,7 @@ public class MedianTests extends ESTestCase {
 
     public void testSortingDigest() {
         double[] data = new double[] { 7, 15, 36, 39, 40, 41 };
-        TDigest digest = new SortingDigest();
+        TDigest digest = new SortingDigest(MockTDigestArrays.INSTANCE);
         for (double value : data) {
             digest.add(value);
         }
@@ -60,7 +61,7 @@ public class MedianTests extends ESTestCase {
 
     public void testHybridDigest() {
         double[] data = new double[] { 7, 15, 36, 39, 40, 41 };
-        TDigest digest = new HybridDigest(100);
+        TDigest digest = new HybridDigest(MockTDigestArrays.INSTANCE, 100);
         for (double value : data) {
             digest.add(value);
         }

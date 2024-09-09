@@ -21,9 +21,11 @@
 
 package org.elasticsearch.tdigest;
 
+import org.elasticsearch.tdigest.arrays.MockTDigestArrays;
+
 public class HybridDigestTests extends TDigestTests {
 
     protected DigestFactory factory(final double compression) {
-        return () -> new HybridDigest(compression);
+        return () -> new HybridDigest(MockTDigestArrays.INSTANCE, compression);
     }
 }

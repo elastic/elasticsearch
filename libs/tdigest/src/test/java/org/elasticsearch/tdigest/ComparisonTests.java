@@ -21,6 +21,7 @@
 
 package org.elasticsearch.tdigest;
 
+import org.elasticsearch.tdigest.arrays.MockTDigestArrays;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -41,8 +42,8 @@ public class ComparisonTests extends ESTestCase {
         final int COMPRESSION = 100;
         avlTreeDigest = TDigest.createAvlTreeDigest(COMPRESSION);
         mergingDigest = TDigest.createMergingDigest(COMPRESSION);
-        sortingDigest = TDigest.createSortingDigest();
-        hybridDigest = TDigest.createHybridDigest(COMPRESSION);
+        sortingDigest = TDigest.createSortingDigest(MockTDigestArrays.INSTANCE);
+        hybridDigest = TDigest.createHybridDigest(MockTDigestArrays.INSTANCE, COMPRESSION);
         samples = new double[SAMPLE_COUNT];
 
         for (int i = 0; i < SAMPLE_COUNT; i++) {

@@ -262,9 +262,9 @@ public class AggregatorFactoriesTests extends ESTestCase {
         QueryRewriteContext context = new QueryRewriteContext(parserConfig(), null, () -> 0L);
         AggregatorFactories.Builder rewritten = builder.rewrite(context);
         CountDownLatch latch = new CountDownLatch(1);
-        context.executeAsyncActions(new ActionListener<Object>() {
+        context.executeAsyncActions(new ActionListener<>() {
             @Override
-            public void onResponse(Object response) {
+            public void onResponse(Void aVoid) {
                 assertNotSame(builder, rewritten);
                 Collection<AggregationBuilder> aggregatorFactories = rewritten.getAggregatorFactories();
                 assertEquals(1, aggregatorFactories.size());
@@ -289,9 +289,9 @@ public class AggregatorFactoriesTests extends ESTestCase {
         QueryRewriteContext context = new QueryRewriteContext(parserConfig(), null, () -> 0L);
         AggregatorFactories.Builder rewritten = builder.rewrite(context);
         CountDownLatch latch = new CountDownLatch(1);
-        context.executeAsyncActions(new ActionListener<Object>() {
+        context.executeAsyncActions(new ActionListener<>() {
             @Override
-            public void onResponse(Object response) {
+            public void onResponse(Void aVoid) {
                 assertNotSame(builder, rewritten);
                 PipelineAggregationBuilder rewrittenPipeline = rewritten.getPipelineAggregatorFactories().iterator().next();
                 assertThat(((RewrittenPipelineAggregationBuilder) rewrittenPipeline).setOnRewrite.get(), equalTo("rewritten"));

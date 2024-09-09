@@ -17,6 +17,7 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.ingest.SimulateIndexResponse;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,6 +32,8 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Locale;
+import java.util.Set;
 
 /**
  * Represents a single item response for an action executed as part of the bulk API. Holds the index/type/id
@@ -42,6 +45,7 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
     private static final String _ID = "_id";
     static final String STATUS = "status";
     static final String ERROR = "error";
+    private static final String FAILURE_STORE = "failure_store";
 
     public RestStatus status() {
         return failure == null ? response.status() : failure.getStatus();
@@ -65,6 +69,9 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
             builder.startObject(ERROR);
             ElasticsearchException.generateThrowableXContent(builder, params, failure.getCause());
             builder.endObject();
+        }
+        if (FailureStoreStatus.shouldBeDisplayed(failureStoreStatus)) {
+            builder.field(FAILURE_STORE, failureStoreStatus.getLabel());
         }
         builder.endObject();
         builder.endObject();
@@ -252,6 +259,60 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
         }
     }
 
+    public enum FailureStoreStatus {
+        NOT_APPLICABLE_OR_UNKNOWN(0),
+        USED(1),
+        NOT_ENABLED(2),
+        FAILED(3);
+
+        private static final Set<FailureStoreStatus> forDisplay = Set.of(USED, NOT_ENABLED, FAILED);
+        private final byte id;
+        private final String label;
+
+        FailureStoreStatus(int id) {
+            this.id = (byte) id;
+            this.label = this.toString().toLowerCase(Locale.ROOT);
+        }
+
+        public byte getId() {
+            return id;
+        }
+
+        public String getLabel() {
+            return label;
+        }
+
+        public static FailureStoreStatus fromId(byte id) {
+            return switch (id) {
+                case 0 -> NOT_APPLICABLE_OR_UNKNOWN;
+                case 1 -> USED;
+                case 2 -> NOT_ENABLED;
+                case 3 -> FAILED;
+                default -> throw new IllegalArgumentException("Unknown failure store status: [" + id + "]");
+            };
+        }
+
+        public static FailureStoreStatus fromLabel(String label) {
+            for (FailureStoreStatus failureStoreStatus : FailureStoreStatus.values()) {
+                if (failureStoreStatus.getLabel().equals(label)) {
+                    return failureStoreStatus;
+                }
+            }
+            throw new IllegalArgumentException("Unknown failure store status: [" + label + "]");
+        }
+
+        public static boolean shouldBeDisplayed(FailureStoreStatus failureStoreStatus) {
+            return forDisplay.contains(failureStoreStatus);
+        }
+
+        public static FailureStoreStatus inferFromIndexName(String indexName) {
+            if (indexName.startsWith(DataStream.FAILURE_STORE_PREFIX)) {
+                return USED;
+            }
+            return NOT_APPLICABLE_OR_UNKNOWN;
+        }
+    }
+
     private final int id;
 
     private final OpType opType;
@@ -260,11 +321,22 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
 
     private final Failure failure;
 
+    private final FailureStoreStatus failureStoreStatus;
+
     BulkItemResponse(ShardId shardId, StreamInput in) throws IOException {
         id = in.readVInt();
         opType = OpType.fromId(in.readByte());
         response = readResponse(shardId, in);
         failure = in.readOptionalWriteable(Failure::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ADD_FAILURE_STORE_STATUS_ON_BULK_RESPONSE)) {
+            failureStoreStatus = FailureStoreStatus.fromId(in.readByte());
+        } else {
+            if (response != null) {
+                failureStoreStatus = FailureStoreStatus.inferFromIndexName(response.getIndex());
+            } else {
+                failureStoreStatus = FailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN;
+            }
+        }
         assertConsistent();
     }
 
@@ -273,15 +345,29 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
         opType = OpType.fromId(in.readByte());
         response = readResponse(in);
         failure = in.readOptionalWriteable(Failure::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ADD_FAILURE_STORE_STATUS_ON_BULK_RESPONSE)) {
+            failureStoreStatus = FailureStoreStatus.fromId(in.readByte());
+        } else {
+            if (response != null) {
+                failureStoreStatus = FailureStoreStatus.inferFromIndexName(response.getIndex());
+            } else {
+                failureStoreStatus = FailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN;
+            }
+        }
         assertConsistent();
     }
 
     private BulkItemResponse(int id, OpType opType, DocWriteResponse response, Failure failure) {
+        this(id, opType, response, failure, FailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN);
+    }
+
+    private BulkItemResponse(int id, OpType opType, DocWriteResponse response, Failure failure, FailureStoreStatus failureStoreStatus) {
         this.id = id;
         this.response = response;
         this.opType = opType;
         this.failure = failure;
         assertConsistent();
+        this.failureStoreStatus = failureStoreStatus;
     }
 
     private void assertConsistent() {
@@ -373,6 +459,10 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
         return this.failure;
     }
 
+    public FailureStoreStatus getFailureStoreStatus() {
+        return failureStoreStatus;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(id);
@@ -385,6 +475,9 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
             response.writeTo(out);
         }
         out.writeOptionalWriteable(failure);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ADD_FAILURE_STORE_STATUS_ON_BULK_RESPONSE)) {
+            out.writeByte(failureStoreStatus.getId());
+        }
     }
 
     public static final Writer<BulkItemResponse> THIN_WRITER = (out, item) -> {
@@ -398,6 +491,9 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
             item.response.writeThin(out);
         }
         out.writeOptionalWriteable(item.failure);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ADD_FAILURE_STORE_STATUS_ON_BULK_RESPONSE)) {
+            out.writeByte(item.failureStoreStatus.getId());
+        }
     };
 
     private void writeResponseType(StreamOutput out) throws IOException {

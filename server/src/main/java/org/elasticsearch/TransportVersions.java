@@ -206,6 +206,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_ADD_INDEX_MODE_CONCRETE_INDICES = def(8_736_00_0);
     public static final TransportVersion UNASSIGNED_PRIMARY_COUNT_ON_CLUSTER_HEALTH = def(8_737_00_0);
     public static final TransportVersion ESQL_AGGREGATE_EXEC_TRACKS_INTERMEDIATE_ATTRS = def(8_738_00_0);
+    public static final TransportVersion ADD_FAILURE_STORE_STATUS_ON_BULK_RESPONSE = def(8_739_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

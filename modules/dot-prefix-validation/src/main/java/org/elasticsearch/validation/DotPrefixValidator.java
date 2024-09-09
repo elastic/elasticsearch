@@ -39,11 +39,15 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
      * to use an internal origin for the client. These are shorter-term
      * workarounds until that work can be completed.
      *
-     * .elastic-connectors-v1 is used by enterprise search
-     * .ml-anomalies-unrelated is used by ML
-     * .ml-state-000001 is used by ML
+     * .elastic-connectors-* is used by enterprise search
+     * .ml-* is used by ML
      */
-    private static Set<String> IGNORED_INDEX_NAMES = Set.of(".elastic-connectors-v1", ".ml-state", ".ml-anomalies-unrelated");
+    private static Set<String> IGNORED_INDEX_NAMES = Set.of(
+        ".elastic-connectors-v1",
+        ".elastic-connectors-sync-jobs-v1",
+        ".ml-state",
+        ".ml-anomalies-unrelated"
+    );
     private static Set<Pattern> IGNORED_INDEX_PATTERNS = Set.of(Pattern.compile("\\.ml-state-\\d+"));
 
     DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DotPrefixValidator.class);

@@ -316,7 +316,9 @@ public final class Case extends EsqlScalarFunction {
         ExpressionEvaluator.Factory elseValueFactory = toEvaluator.apply(elseValue);
         ElementType resultType = PlannerUtils.toElementType(dataType());
 
-        if (conditionsFactories.size() == 1 && conditionsFactories.get(0).value.eagerEvalSafeInLazy() && elseValueFactory.eagerEvalSafeInLazy()) {
+        if (conditionsFactories.size() == 1
+            && conditionsFactories.get(0).value.eagerEvalSafeInLazy()
+            && elseValueFactory.eagerEvalSafeInLazy()) {
             return new CaseEagerEvaluatorFactory(resultType, conditionsFactories.get(0), elseValueFactory);
         }
         return new CaseLazyEvaluatorFactory(resultType, conditionsFactories, elseValueFactory);

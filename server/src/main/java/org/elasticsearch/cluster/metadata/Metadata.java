@@ -1510,10 +1510,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         XContentContext context = XContentContext.valueOf(params.param(CONTEXT_MODE_PARAM, CONTEXT_MODE_API));
 
         return ChunkedToXContent.builder(params)
-            .execute(
+            .append(
                 context == XContentContext.API
-                    ? b -> b.startObject("metadata")
-                    : b -> b.startObject("meta-data").field("version", version())
+                    ? (b, p) -> b.startObject("metadata")
+                    : (b, p) -> b.startObject("meta-data").field("version", version())
             )
             .append((b, p) -> {
                 b.field("cluster_uuid", clusterUUID);
@@ -1531,21 +1531,18 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                     });
                 }
             })
-            .startObject("templates")
-            .forEach(templates().values().iterator(), t -> (b, p) -> IndexTemplateMetadata.Builder.toXContentWithTypes(t, b, p))
-            .endObject()
+            .object("templates", templates().values().iterator(), t -> (b, p) -> IndexTemplateMetadata.Builder.toXContentWithTypes(t, b, p))
             .execute(xb -> {
                 if (context == XContentContext.API) {
-                    xb.startObject("indices").append(indices().values().iterator()).endObject();
+                    xb.object("indices", ob -> ob.append(indices().values().iterator()));
                 }
             })
             .forEach(customs.entrySet().iterator(), (e, b) -> {
                 if (e.getValue().context().contains(context)) {
-                    b.startObject(e.getKey()).append(e.getValue()).endObject();
+                    b.object(e.getKey(), ob -> ob.append(e.getValue()));
                 }
             })
-            .object("reserved_state", b -> b.append(reservedStateMetadata().values().iterator()))
-            .endObject();
+            .object("reserved_state", b -> b.append(reservedStateMetadata().values().iterator()));
     }
 
     public Map<String, MappingMetadata> getMappingsByHash() {

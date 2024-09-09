@@ -137,37 +137,33 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContent.builder(params)
-            .startObject("nodes")
-            .forEach(leastAvailableSpaceUsage.entrySet().iterator(), c -> (builder, p) -> {
-                builder.startObject(c.getKey());
-                { // node
-                    builder.field("node_name", c.getValue().nodeName());
-                    builder.startObject("least_available");
-                    {
-                        c.getValue().toShortXContent(builder);
-                    }
-                    builder.endObject(); // end "least_available"
-                    builder.startObject("most_available");
-                    {
-                        DiskUsage most = this.mostAvailableSpaceUsage.get(c.getKey());
-                        if (most != null) {
-                            most.toShortXContent(builder);
-                        }
-                    }
-                    builder.endObject(); // end "most_available"
+        return ChunkedToXContent.builder(params).object("nodes", leastAvailableSpaceUsage.entrySet().iterator(), c -> (builder, p) -> {
+            builder.startObject(c.getKey());
+            { // node
+                builder.field("node_name", c.getValue().nodeName());
+                builder.startObject("least_available");
+                {
+                    c.getValue().toShortXContent(builder);
                 }
-                builder.endObject(); // end $nodename
-            })
-            .endObject()
-            .startObject("shard_sizes")
-            .forEach(
+                builder.endObject(); // end "least_available"
+                builder.startObject("most_available");
+                {
+                    DiskUsage most = this.mostAvailableSpaceUsage.get(c.getKey());
+                    if (most != null) {
+                        most.toShortXContent(builder);
+                    }
+                }
+                builder.endObject(); // end "most_available"
+            }
+            builder.endObject(); // end $nodename
+        })
+            .object(
+                "shard_sizes",
                 shardSizes.entrySet().iterator(),
                 c -> (builder, p) -> builder.humanReadableField(c.getKey() + "_bytes", c.getKey(), ByteSizeValue.ofBytes(c.getValue()))
             )
-            .endObject()
-            .startObject("shard_data_set_sizes")
-            .forEach(
+            .object(
+                "shard_data_set_sizes",
                 shardDataSetSizes.entrySet().iterator(),
                 c -> (builder, p) -> builder.humanReadableField(
                     c.getKey() + "_bytes",
@@ -175,12 +171,8 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
                     ByteSizeValue.ofBytes(c.getValue())
                 )
             )
-            .endObject()
-            .startObject("shard_paths")
-            .forEach(dataPath.entrySet().iterator(), (c, xb) -> xb.field(c.getKey().toString(), c.getValue()))
-            .endObject()
-            .startArray("reserved_sizes")
-            .forEach(reservedSpace.entrySet().iterator(), c -> (builder, p) -> {
+            .object("shard_paths", dataPath.entrySet().iterator(), (c, xb) -> xb.field(c.getKey().toString(), c.getValue()))
+            .array("reserved_sizes", reservedSpace.entrySet().iterator(), c -> (builder, p) -> {
                 builder.startObject();
                 {
                     builder.field("node_id", c.getKey().nodeId);
@@ -188,8 +180,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
                     c.getValue().toXContent(builder, p);
                 }
                 builder.endObject(); // NodeAndPath
-            })
-            .endArray();
+            });
     }
 
     /**

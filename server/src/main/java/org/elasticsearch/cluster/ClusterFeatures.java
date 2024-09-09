@@ -244,13 +244,11 @@ public class ClusterFeatures implements Diffable<ClusterFeatures>, ChunkedToXCon
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         return ChunkedToXContent.builder(params)
-            .startArray()
-            .forEach(nodeFeatures.entrySet().stream().sorted(Map.Entry.comparingByKey()).iterator(), e -> (builder, p) -> {
+            .array(nodeFeatures.entrySet().stream().sorted(Map.Entry.comparingByKey()).iterator(), e -> (builder, p) -> {
                 String[] features = e.getValue().toArray(String[]::new);
                 Arrays.sort(features);
                 builder.startObject().field("node_id", e.getKey()).array("features", features).endObject();
-            })
-            .endArray();
+            });
     }
 
     @Override

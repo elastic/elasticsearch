@@ -232,7 +232,7 @@ public class AsyncSearchResponse extends ActionResponse implements ChunkedToXCon
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContent.builder(params).startObject().append((builder, p) -> {
+        return ChunkedToXContent.builder(params).object(ob -> ob.append((builder, p) -> {
             if (id != null) {
                 builder.field("id", id);
             }
@@ -253,7 +253,7 @@ public class AsyncSearchResponse extends ActionResponse implements ChunkedToXCon
                 ElasticsearchException.generateThrowableXContent(builder, p, error);
                 builder.endObject();
             }
-        }).endObject();
+        }));
     }
 
     @Override

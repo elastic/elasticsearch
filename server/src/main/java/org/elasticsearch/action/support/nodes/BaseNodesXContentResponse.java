@@ -29,11 +29,11 @@ public abstract class BaseNodesXContentResponse<TNodeResponse extends BaseNodeRe
     @Override
     public final Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         return ChunkedToXContent.builder(params)
-            .startObject()
-            .append((b, p) -> RestActions.buildNodesHeader(b, p, this))
-            .field("cluster_name", getClusterName().value())
-            .append(xContentChunks(params))
-            .endObject();
+            .object(
+                ob -> ob.append((b, p) -> RestActions.buildNodesHeader(b, p, this))
+                    .field("cluster_name", getClusterName().value())
+                    .append(xContentChunks(params))
+            );
     }
 
     protected abstract Iterator<? extends ToXContent> xContentChunks(ToXContent.Params outerParams);

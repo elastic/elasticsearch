@@ -312,46 +312,14 @@ public final class Case extends EsqlScalarFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        ElementType resultType = PlannerUtils.toElementType(dataType());
         List<ConditionEvaluatorSupplier> conditionsFactories = conditions.stream().map(c -> c.toEvaluator(toEvaluator)).toList();
         ExpressionEvaluator.Factory elseValueFactory = toEvaluator.apply(elseValue);
+        ElementType resultType = PlannerUtils.toElementType(dataType());
 
         if (conditionsFactories.size() == 1 && conditionsFactories.get(0).value.safeToEvalInLazy() && elseValueFactory.safeToEvalInLazy()) {
-            return new ExpressionEvaluator.Factory() {
-                @Override
-                public ExpressionEvaluator get(DriverContext context) {
-                    Warnings warnings = Warnings.createWarnings(context.warningsMode(), source());
-                    return new EagerEvaluator(
-                        warnings,
-                        context.blockFactory(),
-                        conditionsFactories.get(0).apply(context),
-                        elseValueFactory.get(context)
-                    );
-                }
-
-                @Override
-                public String toString() {
-                    return "CaseEagerEvaluator[conditions=" + conditionsFactories + ", elseVal=" + elseValueFactory + ']';
-                }
-            };
+            return new CaseEagerEvaluatorFactory(resultType, conditionsFactories.get(0), elseValueFactory);
         }
-
-        return new ExpressionEvaluator.Factory() {
-            @Override
-            public ExpressionEvaluator get(DriverContext context) {
-                return new CaseEvaluator(
-                    context.blockFactory(),
-                    resultType,
-                    conditionsFactories.stream().map(x -> x.apply(context)).toList(),
-                    elseValueFactory.get(context)
-                );
-            }
-
-            @Override
-            public String toString() {
-                return "CaseLazyEvaluator[conditions=" + conditionsFactories + ", elseVal=" + elseValueFactory + ']';
-            }
-        };
+        return new CaseLazyEvaluatorFactory(resultType, conditionsFactories, elseValueFactory);
     }
 
     record ConditionEvaluatorSupplier(Source conditionSource, ExpressionEvaluator.Factory condition, ExpressionEvaluator.Factory value)
@@ -388,10 +356,6 @@ public final class Case extends EsqlScalarFunction {
         EvalOperator.ExpressionEvaluator condition,
         EvalOperator.ExpressionEvaluator value
     ) implements Releasable {
-        Exception multivalueInCondition() {
-            return new IllegalArgumentException("CASE expects a single-valued boolean");
-        }
-
         @Override
         public void close() {
             Releasables.closeExpectNoException(condition, value);
@@ -401,9 +365,42 @@ public final class Case extends EsqlScalarFunction {
         public String toString() {
             return "ConditionEvaluator[condition=" + condition + ", value=" + value + ']';
         }
+
+        public void registerMultivalue() {
+            conditionWarnings.registerException(new IllegalArgumentException("CASE expects a single-valued boolean"));
+        }
     }
 
-    private record CaseEvaluator(
+    private record CaseLazyEvaluatorFactory(
+        ElementType resultType,
+        List<ConditionEvaluatorSupplier> conditionsFactories,
+        ExpressionEvaluator.Factory elseValueFactory
+    ) implements ExpressionEvaluator.Factory {
+        @Override
+        public ExpressionEvaluator get(DriverContext context) {
+            List<ConditionEvaluator> conditions = new ArrayList<>(conditionsFactories.size());
+            ExpressionEvaluator elseValue = null;
+            try {
+                for (ConditionEvaluatorSupplier cond : conditionsFactories) {
+                    conditions.add(cond.apply(context));
+                }
+                elseValue = elseValueFactory.get(context);
+                ExpressionEvaluator result = new CaseLazyEvaluator(context.blockFactory(), resultType, conditions, elseValue);
+                conditions = null;
+                elseValue = null;
+                return result;
+            } finally {
+                Releasables.close(conditions == null ? () -> {} : Releasables.wrap(conditions), elseValue);
+            }
+        }
+
+        @Override
+        public String toString() {
+            return "CaseLazyEvaluator[conditions=" + conditionsFactories + ", elseVal=" + elseValueFactory + ']';
+        }
+    }
+
+    private record CaseLazyEvaluator(
         BlockFactory blockFactory,
         ElementType resultType,
         List<ConditionEvaluator> conditions,
@@ -435,9 +432,7 @@ public final class Case extends EsqlScalarFunction {
                                     continue;
                                 }
                                 if (b.getValueCount(0) > 1) {
-                                    condition.conditionWarnings.registerException(
-                                        new IllegalArgumentException("CASE expects a single-valued boolean")
-                                    );
+                                    condition.registerMultivalue();
                                     continue;
                                 }
                                 if (false == b.getBoolean(b.getFirstValueIndex(0))) {
@@ -465,12 +460,38 @@ public final class Case extends EsqlScalarFunction {
 
         @Override
         public String toString() {
-            return "CaseEvaluator[conditions=" + conditions + ", elseVal=" + elseVal + ']';
+            return "CaseLazyEvaluator[conditions=" + conditions + ", elseVal=" + elseVal + ']';
         }
     }
 
-    private record EagerEvaluator(
-        Warnings warnings,
+    private record CaseEagerEvaluatorFactory(
+        ElementType resultType,
+        ConditionEvaluatorSupplier conditionFactory,
+        ExpressionEvaluator.Factory elseValueFactory
+    ) implements ExpressionEvaluator.Factory {
+        @Override
+        public ExpressionEvaluator get(DriverContext context) {
+            ConditionEvaluator conditionEvaluator = conditionFactory.apply(context);
+            ExpressionEvaluator elseValue = null;
+            try {
+                elseValue = elseValueFactory.get(context);
+                ExpressionEvaluator result = new CaseEagerEvaluator(resultType, context.blockFactory(), conditionEvaluator, elseValue);
+                conditionEvaluator = null;
+                elseValue = null;
+                return result;
+            } finally {
+                Releasables.close(conditionEvaluator, elseValue);
+            }
+        }
+
+        @Override
+        public String toString() {
+            return "CaseEagerEvaluator[conditions=[" + conditionFactory + "], elseVal=" + elseValueFactory + ']';
+        }
+    }
+
+    private record CaseEagerEvaluator(
+        ElementType resultType,
         BlockFactory blockFactory,
         ConditionEvaluator condition,
         EvalOperator.ExpressionEvaluator elseVal
@@ -478,23 +499,23 @@ public final class Case extends EsqlScalarFunction {
         @Override
         public Block eval(Page page) {
             try (
-                ToMask lhsOrRhs = ((BooleanBlock) condition.condition.eval(page)).toMask();
+                BooleanBlock lhsOrRhsBlock = (BooleanBlock) condition.condition.eval(page);
+                ToMask lhsOrRhs = lhsOrRhsBlock.toMask();
                 Block lhs = condition.value.eval(page);
-                Block rhs = elseVal.eval(page)
+                Block rhs = elseVal.eval(page);
+                Block.Builder builder = resultType.newBlockBuilder(lhs.getTotalValueCount(), blockFactory)
             ) {
                 if (lhsOrRhs.hadMultivaluedFields()) {
-                    warnings.registerException(condition.multivalueInCondition());
+                    condition.registerMultivalue();
                 }
-                try (Block.Builder builder = lhs.elementType().newBlockBuilder(lhs.getTotalValueCount(), blockFactory)) {
-                    for (int p = 0; p < lhs.getPositionCount(); p++) {
-                        if (lhsOrRhs.mask().getBoolean(p)) {
-                            builder.copyFrom(lhs, p, p + 1);
-                        } else {
-                            builder.copyFrom(rhs, p, p + 1);
-                        }
+                for (int p = 0; p < lhs.getPositionCount(); p++) {
+                    if (lhsOrRhs.mask().getBoolean(p)) {
+                        builder.copyFrom(lhs, p, p + 1);
+                    } else {
+                        builder.copyFrom(rhs, p, p + 1);
                     }
-                    return builder.build();
                 }
+                return builder.build();
             }
         }
 
@@ -505,7 +526,7 @@ public final class Case extends EsqlScalarFunction {
 
         @Override
         public String toString() {
-            return "CaseEvaluator[condition=" + condition + ", elseVal=" + elseVal + ']';
+            return "CaseEagerEvaluator[conditions=[" + condition + "], elseVal=" + elseVal + ']';
         }
     }
 }

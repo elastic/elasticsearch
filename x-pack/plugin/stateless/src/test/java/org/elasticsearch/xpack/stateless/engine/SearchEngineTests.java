@@ -24,6 +24,7 @@ import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
@@ -56,6 +57,7 @@ import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -580,6 +582,55 @@ public class SearchEngineTests extends AbstractEngineTestCase {
             assertThat(uploadInfoGenMinusN.isUploaded(), is(true));
             assertThat(uploadInfoGen.isUploaded(), is(true));
             assertThat(uploadInfoGenPlus1.isUploaded(), is(true));
+        }
+    }
+
+    public void testAcquireLastIndexCommit() throws IOException {
+        final var indexConfig = indexConfig();
+        final var searchTaskQueue = new DeterministicTaskQueue();
+        try (
+            var indexEngine = newIndexEngine(indexConfig);
+            var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue)
+        ) {
+            int numDocs = between(0, 100);
+            for (int i = 0; i < numDocs; i++) {
+                indexEngine.index(randomDoc(String.valueOf(i)));
+            }
+            indexEngine.flush();
+            notifyCommits(indexEngine, searchEngine);
+            searchTaskQueue.runAllRunnableTasks();
+            Engine.IndexCommitRef commit1 = searchEngine.acquireLastIndexCommit(false);
+            try (DirectoryReader reader = DirectoryReader.open(commit1.getIndexCommit())) {
+                assertThat(reader.numDocs(), equalTo(numDocs));
+            }
+            int moreDocs = between(0, 100);
+            for (int i = 0; i < moreDocs; i++) {
+                indexEngine.index(randomDoc("more-" + i));
+            }
+            indexEngine.flush();
+            notifyCommits(indexEngine, searchEngine);
+            searchTaskQueue.runAllRunnableTasks();
+            Engine.IndexCommitRef commit2 = searchEngine.acquireLastIndexCommit(false);
+            try (DirectoryReader reader = DirectoryReader.open(commit2.getIndexCommit())) {
+                assertThat(reader.numDocs(), equalTo(numDocs + moreDocs));
+            }
+            var error = expectThrows(IllegalArgumentException.class, () -> searchEngine.acquireLastIndexCommit(true).close());
+            assertThat(error.getMessage(), containsString("Search engine does not support acquiring last index commit with flush_first"));
+            if (randomBoolean()) {
+                int extraDocs = between(0, 100);
+                for (int i = 0; i < extraDocs; i++) {
+                    indexEngine.index(randomDoc("extra-" + i));
+                }
+                indexEngine.flush();
+                notifyCommits(indexEngine, searchEngine);
+            }
+            try (DirectoryReader reader = DirectoryReader.open(commit1.getIndexCommit())) {
+                assertThat(reader.numDocs(), equalTo(numDocs));
+            }
+            try (DirectoryReader reader = DirectoryReader.open(commit2.getIndexCommit())) {
+                assertThat(reader.numDocs(), equalTo(numDocs + moreDocs));
+            }
+            IOUtils.close(commit1, commit2);
         }
     }
 

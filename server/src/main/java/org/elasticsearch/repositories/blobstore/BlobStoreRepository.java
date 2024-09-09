@@ -172,6 +172,7 @@ import java.util.stream.Stream;
 import java.util.zip.DeflaterOutputStream;
 import java.util.zip.InflaterInputStream;
 
+import static org.elasticsearch.common.blobstore.OperationPurpose.SNAPSHOT_METADATA;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.canonicalName;
@@ -199,25 +200,78 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public static final String STATELESS_CLUSTER_STATE_READ_WRITE_THREAD_NAME = "stateless_cluster_state";
     public static final String STATELESS_SHARD_PREWARMING_THREAD_NAME = "stateless_prewarm";
 
-    public static final String SNAPSHOT_PREFIX = "snap-";
-
+    /**
+     * Prefix for the name of the root {@link RepositoryData} blob.
+     * @see #getRepositoryDataBlobName
+     */
     public static final String INDEX_FILE_PREFIX = "index-";
 
+    /**
+     * Name of the blob which points to the root {@link RepositoryData} blob.
+     * @see #supportURLRepo()
+     */
     public static final String INDEX_LATEST_BLOB = "index.latest";
 
     private static final String TESTS_FILE = "tests-";
 
+    /**
+     * Name prefix for the blobs that hold the global {@link Metadata} for each snapshot, and the {@link IndexMetadata} for its indices.
+     * @see #METADATA_NAME_FORMAT
+     */
     public static final String METADATA_PREFIX = "meta-";
 
-    public static final String METADATA_NAME_FORMAT = METADATA_PREFIX + "%s.dat";
+    /**
+     * Name prefix for the blobs that hold top-level {@link SnapshotInfo} and shard-level {@link BlobStoreIndexShardSnapshot} metadata.
+     * @see #SNAPSHOT_NAME_FORMAT
+     */
+    public static final String SNAPSHOT_PREFIX = "snap-";
 
-    public static final String SNAPSHOT_NAME_FORMAT = SNAPSHOT_PREFIX + "%s.dat";
+    /**
+     * Name suffix for all {@code meta-*.dat} and {@code snap-*.dat} blobs.
+     * @see #METADATA_NAME_FORMAT
+     * @see #SNAPSHOT_NAME_FORMAT
+     */
+    public static final String METADATA_BLOB_NAME_SUFFIX = ".dat";
 
-    private static final String SNAPSHOT_INDEX_PREFIX = "index-";
+    /**
+     * Blob name format for global {@link Metadata} and {@link IndexMetadata} blobs.
+     * @see #GLOBAL_METADATA_FORMAT
+     * @see #INDEX_METADATA_FORMAT
+     */
+    public static final String METADATA_NAME_FORMAT = METADATA_PREFIX + "%s" + METADATA_BLOB_NAME_SUFFIX;
 
+    /**
+     * Blob name format for top-level {@link SnapshotInfo} and shard-level {@link BlobStoreIndexShardSnapshot} blobs.
+     * @see #SNAPSHOT_FORMAT
+     * @see #INDEX_SHARD_SNAPSHOT_FORMAT
+     */
+    public static final String SNAPSHOT_NAME_FORMAT = SNAPSHOT_PREFIX + "%s" + METADATA_BLOB_NAME_SUFFIX;
+
+    /**
+     * Name prefix for shard-level {@link BlobStoreIndexShardSnapshots} blobs.
+     * @see #SNAPSHOT_INDEX_NAME_FORMAT
+     * @see #INDEX_SHARD_SNAPSHOTS_FORMAT
+     */
+    public static final String SNAPSHOT_INDEX_PREFIX = "index-";
+
+    /**
+     * Name format for shard-level {@link BlobStoreIndexShardSnapshots} blobs.
+     * @see #INDEX_SHARD_SNAPSHOTS_FORMAT
+     */
     public static final String SNAPSHOT_INDEX_NAME_FORMAT = SNAPSHOT_INDEX_PREFIX + "%s";
 
+    /**
+     * Name prefix for blobs holding the actual shard data.
+     */
     public static final String UPLOADED_DATA_BLOB_PREFIX = "__";
+
+    /**
+     * @param repositoryGeneration The numeric generation of the {@link RepositoryData} blob.
+     * @return The name of the blob holding the corresponding {@link RepositoryData}.
+     */
+    public static String getRepositoryDataBlobName(long repositoryGeneration) {
+        return INDEX_FILE_PREFIX + repositoryGeneration;
+    }
 
     // Expose a copy of URLRepository#TYPE here too, for a better error message until https://github.com/elastic/elasticsearch/issues/68918
     // is resolved.
@@ -533,7 +587,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final ShardGeneration existingShardGen;
             if (shardGeneration == null) {
                 Tuple<BlobStoreIndexShardSnapshots, Long> tuple = buildBlobStoreIndexShardSnapshots(
-                    shardContainer.listBlobsByPrefix(OperationPurpose.SNAPSHOT_METADATA, INDEX_FILE_PREFIX).keySet(),
+                    shardContainer.listBlobsByPrefix(OperationPurpose.SNAPSHOT_METADATA, SNAPSHOT_INDEX_PREFIX).keySet(),
                     shardContainer
                 );
                 existingShardGen = new ShardGeneration(tuple.v2());
@@ -1331,9 +1385,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         .filter(
                             blob -> blob.startsWith(SNAPSHOT_INDEX_PREFIX)
                                 || (blob.startsWith(SNAPSHOT_PREFIX)
-                                    && blob.endsWith(".dat")
+                                    && blob.endsWith(METADATA_BLOB_NAME_SUFFIX)
                                     && survivingSnapshotUUIDs.contains(
-                                        blob.substring(SNAPSHOT_PREFIX.length(), blob.length() - ".dat".length())
+                                        blob.substring(SNAPSHOT_PREFIX.length(), blob.length() - METADATA_BLOB_NAME_SUFFIX.length())
                                     ) == false)
                                 || (blob.startsWith(UPLOADED_DATA_BLOB_PREFIX)
                                     && updatedSnapshots.findNameFile(canonicalName(blob)) == null)
@@ -1486,13 +1540,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 if (FsBlobContainer.isTempBlobName(blob)) {
                     return true;
                 }
-                if (blob.endsWith(".dat")) {
+                if (blob.endsWith(METADATA_BLOB_NAME_SUFFIX)) {
                     final String foundUUID;
                     if (blob.startsWith(SNAPSHOT_PREFIX)) {
-                        foundUUID = blob.substring(SNAPSHOT_PREFIX.length(), blob.length() - ".dat".length());
+                        foundUUID = blob.substring(SNAPSHOT_PREFIX.length(), blob.length() - METADATA_BLOB_NAME_SUFFIX.length());
                         assert SNAPSHOT_FORMAT.blobName(foundUUID).equals(blob);
                     } else if (blob.startsWith(METADATA_PREFIX)) {
-                        foundUUID = blob.substring(METADATA_PREFIX.length(), blob.length() - ".dat".length());
+                        foundUUID = blob.substring(METADATA_PREFIX.length(), blob.length() - METADATA_BLOB_NAME_SUFFIX.length());
                         assert GLOBAL_METADATA_FORMAT.blobName(foundUUID).equals(blob);
                     } else {
                         return false;
@@ -1525,7 +1579,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         snapshotId -> Stream.of(
                             GLOBAL_METADATA_FORMAT.blobName(snapshotId.getUUID()),
                             SNAPSHOT_FORMAT.blobName(snapshotId.getUUID()),
-                            INDEX_FILE_PREFIX + newestStaleRepositoryDataGeneration
+                            getRepositoryDataBlobName(newestStaleRepositoryDataGeneration)
                         )
                     )
                     .collect(Collectors.toSet());
@@ -1849,7 +1903,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             Math.max(existingRepositoryData.getGenId() - 1, 0),
             newRepoGeneration - 1000
         ); gen < newRepoGeneration; gen++) {
-            toDelete.add(INDEX_FILE_PREFIX + gen);
+            toDelete.add(getRepositoryDataBlobName(gen));
         }
         if (writeShardGenerations) {
             final int prefixPathLen = basePath().buildAsString().length();
@@ -1858,15 +1912,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 .forEach(
                     (indexId, gens) -> gens.forEach(
                         (shardId, oldGen) -> toDelete.add(
-                            shardPath(indexId, shardId).buildAsString().substring(prefixPathLen) + INDEX_FILE_PREFIX + oldGen
-                                .getGenerationUUID()
+                            shardPath(indexId, shardId).buildAsString().substring(prefixPathLen) + BlobStoreRepository.SNAPSHOT_INDEX_PREFIX
+                                + oldGen.getGenerationUUID()
                         )
                     )
                 );
             for (Map.Entry<RepositoryShardId, Set<ShardGeneration>> obsoleteEntry : finalizeSnapshotContext.obsoleteShardGenerations()
                 .entrySet()) {
                 final String containerPath = shardPath(obsoleteEntry.getKey().index(), obsoleteEntry.getKey().shardId()).buildAsString()
-                    .substring(prefixPathLen) + INDEX_FILE_PREFIX;
+                    .substring(prefixPathLen) + SNAPSHOT_INDEX_PREFIX;
                 for (ShardGeneration shardGeneration : obsoleteEntry.getValue()) {
                     toDelete.add(containerPath + shardGeneration);
                 }
@@ -2565,11 +2619,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             return RepositoryData.EMPTY;
         }
         try {
-            final String snapshotsIndexBlobName = INDEX_FILE_PREFIX + Long.toString(indexGen);
+            final var repositoryDataBlobName = getRepositoryDataBlobName(indexGen);
 
             // EMPTY is safe here because RepositoryData#fromXContent calls namedObject
             try (
-                InputStream blob = blobContainer().readBlob(OperationPurpose.SNAPSHOT_METADATA, snapshotsIndexBlobName);
+                InputStream blob = blobContainer().readBlob(OperationPurpose.SNAPSHOT_METADATA, repositoryDataBlobName);
                 XContentParser parser = XContentType.JSON.xContent()
                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, blob)
             ) {
@@ -2795,7 +2849,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             if (ensureSafeGenerationExists(expectedGen, delegate::onFailure) == false) {
                 return;
             }
-            final String indexBlob = INDEX_FILE_PREFIX + newGen;
+            final String indexBlob = getRepositoryDataBlobName(newGen);
             logger.debug("Repository [{}] writing new index generational blob [{}]", metadata.name(), indexBlob);
             writeAtomic(OperationPurpose.SNAPSHOT_METADATA, blobContainer(), indexBlob, out -> {
                 try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder(org.elasticsearch.core.Streams.noCloseStream(out))) {
@@ -2936,7 +2990,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private boolean ensureSafeGenerationExists(long safeGeneration, Consumer<Exception> onFailure) throws IOException {
         logger.debug("Ensure generation [{}] that is the basis for this write exists in [{}]", safeGeneration, metadata.name());
         if (safeGeneration != RepositoryData.EMPTY_REPO_GEN
-            && blobContainer().blobExists(OperationPurpose.SNAPSHOT_METADATA, INDEX_FILE_PREFIX + safeGeneration) == false) {
+            && blobContainer().blobExists(SNAPSHOT_METADATA, getRepositoryDataBlobName(safeGeneration)) == false) {
             Tuple<Long, String> previousWriterInfo = null;
             Exception readRepoDataEx = null;
             try {
@@ -3136,12 +3190,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             if (generation == null) {
                 snapshotStatus.ensureNotAborted();
                 try {
-                    blobs = shardContainer.listBlobsByPrefix(OperationPurpose.SNAPSHOT_METADATA, INDEX_FILE_PREFIX).keySet();
+                    blobs = shardContainer.listBlobsByPrefix(OperationPurpose.SNAPSHOT_METADATA, SNAPSHOT_INDEX_PREFIX).keySet();
                 } catch (IOException e) {
                     throw new IndexShardSnapshotFailedException(shardId, "failed to list blobs", e);
                 }
             } else {
-                blobs = Collections.singleton(INDEX_FILE_PREFIX + generation);
+                blobs = Collections.singleton(SNAPSHOT_INDEX_PREFIX + generation);
             }
 
             snapshotStatus.ensureNotAborted();
@@ -3689,7 +3743,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             try {
                 testBlobContainer.writeBlob(
                     OperationPurpose.SNAPSHOT_METADATA,
-                    "data-" + localNode.getId() + ".dat",
+                    "data-" + localNode.getId() + METADATA_BLOB_NAME_SUFFIX,
                     new BytesArray(seed),
                     true
                 );
@@ -3783,7 +3837,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
         Set<String> blobs = Collections.emptySet();
         if (shardGen == null) {
-            blobs = shardContainer.listBlobsByPrefix(OperationPurpose.SNAPSHOT_METADATA, INDEX_FILE_PREFIX).keySet();
+            blobs = shardContainer.listBlobsByPrefix(OperationPurpose.SNAPSHOT_METADATA, SNAPSHOT_INDEX_PREFIX).keySet();
         }
 
         return buildBlobStoreIndexShardSnapshots(blobs, shardContainer, shardGen).v1();
@@ -3835,7 +3889,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             );
             return new Tuple<>(shardSnapshots, latest);
         } else if (blobs.stream()
-            .anyMatch(b -> b.startsWith(SNAPSHOT_PREFIX) || b.startsWith(INDEX_FILE_PREFIX) || b.startsWith(UPLOADED_DATA_BLOB_PREFIX))) {
+            .anyMatch(
+                b -> b.startsWith(SNAPSHOT_PREFIX) || b.startsWith(SNAPSHOT_INDEX_PREFIX) || b.startsWith(UPLOADED_DATA_BLOB_PREFIX)
+            )) {
                 logger.warn(
                     "Could not find a readable index-N file in a non-empty shard snapshot directory [" + shardContainer.path() + "]"
                 );

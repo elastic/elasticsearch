@@ -27,10 +27,10 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -71,39 +71,13 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         }
     }
 
-    @Before
-    public void populateLocalIndices() {
-        Client localClient = client(LOCAL_CLUSTER);
-        assertAcked(
-            localClient.admin()
-                .indices()
-                .prepareCreate("logs-1")
-                .setSettings(Settings.builder().put("index.number_of_shards", randomIntBetween(1, 5)))
-                .setMapping("id", "type=keyword", "tag", "type=keyword", "v", "type=long")
-        );
-        for (int i = 0; i < 10; i++) {
-            localClient.prepareIndex("logs-1").setSource("id", "local-" + i, "tag", "local", "v", i).get();
-        }
-        localClient.admin().indices().prepareRefresh("logs-1").get();
-    }
-
-    @Before
-    public void populateRemoteIndices() {
-        Client remoteClient = client(REMOTE_CLUSTER);
-        assertAcked(
-            remoteClient.admin()
-                .indices()
-                .prepareCreate("logs-2")
-                .setSettings(Settings.builder().put("index.number_of_shards", randomIntBetween(1, 5)))
-                .setMapping("id", "type=keyword", "tag", "type=keyword", "v", "type=long")
-        );
-        for (int i = 0; i < 10; i++) {
-            remoteClient.prepareIndex("logs-2").setSource("id", "remote-" + i, "tag", "remote", "v", i * i).get();
-        }
-        remoteClient.admin().indices().prepareRefresh("logs-2").get();
-    }
-
     public void testSimple() {
+        Map<String, Object> testClusterInfo = setupTwoClusters();
+        String localIndex = (String) testClusterInfo.get("local.index");
+        String remoteIndex = (String) testClusterInfo.get("remote.index");
+        int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
+        int remoteNumShards = (Integer) testClusterInfo.get("remote.num_shards");
+
         try (EsqlQueryResponse resp = runQuery("from logs-*,*:logs-* | stats sum (v)")) {
             List<List<Object>> values = getValuesList(resp);
             assertThat(values, hasSize(1));
@@ -118,6 +92,12 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
     }
 
     public void testMetadataIndex() {
+        Map<String, Object> testClusterInfo = setupTwoClusters();
+        String localIndex = (String) testClusterInfo.get("local.index");
+        String remoteIndex = (String) testClusterInfo.get("remote.index");
+        int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
+        int remoteNumShards = (Integer) testClusterInfo.get("remote.num_shards");
+
         try (EsqlQueryResponse resp = runQuery("FROM logs*,*:logs* METADATA _index | stats sum(v) by _index | sort _index")) {
             List<List<Object>> values = getValuesList(resp);
             assertThat(values.get(0), equalTo(List.of(285L, "cluster-a:logs-2")));
@@ -138,6 +118,12 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
     }
 
     public void testProfile() {
+        Map<String, Object> testClusterInfo = setupTwoClusters();
+        String localIndex = (String) testClusterInfo.get("local.index");
+        String remoteIndex = (String) testClusterInfo.get("remote.index");
+        int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
+        int remoteNumShards = (Integer) testClusterInfo.get("remote.num_shards");
+
         assumeTrue("pragmas only enabled on snapshot builds", Build.current().isSnapshot());
         // uses shard partitioning as segments can be merged during these queries
         var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.DATA_PARTITIONING.getKey(), DataPartitioning.SHARD).build());
@@ -203,6 +189,12 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
     }
 
     public void testWarnings() throws Exception {
+        Map<String, Object> testClusterInfo = setupTwoClusters();
+        String localIndex = (String) testClusterInfo.get("local.index");
+        String remoteIndex = (String) testClusterInfo.get("remote.index");
+        int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
+        int remoteNumShards = (Integer) testClusterInfo.get("remote.num_shards");
+
         EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
         request.query("FROM logs*,*:logs* | EVAL ip = to_ip(id) | STATS total = sum(v) by ip | LIMIT 10");
         PlainActionFuture<EsqlQueryResponse> future = new PlainActionFuture<>();
@@ -237,5 +229,52 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
 
     protected EsqlQueryResponse runQuery(EsqlQueryRequest request) {
         return client(LOCAL_CLUSTER).execute(EsqlQueryAction.INSTANCE, request).actionGet(30, TimeUnit.SECONDS);
+    }
+
+    Map<String, Object> setupTwoClusters() {
+        String localIndex = "logs-1";
+        int numShardsLocal = randomIntBetween(1, 5);
+        populateLocalIndices(localIndex, numShardsLocal);
+
+        String remoteIndex = "logs-2";
+        int numShardsRemote = randomIntBetween(1, 5);
+        populateRemoteIndices(remoteIndex, numShardsRemote);
+
+        Map<String, Object> clusterInfo = new HashMap<>();
+        clusterInfo.put("local.num_shards", numShardsLocal);
+        clusterInfo.put("local.index", localIndex);
+        clusterInfo.put("remote.num_shards", numShardsRemote);
+        clusterInfo.put("remote.index", remoteIndex);
+        return clusterInfo;
+    }
+
+    void populateLocalIndices(String indexName, int numShards) {
+        Client localClient = client(LOCAL_CLUSTER);
+        assertAcked(
+            localClient.admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(Settings.builder().put("index.number_of_shards", numShards))
+                .setMapping("id", "type=keyword", "tag", "type=keyword", "v", "type=long")
+        );
+        for (int i = 0; i < 10; i++) {
+            localClient.prepareIndex(indexName).setSource("id", "local-" + i, "tag", "local", "v", i).get();
+        }
+        localClient.admin().indices().prepareRefresh(indexName).get();
+    }
+
+    void populateRemoteIndices(String indexName, int numShards) {
+        Client remoteClient = client(REMOTE_CLUSTER);
+        assertAcked(
+            remoteClient.admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(Settings.builder().put("index.number_of_shards", numShards))
+                .setMapping("id", "type=keyword", "tag", "type=keyword", "v", "type=long")
+        );
+        for (int i = 0; i < 10; i++) {
+            remoteClient.prepareIndex(indexName).setSource("id", "remote-" + i, "tag", "remote", "v", i * i).get();
+        }
+        remoteClient.admin().indices().prepareRefresh(indexName).get();
     }
 }

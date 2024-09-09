@@ -36,57 +36,7 @@ public class FilteredGroupingAggregatorFunctionTests extends GroupingAggregatorF
     protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
         return new FilteredAggregatorFunctionSupplier(
             new SumIntAggregatorFunctionSupplier(inputChannels),
-            /*
-             * This checks if *any* of the integers are > 0. If so we push the group to
-             * the aggregation.
-             */
-            new EvalOperator.ExpressionEvaluator.Factory() {
-                @Override
-                public EvalOperator.ExpressionEvaluator get(DriverContext context) {
-                    Exception tracker = new Exception(Integer.toString(unclosed.size()));
-                    unclosed.add(tracker);
-                    return new EvalOperator.ExpressionEvaluator() {
-                        @Override
-                        public Block eval(Page page) {
-                            IntBlock ints = page.getBlock(inputChannels.get(0));
-                            try (
-                                BooleanVector.FixedBuilder result = context.blockFactory()
-                                    .newBooleanVectorFixedBuilder(ints.getPositionCount())
-                            ) {
-                                position: for (int p = 0; p < ints.getPositionCount(); p++) {
-                                    int start = ints.getFirstValueIndex(p);
-                                    int end = start + ints.getValueCount(p);
-                                    for (int i = start; i < end; i++) {
-                                        if (ints.getInt(i) > 0) {
-                                            result.appendBoolean(p, true);
-                                            continue position;
-                                        }
-                                    }
-                                    result.appendBoolean(p, false);
-                                }
-                                return result.build().asBlock();
-                            }
-                        }
-
-                        @Override
-                        public void close() {
-                            if (unclosed.remove(tracker) == false) {
-                                throw new IllegalStateException("close failure!");
-                            }
-                        }
-
-                        @Override
-                        public String toString() {
-                            return "any > 0";
-                        }
-                    };
-                }
-
-                @Override
-                public String toString() {
-                    return "any > 0";
-                }
-            }
+            new AnyGreaterThanFactory(unclosed, inputChannels.get(0))
         );
     }
 
@@ -160,5 +110,58 @@ public class FilteredGroupingAggregatorFunctionTests extends GroupingAggregatorF
             logger.error("unclosed", tracker);
         }
         assertThat(unclosed, empty());
+    }
+
+    /**
+     * This checks if *any* of the integers are > 0. If so we push the group to
+     * the aggregation.
+     */
+    private record AnyGreaterThanFactory(List<Exception> unclosed, int channel) implements EvalOperator.ExpressionEvaluator.Factory {
+        @Override
+        public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+            Exception tracker = new Exception(Integer.toString(unclosed.size()));
+            unclosed.add(tracker);
+            return new AnyGreaterThan(context.blockFactory(), unclosed, tracker, channel);
+        }
+
+        @Override
+        public String toString() {
+            return "any > 0";
+        }
+    }
+
+    private record AnyGreaterThan(BlockFactory blockFactory, List<Exception> unclosed, Exception tracker, int channel)
+        implements
+            EvalOperator.ExpressionEvaluator {
+        @Override
+        public Block eval(Page page) {
+            IntBlock ints = page.getBlock(channel);
+            try (BooleanVector.FixedBuilder result = blockFactory.newBooleanVectorFixedBuilder(ints.getPositionCount())) {
+                position: for (int p = 0; p < ints.getPositionCount(); p++) {
+                    int start = ints.getFirstValueIndex(p);
+                    int end = start + ints.getValueCount(p);
+                    for (int i = start; i < end; i++) {
+                        if (ints.getInt(i) > 0) {
+                            result.appendBoolean(p, true);
+                            continue position;
+                        }
+                    }
+                    result.appendBoolean(p, false);
+                }
+                return result.build().asBlock();
+            }
+        }
+
+        @Override
+        public void close() {
+            if (unclosed.remove(tracker) == false) {
+                throw new IllegalStateException("close failure!");
+            }
+        }
+
+        @Override
+        public String toString() {
+            return "any > 0";
+        }
     }
 }

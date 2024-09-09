@@ -29,7 +29,7 @@ public class LoggersTests extends ESTestCase {
     public void testClusterUpdateSettingsRequestValidationForLoggers() {
         assertThat(Loggers.RESTRICTED_LOGGERS, hasSize(greaterThan(0)));
 
-        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
+        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         for (String logger : Loggers.RESTRICTED_LOGGERS) {
             var validation = request.persistentSettings(Map.of("logger." + logger, org.elasticsearch.logging.Level.DEBUG)).validate();
             assertNotNull(validation);

@@ -237,7 +237,7 @@ public class IndexStatsIT extends ESIntegTestCase {
                 .setMapping("field", "type=text,fielddata=true")
         );
         ensureGreen();
-        clusterAdmin().prepareHealth().setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForGreenStatus().get();
         prepareIndex("test").setId("1").setSource("field", "value1").get();
         prepareIndex("test").setId("2").setSource("field", "value2").get();
         indicesAdmin().prepareRefresh().get();

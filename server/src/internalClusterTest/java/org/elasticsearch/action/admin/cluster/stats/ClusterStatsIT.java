@@ -64,7 +64,8 @@ public class ClusterStatsIT extends ESIntegTestCase {
 
     private void waitForNodes(int numNodes) {
         ClusterHealthResponse actionGet = clusterAdmin().health(
-            new ClusterHealthRequest(new String[] {}).waitForEvents(Priority.LANGUID).waitForNodes(Integer.toString(numNodes))
+            new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, new String[] {}).waitForEvents(Priority.LANGUID)
+                .waitForNodes(Integer.toString(numNodes))
         ).actionGet();
         assertThat(actionGet.isTimedOut(), is(false));
     }

@@ -36,7 +36,7 @@ public class FilteredGroupingAggregatorFunctionTests extends GroupingAggregatorF
     protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
         return new FilteredAggregatorFunctionSupplier(
             new SumIntAggregatorFunctionSupplier(inputChannels),
-            new AnyGreaterThanFactory(unclosed, inputChannels.get(0))
+            new AnyGreaterThanFactory(unclosed, inputChannels)
         );
     }
 
@@ -116,12 +116,14 @@ public class FilteredGroupingAggregatorFunctionTests extends GroupingAggregatorF
      * This checks if *any* of the integers are > 0. If so we push the group to
      * the aggregation.
      */
-    private record AnyGreaterThanFactory(List<Exception> unclosed, int channel) implements EvalOperator.ExpressionEvaluator.Factory {
+    private record AnyGreaterThanFactory(List<Exception> unclosed, List<Integer> inputChannels)
+        implements
+            EvalOperator.ExpressionEvaluator.Factory {
         @Override
         public EvalOperator.ExpressionEvaluator get(DriverContext context) {
             Exception tracker = new Exception(Integer.toString(unclosed.size()));
             unclosed.add(tracker);
-            return new AnyGreaterThan(context.blockFactory(), unclosed, tracker, channel);
+            return new AnyGreaterThan(context.blockFactory(), unclosed, tracker, inputChannels);
         }
 
         @Override
@@ -130,12 +132,12 @@ public class FilteredGroupingAggregatorFunctionTests extends GroupingAggregatorF
         }
     }
 
-    private record AnyGreaterThan(BlockFactory blockFactory, List<Exception> unclosed, Exception tracker, int channel)
+    private record AnyGreaterThan(BlockFactory blockFactory, List<Exception> unclosed, Exception tracker, List<Integer> inputChannels)
         implements
             EvalOperator.ExpressionEvaluator {
         @Override
         public Block eval(Page page) {
-            IntBlock ints = page.getBlock(channel);
+            IntBlock ints = page.getBlock(inputChannels.get(0));
             try (BooleanVector.FixedBuilder result = blockFactory.newBooleanVectorFixedBuilder(ints.getPositionCount())) {
                 position: for (int p = 0; p < ints.getPositionCount(); p++) {
                     int start = ints.getFirstValueIndex(p);

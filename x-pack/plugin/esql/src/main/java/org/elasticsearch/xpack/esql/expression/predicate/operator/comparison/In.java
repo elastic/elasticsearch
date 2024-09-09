@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
 import java.util.BitSet;
@@ -269,7 +269,7 @@ public class In extends EsqlScalarFunction {
                     break;
                 }
             }
-            commonType = EsqlDataTypeRegistry.INSTANCE.commonType(commonType, e.dataType());
+            commonType = EsqlDataTypeConverter.commonType(commonType, e.dataType());
         }
         return commonType;
     }

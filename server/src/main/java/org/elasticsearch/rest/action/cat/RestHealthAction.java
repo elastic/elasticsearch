@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Table;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.Scope;
@@ -20,6 +21,7 @@ import org.elasticsearch.rest.action.RestResponseListener;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -71,6 +73,10 @@ public class RestHealthAction extends AbstractCatAction {
         t.addCell("relo", "alias:r,shards.relocating,shardsRelocating;text-align:right;desc:number of relocating nodes");
         t.addCell("init", "alias:i,shards.initializing,shardsInitializing;text-align:right;desc:number of initializing nodes");
         t.addCell("unassign", "alias:u,shards.unassigned,shardsUnassigned;text-align:right;desc:number of unassigned shards");
+        t.addCell(
+            "unassign.pri",
+            "alias:up,shards.unassigned.primary,shardsUnassignedPrimary;text-align:right;desc:number of unassigned primary shards"
+        );
         t.addCell("pending_tasks", "alias:pt,pendingTasks;text-align:right;desc:number of pending tasks");
         t.addCell("max_task_wait_time", "alias:mtwt,maxTaskWaitTime;text-align:right;desc:wait time of longest task pending");
         t.addCell("active_shards_percent", "alias:asp,activeShardsPercent;text-align:right;desc:active number of shards in percent");
@@ -91,10 +97,16 @@ public class RestHealthAction extends AbstractCatAction {
         t.addCell(health.getRelocatingShards());
         t.addCell(health.getInitializingShards());
         t.addCell(health.getUnassignedShards());
+        t.addCell(health.getUnassignedPrimaryShards());
         t.addCell(health.getNumberOfPendingTasks());
         t.addCell(health.getTaskMaxWaitingTime().millis() == 0 ? "-" : health.getTaskMaxWaitingTime());
         t.addCell(String.format(Locale.ROOT, "%1.1f%%", health.getActiveShardsPercent()));
         t.endRow();
         return t;
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return Sets.union(Set.of("unassigned_pri_shard_count"), super.supportedCapabilities());
     }
 }

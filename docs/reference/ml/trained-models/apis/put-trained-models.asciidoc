@@ -588,7 +588,7 @@ Refer to <<tokenization-properties>> to review the properties of the
 `tokenization` object.
 =====
 
-`text_similarity`::::
+`text_similarity`:::
 (Object, optional)
 include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-similarity]
 +

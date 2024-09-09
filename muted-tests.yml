@@ -207,6 +207,9 @@ tests:
 - class: org.elasticsearch.packaging.test.PackagesSecurityAutoConfigurationTests
   method: test20SecurityNotAutoConfiguredOnReInstallation
   issue: https://github.com/elastic/elasticsearch/issues/112635
+- class: org.elasticsearch.xpack.sql.qa.single_node.JdbcSqlSpecIT
+  method: test {case-functions.testSelectInsertWithLcaseAndLengthWithOrderBy}
+  issue: https://github.com/elastic/elasticsearch/issues/112642
 
 # Examples:
 #

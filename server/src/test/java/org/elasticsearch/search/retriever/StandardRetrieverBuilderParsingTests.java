@@ -175,8 +175,8 @@ public class StandardRetrieverBuilderParsingTests extends AbstractXContentTestCa
     public void testTopDocsQuery() throws IOException {
         StandardRetrieverBuilder standardRetriever = createTestInstance();
         final int preFilters = standardRetriever.preFilterQueryBuilders.size();
-        if(frequently()){
-            standardRetriever.rankDocs = new RankDoc[]{new RankDoc(0, 0, 1)};
+        if (frequently()) {
+            standardRetriever.rankDocs = new RankDoc[] { new RankDoc(0, 0, 1) };
         }
         if (standardRetriever.queryBuilder == null) {
             if (preFilters > 0) {
@@ -184,7 +184,7 @@ public class StandardRetrieverBuilderParsingTests extends AbstractXContentTestCa
             }
         } else {
             QueryBuilder topDocsQuery = standardRetriever.topDocsQuery();
-            if(standardRetriever.rankDocs != null) {
+            if (standardRetriever.rankDocs != null) {
                 assertNotNull(topDocsQuery);
                 if (preFilters > 0) {
                     assertThat(topDocsQuery, instanceOf(BoolQueryBuilder.class));
@@ -199,7 +199,7 @@ public class StandardRetrieverBuilderParsingTests extends AbstractXContentTestCa
                 } else {
                     assertThat(topDocsQuery, instanceOf(standardRetriever.queryBuilder.getClass()));
                 }
-            }else {
+            } else {
                 assertNull(topDocsQuery);
             }
         }

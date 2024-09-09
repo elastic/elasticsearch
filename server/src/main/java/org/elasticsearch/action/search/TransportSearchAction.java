@@ -521,7 +521,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 };
                 try {
                     executeRequest(task, original, pitListener, searchPhaseProvider);
-                }catch (Exception ex) {
+                } catch (Exception ex) {
                     // if something fails during query rewrite phase, ensure that the PIT will close
                     pitListener.onFailure(ex);
                 }

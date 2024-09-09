@@ -132,7 +132,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
     private final SystemIndices systemIndices;
 
-    private volatile TimeValue replicaUnassignedBufferTime = TimeValue.timeValueSeconds(0);
+    private volatile TimeValue replicaUnassignedBufferTime;
 
     public ShardsAvailabilityHealthIndicatorService(
         ClusterService clusterService,
@@ -142,6 +142,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         this.clusterService = clusterService;
         this.allocationService = allocationService;
         this.systemIndices = systemIndices;
+        this.replicaUnassignedBufferTime = REPLICA_UNASSIGNED_BUFFER_TIME.get(clusterService.getSettings());
         clusterService.getClusterSettings().addSettingsUpdateConsumer(REPLICA_UNASSIGNED_BUFFER_TIME, this::setReplicaUnassignedBufferTime);
     }
 

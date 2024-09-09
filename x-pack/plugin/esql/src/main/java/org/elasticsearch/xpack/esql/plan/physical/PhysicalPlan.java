@@ -26,12 +26,14 @@ public abstract class PhysicalPlan extends QueryPlan<PhysicalPlan> {
         return List.of(
             AggregateExec.ENTRY,
             DissectExec.ENTRY,
+            EnrichExec.ENTRY,
             EsQueryExec.ENTRY,
             EsSourceExec.ENTRY,
             EvalExec.ENTRY,
             ExchangeExec.ENTRY,
             ExchangeSinkExec.ENTRY,
-            ExchangeSourceExec.ENTRY
+            ExchangeSourceExec.ENTRY,
+            FieldExtractExec.ENTRY
         );
     }
 

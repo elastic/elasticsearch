@@ -112,7 +112,6 @@ public class DistroTestPlugin implements Plugin<Project> {
             }
             destructiveDistroTest.configure(t -> t.dependsOn(destructiveTask));
             TaskProvider<?> lifecycleTask = lifecycleTasks.get(type);
-            System.out.println("lifecycleTask.getName() = " + lifecycleTask.getName());
             lifecycleTask.configure(t -> t.dependsOn(destructiveTask));
 
             if ((type == DEB || type == RPM) && distribution.getBundledJdk()) {

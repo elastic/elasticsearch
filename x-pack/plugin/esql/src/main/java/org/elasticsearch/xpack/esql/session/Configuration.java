@@ -178,6 +178,9 @@ public class Configuration implements Writeable {
         return System.currentTimeMillis();
     }
 
+    /**
+     * @return Start time of the ESQL query in millis
+     */
     public long getQueryStartTimeMillis() {
         return queryStartTimeMillis;
     }

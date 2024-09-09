@@ -225,6 +225,7 @@ public class ComputeService {
                     Set.of(localConcreteIndices.indices()),
                     localOriginalIndices,
                     exchangeSource,
+                    executionInfo,
                     computeListener
                 );
             }
@@ -272,6 +273,7 @@ public class ComputeService {
         Set<String> concreteIndices,
         OriginalIndices originalIndices,
         ExchangeSourceHandler exchangeSource,
+        EsqlExecutionInfo executionInfo,
         ComputeListener computeListener
     ) {
         var planWithReducer = configuration.pragmas().nodeLevelReduction() == false
@@ -287,11 +289,22 @@ public class ComputeService {
         // but it would be better to have a proper impl.
         QueryBuilder requestFilter = PlannerUtils.requestFilter(planWithReducer, x -> true);
         var lookupListener = ActionListener.releaseAfter(computeListener.acquireAvoid(), exchangeSource.addEmptySink());
-        lookupDataNodes(parentTask, clusterAlias, requestFilter, concreteIndices, originalIndices, ActionListener.wrap(dataNodes -> {
+        // SearchShards API can_match is done in lookupDataNodes
+        lookupDataNodes(parentTask, clusterAlias, requestFilter, concreteIndices, originalIndices, ActionListener.wrap(dataNodeResult -> {
             try (RefCountingListener refs = new RefCountingListener(lookupListener)) {
+                // update ExecutionInfo with shard counts (total and skipped)
+                executionInfo.swapCluster(
+                    clusterAlias,
+                    (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTotalShards(dataNodeResult.totalShards())
+                        .setSuccessfulShards(dataNodeResult.totalShards())
+                        .setSkippedShards(dataNodeResult.skippedShards())
+                        .setFailedShards(0)
+                        .build()
+                );
+
                 // For each target node, first open a remote exchange on the remote node, then link the exchange source to
                 // the new remote exchange sink, and initialize the computation on the target node via data-node-request.
-                for (DataNode node : dataNodes) {
+                for (DataNode node : dataNodeResult.dataNodes()) {
                     var queryPragmas = configuration.pragmas();
                     ExchangeService.openExchange(
                         transportService,
@@ -302,7 +315,11 @@ public class ComputeService {
                         refs.acquire().delegateFailureAndWrap((l, unused) -> {
                             var remoteSink = exchangeService.newRemoteSink(parentTask, sessionId, transportService, node.connection);
                             exchangeSource.addRemoteSink(remoteSink, queryPragmas.concurrentExchangeClients());
-                            var dataNodeListener = ActionListener.runBefore(computeListener.acquireCompute(), () -> l.onResponse(null));
+                            ActionListener<ComputeResponse> computeResponseListener = computeListener.acquireComputeForDataNodes(
+                                clusterAlias,
+                                configuration.getQueryStartTimeMillis()
+                            );
+                            var dataNodeListener = ActionListener.runBefore(computeResponseListener, () -> l.onResponse(null));
                             transportService.sendChildRequest(
                                 node.connection,
                                 DATA_ACTION_NAME,
@@ -351,7 +368,10 @@ public class ComputeService {
                         exchangeSource.addRemoteSink(remoteSink, queryPragmas.concurrentExchangeClients());
                         var remotePlan = new RemoteClusterPlan(plan, cluster.concreteIndices, cluster.originalIndices);
                         var clusterRequest = new ClusterComputeRequest(cluster.clusterAlias, sessionId, configuration, remotePlan);
-                        var clusterListener = ActionListener.runBefore(computeListener.acquireCompute(), () -> l.onResponse(null));
+                        var clusterListener = ActionListener.runBefore(
+                            computeListener.acquireCCSCompute(cluster.clusterAlias()),
+                            () -> l.onResponse(null)
+                        );
                         transportService.sendChildRequest(
                             cluster.connection,
                             CLUSTER_ACTION_NAME,
@@ -500,6 +520,15 @@ public class ComputeService {
 
     }
 
+    /**
+     * Result from lookupDataNodes where can_match is performed to determine what shards can be skipped
+     * and which target nodes are needed for running the ES|QL query
+     * @param dataNodes list of DataNode to perform the ES|QL query on
+     * @param totalShards Total number of shards (from can_match phase), including skipped shards
+     * @param skippedShards Number of skipped shards (from can_match phase)
+     */
+    record DataNodeResult(List<DataNode> dataNodes, int totalShards, int skippedShards) {}
+
     record RemoteCluster(String clusterAlias, Transport.Connection connection, String[] concreteIndices, OriginalIndices originalIndices) {
 
     }
@@ -516,7 +545,7 @@ public class ComputeService {
         QueryBuilder filter,
         Set<String> concreteIndices,
         OriginalIndices originalIndices,
-        ActionListener<List<DataNode>> listener
+        ActionListener<DataNodeResult> listener
     ) {
         ActionListener<SearchShardsResponse> searchShardsListener = listener.map(resp -> {
             Map<String, DiscoveryNode> nodes = new HashMap<>();
@@ -525,9 +554,13 @@ public class ComputeService {
             }
             Map<String, List<ShardId>> nodeToShards = new HashMap<>();
             Map<String, Map<Index, AliasFilter>> nodeToAliasFilters = new HashMap<>();
+            int totalShards = 0;
+            int skippedShards = 0;
             for (SearchShardsGroup group : resp.getGroups()) {
                 var shardId = group.shardId();
                 if (group.skipped()) {
+                    totalShards++;
+                    skippedShards++;
                     continue;
                 }
                 if (group.allocatedNodes().isEmpty()) {
@@ -536,6 +569,7 @@ public class ComputeService {
                 if (concreteIndices.contains(shardId.getIndexName()) == false) {
                     continue;
                 }
+                totalShards++;
                 String targetNode = group.allocatedNodes().get(0);
                 nodeToShards.computeIfAbsent(targetNode, k -> new ArrayList<>()).add(shardId);
                 AliasFilter aliasFilter = resp.getAliasFilters().get(shardId.getIndex().getUUID());
@@ -549,7 +583,7 @@ public class ComputeService {
                 Map<Index, AliasFilter> aliasFilters = nodeToAliasFilters.getOrDefault(e.getKey(), Map.of());
                 dataNodes.add(new DataNode(transportService.getConnection(node), e.getValue(), aliasFilters));
             }
-            return dataNodes;
+            return new DataNodeResult(dataNodes, totalShards, skippedShards);
         });
         SearchShardsRequest searchShardsRequest = new SearchShardsRequest(
             originalIndices.indices(),
@@ -776,6 +810,7 @@ public class ComputeService {
                     (ExchangeSinkExec) plan,
                     Set.of(remoteClusterPlan.targetIndices()),
                     remoteClusterPlan.originalIndices(),
+                    execInfo,
                     computeListener
                 );
             }
@@ -799,6 +834,7 @@ public class ComputeService {
         ExchangeSinkExec plan,
         Set<String> concreteIndices,
         OriginalIndices originalIndices,
+        EsqlExecutionInfo executionInfo,
         ComputeListener computeListener
     ) {
         final var exchangeSink = exchangeService.getSinkHandler(globalSessionId);
@@ -834,6 +870,7 @@ public class ComputeService {
                 concreteIndices,
                 originalIndices,
                 exchangeSource,
+                executionInfo,
                 computeListener
             );
         }

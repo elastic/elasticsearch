@@ -36,10 +36,24 @@ public class ResourceUtils {
         }
     }
 
+    /**
+     * loadResourceWithFallback loads template resources from TemplateResource class. It expects
+     * the loader to be a named Java module and the template resources to contain required templates
+     * with a folder named with the module name. If the specified resource name is not found in
+     * template resource then the plugin's resources is used as a fallback.
+     *
+     * @param clazz the runtime class of the source plugin
+     * @param name the relative path of the resource with leading `/`
+     * @return the loaded resource as string
+     * @throws IOException
+     */
     static String loadResourceWithFallback(Class<?> clazz, String name) throws IOException {
-        InputStream is = clazz.getResourceAsStream(name);
+        InputStream is = null;
+        if (clazz.getModule().isNamed()) {
+            is = TemplateResources.class.getResourceAsStream("/"+clazz.getModule().getName()+name);
+        }
         if (is == null) {
-            is = TemplateResources.class.getResourceAsStream("/"+clazz.getPackageName()+name);
+            is = clazz.getResourceAsStream(name);
         }
         if (is == null) {
             throw new IOException("Resource [" + name + "] not found in classpath.");

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.parser;
 
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -123,5 +124,9 @@ abstract class AbstractStatementParserTests extends ESTestCase {
             () -> statement(query, new QueryParams(params))
         );
         assertThat(e.getMessage(), containsString(errorMessage));
+    }
+
+    void expectError(String query, String arg, String errorMessage) {
+        expectError(LoggerMessageFormat.format(null, query, arg), errorMessage);
     }
 }

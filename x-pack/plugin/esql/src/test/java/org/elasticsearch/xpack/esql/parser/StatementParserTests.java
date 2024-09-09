@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
@@ -411,37 +410,31 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testInvalidCharacterInIndexPattern() {
         for (String command : List.of("FROM {}", "METRICS {}", "ROW x = 1 | LOOKUP {} ON j")) {
-            expectError(LoggerMessageFormat.format(null, command, " cluster:\"index|pattern\""), "Invalid index name [index|pattern]");
-            expectError(LoggerMessageFormat.format(null, command, " *:\"index|pattern\""), "Invalid index name [index|pattern]");
-            expectError(LoggerMessageFormat.format(null, command, " cluster:\"index#pattern\""), "Invalid index name [index#pattern]");
-            expectError(LoggerMessageFormat.format(null, command, " cluster:index#pattern"), "Invalid index name [index#pattern]");
-            expectError(LoggerMessageFormat.format(null, command, " cluster:\"index pattern\""), "Invalid index name [index pattern]");
-            expectError(LoggerMessageFormat.format(null, command, " cluster:\"index?pattern\""), "Invalid index name [index?pattern]");
-            expectError(LoggerMessageFormat.format(null, command, " cluster:index?pattern"), "Invalid index name [index?pattern]");
-            expectError(LoggerMessageFormat.format(null, command, " cluster:\"index>pattern\""), "Invalid index name [index>pattern]");
-            expectError(LoggerMessageFormat.format(null, command, " cluster:index>pattern"), "Invalid index name [index>pattern]");
-            expectError(LoggerMessageFormat.format(null, command, " cluster:\"index<pattern\""), "Invalid index name [index<pattern]");
-            expectError(LoggerMessageFormat.format(null, command, " cluster:index<pattern"), "Invalid index name [index<pattern]");
-            expectError(LoggerMessageFormat.format(null, command, " cluster:\"index/pattern\""), "Invalid index name [index/pattern]");
-            expectError(LoggerMessageFormat.format(null, command, " cluster:index/pattern"), "Invalid index name [index/pattern]");
-            expectError(LoggerMessageFormat.format(null, command, " cluster:\"index\\\\pattern\""), "Invalid index name [index\\pattern]");
-            expectError(LoggerMessageFormat.format(null, command, " cluster:index\\pattern"), "Invalid index name [index\\pattern]");
-            expectError(LoggerMessageFormat.format(null, command, " cluster:\"..\""), "Invalid index name [..]");
-            expectError(LoggerMessageFormat.format(null, command, " cluster:.."), "Invalid index name [..]");
-            expectError(LoggerMessageFormat.format(null, command, " cluster:\"_indexpattern\""), "Invalid index name [_indexpattern]");
-            expectError(LoggerMessageFormat.format(null, command, " cluster:_indexpattern"), "Invalid index name [_indexpattern]");
-            expectError(LoggerMessageFormat.format(null, command, " cluster:\"+indexpattern\""), "Invalid index name [+indexpattern]");
-            expectError(LoggerMessageFormat.format(null, command, " cluster:+indexpattern"), "Invalid index name [+indexpattern]");
-            expectError(LoggerMessageFormat.format(null, command, " cluster:\"--indexpattern\""), "Invalid index name [-indexpattern]");
-            expectError(LoggerMessageFormat.format(null, command, " cluster:--indexpattern"), "Invalid index name [-indexpattern]");
-            expectError(
-                LoggerMessageFormat.format(null, command, " cluster:\"<--logstash-{now/M{yyyy.MM}}>\""),
-                "Invalid index name [-logstash-"
-            );
-            expectError(
-                LoggerMessageFormat.format(null, command, "  --<logstash-{now/M{yyyy.MM}}>"),
-                "Invalid index name [-<logstash-{now/M{yyyy.MM}}>]"
-            );
+            expectError(command, " cluster:\"index|pattern\"", "Invalid index name [index|pattern]");
+            expectError(command, " *:\"index|pattern\"", "Invalid index name [index|pattern]");
+            expectError(command, " cluster:\"index#pattern\"", "Invalid index name [index#pattern]");
+            expectError(command, " cluster:index#pattern", "Invalid index name [index#pattern]");
+            expectError(command, " cluster:\"index pattern\"", "Invalid index name [index pattern]");
+            expectError(command, " cluster:\"index?pattern\"", "Invalid index name [index?pattern]");
+            expectError(command, " cluster:index?pattern", "Invalid index name [index?pattern]");
+            expectError(command, " cluster:\"index>pattern\"", "Invalid index name [index>pattern]");
+            expectError(command, " cluster:index>pattern", "Invalid index name [index>pattern]");
+            expectError(command, " cluster:\"index<pattern\"", "Invalid index name [index<pattern]");
+            expectError(command, " cluster:index<pattern", "Invalid index name [index<pattern]");
+            expectError(command, " cluster:\"index/pattern\"", "Invalid index name [index/pattern]");
+            expectError(command, " cluster:index/pattern", "Invalid index name [index/pattern]");
+            expectError(command, " cluster:\"index\\\\pattern\"", "Invalid index name [index\\pattern]");
+            expectError(command, " cluster:index\\pattern", "Invalid index name [index\\pattern]");
+            expectError(command, " cluster:\"..\"", "Invalid index name [..]");
+            expectError(command, " cluster:..", "Invalid index name [..]");
+            expectError(command, " cluster:\"_indexpattern\"", "Invalid index name [_indexpattern]");
+            expectError(command, " cluster:_indexpattern", "Invalid index name [_indexpattern]");
+            expectError(command, " cluster:\"+indexpattern\"", "Invalid index name [+indexpattern]");
+            expectError(command, " cluster:+indexpattern", "Invalid index name [+indexpattern]");
+            expectError(command, " cluster:\"--indexpattern\"", "Invalid index name [-indexpattern]");
+            expectError(command, " cluster:--indexpattern", "Invalid index name [-indexpattern]");
+            expectError(command, " cluster:\"<--logstash-{now/M{yyyy.MM}}>\"", "Invalid index name [-logstash-");
+            expectError(command, "  --<logstash-{now/M{yyyy.MM}}>", "Invalid index name [-<logstash-{now/M{yyyy.MM}}>]");
         }
     }
 

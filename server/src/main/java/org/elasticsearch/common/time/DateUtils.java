@@ -179,11 +179,6 @@ public class DateUtils {
      */
     public static final Instant MAX_NANOSECOND_INSTANT = Instant.parse("2262-04-11T23:47:16.854775807Z");
 
-    /**
-     * The maximum millisecond resolution date we can properly handle.
-     */
-    public static final Instant MAX_MILLISECOND_INSTANT = Instant.ofEpochMilli(9_223_372_036_854_775_807L);
-
     static final long MAX_NANOSECOND_IN_MILLIS = MAX_NANOSECOND_INSTANT.toEpochMilli();
 
     public static final long MAX_NANOSECOND = toLong(MAX_NANOSECOND_INSTANT);
@@ -217,17 +212,20 @@ public class DateUtils {
      * @return        the total milliseconds as a single long
      */
     public static long toLongMillis(Instant instant) {
-        if (instant.isBefore(Instant.EPOCH)) {
-            throw new IllegalArgumentException(
-                "date[" + instant + "] is before the epoch in 1970 and cannot be stored in millisecond resolution"
-            );
+        try {
+            return instant.toEpochMilli();
+        } catch (ArithmeticException e) {
+            if (instant.isAfter(Instant.now())) {
+                throw new IllegalArgumentException(
+                    "date[" + instant + "] is too far in the future to fit in a long milliseconds variable"
+                );
+            }
+            else {
+                throw new IllegalArgumentException(
+                    "date[" + instant + "] is too far in the past to fit in a long milliseconds variable"
+                );
+            }
         }
-        if (instant.isAfter(MAX_MILLISECOND_INSTANT)) {
-            throw new IllegalArgumentException(
-                "date[" + instant + "] is after 292278994-08-17T07:12:55.807 and cannot be stored in millisecond resolution"
-            );
-        }
-        return instant.toEpochMilli();
     }
 
     /**

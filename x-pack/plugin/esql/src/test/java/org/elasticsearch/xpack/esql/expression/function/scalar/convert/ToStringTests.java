@@ -85,13 +85,6 @@ public class ToStringTests extends AbstractScalarFunctionTestCase {
             suppliers,
             "ToStringFromDatetimeEvaluator[field=" + read + "]",
             DataType.KEYWORD,
-            i -> new BytesRef(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(i.toEpochMilli())),
-            List.of()
-        );
-        TestCaseSupplier.forUnaryDatetime(
-            suppliers,
-            "ToStringFromDatetimeEvaluator[field=" + read + "]",
-            DataType.KEYWORD,
             i -> new BytesRef(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(DateUtils.toLongMillis(i))),
             List.of()
         );

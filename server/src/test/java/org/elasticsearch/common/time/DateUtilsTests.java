@@ -62,18 +62,17 @@ public class DateUtilsTests extends ESTestCase {
     }
 
     public void testInstantToLongMillisMin() {
-        Instant tooEarlyInstant = ZonedDateTime.parse("1677-09-21T00:12:43.145224191Z").toInstant();
+        /* negative millisecond value of this instant exceeds the maximum value a java long variable can store */
+        Instant tooEarlyInstant = Instant.ofEpochSecond(-9223372036854776L);;
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> toLongMillis(tooEarlyInstant));
-        assertThat(e.getMessage(), containsString("is before"));
-        e = expectThrows(IllegalArgumentException.class, () -> toLongMillis(Instant.EPOCH.minusMillis(1)));
-        assertThat(e.getMessage(), containsString("is before"));
+        assertThat(e.getMessage(), containsString("too far in the past"));
     }
 
     public void testInstantToLongMillisMax() {
         /* millisecond value of this instant exceeds the maximum value a java long variable can store */
         Instant tooLateInstant = Instant.ofEpochSecond(9223372036854776L);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> toLongMillis(tooLateInstant));
-        assertThat(e.getMessage(), containsString("is after"));
+        assertThat(e.getMessage(), containsString("too far in the future"));
     }
 
     public void testLongToInstant() {

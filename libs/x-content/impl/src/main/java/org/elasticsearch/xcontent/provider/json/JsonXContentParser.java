@@ -57,7 +57,8 @@ public class JsonXContentParser extends AbstractXContentParser {
         try {
             return convertToken(parser.nextToken());
         } catch (JsonEOFException e) {
-            throw new XContentEOFException(e);
+            JsonLocation location = e.getLocation();
+            throw new XContentEOFException(new XContentLocation(location.getLineNr(), location.getColumnNr()), "Unexpected end of file", e);
         } catch (JsonParseException e) {
             throw newXContentParseException(e);
         }

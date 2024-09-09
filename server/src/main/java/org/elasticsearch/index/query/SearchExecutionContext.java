@@ -615,8 +615,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     @Override
-    @SuppressWarnings("rawtypes")
-    public void executeAsyncActions(ActionListener listener) {
+    public void executeAsyncActions(ActionListener<Void> listener) {
         failIfFrozen();
         super.executeAsyncActions(listener);
     }

@@ -198,6 +198,9 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.kerberos.KerberosTicketValidatorTests
   method: testWhenKeyTabWithInvalidContentFailsValidation
   issue: https://github.com/elastic/elasticsearch/issues/112631
+- class: org.elasticsearch.xpack.security.authc.kerberos.KerberosTicketValidatorTests
+  method: testValidKebrerosTicket
+  issue: https://github.com/elastic/elasticsearch/issues/112632
 
 # Examples:
 #

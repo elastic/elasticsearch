@@ -320,17 +320,13 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
      * Checks whether the deletion policy is holding on to externally acquired index commits
      */
     synchronized boolean hasAcquiredIndexCommitsForTesting() {
-        if (Assertions.ENABLED) {
-            // We explicitly check only external commits and disregard internal commits acquired by the commits listener
-            for (var e : acquiredIndexCommits.entrySet()) {
-                if (internallyAcquiredIndexCommits.contains(e.getKey()) == false || e.getValue() > 1) {
-                    return true;
-                }
+        // We explicitly check only external commits and disregard internal commits acquired by the commits listener
+        for (var e : acquiredIndexCommits.entrySet()) {
+            if (internallyAcquiredIndexCommits.contains(e.getKey()) == false || e.getValue() > 1) {
+                return true;
             }
-            return false;
-        } else {
-            return acquiredIndexCommits.isEmpty() == false;
         }
+        return false;
     }
 
     /**

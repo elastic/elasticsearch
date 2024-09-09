@@ -761,7 +761,28 @@ public class SearchEngine extends Engine {
 
     @Override
     public IndexCommitRef acquireLastIndexCommit(boolean flushFirst) throws EngineException {
-        return null;
+        if (flushFirst) {
+            // there might be uncommitted changes on the indexing nodes.
+            throw new IllegalArgumentException("Search engine does not support acquiring last index commit with flush_first");
+        }
+        Searcher searcher = acquireSearcher("acquire_last_commit");
+        try {
+            final IndexCommit indexCommit;
+            try {
+                indexCommit = searcher.getDirectoryReader().getIndexCommit();
+            } catch (IOException e) {
+                throw new EngineException(shardId, "failed to get index commit from searcher", e);
+            }
+            if (indexCommit == null) {
+                assert false : "searcher from search engine should have index commit";
+                throw new EngineException(shardId, "searcher from search engine should have index commit");
+            }
+            var indexCommitRef = new IndexCommitRef(indexCommit, searcher::close);
+            searcher = null;
+            return indexCommitRef;
+        } finally {
+            Releasables.close(searcher);
+        }
     }
 
     @Override

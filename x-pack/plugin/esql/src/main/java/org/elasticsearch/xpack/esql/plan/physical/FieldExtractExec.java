@@ -34,7 +34,15 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
 
     private final List<Attribute> attributesToExtract;
     private final Attribute sourceAttribute;
-    // attributes to extract as doc values
+    /**
+     * Attributes that many be extracted as doc values even if that makes them
+     * less accurate. This is mostly used for geo fields which lose a lot of
+     * precision in their doc values, but in some cases doc values provides
+     * <strong>enough</strong> precision to do the job.
+     * <p>
+     *     This is never serialized between nodes and only used locally.
+     * </p>
+     */
     private final Set<Attribute> docValuesAttributes;
 
     private List<Attribute> lazyOutput;
@@ -51,9 +59,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
             Source.readFrom((PlanStreamInput) in),
             ((PlanStreamInput) in).readPhysicalPlanNode(),
             in.readNamedWriteableCollectionAsList(Attribute.class),
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIELD_EXTRACT_DOC_VALUES)
-                ? in.readCollectionAsSet(i -> i.readNamedWriteable(Attribute.class))
-                : Set.of()
+            Set.of() // docValueAttributes are only used on the data node and never serialized.
         );
     }
 
@@ -62,9 +68,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
         Source.EMPTY.writeTo(out);
         ((PlanStreamOutput) out).writePhysicalPlanNode(child());
         out.writeNamedWriteableCollection(attributesToExtract());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIELD_EXTRACT_DOC_VALUES)) {
-            out.writeNamedWriteableCollection(docValuesAttributes);
-        }
+        // docValueAttributes are only used on the data node and never serialized.
     }
 
     @Override

@@ -20,7 +20,7 @@ public class FieldExtractExecSerializationTests extends AbstractPhysicalPlanSeri
         Source source = randomSource();
         PhysicalPlan child = randomChild(depth);
         List<Attribute> attributesToExtract = randomFieldAttributes(1, 4, false);
-        Set<Attribute> docValuesAttributes = new HashSet<>(randomFieldAttributes(1, 4, false));
+        Set<Attribute> docValuesAttributes = Set.of(); // These are never serialized
         return new FieldExtractExec(source, child, attributesToExtract, docValuesAttributes);
     }
 
@@ -33,14 +33,11 @@ public class FieldExtractExecSerializationTests extends AbstractPhysicalPlanSeri
     protected FieldExtractExec mutateInstance(FieldExtractExec instance) throws IOException {
         PhysicalPlan child = instance.child();
         List<Attribute> attributesToExtract = instance.attributesToExtract();
-        Set<Attribute> docValuesAttributes = instance.docValuesAttributes();
-        switch (between(0, 2)) {
-            case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
-            case 1 -> attributesToExtract = randomValueOtherThan(attributesToExtract, () -> randomFieldAttributes(1, 4, false));
-            case 2 -> docValuesAttributes = randomValueOtherThan(
-                docValuesAttributes,
-                () -> new HashSet<>(randomFieldAttributes(1, 4, false))
-            );
+        Set<Attribute> docValuesAttributes = Set.of(); // These are never serialized
+        if (randomBoolean()) {
+            child = randomValueOtherThan(child, () -> randomChild(0));
+        } else {
+            attributesToExtract = randomValueOtherThan(attributesToExtract, () -> randomFieldAttributes(1, 4, false));
         }
         return new FieldExtractExec(instance.source(), child, attributesToExtract, docValuesAttributes);
     }

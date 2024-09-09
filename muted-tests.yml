@@ -201,6 +201,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {meta.CountFunctions SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/112660
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {meta.CountFunctions ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/112661
 
 # Examples:
 #

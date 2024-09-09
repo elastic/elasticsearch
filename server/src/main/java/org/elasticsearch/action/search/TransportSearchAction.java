@@ -519,7 +519,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         closePIT(client, original.source().pointInTimeBuilder(), () -> listener.onFailure(e));
                     }
                 };
-                executeRequest(task, original, pitListener, searchPhaseProvider);
+                try {
+                    executeRequest(task, original, pitListener, searchPhaseProvider);
+                }catch (Exception ex) {
+                    // if something fails during query rewrite phase, ensure that the PIT will close
+                    pitListener.onFailure(ex);
+                }
             }));
         } else {
             Rewriteable.rewriteAndFetch(

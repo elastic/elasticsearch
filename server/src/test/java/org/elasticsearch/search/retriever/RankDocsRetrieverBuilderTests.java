@@ -61,6 +61,7 @@ public class RankDocsRetrieverBuilderTests extends ESTestCase {
                 if (randomBoolean()) {
                     standardRetrieverBuilder.preFilterQueryBuilders = preFilters();
                 }
+                standardRetrieverBuilder.rankDocs = rankDocsSupplier().get();
                 retrievers.add(standardRetrieverBuilder);
             } else {
                 KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(

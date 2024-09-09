@@ -24,12 +24,18 @@ public interface ServiceSettings extends ToXContentObject, VersionedNamedWriteab
         return null;
     }
 
+    default void setSimilarity(SimilarityMeasure similarity) {}
+
     /**
      * Number of dimensions the service works with. Will be null if not applicable.
      *
      * @return number of dimensions
      */
     default Integer dimensions() {
+        return null;
+    }
+
+    default Boolean dimensionsSetByUser() {
         return null;
     }
 

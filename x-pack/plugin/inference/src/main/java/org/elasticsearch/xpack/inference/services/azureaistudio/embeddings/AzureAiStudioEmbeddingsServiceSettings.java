@@ -139,14 +139,20 @@ public class AzureAiStudioEmbeddingsServiceSettings extends AzureAiStudioService
     private final Integer dimensions;
     private final Boolean dimensionsSetByUser;
     private final Integer maxInputTokens;
-    private final SimilarityMeasure similarity;
+    private SimilarityMeasure similarity;
 
     @Override
     public SimilarityMeasure similarity() {
         return similarity;
     }
 
-    public boolean dimensionsSetByUser() {
+    @Override
+    public void setSimilarity(SimilarityMeasure similarity) {
+        this.similarity = similarity;
+    }
+
+    @Override
+    public Boolean dimensionsSetByUser() {
         return this.dimensionsSetByUser;
     }
 

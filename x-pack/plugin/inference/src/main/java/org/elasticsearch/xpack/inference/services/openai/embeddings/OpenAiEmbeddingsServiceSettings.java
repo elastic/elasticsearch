@@ -133,7 +133,7 @@ public class OpenAiEmbeddingsServiceSettings extends FilteredXContentObject impl
     private final String modelId;
     private final URI uri;
     private final String organizationId;
-    private final SimilarityMeasure similarity;
+    private SimilarityMeasure similarity;
     private final Integer dimensions;
     private final Integer maxInputTokens;
     private final Boolean dimensionsSetByUser;
@@ -243,10 +243,16 @@ public class OpenAiEmbeddingsServiceSettings extends FilteredXContentObject impl
     }
 
     @Override
+    public void setSimilarity(SimilarityMeasure similarity) {
+        this.similarity = similarity;
+    }
+
+    @Override
     public Integer dimensions() {
         return dimensions;
     }
 
+    @Override
     public Boolean dimensionsSetByUser() {
         return dimensionsSetByUser;
     }

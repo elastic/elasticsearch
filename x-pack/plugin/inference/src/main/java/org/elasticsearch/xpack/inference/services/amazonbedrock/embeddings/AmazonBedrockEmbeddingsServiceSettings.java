@@ -39,7 +39,7 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
     private final Integer dimensions;
     private final Boolean dimensionsSetByUser;
     private final Integer maxInputTokens;
-    private final SimilarityMeasure similarity;
+    private SimilarityMeasure similarity;
 
     public static AmazonBedrockEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
@@ -179,11 +179,17 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
     }
 
     @Override
+    public void setSimilarity(SimilarityMeasure similarity) {
+        this.similarity = similarity;
+    }
+
+    @Override
     public Integer dimensions() {
         return dimensions;
     }
 
-    public boolean dimensionsSetByUser() {
+    @Override
+    public Boolean dimensionsSetByUser() {
         return this.dimensionsSetByUser;
     }
 

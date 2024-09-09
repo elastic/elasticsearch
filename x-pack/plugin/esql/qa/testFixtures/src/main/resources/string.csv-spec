@@ -1595,4 +1595,100 @@ emp_no:integer | languages:integer | first_name:keyword
 10004 | 5 | ChirstianChirstianChirstianChirstianChirstian
 ;
 
+space
+required_capability: space
+// tag::space[]
+ROW message = CONCAT("Hello", SPACE(1), "World!");
+// end::space[]
 
+// tag::space-result[]
+message:keyword
+Hello World!
+// end::space-result[]
+;
+
+spaceLength
+required_capability: space
+ROW len = LENGTH(SPACE(12));
+
+len:integer
+12
+;
+
+spaceCalculated
+required_capability: space
+ROW inner_width = 20, title = "Title"
+| EVAL lspace = SPACE((inner_width-LENGTH(title))/2),
+       rspace = SPACE(inner_width-LENGTH(lspace)-LENGTH(title)),
+       centered_title = CONCAT("<",lspace,title,rspace,">")
+| KEEP inner_width, centered_title;
+
+inner_width:integer | centered_title:keyword
+20 | <       Title        >
+;
+
+spaceNumberFromIndex
+required_capability: space
+FROM employees
+| EVAL s = CONCAT("<",SPACE(languages),">")
+| WHERE emp_no < 10005
+| SORT emp_no
+| KEEP emp_no, languages, s;
+
+emp_no:integer | languages:integer | s:keyword
+10001 | 2 | <  >
+10002 | 5 | <     >
+10003 | 4 | <    >
+10004 | 5 | <     >
+;
+
+spaceZero
+required_capability: space
+ROW s = SPACE(0);
+
+s:keyword
+""
+;
+
+spaceNull
+required_capability: space
+ROW s = SPACE(null);
+
+s:keyword
+null
+;
+
+spaceNegative
+required_capability: space
+FROM employees | SORT emp_no | LIMIT 1 | EVAL s = SPACE(-LENGTH(first_name)) | KEEP s;
+
+warning:Line 1:51: evaluation of [SPACE(-LENGTH(first_name))] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:51: java.lang.IllegalArgumentException: Number parameter cannot be negative, found [-6]
+
+s:keyword
+null
+;
+
+spaceComplex
+required_capability: space
+ROW x = 1+2+3, y = null | EVAL z = x + 5 | LIMIT 1
+| EVAL xs = SPACE(x), xsc = CONCAT("<",xs,">"),
+       xn = SPACE(null),
+       xz = SPACE(z), xzc = CONCAT("<",xz,">"),
+       lxz = LENGTH(xz), lxs = LENGTH(xs), ltr = LENGTH(TRIM(xz))
+| DROP xs, xz;
+
+x:integer | y:null | z:integer | xsc:keyword | xn:keyword | xzc:keyword | lxz:integer | lxs:integer | ltr:integer
+6 | null |  11 | <      > | null | <           > | 11 | 6 | 0
+;
+
+spaceMV
+required_capability: space
+ROW mv = [1,2,3] | EVAL x = space(mv) | KEEP x;
+
+warning:Line 1:29: evaluation of [space(mv)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:29: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+x:keyword
+null
+;

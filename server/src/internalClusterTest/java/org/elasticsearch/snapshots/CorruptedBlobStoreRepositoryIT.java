@@ -15,8 +15,10 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRe
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -34,6 +36,7 @@ import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xcontent.XContentFactory;
 
@@ -51,6 +54,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -750,6 +754,13 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
             .setWaitForCompletion(true)
             .setIndices("test-idx-*")
             .get();
+        final boolean repairWithDelete = randomBoolean();
+        if (repairWithDelete || randomBoolean()) {
+            clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "snap-for-deletion")
+                .setWaitForCompletion(true)
+                .setIndices("test-idx-*")
+                .get();
+        }
 
         logger.info("--> deleting shard level index file");
         final Path indicesPath = repo.resolve("indices");
@@ -798,16 +809,47 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
                     "read shard snapshots [*] due to missing shard generation [*] in [test-repo][*]"
                 )
             );
-            CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(
-                TEST_REQUEST_TIMEOUT,
-                "test-repo",
-                "test-snap-2"
-            ).setWaitForCompletion(true).setIndices("test-idx-1").get();
-            assertEquals(
-                createSnapshotResponse.getSnapshotInfo().totalShards(),
-                createSnapshotResponse.getSnapshotInfo().successfulShards()
-            );
+            if (repairWithDelete) {
+                clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "snap-for-deletion").get();
+            } else if (randomBoolean()) {
+                CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(
+                    TEST_REQUEST_TIMEOUT,
+                    "test-repo",
+                    "test-snap-2"
+                ).setWaitForCompletion(true).setIndices("test-idx-1").get();
+                assertEquals(
+                    createSnapshotResponse.getSnapshotInfo().totalShards(),
+                    createSnapshotResponse.getSnapshotInfo().successfulShards()
+                );
+            } else {
+                clusterAdmin().prepareCloneSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snap-1", "test-snap-2")
+                    .setIndices("test-idx-1")
+                    .get();
+                safeAwait(
+                    ClusterServiceUtils.addTemporaryStateListener(
+                        internalCluster().getInstance(ClusterService.class),
+                        cs -> SnapshotsInProgress.get(cs).isEmpty()
+                    )
+                );
+                assertThat(
+                    clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, "test-repo")
+                        .setSnapshots("test-snap-2")
+                        .get()
+                        .getSnapshots()
+                        .get(0)
+                        .shardFailures(),
+                    empty()
+                );
+            }
             mockLog.assertAllExpectationsMatched();
+
+            try (
+                Stream<Path> shardFiles = Files.list(
+                    indicesPath.resolve(getRepositoryData("test-repo").resolveIndexId("test-idx-1").getId()).resolve("0")
+                )
+            ) {
+                assertTrue(shardFiles.anyMatch(file -> file.getFileName().toString().startsWith(BlobStoreRepository.INDEX_FILE_PREFIX)));
+            }
         }
 
         if (randomBoolean()) {
@@ -815,7 +857,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
             RestoreSnapshotResponse restoreSnapshotResponse2 = clusterAdmin().prepareRestoreSnapshot(
                 TEST_REQUEST_TIMEOUT,
                 "test-repo",
-                randomFrom("test-snap-1", "test-snap-2")
+                repairWithDelete ? "test-snap-1" : randomFrom("test-snap-1", "test-snap-2")
             ).setIndices("test-idx-1").setWaitForCompletion(true).get();
             assertEquals(0, restoreSnapshotResponse2.getRestoreInfo().failedShards());
             ensureGreen("test-idx-1", "test-idx-2");
@@ -833,7 +875,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         RestoreSnapshotResponse restoreSnapshotResponse3 = clusterAdmin().prepareRestoreSnapshot(
             TEST_REQUEST_TIMEOUT,
             "test-repo",
-            randomFrom("test-snap-1", "test-snap-2", "test-snap-3")
+            repairWithDelete ? randomFrom("test-snap-1", "test-snap-3") : randomFrom("test-snap-1", "test-snap-2", "test-snap-3")
         ).setIndices("test-idx-1").setWaitForCompletion(true).get();
         assertEquals(0, restoreSnapshotResponse3.getRestoreInfo().failedShards());
         ensureGreen("test-idx-1", "test-idx-2");

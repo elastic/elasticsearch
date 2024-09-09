@@ -20,6 +20,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Generic resource watcher service
@@ -113,9 +114,9 @@ public class ResourceWatcherService implements Closeable {
     @Override
     public void close() {
         if (enabled) {
-            lowFuture.cancel();
-            mediumFuture.cancel();
-            highFuture.cancel();
+            lowMonitor.close();
+            mediumMonitor.close();
+            highMonitor.close();
             executor.shutdown();
         }
     }
@@ -148,10 +149,11 @@ public class ResourceWatcherService implements Closeable {
         }
     }
 
-    static class ResourceMonitor implements Runnable {
+    static class ResourceMonitor implements Runnable, Closeable {
 
         final TimeValue interval;
         final Frequency frequency;
+        final AtomicBoolean closed = new AtomicBoolean(false);
 
         final Set<ResourceWatcher> watchers = new CopyOnWriteArraySet<>();
 
@@ -161,6 +163,9 @@ public class ResourceWatcherService implements Closeable {
         }
 
         private <W extends ResourceWatcher> WatcherHandle<W> add(W watcher) {
+            if (closed.get()) {
+                logger.warn("cannot add resource watcher, resource watcher service is closed");
+            }
             watchers.add(watcher);
             return new WatcherHandle<>(this, watcher);
         }
@@ -169,11 +174,18 @@ public class ResourceWatcherService implements Closeable {
         public synchronized void run() {
             for (ResourceWatcher watcher : watchers) {
                 try {
-                    watcher.checkAndNotify();
+                    if (closed.get() == false) {
+                        watcher.checkAndNotify();
+                    }
                 } catch (IOException e) {
                     logger.trace("failed to check resource watcher", e);
                 }
             }
+        }
+
+        @Override
+        public void close() {
+            closed.set(true);
         }
     }
 }

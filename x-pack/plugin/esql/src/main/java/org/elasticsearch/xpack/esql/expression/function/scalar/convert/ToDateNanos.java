@@ -111,7 +111,7 @@ public class ToDateNanos extends AbstractConvertFunction {
     }
 
     @ConvertEvaluator(extraName = "FromDouble", warnExceptions = {IllegalArgumentException.class})
-    static long fromDouble(long in) {
+    static long fromDouble(double in) {
         if (in < 0d) {
             throw new IllegalArgumentException(
                 "Nanosecond dates before 1970-01-01T00:00:00.000Z are not supported."

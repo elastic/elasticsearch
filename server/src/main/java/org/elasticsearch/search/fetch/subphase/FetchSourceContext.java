@@ -34,6 +34,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Context used to fetch the {@code _source}.
@@ -91,11 +92,13 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         final boolean fetchSource = in.readBoolean();
         final String[] includes = in.readStringArray();
         final String[] excludes = in.readStringArray();
+        final Boolean includeVectors;
         if (in.getTransportVersion().onOrAfter(TransportVersions.HIDE_VECTORS_FROM_SOURCE)) {
-            final Boolean includeVectors = in.readOptionalBoolean();
-            return of(fetchSource, includes, excludes, includeVectors);
+            includeVectors = in.readOptionalBoolean();
+        } else {
+            includeVectors = true;
         }
-        return of(fetchSource, includes, excludes);
+        return of(fetchSource, includes, excludes, includeVectors);
     }
 
     private FetchSourceContext(
@@ -145,7 +148,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     }
 
     public SourceFilter filter() {
-        return new SourceFilter(includes, excludes);
+        return filter(null);
     }
 
     public SourceFilter filter(MappingLookup mappingLookup) {
@@ -365,12 +368,9 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
 
     @Override
     public int hashCode() {
-        int result = (fetchSource ? 1 : 0);
+        int result = Objects.hash(fetchSource, includeVectors);
         result = 31 * result + Arrays.hashCode(includes);
         result = 31 * result + Arrays.hashCode(excludes);
-        if (includeVectors != null) {
-            result = 31 * result + (includeVectors ? 1 : 0);
-        }
         return result;
     }
 }

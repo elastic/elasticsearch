@@ -209,6 +209,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     public static final String METADATA_PREFIX = "meta-";
 
+    public static final String METADATA_BLOB_SUFFIX = ".dat";
+
     public static final String METADATA_NAME_FORMAT = METADATA_PREFIX + "%s.dat";
 
     public static final String SNAPSHOT_NAME_FORMAT = SNAPSHOT_PREFIX + "%s.dat";
@@ -3841,21 +3843,19 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     assert BlobStoreIndexShardSnapshots.areIntegrityAssertionsEnabled() == false
                         : new AssertionError(message, noSuchFileException);
 
-                    final var shardSnapshotBlobs = shardContainer.listBlobsByPrefix(
-                        OperationPurpose.SNAPSHOT_METADATA,
-                        BlobStoreRepository.SNAPSHOT_PREFIX
-                    );
+                    final var shardSnapshotBlobs = shardContainer.listBlobsByPrefix(OperationPurpose.SNAPSHOT_METADATA, SNAPSHOT_PREFIX);
                     var blobStoreIndexShardSnapshots = BlobStoreIndexShardSnapshots.EMPTY;
                     final var messageBuilder = new StringBuilder();
+                    final var shardSnapshotBlobNameLengthBeforeExt = SNAPSHOT_PREFIX.length() + UUIDs.RANDOM_BASED_UUID_STRING_LENGTH;
+                    final var shardSnapshotBlobNameLength = shardSnapshotBlobNameLengthBeforeExt + METADATA_BLOB_SUFFIX.length();
                     for (final var shardSnapshotBlobName : shardSnapshotBlobs.keySet()) {
-                        if (shardSnapshotBlobName.startsWith("snap-")
-                            && shardSnapshotBlobName.endsWith(".dat")
-                            && shardSnapshotBlobName.length() == "snap-".length() + UUIDs.RANDOM_BASED_UUID_STRING_LENGTH + ".dat"
-                                .length()) {
+                        if (shardSnapshotBlobName.startsWith(SNAPSHOT_PREFIX)
+                            && shardSnapshotBlobName.endsWith(METADATA_BLOB_SUFFIX)
+                            && shardSnapshotBlobName.length() == shardSnapshotBlobNameLength) {
                             final var shardSnapshot = INDEX_SHARD_SNAPSHOT_FORMAT.read(
                                 metadata.name(),
                                 shardContainer,
-                                shardSnapshotBlobName.substring("snap-".length(), "snap-".length() + UUIDs.RANDOM_BASED_UUID_STRING_LENGTH),
+                                shardSnapshotBlobName.substring(SNAPSHOT_PREFIX.length(), shardSnapshotBlobNameLengthBeforeExt),
                                 namedXContentRegistry
                             );
                             blobStoreIndexShardSnapshots = blobStoreIndexShardSnapshots.withAddedSnapshot(

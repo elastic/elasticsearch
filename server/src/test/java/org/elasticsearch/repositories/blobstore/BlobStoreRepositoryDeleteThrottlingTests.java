@@ -150,7 +150,7 @@ public class BlobStoreRepositoryDeleteThrottlingTests extends ESSingleNodeTestCa
             if (pathParts.size() == 3
                 && pathParts.get(0).equals("indices")
                 && pathParts.get(2).equals("0")
-                && blobName.startsWith(BlobStoreRepository.SNAPSHOT_INDEX_NAME_FORMAT)) {
+                && blobName.startsWith(BlobStoreRepository.SNAPSHOT_INDEX_PREFIX)) {
                 // writing shard-level BlobStoreIndexShardSnapshots, mark index as inactive again
                 assertTrue(activeIndices.remove(pathParts.get(1)));
             }

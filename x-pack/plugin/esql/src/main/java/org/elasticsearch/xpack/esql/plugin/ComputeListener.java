@@ -19,7 +19,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -145,9 +144,10 @@ final class ComputeListener implements Releasable {
      * Acts like {@code acquireCompute} handling the response(s) from the runComputeOnDataNodes
      * phase. Per-cluster took time is recorded in the {@link EsqlExecutionInfo}.
      * @param clusterAlias remote cluster alias the data node compute is running on
-     * @param configuration holds the getQueryStartTimeMillis for computing took time (per cluster)
+     * @param queryStartTimeMillis start time (on coordinating cluster) for computing took time (per cluster)
      */
-    ActionListener<ComputeResponse> acquireComputeForDataNodes(String clusterAlias, Configuration configuration) {
+    ActionListener<ComputeResponse> acquireComputeForDataNodes(String clusterAlias, long queryStartTimeMillis) {
+        // MP TODO: does this run only on remote clusters?
         assert clusterAlias != null : "Must provide non-null cluster alias to acquireCompute";
         return acquireAvoid().map(resp -> {
             responseHeaders.collect();
@@ -155,7 +155,7 @@ final class ComputeListener implements Releasable {
             if (profiles != null && profiles.isEmpty() == false) {
                 collectedProfiles.addAll(profiles);
             }
-            long tookTimeMillis = System.currentTimeMillis() - configuration.getQueryStartTimeMillis();
+            long tookTimeMillis = System.currentTimeMillis() - queryStartTimeMillis;
             TimeValue tookOnDataNode = new TimeValue(tookTimeMillis);
             esqlExecutionInfo.swapCluster(clusterAlias, (k, v) -> {
                 if (v.getTook() == null || v.getTook().millis() < tookOnDataNode.millis()) {

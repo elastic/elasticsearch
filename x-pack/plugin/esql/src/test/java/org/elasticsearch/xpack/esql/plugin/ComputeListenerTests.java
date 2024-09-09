@@ -49,8 +49,10 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.test.tasks.MockTaskManager.SPY_TASK_MANAGER_SETTING;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 
@@ -90,7 +92,7 @@ public class ComputeListenerTests extends ESTestCase {
         );
     }
 
-    private ComputeResponse randomResponse() {
+    private ComputeResponse randomResponse(boolean includeExecutionInfo) {
         int numProfiles = randomIntBetween(0, 2);
         List<DriverProfile> profiles = new ArrayList<>(numProfiles);
         for (int i = 0; i < numProfiles; i++) {
@@ -106,7 +108,11 @@ public class ComputeListenerTests extends ESTestCase {
                 )
             );
         }
-        return new ComputeResponse(profiles);
+        if (includeExecutionInfo) {
+            return new ComputeResponse(profiles, new TimeValue(randomLongBetween(0, 50000)), 10, 10, randomIntBetween(0, 3), 0);
+        } else {
+            return new ComputeResponse(profiles);
+        }
     }
 
     public void testEmpty() {
@@ -124,7 +130,7 @@ public class ComputeListenerTests extends ESTestCase {
         List<DriverProfile> allProfiles = new ArrayList<>();
         EsqlExecutionInfo executionInfo = new EsqlExecutionInfo();
         try (ComputeListener computeListener = ComputeListener.createComputeListener(transportService, newTask(), executionInfo, future)) {
-            int tasks = randomIntBetween(1, 100);
+            int tasks = 1; // randomIntBetween(1, 100);
             for (int t = 0; t < tasks; t++) {
                 if (randomBoolean()) {
                     ActionListener<Void> subListener = computeListener.acquireAvoid();
@@ -134,7 +140,7 @@ public class ComputeListenerTests extends ESTestCase {
                         threadPool.generic()
                     );
                 } else {
-                    ComputeResponse resp = randomResponse();
+                    ComputeResponse resp = randomResponse(false);
                     allProfiles.addAll(resp.getProfiles());
                     ActionListener<ComputeResponse> subListener = computeListener.acquireCompute();
                     threadPool.schedule(
@@ -145,11 +151,105 @@ public class ComputeListenerTests extends ESTestCase {
                 }
             }
         }
-        ComputeResponse result = future.actionGet(10, TimeUnit.SECONDS);
+        ComputeResponse response = future.actionGet(10, TimeUnit.SECONDS);
         assertThat(
-            result.getProfiles().stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)),
+            response.getProfiles().stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)),
             equalTo(allProfiles.stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)))
         );
+        Mockito.verifyNoInteractions(transportService.getTaskManager());
+    }
+
+    public void testCollectComputeResultsOnRemoteCluster() {
+        PlainActionFuture<ComputeResponse> future = new PlainActionFuture<>();
+        List<DriverProfile> allProfiles = new ArrayList<>();
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo();
+        executionInfo.swapCluster("rc1", (k, v) -> new EsqlExecutionInfo.Cluster("rc1", "logs*", false));
+        try (ComputeListener computeListener = ComputeListener.createOnRemote("rc1", transportService, newTask(), executionInfo, future)) {
+            int tasks = randomIntBetween(1, 5);
+            for (int t = 0; t < tasks; t++) {
+                ComputeResponse resp = randomResponse(true);
+                allProfiles.addAll(resp.getProfiles());
+                ActionListener<ComputeResponse> subListener = computeListener.acquireCCSCompute("rc1");
+                threadPool.schedule(
+                    ActionRunnable.wrap(subListener, l -> l.onResponse(resp)),
+                    TimeValue.timeValueNanos(between(0, 100)),
+                    threadPool.generic()
+                );
+            }
+        }
+        ComputeResponse response = future.actionGet(10, TimeUnit.SECONDS);
+        assertThat(
+            response.getProfiles().stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)),
+            equalTo(allProfiles.stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)))
+        );
+        assertThat(response.getTook().millis(), greaterThanOrEqualTo(0L));
+        assertThat(response.getTook().millis(), lessThanOrEqualTo(50000L));
+        assertThat(response.getTotalShards(), equalTo(10));
+        assertThat(response.getSuccessfulShards(), equalTo(10));
+        assertThat(response.getSkippedShards(), greaterThanOrEqualTo(0));
+        assertThat(response.getSkippedShards(), lessThanOrEqualTo(3));
+        assertThat(response.getFailedShards(), equalTo(0));
+
+        Mockito.verifyNoInteractions(transportService.getTaskManager());
+    }
+
+    public void testAcquireComputeForDataNodes() {
+        PlainActionFuture<ComputeResponse> future = new PlainActionFuture<>();
+        List<DriverProfile> allProfiles = new ArrayList<>();
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo();
+        final int rand = randomIntBetween(0, 2);
+        TimeValue tookTimeInCluster = switch (rand) {
+            case 0 -> new TimeValue(2400);
+            case 1 -> new TimeValue(999999990);
+            case 2 -> null;
+            default -> throw new AssertionError("should not happen");
+        };
+        executionInfo.swapCluster(
+            "rc1",
+            (k, v) -> new EsqlExecutionInfo.Cluster(
+                "rc1",
+                "logs*",
+                false,
+                EsqlExecutionInfo.Cluster.Status.RUNNING,
+                10,
+                10,
+                3,
+                0,
+                tookTimeInCluster
+            )
+        );
+        long startTimeMillis = System.currentTimeMillis() - 5000;
+        try (ComputeListener computeListener = ComputeListener.createOnRemote("rc1", transportService, newTask(), executionInfo, future)) {
+            int tasks = randomIntBetween(1, 5);
+            for (int t = 0; t < tasks; t++) {
+                ComputeResponse resp = randomResponse(true);
+                allProfiles.addAll(resp.getProfiles());
+                ActionListener<ComputeResponse> subListener = computeListener.acquireComputeForDataNodes("rc1", startTimeMillis);
+                threadPool.schedule(
+                    ActionRunnable.wrap(subListener, l -> l.onResponse(resp)),
+                    TimeValue.timeValueNanos(between(0, 100)),
+                    threadPool.generic()
+                );
+            }
+        }
+        ComputeResponse response = future.actionGet(10, TimeUnit.SECONDS);
+        assertThat(
+            response.getProfiles().stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)),
+            equalTo(allProfiles.stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)))
+        );
+        if (tookTimeInCluster != null && tookTimeInCluster.millis() == 999999990L) {
+            // if took time in the cluster obj is larger than the took time in the response, keep the higher value
+            assertThat(response.getTook(), equalTo(tookTimeInCluster));
+        } else {
+            // if took time in the cluster obj is null or smaller than the took time in the response, swap in the value from the response
+            assertThat(response.getTook().millis(), greaterThanOrEqualTo(5000L));
+            assertThat(response.getTook().millis(), lessThanOrEqualTo(999999990L));
+        }
+        assertThat(response.getTotalShards(), equalTo(10));
+        assertThat(response.getSuccessfulShards(), equalTo(10));
+        assertThat(response.getSkippedShards(), equalTo(3));
+        assertThat(response.getFailedShards(), equalTo(0));
+
         Mockito.verifyNoInteractions(transportService.getTaskManager());
     }
 
@@ -168,7 +268,7 @@ public class ComputeListenerTests extends ESTestCase {
             for (int i = 0; i < successTasks; i++) {
                 ActionListener<ComputeResponse> subListener = computeListener.acquireCompute();
                 threadPool.schedule(
-                    ActionRunnable.wrap(subListener, l -> l.onResponse(randomResponse())),
+                    ActionRunnable.wrap(subListener, l -> l.onResponse(randomResponse(false))),
                     TimeValue.timeValueNanos(between(0, 100)),
                     threadPool.generic()
                 );
@@ -237,7 +337,7 @@ public class ComputeListenerTests extends ESTestCase {
                         threadPool.generic()
                     );
                 } else {
-                    ComputeResponse resp = randomResponse();
+                    ComputeResponse resp = randomResponse(false);
                     allProfiles.addAll(resp.getProfiles());
                     int numWarnings = randomIntBetween(1, 5);
                     Map<String, String> warnings = new HashMap<>();

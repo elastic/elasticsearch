@@ -100,7 +100,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     protected NodeInfo<FieldExtractExec> info() {
-        return NodeInfo.create(this, FieldExtractExec::new, child(), attributesToExtract, docValuesAttributes);
+        return NodeInfo.create(this, FieldExtractExec::new, child(), attributesToExtract);
     }
 
     @Override

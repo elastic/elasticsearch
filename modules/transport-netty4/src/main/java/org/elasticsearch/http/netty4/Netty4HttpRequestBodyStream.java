@@ -12,6 +12,7 @@ package org.elasticsearch.http.netty4;
 import io.netty.channel.Channel;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.LastHttpContent;
+import io.netty.util.concurrent.FutureListener;
 
 import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.transport.netty4.Netty4Utils;
@@ -34,9 +35,11 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
     private boolean closing = false;
     private HttpBody.ChunkHandler handler;
 
+    private final FutureListener<Void> closeListener = future -> doClose();
+
     public Netty4HttpRequestBodyStream(Channel channel) {
         this.channel = channel;
-        channel.closeFuture().addListener((f) -> doClose());
+        channel.closeFuture().addListener(closeListener);
         channel.config().setAutoRead(false);
     }
 
@@ -72,6 +75,7 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
     }
 
     public void handleNettyContent(HttpContent httpContent) {
+        hasLast = httpContent instanceof LastHttpContent;
         if (closing) {
             httpContent.release();
             return;
@@ -81,10 +85,6 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
             sendChunk(httpContent);
         } else {
             chunkQueue.add(httpContent);
-        }
-        if (httpContent instanceof LastHttpContent) {
-            hasLast = true;
-            channel.config().setAutoRead(true);
         }
     }
 
@@ -109,6 +109,10 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
         var bytesRef = Netty4Utils.toReleasableBytesReference(httpContent.content());
         var isLast = httpContent instanceof LastHttpContent;
         handler.onNext(bytesRef, isLast);
+        if (isLast) {
+            channel.config().setAutoRead(true);
+            channel.closeFuture().removeListener(closeListener);
+        }
     }
 
     private void releaseQueuedChunks() {

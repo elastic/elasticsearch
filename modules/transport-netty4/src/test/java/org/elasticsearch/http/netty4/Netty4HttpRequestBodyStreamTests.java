@@ -53,33 +53,31 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
         for (int i = 0; i < totalChunks; i++) {
             channel.writeInbound(randomContent(1024));
         }
-        assertEquals(totalChunks, stream.chunkQueue().size());
+        assertEquals(totalChunks * 1024, stream.buf().readableBytes());
     }
 
-    // ensures all queued chunks can be flushed downstream
-    public void testFlushQueued() {
+    // ensures all received chunks can be flushed downstream
+    public void testFlushAllReceivedChunks() {
         var chunks = new ArrayList<ReleasableBytesReference>();
         var totalBytes = new AtomicInteger();
         stream.setHandler((chunk, isLast) -> {
             chunks.add(chunk);
             totalBytes.addAndGet(chunk.length());
         });
-        // enqueue chunks
+
         var chunkSize = 1024;
         var totalChunks = randomIntBetween(1, 100);
         for (int i = 0; i < totalChunks; i++) {
             channel.writeInbound(randomContent(chunkSize));
         }
-        // consume all chunks
-        for (var i = 0; i < totalChunks; i++) {
-            stream.next();
-        }
-        assertEquals(totalChunks, chunks.size());
+        stream.next();
+        channel.runPendingTasks();
+        assertEquals("should receive all chunks as single composite", 1, chunks.size());
         assertEquals(chunkSize * totalChunks, totalBytes.get());
     }
 
-    // ensures that we read from channel when chunks queue is empty
-    // and pass next chunk downstream without queuing
+    // ensures that we read from channel when no current chunks available
+    // and pass next chunk downstream without holding
     public void testReadFromChannel() {
         var gotChunks = new ArrayList<ReleasableBytesReference>();
         var gotLast = new AtomicBoolean(false);
@@ -96,8 +94,9 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
         channel.writeInbound(randomLastContent(chunkSize));
 
         for (int i = 0; i < totalChunks; i++) {
-            assertEquals("should not enqueue chunks", 0, stream.chunkQueue().size());
+            assertNull("should not enqueue chunks", stream.buf());
             stream.next();
+            channel.runPendingTasks();
             assertEquals("each next() should produce single chunk", i + 1, gotChunks.size());
         }
         assertTrue("should receive last content", gotLast.get());

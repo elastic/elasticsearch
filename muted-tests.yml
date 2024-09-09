@@ -204,6 +204,9 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.kerberos.KerberosTicketValidatorTests
   method: testKerbTicketGeneratedForDifferentServerFailsValidation
   issue: https://github.com/elastic/elasticsearch/issues/112639
+- class: org.elasticsearch.packaging.test.PackagesSecurityAutoConfigurationTests
+  method: test20SecurityNotAutoConfiguredOnReInstallation
+  issue: https://github.com/elastic/elasticsearch/issues/112635
 
 # Examples:
 #

@@ -13,7 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.tdigest.TDigest;
 import org.elasticsearch.tdigest.arrays.MockTDigestArrays;
-import org.elasticsearch.tdigest.arrays.TDigestArraysFactory;
+import org.elasticsearch.tdigest.arrays.TDigestArrays;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -92,7 +92,7 @@ public class TDigestState {
         return new TDigestState(state.type, MockTDigestArrays.INSTANCE, state.compression);
     }
 
-    protected TDigestState(Type type, TDigestArraysFactory bigArrays, double compression) {
+    protected TDigestState(Type type, TDigestArrays bigArrays, double compression) {
         tdigest = switch (type) {
             case HYBRID -> TDigest.createHybridDigest(bigArrays, compression);
             case AVL_TREE -> TDigest.createAvlTreeDigest(compression);

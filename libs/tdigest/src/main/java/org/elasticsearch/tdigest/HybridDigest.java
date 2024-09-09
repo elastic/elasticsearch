@@ -19,7 +19,7 @@
 
 package org.elasticsearch.tdigest;
 
-import org.elasticsearch.tdigest.arrays.TDigestArraysFactory;
+import org.elasticsearch.tdigest.arrays.TDigestArrays;
 
 import java.util.Collection;
 
@@ -34,7 +34,7 @@ import java.util.Collection;
  */
 public class HybridDigest extends AbstractTDigest {
 
-    private final TDigestArraysFactory arrays;
+    private final TDigestArrays arrays;
 
     // See MergingDigest's compression param.
     private final double compression;
@@ -55,7 +55,7 @@ public class HybridDigest extends AbstractTDigest {
      * @param compression The compression factor for the MergingDigest
      * @param maxSortingSize The sample size limit for switching from a {@link SortingDigest} to a {@link MergingDigest} implementation
      */
-    HybridDigest(TDigestArraysFactory arrays, double compression, long maxSortingSize) {
+    HybridDigest(TDigestArrays arrays, double compression, long maxSortingSize) {
         this.arrays = arrays;
         this.compression = compression;
         this.maxSortingSize = maxSortingSize;
@@ -68,7 +68,7 @@ public class HybridDigest extends AbstractTDigest {
      *
      * @param compression The compression factor for the MergingDigest
      */
-    HybridDigest(TDigestArraysFactory arrays, double compression) {
+    HybridDigest(TDigestArrays arrays, double compression) {
         // The default maxSortingSize is calculated so that the SortingDigest will have comparable size with the MergingDigest
         // at the point where implementations switch, e.g. for default compression 100 SortingDigest allocates ~16kB and MergingDigest
         // allocates ~15kB.

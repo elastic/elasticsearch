@@ -11,12 +11,12 @@ package org.elasticsearch.tdigest.arrays;
 import java.util.Arrays;
 
 /**
- * Temporal TDigestArraysFactory mock with raw arrays.
+ * Temporal TDigestArrays mock with raw arrays.
  * <p>
  *     For testing only, delete after the right implementation for BigArrays is made.
  * </p>
  */
-public class MockTDigestArrays implements TDigestArraysFactory {
+public class MockTDigestArrays implements TDigestArrays {
 
     public static final MockTDigestArrays INSTANCE = new MockTDigestArrays();
 

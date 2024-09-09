@@ -21,7 +21,7 @@
 
 package org.elasticsearch.tdigest;
 
-import org.elasticsearch.tdigest.arrays.TDigestArraysFactory;
+import org.elasticsearch.tdigest.arrays.TDigestArrays;
 
 import java.util.Collection;
 import java.util.Locale;
@@ -73,7 +73,7 @@ public abstract class TDigest {
      *
      * @return the SortingDigest
      */
-    public static TDigest createSortingDigest(TDigestArraysFactory arrays) {
+    public static TDigest createSortingDigest(TDigestArrays arrays) {
         return new SortingDigest(arrays);
     }
 
@@ -86,7 +86,7 @@ public abstract class TDigest {
      *                    The number of centroids retained will be a smallish (usually less than 10) multiple of this number.
      * @return the HybridDigest
      */
-    public static TDigest createHybridDigest(TDigestArraysFactory arrays, double compression) {
+    public static TDigest createHybridDigest(TDigestArrays arrays, double compression) {
         return new HybridDigest(arrays, compression);
     }
 

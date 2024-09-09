@@ -19,7 +19,7 @@
 
 package org.elasticsearch.tdigest;
 
-import org.elasticsearch.tdigest.arrays.TDigestArraysFactory;
+import org.elasticsearch.tdigest.arrays.TDigestArrays;
 import org.elasticsearch.tdigest.arrays.TDigestDoubleArray;
 
 import java.util.AbstractCollection;
@@ -38,7 +38,7 @@ public class SortingDigest extends AbstractTDigest {
     // Indicates if all values have been sorted.
     private boolean isSorted = true;
 
-    public SortingDigest(TDigestArraysFactory arrays) {
+    public SortingDigest(TDigestArrays arrays) {
         values = arrays.newDoubleArray(0);
     }
 

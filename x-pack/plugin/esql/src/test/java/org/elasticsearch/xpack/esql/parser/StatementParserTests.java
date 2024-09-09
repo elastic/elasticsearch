@@ -435,6 +435,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
             expectError(command, " cluster:--indexpattern", "Invalid index name [-indexpattern]");
             expectError(command, " cluster:\"<--logstash-{now/M{yyyy.MM}}>\"", "Invalid index name [-logstash-");
             expectError(command, "  --<logstash-{now/M{yyyy.MM}}>", "Invalid index name [-<logstash-{now/M{yyyy.MM}}>]");
+            expectError(command, "  <logstash#{now/d}>", "Invalid index name [logstash#");
+            expectError(command, "  \"-<logstash- {now/d{yyyy.MM.dd|+12:00}}>\"", "Invalid index name [logstash- ");
+            expectError(command, "  \"+<logstash-{now/d}>\"", "Invalid index name [+<logstash-{now/d}>]");
+            expectError(command, "  \"_<logstash-{now/d}>\"", "Invalid index name [_<logstash-{now/d}>]");
+            expectError(command, "  <<logstash{now/d}>>", "Invalid index name [<logstash");
+            expectError(command, "  <<logstash<{now/d}>>>", "Invalid index name [<logstash<");
         }
     }
 

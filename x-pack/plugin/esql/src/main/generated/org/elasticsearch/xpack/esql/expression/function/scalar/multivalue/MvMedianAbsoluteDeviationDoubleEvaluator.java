@@ -13,18 +13,18 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvMedian}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvMedianAbsoluteDeviation}.
  * This class is generated. Do not edit it.
  */
-public final class MvMedianDoubleEvaluator extends AbstractMultivalueFunction.AbstractEvaluator {
-  public MvMedianDoubleEvaluator(EvalOperator.ExpressionEvaluator field,
+public final class MvMedianAbsoluteDeviationDoubleEvaluator extends AbstractMultivalueFunction.AbstractEvaluator {
+  public MvMedianAbsoluteDeviationDoubleEvaluator(EvalOperator.ExpressionEvaluator field,
       DriverContext driverContext) {
     super(driverContext, field);
   }
 
   @Override
   public String name() {
-    return "MvMedian";
+    return "MvMedianAbsoluteDeviation";
   }
 
   /**
@@ -38,7 +38,7 @@ public final class MvMedianDoubleEvaluator extends AbstractMultivalueFunction.Ab
     DoubleBlock v = (DoubleBlock) fieldVal;
     int positionCount = v.getPositionCount();
     try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
-      MvMedian.Doubles work = new MvMedian.Doubles();
+      MvMedianAbsoluteDeviation.Doubles work = new MvMedianAbsoluteDeviation.Doubles();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = v.getValueCount(p);
         if (valueCount == 0) {
@@ -46,12 +46,18 @@ public final class MvMedianDoubleEvaluator extends AbstractMultivalueFunction.Ab
           continue;
         }
         int first = v.getFirstValueIndex(p);
+        if (valueCount == 1) {
+          double value = v.getDouble(first);
+          double result = MvMedianAbsoluteDeviation.single(value);
+          builder.appendDouble(result);
+          continue;
+        }
         int end = first + valueCount;
         for (int i = first; i < end; i++) {
           double value = v.getDouble(i);
-          MvMedian.process(work, value);
+          MvMedianAbsoluteDeviation.process(work, value);
         }
-        double result = MvMedian.finish(work);
+        double result = MvMedianAbsoluteDeviation.finish(work);
         builder.appendDouble(result);
       }
       return builder.build();
@@ -69,16 +75,68 @@ public final class MvMedianDoubleEvaluator extends AbstractMultivalueFunction.Ab
     DoubleBlock v = (DoubleBlock) fieldVal;
     int positionCount = v.getPositionCount();
     try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
-      MvMedian.Doubles work = new MvMedian.Doubles();
+      MvMedianAbsoluteDeviation.Doubles work = new MvMedianAbsoluteDeviation.Doubles();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);
+        if (valueCount == 1) {
+          double value = v.getDouble(first);
+          double result = MvMedianAbsoluteDeviation.single(value);
+          builder.appendDouble(result);
+          continue;
+        }
         int end = first + valueCount;
         for (int i = first; i < end; i++) {
           double value = v.getDouble(i);
-          MvMedian.process(work, value);
+          MvMedianAbsoluteDeviation.process(work, value);
         }
-        double result = MvMedian.finish(work);
+        double result = MvMedianAbsoluteDeviation.finish(work);
+        builder.appendDouble(result);
+      }
+      return builder.build().asBlock();
+    }
+  }
+
+  /**
+   * Evaluate blocks containing only single valued fields.
+   */
+  @Override
+  public Block evalSingleValuedNullable(Block fieldVal) {
+    DoubleBlock v = (DoubleBlock) fieldVal;
+    int positionCount = v.getPositionCount();
+    try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+      MvMedianAbsoluteDeviation.Doubles work = new MvMedianAbsoluteDeviation.Doubles();
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = v.getValueCount(p);
+        if (valueCount == 0) {
+          builder.appendNull();
+          continue;
+        }
+        assert valueCount == 1;
+        int first = v.getFirstValueIndex(p);
+        double value = v.getDouble(first);
+        double result = MvMedianAbsoluteDeviation.single(value);
+        builder.appendDouble(result);
+      }
+      return builder.build();
+    }
+  }
+
+  /**
+   * Evaluate blocks containing only single valued fields.
+   */
+  @Override
+  public Block evalSingleValuedNotNullable(Block fieldVal) {
+    DoubleBlock v = (DoubleBlock) fieldVal;
+    int positionCount = v.getPositionCount();
+    try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+      MvMedianAbsoluteDeviation.Doubles work = new MvMedianAbsoluteDeviation.Doubles();
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = v.getValueCount(p);
+        assert valueCount == 1;
+        int first = v.getFirstValueIndex(p);
+        double value = v.getDouble(first);
+        double result = MvMedianAbsoluteDeviation.single(value);
         builder.appendDouble(result);
       }
       return builder.build().asBlock();
@@ -92,7 +150,7 @@ public final class MvMedianDoubleEvaluator extends AbstractMultivalueFunction.Ab
     DoubleBlock v = (DoubleBlock) fieldVal;
     int positionCount = v.getPositionCount();
     try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
-      MvMedian.Doubles work = new MvMedian.Doubles();
+      MvMedianAbsoluteDeviation.Doubles work = new MvMedianAbsoluteDeviation.Doubles();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = v.getValueCount(p);
         if (valueCount == 0) {
@@ -100,7 +158,7 @@ public final class MvMedianDoubleEvaluator extends AbstractMultivalueFunction.Ab
           continue;
         }
         int first = v.getFirstValueIndex(p);
-        double result = MvMedian.ascending(v, first, valueCount);
+        double result = MvMedianAbsoluteDeviation.ascending(work, v, first, valueCount);
         builder.appendDouble(result);
       }
       return builder.build();
@@ -114,11 +172,11 @@ public final class MvMedianDoubleEvaluator extends AbstractMultivalueFunction.Ab
     DoubleBlock v = (DoubleBlock) fieldVal;
     int positionCount = v.getPositionCount();
     try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
-      MvMedian.Doubles work = new MvMedian.Doubles();
+      MvMedianAbsoluteDeviation.Doubles work = new MvMedianAbsoluteDeviation.Doubles();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);
-        double result = MvMedian.ascending(v, first, valueCount);
+        double result = MvMedianAbsoluteDeviation.ascending(work, v, first, valueCount);
         builder.appendDouble(result);
       }
       return builder.build().asBlock();
@@ -133,13 +191,13 @@ public final class MvMedianDoubleEvaluator extends AbstractMultivalueFunction.Ab
     }
 
     @Override
-    public MvMedianDoubleEvaluator get(DriverContext context) {
-      return new MvMedianDoubleEvaluator(field.get(context), context);
+    public MvMedianAbsoluteDeviationDoubleEvaluator get(DriverContext context) {
+      return new MvMedianAbsoluteDeviationDoubleEvaluator(field.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "MvMedian[field=" + field + "]";
+      return "MvMedianAbsoluteDeviation[field=" + field + "]";
     }
   }
 }

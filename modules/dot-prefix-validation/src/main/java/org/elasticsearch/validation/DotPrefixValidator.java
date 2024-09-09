@@ -24,6 +24,7 @@ import org.elasticsearch.tasks.Task;
 
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 public abstract class DotPrefixValidator<RequestType> implements MappedActionFilter {
     public static final Setting<Boolean> VALIDATE_DOT_PREFIXES = Setting.boolSetting(
@@ -31,6 +32,19 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
         true,
         Setting.Property.NodeScope
     );
+
+    /**
+     * Names and patterns for indexes where no deprecation should be emitted.
+     * Normally we would want to transition these to either system indices, or
+     * to use an internal origin for the client. These are shorter-term
+     * workarounds until that work can be completed.
+     *
+     * .elastic-connectors-v1 is used by enterprise search
+     * .ml-state-000001 is used by ML
+     */
+    private static Set<String> IGNORED_INDEX_NAMES = Set.of(".elastic-connectors-v1");
+    private static Set<Pattern> IGNORED_INDEX_PATTERNS = Set.of(Pattern.compile("\\.ml-state-\\d+"));
+
     DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DotPrefixValidator.class);
 
     private final ThreadContext threadContext;
@@ -65,6 +79,12 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
                 if (Strings.hasLength(index)) {
                     char c = getFirstChar(index);
                     if (c == '.') {
+                        if (IGNORED_INDEX_NAMES.contains(index)) {
+                            return;
+                        }
+                        if (IGNORED_INDEX_PATTERNS.stream().anyMatch(p -> p.matcher(index).matches())) {
+                            return;
+                        }
                         deprecationLogger.warn(
                             DeprecationCategory.INDICES,
                             "dot-prefix",

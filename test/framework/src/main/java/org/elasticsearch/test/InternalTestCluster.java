@@ -1368,7 +1368,7 @@ public final class InternalTestCluster extends TestCluster {
                             if (engine instanceof InternalEngine) {
                                 assertFalse(
                                     indexShard.routingEntry().toString() + " has unreleased snapshotted index commits",
-                                    EngineTestCase.hasAcquiredIndexCommits(engine)
+                                    EngineTestCase.hasAcquiredIndexCommitsForTesting(engine)
                                 );
                             }
                         } catch (AlreadyClosedException ignored) {

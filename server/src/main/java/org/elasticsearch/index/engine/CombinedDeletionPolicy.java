@@ -13,6 +13,7 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexDeletionPolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.common.lucene.FilterIndexCommit;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
@@ -28,7 +29,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.LongSupplier;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -223,7 +223,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         assert lastCommit != null : "Last commit is not initialized yet";
         final IndexCommit snapshotting = acquiringSafeCommit ? safeCommit : lastCommit;
         acquiredIndexCommits.merge(snapshotting, 1, Integer::sum); // increase refCount
-        if (acquiredInternally) {
+        if (Assertions.ENABLED && acquiredInternally) {
             internallyAcquiredIndexCommits.add(snapshotting);
         }
         return wrapCommit(snapshotting, acquiredInternally);
@@ -259,7 +259,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
             }
             return count - 1;
         });
-        if (snapshotIndexCommit.acquiredInternally) {
+        if (Assertions.ENABLED && snapshotIndexCommit.acquiredInternally) {
             boolean removed = internallyAcquiredIndexCommits.remove(releasingCommit);
             assert removed : "Trying to release a commit [" + releasingCommit + "] that hasn't been previously acquired internally";
         }
@@ -319,9 +319,18 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
     /**
      * Checks whether the deletion policy is holding on to externally acquired index commits
      */
-    synchronized boolean hasExternallyAcquiredIndexCommits() {
-        // We explicitly check only external commits and disregard internal commits acquired by the commits listener
-        return acquiredIndexCommits.keySet().stream().anyMatch(Predicate.not(internallyAcquiredIndexCommits::contains));
+    synchronized boolean hasAcquiredIndexCommits() {
+        if (Assertions.ENABLED) {
+            // We explicitly check only external commits and disregard internal commits acquired by the commits listener
+            for (var e : acquiredIndexCommits.entrySet()) {
+                if (internallyAcquiredIndexCommits.contains(e.getKey()) == false || e.getValue() > 1) {
+                    return true;
+                }
+            }
+            return false;
+        } else {
+            return acquiredIndexCommits.isEmpty() == false;
+        }
     }
 
     /**

@@ -35,7 +35,7 @@ public class ToDateNanosTests extends AbstractScalarFunctionTestCase {
         TestCaseSupplier.forUnaryDateNanos(suppliers, read, DataType.DATE_NANOS, DateUtils::toLong, List.of());
         TestCaseSupplier.forUnaryDatetime(
             suppliers,
-            "ToDateNanosFromDatetime[field=" + read + "]",
+            "ToDateNanosFromDatetimeEvaluator[field=" + read + "]",
             DataType.DATE_NANOS,
             0,
             DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli(),
@@ -44,7 +44,7 @@ public class ToDateNanosTests extends AbstractScalarFunctionTestCase {
         );
         TestCaseSupplier.forUnaryLong(
             suppliers,
-            "ToDateNanosFromLong[field=" + read + "]",
+            "ToDateNanosFromLongEvaluator[field=" + read + "]",
             DataType.DATE_NANOS,
             l -> l,
             0,
@@ -53,7 +53,7 @@ public class ToDateNanosTests extends AbstractScalarFunctionTestCase {
         );
         TestCaseSupplier.forUnaryLong(
             suppliers,
-            "ToDateNanosFromLong[field=" + read + "]",
+            "ToDateNanosFromLongEvaluator[field=" + read + "]",
             DataType.DATE_NANOS,
             l -> l,
             Long.MIN_VALUE,
@@ -87,7 +87,7 @@ public class ToDateNanosTests extends AbstractScalarFunctionTestCase {
         );
         TestCaseSupplier.forUnaryDouble(
             suppliers,
-            "ToLongFromDoubleEvaluator[field=" + read + "]",
+            "ToDateNanosFromDoubleEvaluator[field=" + read + "]",
             DataType.DATE_NANOS,
             d -> null,
             Double.NEGATIVE_INFINITY,
@@ -100,7 +100,7 @@ public class ToDateNanosTests extends AbstractScalarFunctionTestCase {
         );
         TestCaseSupplier.forUnaryDouble(
             suppliers,
-            "ToLongFromDoubleEvaluator[field=" + read + "]",
+            "ToDateNanosFromDoubleEvaluator[field=" + read + "]",
             DataType.DATE_NANOS,
             d -> null,
             9.223372036854777E18, // a "convenient" value larger than `(double) Long.MAX_VALUE` (== ...776E18)

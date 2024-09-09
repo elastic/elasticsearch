@@ -38,6 +38,7 @@ import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
+import co.elastic.elasticsearch.stateless.engine.SearchEngineTestUtils;
 import co.elastic.elasticsearch.stateless.lucene.stats.ShardSize;
 import co.elastic.elasticsearch.stateless.lucene.stats.ShardSizeStatsClient;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
@@ -1278,6 +1279,13 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
 
     private static void assertBusyRefreshedGeneration(SearchEngine searchEngine, Matcher<Long> matcher) throws Exception {
         assertBusy(() -> {
+            // Assert SearchEngine#currentPrimaryTermGeneration first, since it is updated after the SearchEngine's reader has been
+            // refreshed with the latest commit notification. This way we ensure that the following acquireSearcher() won't acquire a
+            // searcher in the middle of the refresh, which would retain files of the previous commit in the SearchDirectory and makes
+            // any future assertDirectoryContents to fail due to retained files from a previous commit.
+            var searchEngineTermAndGen = SearchEngineTestUtils.getCurrentPrimaryTermAndGeneration(searchEngine);
+            assertThat(searchEngineTermAndGen.generation(), matcher);
+
             try (var searcher = searchEngine.acquireSearcher("search_engine_directory_reader_generation")) {
                 assertThat(searcher.getDirectoryReader().getIndexCommit().getGeneration(), matcher);
             }

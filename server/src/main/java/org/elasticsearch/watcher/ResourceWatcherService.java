@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Generic resource watcher service
@@ -97,7 +96,12 @@ public class ResourceWatcherService implements Closeable {
             mediumMonitor = new ResourceMonitor(interval, Frequency.MEDIUM);
             interval = RELOAD_INTERVAL_HIGH.get(settings);
             highMonitor = new ResourceMonitor(interval, Frequency.HIGH);
-            executor = new Scheduler.SafeScheduledThreadPoolExecutor(1);
+            executor = new Scheduler.SafeScheduledThreadPoolExecutor(1, (runnable, exec) -> {
+                if (exec.isShutdown() == false) {
+                    logger.error("failed to schedule monitoring file on executor [{}]", exec.toString());
+                }
+                // otherwise, rejecting is fine
+            });
             lowFuture = threadPool.scheduleWithFixedDelay(lowMonitor, lowMonitor.interval, executor);
             mediumFuture = threadPool.scheduleWithFixedDelay(mediumMonitor, mediumMonitor.interval, executor);
             highFuture = threadPool.scheduleWithFixedDelay(highMonitor, highMonitor.interval, executor);
@@ -118,9 +122,6 @@ public class ResourceWatcherService implements Closeable {
             lowFuture.cancel();
             mediumFuture.cancel();
             highFuture.cancel();
-            lowMonitor.close();
-            mediumMonitor.close();
-            highMonitor.close();
             Scheduler.terminate(executor, 100, TimeUnit.MILLISECONDS);
         }
     }
@@ -153,11 +154,10 @@ public class ResourceWatcherService implements Closeable {
         }
     }
 
-    static class ResourceMonitor implements Runnable, Closeable {
+    static class ResourceMonitor implements Runnable {
 
         final TimeValue interval;
         final Frequency frequency;
-        final AtomicBoolean closed = new AtomicBoolean(false);
 
         final Set<ResourceWatcher> watchers = new CopyOnWriteArraySet<>();
 
@@ -167,9 +167,7 @@ public class ResourceWatcherService implements Closeable {
         }
 
         private <W extends ResourceWatcher> WatcherHandle<W> add(W watcher) {
-            if (closed.get()) {
-                logger.warn("cannot add resource watcher, resource watcher service is closed");
-            }
+            logger.warn("cannot add resource watcher, resource watcher service is closed");
             watchers.add(watcher);
             return new WatcherHandle<>(this, watcher);
         }
@@ -178,18 +176,11 @@ public class ResourceWatcherService implements Closeable {
         public synchronized void run() {
             for (ResourceWatcher watcher : watchers) {
                 try {
-                    if (closed.get() == false) {
-                        watcher.checkAndNotify();
-                    }
+                    watcher.checkAndNotify();
                 } catch (IOException e) {
                     logger.trace("failed to check resource watcher", e);
                 }
             }
-        }
-
-        @Override
-        public void close() {
-            closed.set(true);
         }
     }
 }

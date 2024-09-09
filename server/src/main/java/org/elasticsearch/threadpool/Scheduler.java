@@ -291,6 +291,11 @@ public interface Scheduler {
             super(corePoolSize);
         }
 
+        @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
+        public SafeScheduledThreadPoolExecutor(int corePoolSize, RejectedExecutionHandler handler) {
+            super(corePoolSize, handler);
+        }
+
         @Override
         protected void afterExecute(Runnable r, Throwable t) {
             if (t != null) return;

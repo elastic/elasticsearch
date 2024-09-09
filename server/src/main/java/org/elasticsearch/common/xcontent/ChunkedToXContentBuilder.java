@@ -26,10 +26,6 @@ import java.util.stream.Stream;
  */
 public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
 
-    public static ChunkedToXContentBuilder builder(ToXContent.Params params) {
-        return new ChunkedToXContentBuilder(params);
-    }
-
     private final ToXContent.Params params;
     private final Stream.Builder<ToXContent> builder = Stream.builder();
     private Iterator<ToXContent> iterator;
@@ -38,18 +34,23 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
         this.params = params;
     }
 
+    private void addChunk(ToXContent content) {
+        assert iterator == null : "Builder has been read, cannot add any more chunks";
+        builder.add(content);
+    }
+
     public ChunkedToXContentBuilder startObject() {
-        builder.add((b, p) -> b.startObject());
+        addChunk((b, p) -> b.startObject());
         return this;
     }
 
     public ChunkedToXContentBuilder startObject(String name) {
-        builder.add((b, p) -> b.startObject(name));
+        addChunk((b, p) -> b.startObject(name));
         return this;
     }
 
     public ChunkedToXContentBuilder endObject() {
-        builder.add((b, p) -> b.endObject());
+        addChunk((b, p) -> b.endObject());
         return this;
     }
 
@@ -58,42 +59,42 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
     }
 
     public ChunkedToXContentBuilder startArray() {
-        builder.add((b, p) -> b.startArray());
+        addChunk((b, p) -> b.startArray());
         return this;
     }
 
     public ChunkedToXContentBuilder startArray(String name) {
-        builder.add((b, p) -> b.startArray(name));
+        addChunk((b, p) -> b.startArray(name));
         return this;
     }
 
     public ChunkedToXContentBuilder endArray() {
-        builder.add((b, p) -> b.endArray());
+        addChunk((b, p) -> b.endArray());
         return this;
     }
 
     public ChunkedToXContentBuilder array(String name, String... values) {
-        builder.add((b, p) -> b.array(name, values));
+        addChunk((b, p) -> b.array(name, values));
         return this;
     }
 
     public ChunkedToXContentBuilder field(String name) {
-        builder.add((b, p) -> b.field(name));
+        addChunk((b, p) -> b.field(name));
         return this;
     }
 
     public ChunkedToXContentBuilder field(String name, long value) {
-        builder.add((b, p) -> b.field(name, value));
+        addChunk((b, p) -> b.field(name, value));
         return this;
     }
 
     public ChunkedToXContentBuilder field(String name, String value) {
-        builder.add((b, p) -> b.field(name, value));
+        addChunk((b, p) -> b.field(name, value));
         return this;
     }
 
     public ChunkedToXContentBuilder field(String name, Object value) {
-        builder.add((b, p) -> b.field(name, value));
+        addChunk((b, p) -> b.field(name, value));
         return this;
     }
 
@@ -135,7 +136,7 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
 
     private ChunkedToXContentBuilder appendXContent(ToXContent xContent) {
         if (xContent != ToXContent.EMPTY) {
-            builder.add(xContent);
+            addChunk(xContent);
         }
         return this;
     }
@@ -147,7 +148,7 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
      * so the lambda is not forced to return the builder back to us.
      */
     public ChunkedToXContentBuilder append(CheckedBiConsumer<XContentBuilder, ToXContent.Params, IOException> xContent) {
-        builder.add((b, p) -> {
+        addChunk((b, p) -> {
             xContent.accept(b, p);
             return b;
         });

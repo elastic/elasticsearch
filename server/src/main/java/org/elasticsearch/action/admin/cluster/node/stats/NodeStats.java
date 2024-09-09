@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.routing.allocation.NodeAllocationStats;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
-import org.elasticsearch.common.xcontent.ChunkedToXContentBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.http.HttpStats;
@@ -342,7 +341,7 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
-        return ChunkedToXContentBuilder.builder(outerParams).append((builder, params) -> {
+        return ChunkedToXContent.builder(outerParams).append((builder, params) -> {
             builder.field("name", getNode().getName());
             builder.field("transport_address", getNode().getAddress().toString());
             builder.field("host", getNode().getHostName());

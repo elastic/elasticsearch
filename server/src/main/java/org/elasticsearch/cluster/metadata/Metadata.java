@@ -40,7 +40,6 @@ import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
-import org.elasticsearch.common.xcontent.ChunkedToXContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
@@ -1510,7 +1509,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         XContentContext context = XContentContext.valueOf(params.param(CONTEXT_MODE_PARAM, CONTEXT_MODE_API));
 
-        return ChunkedToXContentBuilder.builder(params)
+        return ChunkedToXContent.builder(params)
             .execute(
                 context == XContentContext.API
                     ? b -> b.startObject("metadata")

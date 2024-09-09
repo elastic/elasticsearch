@@ -18,7 +18,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ChunkedToXContentBuilder;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -149,7 +149,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContentBuilder.builder(params)
+        return ChunkedToXContent.builder(params)
             .object(PATTERNS_FIELD.getPreferredName(), b -> b.appendXContentObjects(patterns))
             .object(FOLLOWED_LEADER_INDICES_FIELD.getPreferredName(), b -> b.appendEntries(followedLeaderIndexUUIDs))
             .object(HEADERS.getPreferredName(), b -> b.appendEntries(headers));

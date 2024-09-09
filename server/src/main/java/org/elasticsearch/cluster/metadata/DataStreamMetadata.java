@@ -18,7 +18,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContentBuilder;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -231,7 +231,7 @@ public class DataStreamMetadata implements Metadata.Custom {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContentBuilder.builder(params)
+        return ChunkedToXContent.builder(params)
             .object(DATA_STREAM.getPreferredName(), b -> b.appendEntries(dataStreams))
             .object(DATA_STREAM_ALIASES.getPreferredName(), b -> b.append(dataStreamAliases.values().iterator()));
     }

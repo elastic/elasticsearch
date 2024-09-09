@@ -10,7 +10,7 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContentBuilder;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.features.NodeFeature;
@@ -244,7 +244,7 @@ public class ClusterFeatures implements Diffable<ClusterFeatures>, ChunkedToXCon
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContentBuilder.builder(params)
+        return ChunkedToXContent.builder(params)
             .startArray()
             .forEach(nodeFeatures.entrySet().stream().sorted(Map.Entry.comparingByKey()).iterator(), e -> (builder, p) -> {
                 String[] features = e.getValue().toArray(String[]::new);

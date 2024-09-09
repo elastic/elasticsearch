@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContentBuilder;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
@@ -40,7 +40,7 @@ public class NodesStatsResponse extends BaseNodesXContentResponse<NodeStats> {
 
     @Override
     protected Iterator<? extends ToXContent> xContentChunks(ToXContent.Params outerParams) {
-        return ChunkedToXContentBuilder.builder(outerParams)
+        return ChunkedToXContent.builder(outerParams)
             .startObject("nodes")
             .forEach(
                 getNodes().iterator(),

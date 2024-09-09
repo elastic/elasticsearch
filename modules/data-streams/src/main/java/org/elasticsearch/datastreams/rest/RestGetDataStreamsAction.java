@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestUtils;
@@ -61,17 +62,19 @@ public class RestGetDataStreamsAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedQueryParameters() {
-        return Set.of(
-            "name",
-            "include_defaults",
-            "timeout",
-            "master_timeout",
-            RestRequest.PATH_RESTRICTED,
-            IndicesOptions.WildcardOptions.EXPAND_WILDCARDS,
-            IndicesOptions.ConcreteTargetOptions.IGNORE_UNAVAILABLE,
-            IndicesOptions.WildcardOptions.ALLOW_NO_INDICES,
-            IndicesOptions.GatekeeperOptions.IGNORE_THROTTLED,
-            "verbose"
+        return Sets.union(
+            RestRequest.INTERNAL_MARKER_REQUEST_PARAMETERS,
+            Set.of(
+                "name",
+                "include_defaults",
+                "timeout",
+                "master_timeout",
+                IndicesOptions.WildcardOptions.EXPAND_WILDCARDS,
+                IndicesOptions.ConcreteTargetOptions.IGNORE_UNAVAILABLE,
+                IndicesOptions.WildcardOptions.ALLOW_NO_INDICES,
+                IndicesOptions.GatekeeperOptions.IGNORE_THROTTLED,
+                "verbose"
+            )
         );
     }
 }

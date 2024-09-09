@@ -20,6 +20,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -114,7 +115,13 @@ public class ResourceWatcherService implements Closeable {
     @Override
     public void close() {
         if (enabled) {
-            executor.shutdownNow();
+            lowFuture.cancel();
+            mediumFuture.cancel();
+            highFuture.cancel();
+            lowMonitor.close();
+            mediumMonitor.close();
+            highMonitor.close();
+            Scheduler.terminate(executor, 100, TimeUnit.MILLISECONDS);
         }
     }
 

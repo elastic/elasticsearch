@@ -35,7 +35,7 @@ public class ToDateNanosTests extends AbstractScalarFunctionTestCase {
         TestCaseSupplier.forUnaryDateNanos(suppliers, read, DataType.DATE_NANOS, DateUtils::toLong, List.of());
         TestCaseSupplier.forUnaryDatetime(
             suppliers,
-            "ToDateNanosFromDatetime[" + read + "]",
+            "ToDateNanosFromDatetime[field=" + read + "]",
             DataType.DATE_NANOS,
             0,
             DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli(),
@@ -44,7 +44,7 @@ public class ToDateNanosTests extends AbstractScalarFunctionTestCase {
         );
         TestCaseSupplier.forUnaryLong(
             suppliers,
-            "ToDatenanosFromLong[" + read + "]",
+            "ToDateNanosFromLong[field=" + read + "]",
             DataType.DATE_NANOS,
             l -> l,
             0,
@@ -53,7 +53,7 @@ public class ToDateNanosTests extends AbstractScalarFunctionTestCase {
         );
         TestCaseSupplier.forUnaryLong(
             suppliers,
-            "ToDatenanosFromLong[" + read + "]",
+            "ToDateNanosFromLong[field=" + read + "]",
             DataType.DATE_NANOS,
             l -> l,
             Long.MIN_VALUE,

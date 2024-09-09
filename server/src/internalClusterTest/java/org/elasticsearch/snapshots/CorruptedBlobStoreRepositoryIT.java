@@ -764,10 +764,9 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         }
 
         if (randomBoolean()) {
-            logger.info(
-                "--> restoring the snapshot, the repository should not have lost any shard data despite deleting index-N, "
-                    + "because it uses snap-*.data files and not the index-N to determine what files to restore"
-            );
+            logger.info("""
+                --> restoring the snapshot, the repository should not have lost any shard data despite deleting index-*, \
+                because it uses snap-*.dat files and not the index-* to determine what files to restore""");
             indicesAdmin().prepareDelete("test-idx-1", "test-idx-2").get();
             RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(
                 TEST_REQUEST_TIMEOUT,

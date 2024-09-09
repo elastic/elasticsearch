@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Deque;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -21,7 +22,7 @@ public class ServerSentEventParserTests extends ESTestCase {
     public void testParseEvents() {
         var payload = (Arrays.stream(ServerSentEventField.values())
             .map(ServerSentEventField::name)
-            .map(String::toLowerCase)
+            .map(name -> name.toLowerCase(Locale.ROOT))
             .collect(Collectors.joining("\n"))
             + "\n").getBytes(StandardCharsets.UTF_8);
 
@@ -63,7 +64,7 @@ public class ServerSentEventParserTests extends ESTestCase {
     private void assertEvents(Deque<ServerSentEvent> actualEvents, List<ServerSentEvent> expectedEvents) {
         assertThat(actualEvents.size(), equalTo(expectedEvents.size()));
         var expectedEvent = expectedEvents.iterator();
-        actualEvents.forEach(event -> { assertThat(event, equalTo(expectedEvent.next())); });
+        actualEvents.forEach(event -> assertThat(event, equalTo(expectedEvent.next())));
     }
 
     // by default, Java's UTF-8 decode does not remove the byte order mark

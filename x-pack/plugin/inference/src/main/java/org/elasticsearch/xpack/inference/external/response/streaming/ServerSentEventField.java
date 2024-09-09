@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.external.response.streaming;
 
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -24,12 +25,12 @@ public enum ServerSentEventField {
 
     private static final Set<String> possibleValues = Arrays.stream(values())
         .map(Enum::name)
-        .map(String::toLowerCase)
+        .map(name -> name.toLowerCase(Locale.ROOT))
         .collect(Collectors.toSet());
 
     static Optional<ServerSentEventField> oneOf(String name) {
-        if (name != null && possibleValues.contains(name.toLowerCase())) {
-            return Optional.of(valueOf(name.toUpperCase()));
+        if (name != null && possibleValues.contains(name.toLowerCase(Locale.ROOT))) {
+            return Optional.of(valueOf(name.toUpperCase(Locale.ROOT)));
         } else {
             return Optional.empty();
         }

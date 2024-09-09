@@ -193,6 +193,32 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testPutJob_GivenFarequoteConfig
   issue: https://github.com/elastic/elasticsearch/issues/112382
+- class: org.elasticsearch.xpack.eql.EqlClientYamlIT
+  issue: https://github.com/elastic/elasticsearch/issues/112617
+- class: org.elasticsearch.xpack.security.authc.kerberos.KerberosTicketValidatorTests
+  method: testWhenKeyTabWithInvalidContentFailsValidation
+  issue: https://github.com/elastic/elasticsearch/issues/112631
+- class: org.elasticsearch.xpack.security.authc.kerberos.KerberosTicketValidatorTests
+  method: testValidKebrerosTicket
+  issue: https://github.com/elastic/elasticsearch/issues/112632
+- class: org.elasticsearch.xpack.security.authc.kerberos.KerberosTicketValidatorTests
+  method: testKerbTicketGeneratedForDifferentServerFailsValidation
+  issue: https://github.com/elastic/elasticsearch/issues/112639
+- class: org.elasticsearch.packaging.test.PackagesSecurityAutoConfigurationTests
+  method: test20SecurityNotAutoConfiguredOnReInstallation
+  issue: https://github.com/elastic/elasticsearch/issues/112635
+- class: org.elasticsearch.xpack.sql.qa.single_node.JdbcSqlSpecIT
+  method: test {case-functions.testSelectInsertWithLcaseAndLengthWithOrderBy}
+  issue: https://github.com/elastic/elasticsearch/issues/112642
+- class: org.elasticsearch.xpack.sql.qa.single_node.JdbcSqlSpecIT
+  method: test {case-functions.testUcaseInline1}
+  issue: https://github.com/elastic/elasticsearch/issues/112641
+- class: org.elasticsearch.xpack.sql.qa.single_node.JdbcSqlSpecIT
+  method: test {case-functions.testUpperCasingTheSecondLetterFromTheRightFromFirstName}
+  issue: https://github.com/elastic/elasticsearch/issues/112640
+- class: org.elasticsearch.xpack.sql.qa.single_node.JdbcSqlSpecIT
+  method: test {case-functions.testUcaseInline3}
+  issue: https://github.com/elastic/elasticsearch/issues/112643
 
 # Examples:
 #

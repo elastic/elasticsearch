@@ -38,6 +38,8 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageRequest;
+import org.elasticsearch.action.admin.indices.diskusage.TransportAnalyzeIndexDiskUsageAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -1766,4 +1768,20 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         }
     }
 
+    public void testAnalyzeDiskUsage() {
+        startIndexNodes(numShards);
+        startSearchNodes(numShards * numReplicas);
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(numShards, numReplicas).build());
+        ensureGreen(indexName);
+        var request = new AnalyzeIndexDiskUsageRequest(
+            new String[] { indexName },
+            AnalyzeIndexDiskUsageRequest.DEFAULT_INDICES_OPTIONS,
+            false
+        );
+        var resp = client().execute(TransportAnalyzeIndexDiskUsageAction.TYPE, request).actionGet();
+        assertThat(resp.getTotalShards(), equalTo(numShards));
+        assertThat(resp.getFailedShards(), equalTo(0));
+        assertThat(resp.getSuccessfulShards(), equalTo(numShards));
+    }
 }

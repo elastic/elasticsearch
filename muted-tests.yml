@@ -195,6 +195,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/112382
 - class: org.elasticsearch.xpack.eql.EqlClientYamlIT
   issue: https://github.com/elastic/elasticsearch/issues/112617
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {meta.CountFunctions}
+  issue: https://github.com/elastic/elasticsearch/issues/112659
 
 # Examples:
 #

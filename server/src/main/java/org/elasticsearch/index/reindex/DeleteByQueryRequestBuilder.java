@@ -20,6 +20,7 @@ public class DeleteByQueryRequestBuilder extends AbstractBulkByScrollRequestBuil
         this(client, new SearchRequestBuilder(client));
     }
 
+    @SuppressWarnings("this-escape")
     private DeleteByQueryRequestBuilder(ElasticsearchClient client, SearchRequestBuilder search) {
         super(client, DeleteByQueryAction.INSTANCE, search);
         source().setFetchSource(false);

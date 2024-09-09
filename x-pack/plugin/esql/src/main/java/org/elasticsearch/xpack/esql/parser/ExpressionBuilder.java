@@ -604,7 +604,13 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         Expression left = expression(ctx.valueExpression());
         Literal pattern = visitString(ctx.pattern);
         RegexMatch<?> result = switch (type) {
-            case EsqlBaseParser.LIKE -> new WildcardLike(source, left, new WildcardPattern(pattern.fold().toString()));
+            case EsqlBaseParser.LIKE -> {
+                try {
+                    yield new WildcardLike(source, left, new WildcardPattern(pattern.fold().toString()));
+                } catch (InvalidArgumentException e) {
+                    throw new ParsingException(source, "Invalid pattern for LIKE [{}]: [{}]", pattern, e.getMessage());
+                }
+            }
             case EsqlBaseParser.RLIKE -> new RLike(source, left, new RLikePattern(pattern.fold().toString()));
             default -> throw new ParsingException("Invalid predicate type for [{}]", source.text());
         };
@@ -772,7 +778,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         }
         return new MatchQueryPredicate(
             source(ctx),
-            visitQualifiedName(ctx.qualifiedName()),
+            expression(ctx.valueExpression()),
             visitString(ctx.queryString).fold().toString(),
             null
         );

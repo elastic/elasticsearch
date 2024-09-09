@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Node;
-import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTests;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -37,7 +36,6 @@ public abstract class AbstractExpressionSerializationTests<T extends Expression>
         entries.add(UnsupportedAttribute.ENTRY);
         entries.add(UnsupportedAttribute.NAMED_EXPRESSION_ENTRY);
         entries.add(UnsupportedAttribute.EXPRESSION_ENTRY);
-        entries.addAll(EsField.getNamedWriteables());
         entries.add(org.elasticsearch.xpack.esql.expression.Order.ENTRY);
         return new NamedWriteableRegistry(entries);
     }

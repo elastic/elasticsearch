@@ -130,14 +130,7 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
             throw new IllegalStateException("Inference metadata should have been consumed before writing to the stream");
         }
         super.writeTo(out);
-        out.writeArray((o, item) -> {
-            if (item != null) {
-                o.writeBoolean(true);
-                item.writeThin(o);
-            } else {
-                o.writeBoolean(false);
-            }
-        }, items);
+        out.writeArray((o, item) -> o.writeOptional(BulkItemRequest.THIN_WRITER, item), items);
         if (out.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_VALIDATES_MAPPINGS)) {
             out.writeBoolean(isSimulated);
         }

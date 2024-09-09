@@ -180,3 +180,37 @@ ver:version
 1.2.3
 //end::docsCastOperator-result[]
 ;
+
+mixedNumericTypesInLiterals
+required_capability: mixed_numeric_types_in_coalesce
+from employees
+| where languages.long in (1, 2.0, null)
+| keep emp_no, languages
+| sort emp_no
+| limit 10
+;
+
+emp_no:integer | languages:integer
+10001          | 2
+10005          | 1
+10008          | 2
+10009          | 1
+10013          | 1
+10016          | 2
+10017          | 2
+10018          | 2
+10019          | 1
+10033          | 1
+;
+
+mixedNumericTypesInFields
+required_capability: mixed_numeric_types_in_coalesce
+from employees
+| where languages in (7.0, height)
+| keep emp_no, languages, height
+| sort emp_no
+;
+
+emp_no:integer | languages:integer | height:double
+10037          | 2                 | 2.0
+;

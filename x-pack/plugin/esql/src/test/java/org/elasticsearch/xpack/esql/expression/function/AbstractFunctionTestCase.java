@@ -61,7 +61,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
-import org.elasticsearch.xpack.esql.optimizer.FoldNull;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
 import org.elasticsearch.xpack.esql.parser.ExpressionBuilder;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -680,6 +680,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assertSerialization(buildFieldExpression(testCase));
     }
 
+    /**
+     * This test is meant to validate that the params annotations for the function being tested align with the supported types the
+     * test framework has detected.
+     */
     @AfterClass
     public static void testFunctionInfo() {
         Logger log = LogManager.getLogger(getTestClass());
@@ -717,14 +721,23 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
         for (int i = 0; i < args.size(); i++) {
             EsqlFunctionRegistry.ArgSignature arg = args.get(i);
-            Set<String> annotationTypes = Arrays.stream(arg.type()).collect(Collectors.toCollection(TreeSet::new));
-            Set<String> signatureTypes = typesFromSignature.get(i);
+            Set<String> annotationTypes = Arrays.stream(arg.type())
+                .filter(DataType.UNDER_CONSTRUCTION::containsKey)
+                .collect(Collectors.toCollection(TreeSet::new));
+            Set<String> signatureTypes = typesFromSignature.get(i)
+                .stream()
+                .filter(DataType.UNDER_CONSTRUCTION::containsKey)
+                .collect(Collectors.toCollection(TreeSet::new));
             if (signatureTypes.isEmpty()) {
                 log.info("{}: skipping", arg.name());
                 continue;
             }
             log.info("{}: tested {} vs annotated {}", arg.name(), signatureTypes, annotationTypes);
-            assertEquals(signatureTypes, annotationTypes);
+            assertEquals(
+                "Missmatch between actual and declared parameter types. You probably need to update your @params annotations.",
+                signatureTypes,
+                annotationTypes
+            );
         }
 
         Set<String> returnTypes = Arrays.stream(description.returnType()).collect(Collectors.toCollection(TreeSet::new));

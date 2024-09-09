@@ -14,6 +14,8 @@ import org.hamcrest.MatcherAssert;
 import org.hamcrest.StringDescription;
 import org.hamcrest.TypeSafeMatcher;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -292,17 +294,24 @@ public class MapMatcher extends TypeSafeMatcher<Map<?, ?>> {
     }
 
     static void describeEntryValue(int keyWidth, Matcher<?> matcher, Object v, Description description) {
-        if (v instanceof Map && matcher instanceof MapMatcher) {
-            ((MapMatcher) matcher).describePotentialMismatch(keyWidth + INDENT, (Map<?, ?>) v, description);
+        if (v instanceof Map && matcher instanceof MapMatcher mm) {
+            mm.describePotentialMismatch(keyWidth + INDENT, (Map<?, ?>) v, description);
             return;
         }
-        if (v instanceof List && matcher instanceof ListMatcher) {
-            ((ListMatcher) matcher).describePotentialMismatch(keyWidth + INDENT, (List<?>) v, description);
+        if (v instanceof List && matcher instanceof ListMatcher lm) {
+            lm.describePotentialMismatch(keyWidth + INDENT, (List<?>) v, description);
             return;
         }
         if (false == matcher.matches(v)) {
-            description.appendText("expected ").appendDescriptionOf(matcher).appendText(" but ");
-            matcher.describeMismatch(v, description);
+            try {
+                description.appendText("expected ").appendDescriptionOf(matcher).appendText(" but ");
+                matcher.describeMismatch(v, description);
+            } catch (Exception e) {
+                description.appendText("error describing ");
+                StringWriter trace = new StringWriter();
+                e.printStackTrace(new PrintWriter(trace));
+                description.appendValue(trace);
+            }
             return;
         }
         description.appendValue(v);

@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
-import org.elasticsearch.xpack.esql.core.type.UnsupportedEsFieldTests;
+import org.elasticsearch.xpack.esql.type.UnsupportedEsFieldTests;
 
 public class UnsupportedAttributeTests extends AbstractAttributeTestCase<UnsupportedAttribute> {
     @Override

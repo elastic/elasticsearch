@@ -8,6 +8,8 @@ package org.elasticsearch.repositories.blobstore.testkit.analyze;
 
 import fixture.azure.AzureHttpFixture;
 
+import org.apache.http.client.methods.HttpGet;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
@@ -15,15 +17,20 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestTrustStore;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
+import org.elasticsearch.test.rest.ObjectPath;
+import org.hamcrest.Matcher;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.blankOrNullString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class AzureRepositoryAnalysisRestIT extends AbstractRepositoryAnalysisRestTestCase {
     private static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("test.azure.fixture", "true"));
@@ -118,5 +125,35 @@ public class AzureRepositoryAnalysisRestIT extends AbstractRepositoryAnalysisRes
         assertThat(basePath, not(blankOrNullString()));
 
         return Settings.builder().put("client", "repository_test_kit").put("container", container).put("base_path", basePath).build();
+    }
+
+    public void testClusterStats() throws IOException {
+        registerRepository(randomIdentifier(), repositoryType(), true, repositorySettings());
+
+        final var request = new Request(HttpGet.METHOD_NAME, "/_cluster/stats");
+        final var response = client().performRequest(request);
+        assertOK(response);
+
+        final var objectPath = ObjectPath.createFromResponse(response);
+        assertThat(objectPath.evaluate("repositories.azure.count"), isSetIff(true));
+        assertThat(objectPath.evaluate("repositories.azure.read_write"), isSetIff(true));
+
+        assertThat(objectPath.evaluate("repositories.azure.uses_key_credentials"), isSetIff(Strings.hasText(AZURE_TEST_KEY)));
+        assertThat(objectPath.evaluate("repositories.azure.uses_sas_token"), isSetIff(Strings.hasText(AZURE_TEST_SASTOKEN)));
+        assertThat(
+            objectPath.evaluate("repositories.azure.uses_default_credentials"),
+            isSetIff((Strings.hasText(AZURE_TEST_SASTOKEN) || Strings.hasText(AZURE_TEST_KEY)) == false)
+        );
+        assertThat(
+            objectPath.evaluate("repositories.azure.uses_managed_identity"),
+            isSetIff(
+                (Strings.hasText(AZURE_TEST_SASTOKEN) || Strings.hasText(AZURE_TEST_KEY) || Strings.hasText(AZURE_TEST_CLIENT_ID)) == false
+            )
+        );
+        assertThat(objectPath.evaluate("repositories.azure.uses_workload_identity"), isSetIff(Strings.hasText(AZURE_TEST_CLIENT_ID)));
+    }
+
+    private static Matcher<Integer> isSetIff(boolean predicate) {
+        return predicate ? equalTo(1) : nullValue(Integer.class);
     }
 }

@@ -100,22 +100,18 @@ public class ToDateNanos extends AbstractConvertFunction {
         return ENTRY.name;
     }
 
-    @ConvertEvaluator(extraName = "FromLong", warnExceptions = {IllegalArgumentException.class})
+    @ConvertEvaluator(extraName = "FromLong", warnExceptions = { IllegalArgumentException.class })
     static long fromLong(long in) {
         if (in < 0) {
-            throw new IllegalArgumentException(
-                "Nanosecond dates before 1970-01-01T00:00:00.000Z are not supported."
-            );
+            throw new IllegalArgumentException("Nanosecond dates before 1970-01-01T00:00:00.000Z are not supported.");
         }
         return in;
     }
 
-    @ConvertEvaluator(extraName = "FromDouble", warnExceptions = {IllegalArgumentException.class})
+    @ConvertEvaluator(extraName = "FromDouble", warnExceptions = { IllegalArgumentException.class })
     static long fromDouble(double in) {
         if (in < 0d) {
-            throw new IllegalArgumentException(
-                "Nanosecond dates before 1970-01-01T00:00:00.000Z are not supported."
-            );
+            throw new IllegalArgumentException("Nanosecond dates before 1970-01-01T00:00:00.000Z are not supported.");
         }
         return DataTypeConverter.safeDoubleToLong(in);
     }

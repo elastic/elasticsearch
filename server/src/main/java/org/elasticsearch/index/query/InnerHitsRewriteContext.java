@@ -26,8 +26,7 @@ public final class InnerHitsRewriteContext extends QueryRewriteContext {
     }
 
     @Override
-    @SuppressWarnings({ "rawtypes" })
-    public void executeAsyncActions(ActionListener listener) {
+    public void executeAsyncActions(ActionListener<Void> listener) {
         // InnerHitsRewriteContext does not support async actions at all, and doesn't supply a valid `client` object
         throw new UnsupportedOperationException("InnerHitsRewriteContext does not support async actions");
     }

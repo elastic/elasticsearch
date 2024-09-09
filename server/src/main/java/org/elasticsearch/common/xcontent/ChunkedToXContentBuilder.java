@@ -201,7 +201,7 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
     }
 
     public <T> ChunkedToXContentBuilder appendXContentObjects(Map<String, ? extends ToXContent> map) {
-        return forEach(map.entrySet().iterator(), (e, b) -> b.object(ob -> ob.appendXContent(e.getValue())));
+        return forEach(map.entrySet().iterator(), (e, b) -> b.object(e.getKey(), ob -> ob.appendXContent(e.getValue())));
     }
 
     public <T> ChunkedToXContentBuilder appendXContentFields(Map<String, ? extends ToXContent> map) {

@@ -1542,7 +1542,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                     b.object(e.getKey(), ob -> ob.append(e.getValue()));
                 }
             })
-            .object("reserved_state", b -> b.append(reservedStateMetadata().values().iterator()));
+            .object("reserved_state", b -> b.append(reservedStateMetadata().values().iterator()))
+            .append((b, p) -> b.endObject());
+
     }
 
     public Map<String, MappingMetadata> getMappingsByHash() {

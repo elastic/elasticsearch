@@ -114,10 +114,7 @@ public class ResourceWatcherService implements Closeable {
     @Override
     public void close() {
         if (enabled) {
-            lowMonitor.close();
-            mediumMonitor.close();
-            highMonitor.close();
-            executor.shutdown();
+            executor.shutdownNow();
         }
     }
 

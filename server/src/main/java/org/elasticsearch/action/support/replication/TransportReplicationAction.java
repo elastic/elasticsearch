@@ -1002,7 +1002,6 @@ public abstract class TransportReplicationAction<
                         // if we got disconnected from the node, or the node / shard is not in the right state (being closed)
                         final Throwable cause = exp.unwrapCause();
                         if (cause instanceof ConnectTransportException
-                            || cause instanceof NodeClosedException
                             || (isPrimaryAction && retryPrimaryException(cause))) {
                             logger.trace(
                                 () -> format(

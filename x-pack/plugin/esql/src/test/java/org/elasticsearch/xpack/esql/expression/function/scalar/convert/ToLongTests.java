@@ -44,6 +44,7 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
 
         // datetimes
         TestCaseSupplier.forUnaryDatetime(suppliers, read, DataType.LONG, Instant::toEpochMilli, List.of());
+        TestCaseSupplier.forUnaryDatetime(suppliers, read, DataType.LONG, DateUtils::toLongMillis, List.of());
         TestCaseSupplier.forUnaryDateNanos(suppliers, read, DataType.LONG, DateUtils::toLong, List.of());
         // random strings that don't look like a long
         TestCaseSupplier.forUnaryStrings(

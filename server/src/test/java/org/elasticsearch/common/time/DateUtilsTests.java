@@ -22,6 +22,7 @@ import java.time.temporal.ChronoField;
 import static org.elasticsearch.common.time.DateUtils.clampToNanosRange;
 import static org.elasticsearch.common.time.DateUtils.toInstant;
 import static org.elasticsearch.common.time.DateUtils.toLong;
+import static org.elasticsearch.common.time.DateUtils.toLongMillis;
 import static org.elasticsearch.common.time.DateUtils.toMilliSeconds;
 import static org.elasticsearch.common.time.DateUtils.toNanoSeconds;
 import static org.hamcrest.Matchers.containsString;
@@ -49,6 +50,29 @@ public class DateUtilsTests extends ESTestCase {
     public void testInstantToLongMax() {
         Instant tooLateInstant = ZonedDateTime.parse("2262-04-11T23:47:16.854775808Z").toInstant();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> toLong(tooLateInstant));
+        assertThat(e.getMessage(), containsString("is after"));
+    }
+
+    public void testInstantToLongMillis() {
+        assertThat(toLongMillis(Instant.EPOCH), is(0L));
+
+        Instant instant = createRandomInstant();
+        long timeSinceEpochInMillis = instant.toEpochMilli();
+        assertThat(toLongMillis(instant), is(timeSinceEpochInMillis));
+    }
+
+    public void testInstantToLongMillisMin() {
+        Instant tooEarlyInstant = ZonedDateTime.parse("1677-09-21T00:12:43.145224191Z").toInstant();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> toLongMillis(tooEarlyInstant));
+        assertThat(e.getMessage(), containsString("is before"));
+        e = expectThrows(IllegalArgumentException.class, () -> toLongMillis(Instant.EPOCH.minusMillis(1)));
+        assertThat(e.getMessage(), containsString("is before"));
+    }
+
+    public void testInstantToLongMillisMax() {
+        /* millisecond value of this instant exceeds the maximum value a java long variable can store */
+        Instant tooLateInstant = Instant.ofEpochSecond(9223372036854776L);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> toLongMillis(tooLateInstant));
         assertThat(e.getMessage(), containsString("is after"));
     }
 

@@ -42,7 +42,7 @@ public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
             suppliers,
             "ToDatetimeFromDateNanosEvaluator[field=" + read + "]",
             DataType.DATETIME,
-            i -> DateUtils.toMilliSeconds(DateUtils.toLong(i)),
+            DateUtils::toLongMillis,
             emptyList()
         );
 

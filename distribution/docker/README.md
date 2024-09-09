@@ -6,11 +6,13 @@ the [DockerBase] enum.
    * Default - this is what most people use, and is based on Ubuntu
    * UBI - the same as the default image, but based upon [RedHat's UBI
      images][ubi], specifically their minimal flavour.
+   * Wolfi - the same as the default image, but based upon [Wolfi](https://github.com/wolfi-dev)
    * Iron Bank - this is the US Department of Defence's repository of digitally
      signed, binary container images including both Free and Open-Source
      software (FOSS) and Commercial off-the-shelf (COTS). In practice, this is
      another UBI build, this time on the regular UBI image, with extra
      hardening. See below for more details.
+
    * Cloud - this is mostly the same as the default image, with some notable differences:
       * `filebeat` and `metricbeat` are included
       * `wget` is included

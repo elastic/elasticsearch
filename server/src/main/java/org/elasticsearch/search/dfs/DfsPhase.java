@@ -52,7 +52,9 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.DEFAULT_BOOST;
  */
 public class DfsPhase {
 
-    public void execute(SearchContext context) {
+    private DfsPhase() {}
+
+    public static void execute(SearchContext context) {
         try {
             collectStatistics(context);
             executeKnnVectorQuery(context);
@@ -65,7 +67,7 @@ public class DfsPhase {
         }
     }
 
-    private void collectStatistics(SearchContext context) throws IOException {
+    private static void collectStatistics(SearchContext context) throws IOException {
         final DfsProfiler profiler = context.getProfilers() == null ? null : context.getProfilers().getDfsProfiler();
 
         Map<String, CollectionStatistics> fieldStatistics = new HashMap<>();

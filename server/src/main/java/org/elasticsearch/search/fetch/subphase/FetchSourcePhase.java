@@ -65,8 +65,7 @@ public final class FetchSourcePhase implements FetchSubPhase {
                 // If this is a parent document and there are no source filters and include_vector is set as true, then add the source
                 // as-is.
                 if (nestedHit == false
-                    && fetchSourceContext.hasFilter() == false
-                    && fetchSourceContext.filterVectorFields() == Boolean.FALSE) {
+                    && sourceFilter.isEmpty()) {
                     hitContext.hit().sourceRef(source.internalSourceRef());
                     fastPath++;
                     return;

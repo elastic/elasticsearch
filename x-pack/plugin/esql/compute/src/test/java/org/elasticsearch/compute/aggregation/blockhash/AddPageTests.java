@@ -201,5 +201,8 @@ public class AddPageTests extends ESTestCase {
         public void add(int positionOffset, IntVector groupIds) {
             count++;
         }
+
+        @Override
+        public void close() {}
     }
 }

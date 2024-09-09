@@ -218,8 +218,9 @@ public class SearchEngine extends Engine {
     }
 
     PrimaryTermAndGeneration getCurrentPrimaryTermAndGeneration() {
-        assert this.currentPrimaryTermGeneration.generation() > 0 : currentPrimaryTermGeneration;
-        return this.currentPrimaryTermGeneration;
+        var current = this.currentPrimaryTermGeneration;
+        assert current.generation() > 0 : current;
+        return current;
     }
 
     // visible for testing

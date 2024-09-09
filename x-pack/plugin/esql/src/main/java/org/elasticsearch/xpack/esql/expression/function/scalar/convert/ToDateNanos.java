@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -44,10 +45,10 @@ public class ToDateNanos extends AbstractConvertFunction {
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(DATETIME, ToDateNanosFromDatetimeEvaluator.Factory::new),
         Map.entry(DATE_NANOS, (field, source) -> field),
-        Map.entry(LONG, (field, source) -> field),
+        Map.entry(LONG, ToDateNanosFromLongEvaluator.Factory::new),
         Map.entry(KEYWORD, ToDateNanosFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToDateNanosFromStringEvaluator.Factory::new),
-        Map.entry(DOUBLE, ToLongFromDoubleEvaluator.Factory::new),
+        Map.entry(DOUBLE, ToDateNanosFromDoubleEvaluator.Factory::new),
         Map.entry(UNSIGNED_LONG, ToLongFromUnsignedLongEvaluator.Factory::new)
         /*
          NB: not including an integer conversion, because max int in nanoseconds is like 2 seconds after epoch, and it seems more likely
@@ -100,6 +101,26 @@ public class ToDateNanos extends AbstractConvertFunction {
         return ENTRY.name;
     }
 
+    @ConvertEvaluator(extraName = "FromLong", warnExceptions = {IllegalArgumentException.class})
+    static long fromLong(long in) {
+        if (in < 0) {
+            throw new IllegalArgumentException(
+                "Nanosecond dates before 1970-01-01T00:00:00.000Z are not supported."
+            );
+        }
+        return in;
+    }
+
+    @ConvertEvaluator(extraName = "FromDouble", warnExceptions = {IllegalArgumentException.class})
+    static long fromDouble(long in) {
+        if (in < 0d) {
+            throw new IllegalArgumentException(
+                "Nanosecond dates before 1970-01-01T00:00:00.000Z are not supported."
+            );
+        }
+        return DataTypeConverter.safeDoubleToLong(in);
+    }
+
     @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
     static long fromKeyword(BytesRef in) {
         Instant parsed = DateFormatters.from(DEFAULT_DATE_NANOS_FORMATTER.parse(in.utf8ToString())).toInstant();
@@ -122,5 +143,4 @@ public class ToDateNanos extends AbstractConvertFunction {
             throw new IllegalArgumentException("cannot create nanosecond dates after 2262-04-11T23:47:16.854775807Z");
         }
     }
-
 }

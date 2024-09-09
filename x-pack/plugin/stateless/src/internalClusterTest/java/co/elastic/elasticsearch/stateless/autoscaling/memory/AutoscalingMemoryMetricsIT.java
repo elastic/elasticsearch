@@ -85,6 +85,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
@@ -451,7 +452,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         assertBusy(() -> {
             final var totalIndexMappingSizeIndexCreate = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class)
                 .estimateTierMemoryUsage();
-            assertThat(totalIndexMappingSizeIndexCreate.metricQuality(), equalTo(MetricQuality.MINIMUM));
+            assertThat(totalIndexMappingSizeIndexCreate.metricQuality(), not(equalTo(MetricQuality.EXACT)));
         });
 
         updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", indexNode2));

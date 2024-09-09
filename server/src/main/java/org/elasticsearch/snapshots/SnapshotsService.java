@@ -138,7 +138,9 @@ import static org.elasticsearch.core.Strings.format;
  */
 public final class SnapshotsService extends AbstractLifecycleComponent implements ClusterStateApplier {
 
-    public static final IndexVersion INDEX_GEN_IN_REPO_DATA_VERSION = IndexVersions.V_7_9_0;
+    // TODO lucene 10 upgrade: check if we need any of the pre-8 versions constants here for bwc
+    // e.g. reading from old snapshots
+    public static final IndexVersion INDEX_GEN_IN_REPO_DATA_VERSION = IndexVersion.fromId(7_09_00_99);
 
     public static final IndexVersion UUIDS_IN_REPO_DATA_VERSION = IndexVersions.V_7_12_0;
     public static final TransportVersion UUIDS_IN_REPO_DATA_TRANSPORT_VERSION = TransportVersions.V_7_12_0;
@@ -2338,16 +2340,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     // TODO lucene 10 upgrade, remove method since its trivially true now
     public static boolean useShardGenerations(IndexVersion repositoryMetaVersion) {
         return true;
-    }
-
-    /**
-     * Checks whether the metadata version supports writing {@link ShardGenerations} to the repository.
-     *
-     * @param repositoryMetaVersion version to check
-     * @return true if version supports {@link ShardGenerations}
-     */
-    public static boolean useIndexGenerations(IndexVersion repositoryMetaVersion) {
-        return repositoryMetaVersion.onOrAfter(INDEX_GEN_IN_REPO_DATA_VERSION);
     }
 
     /**

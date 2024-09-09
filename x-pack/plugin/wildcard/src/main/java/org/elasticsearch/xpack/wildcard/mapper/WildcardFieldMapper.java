@@ -50,7 +50,6 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -270,11 +269,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
         private WildcardFieldType(String name, String nullValue, int ignoreAbove, IndexVersion version, Map<String, String> meta) {
             super(name, true, false, true, Defaults.TEXT_SEARCH_INFO, meta);
-            if (version.onOrAfter(IndexVersions.V_7_10_0)) {
-                this.analyzer = WILDCARD_ANALYZER_7_10;
-            } else {
-                this.analyzer = WILDCARD_ANALYZER_7_9;
-            }
+            this.analyzer = WILDCARD_ANALYZER_7_10;
             this.nullValue = nullValue;
             this.ignoreAbove = ignoreAbove;
         }

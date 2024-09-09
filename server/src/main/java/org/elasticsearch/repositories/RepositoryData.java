@@ -686,39 +686,31 @@ public final class RepositoryData {
         throws IOException {
 
         final boolean shouldWriteUUIDS = SnapshotsService.includesUUIDs(repoMetaVersion);
-        final boolean shouldWriteIndexGens = SnapshotsService.useIndexGenerations(repoMetaVersion);
-        final boolean shouldWriteShardGens = SnapshotsService.useShardGenerations(repoMetaVersion);
+        final boolean shouldWriteIndexGens = true;
 
         assert Boolean.compare(shouldWriteUUIDS, shouldWriteIndexGens) <= 0;
-        assert Boolean.compare(shouldWriteIndexGens, shouldWriteShardGens) <= 0;
 
         builder.startObject();
 
-        if (shouldWriteShardGens) {
-            // Add min version field to make it impossible for older ES versions to deserialize this object
-            final IndexVersion minVersion;
-            if (shouldWriteUUIDS) {
-                minVersion = SnapshotsService.UUIDS_IN_REPO_DATA_VERSION;
-            } else {
-                minVersion = SnapshotsService.INDEX_GEN_IN_REPO_DATA_VERSION;
-            }
-            // Note that all known versions expect the MIN_VERSION field to be a string, and versions before 8.11.0 try and parse it as a
-            // major.minor.patch version number, so if we introduce a numeric format version in future then this will cause them to fail
-            // with an opaque parse error rather than the more helpful:
-            //
-            // IllegalStateException: this snapshot repository format requires Elasticsearch version [x.y.z] or later
-            //
-            // Likewise if we simply encode the numeric IndexVersion as a string then versions from 8.11.0 onwards will report the exact
-            // string in this message, which is not especially helpful to users. Slightly more helpful than the opaque parse error reported
-            // by earlier versions, but still not great. TODO rethink this if and when adding a new snapshot repository format version.
-            if (minVersion.before(IndexVersions.V_8_10_0)) {
-                // write as a string
-                builder.field(MIN_VERSION, Version.fromId(minVersion.id()).toString());
-            } else {
-                assert false : "writing a numeric version [" + minVersion + "] is unhelpful here, see preceding comment";
-                // write an int
-                builder.field(MIN_VERSION, minVersion.id());
-            }
+        // Add min version field to make it impossible for older ES versions to deserialize this object
+        final IndexVersion minVersion;
+        minVersion = SnapshotsService.UUIDS_IN_REPO_DATA_VERSION;
+        // Note that all known versions expect the MIN_VERSION field to be a string, and versions before 8.11.0 try and parse it as a
+        // major.minor.patch version number, so if we introduce a numeric format version in future then this will cause them to fail
+        // with an opaque parse error rather than the more helpful:
+        //
+        // IllegalStateException: this snapshot repository format requires Elasticsearch version [x.y.z] or later
+        //
+        // Likewise if we simply encode the numeric IndexVersion as a string then versions from 8.11.0 onwards will report the exact
+        // string in this message, which is not especially helpful to users. Slightly more helpful than the opaque parse error reported
+        // by earlier versions, but still not great. TODO rethink this if and when adding a new snapshot repository format version.
+        if (minVersion.before(IndexVersions.V_8_10_0)) {
+            // write as a string
+            builder.field(MIN_VERSION, Version.fromId(minVersion.id()).toString());
+        } else {
+            assert false : "writing a numeric version [" + minVersion + "] is unhelpful here, see preceding comment";
+            // write an int
+            builder.field(MIN_VERSION, minVersion.id());
         }
 
         if (shouldWriteUUIDS) {
@@ -828,9 +820,7 @@ public final class RepositoryData {
                 builder.value(snapshotId.getUUID());
             }
             builder.endArray();
-            if (shouldWriteShardGens) {
-                builder.xContentList(SHARD_GENERATIONS, shardGenerations.getGens(indexId));
-            }
+            builder.xContentList(SHARD_GENERATIONS, shardGenerations.getGens(indexId));
             builder.endObject();
         }
         builder.endObject();
@@ -882,7 +872,7 @@ public final class RepositoryData {
                     final var versionString = parser.text();
                     final var version = switch (versionString) {
                         case "7.12.0" -> IndexVersions.V_7_12_0;
-                        case "7.9.0" -> IndexVersions.V_7_9_0;
+                        case "7.9.0" -> IndexVersion.fromId(7_09_00_99);
                         case "7.6.0" -> IndexVersion.fromId(7_06_00_99);
                         default ->
                             // All (known) versions only ever emit one of the above strings for the format version, so if we see something

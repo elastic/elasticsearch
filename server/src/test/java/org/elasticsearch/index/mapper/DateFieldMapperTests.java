@@ -246,9 +246,6 @@ public class DateFieldMapperTests extends MapperTestCase {
             )
         );
 
-        createDocumentMapper(IndexVersions.V_7_9_0, fieldMapping(b -> b.field("type", "date").field("null_value", "foo")));
-
-        assertWarnings("Error parsing [foo] as date in [null_value] on field [field]); [null_value] will be ignored");
     }
 
     public void testNullConfigValuesFail() {

@@ -597,12 +597,6 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         // 'index' is declared explicitly, 'store' is not, but is one of the previously always-accepted params
         String mapping = """
             {"type":"test_mapper","index":false,"store":true,"required":"value"}""";
-        TestMapper mapper = fromMapping(mapping, IndexVersions.V_7_8_0, TransportVersions.V_7_8_0);
-        assertWarnings("Parameter [store] has no effect on type [test_mapper] and will be removed in future");
-        assertFalse(mapper.index);
-        assertEquals("""
-            {"field":{"type":"test_mapper","index":false,"required":"value"}}""", Strings.toString(mapper));
-
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
             () -> fromMapping(mapping, IndexVersions.V_8_0_0, TransportVersions.V_8_0_0)

@@ -92,7 +92,7 @@ public class MergingDigest extends AbstractTDigest {
     private final int[] order;
 
     // if true, alternate upward and downward merge passes
-    public boolean useAlternatingSort = false;
+    public boolean useAlternatingSort = true;
     // if true, use higher working value of compression during construction, then reduce on presentation
     public boolean useTwoLevelCompression = true;
 

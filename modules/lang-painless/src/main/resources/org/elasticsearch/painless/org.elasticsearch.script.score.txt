@@ -13,6 +13,23 @@ class org.elasticsearch.script.ScoreScript @no_import {
 class org.elasticsearch.script.ScoreScript$Factory @no_import {
 }
 
+class org.elasticsearch.script.StatsSummary {
+    double getMin()
+    double getMax()
+    double getAverage()
+    double getSum()
+    long getCount()
+}
+
+class org.elasticsearch.script.ScriptTermStats {
+    int uniqueTermsCount()
+    int matchedTermsCount()
+    StatsSummary docFreq()
+    StatsSummary totalTermFreq()
+    StatsSummary termFreq()
+    StatsSummary termPositions()
+}
+
 static_import {
     double saturation(double, double) from_class org.elasticsearch.script.ScoreScriptUtils
     double sigmoid(double, double, double) from_class org.elasticsearch.script.ScoreScriptUtils

@@ -38,6 +38,11 @@ public class EsqlCapabilities {
         FN_MV_APPEND,
 
         /**
+         * Support for {@code MV_MEDIAN_ABSOLUTE_DEVIATION} function.
+         */
+        FN_MV_MEDIAN_ABSOLUTE_DEVIATION,
+
+        /**
          * Support for {@code MV_PERCENTILE} function.
          */
         FN_MV_PERCENTILE,
@@ -56,6 +61,11 @@ public class EsqlCapabilities {
          * Support for the {@code INLINESTATS} syntax.
          */
         INLINESTATS(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+
+        /**
+         * Support for the expressions in grouping in {@code INLINESTATS} syntax.
+         */
+        INLINESTATS_V2(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
 
         /**
          * Support for aggregation function {@code TOP}.
@@ -131,6 +141,11 @@ public class EsqlCapabilities {
         ST_DISTANCE,
 
         /**
+         * Fix determination of CRS types in spatial functions when folding.
+         */
+        SPATIAL_FUNCTIONS_FIX_CRSTYPE_FOLDING,
+
+        /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
          * https://github.com/elastic/elasticsearch/issues/110184
          */
@@ -172,6 +187,11 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/111452
          */
         UNION_TYPES_FIX_RENAME_RESOLUTION,
+
+        /**
+         * Fix for union-types when some indexes are missing the required field. Done in #111932.
+         */
+        UNION_TYPES_MISSING_FIELD,
 
         /**
          * Fix a parsing issue where numbers below Long.MIN_VALUE threw an exception instead of parsing as doubles.
@@ -254,7 +274,17 @@ public class EsqlCapabilities {
         /**
          * Support for the whole number spans in BUCKET function.
          */
-        BUCKET_WHOLE_NUMBER_AS_SPAN;
+        BUCKET_WHOLE_NUMBER_AS_SPAN,
+
+        /**
+         * Allow mixed numeric types in coalesce
+         */
+        MIXED_NUMERIC_TYPES_IN_COALESCE,
+
+        /**
+         * Support for requesting the "SPACE" function.
+         */
+        SPACE;
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

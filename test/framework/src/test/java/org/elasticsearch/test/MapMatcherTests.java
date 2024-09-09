@@ -11,8 +11,10 @@ package org.elasticsearch.test;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.StringDescription;
+import org.hamcrest.TypeSafeMatcher;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -24,7 +26,9 @@ import java.util.Map;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
@@ -393,6 +397,45 @@ public class MapMatcherTests extends ESTestCase {
             foo: <1>
             bar: a map containing
               baz: <0>"""));
+    }
+
+    public void testSubMatcherDescribeFails() {
+        assertMismatch(Map.of("foo", 2.0, "bar", 2), matchesMap().entry("foo", new TypeSafeMatcher<Object>() {
+            @Override
+            public void describeTo(Description description) {
+                throw new IllegalStateException("intentional failure");
+            }
+
+            @Override
+            protected boolean matchesSafely(Object o) {
+                return false;
+            }
+        }).entry("bar", 2), both(containsString("""
+            a map containing
+            foo: expected error describing <java.lang.IllegalStateException: intentional failure""")).and(containsString("""
+            bar: <2>""")));
+    }
+
+    public void testSubMatcherMismatchFails() {
+        assertMismatch(Map.of("foo", 2.0, "bar", 2), matchesMap().entry("foo", new TypeSafeMatcher<Object>() {
+            @Override
+            protected void describeMismatchSafely(Object item, Description mismatchDescription) {
+                throw new IllegalStateException("intentional failure");
+            }
+
+            @Override
+            public void describeTo(Description description) {
+                description.appendValue("foo");
+            }
+
+            @Override
+            protected boolean matchesSafely(Object o) {
+                return false;
+            }
+        }).entry("bar", 2), both(containsString("""
+            a map containing
+            foo: expected "foo" but error describing <java.lang.IllegalStateException: intentional failure""")).and(containsString("""
+            bar: <2>""")));
     }
 
     static <T> void assertMismatch(T v, Matcher<? super T> matcher, Matcher<String> mismatchDescriptionMatcher) {

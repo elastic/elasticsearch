@@ -274,6 +274,11 @@ public interface SourceLoader {
             public void write(XContentBuilder b) {}
 
             @Override
+            public void reset() {
+
+            }
+
+            @Override
             public String fieldName() {
                 return "";
             }
@@ -319,9 +324,20 @@ public interface SourceLoader {
         String fieldName();
 
         /**
+         * Resets the loader to remove any stored data and prepare it for processing new document.
+         * This is an alternative code path to {@link  SyntheticFieldLoader#write} that is executed
+         * when values are loaded but not written.
+         * Loaders are expected to also reset their state after writing currently present data.
+         */
+        void reset();
+
+        /**
          * Sync for stored field values.
          */
         interface StoredFieldLoader {
+            /**
+             * Loads values read from a corresponding stored field into this loader.
+             */
             void load(List<Object> values);
         }
 
@@ -338,4 +354,19 @@ public interface SourceLoader {
         }
     }
 
+    /**
+     * Synthetic field loader that uses only doc values to load synthetic source values.
+     */
+    abstract class DocValuesBasedSyntheticFieldLoader implements SyntheticFieldLoader {
+        @Override
+        public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
+            return Stream.empty();
+        }
+
+        @Override
+        public void reset() {
+            // Not applicable to loaders using only doc values
+            // since DocValuesLoader#advanceToDoc will reset the state anyway.
+        }
+    }
 }

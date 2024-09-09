@@ -72,7 +72,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -81,6 +80,7 @@ import java.util.function.Function;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.getRepositoryDataBlobName;
 import static org.elasticsearch.snapshots.SnapshotsService.NO_FEATURE_STATES_VALUE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.empty;
@@ -288,7 +288,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         }
     }
 
-    public static void waitForBlockOnAnyDataNode(String repository) throws InterruptedException {
+    public static void waitForBlockOnAnyDataNode(String repository) {
         final boolean blocked = waitUntil(() -> {
             for (RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
                 MockRepository mockRepository = (MockRepository) repositoriesService.repository(repository);
@@ -409,7 +409,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             downgradedRepoData = RepositoryData.snapshotsFromXContent(parser, repositoryData.getGenId(), randomBoolean());
         }
         Files.write(
-            repoPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + repositoryData.getGenId()),
+            repoPath.resolve(getRepositoryDataBlobName(repositoryData.getGenId())),
             BytesReference.toBytes(BytesReference.bytes(downgradedRepoData.snapshotsToXContent(XContentFactory.jsonBuilder(), version))),
             StandardOpenOption.TRUNCATE_EXISTING
         );
@@ -475,13 +475,13 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         return createSnapshot(repositoryName, snapshot, indices, Collections.singletonList(NO_FEATURE_STATES_VALUE));
     }
 
-    protected void createIndexWithRandomDocs(String indexName, int docCount) throws InterruptedException {
+    protected void createIndexWithRandomDocs(String indexName, int docCount) {
         createIndex(indexName);
         ensureGreen();
         indexRandomDocs(indexName, docCount);
     }
 
-    protected void indexRandomDocs(String index, int numdocs) throws InterruptedException {
+    protected void indexRandomDocs(String index, int numdocs) {
         logger.info("--> indexing [{}] documents into [{}]", numdocs, index);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
         for (int i = 0; i < builders.length; i++) {
@@ -700,7 +700,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         final PlainActionFuture<Collection<CreateSnapshotResponse>> allSnapshotsDone = new PlainActionFuture<>();
         final ActionListener<CreateSnapshotResponse> snapshotsListener = new GroupedActionListener<>(count, allSnapshotsDone);
         final List<String> snapshotNames = new ArrayList<>(count);
-        final String prefix = RANDOM_SNAPSHOT_NAME_PREFIX + UUIDs.randomBase64UUID(random()).toLowerCase(Locale.ROOT) + "-";
+        final String prefix = RANDOM_SNAPSHOT_NAME_PREFIX + randomIdentifier() + "-";
         for (int i = 0; i < count; i++) {
             final String snapshot = prefix + i;
             snapshotNames.add(snapshot);

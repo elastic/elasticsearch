@@ -30,6 +30,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
     final ClusterStatsIndices indicesStats;
     final ClusterHealthStatus status;
     final ClusterSnapshotStats clusterSnapshotStats;
+    final RepositoryUsageStats repositoryUsageStats;
     final long timestamp;
     final String clusterUUID;
 
@@ -59,6 +60,14 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         }
         this.status = status;
         this.clusterSnapshotStats = clusterSnapshotStats;
+
+        this.repositoryUsageStats = nodes.stream()
+            .map(ClusterStatsNodeResponse::repositoryUsageStats)
+            // only populated on snapshot nodes (i.e. master and data nodes)
+            .filter(r -> r.isEmpty() == false)
+            // stats should be the same on every node so just pick one of them
+            .findAny()
+            .orElse(RepositoryUsageStats.EMPTY);
     }
 
     public String getClusterUUID() {
@@ -112,6 +121,9 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
 
         builder.field("snapshots");
         clusterSnapshotStats.toXContent(builder, params);
+
+        builder.field("repositories");
+        repositoryUsageStats.toXContent(builder, params);
 
         return builder;
     }

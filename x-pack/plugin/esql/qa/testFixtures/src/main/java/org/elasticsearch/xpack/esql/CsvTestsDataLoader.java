@@ -68,6 +68,11 @@ public class CsvTestsDataLoader {
         "mapping-sample_data_ts_long.json",
         "sample_data_ts_long.csv"
     );
+    private static final TestsDataset MISSING_IP_SAMPLE_DATA = new TestsDataset(
+        "missing_ip_sample_data",
+        "mapping-missing_ip_sample_data.json",
+        "missing_ip_sample_data.csv"
+    );
     private static final TestsDataset CLIENT_IPS = new TestsDataset("clientips", "mapping-clientips.json", "clientips.csv");
     private static final TestsDataset CLIENT_CIDR = new TestsDataset("client_cidr", "mapping-client_cidr.json", "client_cidr.csv");
     private static final TestsDataset AGES = new TestsDataset("ages", "mapping-ages.json", "ages.csv");
@@ -100,6 +105,7 @@ public class CsvTestsDataLoader {
     private static final TestsDataset DISTANCES = new TestsDataset("distances", "mapping-distances.json", "distances.csv");
     private static final TestsDataset K8S = new TestsDataset("k8s", "k8s-mappings.json", "k8s.csv", "k8s-settings.json", true);
     private static final TestsDataset ADDRESSES = new TestsDataset("addresses", "mapping-addresses.json", "addresses.csv", null, true);
+    private static final TestsDataset BOOKS = new TestsDataset("books", "mapping-books.json", "books.csv", null, true);
 
     public static final Map<String, TestsDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
@@ -111,6 +117,7 @@ public class CsvTestsDataLoader {
         Map.entry(ALERTS.indexName, ALERTS),
         Map.entry(SAMPLE_DATA_STR.indexName, SAMPLE_DATA_STR),
         Map.entry(SAMPLE_DATA_TS_LONG.indexName, SAMPLE_DATA_TS_LONG),
+        Map.entry(MISSING_IP_SAMPLE_DATA.indexName, MISSING_IP_SAMPLE_DATA),
         Map.entry(CLIENT_IPS.indexName, CLIENT_IPS),
         Map.entry(CLIENT_CIDR.indexName, CLIENT_CIDR),
         Map.entry(AGES.indexName, AGES),
@@ -126,7 +133,8 @@ public class CsvTestsDataLoader {
         Map.entry(DATE_NANOS.indexName, DATE_NANOS),
         Map.entry(K8S.indexName, K8S),
         Map.entry(DISTANCES.indexName, DISTANCES),
-        Map.entry(ADDRESSES.indexName, ADDRESSES)
+        Map.entry(ADDRESSES.indexName, ADDRESSES),
+        Map.entry(BOOKS.indexName, BOOKS)
     );
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");

@@ -59,7 +59,7 @@ public class MvPercentileTests extends AbstractScalarFunctionTestCase {
             }
         }
 
-        for (var percentileType : List.of(INTEGER, LONG, DataType.DOUBLE)) {
+        for (var percentileType : List.of(INTEGER, LONG, DOUBLE)) {
             cases.addAll(
                 List.of(
                     // Doubles
@@ -334,6 +334,21 @@ public class MvPercentileTests extends AbstractScalarFunctionTestCase {
                 );
             }
         }
+        cases.add(
+            new TestCaseSupplier(
+                "from example",
+                List.of(DOUBLE, INTEGER),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(List.of(-3.34, -6.33, 6.23, -0.31), DOUBLE, "field"),
+                        new TestCaseSupplier.TypedData(75, INTEGER, "percentile")
+                    ),
+                    evaluatorString(DOUBLE, INTEGER),
+                    DOUBLE,
+                    equalTo(1.325)
+                )
+            )
+        );
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(
             (nullPosition, nullValueDataType, original) -> nullValueDataType == DataType.NULL && nullPosition == 0

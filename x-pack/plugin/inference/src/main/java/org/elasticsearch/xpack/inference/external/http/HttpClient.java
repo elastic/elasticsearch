@@ -13,6 +13,7 @@ import org.apache.http.concurrent.FutureCallback;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
+import org.apache.http.protocol.HttpContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -25,6 +26,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
@@ -143,8 +145,52 @@ public class HttpClient implements Closeable {
         });
     }
 
-    private void failUsingUtilityThread(Exception exception, ActionListener<HttpResult> listener) {
+    private void failUsingUtilityThread(Exception exception, ActionListener<?> listener) {
         threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> listener.onFailure(exception));
+    }
+
+    public void stream(HttpRequest request, HttpContext context, ActionListener<Flow.Publisher<HttpResult>> listener) throws IOException {
+        // The caller must call start() first before attempting to send a request
+        assert status.get() == Status.STARTED : "call start() before attempting to send a request";
+
+        // apache can sometimes send us the same error in the consumer and the callback
+        // sometimes it sends us an error just on the callback
+        // notifyOnce will dedupe for us
+        var callOnceListener = ActionListener.notifyOnce(listener);
+
+        SocketAccess.doPrivileged(
+            () -> client.execute(
+                request.requestProducer(),
+                new StreamingHttpResultPublisher(threadPool, settings, callOnceListener),
+                context,
+                new FutureCallback<>() {
+                    @Override
+                    public void completed(HttpResponse response) {
+                        // StreamingHttpResultPublisher will publish results to the Flow.Publisher returned in the ActionListener
+                    }
+
+                    @Override
+                    public void failed(Exception ex) {
+                        throttlerManager.warn(
+                            logger,
+                            format("Request from inference entity id [%s] failed", request.inferenceEntityId()),
+                            ex
+                        );
+                        failUsingUtilityThread(ex, callOnceListener);
+                    }
+
+                    @Override
+                    public void cancelled() {
+                        failUsingUtilityThread(
+                            new CancellationException(
+                                format("Request from inference entity id [%s] was cancelled", request.inferenceEntityId())
+                            ),
+                            callOnceListener
+                        );
+                    }
+                }
+            )
+        );
     }
 
     @Override

@@ -487,6 +487,17 @@ POINT (42.97109629958868 14.7552534006536)    | 1
 ###############################################
 # Tests for ST_INTERSECTS on GEO_POINT type
 
+literalGeoPointIntersectsLiteralPolygon
+required_capability: st_intersects
+
+ROW pt = TO_GEOPOINT("POINT(0 85)"), polygon = TO_GEOSHAPE("POLYGON((-10 70, 10 70, 10 85, -10 85, -10 70))")
+| EVAL intersects = ST_INTERSECTS(pt, polygon)
+;
+
+pt:geo_point  | polygon:geo_shape                               | intersects:boolean
+POINT(0 85)   | POLYGON((-10 70, 10 70, 10 85, -10 85, -10 70)) | true
+;
+
 pointIntersectsLiteralPolygon
 required_capability: st_intersects
 
@@ -887,6 +898,34 @@ wkt:keyword    | pt:geo_point  | distance:double
 "POINT(-1 -1)" | POINT(-1 -1)  | 157249.6015756357
 "POINT(-1 1)"  | POINT(-1 1)   | 157249.5982806869
 "POINT(1 -1)"  | POINT(1 -1)   | 157249.59498573805
+;
+
+literalGeoPointDistanceOneDegree
+required_capability: st_distance
+
+ROW wkt = ["POINT(1 0)", "POINT(-1 0)", "POINT(0 1)", "POINT(0 -1)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_GEOPOINT(wkt)
+| EVAL distance = ST_DISTANCE(pt, TO_GEOPOINT("POINT(0 0)"))
+;
+
+wkt:keyword    | pt:geo_point  | distance:double
+"POINT(1 0)"   | POINT(1 0)    | 111195.07310665186
+"POINT(-1 0)"  | POINT(-1 0)   | 111195.08242688453
+"POINT(0 1)"   | POINT(0 1)    | 111195.07776676829
+"POINT(0 -1)"  | POINT(0 -1)   | 111195.08242688453
+;
+
+twoCitiesPointDistanceGeo
+required_capability: st_distance
+required_capability: spatial_functions_fix_crstype_folding
+
+ROW p1 = TO_GEOPOINT("POINT(-90.82814 29.79511)"), p2 = TO_GEOPOINT("POINT(-90.79731509999999 29.8835389)")
+| EVAL d = ST_DISTANCE(p1, p2)
+;
+
+p1:geo_point                | p2:geo_point                           | d:double
+POINT (-90.82814 29.79511)  | POINT (-90.79731509999999 29.8835389)  | 10272.529272836206
 ;
 
 airportCityLocationPointDistance
@@ -1432,6 +1471,17 @@ POINT (726480.0130685265 3359566.331716279) | 849
 
 ###############################################
 # Tests for ST_INTERSECTS on CARTESIAN_POINT type
+
+literalCartesianPointIntersectsLiteralPolygon
+required_capability: st_intersects
+
+ROW pt = TO_CARTESIANPOINT("POINT(0 85)"), polygon = TO_CARTESIANSHAPE("POLYGON((-10 70, 10 70, 10 85, -10 85, -10 70))")
+| EVAL intersects = ST_INTERSECTS(pt, polygon)
+;
+
+pt:cartesian_point  | polygon:cartesian_shape                         | intersects:boolean
+POINT(0 85)         | POLYGON((-10 70, 10 70, 10 85, -10 85, -10 70)) | true
+;
 
 cartesianCentroidFromAirportsAfterIntersectsPredicate
 required_capability: st_intersects
@@ -1994,6 +2044,33 @@ wkt:keyword    | pt:cartesian_point  | distance:double
 "POINT(-1 -1)" | POINT(-1 -1)        | 1.4142135623730951
 "POINT(-1 1)"  | POINT(-1 1)         | 1.4142135623730951
 "POINT(1 -1)"  | POINT(1 -1)         | 1.4142135623730951
+;
+
+literalCartesianPointDistanceOneUnit
+required_capability: st_distance
+
+ROW wkt = ["POINT(1 0)", "POINT(-1 0)", "POINT(0 1)", "POINT(0 -1)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_CARTESIANPOINT(wkt)
+| EVAL distance = ST_DISTANCE(pt, TO_CARTESIANPOINT("POINT(0 0)"))
+;
+
+wkt:keyword    | pt:cartesian_point  | distance:double
+"POINT(1 0)"   | POINT(1 0)          | 1.0
+"POINT(-1 0)"  | POINT(-1 0)         | 1.0
+"POINT(0 1)"   | POINT(0 1)          | 1.0
+"POINT(0 -1)"  | POINT(0 -1)         | 1.0
+;
+
+twoCitiesPointDistanceCartesian
+required_capability: st_distance
+
+ROW p1 = TO_CARTESIANPOINT("POINT(-90.82814 29.79511)"), p2 = TO_CARTESIANPOINT("POINT(-90.79731509999999 29.8835389)")
+| EVAL d = ST_DISTANCE(p1, p2)
+;
+
+p1:cartesian_point          | p2:cartesian_point                     | d:double
+POINT (-90.82814 29.79511)  | POINT (-90.79731509999999 29.8835389)  | 0.09364744959271905
 ;
 
 airportCartesianCityLocationPointDistance

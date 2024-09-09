@@ -54,6 +54,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
         this(client, null);
     }
 
+    @SuppressWarnings("this-escape")
     public IndexRequestBuilder(ElasticsearchClient client, @Nullable String index) {
         super(client, TransportIndexAction.TYPE);
         setIndex(index);

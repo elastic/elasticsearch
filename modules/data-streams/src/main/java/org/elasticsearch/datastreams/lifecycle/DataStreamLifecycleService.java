@@ -296,13 +296,13 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
     @Override
     public void triggered(SchedulerEngine.Event event) {
-        if (event.getJobName().equals(LIFECYCLE_JOB_NAME)) {
+        if (event.jobName().equals(LIFECYCLE_JOB_NAME)) {
             if (this.isMaster) {
                 logger.trace(
                     "Data stream lifecycle job triggered: {}, {}, {}",
-                    event.getJobName(),
-                    event.getScheduledTime(),
-                    event.getTriggeredTime()
+                    event.jobName(),
+                    event.scheduledTime(),
+                    event.triggeredTime()
                 );
                 run(clusterService.state());
                 dslHealthInfoPublisher.publishDslErrorEntries(new ActionListener<>() {
@@ -819,7 +819,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 RolloverRequest rolloverRequest = getDefaultRolloverRequest(
                     rolloverConfiguration,
                     dataStream.getName(),
-                    dataStream.getLifecycle().getEffectiveDataRetention(dataStream.isSystem() ? null : globalRetentionSettings.get()),
+                    dataStream.getLifecycle().getEffectiveDataRetention(globalRetentionSettings.get(), dataStream.isInternal()),
                     rolloverFailureStore
                 );
                 transportActionsDeduplicator.executeOnce(
@@ -879,7 +879,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         Set<Index> indicesToBeRemoved = new HashSet<>();
         // We know that there is lifecycle and retention because there are indices to be deleted
         assert dataStream.getLifecycle() != null;
-        TimeValue effectiveDataRetention = dataStream.getLifecycle().getEffectiveDataRetention(globalRetention);
+        TimeValue effectiveDataRetention = dataStream.getLifecycle().getEffectiveDataRetention(globalRetention, dataStream.isInternal());
         for (Index index : backingIndicesOlderThanRetention) {
             if (indicesToExcludeForRemainingRun.contains(index) == false) {
                 IndexMetadata backingIndex = metadata.index(index);

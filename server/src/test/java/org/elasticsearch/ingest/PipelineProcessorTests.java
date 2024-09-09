@@ -8,6 +8,7 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
@@ -16,7 +17,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 
@@ -32,12 +32,12 @@ public class PipelineProcessorTests extends ESTestCase {
     public void testExecutesPipeline() throws Exception {
         String pipelineId = "pipeline";
         IngestService ingestService = createIngestService();
-        CompletableFuture<IngestDocument> invoked = new CompletableFuture<>();
+        PlainActionFuture<IngestDocument> invoked = new PlainActionFuture<>();
         IngestDocument testIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         Pipeline pipeline = new Pipeline(pipelineId, null, null, null, new CompoundProcessor(new Processor() {
             @Override
-            public IngestDocument execute(final IngestDocument ingestDocument) throws Exception {
-                invoked.complete(ingestDocument);
+            public IngestDocument execute(final IngestDocument ingestDocument) {
+                invoked.onResponse(ingestDocument);
                 return ingestDocument;
             }
 
@@ -61,7 +61,7 @@ public class PipelineProcessorTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("name", pipelineId);
         factory.create(Map.of(), null, null, config).execute(testIngestDocument, (result, e) -> {});
-        assertIngestDocument(testIngestDocument, invoked.get());
+        assertIngestDocument(testIngestDocument, safeGet(invoked));
     }
 
     public void testThrowsOnMissingPipeline() throws Exception {

@@ -93,6 +93,7 @@ public abstract class AbstractClient implements Client {
     private final ThreadPool threadPool;
     private final AdminClient admin;
 
+    @SuppressWarnings("this-escape")
     public AbstractClient(Settings settings, ThreadPool threadPool) {
         this.settings = settings;
         this.threadPool = threadPool;

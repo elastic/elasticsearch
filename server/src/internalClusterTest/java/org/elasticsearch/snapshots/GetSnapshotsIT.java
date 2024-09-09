@@ -40,7 +40,6 @@ import org.elasticsearch.core.Predicates;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryMissingException;
-import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
@@ -63,6 +62,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.getRepositoryDataBlobName;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
@@ -1042,7 +1042,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final var repositoryMetadata = repository.getMetadata();
         final var repositorySettings = repositoryMetadata.settings();
         final var repositoryDataBlobPath = asInstanceOf(FsBlobStore.class, repository.blobStore()).path()
-            .resolve(BlobStoreRepository.INDEX_FILE_PREFIX + repositoryMetadata.generation());
+            .resolve(getRepositoryDataBlobName(repositoryMetadata.generation()));
 
         SubscribableListener
 

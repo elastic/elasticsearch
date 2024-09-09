@@ -699,10 +699,8 @@ public final class RepositoryData {
             final IndexVersion minVersion;
             if (shouldWriteUUIDS) {
                 minVersion = SnapshotsService.UUIDS_IN_REPO_DATA_VERSION;
-            } else if (shouldWriteIndexGens) {
-                minVersion = SnapshotsService.INDEX_GEN_IN_REPO_DATA_VERSION;
             } else {
-                minVersion = SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION;
+                minVersion = SnapshotsService.INDEX_GEN_IN_REPO_DATA_VERSION;
             }
             // Note that all known versions expect the MIN_VERSION field to be a string, and versions before 8.11.0 try and parse it as a
             // major.minor.patch version number, so if we introduce a numeric format version in future then this will cause them to fail
@@ -885,7 +883,7 @@ public final class RepositoryData {
                     final var version = switch (versionString) {
                         case "7.12.0" -> IndexVersions.V_7_12_0;
                         case "7.9.0" -> IndexVersions.V_7_9_0;
-                        case "7.6.0" -> IndexVersions.V_7_6_0;
+                        case "7.6.0" -> IndexVersion.fromId(7_06_00_99);
                         default ->
                             // All (known) versions only ever emit one of the above strings for the format version, so if we see something
                             // else it must be a newer version or else something wholly invalid. Report the raw string rather than trying

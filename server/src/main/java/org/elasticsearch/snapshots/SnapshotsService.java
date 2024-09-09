@@ -138,8 +138,6 @@ import static org.elasticsearch.core.Strings.format;
  */
 public final class SnapshotsService extends AbstractLifecycleComponent implements ClusterStateApplier {
 
-    public static final IndexVersion SHARD_GEN_IN_REPO_DATA_VERSION = IndexVersions.V_7_6_0;
-
     public static final IndexVersion INDEX_GEN_IN_REPO_DATA_VERSION = IndexVersions.V_7_9_0;
 
     public static final IndexVersion UUIDS_IN_REPO_DATA_VERSION = IndexVersions.V_7_12_0;
@@ -2337,8 +2335,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
      * @param repositoryMetaVersion version to check
      * @return true if version supports {@link ShardGenerations}
      */
+    // TODO lucene 10 upgrade, remove method since its trivially true now
     public static boolean useShardGenerations(IndexVersion repositoryMetaVersion) {
-        return repositoryMetaVersion.onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION);
+        return true;
     }
 
     /**
@@ -2822,7 +2821,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                                 updatedDeletions,
                                 currentState,
                                 entry.indices().values(),
-                                entry.version().onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION),
+                                true,
                                 repositoryData,
                                 repoName
                             );

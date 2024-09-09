@@ -826,11 +826,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                         .settings()
                         .get("location")
                 );
-            initWithSnapshotVersion(
-                tmpRepositoryName,
-                repoPath,
-                randomFrom(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION, SnapshotsService.INDEX_GEN_IN_REPO_DATA_VERSION)
-            );
+            initWithSnapshotVersion(tmpRepositoryName, repoPath, SnapshotsService.INDEX_GEN_IN_REPO_DATA_VERSION);
             assertAcked(clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, tmpRepositoryName));
             createRepository(repositoryName, "fs", repoPath);
         }

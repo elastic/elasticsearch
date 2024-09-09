@@ -29,6 +29,7 @@ import org.elasticsearch.repositories.IndexMetaDataGenerations;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -46,6 +47,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -383,81 +385,81 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
     // TODO lucene 10 upgrade, deleting old IndexVersions and with this SnapshotsService.OLD_SNAPSHOT_FORMAT
     // can the following test be deleted?
-    // public void testHandleSnapshotErrorWithBwCFormat() throws Exception {
-    // final String repoName = "test-repo";
-    // final Path repoPath = randomRepoPath();
-    // createRepository(repoName, "fs", repoPath);
-    // final String oldVersionSnapshot = initWithSnapshotVersion(repoName, repoPath, SnapshotsService.OLD_SNAPSHOT_FORMAT);
-    //
-    // final String indexName = "test-index";
-    // createIndex(indexName);
-    //
-    // createFullSnapshot(repoName, "snapshot-1");
-    //
-    // // In the old metadata version the shard level metadata could be moved to the next generation for all sorts of reasons, this should
-    // // not break subsequent repository operations
-    // logger.info("--> move shard level metadata to new generation");
-    // final IndexId indexId = getRepositoryData(repoName).resolveIndexId(indexName);
-    // final Path shardPath = repoPath.resolve("indices").resolve(indexId.getId()).resolve("0");
-    // final Path initialShardMetaPath = shardPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + "0");
-    // assertFileExists(initialShardMetaPath);
-    // Files.move(initialShardMetaPath, shardPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + "1"));
-    //
-    // startDeleteSnapshot(repoName, oldVersionSnapshot).get();
-    //
-    // createFullSnapshot(repoName, "snapshot-2");
-    // }
+    public void testHandleSnapshotErrorWithBwCFormat() throws Exception {
+        final String repoName = "test-repo";
+        final Path repoPath = randomRepoPath();
+        createRepository(repoName, "fs", repoPath);
+        final String oldVersionSnapshot = initWithSnapshotVersion(repoName, repoPath, SnapshotsService.OLD_SNAPSHOT_FORMAT);
+
+        final String indexName = "test-index";
+        createIndex(indexName);
+
+        createFullSnapshot(repoName, "snapshot-1");
+
+        // In the old metadata version the shard level metadata could be moved to the next generation for all sorts of reasons, this should
+        // not break subsequent repository operations
+        logger.info("--> move shard level metadata to new generation");
+        final IndexId indexId = getRepositoryData(repoName).resolveIndexId(indexName);
+        final Path shardPath = repoPath.resolve("indices").resolve(indexId.getId()).resolve("0");
+        final Path initialShardMetaPath = shardPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + "0");
+        assertFileExists(initialShardMetaPath);
+        Files.move(initialShardMetaPath, shardPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + "1"));
+
+        startDeleteSnapshot(repoName, oldVersionSnapshot).get();
+
+        createFullSnapshot(repoName, "snapshot-2");
+    }
 
     // TODO lucene 10 upgrade, deleting old IndexVersions and with this SnapshotsService.OLD_SNAPSHOT_FORMAT
     // can the following test be deleted?
-    // public void testRepairBrokenShardGenerations() throws Exception {
-    // final String repoName = "test-repo";
-    // final Path repoPath = randomRepoPath();
-    // createRepository(repoName, "fs", repoPath);
-    // final String oldVersionSnapshot = initWithSnapshotVersion(repoName, repoPath, SnapshotsService.OLD_SNAPSHOT_FORMAT);
-    //
-    // final String indexName = "test-index";
-    // createIndex(indexName);
-    //
-    // createFullSnapshot(repoName, "snapshot-1");
-    //
-    // startDeleteSnapshot(repoName, oldVersionSnapshot).get();
-    //
-    // logger.info("--> move shard level metadata to new generation and make RepositoryData point at an older generation");
-    // final IndexId indexId = getRepositoryData(repoName).resolveIndexId(indexName);
-    // final Path shardPath = repoPath.resolve("indices").resolve(indexId.getId()).resolve("0");
-    // final Path initialShardMetaPath = shardPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + "0");
-    // assertFileExists(initialShardMetaPath);
-    // Files.move(initialShardMetaPath, shardPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + randomIntBetween(1, 1000)));
-    //
-    // final RepositoryData repositoryData = getRepositoryData(repoName);
-    // final Map<String, SnapshotId> snapshotIds = repositoryData.getSnapshotIds()
-    // .stream()
-    // .collect(Collectors.toMap(SnapshotId::getUUID, Function.identity()));
-    // final RepositoryData brokenRepoData = new RepositoryData(
-    // repositoryData.getUuid(),
-    // repositoryData.getGenId(),
-    // snapshotIds,
-    // snapshotIds.values().stream().collect(Collectors.toMap(SnapshotId::getUUID, repositoryData::getSnapshotDetails)),
-    // repositoryData.getIndices().values().stream().collect(Collectors.toMap(Function.identity(), repositoryData::getSnapshots)),
-    // ShardGenerations.builder().putAll(repositoryData.shardGenerations()).put(indexId, 0, new ShardGeneration(0L)).build(),
-    // repositoryData.indexMetaDataGenerations(),
-    // repositoryData.getClusterUUID()
-    // );
-    // Files.write(
-    // repoPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + repositoryData.getGenId()),
-    // BytesReference.toBytes(
-    // BytesReference.bytes(brokenRepoData.snapshotsToXContent(XContentFactory.jsonBuilder(), IndexVersion.current()))
-    // ),
-    // StandardOpenOption.TRUNCATE_EXISTING
-    // );
-    //
-    // logger.info("--> recreating repository to clear caches");
-    // clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName).get();
-    // createRepository(repoName, "fs", repoPath);
-    //
-    // createFullSnapshot(repoName, "snapshot-2");
-    // }
+    public void testRepairBrokenShardGenerations() throws Exception {
+        final String repoName = "test-repo";
+        final Path repoPath = randomRepoPath();
+        createRepository(repoName, "fs", repoPath);
+        final String oldVersionSnapshot = initWithSnapshotVersion(repoName, repoPath, SnapshotsService.OLD_SNAPSHOT_FORMAT);
+
+        final String indexName = "test-index";
+        createIndex(indexName);
+
+        createFullSnapshot(repoName, "snapshot-1");
+
+        startDeleteSnapshot(repoName, oldVersionSnapshot).get();
+
+        logger.info("--> move shard level metadata to new generation and make RepositoryData point at an older generation");
+        final IndexId indexId = getRepositoryData(repoName).resolveIndexId(indexName);
+        final Path shardPath = repoPath.resolve("indices").resolve(indexId.getId()).resolve("0");
+        final Path initialShardMetaPath = shardPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + "0");
+        assertFileExists(initialShardMetaPath);
+        Files.move(initialShardMetaPath, shardPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + randomIntBetween(1, 1000)));
+
+        final RepositoryData repositoryData = getRepositoryData(repoName);
+        final Map<String, SnapshotId> snapshotIds = repositoryData.getSnapshotIds()
+            .stream()
+            .collect(Collectors.toMap(SnapshotId::getUUID, Function.identity()));
+        final RepositoryData brokenRepoData = new RepositoryData(
+            repositoryData.getUuid(),
+            repositoryData.getGenId(),
+            snapshotIds,
+            snapshotIds.values().stream().collect(Collectors.toMap(SnapshotId::getUUID, repositoryData::getSnapshotDetails)),
+            repositoryData.getIndices().values().stream().collect(Collectors.toMap(Function.identity(), repositoryData::getSnapshots)),
+            ShardGenerations.builder().putAll(repositoryData.shardGenerations()).put(indexId, 0, new ShardGeneration(0L)).build(),
+            repositoryData.indexMetaDataGenerations(),
+            repositoryData.getClusterUUID()
+        );
+        Files.write(
+            repoPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + repositoryData.getGenId()),
+            BytesReference.toBytes(
+                BytesReference.bytes(brokenRepoData.snapshotsToXContent(XContentFactory.jsonBuilder(), IndexVersion.current()))
+            ),
+            StandardOpenOption.TRUNCATE_EXISTING
+        );
+
+        logger.info("--> recreating repository to clear caches");
+        clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName).get();
+        createRepository(repoName, "fs", repoPath);
+
+        createFullSnapshot(repoName, "snapshot-2");
+    }
 
     /**
      * Tests that a shard snapshot with a corrupted shard index file can still be used for restore and incremental snapshots.

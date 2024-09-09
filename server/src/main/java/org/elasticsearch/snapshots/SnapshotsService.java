@@ -140,6 +140,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     // TODO lucene 10 upgrade: check if we need any of the pre-8 versions constants here for bwc
     // e.g. reading from old snapshots
+
+    public static final IndexVersion OLD_SNAPSHOT_FORMAT = IndexVersion.fromId(7_05_00_99);
     public static final IndexVersion INDEX_GEN_IN_REPO_DATA_VERSION = IndexVersion.fromId(7_09_00_99);
     public static final IndexVersion UUIDS_IN_REPO_DATA_VERSION = IndexVersion.fromId(7_12_00_99);
     public static final IndexVersion FILE_INFO_WRITER_UUIDS_IN_SHARD_DATA_VERSION = IndexVersion.fromId(7_16_00_99);

@@ -96,7 +96,7 @@ public class MappingLookupInferenceFieldMapperTests extends MapperServiceTestCas
         public static final String CONTENT_TYPE = "test_inference_field";
 
         TestInferenceFieldMapper(String simpleName) {
-            super(simpleName, new TestInferenceFieldMapperFieldType(simpleName), MultiFields.empty(), CopyTo.empty());
+            super(simpleName, new TestInferenceFieldMapperFieldType(simpleName), BuilderParams.empty());
         }
 
         @Override

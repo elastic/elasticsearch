@@ -59,7 +59,7 @@ public class InsertFieldExtraction extends Rule<PhysicalPlan, PhysicalPlan> {
             // add extractor
             if (missing.isEmpty() == false) {
                 // collect source attributes and add the extractor
-                var extractor = new FieldExtractExec(p.source(), p.child(), List.copyOf(missing), Set.of());
+                var extractor = new FieldExtractExec(p.source(), p.child(), List.copyOf(missing));
                 p = p.replaceChild(extractor);
             }
 

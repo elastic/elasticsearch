@@ -78,7 +78,18 @@ public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends Standa
         }))
             .withPredefinedFields(
                 List.of(
-                    new PredefinedField.WithType("host.name", FieldType.KEYWORD),
+                    // Customized because it always needs doc_values for aggregations.
+                    new PredefinedField.WithGenerator("host.name", new FieldDataGenerator() {
+                        @Override
+                        public CheckedConsumer<XContentBuilder, IOException> mappingWriter() {
+                            return b -> b.startObject().field("type", "keyword").endObject();
+                        }
+
+                        @Override
+                        public CheckedConsumer<XContentBuilder, IOException> fieldValueGenerator() {
+                            return b -> b.value(randomAlphaOfLength(5));
+                        }
+                    }),
                     // Needed for terms query
                     new PredefinedField.WithGenerator("method", new FieldDataGenerator() {
                         @Override

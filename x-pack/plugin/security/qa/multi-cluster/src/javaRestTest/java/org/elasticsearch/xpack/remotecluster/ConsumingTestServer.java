@@ -29,7 +29,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 @SuppressForbidden(reason = "Uses an HTTP server for testing")
-public class ConsumingTestServer extends ExternalResource {
+class ConsumingTestServer extends ExternalResource {
     private static final Logger logger = LogManager.getLogger(ConsumingTestServer.class);
     final ArrayBlockingQueue<String> received = new ArrayBlockingQueue<>(1000);
 

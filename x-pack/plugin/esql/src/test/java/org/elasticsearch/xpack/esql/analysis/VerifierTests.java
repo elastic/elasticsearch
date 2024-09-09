@@ -903,7 +903,10 @@ public class VerifierTests extends ESTestCase {
     public void testMatchInsideEval() throws Exception {
         assumeTrue("Match operator is available just for snapshots", Build.current().isSnapshot());
 
-        assertEquals("1:36: EVAL does not support full text search expressions", error("row title = \"brown fox\" | eval x = title match \"fox\" "));
+        assertEquals(
+            "1:36: EVAL does not support full text search expressions",
+            error("row title = \"brown fox\" | eval x = title match \"fox\" ")
+        );
     }
 
     public void testMatchFilter() throws Exception {
@@ -946,6 +949,30 @@ public class VerifierTests extends ESTestCase {
         assertEquals("1:35: MATCH cannot be used after EVAL", error("from test | eval n = emp_no * 3 | match \"Anna\""));
         assertEquals("1:44: MATCH cannot be used after GROK", error("from test | grok last_name \"%{WORD:foo}\" | match \"Anna\""));
         assertEquals("1:27: MATCH cannot be used after KEEP", error("from test | keep emp_no | match \"Anna\""));
+
+        // TODO Keep adding tests for all unsupported commands
+    }
+
+    public void testQueryStringFunctionsNotAllowed() throws Exception {
+        assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
+        assertEquals("1:24: Full text functions cannot be used after LIMIT", error("from test | limit 10 | where qstr( \"Anna\")"));
+        assertEquals("1:13: Full text functions cannot be used after SHOW", error("show info | where qstr( \"8.16.0\")"));
+        assertEquals("1:17: Full text functions cannot be used after ROW", error("row a= \"Anna\" | where qstr( \"Anna\")"));
+        assertEquals("1:26: Full text functions cannot be used after EVAL", error("from test | eval z = 2 | where qstr( \"Anna\")"));
+        assertEquals(
+            "1:43: Full text functions cannot be used after DISSECT",
+            error("from test | dissect first_name \"%{foo}\" | where qstr( \"Connection\")")
+        );
+        assertEquals("1:27: Full text functions cannot be used after DROP", error("from test | drop emp_no | where qstr( \"Anna\")"));
+        assertEquals(
+            "1:35: Full text functions cannot be used after EVAL",
+            error("from test | eval n = emp_no * 3 | where qstr( \"Anna\")")
+        );
+        assertEquals(
+            "1:44: Full text functions cannot be used after GROK",
+            error("from test | grok last_name \"%{WORD:foo}\" | where qstr( \"Anna\")")
+        );
+        assertEquals("1:27: Full text functions cannot be used after KEEP", error("from test | keep emp_no | where qstr( \"Anna\")"));
 
         // TODO Keep adding tests for all unsupported commands
     }

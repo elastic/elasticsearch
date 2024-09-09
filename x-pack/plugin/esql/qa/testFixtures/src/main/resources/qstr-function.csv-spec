@@ -20,3 +20,16 @@ book_no:keyword | author:text
 2883            | William Faulkner
 3293            | Danny Faulkner
 ;
+
+qstrWithMultipleFields
+required_capability: qstr_function
+
+from books 
+| where qstr("title:Return* AND author:*Tolkien")  
+| keep book_no, title 
+| sort book_no;
+
+book_no:keyword | title:text
+2714           | Return of the King Being the Third Part of The Lord of the Rings
+7350           | Return of the Shadow
+;

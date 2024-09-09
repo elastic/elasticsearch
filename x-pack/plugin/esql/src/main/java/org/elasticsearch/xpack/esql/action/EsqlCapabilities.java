@@ -38,6 +38,11 @@ public class EsqlCapabilities {
         FN_MV_APPEND,
 
         /**
+         * Support for {@code MV_MEDIAN_ABSOLUTE_DEVIATION} function.
+         */
+        FN_MV_MEDIAN_ABSOLUTE_DEVIATION,
+
+        /**
          * Support for {@code MV_PERCENTILE} function.
          */
         FN_MV_PERCENTILE,
@@ -275,6 +280,11 @@ public class EsqlCapabilities {
          * Allow mixed numeric types in coalesce
          */
         MIXED_NUMERIC_TYPES_IN_COALESCE,
+
+        /**
+         * Support for requesting the "SPACE" function.
+         */
+        SPACE,
 
         /**
          * Support explicit casting from string literal to DATE_PERIOD or TIME_DURATION.

@@ -378,8 +378,16 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
         return new BulkItemResponse(id, opType, response, null);
     }
 
+    public static BulkItemResponse failure(int id, OpType opType, Failure failure, FailureStoreStatus failureStoreStatus) {
+        return new BulkItemResponse(id, opType, null, failure, failureStoreStatus);
+    }
+
     public static BulkItemResponse failure(int id, OpType opType, Failure failure) {
         return new BulkItemResponse(id, opType, null, failure);
+    }
+
+    public static BulkItemResponse updateFailureStoreStatus(BulkItemResponse response, FailureStoreStatus failureStoreStatus) {
+        return new BulkItemResponse(response.id, response.opType, response.response, response.failure, failureStoreStatus);
     }
 
     /**

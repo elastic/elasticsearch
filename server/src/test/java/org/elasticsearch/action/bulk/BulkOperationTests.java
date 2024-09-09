@@ -377,6 +377,7 @@ public class BulkOperationTests extends ESTestCase {
             .findFirst()
             .orElseThrow(() -> new AssertionError("Could not find redirected item"));
         assertThat(failedItem, is(notNullValue()));
+        assertThat(failedItem.getFailureStoreStatus(), equalTo(BulkItemResponse.FailureStoreStatus.USED));
     }
 
     /**
@@ -402,6 +403,7 @@ public class BulkOperationTests extends ESTestCase {
             .findFirst()
             .orElseThrow(() -> new AssertionError("Could not find redirected item"));
         assertThat(failedItem.getIndex(), is(notNullValue()));
+        assertThat(failedItem.getFailureStoreStatus(), equalTo(BulkItemResponse.FailureStoreStatus.USED));
     }
 
     /**
@@ -440,6 +442,7 @@ public class BulkOperationTests extends ESTestCase {
         assertThat(failedItem.getFailure().getCause().getSuppressed().length, is(not(equalTo(0))));
         assertThat(failedItem.getFailure().getCause().getSuppressed()[0], is(instanceOf(MapperException.class)));
         assertThat(failedItem.getFailure().getCause().getSuppressed()[0].getMessage(), is(equalTo("failure store test failure")));
+        assertThat(failedItem.getFailureStoreStatus(), equalTo(BulkItemResponse.FailureStoreStatus.FAILED));
     }
 
     /**
@@ -475,6 +478,7 @@ public class BulkOperationTests extends ESTestCase {
         assertThat(failedItem.getFailure().getCause().getSuppressed().length, is(not(equalTo(0))));
         assertThat(failedItem.getFailure().getCause().getSuppressed()[0], is(instanceOf(IOException.class)));
         assertThat(failedItem.getFailure().getCause().getSuppressed()[0].getMessage(), is(equalTo("Could not serialize json")));
+        assertThat(failedItem.getFailureStoreStatus(), equalTo(BulkItemResponse.FailureStoreStatus.FAILED));
     }
 
     /**
@@ -564,6 +568,7 @@ public class BulkOperationTests extends ESTestCase {
             .findFirst()
             .orElseThrow(() -> new AssertionError("Could not find redirected item"));
         assertThat(failedItem, is(notNullValue()));
+        assertThat(failedItem.getFailureStoreStatus(), equalTo(BulkItemResponse.FailureStoreStatus.USED));
 
         verify(observer, times(1)).isTimedOut();
         verify(observer, times(1)).waitForNextChange(any());
@@ -616,6 +621,7 @@ public class BulkOperationTests extends ESTestCase {
             failedItem.getFailure().getCause().getSuppressed()[0].getMessage(),
             is(equalTo("blocked by: [FORBIDDEN/5/index read-only (api)];"))
         );
+        assertThat(failedItem.getFailureStoreStatus(), equalTo(BulkItemResponse.FailureStoreStatus.FAILED));
 
         verify(observer, times(0)).isTimedOut();
         verify(observer, times(0)).waitForNextChange(any());
@@ -676,6 +682,7 @@ public class BulkOperationTests extends ESTestCase {
             failedItem.getFailure().getCause().getSuppressed()[0].getMessage(),
             is(equalTo("blocked by: [SERVICE_UNAVAILABLE/2/no master];"))
         );
+        assertThat(failedItem.getFailureStoreStatus(), equalTo(BulkItemResponse.FailureStoreStatus.FAILED));
 
         verify(observer, times(2)).isTimedOut();
         verify(observer, times(1)).waitForNextChange(any());
@@ -778,6 +785,7 @@ public class BulkOperationTests extends ESTestCase {
             .findFirst()
             .orElseThrow(() -> new AssertionError("Could not find redirected item"));
         assertThat(failedItem, is(notNullValue()));
+        assertThat(failedItem.getFailureStoreStatus(), equalTo(BulkItemResponse.FailureStoreStatus.USED));
     }
 
     /**
@@ -825,6 +833,7 @@ public class BulkOperationTests extends ESTestCase {
         assertThat(failedItem.getFailure().getCause().getSuppressed().length, is(not(equalTo(0))));
         assertThat(failedItem.getFailure().getCause().getSuppressed()[0], is(instanceOf(Exception.class)));
         assertThat(failedItem.getFailure().getCause().getSuppressed()[0].getMessage(), is(equalTo("rollover failed")));
+        assertThat(failedItem.getFailureStoreStatus(), equalTo(BulkItemResponse.FailureStoreStatus.FAILED));
     }
 
     /**

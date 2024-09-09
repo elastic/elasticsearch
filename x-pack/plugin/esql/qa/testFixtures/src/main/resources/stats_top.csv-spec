@@ -51,11 +51,11 @@ ROW d=-9.81, i=25324, l=TO_LONG(-9) | EVAL x=d+1, y=i/2, z=l+3 | STATS double = 
 
 topRowWithNull
 required_capability: agg_top
-ROW d=-9.81, i=25324, l=TO_LONG(-9), n=null | EVAL x=d+1+null, y=i/2+n, z=l+3, t=null | STATS double = TOP(x, 2, "asc"), integer = TOP(y, 5, "desc"), long = TOP(z, 8, "desc"), null1 = TOP(n, 1000, "asc"), null2 = TOP(t, 444, "desc") | keep double, long, integer, null1, null2
+ROW d=-9.81, i=25324, l=TO_LONG(-9), n=null | EVAL x=d+1+null, y=i/2+n, z=l+3, t=null | STATS double = TOP(x, 2, "asc"), integer = TOP(y, 5, "desc"), long = TOP(z, 8, "desc"), null1 = TOP(n, 1000, "asc"), null2 = TOP(t, 444, "desc"), null3 = TOP(null, 10, "desc") | keep double, long, integer, null*
 ;
 
-double:double  |long:long      |integer:integer| null1:null    |null2:null     
-null           |-6             |null           |null           |null
+double:double  |long:long      |integer:integer| null1:null    |null2:null     |null3:null     
+null           |-6             |null           |null           |null           |null
 ;
 
 topRowWithNull_WithBY
@@ -87,6 +87,18 @@ z2a:integer|z3d:integer|y2a:integer|y2d:integer| y:integer
 [1, 2]     |[5, 4, 3]  |[2, 3]     |[4, 3]     | 2
 [1, 2]     |[5, 4, 3]  |[2, 3]     |[4, 3]     | 3
 [1, 2]     |[5, 4, 3]  |[2, 3]     |[4, 3]     | 4
+;
+
+topRowWithDuplicatesInMultiValues
+row x = [1,2,3,2,4,5,5], z = [1,2,3,4,5] | stats z2a=top(z, 2, "asc"), z3d=top(z, 3, "desc"), x5a=top(x, 5, "asc"), x5d=top(x, 5, "desc") by x | sort x desc
+;
+
+  z2a:integer  |  z3d:integer  |   x5a:integer |  x5d:integer  |  x:integer       
+[1, 2]         |[5, 4, 3]      |[1, 2, 2, 3, 4]|[5, 5, 4, 3, 2]|5              
+[1, 2]         |[5, 4, 3]      |[1, 2, 2, 3, 4]|[5, 5, 4, 3, 2]|4              
+[1, 2]         |[5, 4, 3]      |[1, 2, 2, 3, 4]|[5, 5, 4, 3, 2]|3              
+[1, 2]         |[5, 4, 3]      |[1, 2, 2, 3, 4]|[5, 5, 4, 3, 2]|2              
+[1, 2]         |[5, 4, 3]      |[1, 2, 2, 3, 4]|[5, 5, 4, 3, 2]|1
 ;
 
 topAllTypesRow

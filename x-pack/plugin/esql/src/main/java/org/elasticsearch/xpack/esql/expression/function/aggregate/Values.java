@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDedupe;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
@@ -119,6 +120,6 @@ public class Values extends AggregateFunction implements ToAggregator, Surrogate
 
     @Override
     public Expression surrogate() {
-        return field().foldable() ? field() : null;
+        return field().foldable() ? new MvDedupe(this.source(), field()) : null;
     }
 }

@@ -55,16 +55,12 @@ public final class ReplaceAggregatesWithNull extends OptimizerRules.OptimizerRul
             Expression e = Alias.unwrap(agg);
             Object value = null;
             boolean isNewAgg = false;
-            if (e instanceof AggregateFunction af
-                && af.field().foldable()
-                && (DataType.isNull(af.field().dataType())
-                    || af.field() == null
-                    || af.field() instanceof Literal lit && lit.value() == null)) {
+            if (e instanceof AggregateFunction af && Expressions.isNull(af.field())) {
                 isNewAgg = true;
                 if (af instanceof CountDistinct || af instanceof Count) {
                     value = 0L;
                 }
-            } else if (e instanceof Literal literal && literal.value() == null) {
+            } else if (Expressions.isNull(e)) {// FoldNull can replace an entire aggregate function with a null Literal
                 isNewAgg = true;
             }
 

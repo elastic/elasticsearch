@@ -95,13 +95,13 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
         @Param(
             name = "start",
             type = { "integer" },
-            description = "Start position. If `null`, the function returns `null`. "
+            description = "Start position (inclusive). If `null`, the function returns `null`. "
                 + "The start argument can be negative. An index of -1 is used to specify the last value in the list."
         ) Expression start,
         @Param(
             name = "end",
             type = { "integer" },
-            description = "End position(included). Optional; if omitted, the position at `start` is returned. "
+            description = "End position (inclusive). Optional; if omitted, the position at `start` is returned. "
                 + "The end argument can be negative. An index of -1 is used to specify the last value in the list.",
             optional = true
         ) Expression end
@@ -243,10 +243,10 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
 
     static void checkStartEnd(int start, int end) throws InvalidArgumentException {
         if (start > end) {
-            throw new InvalidArgumentException("Start offset is greater than end offset");
+            throw new InvalidArgumentException("Start offset [{}] is greater than end offset [{}]", start, end);
         }
         if (start < 0 && end >= 0) {
-            throw new InvalidArgumentException("Start and end offset have different signs");
+            throw new InvalidArgumentException("Start [{}] and end [{}] offsets have different signs", start, end);
         }
     }
 

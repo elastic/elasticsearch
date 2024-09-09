@@ -198,8 +198,10 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PruneEmptyPlans(),
             new PropagateEmptyRelation(),
             new ConvertStringToByteRef(),
+            // nulls in expressions
             new FoldNull(),
             new ReplaceAggregatesWithNull(),
+            // constant folding related
             new SplitInWithFoldableValue(),
             new PropagateEvalFoldables(),
             new ConstantFolding(),

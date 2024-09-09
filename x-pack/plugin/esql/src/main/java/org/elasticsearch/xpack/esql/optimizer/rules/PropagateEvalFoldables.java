@@ -54,8 +54,6 @@ public final class PropagateEvalFoldables extends Rule<LogicalPlan, LogicalPlan>
 
         plan = plan.transformUp(p -> {
             // Apply the replacement inside Filter and Eval (which shouldn't make a difference)
-            // TODO: also allow aggregates once aggs on constants are supported.
-            // C.f. https://github.com/elastic/elasticsearch/issues/100634
             if (p instanceof Filter || p instanceof Eval) {
                 p = p.transformExpressionsOnly(ReferenceAttribute.class, replaceReference);
             } else if (p instanceof Aggregate agg) {

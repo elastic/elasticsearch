@@ -67,7 +67,7 @@ public class RankDocsRankBuilder extends RankBuilder {
         // we know that when arriving from a CompoundRetriever, the base explanation will contain both the actual
         // RankDocsQuery explanation, as well info on the disjunction of the sub queries,
         // which however is of no actual interest on its own. So in this method we repackage the explanation so that we would have
-        // the ranker's overall score as info, keep the `RankDocsQuery#explain` as the main explanation, and add the sub queries'
+        // the ranker's overall score as info, keep the `RankDoc#explain` as the main explanation, and add the sub queries'
         // explanations computed from the disjunction.
         if (false == baseExplanation.isMatch() || baseExplanation.getDetails().length < 2) {
             return baseExplanation;

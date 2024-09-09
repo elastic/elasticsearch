@@ -30,7 +30,6 @@ import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -111,6 +110,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         for (var entry : innerRetrievers) {
             SearchRequest searchRequest = new SearchRequest().source(entry.source);
             // The can match phase can reorder shards, so we disable it to ensure the stable ordering
+            // TODO: this breaks if we query frozen tier we need to update this/remove this
             searchRequest.setPreFilterShardSize(Integer.MAX_VALUE);
             multiSearchRequest.add(searchRequest);
         }
@@ -175,7 +175,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
 
     @Override
     public int doHashCode() {
-        return Objects.hash(innerRetrievers, Arrays.hashCode(rankDocs));
+        return Objects.hash(innerRetrievers);
     }
 
     private SearchSourceBuilder createSearchSourceBuilder(PointInTimeBuilder pit, RetrieverBuilder retrieverBuilder) {

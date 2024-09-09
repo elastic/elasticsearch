@@ -114,9 +114,6 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder implements 
 
     @Override
     public QueryBuilder topDocsQuery() {
-        if (rankDocs == null) {
-            return null;
-        }
         // TODO: for compound retrievers this will have to be reworked as queries like knn could be executed twice
         if (preFilterQueryBuilders.isEmpty()) {
             QueryBuilder qb = queryBuilder;

@@ -1248,17 +1248,6 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testToDatePeriodToTimeDurationWithField() {
-        assertEquals(
-            "1:36: argument of [first_name::date_period] must be a constant, received [first_name]",
-            error("from types | EVAL x = birth_date + first_name::date_period")
-        );
-        assertEquals(
-            "1:37: argument of [to_timeduration(first_name)] must be a constant, received [first_name]",
-            error("from types  | EVAL x = birth_date - to_timeduration(first_name)")
-        );
-    }
-
     public void testToDatePeriodToTimeDurationWithInvalidType() {
         assertEquals(
             "1:36: argument of [1.5::date_period] must be [date_period or string], found value [1.5] type [double]",

@@ -5987,7 +5987,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         e = expectThrows(VerificationException.class, () -> planTypes("""
             from types  | EVAL x = date - to_timeduration(keyword)"""));
         assertEquals(
-            "1:31: argument of [to_timeduration(keyword)] must be a constant, received [keyword]",
+            "1:47: argument of [to_timeduration(keyword)] must be a constant, received [keyword]",
             e.getMessage().substring(header.length())
         );
 

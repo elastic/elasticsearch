@@ -11,8 +11,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.Validatable;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
@@ -24,6 +22,10 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
 import static org.elasticsearch.xpack.esql.expression.Validations.isFoldable;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.foldToTemporalAmount;
 
+/**
+ * Base class for functions that converts a constant into an interval type - DATE_PERIOD or TIME_DURATION.
+ * The functions will be folded at the end of LogicalPlanOptimizer by the coordinator, it does not reach data node.
+ */
 public abstract class FoldablesConvertFunction extends AbstractConvertFunction implements Validatable {
 
     protected FoldablesConvertFunction(Source source, Expression field) {
@@ -42,9 +44,6 @@ public abstract class FoldablesConvertFunction extends AbstractConvertFunction i
 
     @Override
     protected final TypeResolution resolveType() {
-        if (field() instanceof FieldAttribute f) {
-            return TypeResolutions.isFoldable(f, sourceText(), null);
-        }
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
@@ -60,6 +59,7 @@ public abstract class FoldablesConvertFunction extends AbstractConvertFunction i
 
     @Override
     protected final Map<DataType, BuildFactory> factories() {
+        // TODO if a union type field is provided as an input, the correct error message is not shown, #112668 is a follow up
         return Map.of();
     }
 

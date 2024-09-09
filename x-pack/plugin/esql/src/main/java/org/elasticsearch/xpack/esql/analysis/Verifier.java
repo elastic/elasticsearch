@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FoldablesConvertFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
@@ -124,7 +123,6 @@ public class Verifier {
 
                     // Do not fail multiple times in case the children are already unresolved.
                     if (ae.childrenResolved() == false) {
-                        checkFoldablesConvertFunction(ae, failures);
                         return;
                     }
 
@@ -198,14 +196,6 @@ public class Verifier {
         }
 
         return failures;
-    }
-
-    private static void checkFoldablesConvertFunction(Expression e, Set<Failure> failures) {
-        if (e instanceof FoldablesConvertFunction f) {
-            if (f.typeResolved().unresolved()) {
-                failures.add(fail(e, e.typeResolved().message()));
-            }
-        }
     }
 
     private static void checkFilterConditionType(LogicalPlan p, Set<Failure> localFailures) {

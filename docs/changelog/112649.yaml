@@ -1,0 +1,5 @@
+pr: 112649
+summary: Allowlist `tracestate` header on remote server port
+area: Security
+type: bug
+issues: []

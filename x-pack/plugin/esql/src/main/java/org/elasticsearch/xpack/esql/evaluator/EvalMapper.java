@@ -178,7 +178,7 @@ public final class EvalMapper {
                 }
 
                 @Override
-                public boolean safeToEvalInLazy() {
+                public boolean eagerEvalSafeInLazy() {
                     return true;
                 }
             }
@@ -216,7 +216,7 @@ public final class EvalMapper {
                 }
 
                 @Override
-                public boolean safeToEvalInLazy() {
+                public boolean eagerEvalSafeInLazy() {
                     return true;
                 }
             }

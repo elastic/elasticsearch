@@ -12,7 +12,7 @@ setup:
               day_of_week:
                 type: keyword
                 script: |
-                  emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
+                  emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ENGLISH));
               # Test fetching from _source
               day_of_week_from_source:
                 type: keyword
@@ -75,7 +75,7 @@ setup:
   - match: {sensor.mappings.runtime.day_of_week.type: keyword }
   - match:
       sensor.mappings.runtime.day_of_week.script.source: |
-        emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
+        emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ENGLISH));
   - match: {sensor.mappings.runtime.day_of_week.script.lang: painless }
 
 # --- TODO get field mappings needs to be adapted
@@ -90,7 +90,7 @@ setup:
 #        type: keyword
 #        script:
 #          source: |
-#            emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
+#            emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ENGLISH));
 #          lang: painless
 #        meta: {}
 #

@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.optimizer.OptimizerRules.DependencyConsistency;
+import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
@@ -24,7 +24,7 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 public final class PhysicalVerifier {
 
     public static final PhysicalVerifier INSTANCE = new PhysicalVerifier();
-    private static final DependencyConsistency<PhysicalPlan> DEPENDENCY_CHECK = new DependencyConsistency<>();
+    private static final PlanConsistencyChecker<PhysicalPlan> DEPENDENCY_CHECK = new PlanConsistencyChecker<>();
 
     private PhysicalVerifier() {}
 

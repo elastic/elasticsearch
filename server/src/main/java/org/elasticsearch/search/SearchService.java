@@ -278,8 +278,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final BigArrays bigArrays;
 
-    private final DfsPhase dfsPhase = new DfsPhase();
-
     private final FetchPhase fetchPhase;
     private final RankFeatureShardPhase rankFeatureShardPhase;
     private volatile boolean enableSearchWorkerThreads;
@@ -511,7 +509,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
             SearchContext context = createContext(readerContext, request, task, ResultsType.DFS, false)
         ) {
-            dfsPhase.execute(context);
+            DfsPhase.execute(context);
             return context.dfsResult();
         } catch (Exception e) {
             logger.trace("Dfs phase failed", e);

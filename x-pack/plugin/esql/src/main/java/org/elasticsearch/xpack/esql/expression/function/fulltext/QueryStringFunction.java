@@ -54,7 +54,13 @@ public class QueryStringFunction extends FullTextFunction {
 
     @Override
     public Query asQuery() {
-        String queryAsString = ((BytesRef) Foldables.valueOf(query())).utf8ToString();
+        Object queryAsObject = Foldables.valueOf(query());
+        String queryAsString = null;
+        if (queryAsObject instanceof BytesRef queryAsBytesRef) {
+            queryAsString = queryAsBytesRef.utf8ToString();
+        } else {
+            queryAsString = queryAsObject.toString();
+        }
         return new QueryStringQuery(source(), queryAsString, Map.of(), null);
     }
 

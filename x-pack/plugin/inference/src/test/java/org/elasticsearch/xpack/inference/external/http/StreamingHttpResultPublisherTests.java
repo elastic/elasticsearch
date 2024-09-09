@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.http;
 
+import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.nio.ContentDecoder;
 import org.apache.http.nio.IOControl;
@@ -17,6 +18,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -80,6 +82,52 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
         publisher = new StreamingHttpResultPublisher(threadPool, settings, listener);
 
         publisher.responseReceived(mock(HttpResponse.class));
+
+        assertThat("Listener's onResponse should be called when we receive a response", latch.getCount(), equalTo(0L));
+    }
+
+    /**
+     * When we receive an http response with an entity with no content
+     * Then we call the listener
+     * And we queue the initial payload
+     */
+    public void testEmptyFirstResponseCallsListener() throws IOException {
+        var latch = new CountDownLatch(1);
+        var listener = ActionListener.<Flow.Publisher<HttpResult>>wrap(
+            r -> latch.countDown(),
+            e -> fail("Listener onFailure should never be called.")
+        );
+        publisher = new StreamingHttpResultPublisher(threadPool, settings, listener);
+
+        var response = mock(HttpResponse.class);
+        var entity = mock(HttpEntity.class);
+        when(entity.getContentLength()).thenReturn(-1L);
+        when(response.getEntity()).thenReturn(entity);
+        publisher.responseReceived(response);
+
+        assertThat("Listener's onResponse should be called when we receive a response", latch.getCount(), equalTo(0L));
+    }
+
+    /**
+     * When we receive an http response with an entity with content
+     * Then we call the listener
+     * And we queue the initial payload
+     */
+    public void testNonEmptyFirstResponseCallsListener() throws IOException {
+        var latch = new CountDownLatch(1);
+        var listener = ActionListener.<Flow.Publisher<HttpResult>>wrap(
+            r -> latch.countDown(),
+            e -> fail("Listener onFailure should never be called.")
+        );
+        publisher = new StreamingHttpResultPublisher(threadPool, settings, listener);
+
+        when(settings.getMaxResponseSize()).thenReturn(ByteSizeValue.ofBytes(9000));
+        var response = mock(HttpResponse.class);
+        var entity = mock(HttpEntity.class);
+        when(entity.getContentLength()).thenReturn(5L);
+        when(entity.getContent()).thenReturn(new ByteArrayInputStream(message));
+        when(response.getEntity()).thenReturn(entity);
+        publisher.responseReceived(response);
 
         assertThat("Listener's onResponse should be called when we receive a response", latch.getCount(), equalTo(0L));
     }

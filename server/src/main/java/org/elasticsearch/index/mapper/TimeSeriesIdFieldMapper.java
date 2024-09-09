@@ -40,13 +40,14 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.SortedSet;
-import java.util.TreeSet;
+import java.util.SortedMap;
+import java.util.TreeMap;
 
 /**
  * Mapper for {@code _tsid} field included generated when the index is
@@ -180,8 +181,6 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
         public static final int MAX_DIMENSIONS = 512;
 
-        private record Dimension(BytesRef name, BytesReference value) {}
-
         private final Murmur3Hasher tsidHasher = new Murmur3Hasher(0);
 
         /**
@@ -189,7 +188,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
          * for generating the _tsid field. The map will be used by {@link TimeSeriesIdFieldMapper}
          * to build the _tsid field for the document.
          */
-        private final SortedSet<Dimension> dimensions = new TreeSet<>(Comparator.comparing(o -> o.name));
+        private final SortedMap<BytesRef, List<BytesReference>> dimensions = new TreeMap<>();
         /**
          * Builds the routing. Used for building {@code _id}. If null then skipped.
          */
@@ -207,9 +206,16 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.writeVInt(dimensions.size());
-                for (Dimension entry : dimensions) {
-                    out.writeBytesRef(entry.name);
-                    entry.value.writeTo(out);
+                for (Map.Entry<BytesRef, List<BytesReference>> entry : dimensions.entrySet()) {
+                    out.writeBytesRef(entry.getKey());
+                    List<BytesReference> value = entry.getValue();
+                    if (value.size() > 1) {
+                        throw new IllegalArgumentException(
+                            "Dimension field [" + entry.getKey().utf8ToString() + "] cannot be a multi-valued field."
+                        );
+                    }
+                    assert value.isEmpty() == false : "dimension value is empty";
+                    value.get(0).writeTo(out);
                 }
                 return out.bytes();
             }
@@ -241,18 +247,19 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             int tsidHashIndex = StreamOutput.putVInt(tsidHash, len, 0);
 
             tsidHasher.reset();
-            for (final Dimension dimension : dimensions) {
-                tsidHasher.update(dimension.name.bytes);
+            for (final BytesRef name : dimensions.keySet()) {
+                tsidHasher.update(name.bytes);
             }
             tsidHashIndex = writeHash128(tsidHasher.digestHash(), tsidHash, tsidHashIndex);
 
             // NOTE: concatenate all dimension value hashes up to a certain number of dimensions
             int tsidHashStartIndex = tsidHashIndex;
-            for (final Dimension dimension : dimensions) {
+            for (final List<BytesReference> values : dimensions.values()) {
                 if ((tsidHashIndex - tsidHashStartIndex) >= 4 * numberOfDimensions) {
                     break;
                 }
-                final BytesRef dimensionValueBytesRef = dimension.value.toBytesRef();
+                assert values.isEmpty() == false : "dimension values are empty";
+                final BytesRef dimensionValueBytesRef = values.get(0).toBytesRef();
                 ByteUtils.writeIntLE(
                     StringHelper.murmurhash3_x86_32(
                         dimensionValueBytesRef.bytes,
@@ -268,8 +275,8 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
             // NOTE: hash all dimension field allValues
             tsidHasher.reset();
-            for (final Dimension dimension : dimensions) {
-                tsidHasher.update(dimension.value.toBytesRef().bytes);
+            for (final List<BytesReference> values : dimensions.values()) {
+                values.forEach(v -> tsidHasher.update(v.toBytesRef().bytes));
             }
             tsidHashIndex = writeHash128(tsidHasher.digestHash(), tsidHash, tsidHashIndex);
 
@@ -372,8 +379,15 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
 
         private void add(String fieldName, BytesReference encoded) throws IOException {
-            if (dimensions.add(new Dimension(new BytesRef(fieldName), encoded)) == false) {
-                throw new IllegalArgumentException("Dimension field [" + fieldName + "] cannot be a multi-valued field.");
+            BytesRef name = new BytesRef(fieldName);
+            List<BytesReference> values = dimensions.get(name);
+            if (values == null) {
+                // optimize for the common case where dimensions are not multi-valued
+                values = new ArrayList<>(1);
+                values.add(encoded);
+                dimensions.put(name, values);
+            } else {
+                values.add(encoded);
             }
         }
     }

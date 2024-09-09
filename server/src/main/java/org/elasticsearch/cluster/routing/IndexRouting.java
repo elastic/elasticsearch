@@ -34,7 +34,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -44,6 +43,7 @@ import java.util.function.IntSupplier;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.expectValueToken;
 
 /**
  * Generates the shard id for {@code (id, routing)} pairs.
@@ -300,10 +300,18 @@ public abstract class IndexRouting {
             Builder b = builder();
             for (Map.Entry<String, Object> e : flat.entrySet()) {
                 if (isRoutingPath.test(e.getKey())) {
-                    b.hashes.add(new NameAndHash(new BytesRef(e.getKey()), hash(new BytesRef(e.getValue().toString()))));
+                    if (e.getValue() instanceof List<?> listValue) {
+                        listValue.forEach(v -> hashValue(b, e.getKey(), v));
+                    } else {
+                        hashValue(b, e.getKey(), e.getValue());
+                    }
                 }
             }
             return b.createId(suffix, IndexRouting.ExtractFromSource::defaultOnEmpty);
+        }
+
+        private static void hashValue(Builder b, String key, Object value) {
+            b.hashes.add(new NameAndHash(new BytesRef(key), hash(new BytesRef(value.toString()))));
         }
 
         private static int defaultOnEmpty() {
@@ -356,6 +364,13 @@ public abstract class IndexRouting {
                 }
             }
 
+            private void extractArray(@Nullable String path, XContentParser source) throws IOException {
+                while (source.currentToken() != Token.END_ARRAY) {
+                    expectValueToken(source.currentToken(), source);
+                    extractItem(path, source);
+                }
+            }
+
             private void extractItem(String path, XContentParser source) throws IOException {
                 switch (source.currentToken()) {
                     case START_OBJECT:
@@ -367,6 +382,11 @@ public abstract class IndexRouting {
                     case VALUE_NUMBER:
                     case VALUE_BOOLEAN:
                         hashes.add(new NameAndHash(new BytesRef(path), hash(new BytesRef(source.text()))));
+                        source.nextToken();
+                        break;
+                    case START_ARRAY:
+                        source.nextToken();
+                        extractArray(path, source);
                         source.nextToken();
                         break;
                     case VALUE_NULL:
@@ -382,21 +402,13 @@ public abstract class IndexRouting {
             }
 
             private int buildHash(IntSupplier onEmpty) {
-                Collections.sort(hashes);
-                Iterator<NameAndHash> itr = hashes.iterator();
-                if (itr.hasNext() == false) {
+                if (hashes.isEmpty()) {
                     return onEmpty.getAsInt();
                 }
-                NameAndHash prev = itr.next();
-                int hash = hash(prev.name) ^ prev.hash;
-                while (itr.hasNext()) {
-                    NameAndHash next = itr.next();
-                    if (prev.name.equals(next.name)) {
-                        throw new IllegalArgumentException("Duplicate routing dimension for [" + next.name + "]");
-                    }
-                    int thisHash = hash(next.name) ^ next.hash;
-                    hash = 31 * hash + thisHash;
-                    prev = next;
+                Collections.sort(hashes);
+                int hash = 0;
+                for (NameAndHash nah : hashes) {
+                    hash = 31 * hash + (hash(nah.name) ^ nah.hash);
                 }
                 return hash;
             }

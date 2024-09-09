@@ -140,7 +140,7 @@ public class EsqlSession {
             parse(request.query(), request.params()),
             executionInfo,
             listener.delegateFailureAndWrap(
-                (next, analyzedPlan) -> executeOptimizedPlan(request, runPhase, optimizedPlan(analyzedPlan), next)
+                (next, analyzedPlan) -> executeOptimizedPlan(request, executionInfo, runPhase, optimizedPlan(analyzedPlan), next)
             )
         );
     }
@@ -151,6 +151,7 @@ public class EsqlSession {
      */
     public void executeOptimizedPlan(
         EsqlQueryRequest request,
+        EsqlExecutionInfo executionInfo,
         BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase,
         LogicalPlan optimizedPlan,
         ActionListener<Result> listener
@@ -159,7 +160,7 @@ public class EsqlSession {
         if (firstPhase == null) {
             runPhase.accept(logicalPlanToPhysicalPlan(optimizedPlan, request), listener);
         } else {
-            executePhased(new ArrayList<>(), optimizedPlan, request, firstPhase, runPhase, listener);
+            executePhased(new ArrayList<>(), optimizedPlan, request, executionInfo, firstPhase, runPhase, listener);
         }
     }
 
@@ -167,6 +168,7 @@ public class EsqlSession {
         List<DriverProfile> profileAccumulator,
         LogicalPlan mainPlan,
         EsqlQueryRequest request,
+        EsqlExecutionInfo executionInfo,
         LogicalPlan firstPhase,
         BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase,
         ActionListener<Result> listener
@@ -181,10 +183,10 @@ public class EsqlSession {
                     PhysicalPlan finalPhysicalPlan = logicalPlanToPhysicalPlan(newMainPlan, request);
                     runPhase.accept(finalPhysicalPlan, next.delegateFailureAndWrap((finalListener, finalResult) -> {
                         profileAccumulator.addAll(finalResult.profiles());
-                        finalListener.onResponse(new Result(finalResult.schema(), finalResult.pages(), profileAccumulator));
+                        finalListener.onResponse(new Result(finalResult.schema(), finalResult.pages(), profileAccumulator, executionInfo));
                     }));
                 } else {
-                    executePhased(profileAccumulator, newMainPlan, request, newFirstPhase, runPhase, next);
+                    executePhased(profileAccumulator, newMainPlan, request, executionInfo, newFirstPhase, runPhase, next);
                 }
             } finally {
                 Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(result.pages().iterator(), p -> p::releaseBlocks)));

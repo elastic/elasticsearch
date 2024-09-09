@@ -174,7 +174,7 @@ public class ComputeService {
                     transportService,
                     rootTask,
                     executionInfo,
-                    listener.map(r -> new Result(physicalPlan.output(), collectedPages, r.getProfiles()))
+                    listener.map(r -> new Result(physicalPlan.output(), collectedPages, r.getProfiles(), executionInfo))
                 )
             ) {
                 runCompute(rootTask, computeContext, coordinatorPlan, computeListener.acquireCompute());
@@ -198,11 +198,12 @@ public class ComputeService {
         );
         try (
             Releasable ignored = exchangeSource.addEmptySink();
+            // this is the top level ComputeListener called once at the end (e.g., once all clusters have finished for a CCS)
             var computeListener = ComputeListener.createComputeListener(
                 transportService,
                 rootTask,
                 executionInfo,
-                listener.map(r -> new Result(physicalPlan.output(), collectedPages, r.getProfiles()))
+                listener.map(r -> new Result(physicalPlan.output(), collectedPages, r.getProfiles(), executionInfo))
             )
         ) {
             // run compute on the coordinator

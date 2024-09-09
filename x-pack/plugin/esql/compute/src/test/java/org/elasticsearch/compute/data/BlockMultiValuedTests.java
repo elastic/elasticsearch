@@ -31,6 +31,7 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class BlockMultiValuedTests extends ESTestCase {
     @ParametersFactory
@@ -120,6 +121,54 @@ public class BlockMultiValuedTests extends ESTestCase {
 
     public void testLookupFromSingleManyPages() {
         assertLookup(ByteSizeValue.ofBytes(1), between(1, 32), p -> 1);
+    }
+
+    public void testToMask() {
+        if (elementType != ElementType.BOOLEAN) {
+            return;
+        }
+        int positionCount = randomIntBetween(1, 16 * 1024);
+        var b = BasicBlockTests.randomBlock(blockFactory(), elementType, positionCount, nullAllowed, 2, 10, 0, 0);
+        try (ToMask mask = ((BooleanBlock) b.block()).toMask()) {
+            assertThat(mask.hadMultivaluedFields(), equalTo(true));
+            for (int p = 0; p < b.values().size(); p++) {
+                List<Object> v = b.values().get(p);
+                if (v == null) {
+                    assertThat(mask.mask().getBoolean(p), equalTo(false));
+                    continue;
+                }
+                if (v.size() != 1) {
+                    assertThat(mask.mask().getBoolean(p), equalTo(false));
+                    continue;
+                }
+                assertThat(mask.mask().getBoolean(p), equalTo(v.get(0)));
+            }
+        } finally {
+            b.block().close();
+        }
+    }
+
+    public void testMask() {
+        int positionCount = randomIntBetween(1, 16 * 1024);
+        var b = BasicBlockTests.randomBlock(blockFactory(), elementType, positionCount, nullAllowed, 0, 10, 0, 0);
+        try (
+            BooleanVector mask = BasicBlockTests.randomMask(b.values().size() + between(0, 1000));
+            Block masked = b.block().keepMask(mask)
+        ) {
+            for (int p = 0; p < b.values().size(); p++) {
+                List<Object> inputValues = b.values().get(p);
+                List<Object> valuesAtPosition = BasicBlockTests.valuesAtPositions(masked, p, p + 1).get(0);
+                if (inputValues == null || mask.getBoolean(p) == false) {
+                    assertThat(masked.isNull(p), equalTo(true));
+                    assertThat(valuesAtPosition, nullValue());
+                    continue;
+                }
+                assertThat(masked.isNull(p), equalTo(false));
+                assertThat(valuesAtPosition, equalTo(inputValues));
+            }
+        } finally {
+            b.block().close();
+        }
     }
 
     private void assertFiltered(boolean all, boolean shuffled) {

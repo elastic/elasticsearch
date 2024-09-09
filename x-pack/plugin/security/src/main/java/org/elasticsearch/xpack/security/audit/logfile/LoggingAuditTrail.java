@@ -327,7 +327,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             key,
             Collections.singletonList("*"),
             Function.identity(),
-            value -> EventFilterPolicy.parsePredicate(value),
+            EventFilterPolicy::parsePredicate,
             Property.NodeScope,
             Property.Dynamic
         )
@@ -339,7 +339,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             key,
             Collections.singletonList("*"),
             Function.identity(),
-            value -> EventFilterPolicy.parsePredicate(value),
+            EventFilterPolicy::parsePredicate,
             Property.NodeScope,
             Property.Dynamic
         )
@@ -351,7 +351,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             key,
             Collections.singletonList("*"),
             Function.identity(),
-            value -> EventFilterPolicy.parsePredicate(value),
+            EventFilterPolicy::parsePredicate,
             Property.NodeScope,
             Property.Dynamic
         )
@@ -363,7 +363,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             key,
             Collections.singletonList("*"),
             Function.identity(),
-            value -> EventFilterPolicy.parsePredicate(value),
+            EventFilterPolicy::parsePredicate,
             Property.NodeScope,
             Property.Dynamic
         )
@@ -375,7 +375,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             key,
             Collections.singletonList("*"),
             Function.identity(),
-            value -> EventFilterPolicy.parsePredicate(value),
+            EventFilterPolicy::parsePredicate,
             Property.NodeScope,
             Property.Dynamic
         )

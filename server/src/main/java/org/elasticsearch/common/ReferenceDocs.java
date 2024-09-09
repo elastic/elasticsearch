@@ -43,6 +43,7 @@ public enum ReferenceDocs {
     UNSTABLE_CLUSTER_TROUBLESHOOTING,
     LAGGING_NODE_TROUBLESHOOTING,
     SHARD_LOCK_TROUBLESHOOTING,
+    NETWORK_DISCONNECT_TROUBLESHOOTING,
     CONCURRENT_REPOSITORY_WRITERS,
     ARCHIVE_INDICES,
     HTTP_TRACER,
@@ -81,6 +82,7 @@ public enum ReferenceDocs {
     MAX_SHARDS_PER_NODE,
     FLOOD_STAGE_WATERMARK,
     X_OPAQUE_ID,
+    FORMING_SINGLE_NODE_CLUSTERS,
     // this comment keeps the ';' on the next line so every entry above has a trailing ',' which makes the diff for adding new links cleaner
     ;
 

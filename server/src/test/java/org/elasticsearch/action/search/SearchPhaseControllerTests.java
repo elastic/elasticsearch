@@ -58,7 +58,6 @@ import org.elasticsearch.search.profile.aggregation.AggregationProfileShardResul
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankShardResult;
-import org.elasticsearch.search.rank.TestRankDoc;
 import org.elasticsearch.search.rank.TestRankShardResult;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 import org.elasticsearch.search.suggest.SortBy;
@@ -463,10 +462,10 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 topDocs = Lucene.EMPTY_TOP_DOCS;
             } else if (rank) {
                 int nDocs = randomIntBetween(0, searchHitsSize);
-                TestRankDoc[] rankDocs = new TestRankDoc[nDocs];
+                RankDoc[] rankDocs = new RankDoc[nDocs];
                 for (int i = 0; i < nDocs; i++) {
                     float score = useConstantScore ? 1.0F : Math.abs(randomFloat());
-                    rankDocs[i] = new TestRankDoc(i, score, shardIndex);
+                    rankDocs[i] = new RankDoc(i, score, shardIndex);
                     maxScore = Math.max(score, maxScore);
                 }
                 querySearchResult.setRankShardResult(new TestRankShardResult(rankDocs));

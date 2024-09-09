@@ -69,7 +69,7 @@ public class ReleasablesTests extends ESTestCase {
                 .anyMatch(ste -> ste.toString().contains("CloserWithIdentifiableMethodNames.closeMethod2"))
         );
         assertTrue(
-            Arrays.stream(assertionError.getCause().getStackTrace())
+            Arrays.stream(assertionError.getCause().getCause().getStackTrace())
                 .anyMatch(ste -> ste.toString().contains("CloserWithIdentifiableMethodNames.closeMethod1"))
         );
     }

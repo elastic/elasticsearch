@@ -138,7 +138,7 @@ other test runners to skip tests if they do not support the capabilities API yet
               path: /_api
               parameters: [param1, param2]
               capabilities: [cap1, cap2]
-          test_runner_feature: [capabilities]
+          test_runner_features: [capabilities]
           reason: Capability required to run test
      - do:
        ... test definitions ...

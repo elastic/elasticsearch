@@ -73,14 +73,11 @@ final class ModelLoaderUtils {
         }
     }
 
-    // This class is not implemented as a Iterator<E> because next() can throw
-    // but it has a similar interface
     static class HttStreamChunker {
 
         record BytesAndPartIndex(BytesArray bytes, int partIndex) {}
 
         private final InputStream inputStream;
-        private final MessageDigest digestSha256 = MessageDigests.sha256();
         private final int chunkSize;
         private final AtomicLong totalBytesRead = new AtomicLong();
         private final AtomicInteger currentPart;
@@ -88,6 +85,14 @@ final class ModelLoaderUtils {
 
         HttStreamChunker(URI uri, RequestRange range, int chunkSize) {
             var inputStream = getHttpOrHttpsInputStream(uri, range);
+            this.inputStream = inputStream;
+            this.chunkSize = chunkSize;
+            this.lastPartNumber = range.startPart() + range.numParts();
+            this.currentPart = new AtomicInteger(range.startPart());
+        }
+
+        // This ctor exists for testing purposes only.
+        HttStreamChunker(InputStream inputStream, RequestRange range, int chunkSize) {
             this.inputStream = inputStream;
             this.chunkSize = chunkSize;
             this.lastPartNumber = range.startPart() + range.numParts();
@@ -112,16 +117,11 @@ final class ModelLoaderUtils {
             }
 
             if (bytesRead > 0) {
-                digestSha256.update(buf, 0, bytesRead);
                 totalBytesRead.addAndGet(bytesRead);
                 return new BytesAndPartIndex(new BytesArray(buf, 0, bytesRead), currentPart.getAndIncrement());
             } else {
                 return new BytesAndPartIndex(BytesArray.EMPTY, currentPart.get());
             }
-        }
-
-        public String getSha256() {
-            return MessageDigests.toHexString(digestSha256.digest());
         }
 
         public long getTotalBytesRead() {
@@ -298,7 +298,7 @@ final class ModelLoaderUtils {
 
     @SuppressWarnings("'java.lang.SecurityManager' is deprecated and marked for removal ")
     @SuppressForbidden(reason = "we need load model data from a file")
-    private static InputStream getFileInputStream(URI uri) {
+    static InputStream getFileInputStream(URI uri) {
 
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
@@ -328,10 +328,9 @@ final class ModelLoaderUtils {
      * The first {@code numberOfStreams} ranges will be split evenly (in terms of
      * number of chunks not the byte size), the final range split
      * is for the single final chunk and will be {@code chunkSizeBytes} in size.
-     *
-     * This odd behaviour is because when streaming and uploading a large model
-     * definition writing the last part has to handled as a special case.
-     *
+     * The separate range for the final chunk is because when streaming and
+     * uploading a large model definition, writing the last part has to handled
+     * as a special case.
      * @param sizeInBytes The total size of the stream
      * @param numberOfStreams Divide the bulk of the size into this many streams.
      * @param chunkSizeBytes The size of each chunk
@@ -339,10 +338,6 @@ final class ModelLoaderUtils {
      */
     static List<RequestRange> split(long sizeInBytes, int numberOfStreams, long chunkSizeBytes) {
         int numberOfChunks = (int) ((sizeInBytes + chunkSizeBytes - 1) / chunkSizeBytes);
-
-        if (numberOfStreams == 1) {
-            return List.of(new RequestRange(0, sizeInBytes, 0, numberOfChunks));
-        }
 
         var ranges = new ArrayList<RequestRange>();
 

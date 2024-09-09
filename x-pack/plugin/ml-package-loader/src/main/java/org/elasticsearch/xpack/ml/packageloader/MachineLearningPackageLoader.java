@@ -96,8 +96,8 @@ public class MachineLearningPackageLoader extends Plugin implements ActionPlugin
         return new FixedExecutorBuilder(
             settings,
             MODEL_DOWNLOAD_THREADPOOL_NAME,
-            ModelImporter.MAX_IN_FLIGHT_REQUESTS,
-            50, // max items in queue
+            ModelImporter.NUMBER_OF_STREAMS,
+            ModelImporter.NUMBER_OF_STREAMS * 2, // max items in queue
             "xpack.ml.model_download_thread_pool",
             EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
         );

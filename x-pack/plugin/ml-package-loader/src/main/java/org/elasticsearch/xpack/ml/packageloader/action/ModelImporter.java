@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.ml.action.PutTrainedModelVocabularyAction;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ModelPackageConfig;
 import org.elasticsearch.xpack.ml.packageloader.MachineLearningPackageLoader;
 
+import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
@@ -36,20 +37,23 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.core.Strings.format;
 
 /**
- * For downloading the model vocabulary and definition file and
+ * For downloading and the vocabulary and model definition file and
  * indexing those files in Elasticsearch.
  * Holding the large model definition file in memory will consume
  * too much memory, instead it is streamed in chunks and each chunk
- * written to the index in a non-blocking request. The number of
- * index requests is limited to {@link #MAX_IN_FLIGHT_REQUESTS}
- * also to prevent too much memory being used.
- * Only 1 thread can read the model definition stream at a time,
- * this is ensured by using a fixed size threadpool with a single
- * thread.
+ * written to the index in a non-blocking request.
+ * The model files may be installed from a local file or download
+ * from a server. The server download uses {@link #NUMBER_OF_STREAMS}
+ * connections each using the Range header to split the stream by byte
+ * range. There is a complication in that the final part of the model
+ * definition must be uploaded last as writing this part causes an index
+ * refresh.
+ * When read from file a single thread is used to read the file
+ * stream, split into chunks and index those chunks.
  */
 public class ModelImporter {
     private static final int DEFAULT_CHUNK_SIZE = 1024 * 1024; // 1MB
-    public static final int MAX_IN_FLIGHT_REQUESTS = 5;
+    public static final int NUMBER_OF_STREAMS = 5;
     private static final Logger logger = LogManager.getLogger(ModelImporter.class);
     private final Client client;
     private final String modelId;
@@ -74,7 +78,6 @@ public class ModelImporter {
     }
 
     public void doImport(ActionListener<AcknowledgedResponse> listener) {
-        // todo file import
         executorService.execute(() -> doImportInternal(listener));
     }
 
@@ -94,28 +97,38 @@ public class ModelImporter {
                     ModelLoaderUtils.resolvePackageLocation(config.getModelRepository(), config.getVocabularyFile())
                 );
             }
+
+            // simple round up
+            int totalParts = (int) ((config.getSize() + DEFAULT_CHUNK_SIZE - 1) / DEFAULT_CHUNK_SIZE);
+
+            if (ModelLoaderUtils.uriIsFile(uri) == false) {
+                var ranges = ModelLoaderUtils.split(config.getSize(), NUMBER_OF_STREAMS, DEFAULT_CHUNK_SIZE);
+                var downloaders = new ArrayList<ModelLoaderUtils.HttStreamChunker>(ranges.size());
+                for (var range : ranges) {
+                    downloaders.add(new ModelLoaderUtils.HttStreamChunker(uri, range, DEFAULT_CHUNK_SIZE));
+                }
+                downloadModelDefinition(config.getSize(), totalParts, vocabularyParts, downloaders, finalListener);
+            } else {
+                InputStream modelInputStream = ModelLoaderUtils.getFileInputStream(uri);
+                ModelLoaderUtils.InputStreamChunker chunkIterator = new ModelLoaderUtils.InputStreamChunker(
+                    modelInputStream,
+                    DEFAULT_CHUNK_SIZE
+                );
+                readModelDefinitionFromFile(config.getSize(), totalParts, chunkIterator, vocabularyParts, finalListener);
+            }
         } catch (Exception e) {
             finalListener.onFailure(e);
             return;
         }
-
-        downloadModelDefinition(config.getSize(), vocabularyParts, finalListener);
     }
 
     void downloadModelDefinition(
         long size,
+        int totalParts,
         @Nullable ModelLoaderUtils.VocabularyParts vocabularyParts,
+        List<ModelLoaderUtils.HttStreamChunker> downloaders,
         ActionListener<AcknowledgedResponse> finalListener
     ) {
-        // simple round up
-        int totalParts = (int) ((size + DEFAULT_CHUNK_SIZE - 1) / DEFAULT_CHUNK_SIZE);
-        var ranges = ModelLoaderUtils.split(size, MAX_IN_FLIGHT_REQUESTS, DEFAULT_CHUNK_SIZE);
-
-        var downloaders = new ArrayList<ModelLoaderUtils.HttStreamChunker>();
-        for (var range : ranges) {
-            downloaders.add(new ModelLoaderUtils.HttStreamChunker(uri, range, DEFAULT_CHUNK_SIZE));
-        }
-
         try (var countingListener = new RefCountingListener(1, ActionListener.wrap(ignore -> executorService.execute(() -> {
             var finalDownloader = downloaders.get(downloaders.size() - 1);
             downloadFinalPart(size, totalParts, finalDownloader, finalListener.delegateFailureAndWrap((l, r) -> {
@@ -126,12 +139,12 @@ public class ModelImporter {
             // Uploading other artefacts of the model first, that way the model is last and a simple search can be used to check if the
             // download is complete
             if (vocabularyParts != null) {
-                uploadVocabulary(vocabularyParts, countingListener.acquire(r -> {
-                    logger.info(() -> format("[%s] imported model vocabulary [%s]", modelId, config.getVocabularyFile()));
-                }));
+                uploadVocabulary(vocabularyParts, countingListener);
             }
 
-            for (int streamSplit = 0; streamSplit < MAX_IN_FLIGHT_REQUESTS; ++streamSplit) {
+            // Download all but the final split.
+            // The final split is a single chunk
+            for (int streamSplit = 0; streamSplit < downloaders.size() - 1; ++streamSplit) {
                 final var downloader = downloaders.get(streamSplit);
                 var doLast = countingListener.acquire();
                 executorService.execute(() -> downloadPartsInRange(size, totalParts, downloader, countingListener, doLast));
@@ -156,25 +169,18 @@ public class ModelImporter {
         while (downloadChunker.hasNext()) {
             if (countingListener.isFailing()) {
                 if (listenerIsClosed.compareAndSet(false, true)) {
-                    logger.info("is failing");
                     countingListener.close();
                 }
                 return;
             }
 
-            if (task.isCancelled()) {
-                logger.info("task cancelled");
-                throw new TaskCancelledException(format("task cancelled with reason [%s]", task.getReasonCancelled()));
-            }
-
             try {
+                throwIfTaskCancelled();
                 var bytesAndIndex = downloadChunker.next();
                 task.setProgress(totalParts, progressCounter.getAndIncrement());
-                logger.info("Progress " + progressCounter.get() + " , " + totalParts);
 
                 indexPart(bytesAndIndex.partIndex(), totalParts, size, bytesAndIndex.bytes(), countingListener.acquire(ack -> {}));
             } catch (Exception e) {
-                logger.info("errr", e);
                 countingListener.acquire().onFailure(e);
                 if (listenerIsClosed.compareAndSet(false, true)) {
                     countingListener.close();
@@ -182,7 +188,6 @@ public class ModelImporter {
             }
         }
 
-        logger.info("split complete " + downloadChunker.getCurrentPart());
         doLast.onResponse(null);
     }
 
@@ -199,8 +204,6 @@ public class ModelImporter {
                 Thread.currentThread().getName()
             );
 
-        logger.info("final part");
-
         try {
             var bytesAndIndex = downloader.next();
             task.setProgress(totalParts, progressCounter.getAndIncrement());
@@ -211,7 +214,37 @@ public class ModelImporter {
         }
     }
 
-    private void uploadVocabulary(ModelLoaderUtils.VocabularyParts vocabularyParts, ActionListener<AcknowledgedResponse> listener) {
+    void readModelDefinitionFromFile(
+        long size,
+        int totalParts,
+        ModelLoaderUtils.InputStreamChunker chunkIterator,
+        @Nullable ModelLoaderUtils.VocabularyParts vocabularyParts,
+        ActionListener<AcknowledgedResponse> finalListener
+    ) {
+        try (var countingListener = new RefCountingListener(1, ActionListener.wrap(ignore -> executorService.execute(() -> {
+            finalListener.onResponse(AcknowledgedResponse.TRUE);
+        }), finalListener::onFailure))) {
+            try {
+                if (vocabularyParts != null) {
+                    uploadVocabulary(vocabularyParts, countingListener);
+                }
+
+                for (int part = 0; part < totalParts; ++part) {
+                    throwIfTaskCancelled();
+                    task.setProgress(totalParts, part);
+                    BytesArray definition = chunkIterator.next();
+                    indexPart(part, totalParts, size, definition, countingListener.acquire(ack -> {}));
+                }
+                task.setProgress(totalParts, totalParts);
+
+                checkDownloadComplete(chunkIterator, totalParts);
+            } catch (Exception e) {
+                countingListener.acquire().onFailure(e);
+            }
+        }
+    }
+
+    private void uploadVocabulary(ModelLoaderUtils.VocabularyParts vocabularyParts, RefCountingListener countingListener) {
         PutTrainedModelVocabularyAction.Request request = new PutTrainedModelVocabularyAction.Request(
             modelId,
             vocabularyParts.vocab(),
@@ -220,7 +253,9 @@ public class ModelImporter {
             true
         );
 
-        client.execute(PutTrainedModelVocabularyAction.INSTANCE, request, listener);
+        client.execute(PutTrainedModelVocabularyAction.INSTANCE, request, countingListener.acquire(r -> {
+            logger.debug(() -> format("[%s] imported model vocabulary [%s]", modelId, config.getVocabularyFile()));
+        }));
     }
 
     private void indexPart(int partIndex, int totalParts, long totalSize, BytesArray bytes, ActionListener<AcknowledgedResponse> listener) {
@@ -237,25 +272,39 @@ public class ModelImporter {
     }
 
     private void checkDownloadComplete(List<ModelLoaderUtils.HttStreamChunker> downloaders) {
-        // if (config.getSha256().equals(chunkIterator.getSha256()) == false) {
-        // String message = format(
-        // "Model sha256 checksums do not match, expected [%s] but got [%s]",
-        // config.getSha256(),
-        // chunkIterator.getSha256()
-        // );
-        //
-        // throw new ElasticsearchStatusException(message, RestStatus.INTERNAL_SERVER_ERROR);
-        // }
+        long totalBytesRead = downloaders.stream().mapToLong(ModelLoaderUtils.HttStreamChunker::getTotalBytesRead).sum();
+        int totalParts = downloaders.stream().mapToInt(ModelLoaderUtils.HttStreamChunker::getCurrentPart).sum();
+        checkSize(totalBytesRead);
+        logger.debug(format("finished importing model [%s] using [%d] parts", modelId, totalParts));
+    }
 
-        long readSize = downloaders.stream().mapToLong(ModelLoaderUtils.HttStreamChunker::getTotalBytesRead).sum();
+    private void checkDownloadComplete(ModelLoaderUtils.InputStreamChunker fileInputStream, int totalParts) {
+        checkSha256(fileInputStream.getSha256());
+        checkSize(fileInputStream.getTotalBytesRead());
+        logger.debug(format("finished importing model [%s] using [%d] parts", modelId, totalParts));
+    }
 
-        if (config.getSize() != readSize) {
-            String message = format("Model size does not match, expected [%d] but got [%d]", config.getSize(), readSize);
+    private void checkSha256(String sha256) {
+        if (config.getSha256().equals(sha256) == false) {
+            String message = format("Model sha256 checksums do not match, expected [%s] but got [%s]", config.getSha256(), sha256);
+
             throw new ElasticsearchStatusException(message, RestStatus.INTERNAL_SERVER_ERROR);
         }
+    }
 
-        int totalParts = downloaders.stream().mapToInt(ModelLoaderUtils.HttStreamChunker::getCurrentPart).sum();
+    private void checkSize(long definitionSize) {
+        if (config.getSize() != definitionSize) {
+            String message = format("Model size does not match, expected [%d] but got [%d]", config.getSize(), definitionSize);
+            throw new ElasticsearchStatusException(message, RestStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
 
-        logger.debug(format("finished importing model [%s] using [%d] parts", modelId, totalParts));
+    private void throwIfTaskCancelled() {
+        if (task.isCancelled()) {
+            logger.info("Model [{}] download task cancelled", modelId);
+            throw new TaskCancelledException(
+                format("Model [%s] download task cancelled with reason [%s]", modelId, task.getReasonCancelled())
+            );
+        }
     }
 }

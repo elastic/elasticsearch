@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.packageloader.action;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
@@ -14,6 +15,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPartAction;
@@ -23,14 +25,20 @@ import org.elasticsearch.xpack.ml.packageloader.MachineLearningPackageLoader;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.net.URISyntaxException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -49,45 +57,74 @@ public class ModelImporterTests extends ESTestCase {
         threadPool.close();
     }
 
-    public void testDownload() throws InterruptedException, URISyntaxException {
+    public void testDownloadModelDefinition() throws InterruptedException, URISyntaxException {
         var client = mockClient(false);
         var task = ModelDownloadTaskTests.testTask();
-        var config = mock(ModelPackageConfig.class);
+        var config = mockConfigWithRepoLinks();
         var vocab = new ModelLoaderUtils.VocabularyParts(List.of(), List.of(), List.of());
 
-        var importer = new ModelImporter(client, "foo", config, task, threadPool);
         int totalParts = 5;
         int chunkSize = 10;
         long size = totalParts * chunkSize;
         var modelDef = modelDefinition(totalParts, chunkSize);
+        var streamers = mockHttpStreamChunkers(modelDef, chunkSize, 2);
 
-        var digest = computeDigest(modelDef, totalParts, chunkSize);
+        var digest = computeDigest(modelDef);
         when(config.getSha256()).thenReturn(digest);
         when(config.getSize()).thenReturn(size);
 
+        var importer = new ModelImporter(client, "foo", config, task, threadPool);
+
         var latch = new CountDownLatch(1);
         var latchedListener = new LatchedActionListener<AcknowledgedResponse>(ActionTestUtils.assertNoFailureListener(ignore -> {}), latch);
-        importer.downloadModelDefinition(size, vocab, latchedListener);
+        importer.downloadModelDefinition(size, totalParts, vocab, streamers, latchedListener);
 
         latch.await();
         verify(client, times(totalParts)).execute(eq(PutTrainedModelDefinitionPartAction.INSTANCE), any(), any());
         assertEquals(totalParts - 1, task.getStatus().downloadProgress().downloadedParts());
         assertEquals(totalParts, task.getStatus().downloadProgress().totalParts());
     }
-    /*
+
+    public void testReadModelDefinitionFromFile() throws InterruptedException, URISyntaxException {
+        var client = mockClient(false);
+        var task = ModelDownloadTaskTests.testTask();
+        var config = mockConfigWithRepoLinks();
+        var vocab = new ModelLoaderUtils.VocabularyParts(List.of(), List.of(), List.of());
+
+        int totalParts = 3;
+        int chunkSize = 10;
+        long size = totalParts * chunkSize;
+        var modelDef = modelDefinition(totalParts, chunkSize);
+
+        var digest = computeDigest(modelDef);
+        when(config.getSha256()).thenReturn(digest);
+        when(config.getSize()).thenReturn(size);
+
+        var importer = new ModelImporter(client, "foo", config, task, threadPool);
+        var streamChunker = new ModelLoaderUtils.InputStreamChunker(new ByteArrayInputStream(modelDef), chunkSize);
+
+        var latch = new CountDownLatch(1);
+        var latchedListener = new LatchedActionListener<AcknowledgedResponse>(ActionTestUtils.assertNoFailureListener(ignore -> {}), latch);
+        importer.readModelDefinitionFromFile(size, totalParts, streamChunker, vocab, latchedListener);
+
+        latch.await();
+        verify(client, times(totalParts)).execute(eq(PutTrainedModelDefinitionPartAction.INSTANCE), any(), any());
+        assertEquals(totalParts, task.getStatus().downloadProgress().downloadedParts());
+        assertEquals(totalParts, task.getStatus().downloadProgress().totalParts());
+    }
+
     public void testSizeMismatch() throws InterruptedException, URISyntaxException {
         var client = mockClient(false);
         var task = mock(ModelDownloadTask.class);
-        var config = mock(ModelPackageConfig.class);
+        var config = mockConfigWithRepoLinks();
 
-        var importer = new ModelImporter(client, "foo", config, task, threadPool);
         int totalParts = 5;
         int chunkSize = 10;
         long size = totalParts * chunkSize;
         var modelDef = modelDefinition(totalParts, chunkSize);
-        var stream = mockStreamChunker(modelDef, totalParts, chunkSize);
+        var streamers = mockHttpStreamChunkers(modelDef, chunkSize, 2);
 
-        var digest = computeDigest(modelDef, totalParts, chunkSize);
+        var digest = computeDigest(modelDef);
         when(config.getSha256()).thenReturn(digest);
         when(config.getSize()).thenReturn(size - 1); // expected size and read size are different
 
@@ -98,24 +135,25 @@ public class ModelImporterTests extends ESTestCase {
             ActionTestUtils.assertNoSuccessListener(exceptionHolder::set),
             latch
         );
-        importer.downloadParts(stream, size, null, latchedListener);
+
+        var importer = new ModelImporter(client, "foo", config, task, threadPool);
+        importer.downloadModelDefinition(size, totalParts, null, streamers, latchedListener);
 
         latch.await();
         assertThat(exceptionHolder.get().getMessage(), containsString("Model size does not match"));
         verify(client, times(totalParts)).execute(eq(PutTrainedModelDefinitionPartAction.INSTANCE), any(), any());
     }
 
-    public void testDigestMismatch() throws InterruptedException {
+    public void testDigestMismatch() throws InterruptedException, URISyntaxException {
         var client = mockClient(false);
         var task = mock(ModelDownloadTask.class);
-        var config = mock(ModelPackageConfig.class);
+        var config = mockConfigWithRepoLinks();
 
-        var importer = new ModelImporter(client, "foo", config, task, threadPool);
         int totalParts = 5;
         int chunkSize = 10;
         long size = totalParts * chunkSize;
         var modelDef = modelDefinition(totalParts, chunkSize);
-        var stream = mockStreamChunker(modelDef, totalParts, chunkSize);
+        var streamers = mockHttpStreamChunkers(modelDef, chunkSize, 2);
 
         when(config.getSha256()).thenReturn("0x"); // digest is different
         when(config.getSize()).thenReturn(size);
@@ -126,23 +164,27 @@ public class ModelImporterTests extends ESTestCase {
             ActionTestUtils.assertNoSuccessListener(exceptionHolder::set),
             latch
         );
-        importer.downloadParts(stream, size, null, latchedListener);
+
+        var importer = new ModelImporter(client, "foo", config, task, threadPool);
+        // Message digest can only be calculated for the file reader
+        var streamChunker = new ModelLoaderUtils.InputStreamChunker(new ByteArrayInputStream(modelDef), chunkSize);
+        importer.readModelDefinitionFromFile(size, totalParts, streamChunker, null, latchedListener);
 
         latch.await();
         assertThat(exceptionHolder.get().getMessage(), containsString("Model sha256 checksums do not match"));
         verify(client, times(totalParts)).execute(eq(PutTrainedModelDefinitionPartAction.INSTANCE), any(), any());
     }
 
-    public void testPutFailure() throws InterruptedException {
+    public void testPutFailure() throws InterruptedException, URISyntaxException {
         var client = mockClient(true);  // client will fail put
         var task = mock(ModelDownloadTask.class);
-        var config = mock(ModelPackageConfig.class);
+        var config = mockConfigWithRepoLinks();
 
-        var importer = new ModelImporter(client, "foo", config, task, threadPool);
         int totalParts = 4;
         int chunkSize = 10;
+        long size = totalParts * chunkSize;
         var modelDef = modelDefinition(totalParts, chunkSize);
-        var stream = mockStreamChunker(modelDef, totalParts, chunkSize);
+        var streamers = mockHttpStreamChunkers(modelDef, chunkSize, 1);
 
         var exceptionHolder = new AtomicReference<Exception>();
         var latch = new CountDownLatch(1);
@@ -150,24 +192,27 @@ public class ModelImporterTests extends ESTestCase {
             ActionTestUtils.assertNoSuccessListener(exceptionHolder::set),
             latch
         );
-        importer.downloadParts(stream, totalParts * chunkSize, null, latchedListener);
+
+        var importer = new ModelImporter(client, "foo", config, task, threadPool);
+        importer.downloadModelDefinition(size, totalParts, null, streamers, latchedListener);
 
         latch.await();
         assertThat(exceptionHolder.get().getMessage(), containsString("put model part failed"));
         verify(client, times(1)).execute(eq(PutTrainedModelDefinitionPartAction.INSTANCE), any(), any());
     }
 
-    public void testReadFailure() throws IOException, InterruptedException {
+    public void testReadFailure() throws IOException, InterruptedException, URISyntaxException {
         var client = mockClient(true);
         var task = mock(ModelDownloadTask.class);
-        var config = mock(ModelPackageConfig.class);
+        var config = mockConfigWithRepoLinks();
 
-        var importer = new ModelImporter(client, "foo", config, task, threadPool);
-        var stream = mock(ModelLoaderUtils.InputStreamChunker.class);
-        when(stream.next()).thenThrow(new IOException("stream failed"));  // fail the read
+        int totalParts = 4;
+        int chunkSize = 10;
+        long size = totalParts * chunkSize;
 
-        when(stream.getTotalParts()).thenReturn(10);
-        when(stream.getCurrentPart()).thenReturn(new AtomicInteger());
+        var streamer = mock(ModelLoaderUtils.HttStreamChunker.class);
+        when(streamer.hasNext()).thenReturn(true);
+        when(streamer.next()).thenThrow(new IOException("stream failed"));  // fail the read
 
         var exceptionHolder = new AtomicReference<Exception>();
         var latch = new CountDownLatch(1);
@@ -175,14 +220,16 @@ public class ModelImporterTests extends ESTestCase {
             ActionTestUtils.assertNoSuccessListener(exceptionHolder::set),
             latch
         );
-        importer.downloadParts(stream, 1L, null, latchedListener);
+
+        var importer = new ModelImporter(client, "foo", config, task, threadPool);
+        importer.downloadModelDefinition(size, totalParts, null, List.of(streamer), latchedListener);
 
         latch.await();
         assertThat(exceptionHolder.get().getMessage(), containsString("stream failed"));
     }
 
     @SuppressWarnings("unchecked")
-    public void testUploadVocabFailure() throws InterruptedException {
+    public void testUploadVocabFailure() throws InterruptedException, URISyntaxException {
         var client = mock(Client.class);
         doAnswer(invocation -> {
             ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
@@ -191,19 +238,19 @@ public class ModelImporterTests extends ESTestCase {
         }).when(client).execute(eq(PutTrainedModelVocabularyAction.INSTANCE), any(), any());
 
         var task = mock(ModelDownloadTask.class);
-        var config = mock(ModelPackageConfig.class);
+        var config = mockConfigWithRepoLinks();
 
         var vocab = new ModelLoaderUtils.VocabularyParts(List.of(), List.of(), List.of());
 
-        var importer = new ModelImporter(client, "foo", config, task, threadPool);
-        var stream = mock(ModelLoaderUtils.InputStreamChunker.class);
         var exceptionHolder = new AtomicReference<Exception>();
         var latch = new CountDownLatch(1);
         var latchedListener = new LatchedActionListener<AcknowledgedResponse>(
             ActionTestUtils.assertNoSuccessListener(exceptionHolder::set),
             latch
         );
-        importer.downloadParts(stream, 1L, vocab, latchedListener);
+
+        var importer = new ModelImporter(client, "foo", config, task, threadPool);
+        importer.downloadModelDefinition(100, 5, vocab, List.of(), latchedListener);
 
         latch.await();
         assertThat(exceptionHolder.get().getMessage(), containsString("put vocab failed"));
@@ -211,11 +258,18 @@ public class ModelImporterTests extends ESTestCase {
         verify(client, never()).execute(eq(PutTrainedModelDefinitionPartAction.INSTANCE), any(), any());
     }
 
-    private ModelLoaderUtils.InputStreamChunker mockStreamChunker(byte[] modelDef, int totalPart, int chunkSize) {
-        var modelDefStream = new ByteArrayInputStream(modelDef);
-        return new ModelLoaderUtils.InputStreamChunker(modelDefStream, chunkSize, totalPart);
+    private List<ModelLoaderUtils.HttStreamChunker> mockHttpStreamChunkers(byte[] modelDef, int chunkSize, int numStreams) {
+        var ranges = ModelLoaderUtils.split(modelDef.length, numStreams, chunkSize);
+
+        var result = new ArrayList<ModelLoaderUtils.HttStreamChunker>(ranges.size());
+        for (var range : ranges) {
+            int len = range.numParts() * chunkSize;
+            var modelDefStream = new ByteArrayInputStream(modelDef, (int) range.rangeStart(), len);
+            result.add(new ModelLoaderUtils.HttStreamChunker(modelDefStream, range, chunkSize));
+        }
+
+        return result;
     }
-    */
 
     private byte[] modelDefinition(int totalParts, int chunkSize) {
         var bytes = new byte[totalParts * chunkSize];
@@ -225,12 +279,9 @@ public class ModelImporterTests extends ESTestCase {
         return bytes;
     }
 
-    private String computeDigest(byte[] modelDef, int totalParts, int chunkSize) {
+    private String computeDigest(byte[] modelDef) {
         var digest = MessageDigests.sha256();
         digest.update(modelDef);
-        // for (int i=0; i<totalParts; i++) {
-        // digest.update(modelDef, i * totalParts, chunkSize);
-        // }
         return MessageDigests.toHexString(digest.digest());
     }
 
@@ -254,5 +305,12 @@ public class ModelImporterTests extends ESTestCase {
         }).when(client).execute(eq(PutTrainedModelVocabularyAction.INSTANCE), any(), any());
 
         return client;
+    }
+
+    private ModelPackageConfig mockConfigWithRepoLinks() {
+        var config = mock(ModelPackageConfig.class);
+        when(config.getModelRepository()).thenReturn("https://models.models");
+        when(config.getPackagedModelId()).thenReturn("my-model");
+        return config;
     }
 }

@@ -24,6 +24,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
@@ -31,11 +32,14 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.SlowRunningQueryBuilder;
 import org.elasticsearch.search.query.ThrowingQueryBuilder;
+import org.elasticsearch.search.retriever.MinimalCompoundRetrieverIT;
+import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.usage.UsageService;
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.rules.TestRule;
 import org.junit.runner.Description;
@@ -47,6 +51,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -66,6 +71,7 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
     private static final Logger LOGGER = LogManager.getLogger(CCSUsageTelemetryIT.class);
     private static final String REMOTE1 = "cluster-a";
     private static final String REMOTE2 = "cluster-b";
+    private static final FeatureFlag CCS_TELEMETRY_FEATURE_FLAG = new FeatureFlag("ccs_telemetry");
 
     @Override
     protected boolean reuseClusters() {
@@ -79,6 +85,11 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
 
     @Rule
     public SkipUnavailableRule skipOverride = new SkipUnavailableRule(REMOTE1, REMOTE2);
+
+    @BeforeClass
+    protected static void skipIfTelemetryDisabled() {
+        assumeTrue("Skipping test as CCS_TELEMETRY_FEATURE_FLAG is disabled", CCS_TELEMETRY_FEATURE_FLAG.isEnabled());
+    }
 
     @Override
     protected Map<String, Boolean> skipUnavailableForRemoteClusters() {
@@ -443,7 +454,7 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         // partial failure, and we disable partial results..
         searchRequest.setCcsMinimizeRoundtrips(true);
 
-        TimeValue searchTimeout = new TimeValue(200, TimeUnit.MILLISECONDS);
+        TimeValue searchTimeout = new TimeValue(500, TimeUnit.MILLISECONDS);
         // query builder that will sleep for the specified amount of time in the query phase
         SlowRunningQueryBuilder slowRunningQueryBuilder = new SlowRunningQueryBuilder(searchTimeout.millis() * 5, remoteIndex);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(slowRunningQueryBuilder).timeout(searchTimeout);
@@ -610,6 +621,20 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
 
         assertThat(telemetry.getTotalCount(), equalTo(2L));
         assertThat(telemetry.getSuccessCount(), equalTo(2L));
+    }
+
+    public void testCompoundRetrieverSearch() throws ExecutionException, InterruptedException {
+        RetrieverBuilder compoundRetriever = new MinimalCompoundRetrieverIT.CompoundRetriever(Collections.emptyList());
+        Map<String, Object> testClusterInfo = setupClusters();
+        String localIndex = (String) testClusterInfo.get("local.index");
+        String remoteIndex = (String) testClusterInfo.get("remote.index");
+
+        SearchRequest searchRequest = makeSearchRequest(localIndex, "*:" + remoteIndex);
+        searchRequest.source(new SearchSourceBuilder().retriever(compoundRetriever));
+
+        CCSTelemetrySnapshot telemetry = getTelemetryFromSearch(searchRequest);
+        assertThat(telemetry.getTotalCount(), equalTo(1L));
+        assertThat(telemetry.getSuccessCount(), equalTo(1L));
     }
 
     private CCSTelemetrySnapshot getTelemetrySnapshot(String nodeName) {

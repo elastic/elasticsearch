@@ -18,7 +18,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.threadpool.ThreadPool.indexAutoscalingEWMA;
+import static org.elasticsearch.threadpool.ThreadPool.WRITE_THREAD_POOLS_EWMA_ALPHA_SETTING;
 import static org.elasticsearch.threadpool.ThreadPool.searchAutoscalingEWMA;
 
 public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
@@ -29,6 +29,7 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
         final int halfProcMaxAt5 = ThreadPool.halfAllocatedProcessorsMaxFive(allocatedProcessors);
         final int halfProcMaxAt10 = ThreadPool.halfAllocatedProcessorsMaxTen(allocatedProcessors);
         final int genericThreadPoolMax = ThreadPool.boundedBy(4 * allocatedProcessors, 128, 512);
+        final double indexAutoscalingEWMA = WRITE_THREAD_POOLS_EWMA_ALPHA_SETTING.get(settings);
 
         Map<String, ExecutorBuilder> result = new HashMap<>();
         result.put(

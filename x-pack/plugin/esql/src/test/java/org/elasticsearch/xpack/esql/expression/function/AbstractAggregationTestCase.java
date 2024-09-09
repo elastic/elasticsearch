@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.optimizer.FoldNull;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -105,7 +105,9 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
                         testCase.expectedType(),
                         nullValue(),
                         null,
+                        null,
                         testCase.getExpectedTypeError(),
+                        null,
                         null,
                         null
                     );

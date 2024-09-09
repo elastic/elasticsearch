@@ -87,7 +87,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Stream;
 
 /**
  * A {@link FieldMapper} for indexing fields with ngrams for efficient wildcard matching
@@ -247,8 +246,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 ),
                 ignoreAbove.get(),
                 context.isSourceSynthetic(),
-                multiFieldsBuilder.build(this, context),
-                copyTo,
+                builderParams(this, context),
                 nullValue.get(),
                 indexVersionCreated
             );
@@ -903,12 +901,11 @@ public class WildcardFieldMapper extends FieldMapper {
         WildcardFieldType mappedFieldType,
         int ignoreAbove,
         boolean storeIgnored,
-        MultiFields multiFields,
-        CopyTo copyTo,
+        BuilderParams builderParams,
         String nullValue,
         IndexVersion indexVersionCreated
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, builderParams);
         this.nullValue = nullValue;
         this.ignoreAbove = ignoreAbove;
         this.storeIgnored = storeIgnored;
@@ -997,7 +994,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        if (copyTo.copyToFields().isEmpty() != true) {
+        if (copyTo().copyToFields().isEmpty() != true) {
             throw new IllegalArgumentException(
                 "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
@@ -1022,15 +1019,10 @@ public class WildcardFieldMapper extends FieldMapper {
         return new CompositeSyntheticFieldLoader(leafName(), fullPath(), loader);
     }
 
-    private class WildcardSyntheticFieldLoader implements CompositeSyntheticFieldLoader.Layer {
+    private class WildcardSyntheticFieldLoader implements CompositeSyntheticFieldLoader.DocValuesLayer {
         private final ByteArrayStreamInput docValuesStream = new ByteArrayStreamInput();
         private int docValueCount;
         private BytesRef docValueBytes;
-
-        @Override
-        public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-            return Stream.empty();
-        }
 
         @Override
         public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {

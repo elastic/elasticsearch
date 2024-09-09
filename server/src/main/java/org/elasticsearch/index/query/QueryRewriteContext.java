@@ -283,13 +283,12 @@ public class QueryRewriteContext {
      * Executes all registered async actions and notifies the listener once it's done. The value that is passed to the listener is always
      * <code>null</code>. The list of registered actions is cleared once this method returns.
      */
-    @SuppressWarnings({ "unchecked", "rawtypes" })
-    public void executeAsyncActions(ActionListener listener) {
+    public void executeAsyncActions(ActionListener<Void> listener) {
         if (asyncActions.isEmpty()) {
             listener.onResponse(null);
         } else {
             CountDown countDown = new CountDown(asyncActions.size());
-            ActionListener<?> internalListener = new ActionListener() {
+            ActionListener<?> internalListener = new ActionListener<>() {
                 @Override
                 public void onResponse(Object o) {
                     if (countDown.countDown()) {

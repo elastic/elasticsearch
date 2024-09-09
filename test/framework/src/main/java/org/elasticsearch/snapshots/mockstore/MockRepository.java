@@ -486,11 +486,11 @@ public class MockRepository extends FsRepository {
                         throw new IOException("Random IOException");
                     } else if (blockOnAnyFiles) {
                         blockExecutionAndMaybeWait(blobName);
-                    } else if (blobName.startsWith("snap-") && (blockAndFailOnWriteSnapFile || blockAndFailOnReadSnapFile)) {
+                    } else if (blobName.startsWith(SNAPSHOT_PREFIX) && (blockAndFailOnWriteSnapFile || blockAndFailOnReadSnapFile)) {
                         blockExecutionAndFail(blobName);
                     } else if (blobName.startsWith(INDEX_FILE_PREFIX) && blockAndFailOnReadIndexFile) {
                         blockExecutionAndFail(blobName);
-                    } else if (blockedIndexId != null && path().parts().contains(blockedIndexId) && blobName.startsWith("snap-")) {
+                    } else if (blockedIndexId != null && path().parts().contains(blockedIndexId) && blobName.startsWith(SNAPSHOT_PREFIX)) {
                         blockExecutionAndMaybeWait(blobName);
                     }
                 }

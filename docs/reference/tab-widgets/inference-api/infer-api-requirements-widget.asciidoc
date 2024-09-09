@@ -35,7 +35,13 @@
             aria-selected="false"
             aria-controls="infer-api-requirements-azure-ai-studio-tab"
             id="infer-api-requirements-azure-ai-studio">
-      Azure AI Studio
+      Azure AI Studio 
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="infer-api-requirements-google-vertex-ai-tab"
+            id="infer-api-requirements-google-vertex-ai">
+      Google Vertex AI
     </button>
     <button role="tab"
             aria-selected="false"
@@ -118,6 +124,17 @@ include::infer-api-requirements.asciidoc[tag=azure-openai]
 ++++
 
 include::infer-api-requirements.asciidoc[tag=azure-ai-studio]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-requirements-google-vertex-ai-tab"
+       aria-labelledby="infer-api-requirements-google-vertex-ai"
+       hidden="">
+++++
+
+include::infer-api-requirements.asciidoc[tag=google-vertex-ai]
 
 ++++
   </div>

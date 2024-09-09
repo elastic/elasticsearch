@@ -55,7 +55,7 @@ You can deploy {es} in various ways:
 [[elasticsearch-next-steps]]
 === Learn more
 
-Here are some resources to help you get started:
+Some resources to help you get started:
 
 * <<getting-started, Quickstart>>. A beginner's guide to deploying your first {es} instance, indexing data, and running queries.
 * https://elastic.co/webinars/getting-started-elasticsearch[Webinar: Introduction to {es}]. Register for our live webinars to learn directly from {es} experts.
@@ -63,58 +63,99 @@ Here are some resources to help you get started:
 ** Follow our tutorial https://www.elastic.co/search-labs/tutorials/search-tutorial/welcome[to build a hybrid search solution in Python].
 ** Check out the https://github.com/elastic/elasticsearch-labs?tab=readme-ov-file#elasticsearch-examples--apps[`elasticsearch-labs` repository] for a range of Python notebooks and apps for various use cases.
 
+// new html page 
 [[documents-indices]]
-=== Documents and indices
+=== Indices, documents, and fields
+++++
+<titleabbrev>Indices and documents</titleabbrev>
+++++
 
-{es} is a distributed document store. Instead of storing information as rows of
-columnar data, {es} stores complex data structures that have been serialized
-as JSON documents. When you have multiple {es} nodes in a cluster, stored
-documents are distributed across the cluster and can be accessed immediately
-from any node.
+The index is the fundamental unit of storage in {es}, a logical namespace for storing data that share similar characteristics.
+After you have {es} <<elasticsearch-intro-deploy,deployed>>, you'll get started by creating an index to store your data.
 
-When a document is stored, it is indexed and fully searchable in <<near-real-time,near real-time>>--within 1 second. {es} uses a data structure called an
-inverted index that supports very fast full-text searches. An inverted index
-lists every unique word that appears in any document and identifies all of the
-documents each word occurs in.
+[TIP]
+====
+A closely related concept is a <<data-streams,data stream>>.
+This index abstraction is optimized for append-only time-series data, and is made up of hidden, auto-generated backing indices.
+If you're working with time-series data, we recommend the {observability-guide}[Elastic Observability] solution.
+====
 
-An index can be thought of as an optimized collection of documents and each
-document is a collection of fields, which are the key-value pairs that contain
-your data. By default, {es} indexes all data in every field and each indexed
-field has a dedicated, optimized data structure. For example, text fields are
-stored in inverted indices, and numeric and geo fields are stored in BKD trees.
-The ability to use the per-field data structures to assemble and return search
-results is what makes {es} so fast.
+Some key facts about indices:
 
-{es} also has the ability to be schema-less, which means that documents can be
-indexed without explicitly specifying how to handle each of the different fields
-that might occur in a document. When dynamic mapping is enabled, {es}
-automatically detects and adds new fields to the index. This default
-behavior makes it easy to index and explore your data--just start
-indexing documents and {es} will detect and map booleans, floating point and
-integer values, dates, and strings to the appropriate {es} data types.
+* An index is a collection of documents
+* An index has a unique name
+* An index can also be referred to by an alias
+* An index has a mapping that defines the schema of its documents
 
-You can define rules to control dynamic mapping and explicitly
-define mappings to take full control of how fields are stored and indexed.
+[discrete]
+[[elasticsearch-intro-documents-fields]]
+==== Documents and fields
 
-Defining your own mappings enables you to:
+{es} serializes and stores data in the form of JSON documents.
+A document is a set of fields, which are key-value pairs that contain your data.
+Each document has a unique ID, which you can create or have {es} auto-generate.
 
-* Distinguish between full-text string fields and exact value string fields
-* Perform language-specific text analysis
-* Optimize fields for partial matching
-* Use custom date formats
-* Use data types such as `geo_point` and `geo_shape` that cannot be automatically
-detected
+A simple {es} document might look like this:
 
-It’s often useful to index the same field in different ways for different
-purposes. For example, you might want to index a string field as both a text
-field for full-text search and as a keyword field for sorting or aggregating
-your data. Or, you might choose to use more than one language analyzer to
-process the contents of a string field that contains user input.
+[source,js]
+----
+{
+  "_index": "my-first-elasticsearch-index",
+  "_id": "DyFpo5EBxE8fzbb95DOa",
+  "_version": 1,
+  "_seq_no": 0,
+  "_primary_term": 1,
+  "found": true,
+  "_source": {
+    "email": "john@smith.com",
+    "first_name": "John",
+    "last_name": "Smith",
+    "info": {
+      "bio": "Eco-warrior and defender of the weak",
+      "age": 25,
+      "interests": [
+        "dolphins",
+        "whales"
+      ]
+    },
+    "join_date": "2024/05/01"
+  }
+}
+----
+// NOTCONSOLE
 
-The analysis chain that is applied to a full-text field during indexing is also
-used at search time. When you query a full-text field, the query text undergoes
-the same analysis before the terms are looked up in the index.
+[discrete]
+[[elasticsearch-intro-documents-fields-data-metadata]]
+==== Data and metadata
 
+An indexed document contains data and metadata.
+In {es}, metadata fields are prefixed with an underscore.
+
+The most important metadata fields are:
+
+* `_source`. Contains the original JSON document.
+* `_index`. The name of the index where the document is stored.
+* `_id`. The document's ID. IDs must be unique per index.
+
+[discrete]
+[[elasticsearch-intro-documents-fields-mappings]]
+==== Mappings and data types
+
+Each index has a <<mapping,mapping>> or schema for how the fields in your documents are indexed.
+A mapping defines the <<mapping-types,data type>> for each field, how the field should be indexed,
+and how it should be stored.
+When adding documents to {es}, you have two options for mappings:
+
+* <<mapping-dynamic, Dynamic mapping>>. Let {es} automatically detect the data types and create the mappings for you. This is great for getting started quickly.
+* <<mapping-explicit, Explicit mapping>>. Define the mappings up front by specifying data types for each field. Recommended for production use cases.
+
+[TIP]
+====
+You can use a combination of dynamic and explicit mapping on the same index.
+This is useful when you have a mix of known and unknown fields in your data.
+====
+
+// New html page
 [[search-analyze]]
 === Search and analyze
 

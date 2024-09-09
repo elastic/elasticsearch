@@ -1308,7 +1308,7 @@ Each repository type may also include other statistics about the repositories of
 ====
 
 `ccs`::
-(object) Contains information relating to <<modules-cross-cluster-search, cross-cluster search>> settings and activity in the cluster.
+(object) Contains information relating to <<modules-cross-cluster-search, {ccs}>> settings and activity in the cluster.
 +
 .Properties of `ccs`
 [%collapsible%open]
@@ -1316,82 +1316,82 @@ Each repository type may also include other statistics about the repositories of
 
 
 `_search`:::
-(object) Contains telemetry information about the <<modules-cross-cluster-search, cross-cluster searches>> in the cluster.
+(object) Contains the telemetry information about the <<modules-cross-cluster-search, {ccs}>> usage in the cluster.
 +
 .Properties of `_search`
 [%collapsible%open]
 ======
 `total`:::
-(integer) The total number of cross-cluster search requests that have been executed by the cluster.
+(integer) The total number of {ccs} requests that have been executed by the cluster.
 
 `success`:::
-(integer) The total number of cross-cluster search requests that have been successfully executed by the cluster.
+(integer) The total number of {ccs} requests that have been successfully executed by the cluster.
 
 `skipped`:::
-(integer) The total number of cross-cluster search requests that had at least one remote cluster skipped.
+(integer) The total number of {ccs} requests (successful or failed) that had at least one remote cluster skipped.
 
 `took`:::
-(object) Contains statistics about the time taken to execute cross-cluster search requests.
+(object) Contains statistics about the time taken to execute {ccs} requests.
 +
 .Properties of `took`
 [%collapsible%open]
 =======
 `max`:::
-(integer) The maximum time taken to execute a cross-cluster search request, in milliseconds.
+(integer) The maximum time taken to execute a {ccs} request, in milliseconds.
 
 `avg`:::
-(integer) The median time taken to execute a cross-cluster search request, in milliseconds.
+(integer) The median time taken to execute a {ccs} request, in milliseconds.
 
 `p90`:::
-(integer) The 90th percentile of the time taken to execute cross-cluster search requests, in milliseconds.
+(integer) The 90th percentile of the time taken to execute {ccs} requests, in milliseconds.
 =======
 
 `took_mrt_true`::
-(object) Contains statistics about the time taken to execute cross-cluster search requests for which the
+(object) Contains statistics about the time taken to execute {ccs} requests for which the
 <<ccs-minimize-roundtrips,`ccs_minimize_roundtrips`>> setting was set to `true`.
 +
 .Properties of `took_mrt_true`
 [%collapsible%open]
 =======
 `max`:::
-(integer) The maximum time taken to execute a cross-cluster search request, in milliseconds.
+(integer) The maximum time taken to execute a {ccs} request, in milliseconds.
 
 `avg`:::
-(integer) The median time taken to execute a cross-cluster search request, in milliseconds.
+(integer) The median time taken to execute a {ccs} request, in milliseconds.
 
 `p90`:::
-(integer) The 90th percentile of the time taken to execute cross-cluster search requests, in milliseconds.
+(integer) The 90th percentile of the time taken to execute {ccs} requests, in milliseconds.
 =======
 
 `took_mrt_false`::
-(object) Contains statistics about the time taken to execute cross-cluster search requests for which the
+(object) Contains statistics about the time taken to execute {ccs} requests for which the
 <<ccs-minimize-roundtrips,`ccs_minimize_roundtrips`>> setting was set to `false`.
 +
 .Properties of `took_mrt_false`
 [%collapsible%open]
 =======
 `max`:::
-(integer) The maximum time taken to execute a cross-cluster search request, in milliseconds.
+(integer) The maximum time taken to execute a {ccs} request, in milliseconds.
 
 `avg`:::
-(integer) The median time taken to execute a cross-cluster search request, in milliseconds.
+(integer) The median time taken to execute a {ccs} request, in milliseconds.
 
 `p90`:::
-(integer) The 90th percentile of the time taken to execute cross-cluster search requests, in milliseconds.
+(integer) The 90th percentile of the time taken to execute {ccs} requests, in milliseconds.
 =======
 
 `remotes_per_search_max`::
-(integer) The maximum number of remote clusters that were queried in a single cross-cluster search request.
+(integer) The maximum number of remote clusters that were queried in a single {ccs} request.
 
 `remotes_per_search_avg`::
-(float) The average number of remote clusters that were queried in a single cross-cluster search request.
+(float) The average number of remote clusters that were queried in a single {ccs} request.
 
 `failure_reasons`::
-(object) Contains statistics about the reasons for cross-cluster search request failures.
+(object) Contains statistics about the reasons for {ccs} request failures.
 The keys are the failure reason names and the values are the number of requests that failed for that reason.
 
 `features`::
-(object) Contains statistics about the features used in cross-cluster search requests. The keys are the names of the search feature,
+(object) Contains statistics about the features used in {ccs} requests. The keys are the names of the search feature,
 and the values are the number of requests that used that feature. Single request can use more than one feature
 (e.g. both `async` and `wildcard`). Known features are:
 
@@ -1402,12 +1402,12 @@ and the values are the number of requests that used that feature. Single request
 * `wildcard` - <<api-multi-index,Multi-target syntax>> for indices with wildcards was used in the search request.
 
 `clients`::
-(object) Contains statistics about the clients that executed cross-cluster search requests.
+(object) Contains statistics about the clients that executed {ccs} requests.
 The keys are the names of the clients, and the values are the number of requests that were executed by that client.
 Only known clients (such as `kibana` or `elasticsearch`) are counted.
 
 `clusters`::
-(object) Contains statistics about the clusters that were queried in cross-cluster search requests.
+(object) Contains statistics about the clusters that were queried in {ccs} requests.
 The keys are cluster names, and the values are per-cluster telemetry data.
 This also includes the local cluster itself, which uses the name `(local)`.
 +
@@ -1415,11 +1415,11 @@ This also includes the local cluster itself, which uses the name `(local)`.
 [%collapsible%open]
 =======
 `total`:::
-(integer) The total number of successful (not skipped) cross-cluster search requests that were executed against this cluster.
+(integer) The total number of successful (not skipped) {ccs} requests that were executed against this cluster.
 This may include requests where partial results were returned, but not requests in which the cluster has been skipped entirely.
 
 `skipped`:::
-(integer) The total number of cross-cluster search requests for which this cluster was skipped.
+(integer) The total number of {ccs} requests for which this cluster was skipped.
 
 `took`:::
 (object) Contains statistics about the time taken to execute requests against this cluster.
@@ -1428,13 +1428,13 @@ This may include requests where partial results were returned, but not requests 
 [%collapsible%open]
 ========
 `max`:::
-(integer) The maximum time taken to execute a cross-cluster search request, in milliseconds.
+(integer) The maximum time taken to execute a {ccs} request, in milliseconds.
 
 `avg`:::
-(integer) The median time taken to execute a cross-cluster search request, in milliseconds.
+(integer) The median time taken to execute a {ccs} request, in milliseconds.
 
 `p90`:::
-(integer) The 90th percentile of the time taken to execute cross-cluster search requests, in milliseconds.
+(integer) The 90th percentile of the time taken to execute {ccs} requests, in milliseconds.
 ========
 
 =======

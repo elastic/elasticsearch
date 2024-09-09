@@ -251,7 +251,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         final SearchUsageStats searchUsageStats = searchUsageHolder.getSearchUsageStats();
 
         final RepositoryUsageStats repositoryUsageStats = repositoriesService.getUsageStats();
-        final CCSTelemetrySnapshot ccsUsage = ccsUsageHolder.getCCSTelemetrySnapshot();
+        final CCSTelemetrySnapshot ccsTelemetry = ccsUsageHolder.getCCSTelemetrySnapshot();
 
         return new ClusterStatsNodeResponse(
             nodeInfo.getNode(),
@@ -261,7 +261,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             shardsStats.toArray(new ShardStats[shardsStats.size()]),
             searchUsageStats,
             repositoryUsageStats,
-            ccsUsage
+            ccsTelemetry
         );
     }
 

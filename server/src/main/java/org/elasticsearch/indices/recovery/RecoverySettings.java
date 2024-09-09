@@ -29,7 +29,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import 222org.elasticsearch.monitor.os.OsProbe;
+import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.node.NodeRoleSettings;
 
 import java.util.Collection;

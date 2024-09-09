@@ -167,7 +167,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             clusterService.getClusterSettings().get(EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE),
             request.query(),
             request.profile(),
-            request.tables()
+            request.tables(),
+            System.currentTimeMillis()
         );
         String sessionId = sessionID(task);
         EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(clusterAlias -> remoteClusterService.isSkipUnavailable(clusterAlias));

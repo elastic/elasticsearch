@@ -72,6 +72,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.Result;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -169,9 +170,10 @@ public class ComputeService {
                 null
             );
             try (
-                var computeListener = new ComputeListener(
+                var computeListener = ComputeListener.createComputeListener(
                     transportService,
                     rootTask,
+                    executionInfo,
                     listener.map(r -> new Result(physicalPlan.output(), collectedPages, r.getProfiles()))
                 )
             ) {
@@ -196,9 +198,10 @@ public class ComputeService {
         );
         try (
             Releasable ignored = exchangeSource.addEmptySink();
-            var computeListener = new ComputeListener(
+            var computeListener = ComputeListener.createComputeListener(
                 transportService,
                 rootTask,
+                executionInfo,
                 listener.map(r -> new Result(physicalPlan.output(), collectedPages, r.getProfiles()))
             )
         ) {
@@ -738,7 +741,7 @@ public class ComputeService {
                 request.indices(),
                 request.indicesOptions()
             );
-            try (var computeListener = new ComputeListener(transportService, (CancellableTask) task, listener)) {
+            try (var computeListener = ComputeListener.createComputeListener(transportService, (CancellableTask) task, null, listener)) {
                 runComputeOnDataNode((CancellableTask) task, sessionId, reducePlan, request, computeListener);
             }
         }
@@ -756,7 +759,14 @@ public class ComputeService {
                 listener.onFailure(new IllegalStateException("expected exchange sink for a remote compute; got " + plan));
                 return;
             }
-            try (var computeListener = new ComputeListener(transportService, (CancellableTask) task, listener)) {
+            String clusterAlias = request.clusterAlias();
+            // this runs on a remote cluster coordinator, so it creates a new local EsqlExecutionInfo object to record
+            // execution metadata as the ES|QL processing occurs on this cluster, which will be returned in the ComputeResponse
+            // to the coordinating cluster
+            EsqlExecutionInfo execInfo = new EsqlExecutionInfo();
+            execInfo.swapCluster(clusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(clusterAlias, Arrays.toString(request.indices())));
+            CancellableTask cancellable = (CancellableTask) task;
+            try (var computeListener = ComputeListener.createOnRemote(clusterAlias, transportService, cancellable, execInfo, listener)) {
                 runComputeOnRemoteCluster(
                     request.clusterAlias(),
                     request.sessionId(),

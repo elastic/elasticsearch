@@ -15,6 +15,8 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.IndexModeFieldMapper;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -253,7 +255,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public LogicalPlan visitFromCommand(EsqlBaseParser.FromCommandContext ctx) {
         Source source = source(ctx);
-        TableIdentifier table = new TableIdentifier(source, null, visitIndexPattern(ctx.indexPattern()));
+        TableIdentifier table = new TableIdentifier(source, visitIndexPattern(ctx.indexPattern()), null);
         Map<String, Attribute> metadataMap = new LinkedHashMap<>();
         if (ctx.metadata() != null) {
             var deprecatedContext = ctx.metadata().deprecated_metadata();
@@ -495,7 +497,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw new IllegalArgumentException("METRICS command currently requires a snapshot build");
         }
         Source source = source(ctx);
-        TableIdentifier table = new TableIdentifier(source, null, visitIndexPattern(ctx.indexPattern()));
+        var indexFilter = new MatchQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
+        TableIdentifier table = new TableIdentifier(source, visitIndexPattern(ctx.indexPattern()), indexFilter);
 
         if (ctx.aggregates == null && ctx.grouping == null) {
             return new UnresolvedRelation(source, table, false, List.of(), IndexMode.STANDARD, null, "METRICS");

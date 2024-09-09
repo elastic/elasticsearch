@@ -26,6 +26,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -786,5 +787,15 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             assertThat(values, hasSize(2));
             assertThat(values, equalTo(List.of(List.of("events", "standard"), List.of("hosts", "time_series"))));
         }
+        try (var resp = run("METRICS events,hosts | STATS COUNT(*)")) {
+            List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
+            assertThat(values.get(0).get(0), equalTo((long) docs.size()));
+        }
+        try (var resp = run("METRICS hosts | STATS COUNT(*)")) {
+            List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
+            assertThat(values.get(0).get(0), equalTo((long) docs.size()));
+        }
+        Exception error = expectThrows(Exception.class, () -> run("METRICS events | STATS COUNT(*)").close());
+        assertThat(error.getMessage(), containsString("Found 1 problem\nline 1:1: Unknown index [events]"));
     }
 }

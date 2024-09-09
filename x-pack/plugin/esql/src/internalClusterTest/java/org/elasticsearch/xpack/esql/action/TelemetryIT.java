@@ -112,10 +112,15 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                     true
                 ) },
             new Object[] {
-                new Test("METRICS idx | LIMIT 10", Map.ofEntries(Map.entry("METRICS", 1), Map.entry("LIMIT", 1)), Map.ofEntries(), true) },
+                new Test(
+                    "METRICS metric_idx | LIMIT 10",
+                    Map.ofEntries(Map.entry("METRICS", 1), Map.entry("LIMIT", 1)),
+                    Map.ofEntries(),
+                    true
+                ) },
             new Object[] {
                 new Test(
-                    "METRICS idx max(id) BY host | LIMIT 10",
+                    "METRICS metric_idx max(cpu) BY host | LIMIT 10",
                     Map.ofEntries(Map.entry("METRICS", 1), Map.entry("LIMIT", 1), Map.entry("FROM TS", 1)),
                     Map.ofEntries(Map.entry("MAX", 1)),
                     true
@@ -255,6 +260,21 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
         }
 
         client().admin().indices().prepareRefresh("idx").get();
+
+        Settings settings = Settings.builder().put("mode", "time_series").putList("routing_path", List.of("host", "cluster")).build();
+        client().admin()
+            .indices()
+            .prepareCreate("metric_idx")
+            .setSettings(settings)
+            .setMapping(
+                "@timestamp",
+                "type=date",
+                "host",
+                "type=keyword,time_series_dimension=true",
+                "cpu",
+                "type=double,time_series_metric=gauge"
+            )
+            .get();
     }
 
     private DiscoveryNode randomDataNode() {

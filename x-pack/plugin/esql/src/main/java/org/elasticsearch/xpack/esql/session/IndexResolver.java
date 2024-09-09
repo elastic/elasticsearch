@@ -17,6 +17,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -75,10 +76,15 @@ public class IndexResolver {
     /**
      * Resolves a pattern to one (potentially compound meaning that spawns multiple indices) mapping.
      */
-    public void resolveAsMergedMapping(String indexWildcard, Set<String> fieldNames, ActionListener<IndexResolution> listener) {
+    public void resolveAsMergedMapping(
+        String indexWildcard,
+        QueryBuilder indexFilter,
+        Set<String> fieldNames,
+        ActionListener<IndexResolution> listener
+    ) {
         client.execute(
             EsqlResolveFieldsAction.TYPE,
-            createFieldCapsRequest(indexWildcard, fieldNames),
+            createFieldCapsRequest(indexWildcard, indexFilter, fieldNames),
             listener.delegateFailureAndWrap((l, response) -> l.onResponse(mergedMappings(indexWildcard, response)))
         );
     }
@@ -265,7 +271,7 @@ public class IndexResolver {
         return new InvalidMappedField(name, "mapped as different metric types in indices: " + indices);
     }
 
-    private static FieldCapabilitiesRequest createFieldCapsRequest(String index, Set<String> fieldNames) {
+    private static FieldCapabilitiesRequest createFieldCapsRequest(String index, QueryBuilder indexFilter, Set<String> fieldNames) {
         FieldCapabilitiesRequest req = new FieldCapabilitiesRequest().indices(Strings.commaDelimitedListToStringArray(index));
         req.fields(fieldNames.toArray(String[]::new));
         req.includeUnmapped(true);
@@ -273,6 +279,9 @@ public class IndexResolver {
         // also because this way security doesn't throw authorization exceptions but rather honors ignore_unavailable
         req.indicesOptions(FIELD_CAPS_INDICES_OPTIONS);
         req.setMergeResults(false);
+        if (indexFilter != null) {
+            req.indexFilter(indexFilter);
+        }
         return req;
     }
 }

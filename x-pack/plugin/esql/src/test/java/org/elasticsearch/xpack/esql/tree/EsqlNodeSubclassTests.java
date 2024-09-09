@@ -14,6 +14,9 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.dissect.DissectParser;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
@@ -41,6 +44,7 @@ import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
+import org.elasticsearch.xpack.esql.plan.TableIdentifier;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -334,7 +338,6 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
      */
     @SuppressWarnings("unchecked")
     private Object makeArg(Class<? extends Node<?>> toBuildClass, Type argType) throws Exception {
-
         if (argType instanceof ParameterizedType pt) {
             if (pt.getRawType() == Map.class) {
                 return makeMap(toBuildClass, pt);
@@ -482,6 +485,10 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         }
         if (argClass == Configuration.class) {
             return randomConfiguration();
+        }
+        if (argClass == TableIdentifier.class) {
+            QueryBuilder indexFilter = randomFrom(new MatchAllQueryBuilder(), new MatchNoneQueryBuilder(), null);
+            return new TableIdentifier(SourceTests.randomSource(), randomAlphaOfLength(10), indexFilter);
         }
         try {
             return mock(argClass);

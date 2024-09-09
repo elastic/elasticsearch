@@ -6,66 +6,25 @@
  */
 package org.elasticsearch.xpack.esql.plan;
 
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.Objects;
 
-public class TableIdentifier {
-
-    private final Source source;
-
-    private final String cluster;
-    private final String index;
-
-    public TableIdentifier(Source source, String catalog, String index) {
-        this.source = source;
-        this.cluster = catalog;
-        this.index = index;
-    }
-
-    public String cluster() {
-        return cluster;
-    }
-
-    public String index() {
-        return index;
+/**
+ * An index pattern and optional filter to select target indices that match the filter.
+ */
+public record TableIdentifier(Source source, String index, QueryBuilder indexFilter) {
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        TableIdentifier that = (TableIdentifier) o;
+        return Objects.equals(index, that.index) && Objects.equals(indexFilter, that.indexFilter);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(cluster, index);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        TableIdentifier other = (TableIdentifier) obj;
-        return Objects.equals(index, other.index) && Objects.equals(cluster, other.cluster);
-    }
-
-    public Source source() {
-        return source;
-    }
-
-    public String qualifiedIndex() {
-        return cluster != null ? cluster + ":" + index : index;
-    }
-
-    @Override
-    public String toString() {
-        StringBuilder builder = new StringBuilder();
-        if (cluster != null) {
-            builder.append(cluster);
-            builder.append(":");
-        }
-        builder.append(index);
-        return builder.toString();
+        return Objects.hash(index, indexFilter);
     }
 }

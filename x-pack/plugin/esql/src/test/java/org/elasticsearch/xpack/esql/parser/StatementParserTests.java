@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.parser;
 import org.elasticsearch.Build;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.IndexModeFieldMapper;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -1538,11 +1540,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testMetricsWithoutStats() {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
 
-        assertStatement("METRICS foo", unresolvedRelation("foo"));
-        assertStatement("METRICS foo,bar", unresolvedRelation("foo,bar"));
-        assertStatement("METRICS foo*,bar", unresolvedRelation("foo*,bar"));
-        assertStatement("METRICS foo-*,bar", unresolvedRelation("foo-*,bar"));
-        assertStatement("METRICS foo-*,bar+*", unresolvedRelation("foo-*,bar+*"));
+        assertStatement("METRICS foo", unresolvedRelation(metricTable("foo")));
+        assertStatement("METRICS foo,bar", unresolvedRelation(metricTable("foo,bar")));
+        assertStatement("METRICS foo*,bar", unresolvedRelation(metricTable("foo*,bar")));
+        assertStatement("METRICS foo-*,bar", unresolvedRelation(metricTable("foo-*,bar")));
+        assertStatement("METRICS foo-*,bar+*", unresolvedRelation(metricTable("foo-*,bar+*")));
     }
 
     public void testMetricsIdentifiers() {
@@ -1554,7 +1556,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             Map.entry("metrics <logstash-{now/M{yyyy.MM}}>>", "<logstash-{now/M{yyyy.MM}}>>")
         );
         for (Map.Entry<String, String> e : patterns.entrySet()) {
-            assertStatement(e.getKey(), unresolvedRelation(e.getValue()));
+            assertStatement(e.getKey(), unresolvedRelation(metricTable(e.getValue())));
         }
     }
 
@@ -1564,7 +1566,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "METRICS foo load=avg(cpu) BY ts",
             new Aggregate(
                 EMPTY,
-                unresolvedTSRelation("foo"),
+                unresolvedTSRelation(metricTable("foo")),
                 Aggregate.AggregateType.METRICS,
                 List.of(attribute("ts")),
                 List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))), attribute("ts"))
@@ -1574,7 +1576,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "METRICS foo,bar load=avg(cpu) BY ts",
             new Aggregate(
                 EMPTY,
-                unresolvedTSRelation("foo,bar"),
+                unresolvedTSRelation(metricTable("foo,bar")),
                 Aggregate.AggregateType.METRICS,
                 List.of(attribute("ts")),
                 List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))), attribute("ts"))
@@ -1584,7 +1586,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "METRICS foo,bar load=avg(cpu),max(rate(requests)) BY ts",
             new Aggregate(
                 EMPTY,
-                unresolvedTSRelation("foo,bar"),
+                unresolvedTSRelation(metricTable("foo,bar")),
                 Aggregate.AggregateType.METRICS,
                 List.of(attribute("ts")),
                 List.of(
@@ -1607,7 +1609,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "METRICS foo* count(errors)",
             new Aggregate(
                 EMPTY,
-                unresolvedTSRelation("foo*"),
+                unresolvedTSRelation(metricTable("foo*")),
                 Aggregate.AggregateType.METRICS,
                 List.of(),
                 List.of(new Alias(EMPTY, "count(errors)", new UnresolvedFunction(EMPTY, "count", DEFAULT, List.of(attribute("errors")))))
@@ -1617,7 +1619,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "METRICS foo* a(b)",
             new Aggregate(
                 EMPTY,
-                unresolvedTSRelation("foo*"),
+                unresolvedTSRelation(metricTable("foo*")),
                 Aggregate.AggregateType.METRICS,
                 List.of(),
                 List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b")))))
@@ -1627,7 +1629,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "METRICS foo* a(b)",
             new Aggregate(
                 EMPTY,
-                unresolvedTSRelation("foo*"),
+                unresolvedTSRelation(metricTable("foo*")),
                 Aggregate.AggregateType.METRICS,
                 List.of(),
                 List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b")))))
@@ -1637,7 +1639,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "METRICS foo* a1(b2)",
             new Aggregate(
                 EMPTY,
-                unresolvedTSRelation("foo*"),
+                unresolvedTSRelation(metricTable("foo*")),
                 Aggregate.AggregateType.METRICS,
                 List.of(),
                 List.of(new Alias(EMPTY, "a1(b2)", new UnresolvedFunction(EMPTY, "a1", DEFAULT, List.of(attribute("b2")))))
@@ -1647,7 +1649,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "METRICS foo*,bar* b = min(a) by c, d.e",
             new Aggregate(
                 EMPTY,
-                unresolvedTSRelation("foo*,bar*"),
+                unresolvedTSRelation(metricTable("foo*,bar*")),
                 Aggregate.AggregateType.METRICS,
                 List.of(attribute("c"), attribute("d.e")),
                 List.of(
@@ -1675,21 +1677,21 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("from test | eval A = coalesce(\"Å\", Å)", "line 1:36: token recognition error at: 'Å'");
     }
 
-    private LogicalPlan unresolvedRelation(String index) {
-        return new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, index), false, List.of(), IndexMode.STANDARD, null, "FROM");
+    private TableIdentifier table(String index) {
+        return new TableIdentifier(EMPTY, index, null);
     }
 
-    private LogicalPlan unresolvedTSRelation(String index) {
+    private TableIdentifier metricTable(String index) {
+        return new TableIdentifier(EMPTY, index, new MatchQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName()));
+    }
+
+    private LogicalPlan unresolvedRelation(TableIdentifier table) {
+        return new UnresolvedRelation(EMPTY, table, false, List.of(), IndexMode.STANDARD, null, "FROM");
+    }
+
+    private LogicalPlan unresolvedTSRelation(TableIdentifier table) {
         List<Attribute> metadata = List.of(new MetadataAttribute(EMPTY, MetadataAttribute.TSID_FIELD, DataType.KEYWORD, false));
-        return new UnresolvedRelation(
-            EMPTY,
-            new TableIdentifier(EMPTY, null, index),
-            false,
-            metadata,
-            IndexMode.TIME_SERIES,
-            null,
-            "FROM TS"
-        );
+        return new UnresolvedRelation(EMPTY, table, false, metadata, IndexMode.TIME_SERIES, null, "FROM TS");
     }
 
     public void testMetricWithGroupKeyAsAgg() {

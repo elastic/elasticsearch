@@ -439,6 +439,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -636,6 +637,8 @@ public class Security extends Plugin
     // restart or master node change.
     private final AtomicInteger nodeLocalMigrationRetryCount = new AtomicInteger(0);
 
+    private final AtomicBoolean securityIndexAutoCreationRunning = new AtomicBoolean(false);
+
     private final SetOnce<List<Closeable>> closableComponents = new SetOnce<>();
 
     public Security(Settings settings) {
@@ -796,10 +799,26 @@ public class Security extends Plugin
         );
         this.persistentTasksService.set(persistentTasksService);
 
+        final boolean autoCreateMainSecurityIndex = DiscoveryNode.isStateless(settings);
         systemIndices.getMainIndexManager().addStateListener((oldState, newState) -> {
-            // Only consider applying migrations if it's the master node and the security index exists
-            if (clusterService.state().nodes().isLocalNodeElectedMaster() && newState.indexExists()) {
-                applyPendingSecurityMigrations(newState);
+            if (clusterService.state().nodes().isLocalNodeElectedMaster()) {
+                // Only consider applying migrations if it's the master node and the security index exists
+                if (newState.indexExists()) {
+                    applyPendingSecurityMigrations(newState);
+                    // In serverless-mode, auto-create the main index eagerly since the security index is always required and should
+                    // be available as quickly as possible
+                } else if (autoCreateMainSecurityIndex && securityIndexAutoCreationRunning.compareAndSet(false, true)) {
+                    systemIndices.getMainIndexManager().prepareIndexIfNeededThenExecute(ex -> {
+                        logger.warn("Failed to auto-create security index", ex);
+                        securityIndexAutoCreationRunning.set(false);
+                    }, () -> {
+                        logger.info(
+                            "Successfully auto-created security index [{}]",
+                            systemIndices.getMainIndexManager().getConcreteIndexName()
+                        );
+                        securityIndexAutoCreationRunning.set(false);
+                    });
+                }
             }
         });
 

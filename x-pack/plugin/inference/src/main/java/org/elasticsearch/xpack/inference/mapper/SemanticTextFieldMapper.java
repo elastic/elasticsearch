@@ -170,13 +170,13 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     indexVersionCreated,
                     meta.getValue()
                 ),
-                copyTo
+                builderParams(this, context)
             );
         }
     }
 
-    private SemanticTextFieldMapper(String simpleName, MappedFieldType mappedFieldType, CopyTo copyTo) {
-        super(simpleName, mappedFieldType, MultiFields.empty(), copyTo);
+    private SemanticTextFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams) {
+        super(simpleName, mappedFieldType, builderParams);
     }
 
     @Override

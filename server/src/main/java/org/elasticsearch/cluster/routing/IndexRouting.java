@@ -395,7 +395,7 @@ public abstract class IndexRouting {
                     default:
                         throw new ParsingException(
                             source.getTokenLocation(),
-                            "Routing values must be strings but found [{}]",
+                            "Cannot extract routing path due to unexpected token [{}]",
                             source.currentToken()
                         );
                 }

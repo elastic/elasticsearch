@@ -637,7 +637,7 @@ public class Security extends Plugin
     // restart or master node change.
     private final AtomicInteger nodeLocalMigrationRetryCount = new AtomicInteger(0);
 
-    private final AtomicBoolean securityIndexAutoCreationRunning = new AtomicBoolean(false);
+    private final AtomicBoolean mainSecurityIndexAutoCreationInProgress = new AtomicBoolean(false);
 
     private final SetOnce<List<Closeable>> closableComponents = new SetOnce<>();
 
@@ -807,16 +807,16 @@ public class Security extends Plugin
                     applyPendingSecurityMigrations(newState);
                     // In serverless-mode, auto-create the main index eagerly since the security index is always required and should
                     // be available as quickly as possible
-                } else if (autoCreateMainSecurityIndex && securityIndexAutoCreationRunning.compareAndSet(false, true)) {
+                } else if (autoCreateMainSecurityIndex && mainSecurityIndexAutoCreationInProgress.compareAndSet(false, true)) {
                     systemIndices.getMainIndexManager().prepareIndexIfNeededThenExecute(ex -> {
                         logger.warn("Failed to auto-create security index", ex);
-                        securityIndexAutoCreationRunning.set(false);
+                        mainSecurityIndexAutoCreationInProgress.set(false);
                     }, () -> {
                         logger.info(
                             "Successfully auto-created security index [{}]",
                             systemIndices.getMainIndexManager().getConcreteIndexName()
                         );
-                        securityIndexAutoCreationRunning.set(false);
+                        mainSecurityIndexAutoCreationInProgress.set(false);
                     });
                 }
             }

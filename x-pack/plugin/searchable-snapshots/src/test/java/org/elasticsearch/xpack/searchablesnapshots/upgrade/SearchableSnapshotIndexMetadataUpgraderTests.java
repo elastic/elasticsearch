@@ -119,7 +119,7 @@ public class SearchableSnapshotIndexMetadataUpgraderTests extends ESTestCase {
         return searchableSnapshotSettings(
             IndexVersionUtils.randomVersionBetween(
                 random(),
-                IndexVersions.V_7_12_0,
+                IndexVersion.fromId(7_12_00_99),
                 IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
             ),
             true
@@ -132,7 +132,7 @@ public class SearchableSnapshotIndexMetadataUpgraderTests extends ESTestCase {
     private Settings partial_7_13plus() {
         return shardLimitGroupFrozen(
             searchableSnapshotSettings(
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_13_0, IndexVersion.current()),
+                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_0_0, IndexVersion.current()),
                 true
             )
         );

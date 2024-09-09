@@ -871,7 +871,7 @@ public final class RepositoryData {
                     XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, token, parser);
                     final var versionString = parser.text();
                     final var version = switch (versionString) {
-                        case "7.12.0" -> IndexVersions.V_7_12_0;
+                        case "7.12.0" -> IndexVersion.fromId(7_12_00_99);
                         case "7.9.0" -> IndexVersion.fromId(7_09_00_99);
                         case "7.6.0" -> IndexVersion.fromId(7_06_00_99);
                         default ->

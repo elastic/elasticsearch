@@ -59,12 +59,6 @@ public class IndexVersions {
 
     @UpdateForV9 // remove the index versions with which v9 will not need to interact
     public static final IndexVersion ZERO = def(0, Version.LATEST);
-    public static final IndexVersion V_7_12_0 = def(7_12_00_99, parseUnchecked("8.8.0"));
-    public static final IndexVersion V_7_13_0 = def(7_13_00_99, parseUnchecked("8.8.2"));
-    public static final IndexVersion V_7_14_0 = def(7_14_00_99, parseUnchecked("8.9.0"));
-    public static final IndexVersion V_7_15_0 = def(7_15_00_99, parseUnchecked("8.9.0"));
-    public static final IndexVersion V_7_16_0 = def(7_16_00_99, parseUnchecked("8.10.1"));
-    public static final IndexVersion V_7_17_0 = def(7_17_00_99, parseUnchecked("8.11.1"));
     public static final IndexVersion V_8_0_0 = def(8_00_00_99, Version.LUCENE_9_0_0);
     public static final IndexVersion V_8_1_0 = def(8_01_00_99, Version.LUCENE_9_0_0);
     public static final IndexVersion V_8_2_0 = def(8_02_00_99, Version.LUCENE_9_1_0);
@@ -165,7 +159,7 @@ public class IndexVersions {
      * In branches 8.7-8.11 see server/src/main/java/org/elasticsearch/index/IndexVersion.java for the equivalent definitions.
      */
 
-    public static final IndexVersion MINIMUM_COMPATIBLE = V_7_12_0;
+    public static final IndexVersion MINIMUM_COMPATIBLE = V_8_0_0;
 
     static final NavigableMap<Integer, IndexVersion> VERSION_IDS = getAllVersionIds(IndexVersions.class);
     static final IndexVersion LATEST_DEFINED;

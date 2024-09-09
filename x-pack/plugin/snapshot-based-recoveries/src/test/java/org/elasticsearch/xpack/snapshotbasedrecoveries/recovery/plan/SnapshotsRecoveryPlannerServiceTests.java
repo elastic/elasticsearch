@@ -28,7 +28,6 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.Store;
@@ -400,7 +399,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                     }
                 },
                 true,
-                IndexVersions.V_7_14_0, // Unsupported version,
+                IndexVersion.fromId(7_14_00_99), // Unsupported version,
                 randomBoolean()
             );
 

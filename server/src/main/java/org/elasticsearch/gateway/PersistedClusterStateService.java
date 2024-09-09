@@ -712,7 +712,7 @@ public class PersistedClusterStateService {
 
                         if (document.getField(PAGE_FIELD_NAME) == null) {
                             // legacy format: not paginated or compressed
-                            assert IndexVersions.MINIMUM_COMPATIBLE.before(IndexVersions.V_7_16_0);
+                            assert IndexVersions.MINIMUM_COMPATIBLE.before(IndexVersion.fromId(7_16_00_99));
                             bytesReferenceConsumer.accept(documentData);
                             continue;
                         }

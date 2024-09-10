@@ -1077,6 +1077,16 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         return true;
     }
 
+    static boolean isStateEquals(ProjectMetadata project1, ProjectMetadata project2) {
+        if (project1.templates().equals(project2.templates()) == false) {
+            return false;
+        }
+        if (Metadata.customsEqual(project1.customs(), project2.customs()) == false) {
+            return false;
+        }
+        return true;
+    }
+
     public static ProjectMetadata.Builder builder(ProjectId id) {
         return new ProjectMetadata.Builder().id(id);
     }

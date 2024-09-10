@@ -525,9 +525,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         if (metadata1.hashesOfConsistentSettings.equals(metadata2.hashesOfConsistentSettings) == false) {
             return false;
         }
-        if (metadata1.getSingleProject().templates().equals(metadata2.getSingleProject().templates()) == false) {
-            return false;
-        }
         if (metadata1.clusterUUID.equals(metadata2.clusterUUID) == false) {
             return false;
         }
@@ -537,19 +534,16 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         if (customsEqual(metadata1.customs, metadata2.customs) == false) {
             return false;
         }
-        if (customsEqual(metadata1.getSingleProject().customs(), metadata2.getSingleProject().customs()) == false) {
+        if (Objects.equals(metadata1.reservedStateMetadata, metadata2.reservedStateMetadata) == false) {
             return false;
         }
-        if (Objects.equals(metadata1.reservedStateMetadata, metadata2.reservedStateMetadata) == false) {
+        if (projectMetadataEqual(metadata1.projectMetadata, metadata2.projectMetadata) == false) {
             return false;
         }
         return true;
     }
 
-    private static <C extends MetadataCustom<C>> boolean customsEqual(
-        ImmutableOpenMap<String, C> customs1,
-        ImmutableOpenMap<String, C> customs2
-    ) {
+    static <C extends MetadataCustom<C>> boolean customsEqual(Map<String, C> customs1, Map<String, C> customs2) {
         // Check if any persistent metadata needs to be saved
         int customCount1 = 0;
         for (Map.Entry<String, C> cursor : customs1.entrySet()) {
@@ -567,6 +561,25 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             }
         }
         return customCount1 == customCount2;
+    }
+
+    private static boolean projectMetadataEqual(
+        Map<ProjectId, ProjectMetadata> projectMetadata1,
+        Map<ProjectId, ProjectMetadata> projectMetadata2
+    ) {
+        if (projectMetadata1.size() != projectMetadata2.size()) {
+            return false;
+        }
+        for (ProjectMetadata project1 : projectMetadata1.values()) {
+            var project2 = projectMetadata2.get(project1.id());
+            if (project2 == null) {
+                return false;
+            }
+            if (ProjectMetadata.isStateEquals(project1, project2) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override

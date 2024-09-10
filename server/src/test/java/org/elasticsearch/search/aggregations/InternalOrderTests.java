@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
@@ -113,6 +114,17 @@ public class InternalOrderTests extends AbstractXContentSerializingTestCase<Buck
             return InternalOrder.COUNT_DESC;
         } else {
             return InternalOrder.KEY_DESC;
+        }
+    }
+
+    public void testInternalOrderDeduplicated() throws IOException {
+        BucketOrder testInstance = createTestInstance();
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            instanceWriter().write(output, testInstance);
+            BucketOrder order1 = instanceReader().read(output.bytes().streamInput());
+            instanceWriter().write(output, testInstance);
+            BucketOrder order2 = instanceReader().read(output.bytes().streamInput());
+            assertSame(order1, order2);
         }
     }
 

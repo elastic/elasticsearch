@@ -11,6 +11,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.search.aggregations.Aggregator.BucketComparator;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
@@ -27,6 +28,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.ToLongFunction;
@@ -36,6 +38,7 @@ import java.util.function.ToLongFunction;
  */
 public abstract class InternalOrder extends BucketOrder {
     // TODO merge the contents of this file into BucketOrder. The way it is now is relic.
+
     /**
      * {@link Bucket} ordering strategy to sort by a sub-aggregation.
      */
@@ -468,6 +471,8 @@ public abstract class InternalOrder extends BucketOrder {
      */
     public static class Streams {
 
+        private static final BucketOrderDeduplicator bucketOrderDeduplicator = new BucketOrderDeduplicator();
+
         /**
          * Read a {@link BucketOrder} from a {@link StreamInput}.
          *
@@ -489,14 +494,14 @@ public abstract class InternalOrder extends BucketOrder {
                 case Aggregation.ID:
                     boolean asc = in.readBoolean();
                     String key = in.readString();
-                    return new Aggregation(key, asc);
+                    return bucketOrderDeduplicator.deduplicate(new Aggregation(key, asc));
                 case CompoundOrder.ID:
                     int size = in.readVInt();
                     List<BucketOrder> compoundOrder = new ArrayList<>(size);
                     for (int i = 0; i < size; i++) {
                         compoundOrder.add(Streams.readOrder(in));
                     }
-                    return new CompoundOrder(compoundOrder, false);
+                    return bucketOrderDeduplicator.deduplicate(new CompoundOrder(compoundOrder, false));
                 default:
                     throw new RuntimeException("unknown order id [" + id + "]");
             }
@@ -593,6 +598,30 @@ public abstract class InternalOrder extends BucketOrder {
                 default -> // assume all other orders are sorting on a sub-aggregation. Validation occurs later.
                     aggregation(orderKey, orderAsc);
             };
+        }
+    }
+
+    /**
+     * A cache for deserializing {@link BucketOrder}.
+     */
+    private static class BucketOrderDeduplicator {
+        // This cache should be enough to deserialize one request
+        private static final int MAX_SIZE = 16;
+
+        private final Map<BucketOrder, BucketOrder> map = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency(16);
+
+        private BucketOrderDeduplicator() {}
+
+        public BucketOrder deduplicate(BucketOrder bucketOrder) {
+            final BucketOrder res = map.get(bucketOrder);
+            if (res != null) {
+                return res;
+            }
+            if (map.size() >= MAX_SIZE) {
+                map.clear();
+            }
+            map.put(bucketOrder, bucketOrder);
+            return bucketOrder;
         }
     }
 }

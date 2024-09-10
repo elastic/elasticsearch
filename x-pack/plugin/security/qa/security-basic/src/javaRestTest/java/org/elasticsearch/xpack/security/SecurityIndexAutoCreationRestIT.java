@@ -63,9 +63,11 @@ public class SecurityIndexAutoCreationRestIT extends ESRestTestCase {
     public void testMainSecurityIndexAutoCreated() throws Exception {
         assertSecurityIndexGreen();
 
-        // ensure it is *not* auto-created after it has been deleted
+        // ensure it is *not* auto-created again on deletions
         deleteSecurityIndex();
-        assertBusy(SecurityIndexAutoCreationRestIT::assertSecurityIndexNotFound);
+        // wait a bit to ensure that index really is 404, and not that auto-creation is just slow
+        Thread.sleep(3000);
+        assertSecurityIndexNotFound();
     }
 
     private static void deleteSecurityIndex() throws IOException {
@@ -75,7 +77,7 @@ public class SecurityIndexAutoCreationRestIT extends ESRestTestCase {
     }
 
     private static void assertSecurityIndexNotFound() {
-        Request request = new Request("GET", "/.security");
+        Request request = new Request("GET", "/.security-7");
         request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
         assertThat(
             expectThrows(ResponseException.class, () -> adminClient().performRequest(request)).getResponse()
@@ -86,7 +88,7 @@ public class SecurityIndexAutoCreationRestIT extends ESRestTestCase {
     }
 
     private static void assertSecurityIndexGreen() throws IOException {
-        Request request = new Request("GET", "/_cluster/health/.security");
+        Request request = new Request("GET", "/_cluster/health/.security-7");
         request.addParameter("wait_for_status", "green");
         request.addParameter("timeout", "30s");
         request.addParameter("level", "shards");

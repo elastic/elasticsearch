@@ -376,6 +376,7 @@ There are several more Decider Services, implementing the `AutoscalingDeciderSer
 [CancellableTask]:https://github.com/elastic/elasticsearch/blob/d59df8af3e591a248a25b849612e448972068f10/server/src/main/java/org/elasticsearch/tasks/CancellableTask.java#L20
 [TransportService]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/transport/TransportService.java
 [Task management API]:https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html
+[cat task management API]:https://www.elastic.co/guide/en/elasticsearch/reference/current/cat-tasks.html
 [TransportAction]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/support/TransportAction.java
 [NodeClient#executeLocally]:https://github.com/elastic/elasticsearch/blob/5e8fd548b959039b6b77ad53715415b429568bc0/server/src/main/java/org/elasticsearch/client/internal/node/NodeClient.java#L100
 [TaskManager#registerAndExecute]:https://github.com/elastic/elasticsearch/blob/5e8fd548b959039b6b77ad53715415b429568bc0/server/src/main/java/org/elasticsearch/tasks/TaskManager.java#L174
@@ -448,7 +449,18 @@ It is the job of any long-running workload tracked by a [CancellableTask] to per
 
 ### Publishing Task Results
 
-// I think this should cover the TaskResultsService et. al.
+[TaskResult]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/tasks/TaskResult.java
+[TaskResultsService]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/tasks/TaskResultsService.java
+[CAT]:https://www.elastic.co/guide/en/elasticsearch/reference/current/cat.html
+[ActionRequest]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/ActionRequest.java
+[ActionRequest#getShouldStoreResult]:https://github.com/elastic/elasticsearch/blob/b633fe1ccb67f7dbf460cdc087eb60ae212a472a/server/src/main/java/org/elasticsearch/action/ActionRequest.java#L32
+[TaskResultStoringActionListener]:https://github.com/elastic/elasticsearch/blob/b633fe1ccb67f7dbf460cdc087eb60ae212a472a/server/src/main/java/org/elasticsearch/action/support/TransportAction.java#L149
+
+A list of tasks currently running in a cluster can be requested via [Task management API], or the [cat task management API]. The former returns each task represented using the [TaskResult] DTO, the latter returning a more compact [CAT] representation.
+
+Some [ActionRequest]s allow the results of the actions they spawn to be stored upon completion. If [ActionRequest#getShouldStoreResult] returns true, a [TaskResultStoringActionListener] will be inserted into the chain of response listeners. [TaskResultStoringActionListener] serializes the [TaskResult] of the [TransportAction] and persists it in the `.tasks` index using the [TaskResultsService].
+
+The [Task management API] also exposes an endpoint where a task ID can be specified, this form of the API will return currently running tasks, or tasks whose results were persisted.
 
 ### Persistent Tasks
 

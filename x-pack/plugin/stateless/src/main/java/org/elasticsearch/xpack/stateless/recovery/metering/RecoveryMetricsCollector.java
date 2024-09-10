@@ -141,22 +141,22 @@ public class RecoveryMetricsCollector implements IndexEventListener {
     private static Map<String, Object> recoveryMetricLabels(IndexShard indexShard) {
         return Maps.copyMapWithAddedEntry(
             commonMetricLabels(indexShard),
-            "recoveryType",
+            "recovery_type",
             indexShard.recoveryState().getRecoverySource().getType().name()
         );
     }
 
     public static Map<String, Object> commonMetricLabels(IndexShard indexShard) {
         return Map.of(
-            "indexName",
+            "index_name",
             indexShard.shardId().getIndex().getName(),
-            "indexUuid",
+            "index_uuid",
             indexShard.shardId().getIndex().getUUID(),
-            "shardId",
+            "shard_id",
             indexShard.shardId().id(),
             "primary",
             indexShard.routingEntry().primary(),
-            "allocationId",
+            "allocation_id",
             indexShard.routingEntry().allocationId() != null ? indexShard.routingEntry().allocationId().getId() : "null"
         );
     }

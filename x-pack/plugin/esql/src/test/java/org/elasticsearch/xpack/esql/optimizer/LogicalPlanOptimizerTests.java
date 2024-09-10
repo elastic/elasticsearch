@@ -5419,6 +5419,147 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertEquals("Invalid order value in [mv_sort(v, o)], expected one of [ASC, DESC] but got [dsc]", iae.getMessage());
     }
 
+    public void testToDatePeriodTimeDurationInvalidIntervals() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
+            from types | EVAL interval = "3 dys", x = date + interval::date_period"""));
+        assertEquals(
+            "Invalid interval value in [interval::date_period], expected integer followed by one of "
+                + "[DAY, DAYS, D, WEEK, WEEKS, W, MONTH, MONTHS, MO, QUARTER, QUARTERS, Q, YEAR, YEARS, YR, Y] but got [3 dys]",
+            e.getMessage()
+        );
+
+        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
+            from types | EVAL interval = "- 3 days", x = date + interval::date_period"""));
+        assertEquals(
+            "Invalid interval value in [interval::date_period], expected integer followed by one of "
+                + "[DAY, DAYS, D, WEEK, WEEKS, W, MONTH, MONTHS, MO, QUARTER, QUARTERS, Q, YEAR, YEARS, YR, Y] but got [- 3 days]",
+            e.getMessage()
+        );
+
+        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
+            from types  | EVAL interval = "3 dys", x = date - to_dateperiod(interval)"""));
+        assertEquals(
+            "Invalid interval value in [to_dateperiod(interval)], expected integer followed by one of "
+                + "[DAY, DAYS, D, WEEK, WEEKS, W, MONTH, MONTHS, MO, QUARTER, QUARTERS, Q, YEAR, YEARS, YR, Y] but got [3 dys]",
+            e.getMessage()
+        );
+
+        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
+            from types  | EVAL interval = "- 3 days", x = date - to_dateperiod(interval)"""));
+        assertEquals(
+            "Invalid interval value in [to_dateperiod(interval)], expected integer followed by one of "
+                + "[DAY, DAYS, D, WEEK, WEEKS, W, MONTH, MONTHS, MO, QUARTER, QUARTERS, Q, YEAR, YEARS, YR, Y] but got [- 3 days]",
+            e.getMessage()
+        );
+
+        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
+            from types  | EVAL interval = "3 ours", x = date + interval::time_duration"""));
+        assertEquals(
+            "Invalid interval value in [interval::time_duration], expected integer followed by one of "
+                + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [3 ours]",
+            e.getMessage()
+        );
+
+        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
+            from types  | EVAL interval = "- 3 hours", x = date + interval::time_duration"""));
+        assertEquals(
+            "Invalid interval value in [interval::time_duration], expected integer followed by one of "
+                + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [- 3 hours]",
+            e.getMessage()
+        );
+
+        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
+            from types  | EVAL interval = "3 ours", x = date - to_timeduration(interval)"""));
+        assertEquals(
+            "Invalid interval value in [to_timeduration(interval)], expected integer followed by one of "
+                + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [3 ours]",
+            e.getMessage()
+        );
+
+        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
+            from types  | EVAL interval = "- 3 hours", x = date - to_timeduration(interval)"""));
+        assertEquals(
+            "Invalid interval value in [to_timeduration(interval)], expected integer followed by one of "
+                + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [- 3 hours]",
+            e.getMessage()
+        );
+
+        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
+            from types  | EVAL interval = "3.5 hours", x = date - to_timeduration(interval)"""));
+        assertEquals(
+            "Invalid interval value in [to_timeduration(interval)], expected integer followed by one of "
+                + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [3.5 hours]",
+            e.getMessage()
+        );
+
+        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
+            row x = "2024-01-01"::datetime | eval y = x + "3 dys"::date_period"""));
+        assertEquals(
+            "Invalid interval value in [\"3 dys\"::date_period], expected integer followed by one of "
+                + "[DAY, DAYS, D, WEEK, WEEKS, W, MONTH, MONTHS, MO, QUARTER, QUARTERS, Q, YEAR, YEARS, YR, Y] but got [3 dys]",
+            e.getMessage()
+        );
+
+        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
+            row x = "2024-01-01"::datetime | eval y = x - to_dateperiod("3 dys")"""));
+        assertEquals(
+            "Invalid interval value in [to_dateperiod(\"3 dys\")], expected integer followed by one of "
+                + "[DAY, DAYS, D, WEEK, WEEKS, W, MONTH, MONTHS, MO, QUARTER, QUARTERS, Q, YEAR, YEARS, YR, Y] but got [3 dys]",
+            e.getMessage()
+        );
+
+        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
+            row x = "2024-01-01"::datetime | eval y = x + "3 ours"::time_duration"""));
+        assertEquals(
+            "Invalid interval value in [\"3 ours\"::time_duration], expected integer followed by one of "
+                + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [3 ours]",
+            e.getMessage()
+        );
+
+        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
+            row x = "2024-01-01"::datetime | eval y = x - to_timeduration("3 ours")"""));
+        assertEquals(
+            "Invalid interval value in [to_timeduration(\"3 ours\")], expected integer followed by one of "
+                + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [3 ours]",
+            e.getMessage()
+        );
+
+        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
+            row x = "2024-01-01"::datetime | eval y = x - to_timeduration("3.5 hours")"""));
+        assertEquals(
+            "Invalid interval value in [to_timeduration(\"3.5 hours\")], expected integer followed by one of "
+                + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [3.5 hours]",
+            e.getMessage()
+        );
+    }
+
+    public void testToDatePeriodToTimeDurationWithField() {
+        final String header = "Found 1 problem\nline ";
+        VerificationException e = expectThrows(VerificationException.class, () -> planTypes("""
+            from types | EVAL x = date + keyword::date_period"""));
+        assertTrue(e.getMessage().startsWith("Found "));
+        assertEquals(
+            "1:30: argument of [keyword::date_period] must be a constant, received [keyword]",
+            e.getMessage().substring(header.length())
+        );
+
+        e = expectThrows(VerificationException.class, () -> planTypes("""
+            from types  | EVAL x = date - to_timeduration(keyword)"""));
+        assertEquals(
+            "1:47: argument of [to_timeduration(keyword)] must be a constant, received [keyword]",
+            e.getMessage().substring(header.length())
+        );
+
+        e = expectThrows(VerificationException.class, () -> planTypes("""
+            from types | EVAL x = keyword, y = date + x::date_period"""));
+        assertTrue(e.getMessage().startsWith("Found "));
+        assertEquals("1:43: argument of [x::date_period] must be a constant, received [x]", e.getMessage().substring(header.length()));
+
+        e = expectThrows(VerificationException.class, () -> planTypes("""
+            from types  | EVAL x = keyword, y = date - to_timeduration(x)"""));
+        assertEquals("1:60: argument of [to_timeduration(x)] must be a constant, received [x]", e.getMessage().substring(header.length()));
+    }
+
     private Literal nullOf(DataType dataType) {
         return new Literal(Source.EMPTY, null, dataType);
     }

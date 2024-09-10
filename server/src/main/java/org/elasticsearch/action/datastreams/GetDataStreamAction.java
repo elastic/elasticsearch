@@ -15,7 +15,6 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -69,11 +68,6 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             super(masterNodeTimeout);
             this.names = names;
             this.includeDefaults = includeDefaults;
-        }
-
-        @Deprecated(forRemoval = true) // temporary compatibility shim
-        public Request(String[] names) {
-            this(MasterNodeRequest.TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, names);
         }
 
         public String[] getNames() {

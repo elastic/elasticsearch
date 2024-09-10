@@ -113,12 +113,14 @@ public class ShardInfoIT extends ESIntegTestCase {
 
     private void ensureActiveShardCopies(final int shardId, final int copyCount) throws Exception {
         assertBusy(() -> {
-            ClusterState state = clusterAdmin().prepareState().get().getState();
+            ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             assertThat(state.routingTable().index("idx"), not(nullValue()));
             assertThat(state.routingTable().index("idx").shard(shardId), not(nullValue()));
             assertThat(state.routingTable().index("idx").shard(shardId).activeShards().size(), equalTo(copyCount));
 
-            ClusterHealthResponse healthResponse = clusterAdmin().prepareHealth("idx").setWaitForNoRelocatingShards(true).get();
+            ClusterHealthResponse healthResponse = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "idx")
+                .setWaitForNoRelocatingShards(true)
+                .get();
             assertThat(healthResponse.isTimedOut(), equalTo(false));
 
             RecoveryResponse recoveryResponse = indicesAdmin().prepareRecoveries("idx").setActiveOnly(true).get();

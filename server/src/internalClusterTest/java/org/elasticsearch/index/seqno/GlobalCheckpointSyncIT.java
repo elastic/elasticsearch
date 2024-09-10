@@ -84,7 +84,7 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
     public void testBackgroundGlobalCheckpointSync() throws Exception {
         runGlobalCheckpointSyncTest(TimeValue.timeValueSeconds(randomIntBetween(1, 3)), client -> {
             // prevent global checkpoint syncs between all nodes
-            final DiscoveryNodes nodes = client.admin().cluster().prepareState().get().getState().getNodes();
+            final DiscoveryNodes nodes = client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().getNodes();
             for (final DiscoveryNode node : nodes) {
                 for (final DiscoveryNode other : nodes) {
                     if (node == other) {
@@ -105,7 +105,7 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
             }
         }, client -> {
             // restore global checkpoint syncs between all nodes
-            final DiscoveryNodes nodes = client.admin().cluster().prepareState().get().getState().getNodes();
+            final DiscoveryNodes nodes = client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().getNodes();
             for (final DiscoveryNode node : nodes) {
                 for (final DiscoveryNode other : nodes) {
                     if (node == other) {

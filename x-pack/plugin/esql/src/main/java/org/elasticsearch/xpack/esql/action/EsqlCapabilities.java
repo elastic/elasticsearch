@@ -289,7 +289,12 @@ public class EsqlCapabilities {
         /**
          * Support for requesting the "SPACE" function.
          */
-        SPACE;
+        SPACE,
+
+        /**
+         * Support explicit casting from string literal to DATE_PERIOD or TIME_DURATION.
+         */
+        CAST_STRING_LITERAL_TO_TEMPORAL_AMOUNT;
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

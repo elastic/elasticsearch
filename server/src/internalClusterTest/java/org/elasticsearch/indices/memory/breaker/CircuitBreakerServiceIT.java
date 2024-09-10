@@ -319,7 +319,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         reset();
 
         assertThat(
-            clusterAdmin().prepareState()
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
                 .get()
                 .getState()
                 .metadata()

@@ -44,6 +44,9 @@ public class VerifierTests extends ESTestCase {
     private final Analyzer defaultAnalyzer = AnalyzerTestUtils.expandedDefaultAnalyzer();
     private final Analyzer tsdb = AnalyzerTestUtils.analyzer(AnalyzerTestUtils.tsdbIndexResolution());
 
+    private final List<String> TIME_DURATIONS = List.of("millisecond", "second", "minute", "hour");
+    private final List<String> DATE_PERIODS = List.of("day", "week", "month", "year");
+
     public void testIncompatibleTypesInMathOperation() {
         assertEquals(
             "1:40: second argument of [a + c] must be [datetime or numeric], found value [c] type [keyword]",
@@ -677,41 +680,170 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testPeriodAndDurationInRowAssignment() {
-        for (var unit : List.of("millisecond", "second", "minute", "hour", "day", "week", "month", "year")) {
+        for (var unit : TIME_DURATIONS) {
             assertEquals("1:5: cannot use [1 " + unit + "] directly in a row assignment", error("row a = 1 " + unit));
+            assertEquals(
+                "1:5: cannot use [1 " + unit + "::time_duration] directly in a row assignment",
+                error("row a = 1 " + unit + "::time_duration")
+            );
+            assertEquals(
+                "1:5: cannot use [\"1 " + unit + "\"::time_duration] directly in a row assignment",
+                error("row a = \"1 " + unit + "\"::time_duration")
+            );
+            assertEquals(
+                "1:5: cannot use [to_timeduration(1 " + unit + ")] directly in a row assignment",
+                error("row a = to_timeduration(1 " + unit + ")")
+            );
+            assertEquals(
+                "1:5: cannot use [to_timeduration(\"1 " + unit + "\")] directly in a row assignment",
+                error("row a = to_timeduration(\"1 " + unit + "\")")
+            );
+        }
+        for (var unit : DATE_PERIODS) {
+            assertEquals("1:5: cannot use [1 " + unit + "] directly in a row assignment", error("row a = 1 " + unit));
+            assertEquals(
+                "1:5: cannot use [1 " + unit + "::date_period] directly in a row assignment",
+                error("row a = 1 " + unit + "::date_period")
+            );
+            assertEquals(
+                "1:5: cannot use [\"1 " + unit + "\"::date_period] directly in a row assignment",
+                error("row a = \"1 " + unit + "\"::date_period")
+            );
+            assertEquals(
+                "1:5: cannot use [to_dateperiod(1 " + unit + ")] directly in a row assignment",
+                error("row a = to_dateperiod(1 " + unit + ")")
+            );
+            assertEquals(
+                "1:5: cannot use [to_dateperiod(\"1 " + unit + "\")] directly in a row assignment",
+                error("row a = to_dateperiod(\"1 " + unit + "\")")
+            );
         }
     }
 
     public void testSubtractDateTimeFromTemporal() {
-        for (var unit : List.of("millisecond", "second", "minute", "hour")) {
+        for (var unit : TIME_DURATIONS) {
             assertEquals(
-                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] from a [TIME_DURATION] amount [1 "
+                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
+                    + "from a [TIME_DURATION] amount [1 "
                     + unit
                     + "]",
                 error("row 1 " + unit + " - now() ")
             );
-        }
-        for (var unit : List.of("day", "week", "month", "year")) {
             assertEquals(
-                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] from a [DATE_PERIOD] amount [1 "
+                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
+                    + "from a [TIME_DURATION] amount [1 "
+                    + unit
+                    + "::time_duration]",
+                error("row 1 " + unit + "::time_duration" + " - now() ")
+            );
+            assertEquals(
+                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
+                    + "from a [TIME_DURATION] amount [\"1 "
+                    + unit
+                    + "\"::time_duration]",
+                error("row \"1 " + unit + "\"::time_duration" + " - now() ")
+            );
+            assertEquals(
+                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
+                    + "from a [TIME_DURATION] amount [to_timeduration(1 "
+                    + unit
+                    + ")]",
+                error("row to_timeduration(1 " + unit + ") - now() ")
+            );
+            assertEquals(
+                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
+                    + "from a [TIME_DURATION] amount [to_timeduration(\"1 "
+                    + unit
+                    + "\")]",
+                error("row to_timeduration(\"1 " + unit + "\") - now() ")
+            );
+        }
+        for (var unit : DATE_PERIODS) {
+            assertEquals(
+                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
+                    + "from a [DATE_PERIOD] amount [1 "
                     + unit
                     + "]",
                 error("row 1 " + unit + " - now() ")
+            );
+            assertEquals(
+                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
+                    + "from a [DATE_PERIOD] amount [1 "
+                    + unit
+                    + "::date_period]",
+                error("row 1 " + unit + "::date_period" + " - now() ")
+            );
+            assertEquals(
+                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
+                    + "from a [DATE_PERIOD] amount [\"1 "
+                    + unit
+                    + "\"::date_period]",
+                error("row \"1 " + unit + "\"::date_period" + " - now() ")
+            );
+            assertEquals(
+                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
+                    + "from a [DATE_PERIOD] amount [to_dateperiod(1 "
+                    + unit
+                    + ")]",
+                error("row to_dateperiod(1 " + unit + ") - now() ")
+            );
+            assertEquals(
+                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
+                    + "from a [DATE_PERIOD] amount [to_dateperiod(\"1 "
+                    + unit
+                    + "\")]",
+                error("row to_dateperiod(\"1 " + unit + "\") - now() ")
             );
         }
     }
 
     public void testPeriodAndDurationInEval() {
-        for (var unit : List.of("millisecond", "second", "minute", "hour")) {
+        for (var unit : TIME_DURATIONS) {
             assertEquals(
-                "1:18: EVAL does not support type [time_duration] in expression [1 " + unit + "]",
+                "1:18: EVAL does not support type [time_duration] as the return data type of expression [1 " + unit + "]",
                 error("row x = 1 | eval y = 1 " + unit)
             );
-        }
-        for (var unit : List.of("day", "week", "month", "year")) {
             assertEquals(
-                "1:18: EVAL does not support type [date_period] in expression [1 " + unit + "]",
+                "1:18: EVAL does not support type [time_duration] as the return data type of expression [1 " + unit + "::time_duration]",
+                error("row x = 1 | eval y = 1 " + unit + "::time_duration")
+            );
+            assertEquals(
+                "1:18: EVAL does not support type [time_duration] as the return data type of expression [\"1 "
+                    + unit
+                    + "\"::time_duration]",
+                error("row x = 1 | eval y = \"1 " + unit + "\"::time_duration")
+            );
+            assertEquals(
+                "1:18: EVAL does not support type [time_duration] as the return data type of expression [to_timeduration(1 " + unit + ")]",
+                error("row x = 1 | eval y = to_timeduration(1 " + unit + ")")
+            );
+            assertEquals(
+                "1:18: EVAL does not support type [time_duration] as the return data type of expression [to_timeduration(\"1 "
+                    + unit
+                    + "\")]",
+                error("row x = 1 | eval y = to_timeduration(\"1 " + unit + "\")")
+            );
+        }
+        for (var unit : DATE_PERIODS) {
+            assertEquals(
+                "1:18: EVAL does not support type [date_period] as the return data type of expression [1 " + unit + "]",
                 error("row x = 1 | eval y = 1 " + unit)
+            );
+            assertEquals(
+                "1:18: EVAL does not support type [date_period] as the return data type of expression [1 " + unit + "::date_period]",
+                error("row x = 1 | eval y = 1 " + unit + "::date_period")
+            );
+            assertEquals(
+                "1:18: EVAL does not support type [date_period] as the return data type of expression [\"1 " + unit + "\"::date_period]",
+                error("row x = 1 | eval y = \"1 " + unit + "\"::date_period")
+            );
+            assertEquals(
+                "1:18: EVAL does not support type [date_period] as the return data type of expression [to_dateperiod(1 " + unit + ")]",
+                error("row x = 1 | eval y = to_dateperiod(1 " + unit + ")")
+            );
+            assertEquals(
+                "1:18: EVAL does not support type [date_period] as the return data type of expression [to_dateperiod(\"1 " + unit + "\")]",
+                error("row x = 1 | eval y = to_dateperiod(\"1 " + unit + "\")")
             );
         }
     }
@@ -722,6 +854,14 @@ public class VerifierTests extends ESTestCase {
 
     public void testFilterDateConstant() {
         assertEquals("1:19: Condition expression needs to be boolean, found [DATE_PERIOD]", error("from test | where 1 year"));
+        assertEquals(
+            "1:19: Condition expression needs to be boolean, found [DATE_PERIOD]",
+            error("from test | where \"1 year\"::date_period")
+        );
+        assertEquals(
+            "1:19: Condition expression needs to be boolean, found [DATE_PERIOD]",
+            error("from test | where to_dateperiod(\"1 year\")")
+        );
     }
 
     public void testNestedAggField() {
@@ -1055,10 +1195,91 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void test() {
+    public void testToDatePeriodTimeDurationInInvalidPosition() {
+        // arithmetic operations in eval
         assertEquals(
-            "1:23: second argument of [coalesce(network.bytes_in, 0)] must be [counter_long], found value [0] type [integer]",
-            error("FROM tests | eval x = coalesce(network.bytes_in, 0)", tsdb)
+            "1:39: EVAL does not support type [date_period] as the return data type of expression [3 months + 5 days]",
+            error("row x = \"2024-01-01\"::datetime | eval y = 3 months + 5 days")
+        );
+
+        assertEquals(
+            "1:39: EVAL does not support type [date_period] as the return data type of expression "
+                + "[\"3 months\"::date_period + \"5 days\"::date_period]",
+            error("row x = \"2024-01-01\"::datetime | eval y = \"3 months\"::date_period + \"5 days\"::date_period")
+        );
+
+        assertEquals(
+            "1:39: EVAL does not support type [time_duration] as the return data type of expression [3 hours + 5 minutes]",
+            error("row x = \"2024-01-01\"::datetime | eval y = 3 hours + 5 minutes")
+        );
+
+        assertEquals(
+            "1:39: EVAL does not support type [time_duration] as the return data type of expression "
+                + "[\"3 hours\"::time_duration + \"5 minutes\"::time_duration]",
+            error("row x = \"2024-01-01\"::datetime | eval y = \"3 hours\"::time_duration + \"5 minutes\"::time_duration")
+        );
+
+        // where
+        assertEquals(
+            "1:26: first argument of [\"3 days\"::date_period == to_dateperiod(\"3 days\")] must be "
+                + "[boolean, cartesian_point, cartesian_shape, date_nanos, datetime, double, geo_point, geo_shape, integer, ip, keyword, "
+                + "long, text, unsigned_long or version], found value [\"3 days\"::date_period] type [date_period]",
+            error("row x = \"3 days\" | where \"3 days\"::date_period == to_dateperiod(\"3 days\")")
+        );
+
+        assertEquals(
+            "1:26: first argument of [\"3 hours\"::time_duration <= to_timeduration(\"3 hours\")] must be "
+                + "[date_nanos, datetime, double, integer, ip, keyword, long, text, unsigned_long or version], "
+                + "found value [\"3 hours\"::time_duration] type [time_duration]",
+            error("row x = \"3 days\" | where \"3 hours\"::time_duration <= to_timeduration(\"3 hours\")")
+        );
+
+        assertEquals(
+            "1:19: second argument of [first_name <= to_timeduration(\"3 hours\")] must be "
+                + "[date_nanos, datetime, double, integer, ip, keyword, long, text, unsigned_long or version], "
+                + "found value [to_timeduration(\"3 hours\")] type [time_duration]",
+            error("from test | where first_name <= to_timeduration(\"3 hours\")")
+        );
+
+        assertEquals(
+            "1:19: 1st argument of [first_name IN ( to_timeduration(\"3 hours\"), \"3 days\"::date_period)] must be [keyword], "
+                + "found value [to_timeduration(\"3 hours\")] type [time_duration]",
+            error("from test | where first_name IN ( to_timeduration(\"3 hours\"), \"3 days\"::date_period)")
+        );
+    }
+
+    public void testToDatePeriodToTimeDurationWithInvalidType() {
+        assertEquals(
+            "1:36: argument of [1.5::date_period] must be [date_period or string], found value [1.5] type [double]",
+            error("from types | EVAL x = birth_date + 1.5::date_period")
+        );
+        assertEquals(
+            "1:37: argument of [to_timeduration(1)] must be [time_duration or string], found value [1] type [integer]",
+            error("from types  | EVAL x = birth_date - to_timeduration(1)")
+        );
+        assertEquals(
+            "1:45: argument of [x::date_period] must be [date_period or string], found value [x] type [double]",
+            error("from types | EVAL x = 1.5, y = birth_date + x::date_period")
+        );
+        assertEquals(
+            "1:44: argument of [to_timeduration(x)] must be [time_duration or string], found value [x] type [integer]",
+            error("from types  | EVAL x = 1, y = birth_date - to_timeduration(x)")
+        );
+        assertEquals(
+            "1:64: argument of [x::date_period] must be [date_period or string], found value [x] type [datetime]",
+            error("from types | EVAL x = \"2024-09-08\"::datetime, y = birth_date + x::date_period")
+        );
+        assertEquals(
+            "1:65: argument of [to_timeduration(x)] must be [time_duration or string], found value [x] type [datetime]",
+            error("from types  | EVAL x = \"2024-09-08\"::datetime, y = birth_date - to_timeduration(x)")
+        );
+        assertEquals(
+            "1:58: argument of [x::date_period] must be [date_period or string], found value [x] type [ip]",
+            error("from types | EVAL x = \"2024-09-08\"::ip, y = birth_date + x::date_period")
+        );
+        assertEquals(
+            "1:59: argument of [to_timeduration(x)] must be [time_duration or string], found value [x] type [ip]",
+            error("from types  | EVAL x = \"2024-09-08\"::ip, y = birth_date - to_timeduration(x)")
         );
     }
 

@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -100,7 +101,7 @@ public class ToDateNanos extends AbstractConvertFunction {
         return ENTRY.name;
     }
 
-    @ConvertEvaluator(extraName = "FromLong", warnExceptions = { IllegalArgumentException.class })
+    @ConvertEvaluator(extraName = "FromLong", warnExceptions = { IllegalArgumentException.class})
     static long fromLong(long in) {
         if (in < 0) {
             throw new IllegalArgumentException("Nanosecond dates before 1970-01-01T00:00:00.000Z are not supported.");
@@ -108,7 +109,7 @@ public class ToDateNanos extends AbstractConvertFunction {
         return in;
     }
 
-    @ConvertEvaluator(extraName = "FromDouble", warnExceptions = { IllegalArgumentException.class })
+    @ConvertEvaluator(extraName = "FromDouble", warnExceptions = { IllegalArgumentException.class, InvalidArgumentException.class })
     static long fromDouble(double in) {
         if (in < 0d) {
             throw new IllegalArgumentException("Nanosecond dates before 1970-01-01T00:00:00.000Z are not supported.");

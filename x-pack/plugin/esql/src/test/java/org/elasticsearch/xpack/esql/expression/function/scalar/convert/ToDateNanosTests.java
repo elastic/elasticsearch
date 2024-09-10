@@ -10,12 +10,14 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
@@ -53,13 +55,12 @@ public class ToDateNanosTests extends AbstractScalarFunctionTestCase {
             suppliers,
             "ToDateNanosFromLongEvaluator[field=" + read + "]",
             DataType.DATE_NANOS,
-            l -> l,
+            l -> null,
             Long.MIN_VALUE,
             -1L,
             List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Dates before 1970-01-01 are not supported "
-                    + "at nanosecond resolution"
+                "Line -1:-1: java.lang.IllegalArgumentException: Nanosecond dates before 1970-01-01T00:00:00.000Z are not supported."
             )
         );
         TestCaseSupplier.forUnaryUnsignedLong(
@@ -92,8 +93,7 @@ public class ToDateNanosTests extends AbstractScalarFunctionTestCase {
             - Double.MIN_VALUE,
             d -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Dates before 1970-01-01 are not supported "
-                    + "at nanosecond resolution"
+                "Line -1:-1: java.lang.IllegalArgumentException: Nanosecond dates before 1970-01-01T00:00:00.000Z are not supported."
             )
         );
         TestCaseSupplier.forUnaryDouble(
@@ -118,7 +118,7 @@ public class ToDateNanosTests extends AbstractScalarFunctionTestCase {
                 "Line -1:-1: java.lang.IllegalArgumentException: "
                     + (bytesRef.utf8ToString().isEmpty()
                     ? "cannot parse empty datetime"
-                    : ("failed to parse date field [" + bytesRef.utf8ToString() + "] with format [strict_date_optional_time]"))
+                    : ("failed to parse date field [" + bytesRef.utf8ToString() + "] with format [strict_date_optional_time_nanos]"))
             )
         );
         return parameterSuppliersFromTypedDataWithDefaultChecks(

@@ -37,7 +37,9 @@ public class TransportGetDesiredBalanceActionIT extends ESIntegTestCase {
 
         indexData(index);
 
-        var clusterHealthResponse = clusterAdmin().health(new ClusterHealthRequest().waitForStatus(ClusterHealthStatus.GREEN)).get();
+        var clusterHealthResponse = clusterAdmin().health(
+            new ClusterHealthRequest(TEST_REQUEST_TIMEOUT).waitForStatus(ClusterHealthStatus.GREEN)
+        ).get();
         assertEquals(RestStatus.OK, clusterHealthResponse.status());
 
         final var desiredBalanceResponse = safeGet(
@@ -50,7 +52,7 @@ public class TransportGetDesiredBalanceActionIT extends ESIntegTestCase {
         for (var entry : shardsMap.entrySet()) {
             Integer shardId = entry.getKey();
             DesiredBalanceResponse.DesiredShards desiredShards = entry.getValue();
-            IndexShardRoutingTable shardRoutingTable = clusterAdmin().prepareState()
+            IndexShardRoutingTable shardRoutingTable = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
                 .get()
                 .getState()
                 .routingTable()
@@ -73,7 +75,9 @@ public class TransportGetDesiredBalanceActionIT extends ESIntegTestCase {
         int numberOfReplicas = 1;
         createIndex(index, numberOfShards, numberOfReplicas);
         indexData(index);
-        var clusterHealthResponse = clusterAdmin().health(new ClusterHealthRequest(index).waitForStatus(ClusterHealthStatus.YELLOW)).get();
+        var clusterHealthResponse = clusterAdmin().health(
+            new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, index).waitForStatus(ClusterHealthStatus.YELLOW)
+        ).get();
         assertEquals(RestStatus.OK, clusterHealthResponse.status());
 
         final var desiredBalanceResponse = safeGet(
@@ -86,7 +90,7 @@ public class TransportGetDesiredBalanceActionIT extends ESIntegTestCase {
         for (var entry : shardsMap.entrySet()) {
             Integer shardId = entry.getKey();
             DesiredBalanceResponse.DesiredShards desiredShards = entry.getValue();
-            IndexShardRoutingTable shardRoutingTable = clusterAdmin().prepareState()
+            IndexShardRoutingTable shardRoutingTable = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
                 .get()
                 .getState()
                 .routingTable()

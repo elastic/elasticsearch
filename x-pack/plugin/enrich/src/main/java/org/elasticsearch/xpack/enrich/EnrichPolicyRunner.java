@@ -51,6 +51,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.Mapper;
@@ -684,7 +685,10 @@ public class EnrichPolicyRunner {
     }
 
     private void waitForIndexGreen(ActionListener<ClusterHealthResponse> listener) {
-        ClusterHealthRequest request = new ClusterHealthRequest(enrichIndexName).waitForGreenStatus();
+        ClusterHealthRequest request = new ClusterHealthRequest(
+            TimeValue.THIRTY_SECONDS /* TODO should this be longer/configurable? */ ,
+            enrichIndexName
+        ).waitForGreenStatus();
         enrichOriginClient().admin().cluster().health(request, listener);
     }
 

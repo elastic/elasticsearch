@@ -194,7 +194,7 @@ There are multiple ways to ingest data into {es}, but it depends on whether you'
 [[es-ingestion-overview-time-series]]
 ==== Time-series data
 
-For time-series data, we you have the following options for adding data to {es} data streams:
+For time-series data, you have the following options for adding data to {es} data streams:
 
 * https://www.elastic.co/guide/en/fleet/8.15/fleet-overview.html[Elastic Agent and Fleet]: The preferred way to index timestamped data. Each Elastic Agent based integration includes default ingestion rules, dashboards, and visualizations to start analyzing your data right away.
 You can use the Fleet UI in {kib} to centrally manage Elastic Agents and their policies.

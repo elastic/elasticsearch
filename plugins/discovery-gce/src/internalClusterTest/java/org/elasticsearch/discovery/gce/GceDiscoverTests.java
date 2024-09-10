@@ -67,7 +67,7 @@ public class GceDiscoverTests extends ESIntegTestCase {
 
         ClusterStateResponse clusterStateResponse = client(masterNode).admin()
             .cluster()
-            .prepareState()
+            .prepareState(TEST_REQUEST_TIMEOUT)
             .setMasterNodeTimeout(TimeValue.timeValueSeconds(1))
             .clear()
             .setNodes(true)
@@ -79,7 +79,7 @@ public class GceDiscoverTests extends ESIntegTestCase {
         registerGceNode(secondNode);
         clusterStateResponse = client(secondNode).admin()
             .cluster()
-            .prepareState()
+            .prepareState(TEST_REQUEST_TIMEOUT)
             .setMasterNodeTimeout(TimeValue.timeValueSeconds(1))
             .clear()
             .setNodes(true)
@@ -88,13 +88,13 @@ public class GceDiscoverTests extends ESIntegTestCase {
         assertNotNull(clusterStateResponse.getState().nodes().getMasterNodeId());
 
         // wait for the cluster to form
-        assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(2)).get());
+        assertNoTimeout(client().admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForNodes(Integer.toString(2)).get());
         assertNumberOfNodes(2);
 
         // add one more node and wait for it to join
         final String thirdNode = internalCluster().startDataOnlyNode();
         registerGceNode(thirdNode);
-        assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(3)).get());
+        assertNoTimeout(client().admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForNodes(Integer.toString(3)).get());
         assertNumberOfNodes(3);
     }
 

@@ -33,8 +33,8 @@ public class PrevalidateNodeRemovalRequest extends MasterNodeReadRequest<Prevali
     private final String[] externalIds;
     private TimeValue timeout = TimeValue.timeValueSeconds(30);
 
-    private PrevalidateNodeRemovalRequest(Builder builder) {
-        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    private PrevalidateNodeRemovalRequest(TimeValue masterNodeTimeout, Builder builder) {
+        super(masterNodeTimeout);
         this.names = builder.names;
         this.ids = builder.ids;
         this.externalIds = builder.externalIds;
@@ -139,8 +139,8 @@ public class PrevalidateNodeRemovalRequest extends MasterNodeReadRequest<Prevali
             return this;
         }
 
-        public PrevalidateNodeRemovalRequest build() {
-            return new PrevalidateNodeRemovalRequest(this);
+        public PrevalidateNodeRemovalRequest build(TimeValue masterNodeTimeout) {
+            return new PrevalidateNodeRemovalRequest(masterNodeTimeout, this);
         }
     }
 }

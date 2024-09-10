@@ -94,7 +94,10 @@ public class RepositoriesFileSettingsIT extends ESIntegTestCase {
         }""";
 
     private void assertMasterNode(Client client, String node) throws ExecutionException, InterruptedException {
-        assertThat(client.admin().cluster().prepareState().execute().get().getState().nodes().getMasterNode().getName(), equalTo(node));
+        assertThat(
+            client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).execute().get().getState().nodes().getMasterNode().getName(),
+            equalTo(node)
+        );
     }
 
     private void writeJSONFile(String node, String json) throws Exception {

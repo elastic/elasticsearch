@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 public class RestUpdateDesiredNodesAction extends BaseRestHandler {
@@ -55,7 +56,14 @@ public class RestUpdateDesiredNodesAction extends BaseRestHandler {
 
         final UpdateDesiredNodesRequest updateDesiredNodesRequest;
         try (XContentParser parser = request.contentParser()) {
-            updateDesiredNodesRequest = UpdateDesiredNodesRequest.fromXContent(historyId, version, dryRun, parser);
+            updateDesiredNodesRequest = UpdateDesiredNodesRequest.fromXContent(
+                getMasterNodeTimeout(request),
+                getAckTimeout(request),
+                historyId,
+                version,
+                dryRun,
+                parser
+            );
         }
 
         if (clusterSupportsFeature.test(DesiredNode.DESIRED_NODE_VERSION_DEPRECATED)) {
@@ -68,7 +76,6 @@ public class RestUpdateDesiredNodesAction extends BaseRestHandler {
             }
         }
 
-        updateDesiredNodesRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         return restChannel -> client.execute(
             UpdateDesiredNodesAction.INSTANCE,
             updateDesiredNodesRequest,

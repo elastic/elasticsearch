@@ -303,9 +303,10 @@ public class ComputeService {
                         .build()
                 );
 
+                int numDataNodes = dataNodeResult.dataNodes().size();
+                final CountDown countDown = numDataNodes == 0 ? null : new CountDown(numDataNodes);
                 // For each target node, first open a remote exchange on the remote node, then link the exchange source to
                 // the new remote exchange sink, and initialize the computation on the target node via data-node-request.
-                CountDown countDown = new CountDown(dataNodeResult.dataNodes().size());
                 for (DataNode node : dataNodeResult.dataNodes()) {
                     var queryPragmas = configuration.pragmas();
                     ExchangeService.openExchange(

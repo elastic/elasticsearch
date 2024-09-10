@@ -144,7 +144,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .setMappings(request.mappings())
             .setSettings(request.settings())
             .setPrimaryIndex(".fleet-actions-" + CURRENT_INDEX_VERSION)
-            .setIndexPattern(".fleet-actions~(-results*)")
+            .setIndexPattern(".fleet-actions-[^r]*")
             .setAliasName(".fleet-actions")
             .setDescription("Fleet agents")
             .build();

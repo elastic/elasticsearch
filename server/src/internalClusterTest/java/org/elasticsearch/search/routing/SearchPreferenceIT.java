@@ -59,7 +59,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         }
         refresh();
         internalCluster().stopRandomDataNode();
-        clusterAdmin().prepareHealth().setWaitForStatus(ClusterHealthStatus.RED).get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForStatus(ClusterHealthStatus.RED).get();
         String[] preferences = new String[] {
             "_local",
             "_prefer_nodes:somenode",

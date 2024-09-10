@@ -98,6 +98,11 @@ public class EsqlCapabilities {
         AGG_TOP_IP_SUPPORT,
 
         /**
+         * {@code CASE} properly handling multivalue conditions.
+         */
+        CASE_MV,
+
+        /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
          */
         ST_CENTROID_AGG_OPTIMIZED,
@@ -279,7 +284,17 @@ public class EsqlCapabilities {
         /**
          * Allow mixed numeric types in coalesce
          */
-        MIXED_NUMERIC_TYPES_IN_COALESCE;
+        MIXED_NUMERIC_TYPES_IN_COALESCE,
+
+        /**
+         * Support for requesting the "SPACE" function.
+         */
+        SPACE,
+
+        /**
+         * Support explicit casting from string literal to DATE_PERIOD or TIME_DURATION.
+         */
+        CAST_STRING_LITERAL_TO_TEMPORAL_AMOUNT;
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

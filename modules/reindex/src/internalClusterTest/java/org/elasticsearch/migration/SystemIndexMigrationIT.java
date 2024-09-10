@@ -85,7 +85,7 @@ public class SystemIndexMigrationIT extends AbstractFeatureMigrationIntegTest {
         clusterService.addListener(clusterStateListener);
 
         // create task by calling API
-        final PostFeatureUpgradeRequest req = new PostFeatureUpgradeRequest();
+        final PostFeatureUpgradeRequest req = new PostFeatureUpgradeRequest(TEST_REQUEST_TIMEOUT);
         client().execute(PostFeatureUpgradeAction.INSTANCE, req);
         logger.info("migrate feature api called");
 
@@ -101,12 +101,12 @@ public class SystemIndexMigrationIT extends AbstractFeatureMigrationIntegTest {
 
         assertBusy(() -> {
             // Wait for the node we restarted to completely rejoin the cluster
-            ClusterState clusterState = clusterAdmin().prepareState().get().getState();
+            ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             assertThat("expected restarted node to rejoin cluster", clusterState.getNodes().size(), equalTo(2));
 
             GetFeatureUpgradeStatusResponse statusResponse = client().execute(
                 GetFeatureUpgradeStatusAction.INSTANCE,
-                new GetFeatureUpgradeStatusRequest()
+                new GetFeatureUpgradeStatusRequest(TEST_REQUEST_TIMEOUT)
             ).get();
             assertThat(
                 "expected migration to fail due to restarting only data node",

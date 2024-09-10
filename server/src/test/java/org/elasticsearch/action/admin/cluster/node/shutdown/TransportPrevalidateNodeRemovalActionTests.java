@@ -35,24 +35,32 @@ public class TransportPrevalidateNodeRemovalActionTests extends ESTestCase {
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(node1).add(node2).build();
 
         assertThat(
-            resolveNodes(PrevalidateNodeRemovalRequest.builder().setNames(node1Name).build(), discoveryNodes),
+            resolveNodes(PrevalidateNodeRemovalRequest.builder().setNames(node1Name).build(TEST_REQUEST_TIMEOUT), discoveryNodes),
             equalTo(Set.of(node1))
         );
         assertThat(
-            resolveNodes(PrevalidateNodeRemovalRequest.builder().setIds(node1Id, node2Id).build(), discoveryNodes),
+            resolveNodes(PrevalidateNodeRemovalRequest.builder().setIds(node1Id, node2Id).build(TEST_REQUEST_TIMEOUT), discoveryNodes),
             equalTo(Set.of(node1, node2))
         );
         expectThrows(
             ResourceNotFoundException.class,
-            () -> resolveNodes(PrevalidateNodeRemovalRequest.builder().setNames(node1Name, node1Id).build(), discoveryNodes)
+            () -> resolveNodes(
+                PrevalidateNodeRemovalRequest.builder().setNames(node1Name, node1Id).build(TEST_REQUEST_TIMEOUT),
+                discoveryNodes
+            )
         );
         expectThrows(
             ResourceNotFoundException.class,
-            () -> resolveNodes(PrevalidateNodeRemovalRequest.builder().setIds(node1Name, node1Id).build(), discoveryNodes)
+            () -> resolveNodes(
+                PrevalidateNodeRemovalRequest.builder().setIds(node1Name, node1Id).build(TEST_REQUEST_TIMEOUT),
+                discoveryNodes
+            )
         );
         assertThat(
             resolveNodes(
-                PrevalidateNodeRemovalRequest.builder().setExternalIds(node1.getExternalId(), node2.getExternalId()).build(),
+                PrevalidateNodeRemovalRequest.builder()
+                    .setExternalIds(node1.getExternalId(), node2.getExternalId())
+                    .build(TEST_REQUEST_TIMEOUT),
                 discoveryNodes
             ),
             equalTo(Set.of(node1, node2))

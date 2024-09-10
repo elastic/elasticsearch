@@ -1977,6 +1977,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(ClusterSettings.createBuiltInClusterSettings());
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         var service = new ShardsAvailabilityHealthIndicatorService(
             clusterService,
             mock(AllocationService.class),
@@ -2551,6 +2552,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         when(clusterService.state()).thenReturn(clusterState);
         var clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         var allocationService = mock(AllocationService.class);
         when(allocationService.explainShardAllocation(any(ShardRouting.class), any(RoutingAllocation.class))).thenAnswer(
             (Answer<ShardAllocationDecision>) invocation -> {

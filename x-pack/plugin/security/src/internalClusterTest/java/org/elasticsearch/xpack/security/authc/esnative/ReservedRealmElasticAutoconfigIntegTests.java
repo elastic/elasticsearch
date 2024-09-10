@@ -92,7 +92,10 @@ public class ReservedRealmElasticAutoconfigIntegTests extends SecuritySingleNode
     public void testAutoconfigFailedPasswordPromotion() {
         try {
             // prevents the .security index from being created automatically (after elastic user authentication)
-            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT
+            );
             updateSettingsRequest.transientSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true));
             assertAcked(clusterAdmin().updateSettings(updateSettingsRequest).actionGet());
 
@@ -146,7 +149,10 @@ public class ReservedRealmElasticAutoconfigIntegTests extends SecuritySingleNode
             exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(restRequest2));
             assertThat(exception.getResponse().getStatusLine().getStatusCode(), is(RestStatus.UNAUTHORIZED.getStatus()));
         } finally {
-            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT
+            );
             updateSettingsRequest.transientSettings(
                 Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), (String) null)
             );
@@ -168,7 +174,10 @@ public class ReservedRealmElasticAutoconfigIntegTests extends SecuritySingleNode
             awaitSecurityMigrationRanOnce();
 
             // but then make the cluster read-only
-            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT
+            );
             updateSettingsRequest.transientSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true));
             assertAcked(clusterAdmin().updateSettings(updateSettingsRequest).actionGet());
 
@@ -190,7 +199,7 @@ public class ReservedRealmElasticAutoconfigIntegTests extends SecuritySingleNode
             ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(restRequest));
             assertThat(exception.getResponse().getStatusLine().getStatusCode(), is(RestStatus.SERVICE_UNAVAILABLE.getStatus()));
             // clear cluster-wide write block
-            updateSettingsRequest = new ClusterUpdateSettingsRequest();
+            updateSettingsRequest = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
             updateSettingsRequest.transientSettings(
                 Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), (String) null)
             );
@@ -232,7 +241,10 @@ public class ReservedRealmElasticAutoconfigIntegTests extends SecuritySingleNode
             restRequest3.setOptions(options);
             assertThat(getRestClient().performRequest(restRequest3).getStatusLine().getStatusCode(), is(RestStatus.OK.getStatus()));
         } finally {
-            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT
+            );
             updateSettingsRequest.transientSettings(
                 Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), (String) null)
             );

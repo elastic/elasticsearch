@@ -49,6 +49,9 @@ public class GroupingAggregator implements Releasable {
                 public void add(int positionOffset, IntVector groupIds) {
                     aggregatorFunction.addIntermediateInput(positionOffset, groupIds, page);
                 }
+
+                @Override
+                public void close() {}
             };
         } else {
             return aggregatorFunction.prepareProcessPage(seenGroupIds, page);

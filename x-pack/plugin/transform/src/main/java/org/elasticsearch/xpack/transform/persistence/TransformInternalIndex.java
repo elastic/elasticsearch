@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -389,7 +390,10 @@ public final class TransformInternalIndex {
     }
 
     private static void waitForLatestVersionedIndexShardsActive(Client client, ActionListener<Void> listener) {
-        ClusterHealthRequest request = new ClusterHealthRequest(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME)
+        ClusterHealthRequest request = new ClusterHealthRequest(
+            TimeValue.THIRTY_SECONDS /* TODO should this be longer/configurable? */,
+            TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME
+        )
             // cluster health does not wait for active shards per default
             .waitForActiveShards(ActiveShardCount.ONE);
         ActionListener<ClusterHealthResponse> innerListener = ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure);

@@ -14,6 +14,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -145,13 +146,21 @@ public class MultiClustersIT extends ESRestTestCase {
             Map<String, Object> result = run("FROM test-local-index,*:test-remote-index | STATS c = COUNT(*)");
             var columns = List.of(Map.of("name", "c", "type", "long"));
             var values = List.of(List.of(localDocs.size() + remoteDocs.size()));
-            assertMap(result, matchesMap().entry("columns", columns).entry("values", values));
+            MapMatcher mapMatcher = matchesMap();
+            if (result.get("took") != null) {
+                mapMatcher = mapMatcher.entry("took", ((Integer) result.get("took")).intValue());
+            }
+            assertMap(result, mapMatcher.entry("columns", columns).entry("values", values));
         }
         {
             Map<String, Object> result = run("FROM *:test-remote-index | STATS c = COUNT(*)");
             var columns = List.of(Map.of("name", "c", "type", "long"));
             var values = List.of(List.of(remoteDocs.size()));
-            assertMap(result, matchesMap().entry("columns", columns).entry("values", values));
+            MapMatcher mapMatcher = matchesMap();
+            if (result.get("took") != null) {
+                mapMatcher = mapMatcher.entry("took", ((Integer) result.get("took")).intValue());
+            }
+            assertMap(result, mapMatcher.entry("columns", columns).entry("values", values));
         }
     }
 
@@ -161,14 +170,22 @@ public class MultiClustersIT extends ESRestTestCase {
             var columns = List.of(Map.of("name", "total", "type", "long"));
             long sum = Stream.concat(localDocs.stream(), remoteDocs.stream()).mapToLong(d -> d.data).sum();
             var values = List.of(List.of(Math.toIntExact(sum)));
-            assertMap(result, matchesMap().entry("columns", columns).entry("values", values));
+            MapMatcher mapMatcher = matchesMap();
+            if (result.get("took") != null) {
+                mapMatcher = mapMatcher.entry("took", ((Integer) result.get("took")).intValue());
+            }
+            assertMap(result, mapMatcher.entry("columns", columns).entry("values", values));
         }
         {
             Map<String, Object> result = run("FROM *:test-remote-index | STATS total = SUM(data)");
             var columns = List.of(Map.of("name", "total", "type", "long"));
             long sum = remoteDocs.stream().mapToLong(d -> d.data).sum();
             var values = List.of(List.of(Math.toIntExact(sum)));
-            assertMap(result, matchesMap().entry("columns", columns).entry("values", values));
+            MapMatcher mapMatcher = matchesMap();
+            if (result.get("took") != null) {
+                mapMatcher = mapMatcher.entry("took", ((Integer) result.get("took")).intValue());
+            }
+            assertMap(result, mapMatcher.entry("columns", columns).entry("values", values));
         }
     }
 
@@ -183,7 +200,11 @@ public class MultiClustersIT extends ESRestTestCase {
                 .sorted(Map.Entry.comparingByKey())
                 .map(e -> List.of(Math.toIntExact(e.getValue()), e.getKey()))
                 .toList();
-            assertMap(result, matchesMap().entry("columns", columns).entry("values", values));
+            MapMatcher mapMatcher = matchesMap();
+            if (result.get("took") != null) {
+                mapMatcher = mapMatcher.entry("took", ((Integer) result.get("took")).intValue());
+            }
+            assertMap(result, mapMatcher.entry("columns", columns).entry("values", values));
         }
         {
             Map<String, Object> result = run("FROM *:test-remote-index | STATS total = SUM(data) by color | SORT color");
@@ -195,7 +216,11 @@ public class MultiClustersIT extends ESRestTestCase {
                 .sorted(Map.Entry.comparingByKey())
                 .map(e -> List.of(Math.toIntExact(e.getValue()), e.getKey()))
                 .toList();
-            assertMap(result, matchesMap().entry("columns", columns).entry("values", values));
+            MapMatcher mapMatcher = matchesMap();
+            if (result.get("took") != null) {
+                mapMatcher = mapMatcher.entry("took", ((Integer) result.get("took")).intValue());
+            }
+            assertMap(result, mapMatcher.entry("columns", columns).entry("values", values));
         }
     }
 

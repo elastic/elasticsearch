@@ -27,6 +27,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ListMatcher;
+import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -288,16 +289,24 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
         RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | stats min(value)");
         Map<String, Object> result = runEsql(builder);
+        MapMatcher mapMatcher = matchesMap();
+        if (result.get("took") != null) {
+            mapMatcher = mapMatcher.entry("took", ((Integer) result.get("took")).intValue());
+        }
         assertMap(
             result,
-            matchesMap().entry("values", List.of(List.of(1))).entry("columns", List.of(Map.of("name", "min(value)", "type", "long")))
+            mapMatcher.entry("values", List.of(List.of(1))).entry("columns", List.of(Map.of("name", "min(value)", "type", "long")))
         );
 
         builder = requestObjectBuilder().query(fromIndex() + " | stats min(value) by group | sort group, `min(value)`");
         result = runEsql(builder);
+        mapMatcher = matchesMap();
+        if (result.get("took") != null) {
+            mapMatcher = mapMatcher.entry("took", ((Integer) result.get("took")).intValue());
+        }
         assertMap(
             result,
-            matchesMap().entry("values", List.of(List.of(2, 0), List.of(1, 1)))
+            mapMatcher.entry("values", List.of(List.of(2, 0), List.of(1, 1)))
                 .entry("columns", List.of(Map.of("name", "min(value)", "type", "long"), Map.of("name", "group", "type", "long")))
         );
     }
@@ -556,7 +565,11 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         );
         var values = List.of(List.of(3, testIndexName() + "-2", 1, "id-2"), List.of(2, testIndexName() + "-1", 2, "id-1"));
 
-        assertMap(result, matchesMap().entry("columns", columns).entry("values", values));
+        MapMatcher mapMatcher = matchesMap();
+        if (result.get("took") != null) {
+            mapMatcher = mapMatcher.entry("took", ((Integer) result.get("took")).intValue());
+        }
+        assertMap(result, mapMatcher.entry("columns", columns).entry("values", values));
 
         assertThat(deleteIndex(testIndexName() + "-1").isAcknowledged(), is(true)); // clean up
         assertThat(deleteIndex(testIndexName() + "-2").isAcknowledged(), is(true)); // clean up
@@ -725,6 +738,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             fromIndex() + " | EVAL now=NOW() | INLINESTATS AVG(value) BY now | SORT value ASC"
         );
         Map<String, Object> result = runEsql(builder);
+        MapMatcher mapMatcher = matchesMap();
+        if (result.get("took") != null) {
+            mapMatcher = mapMatcher.entry("took", ((Integer) result.get("took")).intValue());
+        }
         ListMatcher values = matchesList();
         for (int i = 0; i < 1000; i++) {
             values = values.item(
@@ -738,7 +755,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
         assertMap(
             result,
-            matchesMap().entry(
+            mapMatcher.entry(
                 "columns",
                 matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
                     .item(matchesMap().entry("name", "test").entry("type", "text"))
@@ -760,9 +777,15 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             }
             b.endObject();
         }).query(fromIndex() + " | STATS SUM(value)");
+
+        Map<String, Object> result = runEsql(builder);
+        MapMatcher mapMatcher = matchesMap();
+        if (result.get("took") != null) {
+            mapMatcher = mapMatcher.entry("took", ((Integer) result.get("took")).intValue());
+        }
         assertMap(
-            runEsql(builder),
-            matchesMap().entry("columns", matchesList().item(matchesMap().entry("name", "SUM(value)").entry("type", "long")))
+            result,
+            mapMatcher.entry("columns", matchesList().item(matchesMap().entry("name", "SUM(value)").entry("type", "long")))
                 .entry("values", List.of(List.of(499500)))
         );
     }
@@ -777,9 +800,14 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             }
             b.endObject();
         }).query(fromIndex() + " | WHERE value == 12 | STATS SUM(value)");
+        Map<String, Object> result = runEsql(builder);
+        MapMatcher mapMatcher = matchesMap();
+        if (result.get("took") != null) {
+            mapMatcher = mapMatcher.entry("took", ((Integer) result.get("took")).intValue());
+        }
         assertMap(
-            runEsql(builder),
-            matchesMap().entry("columns", matchesList().item(matchesMap().entry("name", "SUM(value)").entry("type", "long")))
+            result,
+            mapMatcher.entry("columns", matchesList().item(matchesMap().entry("name", "SUM(value)").entry("type", "long")))
                 .entry("values", List.of(List.of(12)))
         );
     }
@@ -809,9 +837,14 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 }
                 b.endObject();
             }).query(fromIndex() + " | WHERE @timestamp > \"2010-01-01\" | STATS SUM(value)");
+            Map<String, Object> result = runEsql(builder);
+            MapMatcher mapMatcher = matchesMap();
+            if (result.get("took") != null) {
+                mapMatcher = mapMatcher.entry("took", ((Integer) result.get("took")).intValue());
+            }
             assertMap(
-                runEsql(builder),
-                matchesMap().entry("columns", matchesList().item(matchesMap().entry("name", "SUM(value)").entry("type", "long")))
+                result,
+                mapMatcher.entry("columns", matchesList().item(matchesMap().entry("name", "SUM(value)").entry("type", "long")))
                     .entry("values", List.of(List.of(12)))
             );
         }

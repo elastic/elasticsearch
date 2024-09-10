@@ -275,6 +275,7 @@ id:l | st_intersects:boolean | st_contains:boolean | st_within:boolean  | shape:
 
 whereIntersectsGeometryCollectionFields
 required_capability: st_intersects
+required_capability: spatial_predicates_support_multivalues
 
 FROM multivalue_geometries
 | WHERE ST_INTERSECTS(shape, smaller)
@@ -299,6 +300,7 @@ id:l | shape:geo_shape                                                          
 
 whereIntersectsGeometryCollectionStatsFields
 required_capability: st_intersects
+required_capability: spatial_predicates_support_multivalues
 
 FROM multivalue_geometries
 | WHERE ST_INTERSECTS(shape, smaller) | STATS c=COUNT(*)
@@ -310,6 +312,7 @@ c:l
 
 whereContainsGeometryCollectionFields
 required_capability: st_contains_within
+required_capability: spatial_predicates_support_multivalues
 
 FROM multivalue_geometries
 | WHERE ST_CONTAINS(shape, smaller)
@@ -334,6 +337,7 @@ id:l | shape:geo_shape                                                          
 
 whereContainsGeometryCollectionStatsFields
 required_capability: st_contains_within
+required_capability: spatial_predicates_support_multivalues
 
 FROM multivalue_geometries
 | WHERE ST_CONTAINS(shape, smaller) | STATS c=COUNT(*)
@@ -345,6 +349,7 @@ c:l
 
 whereWithinGeometryCollectionFields
 required_capability: st_contains_within
+required_capability: spatial_predicates_support_multivalues
 
 FROM multivalue_geometries
 | WHERE ST_WITHIN(smaller, shape)
@@ -369,6 +374,7 @@ id:l | shape:geo_shape                                                          
 
 whereWithinGeometryCollectionStatsFields
 required_capability: st_contains_within
+required_capability: spatial_predicates_support_multivalues
 
 FROM multivalue_geometries
 | WHERE ST_WITHIN(smaller, shape) | STATS c=COUNT(*)

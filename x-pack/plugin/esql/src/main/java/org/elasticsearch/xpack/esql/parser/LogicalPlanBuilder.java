@@ -392,7 +392,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitDropCommand(EsqlBaseParser.DropCommandContext ctx) {
-        List<NamedExpression> removals = visitQualifiedNamePatterns(ctx.qualifiedNamePatterns(), ne -> {
+        List<NamedExpression> removals = visitQualifiedNamePatternsOrParams(ctx.qualifiedNamePatternsOrParams(), ne -> {
             if (ne instanceof UnresolvedStar) {
                 var src = ne.source();
                 throw new ParsingException(src, "Removing all fields is not allowed [{}]", src.text());

@@ -4020,8 +4020,8 @@ public class EsqlBaseParser extends ParserConfig {
   @SuppressWarnings("CheckReturnValue")
   public static class DropCommandContext extends ParserRuleContext {
     public TerminalNode DROP() { return getToken(EsqlBaseParser.DROP, 0); }
-    public QualifiedNamePatternsContext qualifiedNamePatterns() {
-      return getRuleContext(QualifiedNamePatternsContext.class,0);
+    public QualifiedNamePatternsOrParamsContext qualifiedNamePatternsOrParams() {
+      return getRuleContext(QualifiedNamePatternsOrParamsContext.class,0);
     }
     @SuppressWarnings("this-escape")
     public DropCommandContext(ParserRuleContext parent, int invokingState) {
@@ -4052,7 +4052,7 @@ public class EsqlBaseParser extends ParserConfig {
       setState(490);
       match(DROP);
       setState(491);
-      qualifiedNamePatterns();
+      qualifiedNamePatternsOrParams();
       }
     }
     catch (RecognitionException re) {
@@ -5840,7 +5840,7 @@ public class EsqlBaseParser extends ParserConfig {
     "\u0001\u0000\u0000\u0000\u01e5\u01e6\u0001\u0000\u0000\u0000\u01e6K\u0001"+
     "\u0000\u0000\u0000\u01e7\u01e8\u0005\b\u0000\u0000\u01e8\u01e9\u0003:"+
     "\u001d\u0000\u01e9M\u0001\u0000\u0000\u0000\u01ea\u01eb\u0005\u0002\u0000"+
-    "\u0000\u01eb\u01ec\u00038\u001c\u0000\u01ecO\u0001\u0000\u0000\u0000\u01ed"+
+    "\u0000\u01eb\u01ec\u0003:\u001d\u0000\u01ecO\u0001\u0000\u0000\u0000\u01ed"+
     "\u01ee\u0005\f\u0000\u0000\u01ee\u01f3\u0003R)\u0000\u01ef\u01f0\u0005"+
     "#\u0000\u0000\u01f0\u01f2\u0003R)\u0000\u01f1\u01ef\u0001\u0000\u0000"+
     "\u0000\u01f2\u01f5\u0001\u0000\u0000\u0000\u01f3\u01f1\u0001\u0000\u0000"+

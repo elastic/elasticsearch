@@ -229,16 +229,8 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             b.field("a", List.of(intValue, intValue));
             b.endObject();
         });
-        assertEquals(
-            String.format(
-                Locale.ROOT,
-                """
-                    {"bar":{"a":[%s,%s]}}""",
-                intValue,
-                intValue
-            ),
-            syntheticSource
-        );
+        assertEquals(String.format(Locale.ROOT, """
+            {"bar":{"a":[%s,%s]}}""", intValue, intValue), syntheticSource);
     }
 
     public void testDisabledRootObjectSingleField() throws IOException {

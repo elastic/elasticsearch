@@ -24,7 +24,10 @@ public class SimpleNodesCapabilitiesIT extends ESIntegTestCase {
     public void testNodesCapabilities() throws IOException {
         internalCluster().startNodes(2);
 
-        ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").get();
+        ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
+            .setWaitForGreenStatus()
+            .setWaitForNodes("2")
+            .get();
         logger.info("--> done cluster_health, status {}", clusterHealth.getStatus());
 
         // check we support the capabilities API itself. Which we do.

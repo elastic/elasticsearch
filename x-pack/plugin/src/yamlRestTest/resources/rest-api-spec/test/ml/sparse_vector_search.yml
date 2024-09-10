@@ -313,3 +313,166 @@ setup:
               query: "octopus comforter smells"
 
   - match: { status: 400 }
+
+---
+"Search on a sparse_vector field with dots in the field names":
+
+  - requires:
+      cluster_features: [ "gte_v8.16.0" ]
+      reason: dots in field names allowed starting in in 8.16.0
+
+  - do:
+      indices.create:
+        index: index-with-sparse-vector2
+        body:
+          mappings:
+            properties:
+              ml.tokens:
+                type: sparse_vector
+
+  - match: { acknowledged: true }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index: index-with-sparse-vector2
+        id: "has-dots"
+        refresh: true
+        body:
+          ml:
+            tokens:
+              running: 2.4097164
+              good: 2.170997
+              run: 2.052153
+              race: 1.4575411
+              for: 1.1908325
+              5.0k: 2.489943
+
+  - match: { result: "created" }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      get:
+        index: index-with-sparse-vector2
+        id: "has-dots"
+
+  - match:
+      _source:
+        ml:
+          tokens:
+            running: 2.4097164
+            good: 2.170997
+            run: 2.052153
+            race: 1.4575411
+            for: 1.1908325
+            5.0k: 2.489943
+
+  - do:
+      search:
+        index: index-with-sparse-vector2
+        body:
+          query:
+            sparse_vector:
+              field: ml.tokens
+              query_vector:
+                5.0k: 2.489943
+
+  - match: { hits.total.value: 1 }
+
+---
+"Search on a nested sparse_vector field with dots in the field names and conflicting child fields":
+
+  - requires:
+      cluster_features: [ "gte_v8.16.0" ]
+      reason: dots in field names allowed starting in in 8.16.0
+
+  - do:
+      indices.create:
+        index: index-with-sparse-vector3
+        body:
+          mappings:
+            properties:
+              parent:
+                type: object
+                subobjects: false
+                properties:
+                  foo:
+                    type: sparse_vector
+                  foo.bar:
+                    type: sparse_vector
+
+  - match: { acknowledged: true }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      bulk:
+        index: index-with-sparse-vector3
+        refresh: true
+        body: |
+          {"index": { "_id": "parent-foo" }}
+          {"parent.foo": { "bar.baz": 1.0 }}
+          {"index": { "_id": "parent-foo-bar" }}
+          {"parent.foo.bar": { "baz": 2.0 }}
+          {"index": { "_id": "both-docs" }}
+          {"parent.foo": { "bar.baz": 3.0 }, "parent.foo.bar": { "baz": 4.0 }}
+
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      get:
+        index: index-with-sparse-vector3
+        id: "parent-foo"
+
+  - match:
+      _source:
+        parent.foo:
+          bar.baz: 1.0
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      get:
+        index: index-with-sparse-vector3
+        id: "parent-foo-bar"
+
+  - match:
+      _source:
+        parent.foo.bar:
+          baz: 2.0
+
+  - do:
+      search:
+        index: index-with-sparse-vector3
+        body:
+          query:
+            sparse_vector:
+              field: parent.foo
+              query_vector:
+                bar.baz: 1.0
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "both-docs" }
+  - match: { hits.hits.0._score: 3.0 }
+  - match: { hits.hits.1._id: "parent-foo" }
+  - match: { hits.hits.1._score: 1.0 }
+
+  - do:
+      search:
+        index: index-with-sparse-vector3
+        body:
+          query:
+            sparse_vector:
+              field: parent.foo.bar
+              query_vector:
+                baz: 1.0
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "both-docs" }
+  - match: { hits.hits.0._score: 4.0 }
+  - match: { hits.hits.1._id: "parent-foo-bar" }
+  - match: { hits.hits.1._score: 2.0 }

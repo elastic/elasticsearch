@@ -292,6 +292,11 @@ public class EsqlCapabilities {
         SPACE,
 
         /**
+         * Support explicit casting from string literal to DATE_PERIOD or TIME_DURATION.
+         */
+        CAST_STRING_LITERAL_TO_TEMPORAL_AMOUNT,
+
+        /**
          * QSTR function
          */
         QSTR_FUNCTION(true);

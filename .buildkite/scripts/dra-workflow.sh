@@ -3,7 +3,8 @@
 set -euo pipefail
 
 WORKFLOW="${DRA_WORKFLOW:-snapshot}"
-BRANCH="${BUILDKITE_BRANCH:-}"
+# BRANCH="${BUILDKITE_BRANCH:-}"
+BRANCH="main"
 
 # Don't publish main branch to staging
 if [[ "$BRANCH" == "main" && "$WORKFLOW" == "staging" ]]; then
@@ -69,22 +70,22 @@ find "$WORKSPACE" -type f -path "*/build/distributions/*" -exec chmod a+r {} \;
 # Allow other users write access to create checksum files
 find "$WORKSPACE" -type d -path "*/build/distributions" -exec chmod a+w {} \;
 
-echo --- Running release-manager
+# echo --- Running release-manager
 
-# Artifacts should be generated
-docker run --rm \
-  --name release-manager \
-  -e VAULT_ADDR="$DRA_VAULT_ADDR" \
-  -e VAULT_ROLE_ID="$DRA_VAULT_ROLE_ID_SECRET" \
-  -e VAULT_SECRET_ID="$DRA_VAULT_SECRET_ID_SECRET" \
-  --mount type=bind,readonly=false,src="$PWD",target=/artifacts \
-  docker.elastic.co/infra/release-manager:latest \
-  cli collect \
-  --project elasticsearch \
-  --branch "$RM_BRANCH" \
-  --commit "$BUILDKITE_COMMIT" \
-  --workflow "$WORKFLOW" \
-  --version "$ES_VERSION" \
-  --artifact-set main \
-  --dependency "beats:https://artifacts-${WORKFLOW}.elastic.co/beats/${BEATS_BUILD_ID}/manifest-${ES_VERSION}${VERSION_SUFFIX}.json" \
-  --dependency "ml-cpp:https://artifacts-${WORKFLOW}.elastic.co/ml-cpp/${ML_CPP_BUILD_ID}/manifest-${ES_VERSION}${VERSION_SUFFIX}.json"
+# # Artifacts should be generated
+# docker run --rm \
+#   --name release-manager \
+#   -e VAULT_ADDR="$DRA_VAULT_ADDR" \
+#   -e VAULT_ROLE_ID="$DRA_VAULT_ROLE_ID_SECRET" \
+#   -e VAULT_SECRET_ID="$DRA_VAULT_SECRET_ID_SECRET" \
+#   --mount type=bind,readonly=false,src="$PWD",target=/artifacts \
+#   docker.elastic.co/infra/release-manager:latest \
+#   cli collect \
+#   --project elasticsearch \
+#   --branch "$RM_BRANCH" \
+#   --commit "$BUILDKITE_COMMIT" \
+#   --workflow "$WORKFLOW" \
+#   --version "$ES_VERSION" \
+#   --artifact-set main \
+#   --dependency "beats:https://artifacts-${WORKFLOW}.elastic.co/beats/${BEATS_BUILD_ID}/manifest-${ES_VERSION}${VERSION_SUFFIX}.json" \
+#   --dependency "ml-cpp:https://artifacts-${WORKFLOW}.elastic.co/ml-cpp/${ML_CPP_BUILD_ID}/manifest-${ES_VERSION}${VERSION_SUFFIX}.json"

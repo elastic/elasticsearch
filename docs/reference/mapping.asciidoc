@@ -34,10 +34,10 @@ mapping values by overriding values in the mapping during the search request.
 [[mapping-dynamic]]
 == Dynamic mapping
 
-When you use <<dynamic-field-mapping,dynamic mapping>> {es} automatically
+When you use <<dynamic-field-mapping,dynamic mapping>>, {es} automatically
 attempts to detect the data type of fields in your documents. This allows 
 you to get started quickly by just adding data to an index. If you index
-additional documents with new fields, {es} will add these automatically. 
+additional documents with new fields, {es} will add these fields automatically. 
 You can add fields to the top-level mapping, and to inner <<object,`object`>> 
 and <<nested,`nested`>> fields.
 
@@ -48,12 +48,12 @@ applied to dynamically added fields based on the matching condition.
 [[mapping-explicit]]
 == Explicit mapping
 
-Use <<explicit-mapping,Explicit mapping>> to define exactly how data types
+Use <<explicit-mapping,explicit mapping>> to define exactly how data types
 are mapped to fields, customized to your specific use case.
 
 Defining your own mappings enables you to:
 
-* Define which string fields should be treated as full text fields.
+* Define which string fields should be treated as full-text fields.
 * Define which fields contain numbers, dates, or geolocations.
 * Use data types that cannot be automatically detected (such as `geo_point` and `geo_shape`.)
 * Choose date value <<mapping-date-format,formats>>, including custom date formats.

@@ -15,10 +15,10 @@ Use {es} to search, index, store, and analyze data of all shapes and sizes in ne
 {es} is used for a wide and growing range of use cases. Here are a few examples:
 
 * *Monitor log and event data*: Store logs, metrics, and event data for observability and security information and event management (SIEM).
-* *Build search applications*: Add search capabilities to apps or websites, or build enterprise search engines over your organization's internal data sources.
+* *Build search applications*: Add search capabilities to apps or websites, or build search engines over internal data.
 * *Vector database*: Store and search vectorized data, and create vector embeddings with built-in and third-party natural language processing (NLP) models.
-* *Retrieval augmented generation (RAG)*: Use {es} as a retrieval engine to augment Generative AI models.
-* *Application and security monitoring*: Monitor and analyze application performance and security data effectively.
+* *Retrieval augmented generation (RAG)*: Use {es} as a retrieval engine to augment generative AI models.
+* *Application and security monitoring*: Monitor and analyze application performance and security data.
 * *Machine learning*: Use {ml} to automatically model the behavior of your data in real-time.
 
 This is just a sample of search, observability, and security use cases enabled by {es}. 
@@ -42,8 +42,8 @@ To use {es}, you need a running instance of the {es} service.
 You can deploy {es} in various ways:
 
 * <<run-elasticsearch-locally,*Local dev*>>: Get started quickly with a minimal local Docker setup. 
-* {cloud}/ec-getting-started-trial.html[*Elastic Cloud*]: {es} is available as part of our hosted Elastic Stack offering, deployed in the cloud with your provider of choice. Sign up for a https://cloud.elastic.co/registration[14 day free trial].
-* {serverless-docs}/general/sign-up-trial[*Elastic Cloud Serverless* (technical preview)]: Create serverless projects for autoscaled and fully managed {es} deployments. Sign up for a https://cloud.elastic.co/serverless-registration[14 day free trial].
+* {cloud}/ec-getting-started-trial.html[*Elastic Cloud*]: {es} is available as part of our hosted Elastic Stack offering, deployed in the cloud with your provider of choice. Sign up for a https://cloud.elastic.co/registration[14-day free trial].
+* {serverless-docs}/general/sign-up-trial[*Elastic Cloud Serverless* (technical preview)]: Create serverless projects for autoscaled and fully managed {es} deployments. Sign up for a https://cloud.elastic.co/serverless-registration[14-day free trial].
 
 **Advanced deployment options**
 
@@ -55,7 +55,7 @@ You can deploy {es} in various ways:
 [[elasticsearch-next-steps]]
 === Learn more
 
-Some resources to help you get started:
+Here are some resources to help you get started:
 
 * <<getting-started, Quickstart>>: A beginner's guide to deploying your first {es} instance, indexing data, and running queries.
 * https://elastic.co/webinars/getting-started-elasticsearch[Webinar: Introduction to {es}]: Register for our live webinars to learn directly from {es} experts.

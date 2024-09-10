@@ -2736,6 +2736,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(CompositeRolesStore.tryGetRoleDescriptorForInternalUser(subject).get().getClusterPrivileges(), emptyArray());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/112453")
     public void testXPackUserCanAccessNonRestrictedIndices() {
         for (String action : Arrays.asList(
             TransportGetAction.TYPE.name(),

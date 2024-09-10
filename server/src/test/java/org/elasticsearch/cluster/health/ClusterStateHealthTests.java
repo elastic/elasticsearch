@@ -159,7 +159,7 @@ public class ClusterStateHealthTests extends ESTestCase {
         ActionTestUtils.execute(
             action,
             new CancellableTask(1, "direct", TransportClusterHealthAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of()),
-            new ClusterHealthRequest().waitForGreenStatus(),
+            new ClusterHealthRequest(TEST_REQUEST_TIMEOUT).waitForGreenStatus(),
             listener
         );
 

@@ -16,14 +16,17 @@ import org.elasticsearch.compute.aggregation.MedianAbsoluteDeviationLongAggregat
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedianAbsoluteDeviation;
 
 import java.io.IOException;
 import java.util.List;
 
-public class MedianAbsoluteDeviation extends NumericAggregate {
+public class MedianAbsoluteDeviation extends NumericAggregate implements SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "MedianAbsoluteDeviation",
@@ -50,13 +53,13 @@ public class MedianAbsoluteDeviation extends NumericAggregate {
             ====""",
         isAggregation = true,
         examples = {
-            @Example(file = "stats_percentile", tag = "median-absolute-deviation"),
+            @Example(file = "median_absolute_deviation", tag = "median-absolute-deviation"),
             @Example(
                 description = "The expression can use inline functions. For example, to calculate the the "
                     + "median absolute deviation of the maximum values of a multivalued column, first "
                     + "use `MV_MAX` to get the maximum value per row, and use the result with the "
                     + "`MEDIAN_ABSOLUTE_DEVIATION` function",
-                file = "stats_percentile",
+                file = "median_absolute_deviation",
                 tag = "docsStatsMADNestedExpression"
             ), }
     )
@@ -96,5 +99,17 @@ public class MedianAbsoluteDeviation extends NumericAggregate {
     @Override
     protected AggregatorFunctionSupplier doubleSupplier(List<Integer> inputChannels) {
         return new MedianAbsoluteDeviationDoubleAggregatorFunctionSupplier(inputChannels);
+    }
+
+    @Override
+    public Expression surrogate() {
+        var s = source();
+        var field = field();
+
+        if (field.foldable()) {
+            return new MvMedianAbsoluteDeviation(s, new ToDouble(s, field));
+        }
+
+        return null;
     }
 }

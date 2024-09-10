@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Helper for adding a {@link Page} worth of {@link Block}s to a {@link BlockHash}
@@ -149,6 +150,6 @@ public class AddBlock implements Releasable {
 
     @Override
     public void close() {
-        ords.close();
+        Releasables.closeExpectNoException(ords, addInput);
     }
 }

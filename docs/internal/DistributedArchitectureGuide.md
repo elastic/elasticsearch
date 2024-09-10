@@ -452,22 +452,30 @@ It is the job of any long-running workload tracked by a [CancellableTask] to per
 
 ### Persistent Tasks
 
+[PersistentTaskPlugin]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/plugins/PersistentTaskPlugin.java
 [PersistentTasksExecutor]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/persistent/PersistentTasksExecutor.java
 [PersistentTasksExecutorRegistry]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/persistent/PersistentTasksExecutorRegistry.java
 [PersistentTasksNodeService]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/persistent/PersistentTasksNodeService.java
+[PersistentTasksClusterService]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/persistent/PersistentTasksClusterService.java
 [AllocatedPersistentTask]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/persistent/AllocatedPersistentTask.java
+[ShardFollowTasksExecutor]:https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/ccr/src/main/java/org/elasticsearch/xpack/ccr/action/ShardFollowTasksExecutor.java
+[HealthNodeTaskExecutor]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/health/node/selection/HealthNodeTaskExecutor.java
+[SystemIndexMigrationExecutor]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/upgrades/SystemIndexMigrationExecutor.java
 
 Up until now we have discussed only ephemeral tasks. If we want a task to survive node failures, it needs to be registered as a persistent task at the cluster level.
 
-Plugins can register persistent tasks by returning a [PersistentTasksExecutor] instance. These are collated into a [PersistentTasksExecutorRegistry] which is provided to [PersistentTasksNodeService] running on each node in the cluster.
+Plugins can register persistent tasks by implementing [PersistentTaskPlugin] and returning one or more [PersistentTasksExecutor] instances. These are collated into a [PersistentTasksExecutorRegistry] which is provided to [PersistentTasksNodeService] active on each node in the cluster, and a [PersistentTasksClusterService] active on the master.
 
-The [PersistentTasksNodeService] monitors the [ClusterState] to
+The [PersistentTasksClusterService] runs on the master to manage the set of running persistent tasks. It periodically checks that all persistent tasks are assigned to live nodes and handles the creation/completion/removal and updates to the state of persistent task instances in the cluster state.
+
+The [PersistentTasksNodeService] monitors the cluster state to:
  - Start any tasks allocated to it (tracked in the local [TaskManager] by an [AllocatedPersistentTask])
  - Cancel any running tasks that have been removed ([AllocatedPersistentTask] extends [CancellableTask])
 
-The [PersistentTasksClusterService] runs on the master to manage the set of running persistent tasks. It periodically checks that all started tasks are allocated and handles the starting/completion/cancellation and removal of persistent task instances.
-
-// WIP
+Some examples of the use of persistent tasks include:
+ - [ShardFollowTasksExecutor]: Defined by [cross-cluster replication](#cross-cluster-replication-ccr) to poll a remote cluster for updates
+ - [HealthNodeTaskExecutor]: Used to schedule work related to monitoring cluster health
+ - [SystemIndexMigrationExecutor]: Manages the migration of system indices after an upgrade
 
 ### Integration with telemetry
 

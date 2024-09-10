@@ -1,4 +1,10 @@
 ---
+teardown:
+  - do:
+      indices.delete:
+        index: .*
+
+---
 "Index creation with a dot-prefix is deprecated unless x-elastic-product-origin set":
   - requires:
       test_runner_features: ["warnings", "warnings_regex", "headers"]
@@ -66,9 +72,6 @@
         - "index name [.myindex3] starts with a dot '.', in the next major version, index names starting with a dot are reserved for hidden indices and system indices"
       bulk:
         body:
-          - index:
-              _index: other
-          - message: foo
           - index:
               _index: .myindex3
           - message: foo
@@ -157,6 +160,10 @@
           dest:
             index: .reindex2
 
+  - do:
+      ingest.delete_pipeline:
+        id: mypipeline
+
 ---
 "Reject index template that has a dot prefix index pattern":
   - requires:
@@ -175,7 +182,15 @@
       headers: { X-elastic-product-origin: kibana }
       warnings:
       indices.put_index_template:
-        name: my-template
+        name: my-template2
         body:
-          index_patterns: [regular, .data2-*]
+          index_patterns: [other, .data2-*]
           data_stream: {}
+
+  - do:
+      indices.delete_index_template:
+        name: my-template
+
+  - do:
+      indices.delete_index_template:
+        name: my-template2

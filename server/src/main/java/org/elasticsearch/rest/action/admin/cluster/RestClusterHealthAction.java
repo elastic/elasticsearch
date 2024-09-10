@@ -17,8 +17,10 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
@@ -31,7 +33,6 @@ import java.util.Locale;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestClusterHealthAction extends BaseRestHandler {
@@ -61,15 +62,15 @@ public class RestClusterHealthAction extends BaseRestHandler {
 
     public static ClusterHealthRequest fromRequest(final RestRequest request) {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        final ClusterHealthRequest clusterHealthRequest = new ClusterHealthRequest(indices);
+
+        final var masterNodeTimeout = request.hasParam(RestUtils.REST_MASTER_TIMEOUT_PARAM)
+            ? RestUtils.getMasterNodeTimeout(request)
+            : request.paramAsTime("timeout", RestUtils.REST_MASTER_TIMEOUT_DEFAULT);
+
+        final ClusterHealthRequest clusterHealthRequest = new ClusterHealthRequest(masterNodeTimeout, indices);
         clusterHealthRequest.indicesOptions(IndicesOptions.fromRequest(request, clusterHealthRequest.indicesOptions()));
         clusterHealthRequest.local(request.paramAsBoolean("local", clusterHealthRequest.local()));
         clusterHealthRequest.timeout(request.paramAsTime("timeout", clusterHealthRequest.timeout()));
-        if (request.hasParam("master_timeout")) {
-            clusterHealthRequest.masterNodeTimeout(getMasterNodeTimeout(request));
-        } else {
-            clusterHealthRequest.masterNodeTimeout(clusterHealthRequest.timeout());
-        }
         String waitForStatus = request.param("wait_for_status");
         if (waitForStatus != null) {
             clusterHealthRequest.waitForStatus(ClusterHealthStatus.valueOf(waitForStatus.toUpperCase(Locale.ROOT)));
@@ -109,6 +110,11 @@ public class RestClusterHealthAction extends BaseRestHandler {
     @Override
     public boolean canTripCircuitBreaker() {
         return false;
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return Sets.union(Set.of("unassigned_pri_shard_count"), super.supportedCapabilities());
     }
 
 }

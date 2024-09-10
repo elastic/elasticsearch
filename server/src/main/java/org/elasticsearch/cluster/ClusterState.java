@@ -984,7 +984,9 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 routingTable,
                 nodes,
                 compatibilityVersions,
-                new ClusterFeatures(nodeFeatures),
+                previous != null && getNodeFeatures(previous.clusterFeatures).equals(nodeFeatures)
+                    ? previous.clusterFeatures
+                    : new ClusterFeatures(nodeFeatures),
                 blocks,
                 customs.build(),
                 fromDiff,

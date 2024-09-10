@@ -11,13 +11,14 @@ package org.elasticsearch.action.admin.cluster.tasks;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 
 public class PendingClusterTasksRequest extends MasterNodeReadRequest<PendingClusterTasksRequest> {
 
-    public PendingClusterTasksRequest() {
-        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    public PendingClusterTasksRequest(TimeValue masterNodeTimeout) {
+        super(masterNodeTimeout);
     }
 
     public PendingClusterTasksRequest(StreamInput in) throws IOException {

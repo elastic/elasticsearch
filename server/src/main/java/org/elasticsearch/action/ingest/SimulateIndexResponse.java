@@ -96,6 +96,10 @@ public class SimulateIndexResponse extends IndexResponse {
         }
     }
 
+    public Exception getException() {
+        return this.exception;
+    }
+
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();

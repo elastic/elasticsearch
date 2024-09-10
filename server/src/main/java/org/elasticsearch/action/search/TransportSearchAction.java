@@ -312,8 +312,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-        ActionListener<SearchResponse> loggingAndMetrics = new SearchResponseActionListener((SearchTask) task, listener);
-        executeRequest((SearchTask) task, searchRequest, loggingAndMetrics, AsyncSearchActionProvider::new);
+        executeRequest(
+            (SearchTask) task,
+            searchRequest,
+            new SearchResponseActionListener((SearchTask) task, listener),
+            AsyncSearchActionProvider::new
+        );
     }
 
     void executeRequest(
@@ -369,7 +373,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             } else {
                 if ((listener instanceof TelemetryListener tl) && CCS_TELEMETRY_FEATURE_FLAG.isEnabled()) {
                     tl.setRemotes(resolvedIndices.getRemoteClusterIndices().size());
-                    if (isAsyncSearchTask(task)) {
+                    if (task.isAsync()) {
                         tl.setFeature(CCSUsageTelemetry.ASYNC_FEATURE);
                     }
                     String client = task.getHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
@@ -498,7 +502,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 // We set the keep alive to -1 to indicate that we don't need the pit id in the response.
                 // This is needed since we delete the pit prior to sending the response so the id doesn't exist anymore.
                 source.pointInTimeBuilder(new PointInTimeBuilder(resp.getPointInTimeId()).setKeepAlive(TimeValue.MINUS_ONE));
-                executeRequest(task, original, new ActionListener<>() {
+                var pitListener = new SearchResponseActionListener(task, listener) {
                     @Override
                     public void onResponse(SearchResponse response) {
                         // we need to close the PIT first so we delay the release of the response to after the closing
@@ -514,7 +518,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     public void onFailure(Exception e) {
                         closePIT(client, original.source().pointInTimeBuilder(), () -> listener.onFailure(e));
                     }
-                }, searchPhaseProvider);
+                };
+                executeRequest(task, original, pitListener, searchPhaseProvider);
             }));
         } else {
             Rewriteable.rewriteAndFetch(
@@ -1285,16 +1290,27 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     Executor asyncSearchExecutor(final String[] indices) {
-        final List<String> executorsForIndices = Arrays.stream(indices).map(executorSelector::executorForSearch).toList();
-        if (executorsForIndices.size() == 1) { // all indices have same executor
-            return threadPool.executor(executorsForIndices.get(0));
+        boolean seenSystem = false;
+        boolean seenCritical = false;
+        for (String index : indices) {
+            final String executorName = executorSelector.executorForSearch(index);
+            switch (executorName) {
+                case SYSTEM_READ -> seenSystem = true;
+                case SYSTEM_CRITICAL_READ -> seenCritical = true;
+                default -> {
+                    return threadPool.executor(executorName);
+                }
+            }
         }
-        if (executorsForIndices.size() == 2
-            && executorsForIndices.contains(SYSTEM_READ)
-            && executorsForIndices.contains(SYSTEM_CRITICAL_READ)) { // mix of critical and non critical system indices
-            return threadPool.executor(SYSTEM_READ);
+        final String executor;
+        if (seenSystem == false && seenCritical) {
+            executor = SYSTEM_CRITICAL_READ;
+        } else if (seenSystem) {
+            executor = SYSTEM_READ;
+        } else {
+            executor = ThreadPool.Names.SEARCH;
         }
-        return threadPool.executor(ThreadPool.Names.SEARCH);
+        return threadPool.executor(executor);
     }
 
     static BiFunction<String, String, Transport.Connection> buildConnectionLookup(
@@ -1512,34 +1528,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 }
             }
         }
-    }
-
-    /**
-     * TransportSearchAction cannot access async-search code, so can't check whether this the Task
-     * is an instance of AsyncSearchTask, so this roundabout method is used
-     * @param searchTask SearchTask to analyze
-     * @return true if this is an async search task; false if a synchronous search task
-     */
-    private boolean isAsyncSearchTask(SearchTask searchTask) {
-        assert assertAsyncSearchTaskListener(searchTask) : "AsyncSearchTask SearchProgressListener is not one of the expected types";
-        // AsyncSearchTask will not return SearchProgressListener.NOOP, since it uses its own progress listener
-        // which delegates to CCSSingleCoordinatorSearchProgressListener when minimizing roundtrips.
-        // Only synchronous SearchTask uses SearchProgressListener.NOOP or CCSSingleCoordinatorSearchProgressListener directly
-        return searchTask.getProgressListener() != SearchProgressListener.NOOP
-            && searchTask.getProgressListener() instanceof CCSSingleCoordinatorSearchProgressListener == false;
-    }
-
-    /**
-     * @param searchTask SearchTask to analyze
-     * @return true if AsyncSearchTask still uses its own special listener, not one of the two that synchronous SearchTask uses
-     */
-    private boolean assertAsyncSearchTaskListener(SearchTask searchTask) {
-        if (searchTask.getClass().getSimpleName().contains("AsyncSearchTask")) {
-            SearchProgressListener progressListener = searchTask.getProgressListener();
-            return progressListener != SearchProgressListener.NOOP
-                && progressListener instanceof CCSSingleCoordinatorSearchProgressListener == false;
-        }
-        return true;
     }
 
     private static void validateAndResolveWaitForCheckpoint(
@@ -1863,7 +1851,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchResponseActionListener(SearchTask task, ActionListener<SearchResponse> listener) {
             this.task = task;
             this.listener = listener;
-            usageBuilder = new CCSUsage.Builder();
+            if (listener instanceof SearchResponseActionListener srListener) {
+                usageBuilder = srListener.usageBuilder;
+            } else {
+                usageBuilder = new CCSUsage.Builder();
+            }
         }
 
         /**

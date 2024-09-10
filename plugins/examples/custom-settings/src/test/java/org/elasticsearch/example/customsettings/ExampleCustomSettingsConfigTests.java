@@ -17,7 +17,7 @@ import static org.elasticsearch.example.customsettings.ExampleCustomSettingsConf
  * <p>
  * It's a JUnit test class that extends {@link ESTestCase} which provides useful methods for testing.
  * <p>
- * The tests can be executed in the IDE or using the command: ./gradlew :example-plugins:custom-settings:test
+ * The tests can be executed in the IDE or using the command: ./gradlew :custom-settings:test
  */
 public class ExampleCustomSettingsConfigTests extends ESTestCase {
 

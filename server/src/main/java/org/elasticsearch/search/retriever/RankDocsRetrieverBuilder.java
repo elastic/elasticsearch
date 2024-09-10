@@ -17,7 +17,6 @@ import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankDocsRankBuilder;
 import org.elasticsearch.search.retriever.rankdoc.RankDocsQueryBuilder;
 import org.elasticsearch.search.retriever.rankdoc.RankDocsSortBuilder;
-import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -99,11 +98,12 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
         // here we force a custom sort based on the rank of the documents
         // TODO: should we adjust to account for other fields sort options just for the top ranked docs?
         if (searchSourceBuilder.rescores() == null || searchSourceBuilder.rescores().isEmpty()) {
-            searchSourceBuilder.sort(Arrays.asList(new RankDocsSortBuilder(rankDocs.get()), new ScoreSortBuilder()));
+            searchSourceBuilder.sort(List.of(new RankDocsSortBuilder(rankDocs.get())));
         }
-        if (searchSourceBuilder.explain() != null && searchSourceBuilder.explain()) {
+        if (isProfileRequest(searchSourceBuilder) || isExplainRequest(searchSourceBuilder)) {
             searchSourceBuilder.trackScores(true);
         }
+
         BoolQueryBuilder boolQuery = new BoolQueryBuilder();
         RankDocsQueryBuilder rankQuery = new RankDocsQueryBuilder(rankDocs.get());
         // if we have aggregations we need to compute them based on all doc matches, not just the top hits
@@ -116,7 +116,11 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
             // compute a disjunction of all the query sources that were executed to compute the top rank docs
             QueryBuilder disjunctionOfSources = topDocsQuery();
             if (disjunctionOfSources != null) {
-                boolQuery.should(disjunctionOfSources);
+                if (isExplainRequest(searchSourceBuilder) || isProfileRequest(searchSourceBuilder)) {
+                    boolQuery.must(disjunctionOfSources);
+                } else {
+                    boolQuery.filter(disjunctionOfSources);
+                }
             }
         } else {
             boolQuery.must(rankQuery);

@@ -74,25 +74,25 @@ public class RankDocsRankBuilder extends RankBuilder {
         }
         List<Explanation> explanations = new ArrayList<>();
         int subQueriesAdded = 0;
-        for (int i = 0; i < baseExplanation.getDetails()[0].getDetails().length; i++) {
-            Explanation nestedExplanation = baseExplanation.getDetails()[0].getDetails()[i];
+        for (int i = 0; i < baseExplanation.getDetails()[1].getDetails().length; i++) {
+            Explanation nestedExplanation = baseExplanation.getDetails()[1].getDetails()[i];
             final String queryAlias = retrieverNames.get(i) == null ? "" : " [" + retrieverNames.get(i) + "]";
             if (nestedExplanation.isMatch()) {
                 explanations.add(
                     Explanation.match(
                         nestedExplanation.getValue(),
                         nestedExplanation.getDescription() + queryAlias,
-                        baseExplanation.getDetails()[++subQueriesAdded]
+                        baseExplanation.getDetails()[0].getDetails()[subQueriesAdded++]
                     )
                 );
             } else {
-                explanations.add(Explanation.noMatch(baseExplanation.getDetails()[0].getDetails()[i].getDescription() + queryAlias));
+                explanations.add(Explanation.noMatch(baseExplanation.getDetails()[1].getDetails()[i].getDescription() + queryAlias));
             }
         }
         return Explanation.match(
-            baseExplanation.getDetails()[0].getValue(),
-            baseExplanation.getDetails()[0].getDescription(),
-            explanations.toArray(new Explanation[0])
+            baseExplanation.getDetails()[1].getValue(),
+            baseExplanation.getDetails()[1].getDescription(),
+            explanations.toArray(new Explanation[1])
         );
     }
 

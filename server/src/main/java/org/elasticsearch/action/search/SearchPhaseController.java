@@ -429,6 +429,10 @@ public final class SearchPhaseController {
             for (int i = 0; i < sortFields.length; i++) {
                 if (sortFields[i].getType() == SortField.Type.SCORE) {
                     sortScoreIndex = i;
+                    break;
+                } else if (RankDocsSortField.NAME.equals(sortFields[i].getField())) {
+                    sortScoreIndex = i;
+                    break;
                 }
             }
         }
@@ -475,7 +479,9 @@ public final class SearchPhaseController {
                     } else if (shardDoc instanceof RankDoc) {
                         RankDoc rankDoc = (RankDoc) shardDoc;
                         searchHit.sortValues(rankDoc.sortValues, reducedQueryPhase.sortValueFormats);
-                        searchHit.score((Float) rankDoc.sortValues[sortScoreIndex]);
+                        if (sortScoreIndex != -1) {
+                            searchHit.score(RankDocsSortField.decodeScore((Long) rankDoc.sortValues[sortScoreIndex]));
+                        }
                         searchHit.setRank(rankDoc.rank);
                     } else {
                         throw new IllegalArgumentException("Unsupported ScoreDoc type: " + shardDoc.getClass());
@@ -692,7 +698,6 @@ public final class SearchPhaseController {
     }
 
     private static SortedTopDocs extractRankDocs(SortedTopDocs originalDocs) {
-        RankDoc[] rankedDocs = new RankDoc[originalDocs.scoreDocs.length];
         int rankIndex = -1;
         for (int i = 0; i < originalDocs.sortFields().length; i++) {
             if (RankDocsSortField.NAME.equals(originalDocs.sortFields[i].getField())) {
@@ -703,21 +708,23 @@ public final class SearchPhaseController {
         if (rankIndex < 0) {
             throw new IllegalArgumentException("{" + RankDocsSortField.NAME + "} not found in sort fields");
         }
-        for (int i = 0; i < rankedDocs.length; i++) {
-            int rank = (int) ((FieldDoc) originalDocs.scoreDocs[i]).fields[rankIndex];
-            if (rank == Integer.MAX_VALUE) {
+        List<RankDoc> rankedDocs = new ArrayList<>();
+        for (int i = 0; i < originalDocs.scoreDocs.length; i++) {
+            long rank = (long) ((FieldDoc) originalDocs.scoreDocs[i]).fields[rankIndex];
+            if (rank == Long.MAX_VALUE) {
                 break;
             }
-            rankedDocs[i] = new RankDoc(
+            RankDoc rankedDoc = new RankDoc(
                 originalDocs.scoreDocs[i].doc,
                 originalDocs.scoreDocs[i].score,
                 originalDocs.scoreDocs[i].shardIndex
             );
-            rankedDocs[i].rank = rank;
-            rankedDocs[i].sortValues = ((FieldDoc) originalDocs.scoreDocs[i]).fields;
+            rankedDoc.rank = RankDocsSortField.decodeRank(rank);
+            rankedDoc.sortValues = ((FieldDoc) originalDocs.scoreDocs[i]).fields;
+            rankedDocs.add(rankedDoc);
         }
         return new SortedTopDocs(
-            rankedDocs,
+            rankedDocs.toArray(new RankDoc[0]),
             originalDocs.isSortedByField(),
             originalDocs.sortFields(),
             originalDocs.collapseField(),

@@ -283,6 +283,68 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         });
     }
 
+    public void testRankDocsRetrieverWithCollapseAndAggs() {
+        final int rankWindowSize = 100;
+        final int rankConstant = 10;
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        // this one retrieves docs 1, 2, 4, 6, and 7
+        StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder(
+            QueryBuilders.constantScoreQuery(QueryBuilders.queryStringQuery("term").defaultField(TEXT_FIELD)).boost(10L)
+        );
+        // this one retrieves docs 2 and 6 due to prefilter
+        StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
+            QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2", "doc_3", "doc_6")).boost(20L)
+        );
+        standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
+        // this one retrieves docs 3, 2, 6, and 7
+        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 4.0f }, null, 10, 100, null);
+        source.retriever(
+            new RRFRetrieverBuilder(
+                Arrays.asList(
+                    new CompoundRetrieverBuilder.RetrieverSource(standard0, null),
+                    new CompoundRetrieverBuilder.RetrieverSource(standard1, null),
+                    new CompoundRetrieverBuilder.RetrieverSource(knnRetrieverBuilder, null)
+                ),
+                rankWindowSize,
+                rankConstant
+            )
+        );
+        source.collapse(
+            new CollapseBuilder(TOPIC_FIELD).setInnerHits(
+                new InnerHitBuilder("a").addSort(new FieldSortBuilder(DOC_FIELD).order(SortOrder.DESC)).setSize(10)
+            )
+        );
+        source.fetchField(TOPIC_FIELD);
+        source.aggregation(AggregationBuilders.terms("topic_agg").field(TOPIC_FIELD));
+        SearchRequestBuilder req = client().prepareSearch(INDEX).setSource(source);
+        ElasticsearchAssertions.assertResponse(req, resp -> {
+            assertNull(resp.pointInTimeId());
+            assertNotNull(resp.getHits().getTotalHits());
+            assertThat(resp.getHits().getTotalHits().value, equalTo(6L));
+            assertThat(resp.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
+            assertThat(resp.getHits().getHits().length, equalTo(4));
+            assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_2"));
+            assertThat(Objects.requireNonNull(resp.getHits().getAt(0).getInnerHits().get("a").getTotalHits()).value, equalTo(1L));
+            assertThat(resp.getHits().getAt(1).getId(), equalTo("doc_6"));
+            assertThat(Objects.requireNonNull(resp.getHits().getAt(1).getInnerHits().get("a").getTotalHits()).value, equalTo(1L));
+            assertThat(resp.getHits().getAt(2).getId(), equalTo("doc_7"));
+            assertThat(Objects.requireNonNull(resp.getHits().getAt(2).getInnerHits().get("a").getTotalHits()).value, equalTo(1L));
+            assertThat(resp.getHits().getAt(3).getId(), equalTo("doc_1"));
+            assertThat(Objects.requireNonNull(resp.getHits().getAt(3).getInnerHits().get("a").getTotalHits()).value, equalTo(3L));
+            assertThat(resp.getHits().getAt(3).getInnerHits().get("a").getAt(0).getId(), equalTo("doc_4"));
+            assertThat(resp.getHits().getAt(3).getInnerHits().get("a").getAt(1).getId(), equalTo("doc_3"));
+            assertThat(resp.getHits().getAt(3).getInnerHits().get("a").getAt(2).getId(), equalTo("doc_1"));
+
+            assertNotNull(resp.getAggregations());
+            assertNotNull(resp.getAggregations().get("topic_agg"));
+            Terms terms = resp.getAggregations().get("topic_agg");
+
+            assertThat(terms.getBucketByKey("technology").getDocCount(), equalTo(3L));
+            assertThat(terms.getBucketByKey("astronomy").getDocCount(), equalTo(1L));
+            assertThat(terms.getBucketByKey("biology").getDocCount(), equalTo(1L));
+        });
+    }
+
     public void testMultipleRRFRetrievers() {
         final int rankWindowSize = 100;
         final int rankConstant = 10;

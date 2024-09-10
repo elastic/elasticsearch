@@ -313,7 +313,8 @@ We have both the ranker's `score` and the `_rank` option to show our top-ranked 
                         3
                     ],
                     "text" : "rrf rrf rrf"
-                }
+                },
+                "sort": ...
             },
             {
                 "_index" : "example-index",
@@ -326,7 +327,8 @@ We have both the ranker's `score` and the `_rank` option to show our top-ranked 
                         4
                     ],
                     "text" : "rrf rrf"
-                }
+                },
+                "sort": ...
             },
             {
                 "_index" : "example-index",
@@ -336,7 +338,8 @@ We have both the ranker's `score` and the `_rank` option to show our top-ranked 
                 "_source" : {
                     "integer" : 2,
                     "text" : "rrf rrf rrf rrf"
-                }
+                },
+                "sort": ...
             }
         ]
     },

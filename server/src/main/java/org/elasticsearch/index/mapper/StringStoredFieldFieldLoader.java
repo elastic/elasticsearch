@@ -72,6 +72,6 @@ public abstract class StringStoredFieldFieldLoader implements SourceLoader.Synth
 
     @Override
     public String fieldName() {
-        return name;
+        return simpleName;
     }
 }

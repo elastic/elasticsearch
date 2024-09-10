@@ -101,8 +101,8 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Optimizer
                         docValuesAttributes.add(found);
                     }
                 }
-                if (docValuesAttributes.size() > 0) {
-                    exec = new FieldExtractExec(exec.source(), exec.child(), attributesToExtract, docValuesAttributes);
+                if (docValuesAttributes.isEmpty() == false) {
+                    exec = fieldExtractExec.withDocValuesAttributes(docValuesAttributes);
                 }
             }
             return exec;

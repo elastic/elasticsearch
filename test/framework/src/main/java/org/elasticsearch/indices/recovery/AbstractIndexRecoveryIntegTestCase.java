@@ -103,7 +103,7 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         );
         final String redNodeName = internalCluster().startNode(Settings.builder().put("node.attr.color", "red").put(nodeSettings).build());
 
-        ClusterHealthResponse response = clusterAdmin().prepareHealth().setWaitForNodes(">=3").get();
+        ClusterHealthResponse response = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForNodes(">=3").get();
         assertThat(response.isTimedOut(), is(false));
 
         indicesAdmin().prepareCreate(indexName)
@@ -128,7 +128,7 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         indexRandom(true, requests);
         ensureSearchable(indexName);
 
-        ClusterStateResponse stateResponse = clusterAdmin().prepareState().get();
+        ClusterStateResponse stateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
         final String blueNodeId = getNodeId(blueNodeName);
 
         assertFalse(stateResponse.getState().getRoutingNodes().node(blueNodeId).isEmpty());
@@ -204,7 +204,7 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         );
         final String redNodeName = internalCluster().startNode(Settings.builder().put("node.attr.color", "red").put(nodeSettings).build());
 
-        ClusterHealthResponse response = clusterAdmin().prepareHealth().setWaitForNodes(">=3").get();
+        ClusterHealthResponse response = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForNodes(">=3").get();
         assertThat(response.isTimedOut(), is(false));
 
         indicesAdmin().prepareCreate(indexName)
@@ -219,7 +219,7 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         indexRandom(true, requests);
         ensureSearchable(indexName);
 
-        ClusterStateResponse stateResponse = clusterAdmin().prepareState().get();
+        ClusterStateResponse stateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
         final String blueNodeId = getNodeId(blueNodeName);
 
         assertFalse(stateResponse.getState().getRoutingNodes().node(blueNodeId).isEmpty());
@@ -344,7 +344,7 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
                                 "Expected there to be some initializing shards",
                                 client(blueNodeName).admin()
                                     .cluster()
-                                    .prepareState()
+                                    .prepareState(TEST_REQUEST_TIMEOUT)
                                     .setLocal(true)
                                     .get()
                                     .getState()

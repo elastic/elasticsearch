@@ -1,5 +1,0 @@
-pr: 112230
-summary: Fix connection timeout for `OpenIdConnectAuthenticator` get Userinfo
-area: Security
-type: bug
-issues: []

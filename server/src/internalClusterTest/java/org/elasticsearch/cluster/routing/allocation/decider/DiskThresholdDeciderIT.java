@@ -231,7 +231,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
 
     private Set<ShardId> getShardIds(final String nodeId, final String indexName) {
         final Set<ShardId> shardIds = new HashSet<>();
-        final IndexRoutingTable indexRoutingTable = clusterAdmin().prepareState()
+        final IndexRoutingTable indexRoutingTable = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setRoutingTable(true)
             .get()
@@ -319,7 +319,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         }
 
         assertFalse(
-            clusterAdmin().prepareHealth()
+            clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                 .setWaitForEvents(Priority.LANGUID)
                 .setWaitForNoRelocatingShards(true)
                 .setWaitForNoInitializingShards(true)

@@ -646,7 +646,7 @@ public final class DocumentParser {
                         context.addIgnoredField(
                             IgnoredSourceFieldMapper.NameValue.fromContext(
                                 context,
-                                currentFieldName,
+                                context.path().pathAsText(currentFieldName),
                                 XContentDataHelper.encodeToken(context.parser())
                             )
                         );

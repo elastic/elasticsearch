@@ -203,7 +203,7 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
         var getTaskRequest = new GetTaskRequest().setTaskId(executePolicyResponse.getTaskId()).setWaitForCompletion(true);
         clusterAdmin().getTask(getTaskRequest).actionGet();
 
-        var discoNodes = clusterAdmin().state(new ClusterStateRequest()).actionGet().getState().nodes();
+        var discoNodes = clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT)).actionGet().getState().nodes();
         assertThat(discoNodes.get(executePolicyResponse.getTaskId().getNodeId()).isMasterNode(), is(false));
     }
 
@@ -230,7 +230,7 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
         var getTaskRequest = new GetTaskRequest().setTaskId(executePolicyResponse.getTaskId()).setWaitForCompletion(true);
         clusterAdmin().getTask(getTaskRequest).actionGet();
 
-        var discoNodes = clusterAdmin().state(new ClusterStateRequest()).actionGet().getState().nodes();
+        var discoNodes = clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT)).actionGet().getState().nodes();
         assertThat(executePolicyResponse.getTaskId().getNodeId(), not(equalTo(discoNodes.getMasterNodeId())));
     }
 

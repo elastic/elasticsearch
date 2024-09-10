@@ -38,6 +38,11 @@ public class EsqlCapabilities {
         FN_MV_APPEND,
 
         /**
+         * Support for {@code MV_MEDIAN_ABSOLUTE_DEVIATION} function.
+         */
+        FN_MV_MEDIAN_ABSOLUTE_DEVIATION,
+
+        /**
          * Support for {@code MV_PERCENTILE} function.
          */
         FN_MV_PERCENTILE,
@@ -91,6 +96,11 @@ public class EsqlCapabilities {
          * Support for ips in {@code TOP} aggregation.
          */
         AGG_TOP_IP_SUPPORT,
+
+        /**
+         * {@code CASE} properly handling multivalue conditions.
+         */
+        CASE_MV,
 
         /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
@@ -274,7 +284,17 @@ public class EsqlCapabilities {
         /**
          * Allow mixed numeric types in coalesce
          */
-        MIXED_NUMERIC_TYPES_IN_COALESCE;
+        MIXED_NUMERIC_TYPES_IN_COALESCE,
+
+        /**
+         * Support for requesting the "SPACE" function.
+         */
+        SPACE,
+
+        /**
+         * Support explicit casting from string literal to DATE_PERIOD or TIME_DURATION.
+         */
+        CAST_STRING_LITERAL_TO_TEMPORAL_AMOUNT;
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

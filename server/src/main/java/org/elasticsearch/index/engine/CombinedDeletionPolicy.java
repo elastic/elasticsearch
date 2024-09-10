@@ -223,9 +223,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         assert lastCommit != null : "Last commit is not initialized yet";
         final IndexCommit snapshotting = acquiringSafeCommit ? safeCommit : lastCommit;
         acquiredIndexCommits.merge(snapshotting, 1, Integer::sum); // increase refCount
-        if (Assertions.ENABLED && acquiredInternally) {
-            internallyAcquiredIndexCommits.add(snapshotting);
-        }
+        assert acquiredInternally == false || internallyAcquiredIndexCommits.add(snapshotting) : "commit [" + snapshotting + "] already added";
         return wrapCommit(snapshotting, acquiredInternally);
     }
 

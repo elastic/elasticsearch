@@ -90,7 +90,6 @@ public class ModelImporter {
             );
 
         ModelLoaderUtils.VocabularyParts vocabularyParts = null;
-
         try {
             if (config.getVocabularyFile() != null) {
                 vocabularyParts = ModelLoaderUtils.loadVocabulary(
@@ -146,18 +145,21 @@ public class ModelImporter {
             // The final split is a single chunk
             for (int streamSplit = 0; streamSplit < downloaders.size() - 1; ++streamSplit) {
                 final var downloader = downloaders.get(streamSplit);
-                var doLast = countingListener.acquire();
-                executorService.execute(() -> downloadPartsInRange(size, totalParts, downloader, countingListener, doLast));
+                var rangeDownloadedListener = countingListener.acquire(); // acquire to keep the counting listener from closing
+                executorService.execute(
+                    () -> downloadPartInRange(size, totalParts, downloader, executorService, countingListener, rangeDownloadedListener)
+                );
             }
         }
     }
 
-    private void downloadPartsInRange(
+    private void downloadPartInRange(
         long size,
         int totalParts,
         ModelLoaderUtils.HttStreamChunker downloadChunker,
+        ExecutorService executorService,
         RefCountingListener countingListener,
-        ActionListener<Void> doLast
+        ActionListener<Void> rangeFullyDownloadedListener
     ) {
         assert ThreadPool.assertCurrentThreadPool(MachineLearningPackageLoader.MODEL_DOWNLOAD_THREADPOOL_NAME)
             : format(
@@ -166,29 +168,40 @@ public class ModelImporter {
                 Thread.currentThread().getName()
             );
 
-        while (downloadChunker.hasNext()) {
-            if (countingListener.isFailing()) {
-                if (listenerIsClosed.compareAndSet(false, true)) {
-                    countingListener.close();
-                }
-                return;
+        if (countingListener.isFailing()) {
+            if (listenerIsClosed.compareAndSet(false, true)) {
+                countingListener.close();
             }
+            return;
+        }
 
-            try {
-                throwIfTaskCancelled();
-                var bytesAndIndex = downloadChunker.next();
-                task.setProgress(totalParts, progressCounter.getAndIncrement());
+        try {
+            throwIfTaskCancelled();
+            var bytesAndIndex = downloadChunker.next();
+            task.setProgress(totalParts, progressCounter.getAndIncrement());
 
-                indexPart(bytesAndIndex.partIndex(), totalParts, size, bytesAndIndex.bytes(), countingListener.acquire(ack -> {}));
-            } catch (Exception e) {
-                countingListener.acquire().onFailure(e);
-                if (listenerIsClosed.compareAndSet(false, true)) {
-                    countingListener.close();
-                }
+            indexPart(bytesAndIndex.partIndex(), totalParts, size, bytesAndIndex.bytes(), countingListener.acquire(ack -> {}));
+        } catch (Exception e) {
+            countingListener.acquire().onFailure(e);
+            if (listenerIsClosed.compareAndSet(false, true)) {
+                countingListener.close();
             }
         }
 
-        doLast.onResponse(null);
+        if (downloadChunker.hasNext()) {
+            executorService.execute(
+                () -> downloadPartInRange(
+                    size,
+                    totalParts,
+                    downloadChunker,
+                    executorService,
+                    countingListener,
+                    rangeFullyDownloadedListener
+                )
+            );
+        } else {
+            rangeFullyDownloadedListener.onResponse(null);
+        }
     }
 
     private void downloadFinalPart(

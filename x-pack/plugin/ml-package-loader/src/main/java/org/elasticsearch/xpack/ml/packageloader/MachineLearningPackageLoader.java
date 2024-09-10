@@ -97,7 +97,7 @@ public class MachineLearningPackageLoader extends Plugin implements ActionPlugin
             settings,
             MODEL_DOWNLOAD_THREADPOOL_NAME,
             ModelImporter.NUMBER_OF_STREAMS,
-            ModelImporter.NUMBER_OF_STREAMS * 2, // max items in queue
+            -1, // unbounded queue size
             "xpack.ml.model_download_thread_pool",
             EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
         );

@@ -99,8 +99,8 @@ public class ResourceWatcherService implements Closeable {
             executor = new Scheduler.SafeScheduledThreadPoolExecutor(1, (runnable, exec) -> {
                 if (exec.isShutdown() == false) {
                     logger.error(
-                        "failed to schedule monitoring file on executor [{}], updates to settings files on disk may require " +
-                            "restarting this process to be applied",
+                        "failed to schedule monitoring file on executor [{}], updates to settings files on disk may require "
+                            + "restarting this process to be applied",
                         exec.toString()
                     );
                     assert false;

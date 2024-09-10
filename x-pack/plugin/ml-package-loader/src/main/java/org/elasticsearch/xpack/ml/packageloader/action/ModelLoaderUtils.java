@@ -278,7 +278,7 @@ final class ModelLoaderUtils {
                     case HTTP_NOT_FOUND:
                         throw new ResourceNotFoundException("{} not found", uri);
                     case 416: // Range not satisfiable, for some reason not in the list of constants
-                        throw new IllegalStateException("Invalid range [" + range.bytesRange() + "]");
+                        throw new IllegalStateException("Invalid request range [" + range.bytesRange() + "]");
                     default:
                         int responseCode = conn.getResponseCode();
                         throw new ElasticsearchStatusException(
@@ -327,8 +327,8 @@ final class ModelLoaderUtils {
      * whole number of chunks.
      * The first {@code numberOfStreams} ranges will be split evenly (in terms of
      * number of chunks not the byte size), the final range split
-     * is for the single final chunk and will be {@code chunkSizeBytes} in size.
-     * The separate range for the final chunk is because when streaming and
+     * is for the single final chunk and will be no more than {@code chunkSizeBytes}
+     * in size. The separate range for the final chunk is because when streaming and
      * uploading a large model definition, writing the last part has to handled
      * as a special case.
      * @param sizeInBytes The total size of the stream
@@ -364,7 +364,7 @@ final class ModelLoaderUtils {
             startChunkIndex += numChunksExcludingFinal;
         }
 
-        // The final range is a single chunk and should not exceed the
+        // The final range is a single chunk the end of which should not exceed sizeInBytes
         long rangeEnd = Math.min(sizeInBytes, startOffset + (baseChunksPerStream * chunkSizeBytes)) - 1;
         ranges.add(new RequestRange(startOffset, rangeEnd, startChunkIndex, 1));
 

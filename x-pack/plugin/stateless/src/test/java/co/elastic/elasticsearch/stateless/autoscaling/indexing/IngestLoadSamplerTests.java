@@ -468,7 +468,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
     // A mocked sampler that returns random values
     private static class RandomAverageWriteLoadSampler extends AverageWriteLoadSampler {
         RandomAverageWriteLoadSampler(ThreadPool threadPool) {
-            super(threadPool, TimeValue.timeValueSeconds(1), DEFAULT_EWMA_ALPHA);
+            super(threadPool, TimeValue.timeValueSeconds(1), DEFAULT_EWMA_ALPHA, DEFAULT_EWMA_ALPHA);
         }
 
         @Override
@@ -480,6 +480,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
                 randomDoubleBetween(0.0, 8.0, true),
                 randomDoubleBetween(100.0, 500.0, true),
                 randomIntBetween(0, 100),
+                randomDoubleBetween(0.0, 100.0, true),
                 between(1, 10)
             );
         }

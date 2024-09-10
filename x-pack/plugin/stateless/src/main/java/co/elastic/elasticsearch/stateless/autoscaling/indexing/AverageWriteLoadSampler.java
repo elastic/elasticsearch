@@ -43,6 +43,14 @@ public class AverageWriteLoadSampler {
         Setting.Property.NodeScope,
         Setting.Property.OperatorDynamic
     );
+    public static final Setting<Double> QUEUE_SIZE_SAMPLER_EWMA_ALPHA_SETTING = Setting.doubleSetting(
+        "serverless.autoscaling.indexing.queue_size_ewma_alpha",
+        DEFAULT_EWMA_ALPHA,
+        0.0,
+        1.0,
+        Setting.Property.NodeScope,
+        Setting.Property.OperatorDynamic
+    );
 
     private final ThreadPool threadPool;
     private final Map<String, AverageLoad> averageLoadPerExector = new HashMap<>();
@@ -51,16 +59,26 @@ public class AverageWriteLoadSampler {
         assert WRITE_EXECUTORS.stream()
             .map(threadPool::executor)
             .allMatch(executor -> executor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor);
-        double ewmaAlpha = clusterSettings.get(WRITE_LOAD_SAMPLER_EWMA_ALPHA_SETTING);
-        var sampler = new AverageWriteLoadSampler(threadPool, IngestLoadSampler.SAMPLING_FREQUENCY_SETTING.get(settings), ewmaAlpha);
-        clusterSettings.addSettingsUpdateConsumer(WRITE_LOAD_SAMPLER_EWMA_ALPHA_SETTING, sampler::updateEWMAAlpha);
+        double writeLoadEwmaAlpha = clusterSettings.get(WRITE_LOAD_SAMPLER_EWMA_ALPHA_SETTING);
+        double queueSizeEwmaAlpha = clusterSettings.get(QUEUE_SIZE_SAMPLER_EWMA_ALPHA_SETTING);
+        var sampler = new AverageWriteLoadSampler(
+            threadPool,
+            IngestLoadSampler.SAMPLING_FREQUENCY_SETTING.get(settings),
+            writeLoadEwmaAlpha,
+            queueSizeEwmaAlpha
+        );
+        clusterSettings.addSettingsUpdateConsumer(WRITE_LOAD_SAMPLER_EWMA_ALPHA_SETTING, sampler::updateWriteLoadEwmaAlpha);
+        clusterSettings.addSettingsUpdateConsumer(QUEUE_SIZE_SAMPLER_EWMA_ALPHA_SETTING, sampler::updateQueueSizeEwmaAlpha);
         return sampler;
     }
 
-    AverageWriteLoadSampler(ThreadPool threadPool, TimeValue samplingFrequency, double ewmaAlpha) {
+    AverageWriteLoadSampler(ThreadPool threadPool, TimeValue samplingFrequency, double writeLoadEwmaAlpha, double queueSizeEwmaAlpha) {
         this.threadPool = threadPool;
         WRITE_EXECUTORS.forEach(
-            name -> averageLoadPerExector.put(name, new AverageLoad(threadPool.info(name).getMax(), samplingFrequency, ewmaAlpha))
+            name -> averageLoadPerExector.put(
+                name,
+                new AverageLoad(threadPool.info(name).getMax(), samplingFrequency, writeLoadEwmaAlpha, queueSizeEwmaAlpha)
+            )
         );
     }
 
@@ -69,7 +87,7 @@ public class AverageWriteLoadSampler {
             var executor = (TaskExecutionTimeTrackingEsThreadPoolExecutor) threadPool.executor(name);
             long currentTotalNanos = executor.getTotalTaskExecutionTime();
             var ongoingTasks = executor.getOngoingTasks();
-            averageLoadPerExector.get(name).update(currentTotalNanos, ongoingTasks.values());
+            averageLoadPerExector.get(name).update(currentTotalNanos, ongoingTasks.values(), executor.getCurrentQueueSize());
         }
     }
 
@@ -79,36 +97,46 @@ public class AverageWriteLoadSampler {
         }
         var executor = (TaskExecutionTimeTrackingEsThreadPoolExecutor) threadPool.executor(executorName);
         return new ExecutorStats(
-            averageLoadPerExector.get(executorName).get(),
+            averageLoadPerExector.get(executorName).getWriteLoad(),
             executor.getTaskExecutionEWMA(),
             executor.getCurrentQueueSize(),
+            averageLoadPerExector.get(executorName).getQueueSize(),
             executor.getMaximumPoolSize()
         );
     }
 
-    private void updateEWMAAlpha(double alpha) {
-        averageLoadPerExector.forEach((s, averageLoad) -> averageLoad.updateEwmaAlpha(alpha));
+    private void updateWriteLoadEwmaAlpha(double alpha) {
+        averageLoadPerExector.forEach((s, averageLoad) -> averageLoad.updateWriteLoadEwmaAlpha(alpha));
+    }
+
+    private void updateQueueSizeEwmaAlpha(double alpha) {
+        averageLoadPerExector.forEach((s, averageLoad) -> averageLoad.updateQueueSizeEwmaAlpha(alpha));
     }
 
     /**
-     * Represents the average number of threads busy per second for an executor.
+     * Represents the average load for an executor. This load consists of two parts, the number of threads busy per second, and the queue
+     * size of the executor.
      * Each sample (1 second interval) represents the proportion of time (wall clock) spent running tasks. We use a weighted average and
      * the EWMA alpha value (0.2) is chosen such that samples older than 1 minute have a negligible effect on the average load.
+     * Similarly, the queue size is sampled every second and a weighted average (EWMA with alpha = 0.2) is used to represent the average
+     * queue size.
      */
     static class AverageLoad {
         private volatile long previousTotalExecutionTimeNanos = 0;
         private ExponentiallyWeightedMovingAverage writeLoadEwma;
+        private ExponentiallyWeightedMovingAverage queueSizeEwma;
         // The maximum execution time possible within a sampling period, which is samplingFrequency * threadpoolSize
         private final long maxExecutionTimePerSamplingPeriodNanos;
         private final TimeValue samplingFrequency;
 
-        AverageLoad(int executorMaxSize, TimeValue samplingFrequency, double EWMAAlpha) {
+        AverageLoad(int executorMaxSize, TimeValue samplingFrequency, double writeLoadEwmaAlpha, double queueSizeEwmaAlpha) {
             this.maxExecutionTimePerSamplingPeriodNanos = executorMaxSize * samplingFrequency.nanos();
             this.samplingFrequency = samplingFrequency;
-            this.writeLoadEwma = new ExponentiallyWeightedMovingAverage(EWMAAlpha, 0.0);
+            this.writeLoadEwma = new ExponentiallyWeightedMovingAverage(writeLoadEwmaAlpha, 0.0);
+            this.queueSizeEwma = new ExponentiallyWeightedMovingAverage(queueSizeEwmaAlpha, 0.0);
         }
 
-        public void update(long currentTotalExecutionTimeNanos, Collection<Long> ongoingTasksStartNanos) {
+        public void update(long currentTotalExecutionTimeNanos, Collection<Long> ongoingTasksStartNanos, int queueSize) {
             final long nowNanos = System.nanoTime();
             final long previous = previousTotalExecutionTimeNanos;
             long taskExecutionTimeSinceLastSample = calculateTaskExecutionTimeSinceLastSample(
@@ -119,6 +147,7 @@ public class AverageWriteLoadSampler {
             );
             synchronized (this) {
                 writeLoadEwma.addValue((double) taskExecutionTimeSinceLastSample / samplingFrequency.nanos());
+                queueSizeEwma.addValue(queueSize);
             }
             previousTotalExecutionTimeNanos = currentTotalExecutionTimeNanos;
         }
@@ -156,16 +185,27 @@ public class AverageWriteLoadSampler {
             return taskExecutionTimeSinceLastSample;
         }
 
-        synchronized void updateEwmaAlpha(double ewmaAlpha) {
+        synchronized void updateWriteLoadEwmaAlpha(double ewmaAlpha) {
             writeLoadEwma = new ExponentiallyWeightedMovingAverage(ewmaAlpha, writeLoadEwma.getAverage());
+        }
+
+        synchronized void updateQueueSizeEwmaAlpha(double ewmaAlpha) {
+            queueSizeEwma = new ExponentiallyWeightedMovingAverage(ewmaAlpha, queueSizeEwma.getAverage());
         }
 
         /**
          * Returns the average number of threads busy within the past 1 minute.
          * E.g. 2.0 means roughly 2 threads were busy within the past minute (including IO time).
          */
-        public synchronized double get() {
+        public synchronized double getWriteLoad() {
             return writeLoadEwma.getAverage();
+        }
+
+        /**
+         * Returns the EWMA of the queue size of the executor.
+         */
+        public synchronized double getQueueSize() {
+            return queueSizeEwma.getAverage();
         }
     }
 

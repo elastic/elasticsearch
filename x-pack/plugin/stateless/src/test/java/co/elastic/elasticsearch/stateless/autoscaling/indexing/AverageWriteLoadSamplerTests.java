@@ -41,7 +41,7 @@ public class AverageWriteLoadSamplerTests extends ESTestCase {
     public void testAverageWriteLoadInitialValue() throws Exception {
         var threadpool = new TestThreadPool("test");
         try {
-            var writeLoadSampler = new AverageWriteLoadSampler(threadpool, timeValueSeconds(1), DEFAULT_EWMA_ALPHA);
+            var writeLoadSampler = new AverageWriteLoadSampler(threadpool, timeValueSeconds(1), DEFAULT_EWMA_ALPHA, DEFAULT_EWMA_ALPHA);
             writeLoadSampler.sample();
             assertThat(writeLoadSampler.getExecutorStats(ThreadPool.Names.WRITE).averageLoad(), equalTo(0.0));
             assertThat(writeLoadSampler.getExecutorStats(ThreadPool.Names.SYSTEM_WRITE).averageLoad(), equalTo(0.0));
@@ -64,14 +64,20 @@ public class AverageWriteLoadSamplerTests extends ESTestCase {
         }
     }
 
-    public void testWriteLoadEWMAUpdateIsCapped() {
+    public void testAverageLoadUsesEWMA() {
         double alpha = 0.2;
-        var averageLoad = new AverageWriteLoadSampler.AverageLoad(4, timeValueSeconds(1), alpha);
-        averageLoad.update(0, List.of());
-        assertThat(averageLoad.get(), equalTo(0.0));
-        // Cannot update more than 4 seconds at a time.
-        averageLoad.update(timeValueSeconds(10).nanos(), List.of());
-        assertThat(averageLoad.get(), closeTo(alpha * 4, 1e-3));
+        var averageLoad = new AverageWriteLoadSampler.AverageLoad(4, timeValueSeconds(1), alpha, alpha);
+        averageLoad.update(0, List.of(), 0);
+        assertThat(averageLoad.getWriteLoad(), equalTo(0.0));
+        assertThat(averageLoad.getQueueSize(), equalTo(0.0));
+        int currentQueueSize1 = between(0, 1000);
+        averageLoad.update(timeValueSeconds(10).nanos(), List.of(), currentQueueSize1);
+        assertThat(averageLoad.getWriteLoad(), closeTo(alpha * 4, 1e-3));
+        double ewma1 = alpha * currentQueueSize1;
+        assertThat(averageLoad.getQueueSize(), closeTo(ewma1, 1e-3));
+        int currentQueueSize2 = between(0, 1000);
+        averageLoad.update(timeValueSeconds(10).nanos(), List.of(), currentQueueSize2);
+        assertThat(averageLoad.getQueueSize(), closeTo((alpha * currentQueueSize2) + (1 - alpha) * ewma1, 1e-3));
     }
 
     public void testEnsureRange() {
@@ -85,7 +91,7 @@ public class AverageWriteLoadSamplerTests extends ESTestCase {
     public void testCalculateTaskExecutionTimeSinceLastSample() {
         var samplingFrequency = timeValueSeconds(1);
         var maxThreadpoolSize = 3;
-        var averageLoad = new AverageWriteLoadSampler.AverageLoad(maxThreadpoolSize, samplingFrequency, 0.2);
+        var averageLoad = new AverageWriteLoadSampler.AverageLoad(maxThreadpoolSize, samplingFrequency, 0.2, 0.2);
         var nowNanos = System.nanoTime();
 
         var previous = randomLongBetween(0, timeValueSeconds(10).nanos());

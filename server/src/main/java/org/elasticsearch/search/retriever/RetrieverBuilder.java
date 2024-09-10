@@ -71,35 +71,12 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
         return this;
     }
 
-    /**
-     * This method parsers a top-level retriever within a search and tracks its own depth. Currently, the
-     * maximum depth allowed is limited to 2 as a compound retriever cannot currently contain another
-     * compound retriever.
-     */
     public static RetrieverBuilder parseTopLevelRetrieverBuilder(XContentParser parser, RetrieverParserContext context) throws IOException {
         parser = new FilterXContentParserWrapper(parser) {
 
-            int nestedDepth = 0;
-
             @Override
             public <T> T namedObject(Class<T> categoryClass, String name, Object context) throws IOException {
-                if (categoryClass.equals(RetrieverBuilder.class)) {
-                    nestedDepth++;
-
-                    if (nestedDepth > 4) {
-                        throw new IllegalArgumentException(
-                            "the nested depth of the [" + name + "] retriever exceeds the maximum nested depth [4] for retrievers"
-                        );
-                    }
-                }
-
-                T namedObject = getXContentRegistry().parseNamedObject(categoryClass, name, this, context);
-
-                if (categoryClass.equals(RetrieverBuilder.class)) {
-                    nestedDepth--;
-                }
-
-                return namedObject;
+                return getXContentRegistry().parseNamedObject(categoryClass, name, this, context);
             }
         };
 

@@ -26,6 +26,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * A rank builder that holds information about the nested retrievers that were used during search, and handles result explaining.
+ */
 public class RankDocsRankBuilder extends RankBuilder {
 
     public static final String NAME = "rankdocs_rank_builder";
@@ -74,6 +77,8 @@ public class RankDocsRankBuilder extends RankBuilder {
         }
         List<Explanation> explanations = new ArrayList<>();
         int subQueriesAdded = 0;
+        // the explanation at index 0 is the must clause, i.e. the disjunction of the sub queries
+        // the explanation at index 1 is the RankDocQuery explanation which is the one that we want to enhance
         for (int i = 0; i < baseExplanation.getDetails()[1].getDetails().length; i++) {
             Explanation nestedExplanation = baseExplanation.getDetails()[1].getDetails()[i];
             final String queryAlias = retrieverNames.get(i) == null ? "" : " [" + retrieverNames.get(i) + "]";

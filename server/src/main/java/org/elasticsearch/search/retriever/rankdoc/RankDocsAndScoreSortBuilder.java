@@ -29,24 +29,24 @@ import java.util.Objects;
 /**
  * Builds a {@code RankDocsSortField} that sorts documents by their rank as computed through the {@code RankDocsRetrieverBuilder}.
  */
-public class RankDocsSortBuilder extends SortBuilder<RankDocsSortBuilder> {
+public class RankDocsAndScoreSortBuilder extends SortBuilder<RankDocsAndScoreSortBuilder> {
     public static final String NAME = "rank_docs_sort";
 
     private RankDoc[] rankDocs;
 
-    public RankDocsSortBuilder(RankDoc[] rankDocs) {
+    public RankDocsAndScoreSortBuilder(RankDoc[] rankDocs) {
         this.rankDocs = rankDocs;
     }
 
-    public RankDocsSortBuilder(StreamInput in) throws IOException {
+    public RankDocsAndScoreSortBuilder(StreamInput in) throws IOException {
         this.rankDocs = in.readArray(c -> c.readNamedWriteable(RankDoc.class), RankDoc[]::new);
     }
 
-    public RankDocsSortBuilder(RankDocsSortBuilder original) {
+    public RankDocsAndScoreSortBuilder(RankDocsAndScoreSortBuilder original) {
         this.rankDocs = original.rankDocs;
     }
 
-    public RankDocsSortBuilder rankDocs(RankDoc[] rankDocs) {
+    public RankDocsAndScoreSortBuilder rankDocs(RankDoc[] rankDocs) {
         this.rankDocs = rankDocs;
         return this;
     }
@@ -102,7 +102,7 @@ public class RankDocsSortBuilder extends SortBuilder<RankDocsSortBuilder> {
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        RankDocsSortBuilder that = (RankDocsSortBuilder) obj;
+        RankDocsAndScoreSortBuilder that = (RankDocsAndScoreSortBuilder) obj;
         return Arrays.equals(rankDocs, that.rankDocs) && this.order.equals(that.order);
     }
 

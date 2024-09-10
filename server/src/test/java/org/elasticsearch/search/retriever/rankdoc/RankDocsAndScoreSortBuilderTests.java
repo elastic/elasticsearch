@@ -20,16 +20,16 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class RankDocsSortBuilderTests extends AbstractSortTestCase<RankDocsSortBuilder> {
+public class RankDocsAndScoreSortBuilderTests extends AbstractSortTestCase<RankDocsAndScoreSortBuilder> {
 
     @Override
-    protected RankDocsSortBuilder createTestItem() {
+    protected RankDocsAndScoreSortBuilder createTestItem() {
         return randomRankDocsSortBuulder();
     }
 
-    private RankDocsSortBuilder randomRankDocsSortBuulder() {
+    private RankDocsAndScoreSortBuilder randomRankDocsSortBuulder() {
         RankDoc[] rankDocs = randomRankDocs(randomInt(100));
-        return new RankDocsSortBuilder(rankDocs);
+        return new RankDocsAndScoreSortBuilder(rankDocs);
     }
 
     private RankDoc[] randomRankDocs(int totalDocs) {
@@ -42,8 +42,8 @@ public class RankDocsSortBuilderTests extends AbstractSortTestCase<RankDocsSortB
     }
 
     @Override
-    protected RankDocsSortBuilder mutate(RankDocsSortBuilder original) throws IOException {
-        RankDocsSortBuilder mutated = new RankDocsSortBuilder(original);
+    protected RankDocsAndScoreSortBuilder mutate(RankDocsAndScoreSortBuilder original) throws IOException {
+        RankDocsAndScoreSortBuilder mutated = new RankDocsAndScoreSortBuilder(original);
         mutated.rankDocs(randomRankDocs(original.rankDocs().length + randomIntBetween(10, 100)));
         return mutated;
     }
@@ -54,14 +54,14 @@ public class RankDocsSortBuilderTests extends AbstractSortTestCase<RankDocsSortB
     }
 
     @Override
-    protected RankDocsSortBuilder fromXContent(XContentParser parser, String fieldName) throws IOException {
+    protected RankDocsAndScoreSortBuilder fromXContent(XContentParser parser, String fieldName) throws IOException {
         throw new UnsupportedOperationException(
-            "{" + RankDocsSortBuilder.class.getSimpleName() + "} does not support parsing from XContent"
+            "{" + RankDocsAndScoreSortBuilder.class.getSimpleName() + "} does not support parsing from XContent"
         );
     }
 
     @Override
-    protected void sortFieldAssertions(RankDocsSortBuilder builder, SortField sortField, DocValueFormat format) throws IOException {
+    protected void sortFieldAssertions(RankDocsAndScoreSortBuilder builder, SortField sortField, DocValueFormat format) throws IOException {
         assertThat(builder.order(), equalTo(SortOrder.ASC));
         assertThat(sortField, instanceOf(RankDocsSortField.class));
         assertThat(sortField.getField(), equalTo(RankDocsSortField.NAME));

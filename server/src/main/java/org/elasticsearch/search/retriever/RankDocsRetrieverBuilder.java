@@ -15,8 +15,8 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankDocsRankBuilder;
+import org.elasticsearch.search.retriever.rankdoc.RankDocsAndScoreSortBuilder;
 import org.elasticsearch.search.retriever.rankdoc.RankDocsQueryBuilder;
-import org.elasticsearch.search.retriever.rankdoc.RankDocsSortBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -96,18 +96,14 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
     @Override
     public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
         // here we force a custom sort based on the rank of the documents
-        // TODO: should we adjust to account for other fields sort options just for the top ranked docs?
         if (searchSourceBuilder.rescores() == null || searchSourceBuilder.rescores().isEmpty()) {
-            searchSourceBuilder.sort(List.of(new RankDocsSortBuilder(rankDocs.get())));
-        }
-        if (isProfileRequest(searchSourceBuilder) || isExplainRequest(searchSourceBuilder)) {
-            searchSourceBuilder.trackScores(true);
+            searchSourceBuilder.sort(List.of(new RankDocsAndScoreSortBuilder(rankDocs.get())));
         }
 
         BoolQueryBuilder boolQuery = new BoolQueryBuilder();
         RankDocsQueryBuilder rankQuery = new RankDocsQueryBuilder(rankDocs.get());
         // if we have aggregations we need to compute them based on all doc matches, not just the top hits
-        // so we just post-filter the top hits based on the rank queries we have
+        // similarly, for profile and explain we re-run all parent queries to get all needed information
         if (hasAggregations(searchSourceBuilder)
             || isExplainRequest(searchSourceBuilder)
             || isProfileRequest(searchSourceBuilder)
@@ -116,9 +112,13 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
             // compute a disjunction of all the query sources that were executed to compute the top rank docs
             QueryBuilder disjunctionOfSources = topDocsQuery();
             if (disjunctionOfSources != null) {
+                // if have an explain or profile request, we'd need to compute scores for all documents and retrieve detailed info for
+                // query execution times
                 if (isExplainRequest(searchSourceBuilder) || isProfileRequest(searchSourceBuilder)) {
                     boolQuery.must(disjunctionOfSources);
+                    searchSourceBuilder.trackScores(true);
                 } else {
+                    // otherwise we apply all the parent queries as filters
                     boolQuery.filter(disjunctionOfSources);
                 }
             }

@@ -34,9 +34,9 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * This abstract retriever is a compound retriever.
- * It has a set of child retrievers, each returning a set of top documents.
- * These documents are then combined and ranked according to the implementation of {@code combineQueryPhaseResults}.
+ * This abstract retriever defines a compound retriever. The idea is that it is not a leaf-retriever, i.e. it does not
+ * perform actual searches itself. Instead, it is a container for a set of child retrievers and i responsible for combining
+ * the results of the child retrievers according to the implementation of {@code combineQueryPhaseResults}.
  */
 public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilder<T>> extends RetrieverBuilder {
 
@@ -110,7 +110,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         for (var entry : innerRetrievers) {
             SearchRequest searchRequest = new SearchRequest().source(entry.source);
             // The can match phase can reorder shards, so we disable it to ensure the stable ordering
-            // TODO: this breaks if we query frozen tier we need to update this/remove this
+            // TODO: does this break if we query frozen tier? should we update/remove this
             searchRequest.setPreFilterShardSize(Integer.MAX_VALUE);
             multiSearchRequest.add(searchRequest);
         }

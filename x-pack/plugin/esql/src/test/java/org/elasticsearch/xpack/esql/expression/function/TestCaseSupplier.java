@@ -67,6 +67,21 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return types.stream().map(t -> "<" + t.typeName() + ">").collect(Collectors.joining(", "));
     }
 
+    /**
+     * Build a name for the test case based on objects likely to describe it.
+     */
+    public static String nameFrom(List<Object> paramDescriptors) {
+        return paramDescriptors.stream().map(p -> {
+            if (p == null) {
+                return "null";
+            }
+            if (p instanceof DataType t) {
+                return "<" + t.typeName() + ">";
+            }
+            return p.toString();
+        }).collect(Collectors.joining(", "));
+    }
+
     public static List<TestCaseSupplier> stringCases(
         BinaryOperator<Object> expected,
         BiFunction<DataType, DataType, String> evaluatorToString,
@@ -1305,7 +1320,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         throw new UnsupportedOperationException();
     }
 
-    public static class TestCase {
+    public static final class TestCase {
         /**
          * The {@link Source} this test case should be run with
          */
@@ -1333,22 +1348,34 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         private final String[] expectedWarnings;
 
+        /**
+         * Warnings that are added by calling {@link AbstractFunctionTestCase#evaluator}
+         * or {@link Expression#fold()} on the expression built by this.
+         */
+        private final String[] expectedBuildEvaluatorWarnings;
+
         private final String expectedTypeError;
         private final boolean canBuildEvaluator;
 
         private final Class<? extends Throwable> foldingExceptionClass;
         private final String foldingExceptionMessage;
 
+        /**
+         * Extra data embedded in the test case. Test subclasses can cast
+         * as needed and extra <strong>whatever</strong> helps them.
+         */
+        private final Object extra;
+
         public TestCase(List<TypedData> data, String evaluatorToString, DataType expectedType, Matcher<?> matcher) {
             this(data, equalTo(evaluatorToString), expectedType, matcher);
         }
 
         public TestCase(List<TypedData> data, Matcher<String> evaluatorToString, DataType expectedType, Matcher<?> matcher) {
-            this(data, evaluatorToString, expectedType, matcher, null, null, null, null);
+            this(data, evaluatorToString, expectedType, matcher, null, null, null, null, null, null);
         }
 
         public static TestCase typeError(List<TypedData> data, String expectedTypeError) {
-            return new TestCase(data, null, null, null, null, expectedTypeError, null, null);
+            return new TestCase(data, null, null, null, null, null, expectedTypeError, null, null, null);
         }
 
         TestCase(
@@ -1357,9 +1384,11 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             DataType expectedType,
             Matcher<?> matcher,
             String[] expectedWarnings,
+            String[] expectedBuildEvaluatorWarnings,
             String expectedTypeError,
             Class<? extends Throwable> foldingExceptionClass,
-            String foldingExceptionMessage
+            String foldingExceptionMessage,
+            Object extra
         ) {
             this.source = Source.EMPTY;
             this.data = data;
@@ -1369,10 +1398,12 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             Matcher<Object> downcast = (Matcher<Object>) matcher;
             this.matcher = downcast;
             this.expectedWarnings = expectedWarnings;
+            this.expectedBuildEvaluatorWarnings = expectedBuildEvaluatorWarnings;
             this.expectedTypeError = expectedTypeError;
             this.canBuildEvaluator = data.stream().allMatch(d -> d.forceLiteral || DataType.isRepresentable(d.type));
             this.foldingExceptionClass = foldingExceptionClass;
             this.foldingExceptionMessage = foldingExceptionMessage;
+            this.extra = extra;
         }
 
         public Source getSource() {
@@ -1419,6 +1450,14 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             return expectedWarnings;
         }
 
+        /**
+         * Warnings that are added by calling {@link AbstractFunctionTestCase#evaluator}
+         * or {@link Expression#fold()} on the expression built by this.
+         */
+        public String[] getExpectedBuildEvaluatorWarnings() {
+            return expectedBuildEvaluatorWarnings;
+        }
+
         public Class<? extends Throwable> foldingExceptionClass() {
             return foldingExceptionClass;
         }
@@ -1431,28 +1470,88 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             return expectedTypeError;
         }
 
-        public TestCase withWarning(String warning) {
-            String[] newWarnings;
-            if (expectedWarnings != null) {
-                newWarnings = Arrays.copyOf(expectedWarnings, expectedWarnings.length + 1);
-                newWarnings[expectedWarnings.length] = warning;
-            } else {
-                newWarnings = new String[] { warning };
-            }
+        /**
+         * Extra data embedded in the test case. Test subclasses can cast
+         * as needed and extra <strong>whatever</strong> helps them.
+         */
+        public Object extra() {
+            return extra;
+        }
+
+        /**
+         * Build a new {@link TestCase} with new {@link #extra()}.
+         */
+        public TestCase withExtra(Object extra) {
             return new TestCase(
                 data,
                 evaluatorToString,
                 expectedType,
                 matcher,
-                newWarnings,
+                expectedWarnings,
+                expectedBuildEvaluatorWarnings,
                 expectedTypeError,
                 foldingExceptionClass,
-                foldingExceptionMessage
+                foldingExceptionMessage,
+                extra
             );
         }
 
+        public TestCase withWarning(String warning) {
+            return new TestCase(
+                data,
+                evaluatorToString,
+                expectedType,
+                matcher,
+                addWarning(expectedWarnings, warning),
+                expectedBuildEvaluatorWarnings,
+                expectedTypeError,
+                foldingExceptionClass,
+                foldingExceptionMessage,
+                extra
+            );
+        }
+
+        /**
+         * Warnings that are added by calling {@link AbstractFunctionTestCase#evaluator}
+         * or {@link Expression#fold()} on the expression built by this.
+         */
+        public TestCase withBuildEvaluatorWarning(String warning) {
+            return new TestCase(
+                data,
+                evaluatorToString,
+                expectedType,
+                matcher,
+                expectedWarnings,
+                addWarning(expectedBuildEvaluatorWarnings, warning),
+                expectedTypeError,
+                foldingExceptionClass,
+                foldingExceptionMessage,
+                extra
+            );
+        }
+
+        private String[] addWarning(String[] warnings, String warning) {
+            if (warnings == null) {
+                return new String[] { warning };
+            }
+            String[] newWarnings = Arrays.copyOf(warnings, warnings.length + 1);
+            newWarnings[warnings.length] = warning;
+            return newWarnings;
+        }
+
         public TestCase withFoldingException(Class<? extends Throwable> clazz, String message) {
-            return new TestCase(data, evaluatorToString, expectedType, matcher, expectedWarnings, expectedTypeError, clazz, message);
+            return new TestCase(
+                data,
+                evaluatorToString,
+                expectedType,
+                matcher,
+                expectedWarnings,
+                expectedBuildEvaluatorWarnings,
+                expectedTypeError,
+                clazz,
+                message,
+                extra
+            );
         }
 
         public DataType expectedType() {

@@ -36,14 +36,14 @@ public class SnapshotBrokenSettingsIT extends AbstractSnapshotIntegTestCase {
         Client client = client();
         Consumer<String> setSettingValue = value -> client.admin()
             .cluster()
-            .prepareUpdateSettings()
+            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .setPersistentSettings(Settings.builder().put(BrokenSettingPlugin.BROKEN_SETTING.getKey(), value))
             .get();
 
         Consumer<String> assertSettingValue = value -> assertThat(
             client.admin()
                 .cluster()
-                .prepareState()
+                .prepareState(TEST_REQUEST_TIMEOUT)
                 .setRoutingTable(false)
                 .setNodes(false)
                 .get()

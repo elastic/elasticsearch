@@ -175,7 +175,7 @@ public class CrossClusterPainlessExecuteIT extends AbstractMultiClustersTestCase
         assertFalse(
             client(REMOTE_CLUSTER).admin()
                 .cluster()
-                .prepareHealth(REMOTE_INDEX)
+                .prepareHealth(TEST_REQUEST_TIMEOUT, REMOTE_INDEX)
                 .setWaitForYellowStatus()
                 .setTimeout(TimeValue.timeValueSeconds(10))
                 .get()

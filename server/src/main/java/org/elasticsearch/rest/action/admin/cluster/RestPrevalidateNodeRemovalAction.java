@@ -14,13 +14,13 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 public class RestPrevalidateNodeRemovalAction extends BaseRestHandler {
 
@@ -36,6 +36,9 @@ public class RestPrevalidateNodeRemovalAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        final var masterNodeTimeout = request.hasParam(RestUtils.REST_MASTER_TIMEOUT_PARAM)
+            ? RestUtils.getMasterNodeTimeout(request)
+            : request.paramAsTime("timeout", RestUtils.REST_MASTER_TIMEOUT_DEFAULT);
         String[] ids = request.paramAsStringArray("ids", Strings.EMPTY_ARRAY);
         String[] names = request.paramAsStringArray("names", Strings.EMPTY_ARRAY);
         String[] externalIds = request.paramAsStringArray("external_ids", Strings.EMPTY_ARRAY);
@@ -43,13 +46,8 @@ public class RestPrevalidateNodeRemovalAction extends BaseRestHandler {
             .setNames(names)
             .setIds(ids)
             .setExternalIds(externalIds)
-            .build();
+            .build(masterNodeTimeout);
         prevalidationRequest.timeout(request.paramAsTime("timeout", prevalidationRequest.timeout()));
-        if (request.hasParam("master_timeout")) {
-            prevalidationRequest.masterNodeTimeout(getMasterNodeTimeout(request));
-        } else {
-            prevalidationRequest.masterNodeTimeout(prevalidationRequest.timeout());
-        }
         return channel -> client.execute(
             PrevalidateNodeRemovalAction.INSTANCE,
             prevalidationRequest,

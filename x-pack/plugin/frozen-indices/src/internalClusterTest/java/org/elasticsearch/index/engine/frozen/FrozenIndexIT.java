@@ -96,7 +96,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
         final String excludeSetting = INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey();
         updateIndexSettings(Settings.builder().put(excludeSetting, nodeNames.get(0)), "index");
         ClusterRerouteUtils.reroute(client(), new CancelAllocationCommand("index", 0, nodeNames.get(0), true));
-        assertThat(clusterAdmin().prepareHealth("index").get().getUnassignedShards(), equalTo(1));
+        assertThat(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "index").get().getUnassignedShards(), equalTo(1));
 
         assertThat(client().prepareDelete("index", indexResponse.getId()).get().status(), equalTo(RestStatus.OK));
 
@@ -108,20 +108,20 @@ public class FrozenIndexIT extends ESIntegTestCase {
         );
 
         assertThat(
-            clusterAdmin().prepareState().get().getState().metadata().index("index").getTimestampRange(),
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().index("index").getTimestampRange(),
             sameInstance(IndexLongFieldRange.EMPTY)
         );
 
         internalCluster().stopNode(nodeNames.get(1));
-        assertThat(clusterAdmin().prepareHealth("index").get().getUnassignedShards(), equalTo(2));
+        assertThat(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "index").get().getUnassignedShards(), equalTo(2));
         updateIndexSettings(Settings.builder().putNull(excludeSetting), "index");
-        assertThat(clusterAdmin().prepareHealth("index").get().getUnassignedShards(), equalTo(2));
+        assertThat(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "index").get().getUnassignedShards(), equalTo(2));
 
         ClusterRerouteUtils.reroute(client(), new AllocateStalePrimaryAllocationCommand("index", 0, nodeNames.get(0), true));
 
         ensureYellowAndNoInitializingShards("index");
 
-        IndexMetadata indexMetadata = clusterAdmin().prepareState().get().getState().metadata().index("index");
+        IndexMetadata indexMetadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().index("index");
         final IndexLongFieldRange timestampFieldRange = indexMetadata.getTimestampRange();
         assertThat(timestampFieldRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
         assertThat(timestampFieldRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
@@ -129,7 +129,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
         assertThat(timestampFieldRange.getMin(), equalTo(Instant.parse(timestampVal).toEpochMilli()));
         assertThat(timestampFieldRange.getMax(), equalTo(Instant.parse(timestampVal).toEpochMilli()));
 
-        IndexLongFieldRange eventIngestedFieldRange = clusterAdmin().prepareState()
+        IndexLongFieldRange eventIngestedFieldRange = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .get()
             .getState()
             .metadata()
@@ -188,7 +188,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
                 )
         );
 
-        final Index index = clusterAdmin().prepareState()
+        final Index index = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setIndices("index")
             .setMetadata(true)
@@ -292,7 +292,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
                 )
         );
 
-        final Index index = clusterAdmin().prepareState()
+        final Index index = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setIndices("index")
             .setMetadata(true)

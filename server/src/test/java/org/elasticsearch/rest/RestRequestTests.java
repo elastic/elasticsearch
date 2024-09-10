@@ -9,6 +9,7 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
@@ -33,6 +34,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.rest.RestRequest.OPERATOR_REQUEST;
 import static org.elasticsearch.rest.RestRequest.SERVERLESS_REQUEST;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -130,8 +132,8 @@ public class RestRequestTests extends ESTestCase {
                 .contentOrSourceParam()
                 .v2()
         );
-        e = expectThrows(IllegalStateException.class, () -> contentRestRequest("", Map.of("source", "stuff2")).contentOrSourceParam());
-        assertEquals("source and source_content_type parameters are required", e.getMessage());
+        e = expectThrows(ValidationException.class, () -> contentRestRequest("", Map.of("source", "stuff2")).contentOrSourceParam());
+        assertThat(e.getMessage(), containsString("source and source_content_type parameters are required"));
     }
 
     public void testHasContentOrSourceParam() throws IOException {
@@ -246,8 +248,8 @@ public class RestRequestTests extends ESTestCase {
                 .requiredContent()
         );
         assertEquals("request body is required", e.getMessage());
-        e = expectThrows(IllegalStateException.class, () -> contentRestRequest("test", null, Collections.emptyMap()).requiredContent());
-        assertEquals("unknown content type", e.getMessage());
+        e = expectThrows(ValidationException.class, () -> contentRestRequest("test", null, Collections.emptyMap()).requiredContent());
+        assertThat(e.getMessage(), containsString("unknown content type"));
     }
 
     public void testIsServerlessRequest() {

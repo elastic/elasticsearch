@@ -49,7 +49,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
     public void testSimpleCloseOpen() {
         Client client = client();
         createIndex("test1");
-        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().get();
+        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForGreenStatus().get();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
         AcknowledgedResponse closeIndexResponse = client.admin().indices().prepareClose("test1").get();
@@ -70,7 +70,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
     public void testOpenOneMissingIndex() {
         Client client = client();
         createIndex("test1");
-        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().get();
+        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForGreenStatus().get();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
         Exception e = expectThrows(IndexNotFoundException.class, client.admin().indices().prepareOpen("test1", "test2"));
         assertThat(e.getMessage(), is("no such index [test2]"));
@@ -79,7 +79,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
     public void testOpenOneMissingIndexIgnoreMissing() {
         Client client = client();
         createIndex("test1");
-        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().get();
+        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForGreenStatus().get();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
         OpenIndexResponse openIndexResponse = client.admin()
             .indices()
@@ -94,7 +94,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
     public void testCloseOpenMultipleIndices() {
         Client client = client();
         createIndex("test1", "test2", "test3");
-        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().get();
+        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForGreenStatus().get();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
         AcknowledgedResponse closeIndexResponse1 = client.admin().indices().prepareClose("test1").get();
@@ -116,7 +116,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
     public void testCloseOpenWildcard() {
         Client client = client();
         createIndex("test1", "test2", "a");
-        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().get();
+        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForGreenStatus().get();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
         AcknowledgedResponse closeIndexResponse = client.admin().indices().prepareClose("test*").get();
@@ -133,7 +133,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
     public void testCloseOpenAll() {
         Client client = client();
         createIndex("test1", "test2", "test3");
-        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().get();
+        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForGreenStatus().get();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
         AcknowledgedResponse closeIndexResponse = client.admin().indices().prepareClose("_all").get();
@@ -149,7 +149,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
     public void testCloseOpenAllWildcard() {
         Client client = client();
         createIndex("test1", "test2", "test3");
-        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().get();
+        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForGreenStatus().get();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
         AcknowledgedResponse closeIndexResponse = client.admin().indices().prepareClose("*").get();
@@ -175,7 +175,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
     public void testOpenAlreadyOpenedIndex() {
         Client client = client();
         createIndex("test1");
-        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().get();
+        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForGreenStatus().get();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
         // no problem if we try to open an index that's already in open state
@@ -188,7 +188,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
     public void testSimpleCloseOpenAlias() {
         Client client = client();
         createIndex("test1");
-        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().get();
+        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForGreenStatus().get();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
         AcknowledgedResponse aliasesResponse = client.admin().indices().prepareAliases().addAlias("test1", "test1-alias").get();
@@ -207,7 +207,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
     public void testCloseOpenAliasMultipleIndices() {
         Client client = client();
         createIndex("test1", "test2");
-        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().get();
+        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForGreenStatus().get();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
         AcknowledgedResponse aliasesResponse1 = client.admin().indices().prepareAliases().addAlias("test1", "test-alias").get();
@@ -240,7 +240,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         assertThat(response.isShardsAcknowledged(), equalTo(false));
         assertBusy(
             () -> assertThat(
-                client.admin().cluster().prepareState().get().getState().metadata().index("test").getState(),
+                client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().index("test").getState(),
                 equalTo(IndexMetadata.State.OPEN)
             )
         );

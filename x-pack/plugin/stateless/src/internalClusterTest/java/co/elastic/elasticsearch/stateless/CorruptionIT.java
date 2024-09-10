@@ -24,8 +24,10 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 
 import org.apache.lucene.index.CorruptIndexException;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
@@ -249,7 +251,18 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
             try {
                 while (indexersRunning.getCount() > 0 && stop.get() == false) {
                     // Search may encounter shard failure due to search shard relocation. It is transient and we retry for it.
-                    assertBusy(() -> assertNoFailures(prepareSearch(indexName).setTimeout(timeValueSeconds(60))));
+                    assertBusy(() -> {
+                        try {
+                            assertNoFailures(prepareSearch(indexName).setTimeout(timeValueSeconds(60)));
+                        } catch (SearchPhaseExecutionException e) {
+                            if (Arrays.stream(e.shardFailures())
+                                .map(Exception::getCause)
+                                .allMatch(e1 -> e1 instanceof NoShardAvailableActionException)) {
+                                throw new AssertionError(e);
+                            }
+                            throw e;
+                        }
+                    });
                     safeSleep(randomLongBetween(100, 1_000));
                 }
             } catch (Throwable e) {

@@ -4,7 +4,6 @@ apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 
 import org.elasticsearch.gradle.internal.info.BuildParams
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 restResources {
   restApi {
@@ -34,28 +33,11 @@ tasks.named('yamlRestTestV7CompatTest') {
 ;
 
 tasks.named("yamlRestTestV7CompatTransform").configure {task ->
-  task.replaceValueInMatch("hits.events.0.fields.day_of_week", ["Mon"], "Execute EQL events query with fields filtering")
-  task.replaceValueInMatch("hits.events.1.fields.day_of_week", ["Tue"], "Execute EQL events query with fields filtering")
-  task.replaceValueInMatch("hits.events.2.fields.day_of_week", ["Wed"], "Execute EQL events query with fields filtering")
-
-  task.replaceValueInMatch("hits.events.0.fields", new ObjectMapper().readTree("{\"valid\":[false],\"@timestamp\":[\"2020-02-03T12:34:56.000Z\"],\"event.category\":[\"process\"],\"event.category.keyword\":[\"process\"],\"id\":[123],\"user.keyword\":[\"SYSTEM\"],\"user\":[\"SYSTEM\"],\"day_of_week\":[\"Mon\"]}"), "Execute EQL events query with wildcard (*) fields filtering.")
-  task.replaceValueInMatch("hits.events.1.fields", new ObjectMapper().readTree("{\"valid\":[true],\"@timestamp\":[\"2020-02-04T12:34:56.000Z\"],\"event.category\":[\"process\"],\"event.category.keyword\":[\"process\"],\"id\":[123],\"user.keyword\":[\"SYSTEM\"],\"user\":[\"SYSTEM\"],\"day_of_week\":[\"Tue\"]}"), "Execute EQL events query with wildcard (*) fields filtering.")
-  task.replaceValueInMatch("hits.events.2.fields", new ObjectMapper().readTree("{\"valid\":[true],\"@timestamp\":[\"2020-02-05T12:34:56.000Z\"],\"event.category\":[\"process\"],\"event.category.keyword\":[\"process\"],\"id\":[123],\"user.keyword\":[\"SYSTEM\"],\"user\":[\"SYSTEM\"],\"day_of_week\":[\"Wed\"]}"), "Execute EQL events query with wildcard (*) fields filtering.")
-
-  task.replaceValueInMatch("hits.sequences.0.events.0.fields.day_of_week", ["Mon"], "Execute EQL sequence with fields filtering.")
-  task.replaceValueInMatch("hits.sequences.0.events.1.fields.day_of_week", ["Tue"], "Execute EQL sequence with fields filtering.")
-  task.replaceValueInMatch("hits.sequences.1.events.0.fields.day_of_week", ["Tue"], "Execute EQL sequence with fields filtering.")
-  task.replaceValueInMatch("hits.sequences.1.events.1.fields.day_of_week", ["Wed"], "Execute EQL sequence with fields filtering.")
-
-  task.replaceValueInMatch("hits.sequences.0.events.0.fields", new ObjectMapper().readTree("{\"valid\":[false],\"@timestamp\":[\"2020-02-03T12:34:56.000Z\"],\"event.category\":[\"process\"],\"event.category.keyword\":[\"process\"],\"id\":[123],\"user.keyword\":[\"SYSTEM\"],\"user\":[\"SYSTEM\"],\"day_of_week\":[\"Mon\"]}"), "Execute EQL sequence with wildcard (*) fields filtering.")
-  task.replaceValueInMatch("hits.sequences.0.events.1.fields", new ObjectMapper().readTree("{\"valid\":[true],\"@timestamp\":[\"2020-02-04T12:34:56.000Z\"],\"event.category\":[\"process\"],\"event.category.keyword\":[\"process\"],\"id\":[123],\"user.keyword\":[\"SYSTEM\"],\"user\":[\"SYSTEM\"],\"day_of_week\":[\"Tue\"]}"), "Execute EQL sequence with wildcard (*) fields filtering.")
-  task.replaceValueInMatch("hits.sequences.1.events.0.fields", new ObjectMapper().readTree("{\"valid\":[true],\"@timestamp\":[\"2020-02-04T12:34:56.000Z\"],\"event.category\":[\"process\"],\"event.category.keyword\":[\"process\"],\"id\":[123],\"user.keyword\":[\"SYSTEM\"],\"user\":[\"SYSTEM\"],\"day_of_week\":[\"Tue\"]}"), "Execute EQL sequence with wildcard (*) fields filtering.")
-  task.replaceValueInMatch("hits.sequences.1.events.1.fields", new ObjectMapper().readTree("{\"valid\":[true],\"@timestamp\":[\"2020-02-05T12:34:56.000Z\"],\"event.category\":[\"process\"],\"event.category.keyword\":[\"process\"],\"id\":[123],\"user.keyword\":[\"SYSTEM\"],\"user\":[\"SYSTEM\"],\"day_of_week\":[\"Wed\"]}"), "Execute EQL sequence with wildcard (*) fields filtering.")
-
-  task.replaceValueInMatch("hits.sequences.0.events.0.fields", new ObjectMapper().readTree("{\"@timestamp\":[\"2020\"],\"day_of_week\":[\"Mon\"]}"), "Execute EQL sequence with custom format for timestamp field.")
-  task.replaceValueInMatch("hits.sequences.0.events.1.fields", new ObjectMapper().readTree("{\"@timestamp\":[\"2020\"],\"day_of_week\":[\"Tue\"]}"), "Execute EQL sequence with custom format for timestamp field.")
-  task.replaceValueInMatch("hits.sequences.1.events.0.fields", new ObjectMapper().readTree("{\"@timestamp\":[\"2020\"],\"day_of_week\":[\"Tue\"]}"), "Execute EQL sequence with custom format for timestamp field.")
-  task.replaceValueInMatch("hits.sequences.1.events.1.fields", new ObjectMapper().readTree("{\"@timestamp\":[\"2020\"],\"day_of_week\":[\"Wed\"]}"), "Execute EQL sequence with custom format for timestamp field.")
+  task.skipTest("eql/10_basic/Execute EQL events query with wildcard (*) fields filtering.", "Change of locale with Java 23 makes these tests non deterministic")
+  task.skipTest("eql/10_basic/Execute EQL sequence with fields filtering.", "Change of locale with Java 23 makes these tests non deterministic")
+  task.skipTest("eql/10_basic/Execute EQL sequence with custom format for timestamp field.", "Change of locale with Java 23 makes these tests non deterministic")
+  task.skipTest("eql/10_basic/Execute EQL events query with fields filtering", "Change of locale with Java 23 makes these tests non deterministic")
+  task.skipTest("eql/10_basic/Execute EQL sequence with wildcard (*) fields filtering.", "Change of locale with Java 23 makes these tests non deterministic")
 }
 
 if (BuildParams.inFipsJvm){

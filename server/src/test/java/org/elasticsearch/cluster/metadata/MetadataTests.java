@@ -633,6 +633,32 @@ public class MetadataTests extends ESTestCase {
         assertTrue(Metadata.isGlobalStateEquals(metadata1, metadata4));
     }
 
+    public void testMetadataGlobalStateChangesOnProjectChanges() {
+        final Metadata metadata1 = Metadata.builder().build();
+        final Metadata metadata2 = Metadata.builder(metadata1).put(ProjectMetadata.builder(new ProjectId(randomUUID())).build()).build();
+        final Metadata metadata3 = Metadata.builder(metadata1)
+            .put(
+                ProjectMetadata.builder(new ProjectId(randomUUID()))
+                    .put(IndexMetadata.builder("some-index").settings(indexSettings(IndexVersion.current(), 1, 1)))
+                    .build()
+            )
+            .build();
+        // A project with a ProjectCustom.
+        final Metadata metadata4 = Metadata.builder(metadata1)
+            .put(
+                ProjectMetadata.builder(new ProjectId(randomUUID()))
+                    .put("template", new ComponentTemplate(new Template(null, null, null), null, null))
+                    .build()
+            )
+            .build();
+        assertFalse(Metadata.isGlobalStateEquals(metadata1, metadata2));
+        assertTrue(Metadata.isGlobalStateEquals(metadata2, Metadata.builder(metadata1).projectMetadata(metadata2.projects()).build()));
+        assertFalse(Metadata.isGlobalStateEquals(metadata1, metadata3));
+        assertTrue(Metadata.isGlobalStateEquals(metadata3, Metadata.builder(metadata1).projectMetadata(metadata3.projects()).build()));
+        assertFalse(Metadata.isGlobalStateEquals(metadata1, metadata4));
+        assertTrue(Metadata.isGlobalStateEquals(metadata4, Metadata.builder(metadata1).projectMetadata(metadata4.projects()).build()));
+    }
+
     private static CoordinationMetadata.VotingConfiguration randomVotingConfig() {
         return new CoordinationMetadata.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(randomInt(10), 20, false)));
     }

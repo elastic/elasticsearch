@@ -90,6 +90,29 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         assertFalse(refCounted.hasReferences());
     }
 
+    public void testBufferedResourcesReleasedOnClose() {
+        String index = "test";
+        createIndex(index);
+
+        String nodeName = internalCluster().getRandomNodeName();
+        IncrementalBulkService incrementalBulkService = internalCluster().getInstance(IncrementalBulkService.class, nodeName);
+        IndexingPressure indexingPressure = internalCluster().getInstance(IndexingPressure.class, nodeName);
+
+        IncrementalBulkService.Handler handler = incrementalBulkService.newBulkRequest();
+        IndexRequest indexRequest = indexRequest(index);
+
+        AbstractRefCounted refCounted = AbstractRefCounted.of(() -> {});
+        handler.addItems(List.of(indexRequest), refCounted::decRef, () -> {});
+
+        assertTrue(refCounted.hasReferences());
+        assertThat(indexingPressure.stats().getCurrentCoordinatingBytes(), greaterThan(0L));
+
+        handler.close();
+
+        assertFalse(refCounted.hasReferences());
+        assertThat(indexingPressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
+    }
+
     public void testIndexingPressureRejection() {
         String index = "test";
         createIndex(index);

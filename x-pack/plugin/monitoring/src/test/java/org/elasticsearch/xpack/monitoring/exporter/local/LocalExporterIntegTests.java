@@ -246,7 +246,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
      * fields and belongs to the right data or timestamped index.
      */
     private void checkMonitoringDocs() {
-        ClusterStateResponse response = clusterAdmin().prepareState().get();
+        ClusterStateResponse response = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
         String customTimeFormat = response.getState()
             .getMetadata()
             .persistentSettings()

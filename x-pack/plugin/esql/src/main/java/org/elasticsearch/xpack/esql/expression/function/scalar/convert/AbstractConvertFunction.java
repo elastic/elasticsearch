@@ -72,7 +72,7 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
     }
 
     @Override
-    protected final TypeResolution resolveType() {
+    protected TypeResolution resolveType() {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }

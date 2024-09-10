@@ -224,7 +224,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             }
         }
 
-        final IndexMetadata indexMetadata = clusterAdmin().prepareState()
+        final IndexMetadata indexMetadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setIndices(indexName)
             .setMetadata(true)
@@ -252,7 +252,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(restoreSnapshotResponse.getRestoreInfo().successfulShards(), equalTo(numPrimaries));
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
 
-        final IndexMetadata restoredIndexMetadata = clusterAdmin().prepareState()
+        final IndexMetadata restoredIndexMetadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setIndices(indexName)
             .setMetadata(true)
@@ -309,7 +309,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         logger.info("--> assert that old mapping is restored");
-        MappingMetadata mappings = clusterAdmin().prepareState()
+        MappingMetadata mappings = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .get()
             .getState()
             .getMetadata()
@@ -827,7 +827,14 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                 .get();
             assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
-            ClusterBlocks blocks = client.admin().cluster().prepareState().clear().setBlocks(true).get().getState().blocks();
+            ClusterBlocks blocks = client.admin()
+                .cluster()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .clear()
+                .setBlocks(true)
+                .get()
+                .getState()
+                .blocks();
             // compute current index settings (as we cannot query them if they contain SETTING_BLOCKS_METADATA)
             Settings mergedSettings = Settings.builder().put(initialSettings).put(changedSettings).build();
             logger.info("--> merged block settings {}", mergedSettings);

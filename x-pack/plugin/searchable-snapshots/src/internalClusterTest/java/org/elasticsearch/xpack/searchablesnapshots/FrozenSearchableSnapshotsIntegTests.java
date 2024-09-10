@@ -147,7 +147,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         assertShardFolders(indexName, false);
 
         assertThat(
-            clusterAdmin().prepareState()
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
                 .clear()
                 .setMetadata(true)
                 .setIndices(indexName)
@@ -312,7 +312,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         assertBusy(() -> assertShardFolders(restoredIndexName, true), 30, TimeUnit.SECONDS);
 
         assertThat(
-            clusterAdmin().prepareState()
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
                 .clear()
                 .setMetadata(true)
                 .setIndices(restoredIndexName)
@@ -367,7 +367,9 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
 
         internalCluster().ensureAtLeastNumDataNodes(2);
 
-        final DiscoveryNode dataNode = randomFrom(clusterAdmin().prepareState().get().getState().nodes().getDataNodes().values());
+        final DiscoveryNode dataNode = randomFrom(
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getDataNodes().values()
+        );
 
         updateIndexSettings(
             Settings.builder()
@@ -380,7 +382,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         );
 
         assertFalse(
-            clusterAdmin().prepareHealth(restoredIndexName)
+            clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, restoredIndexName)
                 .setWaitForNoRelocatingShards(true)
                 .setWaitForEvents(Priority.LANGUID)
                 .get()

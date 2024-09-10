@@ -301,7 +301,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                     CcrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(
                         client,
                         remoteCluster,
-                        new ClusterStateRequest().clear()
+                        new ClusterStateRequest(waitForMetadataTimeOut).clear()
                             .metadata(true)
                             .routingTable(true)
                             .local(true)

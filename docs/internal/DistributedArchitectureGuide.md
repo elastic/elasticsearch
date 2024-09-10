@@ -382,9 +382,9 @@ There are several more Decider Services, implementing the `AutoscalingDeciderSer
 [TaskManager#registerAndExecute]:https://github.com/elastic/elasticsearch/blob/5e8fd548b959039b6b77ad53715415b429568bc0/server/src/main/java/org/elasticsearch/tasks/TaskManager.java#L174
 [RequestHandlerRegistry#processMessageReceived]:https://github.com/elastic/elasticsearch/blob/5e8fd548b959039b6b77ad53715415b429568bc0/server/src/main/java/org/elasticsearch/transport/RequestHandlerRegistry.java#L65
 
-The Tasks infrastructure is used to track currently executing operations in the Elasticsearch cluster. The [Task management API] provides an interface for querying, cancelling, and monitoring the status of tasks.
+The tasks infrastructure is used to track currently executing operations in the Elasticsearch cluster. The [Task management API] provides an interface for querying, cancelling, and monitoring the status of tasks.
 
-Each individual Task is local to a node, but can be related to other tasks via parent-child relationship(s).
+Each individual task is local to a node, but can be related to other tasks via parent-child relationship(s).
 
 ### Task tracking and registration
 

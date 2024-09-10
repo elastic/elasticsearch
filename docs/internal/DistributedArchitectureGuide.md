@@ -495,9 +495,11 @@ Some examples of the use of persistent tasks include:
  - [HealthNodeTaskExecutor]: Used to schedule work related to monitoring cluster health
  - [SystemIndexMigrationExecutor]: Manages the migration of system indices after an upgrade
 
-### Integration with telemetry
+### Integration with APM
 
-// TODO (perhaps this should be under the "Tracking" header, although it seems different enough)
+[Traceable]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/telemetry/tracing/Traceable.java
+
+Tasks are integrated with the ElasticSearch APM infrastructure. They implement the [Traceable] interface, and spans are published to represent the execution of each task.
 
 # Cross Cluster Replication (CCR)
 

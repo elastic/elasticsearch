@@ -88,10 +88,10 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         logger.info("--> disable allocation");
         disableAllocation(index);
         logger.info("--> stop random node");
-        int num = clusterAdmin().prepareState().get().getState().nodes().getSize();
+        int num = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getSize();
         internalCluster().stopNode(internalCluster().getNodeNameThat(new IndexNodePredicate(index)));
-        assertNoTimeout(clusterAdmin().prepareHealth().setWaitForNodes("" + (num - 1)));
-        ClusterState clusterState = clusterAdmin().prepareState().get().getState();
+        assertNoTimeout(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForNodes("" + (num - 1)));
+        ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         List<ShardRouting> unassignedShards = clusterState.routingTable().index(index).shardsWithState(ShardRoutingState.UNASSIGNED);
         response = execute(new IndicesShardStoresRequest(index));
         assertThat(response.getStoreStatuses().containsKey(index), equalTo(true));
@@ -227,7 +227,7 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         }
 
         private Set<String> findNodesWithShard(String index) {
-            ClusterState state = clusterAdmin().prepareState().get().getState();
+            ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             IndexRoutingTable indexRoutingTable = state.routingTable().index(index);
             List<ShardRouting> startedShards = indexRoutingTable.shardsWithState(ShardRoutingState.STARTED);
             Set<String> nodesNamesWithShard = new HashSet<>();

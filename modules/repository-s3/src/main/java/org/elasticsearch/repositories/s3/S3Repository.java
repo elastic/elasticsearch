@@ -129,7 +129,8 @@ class S3Repository extends MeteredBlobStoreRepository {
      * and {@code max_number_of_parts = 10_000}
      */
     static final ByteSizeValue DEFAULT_CHUNK_SIZE = new ByteSizeValue(
-        DEFAULT_BUFFER_SIZE.getBytes() * MAX_PARTS_NUMBER_USING_MULTIPART, ByteSizeUnit.BYTES
+        DEFAULT_BUFFER_SIZE.getBytes() * MAX_PARTS_NUMBER_USING_MULTIPART,
+        ByteSizeUnit.BYTES
     );
 
     /**

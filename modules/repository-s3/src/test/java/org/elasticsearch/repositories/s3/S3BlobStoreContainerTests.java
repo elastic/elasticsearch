@@ -26,6 +26,7 @@ import com.amazonaws.services.s3.model.UploadPartResult;
 
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStoreException;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
@@ -82,6 +83,16 @@ public class S3BlobStoreContainerTests extends ESTestCase {
             )
         );
         assertEquals("Upload request size [2097152] can't be larger than buffer size", e.getMessage());
+    }
+
+    public void testDefaultChunkPartsLimit() {
+        var settings = Settings.EMPTY;
+        var blobSize = S3Repository.CHUNK_SIZE_SETTING.getDefault(settings).getBytes();
+        var partSize = S3Repository.BUFFER_SIZE_SETTING.getDefault(settings).getBytes();
+        var parts = S3BlobContainer.numberOfMultiparts(blobSize, partSize);
+        var gotParts = parts.v1();
+        var maxParts = S3Repository.MAX_PARTS_NUMBER_USING_MULTIPART;
+        assertTrue("numbers of parts should be less-or-equal " + maxParts + ", got " + gotParts, gotParts <= maxParts);
     }
 
     public void testExecuteSingleUpload() throws IOException {

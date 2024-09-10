@@ -90,7 +90,7 @@ public class ToDateNanosTests extends AbstractScalarFunctionTestCase {
             DataType.DATE_NANOS,
             d -> null,
             Double.NEGATIVE_INFINITY,
-            - Double.MIN_VALUE,
+            -Double.MIN_VALUE,
             d -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
                 "Line -1:-1: java.lang.IllegalArgumentException: Nanosecond dates before 1970-01-01T00:00:00.000Z are not supported."
@@ -117,8 +117,8 @@ public class ToDateNanosTests extends AbstractScalarFunctionTestCase {
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
                 "Line -1:-1: java.lang.IllegalArgumentException: "
                     + (bytesRef.utf8ToString().isEmpty()
-                    ? "cannot parse empty datetime"
-                    : ("failed to parse date field [" + bytesRef.utf8ToString() + "] with format [strict_date_optional_time_nanos]"))
+                        ? "cannot parse empty datetime"
+                        : ("failed to parse date field [" + bytesRef.utf8ToString() + "] with format [strict_date_optional_time_nanos]"))
             )
         );
         return parameterSuppliersFromTypedDataWithDefaultChecks(

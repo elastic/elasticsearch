@@ -253,3 +253,142 @@ ROW locations = ["POINT(5 5)","POINT(-5 5)","POINT(0 1)","POINT(1 0)","POINT(9 9
 st_intersects:boolean | st_contains_one:boolean | st_contains_none:boolean | st_contains_all:boolean | st_within_small:boolean | st_within_big:boolean | st_disjoint:boolean
 true                  | true                    | false                    | true                    | false                   | true                  | false
 ;
+
+spatialRelationMultiValuePointsFields
+required_capability: st_intersects
+required_capability: st_contains_within
+required_capability: spatial_predicates_support_multivalues
+
+FROM multivalue_points
+| EVAL st_intersects=ST_INTERSECTS(location, subset)
+| EVAL st_contains=ST_CONTAINS(location, subset)
+| EVAL st_within=ST_WITHIN(subset, location)
+| KEEP id, st_intersects, st_contains, st_within, location, subset
+| SORT id
+;
+
+id:l | st_intersects:boolean | st_contains:boolean | st_within:boolean | location:geo_point                | subset:geo_point
+0    | true                  | true                | true              | ["POINT(5 5)", "POINT(-5 5)"]     | "POINT(5 5)"
+1    | true                  | true                | true              | ["POINT(0 1)","POINT(1 0)"]       | "POINT(0 1)"
+2    | true                  | true                | true              | "POINT(9 9)"                      | "POINT(9 9)"
+3    | true                  | true                | true              | ["POINT(-9 -9)","POINT(9 9)"]     | "POINT(-9 -9)"
+4    | true                  | true                | true              | ["POINT(5 5)", "POINT(15 15)"]    | "POINT(5 5)"
+5    | true                  | true                | true              | ["POINT(0 0)","POINT(11 11)"]     | "POINT(0 0)"
+6    | true                  | true                | true              | ["POINT(-9 -19)","POINT(9 9)"]    | "POINT(-9 -19)"
+7    | true                  | true                | true              | ["POINT(5 15)", "POINT(15 5)"]    | "POINT(5 15)"
+8    | true                  | true                | true              | ["POINT(0 11)","POINT(11 0)"]     | "POINT(0 11)"
+9    | true                  | true                | true              | "POINT(19 9)"                     | "POINT(19 9)"
+10   | true                  | true                | true              | ["POINT(-9 -19)","POINT(19 9)"]   | "POINT(-9 -19)"
+11   | true                  | true                | true              | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"] | ["POINT(0 0)", "POINT(55 55)"]
+;
+
+whereIntersectsMultiValuePointsFields
+required_capability: st_intersects
+required_capability: spatial_predicates_support_multivalues
+
+FROM multivalue_points
+| WHERE ST_INTERSECTS(location, subset)
+| KEEP id, location, subset
+| SORT id
+;
+
+id:l | location:geo_point                | subset:geo_point
+0    | ["POINT(5 5)", "POINT(-5 5)"]     | "POINT(5 5)"
+1    | ["POINT(0 1)","POINT(1 0)"]       | "POINT(0 1)"
+2    | "POINT(9 9)"                      | "POINT(9 9)"
+3    | ["POINT(-9 -9)","POINT(9 9)"]     | "POINT(-9 -9)"
+4    | ["POINT(5 5)", "POINT(15 15)"]    | "POINT(5 5)"
+5    | ["POINT(0 0)","POINT(11 11)"]     | "POINT(0 0)"
+6    | ["POINT(-9 -19)","POINT(9 9)"]    | "POINT(-9 -19)"
+7    | ["POINT(5 15)", "POINT(15 5)"]    | "POINT(5 15)"
+8    | ["POINT(0 11)","POINT(11 0)"]     | "POINT(0 11)"
+9    | "POINT(19 9)"                     | "POINT(19 9)"
+10   | ["POINT(-9 -19)","POINT(19 9)"]   | "POINT(-9 -19)"
+11   | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"] | ["POINT(0 0)", "POINT(55 55)"]
+;
+
+whereIntersectsMultiValuePointsStatsFields
+required_capability: st_intersects
+required_capability: spatial_predicates_support_multivalues
+
+FROM multivalue_points
+| WHERE ST_INTERSECTS(location, subset) | STATS c=COUNT(*)
+;
+
+c:l
+12
+;
+
+whereContainsMultiValuePointsFields
+required_capability: st_contains_within
+required_capability: spatial_predicates_support_multivalues
+
+FROM multivalue_points
+| WHERE ST_CONTAINS(location, subset)
+| KEEP id, location, subset
+| SORT id
+;
+
+id:l | location:geo_point                | subset:geo_point
+0    | ["POINT(5 5)", "POINT(-5 5)"]     | "POINT(5 5)"
+1    | ["POINT(0 1)","POINT(1 0)"]       | "POINT(0 1)"
+2    | "POINT(9 9)"                      | "POINT(9 9)"
+3    | ["POINT(-9 -9)","POINT(9 9)"]     | "POINT(-9 -9)"
+4    | ["POINT(5 5)", "POINT(15 15)"]    | "POINT(5 5)"
+5    | ["POINT(0 0)","POINT(11 11)"]     | "POINT(0 0)"
+6    | ["POINT(-9 -19)","POINT(9 9)"]    | "POINT(-9 -19)"
+7    | ["POINT(5 15)", "POINT(15 5)"]    | "POINT(5 15)"
+8    | ["POINT(0 11)","POINT(11 0)"]     | "POINT(0 11)"
+9    | "POINT(19 9)"                     | "POINT(19 9)"
+10   | ["POINT(-9 -19)","POINT(19 9)"]   | "POINT(-9 -19)"
+11   | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"] | ["POINT(0 0)", "POINT(55 55)"]
+;
+
+whereContainsMultiValuePointsStatsFields
+required_capability: st_contains_within
+required_capability: spatial_predicates_support_multivalues
+
+FROM multivalue_points
+| WHERE ST_CONTAINS(location, subset) | STATS c=COUNT(*)
+;
+
+c:l
+12
+;
+
+whereWithinMultiValuePointsFields
+required_capability: st_contains_within
+required_capability: spatial_predicates_support_multivalues
+
+FROM multivalue_points
+| WHERE ST_WITHIN(subset, location)
+| KEEP id, location, subset
+| SORT id
+;
+
+id:l | location:geo_point                | subset:geo_point
+0    | ["POINT(5 5)", "POINT(-5 5)"]     | "POINT(5 5)"
+1    | ["POINT(0 1)","POINT(1 0)"]       | "POINT(0 1)"
+2    | "POINT(9 9)"                      | "POINT(9 9)"
+3    | ["POINT(-9 -9)","POINT(9 9)"]     | "POINT(-9 -9)"
+4    | ["POINT(5 5)", "POINT(15 15)"]    | "POINT(5 5)"
+5    | ["POINT(0 0)","POINT(11 11)"]     | "POINT(0 0)"
+6    | ["POINT(-9 -19)","POINT(9 9)"]    | "POINT(-9 -19)"
+7    | ["POINT(5 15)", "POINT(15 5)"]    | "POINT(5 15)"
+8    | ["POINT(0 11)","POINT(11 0)"]     | "POINT(0 11)"
+9    | "POINT(19 9)"                     | "POINT(19 9)"
+10   | ["POINT(-9 -19)","POINT(19 9)"]   | "POINT(-9 -19)"
+11   | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"] | ["POINT(0 0)", "POINT(55 55)"]
+;
+
+whereWithinMultiValuePointsStatsFields
+required_capability: st_contains_within
+required_capability: spatial_predicates_support_multivalues
+
+FROM multivalue_points
+| WHERE ST_WITHIN(subset, location) | STATS c=COUNT(*)
+;
+
+c:l
+12
+;

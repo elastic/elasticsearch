@@ -99,8 +99,11 @@ public sealed interface HttpBody extends Releasable permits HttpBody.Full, HttpB
     }
 
     @FunctionalInterface
-    interface ChunkHandler {
+    interface ChunkHandler extends Releasable {
         void onNext(ReleasableBytesReference chunk, boolean isLast);
+
+        @Override
+        default void close() {}
     }
 
     record ByteRefHttpBody(BytesReference bytes) implements Full {}

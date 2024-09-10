@@ -188,6 +188,13 @@ public abstract class BaseRestHandler implements RestHandler {
 
     public interface RequestBodyChunkConsumer extends RestChannelConsumer {
         void handleChunk(RestChannel channel, ReleasableBytesReference chunk, boolean isLast);
+
+        /**
+         * Called when the stream closes. This could happen prior to the completion of the request if the underlying channel was closed.
+         * Implementors should do their best to clean up resources and early terminate request processing if it is triggered before a
+         * response.
+         */
+        default void streamClose() {}
     }
 
     /**

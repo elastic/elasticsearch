@@ -131,6 +131,9 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
 
     private void doClose() {
         closing = true;
+        if (handler != null) {
+            handler.close();
+        }
         if (buf != null) {
             buf.release();
             buf = null;

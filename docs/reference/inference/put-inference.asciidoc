@@ -55,7 +55,7 @@ Refer to the service list in the <<put-inference-api-desc,API description sectio
 The create {infer} API enables you to create an {infer} endpoint and configure a {ml} model to perform a specific {infer} task.
 
 The following services are available through the {infer} API.
-You can find the available task tpyes next to the service name. 
+You can find the available task types next to the service name. 
 Click the links to review the configuration details of the services:
 
 * <<infer-service-alibabacloud-ai-search,AlibabaCloud AI Search>> (`rerank`, `sparse_embedding`, `text_embedding`)

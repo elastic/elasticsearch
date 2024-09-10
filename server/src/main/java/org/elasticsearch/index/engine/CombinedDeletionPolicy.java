@@ -259,10 +259,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
             }
             return count - 1;
         });
-        if (Assertions.ENABLED && snapshotIndexCommit.acquiredInternally) {
-            boolean removed = internallyAcquiredIndexCommits.remove(releasingCommit);
-            assert removed : "Trying to release a commit [" + releasingCommit + "] that hasn't been previously acquired internally";
-        }
+        assert snapshotIndexCommit.acquiredInternally == false || internallyAcquiredIndexCommits.remove(releasingCommit) : "Trying to release a commit [" + releasingCommit + "] that hasn't been previously acquired internally";
 
         assert refCount == null || refCount > 0 : "Number of references for acquired commit can not be negative [" + refCount + "]";
         // The commit can be clean up only if no refCount and it is neither the safe commit nor last commit.

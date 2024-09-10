@@ -204,8 +204,7 @@ public class StatelessStateNotRecoveredFileDeletionIT extends AbstractStatelessI
 
     private static ClusterHealthStatus ensureGreenVia(String via, int nodes, String... indices) {
         TimeValue timeout = TimeValue.timeValueSeconds(30);
-        ClusterHealthRequest healthRequest = new ClusterHealthRequest(indices).masterNodeTimeout(timeout)
-            .timeout(timeout)
+        ClusterHealthRequest healthRequest = new ClusterHealthRequest(timeout, indices).timeout(timeout)
             .waitForStatus(ClusterHealthStatus.GREEN)
             .waitForEvents(Priority.LANGUID)
             .waitForNoRelocatingShards(true)

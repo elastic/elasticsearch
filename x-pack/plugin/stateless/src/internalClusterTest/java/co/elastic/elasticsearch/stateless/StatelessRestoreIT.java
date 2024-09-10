@@ -279,7 +279,7 @@ public class StatelessRestoreIT extends AbstractStatelessIntegTestCase {
             }
         }
 
-        final IndexMetadata indexMetadata = clusterAdmin().prepareState()
+        final IndexMetadata indexMetadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setIndices(indexName)
             .setMetadata(true)
@@ -307,7 +307,7 @@ public class StatelessRestoreIT extends AbstractStatelessIntegTestCase {
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
         ensureGreen(indexName);
 
-        final IndexMetadata restoredIndexMetadata = clusterAdmin().prepareState()
+        final IndexMetadata restoredIndexMetadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setIndices(indexName)
             .setMetadata(true)

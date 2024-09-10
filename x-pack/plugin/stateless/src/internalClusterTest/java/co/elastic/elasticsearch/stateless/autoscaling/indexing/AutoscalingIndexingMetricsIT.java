@@ -134,11 +134,13 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
     public void testMaxTimeToClearQueueDynamicSetting() {
         startMasterAndIndexNode();
         admin().cluster()
-            .prepareUpdateSettings()
+            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .setPersistentSettings(Map.of(IngestLoadProbe.MAX_TIME_TO_CLEAR_QUEUE.getKey(), TimeValue.timeValueSeconds(1)))
             .get();
-        var getSettingsResponse = clusterAdmin().execute(ClusterGetSettingsAction.INSTANCE, new ClusterGetSettingsAction.Request())
-            .actionGet();
+        var getSettingsResponse = clusterAdmin().execute(
+            ClusterGetSettingsAction.INSTANCE,
+            new ClusterGetSettingsAction.Request(TEST_REQUEST_TIMEOUT)
+        ).actionGet();
         assertThat(
             getSettingsResponse.settings().get(IngestLoadProbe.MAX_TIME_TO_CLEAR_QUEUE.getKey()),
             equalTo(TimeValue.timeValueSeconds(1).getStringRep())
@@ -307,7 +309,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
 
         assertAcked(
             admin().cluster()
-                .prepareUpdateSettings()
+                .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                 .setPersistentSettings(Map.of(AverageWriteLoadSampler.WRITE_LOAD_SAMPLER_EWMA_ALPHA_SETTING.getKey(), 0.5))
                 .get()
         );

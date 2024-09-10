@@ -181,7 +181,7 @@ public class RerouteIT extends AbstractStatelessIntegTestCase {
 
         assertBusy(() -> assertNodeHasNoCurrentRecoveries(nodeA));
         assertBusy(() -> assertNodeHasNoCurrentRecoveries(nodeB));
-        assertFalse(clusterAdmin().prepareHealth().setWaitForNodes("4").get().isTimedOut()); // including master node
+        assertFalse(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForNodes("4").get().isTimedOut()); // including master node
 
         ObjectStoreService objectStoreService = getObjectStoreService(nodeC);
         MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);

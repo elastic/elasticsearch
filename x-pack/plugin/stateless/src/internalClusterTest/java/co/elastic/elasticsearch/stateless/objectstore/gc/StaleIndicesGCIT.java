@@ -232,7 +232,11 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
             .execute()
             .get();
 
-        var healthResponse = client(masterNode).admin().cluster().prepareHealth(newIndex).setWaitForGreenStatus().get();
+        var healthResponse = client(masterNode).admin()
+            .cluster()
+            .prepareHealth(TEST_REQUEST_TIMEOUT, newIndex)
+            .setWaitForGreenStatus()
+            .get();
         assertFalse(healthResponse.isTimedOut());
 
         var indexUUID = resolveIndexUUID(newIndex, masterNode);
@@ -384,13 +388,19 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
         disruption.startDisrupting();
 
         assertBusy(() -> {
-            assertThat(client(masterNode).admin().cluster().prepareHealth(indexName).get().getStatus(), equalTo(ClusterHealthStatus.RED));
+            assertThat(
+                client(masterNode).admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT, indexName).get().getStatus(),
+                equalTo(ClusterHealthStatus.RED)
+            );
         });
 
         var indexNode2 = startIndexNode(extraSettings);
 
         assertBusy(() -> {
-            assertThat(client(masterNode).admin().cluster().prepareHealth(indexName).get().getStatus(), equalTo(ClusterHealthStatus.GREEN));
+            assertThat(
+                client(masterNode).admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT, indexName).get().getStatus(),
+                equalTo(ClusterHealthStatus.GREEN)
+            );
         });
 
         setNodeRepositoryStrategy(indexNode, new StatelessMockRepositoryStrategy());
@@ -417,7 +427,7 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
     }
 
     private static String getNodeWhereGCTaskIsAssigned() {
-        var state = client().admin().cluster().prepareState().get().getState();
+        var state = client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         PersistentTasksCustomMetadata persistentTasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
         var nodeId = persistentTasks.getTask(ObjectStoreGCTask.TASK_NAME).getAssignment().getExecutorNode();
         var executingTaskNode = state.nodes().resolveNode(nodeId).getName();
@@ -466,7 +476,7 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
     }
 
     private String resolveIndexUUID(String indexName, String viaNode) {
-        var state = client(viaNode).admin().cluster().prepareState().get().getState();
+        var state = client(viaNode).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         var indexMetadata = state.metadata().index(indexName);
         if (indexMetadata == null) {
             logger.warn("Index [{}] is not found in cluster state: {}", indexName, Strings.toString(state, true, true));
@@ -490,7 +500,7 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
 
     private void ensureRed(String masterNode) throws Exception {
         assertBusy(() -> {
-            var healthResponse = client(masterNode).admin().cluster().prepareHealth().get();
+            var healthResponse = client(masterNode).admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).get();
             assertFalse(healthResponse.isTimedOut());
             assertThat(healthResponse.getStatus(), is(ClusterHealthStatus.RED));
         });

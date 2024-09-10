@@ -54,7 +54,7 @@ public class TransportConsistentClusterStateReadIT extends AbstractStatelessInte
         var indexNode = startIndexNode();
         ensureStableCluster(2);
 
-        var currentState = client().admin().cluster().prepareState().get().getState();
+        var currentState = client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
 
         var client = randomBoolean() ? client(masterNode) : client(indexNode);
 
@@ -125,7 +125,14 @@ public class TransportConsistentClusterStateReadIT extends AbstractStatelessInte
         var indexNode = startIndexNode();
         ensureStableCluster(2);
 
-        var indexNodeId = client().admin().cluster().prepareState().get().getState().nodes().resolveNode(indexNode).getId();
+        var indexNodeId = client().admin()
+            .cluster()
+            .prepareState(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getState()
+            .nodes()
+            .resolveNode(indexNode)
+            .getId();
 
         var disruption = new NetworkDisruption(
             new NetworkDisruption.TwoPartitions(Set.of(indexNode), Set.of(masterNode)),

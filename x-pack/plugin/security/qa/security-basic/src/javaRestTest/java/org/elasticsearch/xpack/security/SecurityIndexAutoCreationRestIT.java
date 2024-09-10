@@ -35,8 +35,6 @@ public class SecurityIndexAutoCreationRestIT extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.license.self_generated.type", "basic")
         .setting("xpack.security.enabled", "true")
-        .setting("xpack.security.ssl.diagnose.trust", "true")
-        .setting("xpack.security.http.ssl.enabled", "false")
         .setting("xpack.security.transport.ssl.enabled", "false")
         .systemProperty("es.xpack.security.security_main_index.auto_create", "true")
         .rolesFile(Resource.fromClasspath("roles.yml"))

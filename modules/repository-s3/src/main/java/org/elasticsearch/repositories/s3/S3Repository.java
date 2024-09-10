@@ -118,6 +118,21 @@ class S3Repository extends MeteredBlobStoreRepository {
     static final ByteSizeValue MAX_FILE_SIZE_USING_MULTIPART = new ByteSizeValue(5, ByteSizeUnit.TB);
 
     /**
+     * Maximum number of parts that can be uploaded using the Multipart Upload API.
+     * (see http://docs.aws.amazon.com/AmazonS3/latest/dev/qfacts.html)
+     */
+    static final long MAX_PARTS_NUMBER_USING_MULTIPART = 10_000;
+
+    /**
+     * Big files should be broken down into chunks taking into account S3 maximum object size and number of parts.
+     * Chunk size would be in range {@code part_size * max_number_of_parts = [50Gb, 5Tb]}, where {@code part_size = [5Mb, 5Gb]}
+     * and {@code max_number_of_parts = 10_000}
+     */
+    static final ByteSizeValue DEFAULT_CHUNK_SIZE = new ByteSizeValue(
+        DEFAULT_BUFFER_SIZE.getBytes() * MAX_PARTS_NUMBER_USING_MULTIPART, ByteSizeUnit.BYTES
+    );
+
+    /**
      * Minimum threshold below which the chunk is uploaded using a single request. Beyond this threshold,
      * the S3 repository will use the AWS Multipart Upload API to split the chunk into several parts, each of buffer_size length, and
      * to upload each part in its own request. Note that setting a buffer size lower than 5mb is not allowed since it will prevents the
@@ -135,7 +150,7 @@ class S3Repository extends MeteredBlobStoreRepository {
      */
     static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING = Setting.byteSizeSetting(
         "chunk_size",
-        MAX_FILE_SIZE_USING_MULTIPART,
+        DEFAULT_CHUNK_SIZE,
         new ByteSizeValue(5, ByteSizeUnit.MB),
         MAX_FILE_SIZE_USING_MULTIPART
     );

@@ -13,7 +13,6 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexDeletionPolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.common.lucene.FilterIndexCommit;
-import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
@@ -223,7 +222,8 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         assert lastCommit != null : "Last commit is not initialized yet";
         final IndexCommit snapshotting = acquiringSafeCommit ? safeCommit : lastCommit;
         acquiredIndexCommits.merge(snapshotting, 1, Integer::sum); // increase refCount
-        assert acquiredInternally == false || internallyAcquiredIndexCommits.add(snapshotting) : "commit [" + snapshotting + "] already added";
+        assert acquiredInternally == false || internallyAcquiredIndexCommits.add(snapshotting)
+            : "commit [" + snapshotting + "] already added";
         return wrapCommit(snapshotting, acquiredInternally);
     }
 
@@ -257,7 +257,8 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
             }
             return count - 1;
         });
-        assert snapshotIndexCommit.acquiredInternally == false || internallyAcquiredIndexCommits.remove(releasingCommit) : "Trying to release a commit [" + releasingCommit + "] that hasn't been previously acquired internally";
+        assert snapshotIndexCommit.acquiredInternally == false || internallyAcquiredIndexCommits.remove(releasingCommit)
+            : "Trying to release a commit [" + releasingCommit + "] that hasn't been previously acquired internally";
 
         assert refCount == null || refCount > 0 : "Number of references for acquired commit can not be negative [" + refCount + "]";
         // The commit can be clean up only if no refCount and it is neither the safe commit nor last commit.

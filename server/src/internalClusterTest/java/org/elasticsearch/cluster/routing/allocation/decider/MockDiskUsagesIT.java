@@ -75,7 +75,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             internalCluster().startNode(Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), createTempDir()));
         }
 
-        final List<String> nodeIds = clusterAdmin().prepareState()
+        final List<String> nodeIds = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .get()
             .getState()
             .getRoutingNodes()
@@ -153,7 +153,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             internalCluster().startNode(Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), createTempDir()));
         }
 
-        final List<String> nodeIds = clusterAdmin().prepareState()
+        final List<String> nodeIds = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .get()
             .getState()
             .getRoutingNodes()
@@ -211,7 +211,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             () -> assertBlocked(prepareIndex("test").setId("1").setSource("foo", "bar"), IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
         );
 
-        assertFalse(clusterAdmin().prepareHealth("test").setWaitForEvents(Priority.LANGUID).get().isTimedOut());
+        assertFalse(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "test").setWaitForEvents(Priority.LANGUID).get().isTimedOut());
 
         // Cannot add further documents
         assertBlocked(prepareIndex("test").setId("2").setSource("foo", "bar"), IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
@@ -261,7 +261,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
                 .put(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "0ms")
         );
 
-        final List<String> nodeIds = clusterAdmin().prepareState()
+        final List<String> nodeIds = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .get()
             .getState()
             .getRoutingNodes()
@@ -318,7 +318,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
 
         final MockInternalClusterInfoService clusterInfoService = getMockInternalClusterInfoService();
 
-        final List<String> nodeIds = clusterAdmin().prepareState()
+        final List<String> nodeIds = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .get()
             .getState()
             .getRoutingNodes()
@@ -414,7 +414,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
                 .put(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "0ms")
         );
 
-        final List<String> nodeIds = clusterAdmin().prepareState()
+        final List<String> nodeIds = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .get()
             .getState()
             .getRoutingNodes()
@@ -483,7 +483,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
 
     private Map<String, Integer> getShardCountByNodeId() {
         final Map<String, Integer> shardCountByNodeId = new HashMap<>();
-        final ClusterState clusterState = clusterAdmin().prepareState().get().getState();
+        final ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         for (final RoutingNode node : clusterState.getRoutingNodes()) {
             logger.info(
                 "----> node {} has {} shards",

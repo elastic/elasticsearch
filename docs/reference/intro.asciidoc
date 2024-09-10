@@ -68,7 +68,7 @@ Refer to our https://www.elastic.co/customers/success-stories[customer success s
 .What is the Elastic Stack?
 *******************************
 {es} is the core component of the Elastic Stack, a suite of products for collecting, storing, searching, and visualizing data.
-https://www.elastic.co/guide/en/starting-with-the-elasticsearch-platform-and-its-solutions/current/stack-components.html[Learn more about the Elastic Stack].
+{estc-welcome-current}/stack-components.html[Learn more about the Elastic Stack].
 *******************************
 
 [[elasticsearch-intro-deploy]]
@@ -196,11 +196,11 @@ There are multiple ways to ingest data into {es}, but it depends on whether you'
 
 For time-series data, you have the following options for adding data to {es} data streams:
 
-* https://www.elastic.co/guide/en/fleet/8.15/fleet-overview.html[Elastic Agent and Fleet]: The preferred way to index timestamped data. Each Elastic Agent based integration includes default ingestion rules, dashboards, and visualizations to start analyzing your data right away.
+* {fleet-guide}/fleet-overview.html[Elastic Agent and Fleet]: The preferred way to index timestamped data. Each Elastic Agent based integration includes default ingestion rules, dashboards, and visualizations to start analyzing your data right away.
 You can use the Fleet UI in {kib} to centrally manage Elastic Agents and their policies.
-* https://www.elastic.co/guide/en/beats/libbeat/8.15/beats-reference.html[Beats]: If your data source isn't supported by Elastic Agent, use Beats to collect and ship data. You install a separate Beat for each type of data to collect.
-* https://www.elastic.co/guide/en/logstash/8.15/introduction.html[Logstash]: Logstash is an open source data collection engine with real-time pipelining capabilities that supports a wide variety of data sources. You might use this option because neither Elastic Agent nor Beats supports your data source. You can also use Logstash to persist incoming data, or if you need to send the data to multiple destinations. 
-* https://www.elastic.co/guide/en/cloud/current/ec-ingest-guides.html[Language clients]: The linked tutorials demonstrate how to use {es} programming language clients to ingest data from an application. (In these examples, {es} is running on Elastic Cloud, but the same principles apply to any {es} deployment.)
+* {beats-ref}/beats-reference.html[Beats]: If your data source isn't supported by Elastic Agent, use Beats to collect and ship data. You install a separate Beat for each type of data to collect.
+* {logstash-ref}/introduction.html[Logstash]: Logstash is an open source data collection engine with real-time pipelining capabilities that supports a wide variety of data sources. You might use this option because neither Elastic Agent nor Beats supports your data source. You can also use Logstash to persist incoming data, or if you need to send the data to multiple destinations. 
+* {cloud}/ec-ingest-guides.html[Language clients]: The linked tutorials demonstrate how to use {es} programming language clients to ingest data from an application. (In these examples, {es} is running on Elastic Cloud, but the same principles apply to any {es} deployment.)
 
 [TIP]
 ====

@@ -25,5 +25,10 @@ public interface TDigestIntArray {
      *     This is, because it will be used to copy an array to itself.
      * </p>
      */
-    void set(int index, TDigestIntArray buf, int offset, int len);
+    default void set(int index, TDigestIntArray buf, int offset, int len) {
+        assert index >= 0 && index + len <= this.size();
+        for (int i = len - 1; i >= 0; i--) {
+            this.set(index + i, buf.get(offset + i));
+        }
+    }
 }

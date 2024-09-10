@@ -18,11 +18,26 @@ public interface TDigestDoubleArray {
 
     void set(int index, double value);
 
-    void set(int index, TDigestDoubleArray buf, int offset, int len);
-
     void add(double value);
 
-    void sorted();
-
     void ensureCapacity(int requiredCapacity);
+
+    /**
+     * Copies {@code len} elements from {@code buf} to this array.
+     * <p>
+     *     Copy must be made in reverse order. That is, starting from offset+len-1 to offset.
+     *     This is, because it will be used to copy an array to itself.
+     * </p>
+     */
+    default void set(int index, TDigestDoubleArray buf, int offset, int len) {
+        assert index >= 0 && index + len <= this.size();
+        for (int i = len - 1; i >= 0; i--) {
+            this.set(index + i, buf.get(offset + i));
+        }
+    }
+
+    /**
+     * Sorts the array in place in ascending order.
+     */
+    void sort();
 }

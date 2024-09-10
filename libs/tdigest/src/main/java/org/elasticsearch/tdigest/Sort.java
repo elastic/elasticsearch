@@ -163,7 +163,14 @@ public class Sort {
      * @param end     The value after the last value to sort
      * @param limit   The minimum size to recurse down to.
      */
-    private static void quickSort(TDigestIntArray order, TDigestDoubleArray values, TDigestDoubleArray weights, int start, int end, int limit) {
+    private static void quickSort(
+        TDigestIntArray order,
+        TDigestDoubleArray values,
+        TDigestDoubleArray weights,
+        int start,
+        int end,
+        int limit
+    ) {
         // the while loop implements tail-recursion to avoid excessive stack calls on nasty cases
         while (end - start > limit) {
 

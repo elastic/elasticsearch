@@ -20,8 +20,7 @@ public class WrapperTDigestArrays implements TDigestArrays {
 
     public static final WrapperTDigestArrays INSTANCE = new WrapperTDigestArrays();
 
-    private WrapperTDigestArrays() {
-    }
+    private WrapperTDigestArrays() {}
 
     @Override
     public TDigestDoubleArray newDoubleArray(int initialCapacity) {
@@ -65,21 +64,13 @@ public class WrapperTDigestArrays implements TDigestArrays {
         }
 
         @Override
-        public void set(int index, TDigestDoubleArray buf, int offset, int len) {
-            assert index >= 0 && index + len <= size;
-            for (int i = 0; i < len; i++) {
-                array[index + i] = buf.get(offset + i);
-            }
-        }
-
-        @Override
         public void add(double value) {
             ensureCapacity(size + 1);
             array[size++] = value;
         }
 
         @Override
-        public void sorted() {
+        public void sort() {
             Arrays.sort(array, 0, size);
         }
 
@@ -119,14 +110,6 @@ public class WrapperTDigestArrays implements TDigestArrays {
         public void set(int index, int value) {
             assert index >= 0 && index < array.length;
             array[index] = value;
-        }
-
-        @Override
-        public void set(int index, TDigestIntArray buf, int offset, int len) {
-            assert index >= 0 && index + len <= array.length;
-            for (int i = len - 1; i >= 0; i--) {
-                array[index + i] = buf.get(offset + i);
-            }
         }
     }
 }

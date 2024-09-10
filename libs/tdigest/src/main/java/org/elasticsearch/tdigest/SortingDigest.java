@@ -56,7 +56,7 @@ public class SortingDigest extends AbstractTDigest {
     @Override
     public void compress() {
         if (isSorted == false) {
-            values.sorted();
+            values.sort();
             isSorted = true;
         }
     }

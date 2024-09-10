@@ -322,8 +322,12 @@ public class MergingDigest extends AbstractTDigest {
                 // next point will fit
                 // so merge into existing centroid
                 weight.set(lastUsedCell, weight.get(lastUsedCell) + incomingWeight.get(ix));
-                mean.set(lastUsedCell, mean.get(lastUsedCell) + (incomingMean.get(ix) - mean.get(lastUsedCell)) * incomingWeight.get(ix)
-                    / weight.get(lastUsedCell));
+                mean.set(
+                    lastUsedCell,
+                    mean.get(lastUsedCell) + (incomingMean.get(ix) - mean.get(lastUsedCell)) * incomingWeight.get(ix) / weight.get(
+                        lastUsedCell
+                    )
+                );
                 incomingWeight.set(ix, 0);
             } else {
                 // didn't fit ... move to next output, copy out first centroid
@@ -430,7 +434,8 @@ public class MergingDigest extends AbstractTDigest {
             int lastOffset = lastUsedCell - 1;
             double right = (mean.get(lastOffset) - mean.get(lastOffset - 1)) / 2;
             if (x < mean.get(lastOffset) + right) {
-                return (weightSoFar + weight.get(lastOffset) * interpolate(x, mean.get(lastOffset) - right, mean.get(lastOffset) + right)) / size();
+                return (weightSoFar + weight.get(lastOffset) * interpolate(x, mean.get(lastOffset) - right, mean.get(lastOffset) + right))
+                    / size();
             }
             return 1;
         }

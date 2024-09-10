@@ -112,9 +112,6 @@ teardown:
       bulk:
         body:
           - index:
-              _index: other
-          - message: foo
-          - index:
               _index: myindex
               pipeline: mypipeline
           - redirect_to: .other2

@@ -413,6 +413,11 @@ public class Verifier {
                     FullTextPredicate.class,
                     mqp -> { failures.add(fail(mqp, "EVAL does not support full text search expressions")); }
                 );
+                // check no full text search functions are used
+                field.forEachDown(
+                    FullTextFunction.class,
+                    mqp -> { failures.add(fail(mqp, "EVAL does not support full text search expressions")); }
+                );
             });
         }
     }

@@ -199,7 +199,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
             """;
 
         var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("EVAL does not support MATCH expressions"));
+        assertThat(error.getMessage(), containsString("EVAL does not support full text search expressions"));
     }
 
     public void testMatchWithNonTextField() {

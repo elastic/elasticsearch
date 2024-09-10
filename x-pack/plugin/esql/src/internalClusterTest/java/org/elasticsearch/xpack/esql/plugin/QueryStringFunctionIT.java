@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -24,6 +26,7 @@ import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class QueryStringFunctionIT extends AbstractEsqlIntegTestCase {
@@ -60,6 +63,7 @@ public class QueryStringFunctionIT extends AbstractEsqlIntegTestCase {
         var query = """
             FROM test
             | WHERE qstr("dog OR canine")
+            | KEEP id
             """;
 
         try (var resp = run(query)) {
@@ -69,6 +73,16 @@ public class QueryStringFunctionIT extends AbstractEsqlIntegTestCase {
             List<List<Object>> values = getValuesList(resp);
             assertThat(values.size(), equalTo(5));
         }
+    }
+
+    public void testQueryStringWithinEval() {
+        var query = """
+            FROM test
+            | EVAL matches_query = qstr("title: fox")
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("EVAL does not support full text search expressions"));
     }
 
     private void createAndPopulateIndex() {
@@ -89,13 +103,13 @@ public class QueryStringFunctionIT extends AbstractEsqlIntegTestCase {
             )
             .add(
                 new IndexRequest(indexName).id("3")
-                    .source("id", 4, "content", "Quick and nimble, the fox vaults over the lazy dog", "title", "Brown Fox in Action")
+                    .source("id", 3, "content", "Quick and nimble, the fox vaults over the lazy dog", "title", "Brown Fox in Action")
             )
             .add(
                 new IndexRequest(indexName).id("4")
                     .source(
                         "id",
-                        5,
+                        4,
                         "content",
                         "A fox that is quick and brown jumps over a dog that is quite lazy",
                         "title",
@@ -106,7 +120,7 @@ public class QueryStringFunctionIT extends AbstractEsqlIntegTestCase {
                 new IndexRequest(indexName).id("5")
                     .source(
                         "id",
-                        6,
+                        5,
                         "content",
                         "With agility, a quick brown fox bounds over a slow-moving dog",
                         "title",

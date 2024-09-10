@@ -104,7 +104,7 @@ public class HybridDigest extends AbstractTDigest {
         // Check if we need to switch implementations.
         assert sortingDigest != null;
         if (sortingDigest.size() + size >= maxSortingSize) {
-            mergingDigest = new MergingDigest(compression);
+            mergingDigest = new MergingDigest(arrays, compression);
             for (int i = 0; i < sortingDigest.values.size(); i++) {
                 mergingDigest.add(sortingDigest.values.get(i));
             }

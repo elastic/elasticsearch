@@ -21,6 +21,7 @@
 
 package org.elasticsearch.tdigest;
 
+import org.elasticsearch.tdigest.arrays.WrapperTDigestArrays;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
@@ -172,7 +173,11 @@ public class SortTests extends ESTestCase {
         }
 
         // now sort ...
-        Sort.stableSort(order, values, n);
+        Sort.stableSort(
+            new WrapperTDigestArrays.WrapperTDigestIntArray(order),
+            new WrapperTDigestArrays.WrapperTDigestDoubleArray(values),
+            n
+        );
 
         // and verify stability of the ordering
         // values must be in order and they must appear in their original ordering

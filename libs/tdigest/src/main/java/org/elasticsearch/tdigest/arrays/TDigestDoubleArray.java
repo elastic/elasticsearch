@@ -18,6 +18,8 @@ public interface TDigestDoubleArray {
 
     void set(int index, double value);
 
+    void set(int index, TDigestDoubleArray buf, int offset, int len);
+
     void add(double value);
 
     void sorted();

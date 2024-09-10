@@ -21,6 +21,10 @@
 
 package org.elasticsearch.tdigest;
 
+import org.elasticsearch.tdigest.arrays.TDigestDoubleArray;
+import org.elasticsearch.tdigest.arrays.TDigestIntArray;
+import org.elasticsearch.tdigest.arrays.WrapperTDigestArrays;
+
 import java.util.Arrays;
 import java.util.Random;
 
@@ -37,9 +41,9 @@ public class Sort {
      * @param values  The values to sort.
      * @param n       The number of values to sort
      */
-    public static void stableSort(int[] order, double[] values, int n) {
+    public static void stableSort(TDigestIntArray order, TDigestDoubleArray values, int n) {
         for (int i = 0; i < n; i++) {
-            order[i] = i;
+            order.set(i, i);
         }
         stableQuickSort(order, values, 0, n, 64);
         stableInsertionSort(order, values, 0, n, 64);
@@ -136,7 +140,14 @@ public class Sort {
         if (inOrder) {
             return true;
         }
-        quickSort(order, values, weights, start, start + n, 64);
+        quickSort(
+            new WrapperTDigestArrays.WrapperTDigestIntArray(order),
+            new WrapperTDigestArrays.WrapperTDigestDoubleArray(values),
+            new WrapperTDigestArrays.WrapperTDigestDoubleArray(weights),
+            start,
+            start + n,
+            64
+        );
         insertionSort(order, values, weights, start, start + n, 64);
         return false;
     }
@@ -152,14 +163,14 @@ public class Sort {
      * @param end     The value after the last value to sort
      * @param limit   The minimum size to recurse down to.
      */
-    private static void quickSort(int[] order, double[] values, double[] weights, int start, int end, int limit) {
+    private static void quickSort(TDigestIntArray order, TDigestDoubleArray values, TDigestDoubleArray weights, int start, int end, int limit) {
         // the while loop implements tail-recursion to avoid excessive stack calls on nasty cases
         while (end - start > limit) {
 
             // pivot by a random element
             int pivotIndex = start + prng.nextInt(end - start);
-            double pivotValue = values[order[pivotIndex]];
-            double pivotWeight = weights[order[pivotIndex]];
+            double pivotValue = values.get(order.get(pivotIndex));
+            double pivotWeight = weights.get(order.get(pivotIndex));
 
             // move pivot to beginning of array
             swap(order, start, pivotIndex);
@@ -176,8 +187,8 @@ public class Sort {
                 // in-loop: i < high
                 // in-loop: low < high
                 // in-loop: i >= low
-                double vi = values[order[i]];
-                double wi = weights[order[i]];
+                double vi = values.get(order.get(i));
+                double wi = weights.get(order.get(i));
                 if (vi == pivotValue && wi == pivotWeight) {
                     if (low != i) {
                         swap(order, low, i);
@@ -248,14 +259,14 @@ public class Sort {
      * @param end    The value after the last value to sort
      * @param limit  The minimum size to recurse down to.
      */
-    private static void stableQuickSort(int[] order, double[] values, int start, int end, int limit) {
+    private static void stableQuickSort(TDigestIntArray order, TDigestDoubleArray values, int start, int end, int limit) {
         // the while loop implements tail-recursion to avoid excessive stack calls on nasty cases
         while (end - start > limit) {
 
             // pivot by a random element
             int pivotIndex = start + prng.nextInt(end - start);
-            double pivotValue = values[order[pivotIndex]];
-            int pv = order[pivotIndex];
+            double pivotValue = values.get(order.get(pivotIndex));
+            int pv = order.get(pivotIndex);
 
             // move pivot to beginning of array
             swap(order, start, pivotIndex);
@@ -272,8 +283,8 @@ public class Sort {
                 // in-loop: i < high
                 // in-loop: low < high
                 // in-loop: i >= low
-                double vi = values[order[i]];
-                int pi = order[i];
+                double vi = values.get(order.get(i));
+                int pi = order.get(i);
                 if (vi == pivotValue && pi == pv) {
                     if (low != i) {
                         swap(order, low, i);
@@ -523,10 +534,10 @@ public class Sort {
         }
     }
 
-    private static void swap(int[] order, int i, int j) {
-        int t = order[i];
-        order[i] = order[j];
-        order[j] = t;
+    private static void swap(TDigestIntArray order, int i, int j) {
+        int t = order.get(i);
+        order.set(i, order.get(j));
+        order.set(j, t);
     }
 
     private static void swap(int i, int j, double[] key, double[]... values) {
@@ -587,19 +598,19 @@ public class Sort {
      * @param n       How many elements to sort
      * @param limit   The largest amount of disorder
      */
-    private static void stableInsertionSort(int[] order, double[] values, int start, int n, int limit) {
+    private static void stableInsertionSort(TDigestIntArray order, TDigestDoubleArray values, int start, int n, int limit) {
         for (int i = start + 1; i < n; i++) {
-            int t = order[i];
-            double v = values[order[i]];
-            int vi = order[i];
+            int t = order.get(i);
+            double v = values.get(order.get(i));
+            int vi = order.get(i);
             int m = Math.max(i - limit, start);
             // values in [start, i) are ordered
             // scan backwards to find where to stick t
             for (int j = i; j >= m; j--) {
-                if (j == 0 || values[order[j - 1]] < v || (values[order[j - 1]] == v && (order[j - 1] <= vi))) {
+                if (j == 0 || values.get(order.get(j - 1)) < v || (values.get(order.get(j - 1)) == v && (order.get(j - 1) <= vi))) {
                     if (j < i) {
-                        System.arraycopy(order, j, order, j + 1, i - j);
-                        order[j] = t;
+                        order.set(j + 1, order, j, i - j);
+                        order.set(j, t);
                     }
                     break;
                 }
@@ -638,11 +649,41 @@ public class Sort {
      * @param offset Where to start reversing.
      * @param length How many elements to reverse
      */
+    public static void reverse(TDigestIntArray order, int offset, int length) {
+        for (int i = 0; i < length / 2; i++) {
+            int t = order.get(offset + i);
+            order.set(offset + i, order.get(offset + length - i - 1));
+            order.set(offset + length - i - 1, t);
+        }
+    }
+
+    /**
+     * Reverses part of an array. See {@link #reverse(int[])}
+     *
+     * @param order  The array containing the data to reverse.
+     * @param offset Where to start reversing.
+     * @param length How many elements to reverse
+     */
     public static void reverse(double[] order, int offset, int length) {
         for (int i = 0; i < length / 2; i++) {
             double t = order[offset + i];
             order[offset + i] = order[offset + length - i - 1];
             order[offset + length - i - 1] = t;
+        }
+    }
+
+    /**
+     * Reverses part of an array. See {@link #reverse(int[])}
+     *
+     * @param order  The array containing the data to reverse.
+     * @param offset Where to start reversing.
+     * @param length How many elements to reverse
+     */
+    public static void reverse(TDigestDoubleArray order, int offset, int length) {
+        for (int i = 0; i < length / 2; i++) {
+            double t = order.get(offset + i);
+            order.set(offset + i, order.get(offset + length - i - 1));
+            order.set(offset + length - i - 1, t);
         }
     }
 }

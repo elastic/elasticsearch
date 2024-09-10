@@ -21,12 +21,12 @@
 
 package org.elasticsearch.tdigest;
 
-import org.elasticsearch.tdigest.arrays.MockTDigestArrays;
+import org.elasticsearch.tdigest.arrays.WrapperTDigestArrays;
 
 public class SortingDigestTests extends TDigestTests {
 
     protected DigestFactory factory(final double compression) {
-        return () -> new SortingDigest(MockTDigestArrays.INSTANCE);
+        return () -> new SortingDigest(WrapperTDigestArrays.INSTANCE);
     }
 
     // Make this test a noop to avoid OOMs.

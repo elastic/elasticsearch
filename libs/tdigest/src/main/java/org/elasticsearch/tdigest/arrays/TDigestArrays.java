@@ -13,4 +13,6 @@ package org.elasticsearch.tdigest.arrays;
  */
 public interface TDigestArrays {
     TDigestDoubleArray newDoubleArray(int initialSize);
+
+    TDigestIntArray newIntArray(int initialSize);
 }

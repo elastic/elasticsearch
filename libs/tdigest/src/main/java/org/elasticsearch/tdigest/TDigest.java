@@ -50,8 +50,8 @@ public abstract class TDigest {
      *                    The number of centroids retained will be a smallish (usually less than 10) multiple of this number.
      * @return the MergingDigest
      */
-    public static TDigest createMergingDigest(double compression) {
-        return new MergingDigest(compression);
+    public static TDigest createMergingDigest(TDigestArrays arrays, double compression) {
+        return new MergingDigest(arrays, compression);
     }
 
     /**

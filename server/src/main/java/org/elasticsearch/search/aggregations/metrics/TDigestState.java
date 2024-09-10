@@ -12,7 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.tdigest.TDigest;
-import org.elasticsearch.tdigest.arrays.MockTDigestArrays;
+import org.elasticsearch.tdigest.arrays.WrapperTDigestArrays;
 import org.elasticsearch.tdigest.arrays.TDigestArrays;
 
 import java.io.IOException;
@@ -55,7 +55,7 @@ public class TDigestState {
      * @return a TDigestState object that's optimized for performance
      */
     public static TDigestState create(double compression) {
-        return new TDigestState(Type.defaultValue(), MockTDigestArrays.INSTANCE, compression);
+        return new TDigestState(Type.defaultValue(), WrapperTDigestArrays.INSTANCE, compression);
     }
 
     /**
@@ -64,7 +64,7 @@ public class TDigestState {
      * @return a TDigestState object that's optimized for performance
      */
     public static TDigestState createOptimizedForAccuracy(double compression) {
-        return new TDigestState(Type.valueForHighAccuracy(), MockTDigestArrays.INSTANCE, compression);
+        return new TDigestState(Type.valueForHighAccuracy(), WrapperTDigestArrays.INSTANCE, compression);
     }
 
     /**
@@ -89,7 +89,7 @@ public class TDigestState {
      * @return a TDigestState object
      */
     public static TDigestState createUsingParamsFrom(TDigestState state) {
-        return new TDigestState(state.type, MockTDigestArrays.INSTANCE, state.compression);
+        return new TDigestState(state.type, WrapperTDigestArrays.INSTANCE, state.compression);
     }
 
     protected TDigestState(Type type, TDigestArrays bigArrays, double compression) {
@@ -97,7 +97,7 @@ public class TDigestState {
             case HYBRID -> TDigest.createHybridDigest(bigArrays, compression);
             case AVL_TREE -> TDigest.createAvlTreeDigest(compression);
             case SORTING -> TDigest.createSortingDigest(bigArrays);
-            case MERGING -> TDigest.createMergingDigest(compression);
+            case MERGING -> TDigest.createMergingDigest(bigArrays, compression);
         };
         this.type = type;
         this.compression = compression;
@@ -126,10 +126,10 @@ public class TDigestState {
         TDigestState state;
         long size = 0;
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            state = new TDigestState(Type.valueOf(in.readString()), MockTDigestArrays.INSTANCE, compression);
+            state = new TDigestState(Type.valueOf(in.readString()), WrapperTDigestArrays.INSTANCE, compression);
             size = in.readVLong();
         } else {
-            state = new TDigestState(Type.valueForHighAccuracy(), MockTDigestArrays.INSTANCE, compression);
+            state = new TDigestState(Type.valueForHighAccuracy(), WrapperTDigestArrays.INSTANCE, compression);
         }
         int n = in.readVInt();
         if (size > 0) {

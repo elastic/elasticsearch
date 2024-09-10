@@ -98,7 +98,11 @@ public class ParentTaskAssigningClientTests extends ESTestCase {
                     UnsupportedOperationException.class,
                     safeAwaitFailure(
                         ClusterStateResponse.class,
-                        listener -> remoteClusterClient.execute(ClusterStateAction.REMOTE_TYPE, new ClusterStateRequest(), listener)
+                        listener -> remoteClusterClient.execute(
+                            ClusterStateAction.REMOTE_TYPE,
+                            new ClusterStateRequest(TEST_REQUEST_TIMEOUT),
+                            listener
+                        )
                     )
                 ).getMessage()
             );

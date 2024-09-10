@@ -45,9 +45,10 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
     @Override
     @SuppressWarnings("unchecked")
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = new ClusterUpdateSettingsRequest();
-        clusterUpdateSettingsRequest.ackTimeout(getAckTimeout(request));
-        clusterUpdateSettingsRequest.masterNodeTimeout(getMasterNodeTimeout(request));
+        final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = new ClusterUpdateSettingsRequest(
+            getMasterNodeTimeout(request),
+            getAckTimeout(request)
+        );
         Map<String, Object> source;
         try (XContentParser parser = request.contentParser()) {
             source = parser.map();

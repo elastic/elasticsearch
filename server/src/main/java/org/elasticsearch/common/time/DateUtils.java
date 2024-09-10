@@ -205,7 +205,7 @@ public class DateUtils {
     }
 
     /**
-     * convert a java time instant to a long value which is stored in lucene
+     * Convert a java time instant to a long value which is stored in lucene,
      * the long value resembles the milliseconds since the epoch
      *
      * @param instant the instant to convert

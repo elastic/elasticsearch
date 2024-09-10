@@ -63,7 +63,7 @@ public class DateUtilsTests extends ESTestCase {
 
     public void testInstantToLongMillisMin() {
         /* negative millisecond value of this instant exceeds the maximum value a java long variable can store */
-        Instant tooEarlyInstant = Instant.ofEpochSecond(-9223372036854776L);;
+        Instant tooEarlyInstant = Instant.ofEpochSecond(-9223372036854776L);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> toLongMillis(tooEarlyInstant));
         assertThat(e.getMessage(), containsString("too far in the past"));
     }

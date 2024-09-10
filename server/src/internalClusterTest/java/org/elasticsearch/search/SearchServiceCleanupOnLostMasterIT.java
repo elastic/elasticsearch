@@ -56,7 +56,7 @@ public class SearchServiceCleanupOnLostMasterIT extends ESIntegTestCase {
             assertBusy(() -> {
                 final ClusterHealthStatus indexHealthStatus = client(master).admin()
                     .cluster()
-                    .health(new ClusterHealthRequest("test"))
+                    .health(new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, "test"))
                     .actionGet()
                     .getStatus();
                 assertThat(indexHealthStatus, Matchers.is(ClusterHealthStatus.RED));

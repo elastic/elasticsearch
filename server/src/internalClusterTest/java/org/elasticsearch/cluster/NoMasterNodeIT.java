@@ -72,7 +72,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         final List<String> nodes = internalCluster().startNodes(3, settings);
 
         createIndex("test");
-        clusterAdmin().prepareHealth("test").setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "test").setWaitForGreenStatus().get();
 
         final NetworkDisruption disruptionScheme = new NetworkDisruption(
             new IsolateAllNodes(new HashSet<>(nodes)),
@@ -84,7 +84,12 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         final Client clientToMasterlessNode = client();
 
         assertBusy(() -> {
-            ClusterState state = clientToMasterlessNode.admin().cluster().prepareState().setLocal(true).get().getState();
+            ClusterState state = clientToMasterlessNode.admin()
+                .cluster()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .setLocal(true)
+                .get()
+                .getState();
             assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
         });
 
@@ -223,14 +228,14 @@ public class NoMasterNodeIT extends ESIntegTestCase {
 
         prepareCreate("test1").setSettings(indexSettings(1, 2)).get();
         prepareCreate("test2").setSettings(indexSettings(3, 0)).get();
-        clusterAdmin().prepareHealth("_all").setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "_all").setWaitForGreenStatus().get();
         prepareIndex("test1").setId("1").setSource("field", "value1").get();
         prepareIndex("test2").setId("1").setSource("field", "value1").get();
         refresh();
 
         ensureSearchable("test1", "test2");
 
-        ClusterStateResponse clusterState = clusterAdmin().prepareState().get();
+        ClusterStateResponse clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
         logger.info("Cluster state:\n{}", clusterState.getState());
 
         final NetworkDisruption disruptionScheme = new NetworkDisruption(
@@ -243,7 +248,12 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         final Client clientToMasterlessNode = client();
 
         assertBusy(() -> {
-            ClusterState state = clientToMasterlessNode.admin().cluster().prepareState().setLocal(true).get().getState();
+            ClusterState state = clientToMasterlessNode.admin()
+                .cluster()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .setLocal(true)
+                .get()
+                .getState();
             assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
         });
 
@@ -299,13 +309,13 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         final List<String> nodes = internalCluster().startNodes(3, settings);
 
         prepareCreate("test1").setSettings(indexSettings(1, 1)).get();
-        clusterAdmin().prepareHealth("_all").setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "_all").setWaitForGreenStatus().get();
         prepareIndex("test1").setId("1").setSource("field", "value1").get();
         refresh();
 
         ensureGreen("test1");
 
-        ClusterStateResponse clusterState = clusterAdmin().prepareState().get();
+        ClusterStateResponse clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
         logger.info("Cluster state:\n{}", clusterState.getState());
 
         final List<String> nodesWithShards = clusterState.getState()
@@ -321,7 +331,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
 
         client().execute(
             TransportAddVotingConfigExclusionsAction.TYPE,
-            new AddVotingConfigExclusionsRequest(nodesWithShards.toArray(new String[0]))
+            new AddVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT, nodesWithShards.toArray(new String[0]))
         ).get();
         ensureGreen("test1");
 
@@ -336,7 +346,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
 
         assertBusy(() -> {
             for (String node : nodesWithShards) {
-                ClusterState state = client(node).admin().cluster().prepareState().setLocal(true).get().getState();
+                ClusterState state = client(node).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).setLocal(true).get().getState();
                 assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
             }
         });

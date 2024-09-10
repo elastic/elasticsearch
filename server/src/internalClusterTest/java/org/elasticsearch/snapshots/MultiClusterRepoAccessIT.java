@@ -142,7 +142,7 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
                     + repoNameOnFirstCluster
                     + "] concurrent modification of the index-N file, expected current generation [2] but it was not found in "
                     + "the repository. The last cluster to write to this repository was ["
-                    + secondCluster.client().admin().cluster().prepareState().get().getState().metadata().clusterUUID()
+                    + secondCluster.client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().clusterUUID()
                     + "] at generation [4]."
             )
         );

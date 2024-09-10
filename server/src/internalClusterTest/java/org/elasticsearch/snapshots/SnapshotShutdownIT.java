@@ -177,7 +177,12 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
             SubscribableListener.<ActionResponse.Empty>newForked(
                 l -> client().execute(
                     TransportAddVotingConfigExclusionsAction.TYPE,
-                    new AddVotingConfigExclusionsRequest(Strings.EMPTY_ARRAY, new String[] { masterName }, TimeValue.timeValueSeconds(10)),
+                    new AddVotingConfigExclusionsRequest(
+                        TEST_REQUEST_TIMEOUT,
+                        Strings.EMPTY_ARRAY,
+                        new String[] { masterName },
+                        TimeValue.timeValueSeconds(10)
+                    ),
                     l
                 )
             )
@@ -212,7 +217,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         // flush master queue to ensure the completion is applied everywhere
         safeAwait(
             SubscribableListener.<ClusterHealthResponse>newForked(
-                l -> client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).execute(l)
+                l -> client().admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).execute(l)
             )
         );
 
@@ -230,7 +235,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         }
 
         safeAwait(SubscribableListener.<ActionResponse.Empty>newForked(l -> {
-            final var clearVotingConfigExclusionsRequest = new ClearVotingConfigExclusionsRequest();
+            final var clearVotingConfigExclusionsRequest = new ClearVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT);
             clearVotingConfigExclusionsRequest.setWaitForRemoval(false);
             client().execute(TransportClearVotingConfigExclusionsAction.TYPE, clearVotingConfigExclusionsRequest, l);
         }));

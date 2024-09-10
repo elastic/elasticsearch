@@ -13,6 +13,7 @@ import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.Random;
 
+import static org.elasticsearch.test.ESTestCase.TEST_REQUEST_TIMEOUT;
 import static org.junit.Assert.assertFalse;
 
 public abstract class SingleNodeDisruption implements ServiceDisruptionScheme {
@@ -71,7 +72,7 @@ public abstract class SingleNodeDisruption implements ServiceDisruptionScheme {
             testCluster.client()
                 .admin()
                 .cluster()
-                .prepareHealth()
+                .prepareHealth(TEST_REQUEST_TIMEOUT)
                 .setWaitForNodes(String.valueOf(testCluster.size()))
                 .setWaitForNoRelocatingShards(true)
                 .get()

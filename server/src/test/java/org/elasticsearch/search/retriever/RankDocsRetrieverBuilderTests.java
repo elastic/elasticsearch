@@ -114,11 +114,14 @@ public class RankDocsRetrieverBuilderTests extends ESTestCase {
         BoolQueryBuilder bq = (BoolQueryBuilder) source.query();
         if (source.aggregations() != null || (source.explain() != null && source.explain()) || source.profile()) {
             if (source.profile() || (source.explain() != null && source.explain())) {
-                assertThat(bq.must().size(), equalTo(retriever.sources.size()));
+                assertThat(bq.must().size(), equalTo(1));
+                assertThat(bq.must().get(0), instanceOf(BoolQueryBuilder.class));
+                assertThat(((BoolQueryBuilder) bq.must().get(0)).should().size(), equalTo(retriever.sources.size()));
                 assertThat(bq.filter().size(), equalTo(retriever.preFilterQueryBuilders.size()));
             } else {
                 assertThat(bq.must().size(), equalTo(0));
-                assertThat(bq.filter().size(), equalTo(retriever.preFilterQueryBuilders.size() + retriever.sources.size()));
+                // the +1 is for the additional Boolean query that holds all topDocs
+                assertThat(bq.filter().size(), equalTo(retriever.preFilterQueryBuilders.size() + 1));
             }
             assertThat(bq.should().size(), greaterThanOrEqualTo(1));
             assertThat(bq.should().get(0), instanceOf(RankDocsQueryBuilder.class));

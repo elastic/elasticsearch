@@ -168,7 +168,8 @@ public abstract class Plugin implements Closeable {
         DocumentParsingProvider documentParsingProvider();
 
         /**
-         * The task manager for the node
+         * The task manager for the node. This should only be used by plugins
+         * to track task removal by registering a RemovedTaskListener.
          */
         TaskManager taskManager();
     }

@@ -9,12 +9,19 @@ package org.elasticsearch.xpack.inference.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -24,6 +31,9 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndexMappingUpdateService;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.Model;
@@ -36,12 +46,14 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentUtils;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlPlatformArchitecturesUtil;
+import org.elasticsearch.xpack.inference.InferenceIndex;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
@@ -60,6 +72,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
     private final Client client;
+    private final SystemIndices systemIndices;
     private volatile boolean skipValidationAndStart;
 
     @Inject
@@ -72,7 +85,8 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         ModelRegistry modelRegistry,
         InferenceServiceRegistry serviceRegistry,
         Client client,
-        Settings settings
+        Settings settings,
+        SystemIndices systemIndices
     ) {
         super(
             PutInferenceModelAction.NAME,
@@ -88,6 +102,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         this.modelRegistry = modelRegistry;
         this.serviceRegistry = serviceRegistry;
         this.client = client;
+        this.systemIndices = systemIndices;
         this.skipValidationAndStart = InferencePlugin.SKIP_VALIDATE_AND_START.get(settings);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(InferencePlugin.SKIP_VALIDATE_AND_START, this::setSkipValidationAndStart);
@@ -167,6 +182,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
                         requestAsMap,
                         // In Elastic cloud ml nodes run on Linux x86
                         Set.of("linux-x86_64"),
+                        state,
                         delegate
                     );
                 } else {
@@ -177,13 +193,14 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
                         resolvedTaskType,
                         requestAsMap,
                         architectures,
+                        state,
                         delegate
                     );
                 }
             }), client, threadPool.executor(InferencePlugin.UTILITY_THREAD_POOL_NAME));
         } else {
             // Not an in cluster service, it does not care about the cluster platform
-            parseAndStoreModel(service.get(), request.getInferenceEntityId(), resolvedTaskType, requestAsMap, Set.of(), listener);
+            parseAndStoreModel(service.get(), request.getInferenceEntityId(), resolvedTaskType, requestAsMap, Set.of(), state, listener);
         }
     }
 
@@ -193,6 +210,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         TaskType taskType,
         Map<String, Object> config,
         Set<String> platformArchitectures,
+        ClusterState clusterState,
         ActionListener<PutInferenceModelAction.Response> listener
     ) {
         ActionListener<Model> storeModelListener = listener.delegateFailureAndWrap(
@@ -210,8 +228,11 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             }
         });
 
-        service.parseRequestConfig(inferenceEntityId, taskType, config, platformArchitectures, parsedModelListener);
+        ActionListener<Boolean> checkIndexMappingsListener = listener.delegateFailureAndWrap(
+            (delegate, ok) -> service.parseRequestConfig(inferenceEntityId, taskType, config, platformArchitectures, parsedModelListener)
+        );
 
+        checkInferenceIndexMappingVersion(clusterState, checkIndexMappingsListener);
     }
 
     private void putAndStartModel(InferenceService service, Model model, ActionListener<PutInferenceModelAction.Response> finalListener) {
@@ -267,6 +288,85 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         // use a heuristic to determine if in Elastic cloud.
         // One such heuristic is where USE_AUTO_MACHINE_MEMORY_PERCENT == true
         return settings.get(MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT);
+    }
+
+    private void checkInferenceIndexMappingVersion(ClusterState clusterState, ActionListener<Boolean> listener) {
+        var descriptor = systemIndices.findMatchingDescriptor(InferenceIndex.INDEX_NAME);
+
+        SystemIndexMappingUpdateService.State indexState = SystemIndexMappingUpdateService.calculateIndexState(clusterState, descriptor);
+        if (indexState == null) { // index does not exist
+            if (clusterState.getMinTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_CHUNKING_SETTINGS)) {
+                // All nodes are aware of the latest mapping
+                // Let auto create handle this
+                listener.onResponse(Boolean.TRUE);
+            } else {
+                // Explicitly create the index to avoid the auto-create index error
+                // "all data and master nodes to have mappings versions at least of version X"
+                createInferenceIndex(descriptor, listener);
+            }
+            return;
+        }
+
+        // Index exists but in a mixed cluster the mappings may not have been updated
+        if (indexState.isMappingUpToDate()) {
+            updateIndexMapping(descriptor, listener);
+            return;
+        }
+
+        listener.onResponse(Boolean.TRUE);
+    }
+
+    private void updateIndexMapping(SystemIndexDescriptor indexDescriptor, ActionListener<Boolean> listener) {
+        logger.debug("Update mappings for index [{}]", indexDescriptor.getPrimaryIndex());
+        final String indexName = indexDescriptor.getPrimaryIndex();
+        var request = new PutMappingRequest(indexName).source(indexDescriptor.getMappings(), XContentType.JSON);
+        final OriginSettingClient originSettingClient = new OriginSettingClient(this.client, indexDescriptor.getOrigin());
+
+        originSettingClient.admin().indices().putMapping(request, new ActionListener<>() {
+            @Override
+            public void onResponse(AcknowledgedResponse response) {
+                if (response.isAcknowledged() == false) {
+                    String message = "Update mapping request for [" + indexName + "] was not acknowledged";
+                    logger.error(message);
+                    listener.onFailure(new ElasticsearchException(message));
+                } else {
+                    listener.onResponse(Boolean.TRUE);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error("Update mapping request for [" + indexName + "] failed", e);
+                listener.onFailure(e);
+            }
+        });
+    }
+
+    private void createInferenceIndex(SystemIndexDescriptor indexDescriptor, ActionListener<Boolean> listener) {
+        logger.debug("Creating index [{}]", indexDescriptor.getPrimaryIndex());
+        final String indexName = indexDescriptor.getPrimaryIndex();
+        var request = new CreateIndexRequest(indexName).mapping(indexDescriptor.getMappings()).settings(indexDescriptor.getSettings());
+        request.origin(indexDescriptor.getOrigin()); // Setting the origin
+        final OriginSettingClient originSettingClient = new OriginSettingClient(this.client, indexDescriptor.getOrigin());
+
+        originSettingClient.admin().indices().create(request, new ActionListener<>() {
+            @Override
+            public void onResponse(CreateIndexResponse response) {
+                if (response.isAcknowledged() == false) {
+                    String message = "Create index request for [" + indexName + "] was not acknowledged";
+                    logger.error(message);
+                    listener.onFailure(new ElasticsearchException(message));
+                } else {
+                    listener.onResponse(Boolean.TRUE);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error("Create index request for [" + indexName + "] failed", e);
+                listener.onFailure(e);
+            }
+        });
     }
 
     /**

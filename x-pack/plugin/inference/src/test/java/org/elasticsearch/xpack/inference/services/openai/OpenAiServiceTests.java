@@ -343,21 +343,17 @@ public class OpenAiServiceTests extends ESTestCase {
         }
     }
 
-    public void testParseRequestConfig_CreatesAnOpenAiEmbeddingsModelWithoutChunkingSettingsWhenChunkingSettingsFeatureFlagDisabled()
+    public void testParseRequestConfig_ThrowsElasticsearchStatusExceptionWhenChunkingSettingsProvidedAndFeatureFlagDisabled()
         throws IOException {
         assumeTrue("Only if 'inference_chunking_settings' feature flag is disabled", ChunkingSettingsFeatureFlag.isEnabled() == false);
         try (var service = createOpenAiService()) {
-            ActionListener<Model> modelVerificationListener = ActionListener.wrap(model -> {
-                assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
-
-                var embeddingsModel = (OpenAiEmbeddingsModel) model;
-                assertNull(embeddingsModel.getServiceSettings().uri());
-                assertNull(embeddingsModel.getServiceSettings().organizationId());
-                assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
-                assertNull(embeddingsModel.getTaskSettings().user());
-                assertNull(embeddingsModel.getConfigurations().getChunkingSettings());
-                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
-            }, exception -> fail("Unexpected exception: " + exception));
+            ActionListener<Model> modelVerificationListener = ActionListener.wrap(
+                model -> fail("Expected exception, but got model: " + model),
+                exception -> {
+                    assertThat(exception, instanceOf(ElasticsearchStatusException.class));
+                    assertThat(exception.getMessage(), containsString("Model configuration contains settings"));
+                }
+            );
 
             service.parseRequestConfig(
                 "id",
@@ -508,10 +504,8 @@ public class OpenAiServiceTests extends ESTestCase {
         }
     }
 
-    public
-        void
-        testParsePersistedConfigWithSecrets_CreatesAnOpenAiEmbeddingsModelWithoutChunkingSettingsWhenChunkingSettingsFeatureFlagDisabled()
-            throws IOException {
+    public void testParsePersistedConfigWithSecrets_CreatesAnOpenAiEmbeddingsModelWithoutChunkingSettingsWhenFeatureFlagDisabled()
+        throws IOException {
         assumeTrue("Only if 'inference_chunking_settings' feature flag is disabled", ChunkingSettingsFeatureFlag.isEnabled() == false);
         try (var service = createOpenAiService()) {
             var persistedConfig = getPersistedConfigMap(

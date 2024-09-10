@@ -226,7 +226,7 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
      * @param descriptor the system index to check
      * @return a summary of the index state, or <code>null</code> if the index doesn't exist
      */
-    static State calculateIndexState(ClusterState state, SystemIndexDescriptor descriptor) {
+    public static State calculateIndexState(ClusterState state, SystemIndexDescriptor descriptor) {
         final IndexMetadata indexMetadata = state.metadata().index(descriptor.getPrimaryIndex());
 
         if (indexMetadata == null) {
@@ -310,7 +310,7 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
         }
     }
 
-    static class State {
+    public static class State {
         final IndexMetadata.State indexState;
         final ClusterHealthStatus indexHealth;
         final boolean isIndexUpToDate;
@@ -321,6 +321,10 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
             this.indexHealth = indexHealth;
             this.isIndexUpToDate = isIndexUpToDate;
             this.mappingUpToDate = mappingUpToDate;
+        }
+
+        public boolean isMappingUpToDate() {
+            return mappingUpToDate;
         }
     }
 }

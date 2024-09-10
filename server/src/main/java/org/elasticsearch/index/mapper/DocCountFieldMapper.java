@@ -126,8 +126,8 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return new SyntheticFieldLoader();
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        return new SyntheticSourceSupport.Native(new SyntheticFieldLoader());
     }
 
     /**

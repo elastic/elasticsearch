@@ -33,20 +33,6 @@ public class SourceLoaderTests extends MapperServiceTestCase {
             {"kwd":"foo"}"""));
     }
 
-    public void testUnsupported() throws IOException {
-        Exception e = expectThrows(
-            IllegalArgumentException.class,
-            () -> createDocumentMapper(syntheticSourceMapping(b -> b.startObject("txt").field("type", "text").endObject()))
-        );
-        assertThat(
-            e.getMessage(),
-            equalTo(
-                "field [txt] of type [text] doesn't support synthetic source unless it is stored or has a sub-field "
-                    + "of type [keyword] with doc values or stored and without a normalizer"
-            )
-        );
-    }
-
     public void testDotsInFieldName() throws IOException {
         DocumentMapper mapper = createDocumentMapper(
             syntheticSourceMapping(b -> b.startObject("foo.bar.baz").field("type", "keyword").endObject())

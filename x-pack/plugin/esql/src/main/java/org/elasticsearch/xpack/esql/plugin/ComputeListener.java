@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.ResponseHeadersCollector;
@@ -142,12 +143,13 @@ final class ComputeListener implements Releasable {
 
     /**
      * Acts like {@code acquireCompute} handling the response(s) from the runComputeOnDataNodes
-     * phase. Per-cluster took time is recorded in the {@link EsqlExecutionInfo}.
+     * phase. Per-cluster took time is recorded in the {@link EsqlExecutionInfo} and status is
+     * set to SUCCESSFUL when the CountDown reaches zero.
      * @param clusterAlias remote cluster alias the data node compute is running on
      * @param queryStartTimeMillis start time (on coordinating cluster) for computing took time (per cluster)
+     * @param countDown counter of number of data nodes to wait for before changing cluster status from RUNNING to SUCCESSFUL
      */
-    ActionListener<ComputeResponse> acquireComputeForDataNodes(String clusterAlias, long queryStartTimeMillis) {
-        // MP TODO: does this run only on remote clusters?
+    ActionListener<ComputeResponse> acquireComputeForDataNodes(String clusterAlias, long queryStartTimeMillis, CountDown countDown) {
         assert clusterAlias != null : "Must provide non-null cluster alias to acquireCompute";
         return acquireAvoid().map(resp -> {
             responseHeaders.collect();
@@ -158,12 +160,14 @@ final class ComputeListener implements Releasable {
             long tookTimeMillis = System.currentTimeMillis() - queryStartTimeMillis;
             TimeValue tookOnDataNode = new TimeValue(tookTimeMillis);
             esqlExecutionInfo.swapCluster(clusterAlias, (k, v) -> {
+                EsqlExecutionInfo.Cluster.Builder builder = new EsqlExecutionInfo.Cluster.Builder(v);
                 if (v.getTook() == null || v.getTook().millis() < tookOnDataNode.millis()) {
-                    return new EsqlExecutionInfo.Cluster.Builder(v).setTook(tookOnDataNode).build();
-                } else {
-                    // another data node had higher took time, so keep the current value
-                    return v;
+                    builder.setTook(tookOnDataNode);
                 }
+                if (countDown.countDown()) {
+                    builder.setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+                }
+                return builder.build();
             });
             return null;
         });

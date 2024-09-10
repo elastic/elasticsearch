@@ -214,8 +214,8 @@ public class IndexResolver {
             clustersWithoutFieldCapsResponses.remove(clusterAlias);
         }
 
-        // clusters in the original request but not present in the field-caps response were specified with an index
-        // or indices that do not exist, so the search on that cluster is done. Thus, mark it as complete.
+        // these are clusters in the original request but not present in the field-caps response were specified with
+        // an index or indices that do not exist, so the search on that cluster is done. Thus, mark it as complete.
         for (String c : clustersWithoutFieldCapsResponses) {
             executionInfo.swapCluster(
                 c,

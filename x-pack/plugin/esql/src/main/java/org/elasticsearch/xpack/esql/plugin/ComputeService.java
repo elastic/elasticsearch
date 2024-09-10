@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
@@ -32,6 +33,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -199,12 +201,11 @@ public class ComputeService {
         try (
             Releasable ignored = exchangeSource.addEmptySink();
             // this is the top level ComputeListener called once at the end (e.g., once all clusters have finished for a CCS)
-            var computeListener = ComputeListener.createComputeListener(
-                transportService,
-                rootTask,
-                executionInfo,
-                listener.map(r -> new Result(physicalPlan.output(), collectedPages, r.getProfiles(), executionInfo))
-            )
+            var computeListener = ComputeListener.createComputeListener(transportService, rootTask, executionInfo, listener.map(r -> {
+                long tookTimeMillis = System.currentTimeMillis() - configuration.getQueryStartTimeMillis();
+                executionInfo.setOverallTookTime(new TimeValue(tookTimeMillis));
+                return new Result(physicalPlan.output(), collectedPages, r.getProfiles(), executionInfo);
+            }))
         ) {
             // run compute on the coordinator
             exchangeSource.addCompletionListener(computeListener.acquireAvoid());
@@ -304,6 +305,7 @@ public class ComputeService {
 
                 // For each target node, first open a remote exchange on the remote node, then link the exchange source to
                 // the new remote exchange sink, and initialize the computation on the target node via data-node-request.
+                CountDown countDown = new CountDown(dataNodeResult.dataNodes().size());
                 for (DataNode node : dataNodeResult.dataNodes()) {
                     var queryPragmas = configuration.pragmas();
                     ExchangeService.openExchange(
@@ -317,7 +319,8 @@ public class ComputeService {
                             exchangeSource.addRemoteSink(remoteSink, queryPragmas.concurrentExchangeClients());
                             ActionListener<ComputeResponse> computeResponseListener = computeListener.acquireComputeForDataNodes(
                                 clusterAlias,
-                                configuration.getQueryStartTimeMillis()
+                                configuration.getQueryStartTimeMillis(),
+                                countDown
                             );
                             var dataNodeListener = ActionListener.runBefore(computeResponseListener, () -> l.onResponse(null));
                             transportService.sendChildRequest(

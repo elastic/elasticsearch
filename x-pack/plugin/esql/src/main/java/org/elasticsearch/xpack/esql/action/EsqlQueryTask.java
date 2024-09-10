@@ -32,8 +32,9 @@ public class EsqlQueryTask extends StoredAsyncTask<EsqlQueryResponse> {
         super(id, type, action, description, parentTaskId, headers, originHeaders, asyncExecutionId, keepAlive);
     }
 
+    // MP TODO: add EsqlExecutionInfo here?
     @Override
     public EsqlQueryResponse getCurrentResult() {
-        return new EsqlQueryResponse(List.of(), List.of(), null, false, getExecutionId().getEncoded(), true, true);
+        return new EsqlQueryResponse(List.of(), List.of(), null, false, getExecutionId().getEncoded(), true, true, null);
     }
 }

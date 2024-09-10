@@ -15,6 +15,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverSleeps;
 import org.elasticsearch.core.TimeValue;
@@ -221,10 +222,11 @@ public class ComputeListenerTests extends ESTestCase {
         long startTimeMillis = System.currentTimeMillis() - 5000;
         try (ComputeListener computeListener = ComputeListener.createOnRemote("rc1", transportService, newTask(), executionInfo, future)) {
             int tasks = randomIntBetween(1, 5);
+            CountDown countDown = new CountDown(tasks);
             for (int t = 0; t < tasks; t++) {
                 ComputeResponse resp = randomResponse(true);
                 allProfiles.addAll(resp.getProfiles());
-                ActionListener<ComputeResponse> subListener = computeListener.acquireComputeForDataNodes("rc1", startTimeMillis);
+                ActionListener<ComputeResponse> subListener = computeListener.acquireComputeForDataNodes("rc1", startTimeMillis, countDown);
                 threadPool.schedule(
                     ActionRunnable.wrap(subListener, l -> l.onResponse(resp)),
                     TimeValue.timeValueNanos(between(0, 100)),
@@ -249,6 +251,7 @@ public class ComputeListenerTests extends ESTestCase {
         assertThat(response.getSuccessfulShards(), equalTo(10));
         assertThat(response.getSkippedShards(), equalTo(3));
         assertThat(response.getFailedShards(), equalTo(0));
+        assertThat(executionInfo.getCluster("rc1").getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
 
         Mockito.verifyNoInteractions(transportService.getTaskManager());
     }

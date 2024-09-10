@@ -205,9 +205,18 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         if (task instanceof EsqlQueryTask asyncTask && request.keepOnCompletion()) {
             String asyncExecutionId = asyncTask.getExecutionId().getEncoded();
             threadPool.getThreadContext().addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_ID_HEADER, asyncExecutionId);
-            return new EsqlQueryResponse(columns, result.pages(), profile, request.columnar(), asyncExecutionId, false, request.async());
+            return new EsqlQueryResponse(
+                columns,
+                result.pages(),
+                profile,
+                request.columnar(),
+                asyncExecutionId,
+                false,
+                request.async(),
+                result.executionInfo()
+            );
         }
-        return new EsqlQueryResponse(columns, result.pages(), profile, request.columnar(), request.async());
+        return new EsqlQueryResponse(columns, result.pages(), profile, request.columnar(), request.async(), result.executionInfo());
     }
 
     /**
@@ -238,6 +247,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         Map<String, String> originHeaders,
         AsyncExecutionId asyncExecutionId
     ) {
+        // MP TODO: add EsqlExecutionInfo here?
         return new EsqlQueryTask(
             id,
             type,
@@ -263,7 +273,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             false,
             asyncExecutionId,
             true, // is_running
-            true // isAsync
+            true, // isAsync
+            null  // MP TODO: is this what we want here? test this
         );
     }
 

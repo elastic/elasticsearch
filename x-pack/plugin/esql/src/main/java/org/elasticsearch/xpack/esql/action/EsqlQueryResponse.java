@@ -53,6 +53,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     private final boolean isRunning;
     // True if this response is as a result of an async query request
     private final boolean isAsync;
+    private final EsqlExecutionInfo executionInfo;
 
     public EsqlQueryResponse(
         List<ColumnInfoImpl> columns,
@@ -61,7 +62,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         boolean columnar,
         @Nullable String asyncExecutionId,
         boolean isRunning,
-        boolean isAsync
+        boolean isAsync,
+        EsqlExecutionInfo executionInfo
     ) {
         this.columns = columns;
         this.pages = pages;
@@ -70,10 +72,18 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         this.asyncExecutionId = asyncExecutionId;
         this.isRunning = isRunning;
         this.isAsync = isAsync;
+        this.executionInfo = executionInfo;
     }
 
-    public EsqlQueryResponse(List<ColumnInfoImpl> columns, List<Page> pages, @Nullable Profile profile, boolean columnar, boolean isAsync) {
-        this(columns, pages, profile, columnar, null, false, isAsync);
+    public EsqlQueryResponse(
+        List<ColumnInfoImpl> columns,
+        List<Page> pages,
+        @Nullable Profile profile,
+        boolean columnar,
+        boolean isAsync,
+        EsqlExecutionInfo executionInfo
+    ) {
+        this(columns, pages, profile, columnar, null, false, isAsync, executionInfo);
     }
 
     /**
@@ -103,7 +113,11 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             profile = in.readOptionalWriteable(Profile::new);
         }
         boolean columnar = in.readBoolean();
-        return new EsqlQueryResponse(columns, pages, profile, columnar, asyncExecutionId, isRunning, isAsync);
+        EsqlExecutionInfo executionInfo = null;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_CCS_COMPUTE_RESPONSE)) {
+            in.readOptionalWriteable(EsqlExecutionInfo::new);
+        }
+        return new EsqlQueryResponse(columns, pages, profile, columnar, asyncExecutionId, isRunning, isAsync, executionInfo);
     }
 
     @Override
@@ -119,6 +133,9 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             out.writeOptionalWriteable(profile);
         }
         out.writeBoolean(columnar);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_CCS_COMPUTE_RESPONSE)) {
+            out.writeOptionalWriteable(executionInfo);
+        }
     }
 
     public List<ColumnInfoImpl> columns() {
@@ -164,6 +181,10 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         return isRunning;
     }
 
+    public EsqlExecutionInfo getExecutionInfo() {
+        return executionInfo;
+    }
+
     private Iterator<? extends ToXContent> asyncPropertiesOrEmpty() {
         if (isAsync) {
             return ChunkedToXContentHelper.singleChunk((builder, params) -> {
@@ -182,6 +203,17 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         boolean dropNullColumns = params.paramAsBoolean(DROP_NULL_COLUMNS_OPTION, false);
         boolean[] nullColumns = dropNullColumns ? nullColumns() : null;
+
+        Iterator<ToXContent> tookTime;
+        if (executionInfo != null && executionInfo.getOverallTook() != null) {
+            tookTime = ChunkedToXContentHelper.singleChunk((builder, p) -> {
+                builder.field("took", executionInfo.getOverallTook().millis());
+                return builder;
+            });
+        } else {
+            tookTime = Collections.emptyIterator();
+        }
+
         Iterator<? extends ToXContent> columnHeadings = dropNullColumns
             ? Iterators.concat(
                 ResponseXContentUtils.allColumns(columns, "all_columns"),
@@ -195,6 +227,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         return Iterators.concat(
             ChunkedToXContentHelper.startObject(),
             asyncPropertiesOrEmpty(),
+            tookTime,
             columnHeadings,
             ChunkedToXContentHelper.array("values", valuesIt),
             profileRender,

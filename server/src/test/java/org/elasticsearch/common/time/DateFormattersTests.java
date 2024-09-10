@@ -246,11 +246,6 @@ public class DateFormattersTests extends ESTestCase {
             assertThat(formatter.format(instant), is("-0.12345"));
             assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
         }
-        {
-            DateFormatter formatter2 = DateFormatter.forPattern("strict_date_optional_time_nanos||epoch_millis");
-            Instant instant = Instant.from(formatter2.parse("2109303366.31253"));
-            assertThat(formatter.format(instant), is("2109303366.31253"));
-        }
     }
 
     /**

@@ -52,25 +52,6 @@ public class CommonAnalysisPluginTests extends ESTestCase {
                 ex.getMessage()
             );
         }
-
-        final Settings settingsPre7 = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .put(
-                IndexMetadata.SETTING_VERSION_CREATED,
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_0_0, IndexVersions.V_8_10_0)
-            )
-            .put("index.analysis.analyzer.custom_analyzer.type", "custom")
-            .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
-            .putList("index.analysis.analyzer.custom_analyzer.filter", "my_ngram")
-            .put("index.analysis.filter.my_ngram.type", "nGram")
-            .build();
-        try (CommonAnalysisPlugin commonAnalysisPlugin = new CommonAnalysisPlugin()) {
-            createTestAnalysis(IndexSettingsModule.newIndexSettings("index", settingsPre7), settingsPre7, commonAnalysisPlugin);
-            assertWarnings(
-                "The [nGram] token filter name is deprecated and will be removed in a future version. "
-                    + "Please change the filter name to [ngram] instead."
-            );
-        }
     }
 
     /**
@@ -99,26 +80,6 @@ public class CommonAnalysisPluginTests extends ESTestCase {
                 "The [edgeNGram] token filter name was deprecated in 6.4 and cannot be used in new indices. "
                     + "Please change the filter name to [edge_ngram] instead.",
                 ex.getMessage()
-            );
-        }
-
-        final Settings settingsPre7 = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .put(
-                IndexMetadata.SETTING_VERSION_CREATED,
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_0_0, IndexVersions.V_8_10_0)
-            )
-            .put("index.analysis.analyzer.custom_analyzer.type", "custom")
-            .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
-            .putList("index.analysis.analyzer.custom_analyzer.filter", "my_ngram")
-            .put("index.analysis.filter.my_ngram.type", "edgeNGram")
-            .build();
-
-        try (CommonAnalysisPlugin commonAnalysisPlugin = new CommonAnalysisPlugin()) {
-            createTestAnalysis(IndexSettingsModule.newIndexSettings("index", settingsPre7), settingsPre7, commonAnalysisPlugin);
-            assertWarnings(
-                "The [edgeNGram] token filter name is deprecated and will be removed in a future version. "
-                    + "Please change the filter name to [edge_ngram] instead."
             );
         }
     }

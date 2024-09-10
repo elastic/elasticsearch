@@ -243,7 +243,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
      * @return true if the acquired commit can be clean up.
      */
     synchronized boolean releaseCommit(final IndexCommit acquiredCommit) {
-        SnapshotIndexCommit snapshotIndexCommit = (SnapshotIndexCommit) acquiredCommit;
+        final SnapshotIndexCommit snapshotIndexCommit = (SnapshotIndexCommit) acquiredCommit;
         final IndexCommit releasingCommit = snapshotIndexCommit.getIndexCommit();
         assert acquiredIndexCommits.containsKey(releasingCommit)
             : "Release non-acquired commit;"

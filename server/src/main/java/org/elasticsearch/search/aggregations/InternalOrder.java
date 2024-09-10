@@ -28,6 +28,7 @@ import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BiFunction;
 import java.util.function.ToLongFunction;
 
 /**
@@ -80,14 +81,17 @@ public abstract class InternalOrder extends BucketOrder {
         }
 
         @Override
-        Comparator<DelayedBucket<? extends Bucket>> delayedBucketComparator() {
+        public <B extends InternalMultiBucketAggregation.InternalBucket> Comparator<DelayedBucket<B>> delayedBucketComparator(
+            BiFunction<List<B>, AggregationReduceContext, B> reduce,
+            AggregationReduceContext reduceContext
+        ) {
             Comparator<Bucket> comparator = comparator();
             /*
              * Reduce the buckets if we haven't already so we can get at the
              * sub-aggregations. With enough code we could avoid this but
              * we haven't written that code....
              */
-            return (lhs, rhs) -> comparator.compare(lhs.reduced(), rhs.reduced());
+            return (lhs, rhs) -> comparator.compare(lhs.reduced(reduce, reduceContext), rhs.reduced(reduce, reduceContext));
         }
 
         @Override
@@ -212,12 +216,15 @@ public abstract class InternalOrder extends BucketOrder {
         }
 
         @Override
-        Comparator<DelayedBucket<? extends Bucket>> delayedBucketComparator() {
-            List<Comparator<DelayedBucket<? extends Bucket>>> comparators = orderElements.stream()
-                .map(BucketOrder::delayedBucketComparator)
+        public <B extends InternalMultiBucketAggregation.InternalBucket> Comparator<DelayedBucket<B>> delayedBucketComparator(
+            BiFunction<List<B>, AggregationReduceContext, B> reduce,
+            AggregationReduceContext reduceContext
+        ) {
+            List<Comparator<DelayedBucket<B>>> comparators = orderElements.stream()
+                .map(b -> b.delayedBucketComparator(reduce, reduceContext))
                 .toList();
             return (lhs, rhs) -> {
-                for (Comparator<DelayedBucket<? extends Bucket>> c : comparators) {
+                for (Comparator<DelayedBucket<B>> c : comparators) {
                     int result = c.compare(lhs, rhs);
                     if (result != 0) {
                         return result;
@@ -277,8 +284,11 @@ public abstract class InternalOrder extends BucketOrder {
         }
 
         @Override
-        Comparator<DelayedBucket<? extends Bucket>> delayedBucketComparator() {
-            return delayedBucketCompator;
+        public <B extends InternalMultiBucketAggregation.InternalBucket> Comparator<DelayedBucket<B>> delayedBucketComparator(
+            BiFunction<List<B>, AggregationReduceContext, B> reduce,
+            AggregationReduceContext reduceContext
+        ) {
+            return delayedBucketCompator::compare;
         }
 
         @Override

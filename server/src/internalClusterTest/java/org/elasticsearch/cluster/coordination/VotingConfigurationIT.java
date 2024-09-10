@@ -43,8 +43,11 @@ public class VotingConfigurationIT extends ESIntegTestCase {
         final String originalMaster = internalCluster().getMasterName();
 
         logger.info("--> excluding master node {}", originalMaster);
-        client().execute(TransportAddVotingConfigExclusionsAction.TYPE, new AddVotingConfigExclusionsRequest(originalMaster)).get();
-        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).get();
+        client().execute(
+            TransportAddVotingConfigExclusionsAction.TYPE,
+            new AddVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT, originalMaster)
+        ).get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).get();
         assertNotEquals(originalMaster, internalCluster().getMasterName());
     }
 
@@ -60,7 +63,7 @@ public class VotingConfigurationIT extends ESIntegTestCase {
             internalCluster().client()
                 .admin()
                 .cluster()
-                .prepareHealth()
+                .prepareHealth(TEST_REQUEST_TIMEOUT)
                 .setWaitForNodes("4")
                 .setWaitForEvents(Priority.LANGUID)
                 .get()
@@ -71,7 +74,7 @@ public class VotingConfigurationIT extends ESIntegTestCase {
         final ClusterState clusterState = internalCluster().client()
             .admin()
             .cluster()
-            .prepareState()
+            .prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setNodes(true)
             .setMetadata(true)
@@ -111,7 +114,7 @@ public class VotingConfigurationIT extends ESIntegTestCase {
             internalCluster().client()
                 .admin()
                 .cluster()
-                .prepareHealth()
+                .prepareHealth(TEST_REQUEST_TIMEOUT)
                 .setWaitForNodes("3")
                 .setWaitForEvents(Priority.LANGUID)
                 .get()
@@ -121,7 +124,7 @@ public class VotingConfigurationIT extends ESIntegTestCase {
         final ClusterState newClusterState = internalCluster().client()
             .admin()
             .cluster()
-            .prepareState()
+            .prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setNodes(true)
             .setMetadata(true)

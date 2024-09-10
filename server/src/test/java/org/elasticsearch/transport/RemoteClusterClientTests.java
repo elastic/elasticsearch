@@ -104,7 +104,7 @@ public class RemoteClusterClientTests extends ESTestCase {
                 ClusterStateResponse clusterStateResponse = safeAwait(
                     listener -> client.execute(
                         ClusterStateAction.REMOTE_TYPE,
-                        new ClusterStateRequest(),
+                        new ClusterStateRequest(TEST_REQUEST_TIMEOUT),
                         ActionListener.runBefore(
                             listener,
                             () -> assertTrue(Thread.currentThread().getName().contains('[' + TEST_THREAD_POOL_NAME + ']'))
@@ -184,7 +184,7 @@ public class RemoteClusterClientTests extends ESTestCase {
                         )
                     );
                     ClusterStateResponse clusterStateResponse = safeAwait(
-                        listener -> client.execute(ClusterStateAction.REMOTE_TYPE, new ClusterStateRequest(), listener)
+                        listener -> client.execute(ClusterStateAction.REMOTE_TYPE, new ClusterStateRequest(TEST_REQUEST_TIMEOUT), listener)
                     );
                     assertNotNull(clusterStateResponse);
                     assertEquals("foo_bar_cluster", clusterStateResponse.getState().getClusterName().value());
@@ -273,7 +273,11 @@ public class RemoteClusterClientTests extends ESTestCase {
                     ESTestCase.assertThat(
                         safeAwaitFailure(
                             ClusterStateResponse.class,
-                            listener -> client.execute(ClusterStateAction.REMOTE_TYPE, new ClusterStateRequest(), listener)
+                            listener -> client.execute(
+                                ClusterStateAction.REMOTE_TYPE,
+                                new ClusterStateRequest(TEST_REQUEST_TIMEOUT),
+                                listener
+                            )
                         ),
                         instanceOf(ConnectTransportException.class)
                     );
@@ -284,7 +288,7 @@ public class RemoteClusterClientTests extends ESTestCase {
 
                 assertBusy(() -> {
                     ClusterStateResponse ignored = safeAwait(
-                        listener -> client.execute(ClusterStateAction.REMOTE_TYPE, new ClusterStateRequest(), listener)
+                        listener -> client.execute(ClusterStateAction.REMOTE_TYPE, new ClusterStateRequest(TEST_REQUEST_TIMEOUT), listener)
                     );
                     // keep retrying on an exception, the goal is to check that we eventually reconnect
                 });

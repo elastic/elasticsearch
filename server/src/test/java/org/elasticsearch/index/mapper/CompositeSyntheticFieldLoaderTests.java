@@ -39,9 +39,7 @@ public class CompositeSyntheticFieldLoaderTests extends ESTestCase {
         );
 
         var storedFieldLoaders = sut.storedFieldLoaders().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-        storedFieldLoaders.get("foo.one").advanceToDoc(0);
         storedFieldLoaders.get("foo.one").load(List.of(45L, 46L));
-        storedFieldLoaders.get("foo.two").advanceToDoc(0);
         storedFieldLoaders.get("foo.two").load(List.of(1L));
 
         var result = XContentBuilder.builder(XContentType.JSON.xContent());
@@ -53,7 +51,7 @@ public class CompositeSyntheticFieldLoaderTests extends ESTestCase {
             {"foo":[45,46,1]}""", Strings.toString(result));
     }
 
-    public void testLoadStoredFieldAndAdvance() throws IOException {
+    public void testLoadStoredFieldAndReset() throws IOException {
         var sut = new CompositeSyntheticFieldLoader(
             "foo",
             "bar.baz.foo",
@@ -66,7 +64,6 @@ public class CompositeSyntheticFieldLoaderTests extends ESTestCase {
         );
 
         var storedFieldLoaders = sut.storedFieldLoaders().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-        storedFieldLoaders.get("foo.one").advanceToDoc(0);
         storedFieldLoaders.get("foo.one").load(List.of(45L));
 
         var result = XContentBuilder.builder(XContentType.JSON.xContent());
@@ -77,10 +74,9 @@ public class CompositeSyntheticFieldLoaderTests extends ESTestCase {
         assertEquals("""
             {"foo":45}""", Strings.toString(result));
 
-        storedFieldLoaders.get("foo.one").advanceToDoc(1);
-
         var empty = XContentBuilder.builder(XContentType.JSON.xContent());
         empty.startObject();
+        // reset() should have been called after previous write
         sut.write(result);
         empty.endObject();
 
@@ -111,6 +107,11 @@ public class CompositeSyntheticFieldLoaderTests extends ESTestCase {
             }
 
             @Override
+            public void reset() {
+
+            }
+
+            @Override
             public String fieldName() {
                 return "";
             }
@@ -138,6 +139,11 @@ public class CompositeSyntheticFieldLoaderTests extends ESTestCase {
             @Override
             public void write(XContentBuilder b) throws IOException {
                 b.value(1L);
+            }
+
+            @Override
+            public void reset() {
+
             }
 
             @Override
@@ -193,6 +199,11 @@ public class CompositeSyntheticFieldLoaderTests extends ESTestCase {
                 }
 
                 @Override
+                public void reset() {
+
+                }
+
+                @Override
                 public String fieldName() {
                     return "";
                 }
@@ -205,7 +216,6 @@ public class CompositeSyntheticFieldLoaderTests extends ESTestCase {
         );
 
         var storedFieldLoaders = sut.storedFieldLoaders().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-        storedFieldLoaders.get("foo.one").advanceToDoc(0);
         storedFieldLoaders.get("foo.one").load(List.of(45L, 46L));
 
         sut.docValuesLoader(null, new int[0]).advanceToDoc(0);

@@ -33,7 +33,10 @@ public class SimpleNodesInfoIT extends ESIntegTestCase {
         final String node_1 = nodesNames.get(0);
         final String node_2 = nodesNames.get(1);
 
-        ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").get();
+        ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
+            .setWaitForGreenStatus()
+            .setWaitForNodes("2")
+            .get();
         logger.info("--> done cluster_health, status {}", clusterHealth.getStatus());
 
         String server1NodeId = getNodeId(node_1);
@@ -72,7 +75,10 @@ public class SimpleNodesInfoIT extends ESIntegTestCase {
         final String node_1 = nodesNames.get(0);
         final String node_2 = nodesNames.get(1);
 
-        ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").get();
+        ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
+            .setWaitForGreenStatus()
+            .setWaitForNodes("2")
+            .get();
         logger.info("--> done cluster_health, status {}", clusterHealth.getStatus());
 
         String server1NodeId = getNodeId(node_1);
@@ -110,7 +116,10 @@ public class SimpleNodesInfoIT extends ESIntegTestCase {
         final String node_1 = nodeNames.get(0);
         final String node_2 = nodeNames.get(1);
 
-        ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").get();
+        ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
+            .setWaitForGreenStatus()
+            .setWaitForNodes("2")
+            .get();
         logger.info("--> done cluster_health, status {}", clusterHealth.getStatus());
 
         String server1NodeId = getNodeId(node_1);

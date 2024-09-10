@@ -1,0 +1,9 @@
+pr: 112665
+summary: Remove zstd feature flag for index codec best compression
+area: Codec
+type: enhancement
+issues: []
+highlight:
+  title: Remove zstd feature flag for index codec best compression
+  body: ""
+  notable: true

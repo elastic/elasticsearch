@@ -79,7 +79,13 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
 
         try {
             final var newMaster = ensureSufficientMasterEligibleNodes();
-            final long originalTerm = internalCluster().masterClient().admin().cluster().prepareState().get().getState().term();
+            final long originalTerm = internalCluster().masterClient()
+                .admin()
+                .cluster()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .get()
+                .getState()
+                .term();
             final var previousMasterKnowsNewMasterIsElectedLatch = configureElectionLatch(newMaster, cleanupTasks);
 
             final var newMasterReceivedReroutedMessageFuture = new PlainActionFuture<>();

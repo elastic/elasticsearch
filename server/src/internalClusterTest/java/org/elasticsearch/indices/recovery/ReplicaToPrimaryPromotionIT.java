@@ -55,7 +55,11 @@ public class ReplicaToPrimaryPromotionIT extends ESIntegTestCase {
         }
 
         // pick up a data node that contains a random primary shard
-        ClusterState state = client(internalCluster().getMasterName()).admin().cluster().prepareState().get().getState();
+        ClusterState state = client(internalCluster().getMasterName()).admin()
+            .cluster()
+            .prepareState(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getState();
         final int numShards = state.metadata().index(indexName).getNumberOfShards();
         final ShardRouting primaryShard = state.routingTable().index(indexName).shard(randomIntBetween(0, numShards - 1)).primaryShard();
         final DiscoveryNode randomNode = state.nodes().resolveNode(primaryShard.currentNodeId());
@@ -64,7 +68,7 @@ public class ReplicaToPrimaryPromotionIT extends ESIntegTestCase {
         internalCluster().stopNode(randomNode.getName());
         ensureYellowAndNoInitializingShards(indexName);
 
-        state = client(internalCluster().getMasterName()).admin().cluster().prepareState().get().getState();
+        state = client(internalCluster().getMasterName()).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         final IndexRoutingTable indexRoutingTable = state.routingTable().index(indexName);
         for (int i = 0; i < indexRoutingTable.size(); i++) {
             for (ShardRouting shardRouting : indexRoutingTable.shard(i).activeShards()) {

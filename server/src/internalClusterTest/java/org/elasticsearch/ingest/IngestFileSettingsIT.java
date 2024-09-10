@@ -158,7 +158,7 @@ public class IngestFileSettingsIT extends ESIntegTestCase {
         assertTrue(awaitSuccessful);
 
         final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
-            new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get())
+            new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(metadataVersion.get())
         ).get();
 
         ReservedStateMetadata reservedState = clusterStateResponse.getState()

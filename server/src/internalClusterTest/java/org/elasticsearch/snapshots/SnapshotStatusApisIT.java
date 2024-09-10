@@ -738,7 +738,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         try {
             waitForBlockOnAnyDataNode("test-repo");
             // Make sure that the create-snapshot task completes on master
-            assertFalse(clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).get().isTimedOut());
+            assertFalse(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).get().isTimedOut());
             final List<SnapshotStatus> snapshotStatus = clusterAdmin().prepareSnapshotStatus(TEST_REQUEST_TIMEOUT, "test-repo")
                 .setMasterNodeTimeout(TimeValue.MINUS_ONE)
                 .get()

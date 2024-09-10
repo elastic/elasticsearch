@@ -1440,10 +1440,10 @@ public abstract class EngineTestCase extends ESTestCase {
         assertBusy(() -> assertThat(engine.getLocalCheckpointTracker().getProcessedCheckpoint(), greaterThanOrEqualTo(seqNo)));
     }
 
-    public static boolean hasAcquiredIndexCommits(Engine engine) {
+    public static boolean hasAcquiredIndexCommitsForTesting(Engine engine) {
         assert engine instanceof InternalEngine : "only InternalEngines have snapshotted commits, got: " + engine.getClass();
         InternalEngine internalEngine = (InternalEngine) engine;
-        return internalEngine.hasAcquiredIndexCommits();
+        return internalEngine.hasAcquiredIndexCommitsForTesting();
     }
 
     public static final class PrimaryTermSupplier implements LongSupplier {

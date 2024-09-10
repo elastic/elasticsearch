@@ -1255,8 +1255,8 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
     // TODO: merge the following two methods once we change all attribute names to be snake_case
     private void assertMeasurement(Measurement measurement, long value, String indexName, ShardId shardId) {
         assertThat(measurement.getLong(), equalTo(value));
-        assertThat(measurement.attributes().get("indexName"), equalTo(indexName));
-        assertThat(measurement.attributes().get("shardId"), equalTo(shardId.id()));
+        assertThat(measurement.attributes().get("index_name"), equalTo(indexName));
+        assertThat(measurement.attributes().get("shard_id"), equalTo(shardId.id()));
     }
 
     private void assertMeasurement2(Measurement measurement, long value, String indexName, ShardId shardId) {
@@ -1267,6 +1267,6 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
 
     private void assertRejectionMeasurement(Measurement measurement, int bytes, String indexName, ShardId shardId) {
         assertMeasurement(measurement, 1L, indexName, shardId);
-        assertThat(measurement.attributes().get("rejectedBytes"), equalTo(bytes));
+        assertThat(measurement.attributes().get("rejected_bytes"), equalTo(bytes));
     }
 }

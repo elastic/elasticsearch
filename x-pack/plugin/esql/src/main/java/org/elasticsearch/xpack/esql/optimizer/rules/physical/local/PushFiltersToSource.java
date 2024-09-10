@@ -168,43 +168,37 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
     }
 
     public static boolean canPushToSource(Expression exp, Predicate<FieldAttribute> hasIdenticalDelegate) {
-        return switch (exp) {
-            case BinaryComparison bc -> isAttributePushable(bc.left(), bc, hasIdenticalDelegate) && bc.right().foldable();
-
-            case InsensitiveBinaryComparison bc -> isAttributePushable(bc.left(), bc, hasIdenticalDelegate) && bc.right().foldable();
-
-            case BinaryLogic bl -> canPushToSource(bl.left(), hasIdenticalDelegate) && canPushToSource(bl.right(), hasIdenticalDelegate);
-
-            case In in -> isAttributePushable(in.value(), null, hasIdenticalDelegate) && Expressions.foldable(in.list());
-
-            case Not not -> canPushToSource(not.field(), hasIdenticalDelegate);
-
-            case UnaryScalarFunction usf -> {
-                if (usf instanceof RegexMatch<?> || usf instanceof IsNull || usf instanceof IsNotNull) {
-                    if (usf instanceof IsNull || usf instanceof IsNotNull) {
-                        if (usf.field() instanceof FieldAttribute fa && fa.dataType().equals(DataType.TEXT)) {
-                            yield true;
-                        }
+        if (exp instanceof BinaryComparison bc) {
+            return isAttributePushable(bc.left(), bc, hasIdenticalDelegate) && bc.right().foldable();
+        } else if (exp instanceof InsensitiveBinaryComparison bc) {
+            return isAttributePushable(bc.left(), bc, hasIdenticalDelegate) && bc.right().foldable();
+        } else if (exp instanceof BinaryLogic bl) {
+            return canPushToSource(bl.left(), hasIdenticalDelegate) && canPushToSource(bl.right(), hasIdenticalDelegate);
+        } else if (exp instanceof In in) {
+            return isAttributePushable(in.value(), null, hasIdenticalDelegate) && Expressions.foldable(in.list());
+        } else if (exp instanceof Not not) {
+            return canPushToSource(not.field(), hasIdenticalDelegate);
+        } else if (exp instanceof UnaryScalarFunction usf) {
+            if (usf instanceof RegexMatch<?> || usf instanceof IsNull || usf instanceof IsNotNull) {
+                if (usf instanceof IsNull || usf instanceof IsNotNull) {
+                    if (usf.field() instanceof FieldAttribute fa && fa.dataType().equals(DataType.TEXT)) {
+                        return true;
                     }
-                    yield isAttributePushable(usf.field(), usf, hasIdenticalDelegate);
-                } else {
-                    yield false;
                 }
+                return isAttributePushable(usf.field(), usf, hasIdenticalDelegate);
             }
-
-            case CIDRMatch cidrMatch -> isAttributePushable(cidrMatch.ipField(), cidrMatch, hasIdenticalDelegate)
-                && Expressions.foldable(cidrMatch.matches());
-
-            case SpatialRelatesFunction bc -> bc.canPushToSource(LucenePushDownUtils::isAggregatable);
-
-            case MatchQueryPredicate mqp -> mqp.field() instanceof FieldAttribute && DataType.isString(mqp.field().dataType());
-
-            case StringQueryPredicate sqp -> true;
-
-            case FullTextFunction ftf -> true;
-
-            default -> false;
-        };
+        } else if (exp instanceof CIDRMatch cidrMatch) {
+            return isAttributePushable(cidrMatch.ipField(), cidrMatch, hasIdenticalDelegate) && Expressions.foldable(cidrMatch.matches());
+        } else if (exp instanceof SpatialRelatesFunction bc) {
+            return bc.canPushToSource(LucenePushDownUtils::isAggregatable);
+        } else if (exp instanceof MatchQueryPredicate mqp) {
+            return mqp.field() instanceof FieldAttribute && DataType.isString(mqp.field().dataType());
+        } else if (exp instanceof StringQueryPredicate) {
+            return true;
+        } else if (exp instanceof FullTextFunction) {
+            return true;
+        }
+        return false;
     }
 
     private static boolean isAttributePushable(

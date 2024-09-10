@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -64,9 +65,18 @@ public class AlibabaCloudSearchCompletionTaskSettings implements TaskSettings {
         AlibabaCloudSearchCompletionTaskSettings originalSettings,
         AlibabaCloudSearchCompletionTaskSettings requestTaskSettings
     ) {
-        return new AlibabaCloudSearchCompletionTaskSettings(
-            requestTaskSettings.getParameters() != null ? requestTaskSettings.getParameters() : originalSettings.getParameters()
-        );
+        if (originalSettings != null
+            && originalSettings.parameters != null
+            && requestTaskSettings != null
+            && requestTaskSettings.parameters != null) {
+            var copy = new HashMap<>(originalSettings.parameters);
+            requestTaskSettings.parameters.forEach((key, value) -> copy.merge(key, value, (originalValue, requestValue) -> requestValue));
+            return new AlibabaCloudSearchCompletionTaskSettings(copy);
+        } else {
+            return new AlibabaCloudSearchCompletionTaskSettings(
+                requestTaskSettings.getParameters() != null ? requestTaskSettings.getParameters() : originalSettings.getParameters()
+            );
+        }
     }
 
     public static AlibabaCloudSearchCompletionTaskSettings of(Map<String, Object> parameters) {

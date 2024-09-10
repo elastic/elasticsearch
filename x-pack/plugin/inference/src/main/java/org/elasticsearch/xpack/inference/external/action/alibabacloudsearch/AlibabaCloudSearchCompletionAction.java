@@ -54,7 +54,7 @@ public class AlibabaCloudSearchCompletionAction implements ExecutableAction {
         if (inferenceInputs instanceof DocumentsOnlyInput == false) {
             listener.onFailure(
                 new ElasticsearchStatusException(
-                    format("Invalid inference input type, task type [%s] do not support Field [query]", TaskType.RERANK),
+                    format("Invalid inference input type, task type [%s] do not support Field [query]", TaskType.COMPLETION),
                     RestStatus.INTERNAL_SERVER_ERROR
                 )
             );

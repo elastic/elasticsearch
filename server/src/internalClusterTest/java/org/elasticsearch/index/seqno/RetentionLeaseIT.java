@@ -558,7 +558,7 @@ public class RetentionLeaseIT extends ESIntegTestCase {
             .build();
         assertAcked(prepareCreate("index").setSettings(settings));
         ensureYellowAndNoInitializingShards("index");
-        assertFalse(clusterAdmin().prepareHealth("index").setWaitForActiveShards(numDataNodes).get().isTimedOut());
+        assertFalse(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "index").setWaitForActiveShards(numDataNodes).get().isTimedOut());
 
         final String primaryShardNodeId = clusterService().state().routingTable().index("index").shard(0).primaryShard().currentNodeId();
         final String primaryShardNodeName = clusterService().state().nodes().get(primaryShardNodeId).getName();

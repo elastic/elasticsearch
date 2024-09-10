@@ -68,7 +68,7 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
             client.prepareSearch().setQuery(matchAllQuery()).get().decRef();
         }
 
-        ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().get();
+        ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get();
         Map<String, DiscoveryNode> coordinatingNodes = clusterStateResponse.getState().nodes().getCoordinatingOnlyNodes();
         assertEquals(1, coordinatingNodes.size());
 

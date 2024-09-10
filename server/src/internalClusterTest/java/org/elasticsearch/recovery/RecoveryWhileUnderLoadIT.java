@@ -102,7 +102,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             logger.info("--> waiting for GREEN health status ...");
             // make sure the cluster state is green, and all has been recovered
             assertNoTimeout(
-                clusterAdmin().prepareHealth()
+                clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                     .setWaitForEvents(Priority.LANGUID)
                     .setTimeout(TimeValue.timeValueMinutes(5))
                     .setWaitForGreenStatus()
@@ -163,7 +163,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
 
             logger.info("--> waiting for GREEN health status ...");
             assertNoTimeout(
-                clusterAdmin().prepareHealth()
+                clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                     .setWaitForEvents(Priority.LANGUID)
                     .setTimeout(TimeValue.timeValueMinutes(5))
                     .setWaitForGreenStatus()
@@ -225,7 +225,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
 
             logger.info("--> waiting for GREEN health status ...");
             assertNoTimeout(
-                clusterAdmin().prepareHealth()
+                clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                     .setWaitForEvents(Priority.LANGUID)
                     .setTimeout(TimeValue.timeValueMinutes(5))
                     .setWaitForGreenStatus()
@@ -242,7 +242,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             allowNodes("test", 3);
             logger.info("--> waiting for relocations ...");
             assertNoTimeout(
-                clusterAdmin().prepareHealth()
+                clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                     .setWaitForEvents(Priority.LANGUID)
                     .setTimeout(TimeValue.timeValueMinutes(5))
                     .setWaitForNoRelocatingShards(true)
@@ -252,7 +252,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             allowNodes("test", 2);
             logger.info("--> waiting for relocations ...");
             assertNoTimeout(
-                clusterAdmin().prepareHealth()
+                clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                     .setWaitForEvents(Priority.LANGUID)
                     .setTimeout(TimeValue.timeValueMinutes(5))
                     .setWaitForNoRelocatingShards(true)
@@ -262,7 +262,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             allowNodes("test", 1);
             logger.info("--> waiting for relocations ...");
             assertNoTimeout(
-                clusterAdmin().prepareHealth()
+                clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                     .setWaitForEvents(Priority.LANGUID)
                     .setTimeout(TimeValue.timeValueMinutes(5))
                     .setWaitForNoRelocatingShards(true)
@@ -273,7 +273,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             logger.info("--> indexing threads stopped");
 
             assertNoTimeout(
-                clusterAdmin().prepareHealth()
+                clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                     .setWaitForEvents(Priority.LANGUID)
                     .setTimeout(TimeValue.timeValueMinutes(5))
                     .setWaitForNoRelocatingShards(true)

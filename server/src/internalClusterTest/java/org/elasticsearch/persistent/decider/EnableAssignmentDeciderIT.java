@@ -110,7 +110,7 @@ public class EnableAssignmentDeciderIT extends ESIntegTestCase {
     }
 
     private void assertEnableAssignmentSetting(final Allocation expected) {
-        ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState().clear().setMetadata(true).get();
+        ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).clear().setMetadata(true).get();
         Settings settings = clusterStateResponse.getState().getMetadata().settings();
 
         String value = settings.get(CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING.getKey());

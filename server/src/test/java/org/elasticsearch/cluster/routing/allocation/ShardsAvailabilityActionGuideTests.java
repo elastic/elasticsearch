@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
 
@@ -43,6 +44,7 @@ public class ShardsAvailabilityActionGuideTests extends ESTestCase {
     public ShardsAvailabilityActionGuideTests() {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(ClusterSettings.createBuiltInClusterSettings());
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         service = new ShardsAvailabilityHealthIndicatorService(clusterService, mock(AllocationService.class), mock(SystemIndices.class));
     }
 

@@ -761,7 +761,7 @@ public class RangeIT extends ESIntegTestCase {
     }
 
     public void testPartiallyUnmapped() throws Exception {
-        clusterAdmin().prepareHealth("idx_unmapped").setWaitForYellowStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "idx_unmapped").setWaitForYellowStatus().get();
 
         assertNoFailuresAndResponse(
             prepareSearch("idx", "idx_unmapped").addAggregation(

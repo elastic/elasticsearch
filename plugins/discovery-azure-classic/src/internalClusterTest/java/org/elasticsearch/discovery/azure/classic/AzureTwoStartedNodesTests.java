@@ -33,7 +33,7 @@ public class AzureTwoStartedNodesTests extends AbstractAzureComputeServiceTestCa
         assertNotNull(
             client().admin()
                 .cluster()
-                .prepareState()
+                .prepareState(TEST_REQUEST_TIMEOUT)
                 .setMasterNodeTimeout(TimeValue.timeValueSeconds(1))
                 .get()
                 .getState()
@@ -47,7 +47,7 @@ public class AzureTwoStartedNodesTests extends AbstractAzureComputeServiceTestCa
         assertNotNull(
             client().admin()
                 .cluster()
-                .prepareState()
+                .prepareState(TEST_REQUEST_TIMEOUT)
                 .setMasterNodeTimeout(TimeValue.timeValueSeconds(1))
                 .get()
                 .getState()

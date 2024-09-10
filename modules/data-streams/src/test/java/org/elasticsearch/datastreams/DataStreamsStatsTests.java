@@ -131,7 +131,10 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         assertTrue(indicesAdmin().close(new CloseIndexRequest(".ds-" + dataStreamName + "-*-000001")).actionGet().isAcknowledged());
 
         assertBusy(
-            () -> assertNotEquals(ClusterHealthStatus.RED, clusterAdmin().health(new ClusterHealthRequest()).actionGet().getStatus())
+            () -> assertNotEquals(
+                ClusterHealthStatus.RED,
+                clusterAdmin().health(new ClusterHealthRequest(TEST_REQUEST_TIMEOUT)).actionGet().getStatus()
+            )
         );
 
         DataStreamsStatsAction.Response stats = getDataStreamsStats();

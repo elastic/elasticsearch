@@ -21,15 +21,15 @@ public class MockFieldMapper extends FieldMapper {
     }
 
     public MockFieldMapper(MappedFieldType fieldType) {
-        this(findSimpleName(fieldType.name()), fieldType, MultiFields.empty(), CopyTo.empty());
+        this(findSimpleName(fieldType.name()), fieldType, BuilderParams.empty());
     }
 
     public MockFieldMapper(MappedFieldType fieldType, String simpleName) {
-        super(simpleName, fieldType, MultiFields.empty(), CopyTo.empty(), false, null);
+        super(simpleName, fieldType, BuilderParams.empty());
     }
 
-    public MockFieldMapper(String fullName, MappedFieldType fieldType, MultiFields multifields, CopyTo copyTo) {
-        super(findSimpleName(fullName), fieldType, multifields, copyTo, false, null);
+    public MockFieldMapper(String fullName, MappedFieldType fieldType, BuilderParams params) {
+        super(findSimpleName(fullName), fieldType, params);
     }
 
     @Override
@@ -91,8 +91,7 @@ public class MockFieldMapper extends FieldMapper {
 
         @Override
         public MockFieldMapper build(MapperBuilderContext context) {
-            MultiFields multiFields = multiFieldsBuilder.build(this, context);
-            return new MockFieldMapper(leafName(), fieldType, multiFields, copyTo);
+            return new MockFieldMapper(leafName(), fieldType, builderParams(this, context));
         }
     }
 }

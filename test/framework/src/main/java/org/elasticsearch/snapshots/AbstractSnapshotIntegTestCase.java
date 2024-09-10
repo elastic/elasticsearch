@@ -510,7 +510,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
      * @param metadata     snapshot metadata to write (as returned by {@link SnapshotInfo#userMetadata()})
      */
     protected void addBwCFailedSnapshot(String repoName, String snapshotName, Map<String, Object> metadata) throws Exception {
-        final ClusterState state = clusterAdmin().prepareState().get().getState();
+        final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         final RepositoriesMetadata repositoriesMetadata = state.metadata().custom(RepositoriesMetadata.TYPE);
         assertNotNull(repositoriesMetadata);
         final RepositoryMetadata initialRepoMetadata = repositoriesMetadata.repository(repoName);

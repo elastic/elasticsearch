@@ -92,7 +92,7 @@ public final class DelayedBucket<B extends InternalMultiBucketAggregation.Intern
      * Called to mark a bucket as non-competitive so it can release it can release
      * any sub-buckets from the breaker.
      */
-    void nonCompetitive(AggregationReduceContext reduceContext) {
+    public void nonCompetitive(AggregationReduceContext reduceContext) {
         if (reduced != null) {
             // -1 for itself, -countInnerBucket for all the sub-buckets.
             reduceContext.consumeBucketsAndMaybeBreak(-1 - InternalMultiBucketAggregation.countInnerBucket(reduced));

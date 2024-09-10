@@ -284,7 +284,7 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
     }
 
     private ShardId getShardIdForIndex(String indexName) {
-        ClusterState state = clusterAdmin().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         return state.routingTable().index(indexName).shard(0).shardId();
     }
 

@@ -609,6 +609,41 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("Unknown query parameter [n0], did you mean [n1]"));
     }
 
+    public void testErrorMessageForInvalidIntervalParams() throws IOException {
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(
+                requestObjectBuilder().query("row x = ?n1::datetime | eval y = x + ?n2::time_duration")
+                    .params("[{\"n1\": \"2024-01-01\"}, {\"n2\": \"3 days\"}]")
+            )
+        );
+
+        String error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
+        assertThat(
+            error,
+            containsString(
+                "Invalid interval value in [?n2::time_duration], expected integer followed by one of "
+                    + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [3 days]"
+            )
+        );
+
+        re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(
+                requestObjectBuilder().query("row x = ?n1::datetime | eval y = x - ?n2::date_period")
+                    .params("[{\"n1\": \"2024-01-01\"}, {\"n2\": \"3 hours\"}]")
+            )
+        );
+        error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
+        assertThat(
+            error,
+            containsString(
+                "Invalid interval value in [?n2::date_period], expected integer followed by one of "
+                    + "[DAY, DAYS, D, WEEK, WEEKS, W, MONTH, MONTHS, MO, QUARTER, QUARTERS, Q, YEAR, YEARS, YR, Y] but got [3 hours]"
+            )
+        );
+    }
+
     public void testErrorMessageForLiteralDateMathOverflow() throws IOException {
         List<String> dateMathOverflowExpressions = List.of(
             "2147483647 day + 1 day",

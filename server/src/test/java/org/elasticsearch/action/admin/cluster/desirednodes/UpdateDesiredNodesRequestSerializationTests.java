@@ -20,7 +20,14 @@ public class UpdateDesiredNodesRequestSerializationTests extends AbstractWireSer
 
     @Override
     protected UpdateDesiredNodesRequest mutateInstance(UpdateDesiredNodesRequest request) {
-        return new UpdateDesiredNodesRequest(request.getHistoryID(), request.getVersion() + 1, request.getNodes(), request.isDryRun());
+        return new UpdateDesiredNodesRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            request.getHistoryID(),
+            request.getVersion() + 1,
+            request.getNodes(),
+            request.isDryRun()
+        );
     }
 
     @Override

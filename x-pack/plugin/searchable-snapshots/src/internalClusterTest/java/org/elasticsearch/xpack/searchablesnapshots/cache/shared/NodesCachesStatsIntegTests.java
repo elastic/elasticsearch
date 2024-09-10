@@ -136,6 +136,8 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
             .collect(toSet())
             .toArray(String[]::new);
 
+        // We've seen `getWrites` inexplicably return zero. `assertBusy` to eliminate the possibility of it being due
+        // to contention on the `LongAdder` in SharedBlobCacheService.
         assertBusy(() -> {
             final NodesCachesStatsResponse response = client().execute(
                 TransportSearchableSnapshotsNodeCachesStatsAction.TYPE,

@@ -1,8 +1,5 @@
 ---
 setup:
-  - skip:
-      cluster_features: ["gte_v8.15.2"]
-      reason: v < 8.15.2 with Java 23 returns different day names, eg. Mon instead of Monday (COMPAT vs CLDR Locale provider)
   - do:
       indices.create:
           index:  eql_test

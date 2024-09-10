@@ -171,7 +171,16 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             );
             assertThrows(
                 IllegalArgumentException.class,
-                () -> ft.isFieldWithinQuery(reader, "9223372036854775807", "2016-04-01", randomBoolean(), randomBoolean(), zone, null, context)
+                () -> ft.isFieldWithinQuery(
+                    reader,
+                    "9223372036854775807",
+                    "2016-04-01",
+                    randomBoolean(),
+                    randomBoolean(),
+                    zone,
+                    null,
+                    context
+                )
             );
         }
     }

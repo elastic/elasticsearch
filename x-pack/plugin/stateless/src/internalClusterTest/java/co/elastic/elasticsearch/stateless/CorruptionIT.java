@@ -248,7 +248,8 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
         Runnable searcher = () -> {
             try {
                 while (indexersRunning.getCount() > 0 && stop.get() == false) {
-                    assertNoFailures(prepareSearch(indexName).setTimeout(timeValueSeconds(60)));
+                    // Search may encounter shard failure due to search shard relocation. It is transient and we retry for it.
+                    assertBusy(() -> assertNoFailures(prepareSearch(indexName).setTimeout(timeValueSeconds(60))));
                     safeSleep(randomLongBetween(100, 1_000));
                 }
             } catch (Throwable e) {

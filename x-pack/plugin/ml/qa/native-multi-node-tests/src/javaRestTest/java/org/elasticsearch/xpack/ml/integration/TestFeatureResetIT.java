@@ -133,7 +133,9 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
         client().execute(DeletePipelineTransportAction.TYPE, new DeletePipelineRequest("feature_reset_inference_pipeline")).actionGet();
         createdPipelines.remove("feature_reset_inference_pipeline");
 
-        assertBusy(() -> assertThat(countInferenceProcessors(clusterAdmin().prepareState().get().getState()), equalTo(0)));
+        assertBusy(
+            () -> assertThat(countInferenceProcessors(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState()), equalTo(0))
+        );
         client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest(TEST_REQUEST_TIMEOUT)).actionGet();
         assertBusy(() -> {
             List<String> indices = Arrays.asList(client().admin().indices().prepareGetIndex().addIndices(".ml*").get().indices());
@@ -224,7 +226,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
     }
 
     private boolean isResetMode() {
-        ClusterState state = clusterAdmin().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         return MlMetadata.getMlMetadata(state).isResetMode();
     }
 

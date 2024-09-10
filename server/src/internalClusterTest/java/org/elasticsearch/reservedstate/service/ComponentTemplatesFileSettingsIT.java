@@ -357,7 +357,10 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
         }""";
 
     private void assertMasterNode(Client client, String node) throws ExecutionException, InterruptedException {
-        assertThat(client.admin().cluster().prepareState().execute().get().getState().nodes().getMasterNode().getName(), equalTo(node));
+        assertThat(
+            client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).execute().get().getState().nodes().getMasterNode().getName(),
+            equalTo(node)
+        );
     }
 
     private void writeJSONFile(String node, String json) throws Exception {
@@ -403,7 +406,7 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
         assertTrue(awaitSuccessful);
 
         final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
-            new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get())
+            new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(metadataVersion.get())
         ).actionGet();
 
         Map<String, ComposableIndexTemplate> allTemplates = clusterStateResponse.getState().metadata().templatesV2();

@@ -90,12 +90,12 @@ public class GetVirtualBatchedCompoundCommitChunksPressure {
     }
 
     public Releasable markChunkStarted(int bytes, ShardId shardId) {
-        var metricAttributes = Map.<String, Object>of("indexName", shardId.getIndexName(), "shardId", shardId.id());
+        var metricAttributes = Map.<String, Object>of("index_name", shardId.getIndexName(), "shard_id", shardId.id());
         long currentChunksBytes = this.currentChunksBytes.addAndGet(bytes);
         if (currentChunksBytes > chunksBytesLimit) {
             long bytesWithoutChunk = currentChunksBytes - bytes;
             this.currentChunksBytes.getAndAdd(-bytes);
-            this.metricRejections.incrementBy(1, Maps.copyMapWithAddedEntry(metricAttributes, "rejectedBytes", bytes));
+            this.metricRejections.incrementBy(1, Maps.copyMapWithAddedEntry(metricAttributes, "rejected_bytes", bytes));
             throw new EsRejectedExecutionException(
                 "rejected execution of VBCC chunk request ["
                     + "current_chunks_bytes="

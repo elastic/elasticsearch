@@ -11,6 +11,9 @@
     },
     "shape": {
       "type": "geo_shape"
+    },
+    "smaller": {
+      "type": "geo_shape"
     }
   }
 }

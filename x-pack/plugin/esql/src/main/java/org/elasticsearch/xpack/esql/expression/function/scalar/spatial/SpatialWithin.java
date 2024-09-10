@@ -16,8 +16,12 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
+import org.elasticsearch.index.mapper.ShapeIndexer;
 import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
@@ -33,7 +37,10 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -58,19 +65,39 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
     );
 
     // public for test access with reflection
-    public static final SpatialRelations GEO = new SpatialRelations(
-        ShapeField.QueryRelation.WITHIN,
+    public static final SpatialRelationsWithin GEO = new SpatialRelationsWithin(
         SpatialCoordinateTypes.GEO,
         CoordinateEncoder.GEO,
         new GeoShapeIndexer(Orientation.CCW, "ST_Within")
     );
     // public for test access with reflection
-    public static final SpatialRelations CARTESIAN = new SpatialRelations(
-        ShapeField.QueryRelation.WITHIN,
+    public static final SpatialRelationsWithin CARTESIAN = new SpatialRelationsWithin(
         SpatialCoordinateTypes.CARTESIAN,
         CoordinateEncoder.CARTESIAN,
         new CartesianShapeIndexer("ST_Within")
     );
+
+    /**
+     * We override the normal behaviour for WITHIN because we need to merge multi-value components into a single geometry
+     * before determining if the combined geometry is within another potentially compound geometry. This requirement is
+     * also true for CONTAINS, but not for INTERSECTS and DISJOINT which can use simple ANY/ALL multi-value combiners.
+     */
+    static final class SpatialRelationsWithin extends SpatialRelations {
+
+        SpatialRelationsWithin(SpatialCoordinateTypes spatialCoordinateType, CoordinateEncoder encoder, ShapeIndexer shapeIndexer) {
+            super(ShapeField.QueryRelation.WITHIN, spatialCoordinateType, encoder, shapeIndexer);
+        }
+
+        private boolean geometryRelatesGeometry(Iterator<BytesRef> left, Component2D rightComponent2D) throws IOException {
+            List<Geometry> geometries = new ArrayList<>();
+            while (left.hasNext()) {
+                geometries.add(fromBytesRef(left.next()));
+            }
+            GeometryCollection<Geometry> collection = new GeometryCollection<>(geometries);
+            GeometryDocValueReader leftDocValueReader = asGeometryDocValueReader(coordinateEncoder, shapeIndexer, collection);
+            return geometryRelatesGeometry(leftDocValueReader, rightComponent2D);
+        }
+    }
 
     @FunctionInfo(
         returnType = { "boolean" },
@@ -223,22 +250,28 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
         }
     }
 
-    @Evaluator(
-        extraName = "GeoSourceAndConstant",
-        warnExceptions = { IllegalArgumentException.class, IOException.class },
-        mvCombiner = AllCombiner.class
-    )
-    static boolean processGeoSourceAndConstant(BytesRef leftValue, @Fixed Component2D rightValue) throws IOException {
-        return GEO.geometryRelatesGeometry(leftValue, rightValue);
+    @Evaluator(extraName = "GeoSourceAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })
+    static void processGeoSourceAndConstant(
+        BooleanBlock.Builder builder,
+        int position,
+        BytesRefBlock leftValue,
+        @Fixed Component2D rightValue
+    ) throws IOException {
+        if (leftValue.getValueCount(position) < 1) {
+            builder.appendNull();
+        } else {
+            MultiValuesBytesRefIterator mvIterator = new MultiValuesBytesRefIterator(leftValue, position);
+            builder.appendBoolean(GEO.geometryRelatesGeometry(mvIterator, rightValue));
+        }
     }
 
     @Evaluator(
         extraName = "GeoSourceAndSource",
         warnExceptions = { IllegalArgumentException.class, IOException.class },
-        mvCombiner = AllCombiner.class
+        mvCombiner = AnyCombiner.class
     )
     static boolean processGeoSourceAndSource(BytesRef leftValue, BytesRef rightValue) throws IOException {
-        return GEO.geometryRelatesGeometry(leftValue, rightValue);
+        return SpatialContains.GEO.geometryRelatesGeometry(rightValue, leftValue);
     }
 
     @Evaluator(
@@ -260,22 +293,28 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
         return GEO.pointRelatesGeometry(leftValue, geometry);
     }
 
-    @Evaluator(
-        extraName = "CartesianSourceAndConstant",
-        warnExceptions = { IllegalArgumentException.class, IOException.class },
-        mvCombiner = AllCombiner.class
-    )
-    static boolean processCartesianSourceAndConstant(BytesRef leftValue, @Fixed Component2D rightValue) throws IOException {
-        return CARTESIAN.geometryRelatesGeometry(leftValue, rightValue);
+    @Evaluator(extraName = "CartesianSourceAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })
+    static void processCartesianSourceAndConstant(
+        BooleanBlock.Builder builder,
+        int position,
+        BytesRefBlock leftValue,
+        @Fixed Component2D rightValue
+    ) throws IOException {
+        if (leftValue.getValueCount(position) < 1) {
+            builder.appendNull();
+        } else {
+            MultiValuesBytesRefIterator mvIterator = new MultiValuesBytesRefIterator(leftValue, position);
+            builder.appendBoolean(CARTESIAN.geometryRelatesGeometry(mvIterator, rightValue));
+        }
     }
 
     @Evaluator(
         extraName = "CartesianSourceAndSource",
         warnExceptions = { IllegalArgumentException.class, IOException.class },
-        mvCombiner = AllCombiner.class
+        mvCombiner = AnyCombiner.class
     )
     static boolean processCartesianSourceAndSource(BytesRef leftValue, BytesRef rightValue) throws IOException {
-        return CARTESIAN.geometryRelatesGeometry(leftValue, rightValue);
+        return SpatialContains.CARTESIAN.geometryRelatesGeometry(rightValue, leftValue);
     }
 
     @Evaluator(

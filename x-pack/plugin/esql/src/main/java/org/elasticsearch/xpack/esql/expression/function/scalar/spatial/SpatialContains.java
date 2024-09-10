@@ -383,29 +383,4 @@ public class SpatialContains extends SpatialRelatesFunction {
         Geometry geometry = SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(rightValue);
         return CARTESIAN.pointRelatesGeometry(leftValue, geometry);
     }
-
-    private static class MultiValuesBytesRefIterator implements Iterator<BytesRef> {
-        private final BytesRefBlock valueBlock;
-        private final int valueCount;
-        private final BytesRef scratch = new BytesRef();
-        private final int firstValue;
-        private int valueIndex;
-
-        MultiValuesBytesRefIterator(BytesRefBlock valueBlock, int position) {
-            this.valueBlock = valueBlock;
-            this.firstValue = valueBlock.getFirstValueIndex(position);
-            this.valueCount = valueBlock.getValueCount(position);
-            this.valueIndex = valueBlock.getFirstValueIndex(position);
-        }
-
-        @Override
-        public boolean hasNext() {
-            return valueIndex < firstValue + valueCount;
-        }
-
-        @Override
-        public BytesRef next() {
-            return valueBlock.getBytesRef(valueIndex++, scratch);
-        }
-    }
 }

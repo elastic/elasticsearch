@@ -33,7 +33,7 @@ public final class SpatialWithinGeoSourceAndSourceEvaluator implements EvalOpera
 
   private final DriverContext driverContext;
 
-  private final org.elasticsearch.xpack.esql.expression.function.scalar.spatial.AllCombiner multiValuesCombiner = new AllCombiner();
+  private final org.elasticsearch.xpack.esql.expression.function.scalar.spatial.AnyCombiner multiValuesCombiner = new AnyCombiner();
 
   public SpatialWithinGeoSourceAndSourceEvaluator(Source source,
       EvalOperator.ExpressionEvaluator leftValue, EvalOperator.ExpressionEvaluator rightValue,

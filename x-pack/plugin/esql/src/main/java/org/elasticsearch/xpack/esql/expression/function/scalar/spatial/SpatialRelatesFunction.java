@@ -12,6 +12,7 @@ import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -186,6 +188,31 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
                 boolean contains = component2D.contains(point.getX(), point.getY());
                 return queryRelation == DISJOINT ? contains == false : contains;
             }
+        }
+    }
+
+    protected static class MultiValuesBytesRefIterator implements Iterator<BytesRef> {
+        private final BytesRefBlock valueBlock;
+        private final int valueCount;
+        private final BytesRef scratch = new BytesRef();
+        private final int firstValue;
+        private int valueIndex;
+
+        MultiValuesBytesRefIterator(BytesRefBlock valueBlock, int position) {
+            this.valueBlock = valueBlock;
+            this.firstValue = valueBlock.getFirstValueIndex(position);
+            this.valueCount = valueBlock.getValueCount(position);
+            this.valueIndex = valueBlock.getFirstValueIndex(position);
+        }
+
+        @Override
+        public boolean hasNext() {
+            return valueIndex < firstValue + valueCount;
+        }
+
+        @Override
+        public BytesRef next() {
+            return valueBlock.getBytesRef(valueIndex++, scratch);
         }
     }
 }

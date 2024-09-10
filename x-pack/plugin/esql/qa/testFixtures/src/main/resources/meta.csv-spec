@@ -65,7 +65,6 @@ date now()
 "double percentile(number:double|integer|long, percentile:double|integer|long)"
 double pi()
 "double pow(base:double|integer|long|unsigned_long, exponent:double|integer|long|unsigned_long)"
-"boolean qstr(query:keyword|text)"
 "keyword repeat(string:keyword|text, number:integer)"
 "keyword replace(string:keyword|text, regex:keyword|text, newString:keyword|text)"
 "keyword right(string:keyword|text, length:integer)"
@@ -192,7 +191,6 @@ now           |null                                |null                        
 percentile    |[number, percentile]                |["double|integer|long", "double|integer|long"]                                                                                    |[, ]
 pi            |null                                |null                                                                                                                              |null
 pow           |[base, exponent]                    |["double|integer|long|unsigned_long", "double|integer|long|unsigned_long"]                                                        |["Numeric expression for the base. If `null`\, the function returns `null`.", "Numeric expression for the exponent. If `null`\, the function returns `null`."]
-qstr          |query                               |["keyword|text"]                                                                                                                |["Query string in Lucene query string format."]
 repeat        |[string, number]                    |["keyword|text", integer]                                                                                                         |[String expression., Number times to repeat.]
 replace       |[string, regex, newString]          |["keyword|text", "keyword|text", "keyword|text"]                                                                                  |[String expression., Regular expression., Replacement string.]
 right         |[string, length]                    |["keyword|text", integer]                                                                                                         |[The string from which to returns a substring., The number of characters to return.]
@@ -319,7 +317,6 @@ now           |Returns current date and time.
 percentile    |Returns the value at which a certain percentage of observed values occur. For example, the 95th percentile is the value which is greater than 95% of the observed values and the 50th percentile is the `MEDIAN`.
 pi            |Returns {wikipedia}/Pi[Pi], the ratio of a circle's circumference to its diameter.
 pow           |Returns the value of `base` raised to the power of `exponent`.
-qstr          |Performs a query string query. Returns true if the provided query string matches the row.
 repeat        |Returns a string constructed by concatenating `string` with itself the specified `number` of times.
 replace       |The function substitutes in the string `str` any match of the regular expression `regex` with the replacement string `newStr`.
 right         |Return the substring that extracts 'length' chars from 'str' starting from the right.
@@ -448,7 +445,6 @@ now           |date                                                             
 percentile    |double                                                                                                                      |[false, false]              |false           |true
 pi            |double                                                                                                                      |null                        |false           |false
 pow           |double                                                                                                                      |[false, false]              |false           |false
-qstr          |boolean                                                                                                                     |false                       |false           |false
 repeat        |keyword                                                                                                                     |[false, false]              |false           |false
 replace       |keyword                                                                                                                     |[false, false, false]       |false           |false
 right         |keyword                                                                                                                     |[false, false]              |false           |false

@@ -904,7 +904,7 @@ public class VerifierTests extends ESTestCase {
         assumeTrue("Match operator is available just for snapshots", Build.current().isSnapshot());
 
         assertEquals(
-            "1:36: EVAL does not support full text search expressions",
+            "1:36: EVAL does not support MATCH expressions",
             error("row title = \"brown fox\" | eval x = title match \"fox\" ")
         );
     }

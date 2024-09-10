@@ -62,7 +62,7 @@ public class SimpleGetMappingsIT extends ESIntegTestCase {
         indicesAdmin().prepareCreate("indexa").setMapping(getMappingForType()).get();
         indicesAdmin().prepareCreate("indexb").setMapping(getMappingForType()).get();
 
-        ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth()
+        ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForGreenStatus()
             .get();

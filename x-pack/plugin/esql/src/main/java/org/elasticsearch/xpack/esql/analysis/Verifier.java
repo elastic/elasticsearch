@@ -61,7 +61,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer.PushFiltersToSource.canPushToSource;
+import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource.canPushToSource;
 
 /**
  * This class is part of the planner. Responsible for failing impossible queries with a human-readable error message.  In particular, this
@@ -394,7 +394,12 @@ public class Verifier {
                 DataType dataType = field.dataType();
                 if (DataType.isRepresentable(dataType) == false) {
                     failures.add(
-                        fail(field, "EVAL does not support type [{}] in expression [{}]", dataType.typeName(), field.child().sourceText())
+                        fail(
+                            field,
+                            "EVAL does not support type [{}] as the return data type of expression [{}]",
+                            dataType.typeName(),
+                            field.child().sourceText()
+                        )
                     );
                 }
                 // check no aggregate functions are used

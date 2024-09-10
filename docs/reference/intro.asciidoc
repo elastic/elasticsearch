@@ -83,8 +83,8 @@ You can deploy {es} in various ways.
 
 **Hosted options**
 
-* {cloud}/ec-getting-started-trial.html[*Elastic Cloud*]: {es} is available as part of our hosted Elastic Stack offering, deployed in the cloud with your provider of choice. Sign up for a https://cloud.elastic.co/registration[14 day free trial].
-* {serverless-docs}/general/sign-up-trial[*Elastic Cloud Serverless* (technical preview)]: Create serverless projects for fully autoscaled and managed {es} deployments. Sign up for a https://cloud.elastic.co/serverless-registration[14 day free trial].
+* {cloud}/ec-getting-started-trial.html[*Elastic Cloud*]: {es} is available as part of our hosted Elastic Stack offering, deployed in the cloud with your provider of choice. Sign up for a https://cloud.elastic.co/registration[14-day free trial].
+* {serverless-docs}/general/sign-up-trial[*Elastic Cloud Serverless* (technical preview)]: Create serverless projects for autoscaled and fully managed {es} deployments. Sign up for a https://cloud.elastic.co/serverless-registration[14-day free trial].
 
 **Advanced options**
 
@@ -113,7 +113,7 @@ Some key facts about indices:
 
 * An index is a collection of documents
 * An index has a unique name
-* An index can also be referred to by an <<aliases,alias>>
+* An index can also be referred to by an alias
 * An index has a mapping that defines the schema of its documents
 
 [discrete]
@@ -158,13 +158,13 @@ A simple {es} document might look like this:
 ==== Data and metadata
 
 An indexed document contains data and metadata.
-In {es}, <<mapping-fields,metadata fields>> are prefixed with an underscore.
+In {es}, metadata fields are prefixed with an underscore.
 
 The most important metadata fields are:
 
-* `_source`. Contains the original JSON document.
-* `_index`. The name of the index where the document is stored.
-* `_id`. The document's ID. IDs must be unique per index.
+* `_source`: Contains the original JSON document.
+* `_index`: The name of the index where the document is stored.
+* `_id`: The document's ID. IDs must be unique per index.
 
 [discrete]
 [[elasticsearch-intro-documents-fields-mappings]]
@@ -175,8 +175,8 @@ A mapping defines the <<mapping-types,data type>> for each field, how the field 
 and how it should be stored.
 When adding documents to {es}, you have two options for mappings:
 
-* <<mapping-dynamic, Dynamic mapping>>. Let {es} automatically detect the data types and create the mappings for you. This is great for getting started quickly.
-* <<mapping-explicit, Explicit mapping>>. Define the mappings up front by specifying data types for each field. Recommended for production use cases.
+* <<mapping-dynamic, Dynamic mapping>>: Let {es} automatically detect the data types and create the mappings for you. This is great for getting started quickly, but can lead to unexpected results for complex data.
+* <<mapping-explicit, Explicit mapping>>: Define the mappings up front by specifying data types for each field. Recommended for production use cases, because you have much more control over how your data is indexed.
 
 [TIP]
 ====
@@ -295,11 +295,11 @@ That means aggregations are calculated in the context of the search query.
 
 The folowing aggregation types are available:
 
-* <<search-aggregations-metrics,Metric>>. Calculate metrics,
+* <<search-aggregations-metrics,Metric>>: Calculate metrics,
 such as a sum or average, from field values.
-* <<search-aggregations-bucket,Bucket>>. Group documents into buckets based on field values, ranges,
+* <<search-aggregations-bucket,Bucket>>: Group documents into buckets based on field values, ranges,
 or other criteria.
-* <<search-aggregations-pipeline,Pipeline>>. Run aggregations on the results of other aggregations.
+* <<search-aggregations-pipeline,Pipeline>>: Run aggregations on the results of other aggregations.
 
 Run aggregations by specifying the <<search-search,search API>>'s `aggs` parameter.
 Learn more in <<run-an-agg,Run an aggregation>>.

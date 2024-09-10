@@ -748,3 +748,43 @@ teardown:
       indices.delete:
         index: .fs-logs-foobar-*
   - is_true: acknowledged
+
+---
+"Version conflicts are not redirected to failure store":
+  - requires:
+      cluster_features: ["gte_v8.16.0"]
+      reason: "Redirecting version conflicts to the failure store is considered a bug fixed in 8.16"
+      test_runner_features: [allowed_warnings, contains]
+
+  - do:
+      allowed_warnings:
+        - "index template [generic_logs_template] has index patterns [logs-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [generic_logs_template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: generic_logs_template
+        body:
+          index_patterns: logs-*
+          data_stream:
+            failure_store: true
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+                count:
+                  type: long
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "create": { "_index": "logs-foobar", "_id": "1" } }'
+          - '{ "@timestamp": "2022-01-01", "baz": "quick", "a": "brown", "b": "fox" }'
+          - '{ "create": { "_index": "logs-foobar", "_id": "1" } }'
+          - '{ "@timestamp": "2022-01-01", "baz": "lazy", "a": "dog" }'
+  - is_true: errors
+  - match: { items.1.create._index: '/\.ds-logs-foobar-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { items.1.create.status: 409 }
+  - match: { items.1.create.error.type: version_conflict_engine_exception}

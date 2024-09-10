@@ -217,6 +217,10 @@ public final class DocumentParser {
         }
     }
 
+    private static Mapper.SourceKeepMode getSourceKeepMode(DocumentParserContext context, Optional<Mapper.SourceKeepMode> mapperMode) {
+        return mapperMode.orElseGet(context::sourceKeepModeFromIndexSettings);
+    }
+
     private static void throwNotAtEnd(XContentParser.Token token) {
         throw new IllegalArgumentException("Malformed content, found extra data after parsing: " + token);
     }
@@ -441,7 +445,9 @@ public final class DocumentParser {
                 parseObjectOrNested(context.createFlattenContext(currentFieldName));
                 context.path().add(currentFieldName);
             } else {
-                if (context.canAddIgnoredField() && fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK) {
+                if (context.canAddIgnoredField()
+                    && (fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK
+                        || getSourceKeepMode(context, fieldMapper.sourceKeepMode()) == Mapper.SourceKeepMode.ALL)) {
                     Tuple<DocumentParserContext, XContentBuilder> contextWithSourceToStore = XContentDataHelper.cloneSubContext(context);
 
                     context.addIgnoredField(
@@ -693,7 +699,7 @@ public final class DocumentParser {
             boolean fieldWithFallbackSyntheticSource = mapper instanceof FieldMapper fieldMapper
                 && fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK;
             boolean fieldWithStoredArraySource = mapper instanceof FieldMapper fieldMapper
-                && context.sourceKeepModeFromIndexSettings() == Mapper.SourceKeepMode.ARRAYS;
+                && getSourceKeepMode(context, fieldMapper.sourceKeepMode()) != Mapper.SourceKeepMode.NONE;
             boolean dynamicRuntimeContext = context.dynamic() == ObjectMapper.Dynamic.RUNTIME;
             if (objectRequiresStoringSource || fieldWithFallbackSyntheticSource || dynamicRuntimeContext || fieldWithStoredArraySource) {
                 Tuple<DocumentParserContext, XContentBuilder> tuple = XContentDataHelper.cloneSubContext(context);

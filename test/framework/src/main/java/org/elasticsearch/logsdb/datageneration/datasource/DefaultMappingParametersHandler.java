@@ -17,39 +17,41 @@ import java.util.function.Supplier;
 public class DefaultMappingParametersHandler implements DataSourceHandler {
     @Override
     public DataSourceResponse.LeafMappingParametersGenerator handle(DataSourceRequest.LeafMappingParametersGenerator request) {
+        var map = new HashMap<String, Object>();
+        map.put("store", ESTestCase.randomBoolean());
+        map.put("index", ESTestCase.randomBoolean());
+        if (ESTestCase.randomBoolean()) {
+            map.put("synthetic_source_keep", ESTestCase.randomFrom("none", "arrays", "all"));
+        }
         return new DataSourceResponse.LeafMappingParametersGenerator(switch (request.fieldType()) {
-            case KEYWORD -> keywordMapping();
-            case LONG, INTEGER, SHORT, BYTE, DOUBLE, FLOAT, HALF_FLOAT -> numberMapping();
-            case UNSIGNED_LONG -> unsignedLongMapping();
-            case SCALED_FLOAT -> scaledFloatMapping();
+            case KEYWORD -> keywordMapping(map);
+            case LONG, INTEGER, SHORT, BYTE, DOUBLE, FLOAT, HALF_FLOAT -> numberMapping(map);
+            case UNSIGNED_LONG -> unsignedLongMapping(map);
+            case SCALED_FLOAT -> scaledFloatMapping(map);
         });
     }
 
     // TODO enable doc_values: false
     // It is disabled because it hits a bug in synthetic source.
-    private Supplier<Map<String, Object>> keywordMapping() {
-        return () -> Map.of("store", ESTestCase.randomBoolean(), "index", ESTestCase.randomBoolean());
+    private Supplier<Map<String, Object>> keywordMapping(Map<String, Object> injected) {
+        return () -> injected;
     }
 
-    private Supplier<Map<String, Object>> numberMapping() {
-        return () -> Map.of(
-            "store",
-            ESTestCase.randomBoolean(),
-            "index",
-            ESTestCase.randomBoolean(),
-            "doc_values",
-            ESTestCase.randomBoolean()
-        );
-    }
-
-    private Supplier<Map<String, Object>> unsignedLongMapping() {
-        return () -> Map.of("store", ESTestCase.randomBoolean(), "index", ESTestCase.randomBoolean());
-    }
-
-    private Supplier<Map<String, Object>> scaledFloatMapping() {
+    private Supplier<Map<String, Object>> numberMapping(Map<String, Object> injected) {
         return () -> {
-            var scalingFactor = ESTestCase.randomFrom(10, 1000, 100000, 100.5);
-            return Map.of("scaling_factor", scalingFactor, "store", ESTestCase.randomBoolean(), "index", ESTestCase.randomBoolean());
+           injected.put("doc_values", ESTestCase.randomBoolean());
+           return injected;
+        };
+    }
+
+    private Supplier<Map<String, Object>> unsignedLongMapping(Map<String, Object> injected) {
+        return () -> injected;
+    }
+
+    private Supplier<Map<String, Object>> scaledFloatMapping(Map<String, Object> injected) {
+        return () -> {
+            injected.put("scaling_factor", ESTestCase.randomFrom(10, 1000, 100000, 100.5));
+            return injected;
         };
     }
 

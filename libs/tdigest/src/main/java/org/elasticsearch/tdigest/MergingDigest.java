@@ -216,8 +216,8 @@ public class MergingDigest extends AbstractTDigest {
         weight = arrays.newDoubleArray(size);
         mean = arrays.newDoubleArray(size);
 
-        tempWeight = arrays.newDoubleArray(size);
-        tempMean = arrays.newDoubleArray(size);
+        tempWeight = arrays.newDoubleArray(bufferSize);
+        tempMean = arrays.newDoubleArray(bufferSize);
         order = arrays.newIntArray(bufferSize);
 
         lastUsedCell = 0;

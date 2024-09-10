@@ -32,7 +32,7 @@ public class ClusterFeaturesIT extends ESIntegTestCase {
         assertThat(service.getNodeFeatures(), hasKey(FeatureService.FEATURES_SUPPORTED.id()));
 
         // check the nodes all have a feature in their cluster state (there should always be features_supported)
-        var response = clusterAdmin().state(new ClusterStateRequest().clear().nodes(true)).actionGet();
+        var response = clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT).clear().nodes(true)).actionGet();
         var features = response.getState().clusterFeatures().nodeFeatures();
         Set<String> missing = features.entrySet()
             .stream()

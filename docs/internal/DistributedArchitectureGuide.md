@@ -401,7 +401,7 @@ When a task is completed, it must be unregistered via [TaskManager#unregister].
 
 Ideally every operation in the ES cluster has a corresponding task.
 
-Some (non-exhaustive) examples of operations that are tracked using tasks include:
+Some examples of operations that are tracked using tasks include:
 - Execution of [TransportAction]s
   - [NodeClient#executeLocally] invokes [TaskManager#registerAndExecute]
   - [RequestHandlerRegistry#processMessageReceived] registers tasks for actions that are spawned to handle [TransportRequest]s

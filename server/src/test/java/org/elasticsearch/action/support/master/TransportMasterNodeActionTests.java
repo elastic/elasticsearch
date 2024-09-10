@@ -840,9 +840,9 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         // nothing should happen here, since the request doesn't touch any of the immutable state keys
         noHandler.validateForReservedState(new Request(), clusterState);
 
-        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest().persistentSettings(
-            Settings.builder().put("a", "a value").build()
-        ).transientSettings(Settings.builder().put("e", "e value").build());
+        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .persistentSettings(Settings.builder().put("a", "a value").build())
+            .transientSettings(Settings.builder().put("e", "e value").build());
 
         FakeClusterStateUpdateAction action = new FakeClusterStateUpdateAction(
             "internal:testClusterSettings",
@@ -859,9 +859,9 @@ public class TransportMasterNodeActionTests extends ESTestCase {
                 .contains("with errors: [[a] set as read-only by [namespace_one], " + "[e] set as read-only by [namespace_two]")
         );
 
-        ClusterUpdateSettingsRequest okRequest = new ClusterUpdateSettingsRequest().persistentSettings(
-            Settings.builder().put("m", "m value").build()
-        ).transientSettings(Settings.builder().put("n", "n value").build());
+        ClusterUpdateSettingsRequest okRequest = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .persistentSettings(Settings.builder().put("m", "m value").build())
+            .transientSettings(Settings.builder().put("n", "n value").build());
 
         // this should just work, no conflicts
         action.validateForReservedState(okRequest, clusterState);

@@ -420,7 +420,7 @@ class KibanaOwnedReservedRoleDescriptors {
                 // For source indices of the Cloud Detection & Response (CDR) packages that ships a
                 // transform
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("logs-wiz.vulnerability-*", "logs-wiz.cloud_configuration_finding-*")
+                    .indices("logs-wiz.vulnerability-*", "logs-wiz.cloud_configuration_finding-*", "logs-aws.securityhub_findings-*")
                     .privileges("read", "view_index_metadata")
                     .build(),
                 // For alias indices of the Cloud Detection & Response (CDR) packages that ships a

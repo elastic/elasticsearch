@@ -95,6 +95,7 @@ double tau()
 "boolean to_boolean(field:boolean|keyword|text|double|long|unsigned_long|integer)"
 "cartesian_point to_cartesianpoint(field:cartesian_point|keyword|text)"
 "cartesian_shape to_cartesianshape(field:cartesian_point|cartesian_shape|keyword|text)"
+"date_nanos to_date_nanos(field:date|date_nanos|keyword|text|double|long|unsigned_long)"
 "date_period to_dateperiod(field:date_period|keyword|text)"
 "date to_datetime(field:date|date_nanos|keyword|text|double|long|unsigned_long|integer)"
 "double to_dbl(field:boolean|date|keyword|text|double|long|unsigned_long|integer|counter_double|counter_integer|counter_long)"
@@ -223,6 +224,7 @@ to_bool       |field                               |"boolean|keyword|text|double
 to_boolean    |field                               |"boolean|keyword|text|double|long|unsigned_long|integer"                                                                          |Input value. The input can be a single- or multi-valued column or an expression.
 to_cartesianpo|field                               |"cartesian_point|keyword|text"                                                                                                    |Input value. The input can be a single- or multi-valued column or an expression.
 to_cartesiansh|field                               |"cartesian_point|cartesian_shape|keyword|text"                                                                                    |Input value. The input can be a single- or multi-valued column or an expression.
+to_datenanos  |field                               |"date|date_nanos|keyword|text|double|long|unsigned_long"                                                                          |Input value. The input can be a single- or multi-valued column or an expression.
 to_dateperiod |field                               |"date_period|keyword|text"                                                                                                        |Input value. The input is a valid constant date period expression.
 to_datetime   |field                               |"date|date_nanos|keyword|text|double|long|unsigned_long|integer"                                                                             |Input value. The input can be a single- or multi-valued column or an expression.
 to_dbl        |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer|counter_double|counter_integer|counter_long"                         |Input value. The input can be a single- or multi-valued column or an expression.

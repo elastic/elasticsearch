@@ -69,8 +69,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
             return new SparseVectorFieldMapper(
                 leafName(),
                 new SparseVectorFieldType(context.buildFullName(leafName()), meta.getValue()),
-                multiFieldsBuilder.build(this, context),
-                copyTo
+                builderParams(this, context)
             );
         }
     }
@@ -131,8 +130,8 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    private SparseVectorFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
+    private SparseVectorFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams) {
+        super(simpleName, mappedFieldType, builderParams);
     }
 
     @Override
@@ -178,15 +177,11 @@ public class SparseVectorFieldMapper extends FieldMapper {
             for (Token token = context.parser().nextToken(); token != Token.END_OBJECT; token = context.parser().nextToken()) {
                 if (token == Token.FIELD_NAME) {
                     feature = context.parser().currentName();
-                    if (feature.contains(".")) {
-                        throw new IllegalArgumentException(
-                            "[sparse_vector] fields do not support dots in feature names but found [" + feature + "]"
-                        );
-                    }
                 } else if (token == Token.VALUE_NULL) {
                     // ignore feature, this is consistent with numeric fields
                 } else if (token == Token.VALUE_NUMBER || token == Token.VALUE_STRING) {
-                    final String key = fullPath() + "." + feature;
+                    // Use a delimiter that won't collide with subfields & escape the dots in the feature name
+                    final String key = fullPath() + "\\." + feature.replace(".", "\\.");
                     float value = context.parser().floatValue(true);
 
                     // if we have an existing feature of the same name we'll select for the one with the max value

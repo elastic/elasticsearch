@@ -173,14 +173,14 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
 
         ClusterStateResponse leaderState = leaderClient().admin()
             .cluster()
-            .prepareState()
+            .prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setMetadata(true)
             .setIndices(leaderIndex)
             .get();
         ClusterStateResponse followerState = followerClient().admin()
             .cluster()
-            .prepareState()
+            .prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setMetadata(true)
             .setIndices(followerIndex)
@@ -402,7 +402,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
                 transportService.clearAllRules();
             }
 
-            settingsRequest = new ClusterUpdateSettingsRequest();
+            settingsRequest = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
             TimeValue defaultValue = CcrSettings.INDICES_RECOVERY_ACTION_TIMEOUT_SETTING.getDefault(Settings.EMPTY);
             settingsRequest.persistentSettings(
                 Settings.builder().put(CcrSettings.INDICES_RECOVERY_ACTION_TIMEOUT_SETTING.getKey(), defaultValue)
@@ -417,7 +417,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
     }
 
     private ClusterUpdateSettingsRequest newSettingsRequest() {
-        return new ClusterUpdateSettingsRequest().masterNodeTimeout(TimeValue.MAX_VALUE);
+        return new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).masterNodeTimeout(TimeValue.MAX_VALUE);
     }
 
     public void testFollowerMappingIsUpdated() throws IOException {
@@ -482,7 +482,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             assertEquals(restoreInfo.totalShards(), restoreInfo.successfulShards());
             assertEquals(0, restoreInfo.failedShards());
 
-            ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+            ClusterStateRequest clusterStateRequest = new ClusterStateRequest(TEST_REQUEST_TIMEOUT);
             clusterStateRequest.clear();
             clusterStateRequest.metadata(true);
             clusterStateRequest.indices(followerIndex);

@@ -86,7 +86,9 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.index.shard.IndexShardTests.getEngineFromShard;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.METADATA_NAME_FORMAT;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.SNAPSHOT_NAME_FORMAT;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -226,7 +228,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         ensureGreen();
         assertDocCount("test-idx-1", 100);
-        ClusterState clusterState = clusterAdmin().prepareState().get().getState();
+        ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         assertThat(clusterState.getMetadata().getProject().hasIndex("test-idx-1"), equalTo(true));
         assertThat(clusterState.getMetadata().getProject().hasIndex("test-idx-2"), equalTo(false));
 
@@ -509,7 +511,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             // same node again during the same reroute operation. Then another reroute
             // operation is scheduled, but the RestoreInProgressAllocationDecider will
             // block the shard to be assigned again because it failed during restore.
-            final ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().get();
+            final ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get();
             assertEquals(1, clusterStateResponse.getState().getNodes().getDataNodes().size());
             assertEquals(
                 restoreInfo.failedShards(),
@@ -661,7 +663,10 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(restoreResponse.getRestoreInfo().totalShards(), equalTo(numShards.numPrimaries));
         assertThat(restoreResponse.getRestoreInfo().successfulShards(), equalTo(0));
 
-        ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState().setCustoms(true).setRoutingTable(true).get();
+        ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .setCustoms(true)
+            .setRoutingTable(true)
+            .get();
 
         // check that there is no restore in progress
         RestoreInProgress restoreInProgress = clusterStateResponse.getState().custom(RestoreInProgress.TYPE);
@@ -865,7 +870,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         ensureGreen();
         logger.info("-->  closing index test-idx-closed");
         assertAcked(client.admin().indices().prepareClose("test-idx-closed"));
-        ClusterStateResponse stateResponse = client.admin().cluster().prepareState().get();
+        ClusterStateResponse stateResponse = client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get();
         assertThat(
             stateResponse.getState().metadata().getProject().index("test-idx-closed").getState(),
             equalTo(IndexMetadata.State.CLOSE)
@@ -1262,7 +1267,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> wait for relocations to start");
 
         assertBusy(
-            () -> assertThat(clusterAdmin().prepareHealth("test-idx").get().getRelocatingShards(), greaterThan(0)),
+            () -> assertThat(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "test-idx").get().getRelocatingShards(), greaterThan(0)),
             1L,
             TimeUnit.MINUTES
         );
@@ -1581,7 +1586,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         final SnapshotInfo snapshotInfo = createSnapshot("test-repo", "test-snap-2", Collections.singletonList("test-idx-*"));
 
         logger.info("--> truncate snapshot file to make it unreadable");
-        Path snapshotPath = repo.resolve("snap-" + snapshotInfo.snapshotId().getUUID() + ".dat");
+        Path snapshotPath = repo.resolve(Strings.format(SNAPSHOT_NAME_FORMAT, snapshotInfo.snapshotId().getUUID()));
         try (SeekableByteChannel outChan = Files.newByteChannel(snapshotPath, StandardOpenOption.WRITE)) {
             outChan.truncate(randomInt(10));
         }
@@ -1624,7 +1629,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         final String snapshotName = "test-snap";
         final SnapshotInfo snapshotInfo = createFullSnapshot(repoName, snapshotName);
 
-        final Path globalStatePath = repo.resolve("meta-" + snapshotInfo.snapshotId().getUUID() + ".dat");
+        final Path globalStatePath = repo.resolve(Strings.format(METADATA_NAME_FORMAT, snapshotInfo.snapshotId().getUUID()));
         try (SeekableByteChannel outChan = Files.newByteChannel(globalStatePath, StandardOpenOption.WRITE)) {
             outChan.truncate(randomInt(10));
         }
@@ -1704,7 +1709,10 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         final Path indexMetadataPath = repo.resolve("indices")
             .resolve(corruptedIndex.getId())
             .resolve(
-                "meta-" + repositoryData.indexMetaDataGenerations().indexMetaBlobId(snapshotInfo.snapshotId(), corruptedIndex) + ".dat"
+                Strings.format(
+                    METADATA_NAME_FORMAT,
+                    repositoryData.indexMetaDataGenerations().indexMetaBlobId(snapshotInfo.snapshotId(), corruptedIndex)
+                )
             );
 
         // Truncate the index metadata file
@@ -2183,7 +2191,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 equalTo(restoreSnapshotResponse.getRestoreInfo().totalShards())
             );
             assertThat(restoreSnapshotResponse.getRestoreInfo().indices(), containsInAnyOrder(normalIndex, hiddenIndex, dottedHiddenIndex));
-            ClusterState clusterState = client.admin().cluster().prepareState().get().getState();
+            ClusterState clusterState = client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             assertThat(clusterState.getMetadata().getProject().hasIndex(normalIndex), equalTo(true));
             assertThat(clusterState.getMetadata().getProject().hasIndex(hiddenIndex), equalTo(true));
             assertThat(clusterState.getMetadata().getProject().hasIndex(dottedHiddenIndex), equalTo(true));
@@ -2203,7 +2211,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 equalTo(restoreSnapshotResponse.getRestoreInfo().totalShards())
             );
             assertThat(restoreSnapshotResponse.getRestoreInfo().indices(), containsInAnyOrder(normalIndex, hiddenIndex));
-            ClusterState clusterState = client.admin().cluster().prepareState().get().getState();
+            ClusterState clusterState = client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             assertThat(clusterState.getMetadata().getProject().hasIndex(normalIndex), equalTo(true));
             assertThat(clusterState.getMetadata().getProject().hasIndex(hiddenIndex), equalTo(true));
             assertThat(clusterState.getMetadata().getProject().hasIndex(dottedHiddenIndex), equalTo(false));
@@ -2223,7 +2231,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 equalTo(restoreSnapshotResponse.getRestoreInfo().totalShards())
             );
             assertThat(restoreSnapshotResponse.getRestoreInfo().indices(), containsInAnyOrder(hiddenIndex));
-            ClusterState clusterState = client.admin().cluster().prepareState().get().getState();
+            ClusterState clusterState = client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             assertThat(clusterState.getMetadata().getProject().hasIndex(normalIndex), equalTo(false));
             assertThat(clusterState.getMetadata().getProject().hasIndex(hiddenIndex), equalTo(true));
             assertThat(clusterState.getMetadata().getProject().hasIndex(dottedHiddenIndex), equalTo(false));
@@ -2243,7 +2251,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 equalTo(restoreSnapshotResponse.getRestoreInfo().totalShards())
             );
             assertThat(restoreSnapshotResponse.getRestoreInfo().indices(), containsInAnyOrder(dottedHiddenIndex));
-            ClusterState clusterState = client.admin().cluster().prepareState().get().getState();
+            ClusterState clusterState = client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             assertThat(clusterState.getMetadata().getProject().hasIndex(normalIndex), equalTo(false));
             assertThat(clusterState.getMetadata().getProject().hasIndex(hiddenIndex), equalTo(false));
             assertThat(clusterState.getMetadata().getProject().hasIndex(dottedHiddenIndex), equalTo(true));

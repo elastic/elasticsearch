@@ -349,7 +349,7 @@ public class CCSUsageTelemetryAsyncSearchIT extends AbstractMultiClustersTestCas
             assertFalse(
                 client(clusterAlias).admin()
                     .cluster()
-                    .prepareHealth(remoteIndex)
+                    .prepareHealth(TEST_REQUEST_TIMEOUT, remoteIndex)
                     .setWaitForYellowStatus()
                     .setTimeout(TimeValue.timeValueSeconds(10))
                     .get()

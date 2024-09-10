@@ -135,7 +135,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         final var dataNode = internalCluster().startDataOnlyNode();
         final var dataNodeClusterService = internalCluster().clusterService(dataNode);
 
-        assertFalse(clusterAdmin().prepareHealth().setWaitForNodes("2").get().isTimedOut());
+        assertFalse(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForNodes("2").get().isTimedOut());
         prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)).get();
         ensureGreen("test");
 

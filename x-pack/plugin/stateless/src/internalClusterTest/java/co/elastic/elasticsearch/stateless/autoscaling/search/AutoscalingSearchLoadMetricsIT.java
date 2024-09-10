@@ -125,8 +125,10 @@ public class AutoscalingSearchLoadMetricsIT extends AbstractStatelessIntegTestCa
     public void testMaxTimeToClearQueueDynamicSetting() {
         startMasterAndIndexNode();
         updateClusterSettings(Settings.builder().put(SearchLoadProbe.MAX_TIME_TO_CLEAR_QUEUE.getKey(), TimeValue.timeValueSeconds(1)));
-        var getSettingsResponse = clusterAdmin().execute(ClusterGetSettingsAction.INSTANCE, new ClusterGetSettingsAction.Request())
-            .actionGet();
+        var getSettingsResponse = clusterAdmin().execute(
+            ClusterGetSettingsAction.INSTANCE,
+            new ClusterGetSettingsAction.Request(TEST_REQUEST_TIMEOUT)
+        ).actionGet();
         assertThat(
             getSettingsResponse.settings().get(SearchLoadProbe.MAX_TIME_TO_CLEAR_QUEUE.getKey()),
             equalTo(TimeValue.timeValueSeconds(1).getStringRep())

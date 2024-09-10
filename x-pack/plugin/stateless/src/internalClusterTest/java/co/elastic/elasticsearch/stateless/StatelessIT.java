@@ -775,7 +775,14 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
 
         if (randomBoolean()) {
             var shutdownNode = randomFrom(Stream.concat(indexNodes.stream(), searchNodes.stream()).toList());
-            var shutdownNodeId = client().admin().cluster().prepareState().get().getState().nodes().resolveNode(shutdownNode).getId();
+            var shutdownNodeId = client().admin()
+                .cluster()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .get()
+                .getState()
+                .nodes()
+                .resolveNode(shutdownNode)
+                .getId();
             client().execute(
                 PutShutdownNodeAction.INSTANCE,
                 new PutShutdownNodeAction.Request(
@@ -831,7 +838,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         ensureStableCluster(2);
         var indexNode1EphemeralId = client().admin()
             .cluster()
-            .prepareState()
+            .prepareState(TEST_REQUEST_TIMEOUT)
             .get()
             .getState()
             .getNodes()

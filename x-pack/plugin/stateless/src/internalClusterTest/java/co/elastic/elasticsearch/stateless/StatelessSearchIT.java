@@ -1205,7 +1205,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         ensureGreen(indexName);
         final int docCount = randomIntBetween(1, 100);
         indexDocs(indexName, docCount);
-        final Index index = clusterAdmin().prepareState().get().getState().metadata().index(indexName).getIndex();
+        final Index index = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().index(indexName).getIndex();
         var seqNoStats = clusterAdmin().prepareNodesStats(indexNode)
             .setIndices(true)
             .get()
@@ -1683,7 +1683,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
     private static ShardRouting searchShard(String indexName) {
         return client().admin()
             .cluster()
-            .prepareState()
+            .prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setRoutingTable(true)
             .get()

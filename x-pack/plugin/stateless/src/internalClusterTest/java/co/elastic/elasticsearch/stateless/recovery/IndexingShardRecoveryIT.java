@@ -388,7 +388,7 @@ public class IndexingShardRecoveryIT extends AbstractStatelessIntegTestCase {
         masterClusterService.removeListener(nodeRemovedClusterStateListener);
 
         logger.debug("--> waiting for index to recover on new index node {}", newIndexNode);
-        ClusterHealthRequest healthRequest = new ClusterHealthRequest(indexName).timeout(TimeValue.timeValueSeconds(30L))
+        ClusterHealthRequest healthRequest = new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, indexName).timeout(TEST_REQUEST_TIMEOUT)
             .waitForStatus(ClusterHealthStatus.GREEN)
             .waitForEvents(Priority.LANGUID)
             .waitForNoRelocatingShards(true)
@@ -605,7 +605,7 @@ public class IndexingShardRecoveryIT extends AbstractStatelessIntegTestCase {
 
             assertBusy(() -> assertThat(getPrimaryTerms(client(masterName), indexName)[0], greaterThan(initialPrimaryTerm)));
 
-            ClusterHealthRequest healthRequest = new ClusterHealthRequest(indexName).timeout(TimeValue.timeValueSeconds(30))
+            ClusterHealthRequest healthRequest = new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, indexName).timeout(TEST_REQUEST_TIMEOUT)
                 .waitForStatus(ClusterHealthStatus.GREEN)
                 .waitForEvents(Priority.LANGUID)
                 .waitForNoRelocatingShards(true)
@@ -811,7 +811,12 @@ public class IndexingShardRecoveryIT extends AbstractStatelessIntegTestCase {
     }
 
     private static void forAllCommitServices(String indexName, BiConsumer<ShardId, StatelessCommitService> consumer) {
-        var clusterState = clusterAdmin().prepareState().setMetadata(true).setNodes(true).setIndices(indexName).get().getState();
+        var clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .setMetadata(true)
+            .setNodes(true)
+            .setIndices(indexName)
+            .get()
+            .getState();
         assertThat("Index not found: " + indexName, clusterState.metadata().hasIndex(indexName), equalTo(true));
 
         var indexMetadata = clusterState.metadata().index(indexName);

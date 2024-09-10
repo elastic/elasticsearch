@@ -417,10 +417,9 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
         public void ensureGreenIgnoreNodeDisconnection(int numNodes, String... indices) throws Exception {
             assertBusy(() -> {
                 try {
-                    final var clusterHealthRequest = new ClusterHealthRequest(indices).waitForStatus(ClusterHealthStatus.GREEN)
-                        .waitForNoInitializingShards(true)
-                        .waitForNoRelocatingShards(true)
-                        .waitForEvents(Priority.LANGUID);
+                    final var clusterHealthRequest = new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, indices).waitForStatus(
+                        ClusterHealthStatus.GREEN
+                    ).waitForNoInitializingShards(true).waitForNoRelocatingShards(true).waitForEvents(Priority.LANGUID);
                     if (numNodes != 0) {
                         clusterHealthRequest.waitForNodes(Integer.toString(numNodes));
                     }
@@ -841,7 +840,7 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
                     isolatedFuture.actionGet(defaultTestTimeout);
                     logger.info("--> isolated node [{}]", namedReleasable.name);
                     try {
-                        final var healthRequest = new ClusterHealthRequest().waitForStatus(ClusterHealthStatus.YELLOW)
+                        final var healthRequest = new ClusterHealthRequest(TEST_REQUEST_TIMEOUT).waitForStatus(ClusterHealthStatus.YELLOW)
                             .waitForEvents(Priority.LANGUID)
                             .waitForNoRelocatingShards(false)
                             .waitForNoInitializingShards(false)

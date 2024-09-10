@@ -639,7 +639,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
         // Assert number of documents
         startSearchNode();
         setReplicaCount(1, indexName);
-        assertFalse(clusterAdmin().prepareHealth(indexName).setWaitForActiveShards(2).get().isTimedOut());
+        assertFalse(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, indexName).setWaitForActiveShards(2).get().isTimedOut());
         ensureGreen(indexName);
         assertHitCount(prepareSearch(indexName), numDocs);
     }

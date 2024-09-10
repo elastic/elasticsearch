@@ -415,7 +415,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         internalCluster().stopCurrentMasterNode();
 
         assertBusy(() -> {
-            var currentMasterNode = client().admin().cluster().prepareState().get().getState().nodes().getMasterNode();
+            var currentMasterNode = client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getMasterNode();
             assertThat(currentMasterNode, is(notNullValue()));
             assertThat(currentMasterNode.getName(), is(equalTo(masterNode2)));
         });
@@ -843,7 +843,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         {
             assertAcked(
                 admin().cluster()
-                    .prepareUpdateSettings()
+                    .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                     .setPersistentSettings(Map.of(FIXED_SHARD_MEMORY_OVERHEAD_SETTING.getKey(), ByteSizeValue.MINUS_ONE))
             );
             assertBusy(() -> assertThat(memoryMetricService.fixedShardMemoryOverhead, equalTo(ByteSizeValue.MINUS_ONE)));
@@ -861,7 +861,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
             ByteSizeValue newShardFixedMemoryOverhead = ByteSizeValue.ofMb(between(1, 10));
             assertAcked(
                 admin().cluster()
-                    .prepareUpdateSettings()
+                    .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                     .setPersistentSettings(Map.of(FIXED_SHARD_MEMORY_OVERHEAD_SETTING.getKey(), newShardFixedMemoryOverhead))
             );
             assertBusy(() -> assertThat(memoryMetricService.fixedShardMemoryOverhead, equalTo(newShardFixedMemoryOverhead)));
@@ -873,7 +873,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         {
             assertAcked(
                 admin().cluster()
-                    .prepareUpdateSettings()
+                    .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                     .setPersistentSettings(Settings.builder().putNull(FIXED_SHARD_MEMORY_OVERHEAD_SETTING.getKey()))
             );
             assertBusy(() -> assertThat(memoryMetricService.fixedShardMemoryOverhead, equalTo(FIXED_SHARD_MEMORY_OVERHEAD_DEFAULT)));

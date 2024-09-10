@@ -169,17 +169,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.EsqlAsyncSecurityIT
   method: testIndexPatternErrorMessageComparison_ESQL_SearchDSL
   issue: https://github.com/elastic/elasticsearch/issues/112630
-- class: org.elasticsearch.compute.aggregation.blockhash.BlockHashTests
-  method: testBytesRefLongHashHugeCombinatorialExplosion {forcePackedHash=false}
-  issue: https://github.com/elastic/elasticsearch/issues/112442
-- class: org.elasticsearch.compute.aggregation.blockhash.BlockHashTests
-  method: testBytesRefLongHashHugeCombinatorialExplosion {forcePackedHash=true}
-  issue: https://github.com/elastic/elasticsearch/issues/112443
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testPutJob_GivenFarequoteConfig
   issue: https://github.com/elastic/elasticsearch/issues/112382
-- class: org.elasticsearch.xpack.eql.EqlClientYamlIT
-  issue: https://github.com/elastic/elasticsearch/issues/112617
 - class: org.elasticsearch.xpack.security.authc.kerberos.KerberosTicketValidatorTests
   method: testWhenKeyTabWithInvalidContentFailsValidation
   issue: https://github.com/elastic/elasticsearch/issues/112631

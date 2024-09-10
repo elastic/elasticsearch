@@ -208,7 +208,7 @@ public class StaleTranslogsGCIT extends AbstractStatelessIntegTestCase {
         ensureStableCluster(2, masterNode);
 
         logger.info("--> waiting for index to recover");
-        ClusterHealthRequest healthRequest = new ClusterHealthRequest(indexName).timeout(TimeValue.timeValueSeconds(30L))
+        ClusterHealthRequest healthRequest = new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, indexName).timeout(TEST_REQUEST_TIMEOUT)
             .waitForStatus(ClusterHealthStatus.GREEN)
             .waitForEvents(Priority.LANGUID)
             .waitForNoRelocatingShards(true)
@@ -324,7 +324,9 @@ public class StaleTranslogsGCIT extends AbstractStatelessIntegTestCase {
         networkDisruption.startDisrupting();
         ensureStableCluster(2, masterNode);
         logger.info("--> waiting for index to recover");
-        ClusterHealthRequest healthRequest = new ClusterHealthRequest(initialIndexNameOnNodeB).timeout(TimeValue.timeValueSeconds(30L))
+        ClusterHealthRequest healthRequest = new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, initialIndexNameOnNodeB).timeout(
+            TEST_REQUEST_TIMEOUT
+        )
             .waitForStatus(ClusterHealthStatus.GREEN)
             .waitForEvents(Priority.LANGUID)
             .waitForNoRelocatingShards(true)
@@ -419,7 +421,7 @@ public class StaleTranslogsGCIT extends AbstractStatelessIntegTestCase {
 
         internalCluster().stopNode(indexNodeB);
         ensureStableCluster(3);
-        ClusterHealthStatus health = clusterAdmin().health(new ClusterHealthRequest()).get().getStatus();
+        ClusterHealthStatus health = clusterAdmin().health(new ClusterHealthRequest(TEST_REQUEST_TIMEOUT)).get().getStatus();
         assertThat("health should be RED", health, equalTo(ClusterHealthStatus.RED));
 
         cleanStaleTranslogs(indexNodeA);

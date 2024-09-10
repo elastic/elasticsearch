@@ -734,7 +734,9 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
                     });
                     masterTransportService.addUnresponsiveRule(nodeATransportService);
                     removedNode.actionGet();
-                    ClusterHealthRequest healthRequest = new ClusterHealthRequest(indexName).timeout(TimeValue.timeValueSeconds(30))
+                    ClusterHealthRequest healthRequest = new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, indexName).timeout(
+                        TEST_REQUEST_TIMEOUT
+                    )
                         .waitForStatus(ClusterHealthStatus.YELLOW)
                         .waitForEvents(Priority.LANGUID)
                         .waitForNoRelocatingShards(true)

@@ -175,7 +175,7 @@ public class StatelessClusterStateCleanupServiceIT extends AbstractStatelessInte
             List<String> terms = getTermDirectories();
             assertThat("Expected a single term directory: " + terms.size(), terms.size(), is(equalTo(1)));
 
-            long currentTerm = clusterAdmin().prepareState().get().getState().term();
+            long currentTerm = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().term();
             assertThat(
                 Strings.format("Expected the latest term directory [%s] to match the latest term [%d]", terms.get(0), currentTerm),
                 Long.parseLong(terms.get(0)),
@@ -260,7 +260,7 @@ public class StatelessClusterStateCleanupServiceIT extends AbstractStatelessInte
             List<String> terms = getTermDirectories();
             assertThat("Expected a single term directory: " + terms.size(), terms.size(), is(equalTo(1)));
 
-            long currentTerm = clusterAdmin().prepareState().get().getState().term();
+            long currentTerm = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().term();
             assertThat(
                 Strings.format("Expected the latest term directory [%s] to match the latest term [%d]", terms.get(0), currentTerm),
                 Long.parseLong(terms.get(0)),

@@ -184,7 +184,14 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         failObjectStoreAndFetchFromIndexingNodeAfterPrewarming(indexName, indexNodeB, INDEXING_WARMING_DESCRIPTION);
 
         assertThatLogger(() -> {
-            var shutdownNodeId = client().admin().cluster().prepareState().get().getState().nodes().resolveNode(indexNodeA).getId();
+            var shutdownNodeId = client().admin()
+                .cluster()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .get()
+                .getState()
+                .nodes()
+                .resolveNode(indexNodeA)
+                .getId();
             assertAcked(
                 client().execute(
                     PutShutdownNodeAction.INSTANCE,
@@ -253,7 +260,14 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         PlainActionFuture<CompletedWarmingDetails> earlyWarmingIsComplete = new PlainActionFuture<>();
         runOnWarmingComplete(indexNodeB, INDEXING_EARLY_WARMING_DESCRIPTION, earlyWarmingIsComplete);
         assertThatLogger(() -> {
-            var shutdownNodeId = client().admin().cluster().prepareState().get().getState().nodes().resolveNode(indexNodeA).getId();
+            var shutdownNodeId = client().admin()
+                .cluster()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .get()
+                .getState()
+                .nodes()
+                .resolveNode(indexNodeA)
+                .getId();
             assertAcked(
                 client().execute(
                     PutShutdownNodeAction.INSTANCE,
@@ -550,7 +564,14 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
     }
 
     private static void shutdownNode(String indexNode) {
-        var shutdownNodeId = client().admin().cluster().prepareState().get().getState().nodes().resolveNode(indexNode).getId();
+        var shutdownNodeId = client().admin()
+            .cluster()
+            .prepareState(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getState()
+            .nodes()
+            .resolveNode(indexNode)
+            .getId();
         assertAcked(
             client().execute(
                 PutShutdownNodeAction.INSTANCE,

@@ -110,7 +110,7 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
             client().admin()
                 .cluster()
                 .updateSettings(
-                    new ClusterUpdateSettingsRequest().persistentSettings(
+                    new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).persistentSettings(
                         Settings.builder().put(ServerlessSharedSettings.SEARCH_POWER_MIN_SETTING.getKey(), searchPowerOver250).build()
                     )
                 )
@@ -139,7 +139,7 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
             client().admin()
                 .cluster()
                 .updateSettings(
-                    new ClusterUpdateSettingsRequest().persistentSettings(
+                    new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).persistentSettings(
                         Settings.builder().put(ServerlessSharedSettings.SEARCH_POWER_MIN_SETTING.getKey(), 100).build()
                     )
                 )
@@ -209,7 +209,7 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
             client().admin()
                 .cluster()
                 .updateSettings(
-                    new ClusterUpdateSettingsRequest().persistentSettings(
+                    new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).persistentSettings(
                         Settings.builder()
                             .put(ServerlessSharedSettings.SEARCH_POWER_MIN_SETTING.getKey(), 220)
                             .put(ServerlessSharedSettings.ENABLE_REPLICAS_FOR_INSTANT_FAILOVER.getKey(), true)
@@ -274,7 +274,7 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
             client().admin()
                 .cluster()
                 .updateSettings(
-                    new ClusterUpdateSettingsRequest().persistentSettings(
+                    new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).persistentSettings(
                         Settings.builder().put(ServerlessSharedSettings.SEARCH_POWER_MIN_SETTING.getKey(), 250).build()
                     )
                 )
@@ -471,7 +471,7 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
             client().admin()
                 .cluster()
                 .updateSettings(
-                    new ClusterUpdateSettingsRequest().persistentSettings(
+                    new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).persistentSettings(
                         Settings.builder().put(ServerlessSharedSettings.ENABLE_REPLICAS_FOR_INSTANT_FAILOVER.getKey(), enabled).build()
                     )
                 )

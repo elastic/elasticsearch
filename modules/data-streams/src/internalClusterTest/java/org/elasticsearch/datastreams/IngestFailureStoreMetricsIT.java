@@ -237,7 +237,7 @@ public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
         createDataStream();
 
         String destination = dataStream + "-destination";
-        final var createDataStreamRequest = new CreateDataStreamAction.Request(destination);
+        final var createDataStreamRequest = new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, destination);
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet());
         createReroutePipeline(destination);
 
@@ -306,7 +306,7 @@ public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
     }
 
     private void createDataStream() {
-        final var createDataStreamRequest = new CreateDataStreamAction.Request(dataStream);
+        final var createDataStreamRequest = new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataStream);
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet());
     }
 

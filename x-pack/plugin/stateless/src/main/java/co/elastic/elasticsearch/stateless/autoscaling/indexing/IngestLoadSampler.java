@@ -148,6 +148,15 @@ public class IngestLoadSampler extends AbstractLifecycleComponent implements Clu
                 }
             );
             meterRegistry.registerDoubleGauge(
+                "es.autoscaling.indexing.thread_pool." + executor + ".average_queue_size.current",
+                "The average queue size for the executor",
+                "tasks",
+                () -> {
+                    var stats = writeLoadSampler.getExecutorStats(executor);
+                    return new DoubleWithAttributes(stats.averageQueueSize());
+                }
+            );
+            meterRegistry.registerDoubleGauge(
                 "es.autoscaling.indexing.thread_pool." + executor + ".threads_needed_to_handle_queue.current",
                 "The estimated number of threads needed to handle queued tasks",
                 "threads",

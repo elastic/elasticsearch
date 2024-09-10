@@ -79,8 +79,8 @@ public class IngestLoadProbe {
     /**
      * Returns the current ingestion load (number of WRITE threads needed to cope with the current ingestion workload).
      * <p>
-     * The ingestion load is calculated as max(totalThreadsNeeded, averageWriteLoad) for each write threadpool.
-     * totalThreadsNeeded is the number of threads need to handle the current load and based on queued tasks taking into account
+     * The ingestion load is calculated as (averageWriteLoad + queueThreadsNeeded) for each write threadpool.
+     * queueThreadsNeeded is the number of threads need to handle the current queued tasks, taking into account
      * MAX_TIME_TO_CLEAR_QUEUE.
      */
     public double getIngestionLoad() {
@@ -91,7 +91,7 @@ public class IngestLoadProbe {
                 executorName,
                 executorStats.averageLoad(),
                 executorStats.averageTaskExecutionEWMA(),
-                executorStats.currentQueueSize(),
+                executorStats.averageQueueSize(),
                 maxTimeToClearQueue,
                 maxQueueContributionFactor * executorStats.maxThreads()
             );
@@ -116,18 +116,18 @@ public class IngestLoadProbe {
         String executor,
         double averageWriteLoad,
         double averageTaskExecutionTime,
-        long currentQueueSize,
+        double averageQueueSize,
         TimeValue maxTimeToClearQueue,
         double maxThreadsToHandleQueue
     ) {
         if (logger.isDebugEnabled()) {
             logger.debug(
-                "{}: averageWriteLoad: {}, averageTaskExecutionTime: {}, currentQueueSize: {}, maxTimeToClearQueue: {}, "
+                "{}: averageWriteLoad: {}, averageTaskExecutionTime: {}, averageQueueSize: {}, maxTimeToClearQueue: {}, "
                     + "maxThreadsToHandleQueue: {}",
                 executor,
                 averageWriteLoad,
                 averageTaskExecutionTime,
-                currentQueueSize,
+                averageQueueSize,
                 maxTimeToClearQueue,
                 maxThreadsToHandleQueue
             );
@@ -137,7 +137,7 @@ public class IngestLoadProbe {
             return new ExecutorIngestionLoad(averageWriteLoad, 0.0);
         }
         double tasksManageablePerThreadWithinMaxTime = maxTimeToClearQueue.nanos() / averageTaskExecutionTime;
-        double queueThreadsNeeded = Math.min(currentQueueSize / tasksManageablePerThreadWithinMaxTime, maxThreadsToHandleQueue);
+        double queueThreadsNeeded = Math.min(averageQueueSize / tasksManageablePerThreadWithinMaxTime, maxThreadsToHandleQueue);
         assert queueThreadsNeeded >= 0.0;
         return new ExecutorIngestionLoad(averageWriteLoad, queueThreadsNeeded);
     }

@@ -24,6 +24,11 @@ import java.util.List;
 
 import static java.util.Collections.singletonList;
 
+/**
+ * Base class for full-text functions that use ES queries to match documents.
+ * These functions needs to be pushed down to Lucene queries to be executed - there's no Evaluator for them, but depend on
+ * {@link org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer} to rewrite them into Lucene queries.
+ */
 public abstract class FullTextFunction extends Function {
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
@@ -60,11 +65,4 @@ public abstract class FullTextFunction extends Function {
     }
 
     public abstract Query asQuery();
-
-    protected static String unquoteQueryString(String quotedString) {
-        if (quotedString.length() < 2) {
-            return quotedString;
-        }
-        return quotedString.substring(1, quotedString.length() - 1);
-    }
 }

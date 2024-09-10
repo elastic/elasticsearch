@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
-import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.FullTextPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.StringQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
@@ -410,8 +409,8 @@ public class Verifier {
                 });
                 // check no MATCH expressions are used
                 field.forEachDown(
-                    FullTextPredicate.class,
-                    mqp -> { failures.add(fail(mqp, "EVAL does not support full text search expressions")); }
+                    MatchQueryPredicate.class,
+                    mqp -> { failures.add(fail(mqp, "EVAL does not support MATCH expressions")); }
                 );
                 // check no full text search functions are used
                 field.forEachDown(

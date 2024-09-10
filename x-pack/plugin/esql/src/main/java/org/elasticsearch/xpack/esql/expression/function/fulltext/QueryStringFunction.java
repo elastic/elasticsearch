@@ -24,6 +24,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Full text function that performs a {@link QueryStringQuery} .
+ */
 public class QueryStringFunction extends FullTextFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

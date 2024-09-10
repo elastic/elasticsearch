@@ -375,14 +375,15 @@ public class EsqlFunctionRegistry {
                 def(MvSlice.class, MvSlice::new, "mv_slice"),
                 def(MvZip.class, MvZip::new, "mv_zip"),
                 def(MvSum.class, MvSum::new, "mv_sum"),
-                def(Split.class, Split::new, "split") },
-            // Full text functions
-            new FunctionDefinition[] { def(QueryStringFunction.class, QueryStringFunction::new, "qstr") } };
+                def(Split.class, Split::new, "split") } };
 
     }
 
     private static FunctionDefinition[][] snapshotFunctions() {
-        return new FunctionDefinition[][] { new FunctionDefinition[] { def(Rate.class, Rate::withUnresolvedTimestamp, "rate") } };
+        return new FunctionDefinition[][] {
+            new FunctionDefinition[] { def(Rate.class, Rate::withUnresolvedTimestamp, "rate") },
+            // Full text functions
+            new FunctionDefinition[] { def(QueryStringFunction.class, QueryStringFunction::new, "qstr") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

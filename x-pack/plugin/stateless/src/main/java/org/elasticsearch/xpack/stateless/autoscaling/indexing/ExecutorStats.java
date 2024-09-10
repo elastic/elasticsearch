@@ -17,4 +17,10 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 
-public record ExecutorStats(double averageLoad, double averageTaskExecutionEWMA, int currentQueueSize, int maxThreads) {}
+public record ExecutorStats(
+    double averageLoad,
+    double averageTaskExecutionEWMA,
+    int currentQueueSize,
+    double averageQueueSize,
+    int maxThreads
+) {}

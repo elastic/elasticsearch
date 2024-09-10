@@ -78,6 +78,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase {
+    public static final double EPSILON = 0.0000001;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -482,6 +483,10 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
                 ).isEmpty()
             );
             assertFalse(
+                plugin.getDoubleGaugeMeasurement("es.autoscaling.indexing.thread_pool." + executor + ".average_queue_size.current")
+                    .isEmpty()
+            );
+            assertFalse(
                 plugin.getLongGaugeMeasurement("es.autoscaling.indexing.thread_pool." + executor + ".queue_size.current").isEmpty()
             );
         }
@@ -551,14 +556,13 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
 
         // Not comparing the exact metric values since new values may have been published.
         // In addition, the more granular comparison is exercised in IngestMetricsServiceTests.
-        final var epsilon = 0.0000001;
         assertBusy(() -> {
             final var ingestionLoadMetrics = getNodesIngestLoad();
             assertThat(ingestionLoadMetrics, hasSize(numNodes));
             assertTrue(ingestionLoadMetrics.stream().allMatch(l -> l.metricQuality().equals(MetricQuality.MINIMUM)));
             // Expect at least shuttingDownNodes.size() ingestion loads with value 0.0
             assertThat(
-                ingestionLoadMetrics.stream().filter(l -> l.load() < epsilon).count(),
+                ingestionLoadMetrics.stream().filter(l -> l.load() < EPSILON).count(),
                 greaterThanOrEqualTo((long) shuttingDownNodes.size())
             );
         });
@@ -804,6 +808,61 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         var ingestionLoads = getNodesIngestLoad();
         assertThat(ingestionLoads.size(), equalTo(numberOfIndexNodes));
         assertTrue(ingestionLoads.toString(), ingestionLoads.stream().allMatch(load -> load.metricQuality().equals(MetricQuality.MISSING)));
+    }
+
+    public void testAverageQueueSizeDynamicEwmaAlphaSetting() throws Exception {
+        var indexNodeName = startMasterAndIndexNode(
+            Settings.builder()
+                .put(IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+                // Use 1.0 to ensure the ingestion load converges quickly to the write thread pool size
+                .put(AverageWriteLoadSampler.WRITE_LOAD_SAMPLER_EWMA_ALPHA_SETTING.getKey(), 1.0)
+                // Initially avoid taking into account the queue size by using 0.0
+                .put(AverageWriteLoadSampler.QUEUE_SIZE_SAMPLER_EWMA_ALPHA_SETTING.getKey(), 0.0)
+                .build()
+        );
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+        assertBusy(() -> {
+            var ingestLoads = getNodesIngestLoad();
+            assertThat(ingestLoads.toString(), ingestLoads.size(), equalTo(1));
+            assertThat(ingestLoads.toString(), ingestLoads.get(0).metricQuality(), equalTo(MetricQuality.EXACT));
+            assertThat(ingestLoads.toString(), ingestLoads.get(0).load(), equalTo(0.0));
+        });
+        // Finish some bulk requests to ensure the average task execution time of the executor is not zero since that leads to a queue
+        // contribution of zero.
+        indexDocs(indexName, between(1, 10));
+        // Block the executor workers to simulate long-running write tasks
+        var threadpool = internalCluster().getInstance(ThreadPool.class, indexNodeName);
+        var executor = (TaskExecutionTimeTrackingEsThreadPoolExecutor) threadpool.executor(ThreadPool.Names.WRITE);
+        final var executorThreads = threadpool.info(ThreadPool.Names.WRITE).getMax();
+        var barrier = new CyclicBarrier(executorThreads + 1);
+        for (int i = 0; i < executorThreads; i++) {
+            executor.execute(() -> longAwait(barrier));
+        }
+        var writeRequests = randomIntBetween(100, 200);
+        for (int i = 0; i < writeRequests; i++) {
+            client().prepareBulk().add(new IndexRequest(indexName).source("field", i)).execute();
+        }
+        assertBusy(() -> {
+            assertThat(executor.getCurrentQueueSize(), equalTo(writeRequests));
+            var ingestLoadsAfter = getNodesIngestLoad();
+            assertThat(ingestLoadsAfter.toString(), ingestLoadsAfter.size(), equalTo(1));
+            assertThat(ingestLoadsAfter.toString(), ingestLoadsAfter.get(0).metricQuality(), equalTo(MetricQuality.EXACT));
+            assertEquals(ingestLoadsAfter.toString(), ingestLoadsAfter.get(0).load(), executorThreads, EPSILON);
+        });
+        // Any increase in the ingestion load beyond the size of the thread pool requires take into account the queued tasks
+        updateClusterSettings(
+            Settings.builder()
+                .put(AverageWriteLoadSampler.QUEUE_SIZE_SAMPLER_EWMA_ALPHA_SETTING.getKey(), randomDoubleBetween(0.01, 1.0, true))
+        );
+        assertBusy(() -> {
+            var ingestLoadsAfter = getNodesIngestLoad();
+            assertThat(ingestLoadsAfter.toString(), ingestLoadsAfter.size(), equalTo(1));
+            assertThat(ingestLoadsAfter.toString(), ingestLoadsAfter.get(0).metricQuality(), equalTo(MetricQuality.EXACT));
+            assertThat(ingestLoadsAfter.toString(), ingestLoadsAfter.get(0).load(), greaterThan((double) executorThreads));
+        });
+        longAwait(barrier);
     }
 
     public static void markNodesForShutdown(List<DiscoveryNode> shuttingDownNodes, List<SingleNodeShutdownMetadata.Type> shutdownTypes) {

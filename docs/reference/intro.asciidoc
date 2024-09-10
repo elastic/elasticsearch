@@ -14,12 +14,12 @@ Use {es} to search, index, store, and analyze data of all shapes and sizes in ne
 
 {es} is used for a wide and growing range of use cases. Here are a few examples:
 
-* *Monitor log and event data*. Store logs, metrics, and event data for observability and security information and event management (SIEM).
-* *Build search applications*. Add search capabilities to apps or websites, or build enterprise search engines over your organization's internal data sources.
-* *Vector database*. Store and search vectorized data, and create vector embeddings with built-in and third-party natural language processing (NLP) models.
-* *Retrieval augmented generation (RAG)*. Use {es} as a retrieval engine to augment Generative AI models.
-* *Application and security monitoring*. Monitor and analyze application performance and security data effectively.
-* *Machine learning*. Use {ml} to automatically model the behavior of your data in real-time.
+* *Monitor log and event data*: Store logs, metrics, and event data for observability and security information and event management (SIEM).
+* *Build search applications*: Add search capabilities to apps or websites, or build search engines over internal data.
+* *Vector database*: Store and search vectorized data, and create vector embeddings with built-in and third-party natural language processing (NLP) models.
+* *Retrieval augmented generation (RAG)*: Use {es} as a retrieval engine to augment generative AI models.
+* *Application and security monitoring*: Monitor and analyze application performance and security data.
+* *Machine learning*: Use {ml} to automatically model the behavior of your data in real-time.
 
 This is just a sample of search, observability, and security use cases enabled by {es}. 
 Refer to our https://www.elastic.co/customers/success-stories[customer success stories] for concrete examples across a range of industries.
@@ -41,25 +41,25 @@ https://www.elastic.co/guide/en/starting-with-the-elasticsearch-platform-and-its
 To use {es}, you need a running instance of the {es} service.
 You can deploy {es} in various ways:
 
-* <<run-elasticsearch-locally,*Local dev*>>. Get started quickly with a minimal local Docker setup. 
-* {cloud}/ec-getting-started-trial.html[*Elastic Cloud*]. {es} is available as part of our hosted Elastic Stack offering, deployed in the cloud with your provider of choice. Sign up for a https://cloud.elastic.co/registration[14 day free trial].
-* {serverless-docs}/general/sign-up-trial[*Elastic Cloud Serverless* (technical preview)]. Create serverless projects for autoscaled and fully managed {es} deployments. Sign up for a https://cloud.elastic.co/serverless-registration[14 day free trial].
+* <<run-elasticsearch-locally,*Local dev*>>: Get started quickly with a minimal local Docker setup. 
+* {cloud}/ec-getting-started-trial.html[*Elastic Cloud*]: {es} is available as part of our hosted Elastic Stack offering, deployed in the cloud with your provider of choice. Sign up for a https://cloud.elastic.co/registration[14-day free trial].
+* {serverless-docs}/general/sign-up-trial[*Elastic Cloud Serverless* (technical preview)]: Create serverless projects for autoscaled and fully managed {es} deployments. Sign up for a https://cloud.elastic.co/serverless-registration[14-day free trial].
 
 **Advanced deployment options**
 
-* <<elasticsearch-deployment-options,*Self-managed*>>. Install, configure, and run {es} on your own premises.
-* {ece-ref}/Elastic-Cloud-Enterprise-overview.html[*Elastic Cloud Enterprise*]. Deploy Elastic Cloud on public or private clouds, virtual machines, or your own premises.
-* {eck-ref}/k8s-overview.html[*Elastic Cloud on Kubernetes*]. Deploy Elastic Cloud on Kubernetes.
+* <<elasticsearch-deployment-options,*Self-managed*>>: Install, configure, and run {es} on your own premises.
+* {ece-ref}/Elastic-Cloud-Enterprise-overview.html[*Elastic Cloud Enterprise*]: Deploy Elastic Cloud on public or private clouds, virtual machines, or your own premises.
+* {eck-ref}/k8s-overview.html[*Elastic Cloud on Kubernetes*]: Deploy Elastic Cloud on Kubernetes.
 
 [discrete]
 [[elasticsearch-next-steps]]
 === Learn more
 
-Some resources to help you get started:
+Here are some resources to help you get started:
 
-* <<getting-started, Quickstart>>. A beginner's guide to deploying your first {es} instance, indexing data, and running queries.
-* https://elastic.co/webinars/getting-started-elasticsearch[Webinar: Introduction to {es}]. Register for our live webinars to learn directly from {es} experts.
-* https://www.elastic.co/search-labs[Elastic Search Labs]. Tutorials and blogs that explore AI-powered search using the latest {es} features.
+* <<getting-started, Quickstart>>: A beginner's guide to deploying your first {es} instance, indexing data, and running queries.
+* https://elastic.co/webinars/getting-started-elasticsearch[Webinar: Introduction to {es}]: Register for our live webinars to learn directly from {es} experts.
+* https://www.elastic.co/search-labs[Elastic Search Labs]: Tutorials and blogs that explore AI-powered search using the latest {es} features.
 ** Follow our tutorial https://www.elastic.co/search-labs/tutorials/search-tutorial/welcome[to build a hybrid search solution in Python].
 ** Check out the https://github.com/elastic/elasticsearch-labs?tab=readme-ov-file#elasticsearch-examples--apps[`elasticsearch-labs` repository] for a range of Python notebooks and apps for various use cases.
 
@@ -133,9 +133,9 @@ In {es}, metadata fields are prefixed with an underscore.
 
 The most important metadata fields are:
 
-* `_source`. Contains the original JSON document.
-* `_index`. The name of the index where the document is stored.
-* `_id`. The document's ID. IDs must be unique per index.
+* `_source`: Contains the original JSON document.
+* `_index`: The name of the index where the document is stored.
+* `_id`: The document's ID. IDs must be unique per index.
 
 [discrete]
 [[elasticsearch-intro-documents-fields-mappings]]
@@ -146,8 +146,8 @@ A mapping defines the <<mapping-types,data type>> for each field, how the field 
 and how it should be stored.
 When adding documents to {es}, you have two options for mappings:
 
-* <<mapping-dynamic, Dynamic mapping>>. Let {es} automatically detect the data types and create the mappings for you. This is great for getting started quickly.
-* <<mapping-explicit, Explicit mapping>>. Define the mappings up front by specifying data types for each field. Recommended for production use cases.
+* <<mapping-dynamic, Dynamic mapping>>: Let {es} automatically detect the data types and create the mappings for you. This is great for getting started quickly, but can lead to unexpected results for complex data.
+* <<mapping-explicit, Explicit mapping>>: Define the mappings up front by specifying data types for each field. Recommended for production use cases, because you have much more control over how your data is indexed.
 
 [TIP]
 ====

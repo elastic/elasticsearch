@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -60,12 +62,12 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_SEARCH_STATS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForExistingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
-import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizerTests.greaterThanOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -229,6 +231,10 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         }
 
         @Override
+        protected AttributeSet computeReferences() {
+            return AttributeSet.EMPTY;
+        }
+
         public void writeTo(StreamOutput out) {
             throw new UnsupportedOperationException("not serialized");
         }
@@ -241,6 +247,11 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         @Override
         public UnaryPlan replaceChild(LogicalPlan newChild) {
             return new MockFieldAttributeCommand(source(), newChild, field);
+        }
+
+        @Override
+        public String commandName() {
+            return "MOCK";
         }
 
         @Override
@@ -457,7 +468,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         Expression inn = isNotNull(fieldA);
         Filter f = new Filter(EMPTY, relation, inn);
 
-        assertEquals(f, new LocalLogicalPlanOptimizer.InferIsNotNull().apply(f));
+        assertEquals(f, new InferIsNotNull().apply(f));
     }
 
     public void testIsNotNullOnOperatorWithOneField() {
@@ -467,7 +478,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         Filter f = new Filter(EMPTY, relation, inn);
         Filter expected = new Filter(EMPTY, relation, new And(EMPTY, isNotNull(fieldA), inn));
 
-        assertEquals(expected, new LocalLogicalPlanOptimizer.InferIsNotNull().apply(f));
+        assertEquals(expected, new InferIsNotNull().apply(f));
     }
 
     public void testIsNotNullOnOperatorWithTwoFields() {
@@ -478,7 +489,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         Filter f = new Filter(EMPTY, relation, inn);
         Filter expected = new Filter(EMPTY, relation, new And(EMPTY, new And(EMPTY, isNotNull(fieldA), isNotNull(fieldB)), inn));
 
-        assertEquals(expected, new LocalLogicalPlanOptimizer.InferIsNotNull().apply(f));
+        assertEquals(expected, new InferIsNotNull().apply(f));
     }
 
     public void testIsNotNullOnFunctionWithOneField() {
@@ -490,7 +501,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         Filter f = new Filter(EMPTY, relation, inn);
         Filter expected = new Filter(EMPTY, relation, new And(EMPTY, isNotNull(fieldA), inn));
 
-        assertEquals(expected, new LocalLogicalPlanOptimizer.InferIsNotNull().apply(f));
+        assertEquals(expected, new InferIsNotNull().apply(f));
     }
 
     public void testIsNotNullOnFunctionWithTwoFields() {
@@ -502,7 +513,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         Filter f = new Filter(EMPTY, relation, inn);
         Filter expected = new Filter(EMPTY, relation, new And(EMPTY, new And(EMPTY, isNotNull(fieldA), isNotNull(fieldB)), inn));
 
-        assertEquals(expected, new LocalLogicalPlanOptimizer.InferIsNotNull().apply(f));
+        assertEquals(expected, new InferIsNotNull().apply(f));
     }
 
     private IsNotNull isNotNull(Expression field) {

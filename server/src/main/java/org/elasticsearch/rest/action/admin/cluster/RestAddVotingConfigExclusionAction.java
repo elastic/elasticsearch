@@ -77,13 +77,12 @@ public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
             nodeNames = request.param("node_names");
         }
 
-        final var resolvedRequest = new AddVotingConfigExclusionsRequest(
+        return new AddVotingConfigExclusionsRequest(
+            getMasterNodeTimeout(request),
             Strings.splitStringByCommaToArray(nodeIds),
             Strings.splitStringByCommaToArray(nodeNames),
             request.paramAsTime("timeout", DEFAULT_TIMEOUT)
         );
-
-        return resolvedRequest.masterNodeTimeout(getMasterNodeTimeout(request));
     }
 
 }

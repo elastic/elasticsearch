@@ -28,6 +28,11 @@ import static java.util.Collections.emptyList;
  * The rest are not as they are not part of the projection and thus are not part of the derived table.
  */
 public abstract class Attribute extends NamedExpression {
+    /**
+     * Changing this will break bwc with 8.15, see {@link FieldAttribute#fieldName()}.
+     */
+    protected static final String SYNTHETIC_ATTRIBUTE_NAME_PREFIX = "$$";
+
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         // TODO add UnsupportedAttribute when these are moved to the same project
         return List.of(FieldAttribute.ENTRY, MetadataAttribute.ENTRY, ReferenceAttribute.ENTRY);
@@ -47,6 +52,10 @@ public abstract class Attribute extends NamedExpression {
     public Attribute(Source source, String name, Nullability nullability, NameId id, boolean synthetic) {
         super(source, name, emptyList(), id, synthetic);
         this.nullability = nullability;
+    }
+
+    public static String rawTemporaryName(String inner, String outer, String suffix) {
+        return SYNTHETIC_ATTRIBUTE_NAME_PREFIX + inner + "$" + outer + "$" + suffix;
     }
 
     @Override
@@ -123,7 +132,7 @@ public abstract class Attribute extends NamedExpression {
 
     @Override
     public String toString() {
-        return name() + "{" + label() + "}" + "#" + id();
+        return name() + "{" + label() + (synthetic() ? "$" : "") + "}" + "#" + id();
     }
 
     @Override

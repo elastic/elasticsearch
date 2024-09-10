@@ -1611,7 +1611,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         Arrays.asList(
             "logs-wiz.vulnerability-" + randomAlphaOfLength(randomIntBetween(0, 13)),
-            "logs-wiz.cloud_configuration_finding-" + randomAlphaOfLength(randomIntBetween(0, 13))
+            "logs-wiz.cloud_configuration_finding-" + randomAlphaOfLength(randomIntBetween(0, 13)),
+            "logs-aws.securityhub_findings-" + randomAlphaOfLength(randomIntBetween(0, 13))
         ).forEach(indexName -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));

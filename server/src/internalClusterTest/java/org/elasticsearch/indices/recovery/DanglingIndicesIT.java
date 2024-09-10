@@ -325,7 +325,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
             }
         }
 
-        final Metadata metadata = clusterAdmin().prepareState().clear().setMetadata(true).get().getState().metadata();
+        final Metadata metadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).clear().setMetadata(true).get().getState().metadata();
         assertTrue(metadata.indexGraveyard().toString(), metadata.indexGraveyard().containsIndex(new Index(INDEX_NAME, danglingIndexUUID)));
         assertNull(Strings.toString(metadata, true, true), metadata.index(INDEX_NAME));
     }

@@ -202,7 +202,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         );
         internalCluster().startDataOnlyNode(nodeWithReplicaSettings);
         // need to wait for events to ensure the reroute has happened since we perform it async when a new node joins.
-        clusterAdmin().prepareHealth(indexName).setWaitForYellowStatus().setWaitForEvents(Priority.LANGUID).get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, indexName).setWaitForYellowStatus().setWaitForEvents(Priority.LANGUID).get();
         blockRecovery.countDown();
         ensureGreen(indexName);
         assertThat(internalCluster().nodesInclude(indexName), hasItem(newNode));

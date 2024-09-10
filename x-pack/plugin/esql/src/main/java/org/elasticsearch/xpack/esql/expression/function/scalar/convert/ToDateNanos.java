@@ -57,10 +57,7 @@ public class ToDateNanos extends AbstractConvertFunction {
          */
     );
 
-    @FunctionInfo(returnType = "date_nanos", description = """
-        Converts an input to a nanosecond-resolution date value (aka date_nanos).
-        `yyyy-MM-dd'T'HH:mm:ss.SSS'Z'
-        """)
+    @FunctionInfo(returnType = "date_nanos", description = "Converts an input to a nanosecond-resolution date value (aka date_nanos).")
     public ToDateNanos(
         Source source,
         @Param(

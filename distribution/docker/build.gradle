@@ -525,7 +525,7 @@ subprojects { Project subProject ->
         (base == DockerBase.CLOUD ? 'cloud.tar' :
           (base == DockerBase.CLOUD_ESS ? 'cloud-ess.tar' :
             (base == DockerBase.WOLFI ? 'wolfi.tar' :
-            'docker.tar'))))
+              'docker.tar'))))
     final String artifactName = "elasticsearch${arch}${base.suffix}_test"
 
     final String exportTaskName = taskName("export", architecture, base, 'DockerImage')

@@ -43,8 +43,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     public static final NodeFeature SYNTHETIC_SOURCE_STORED_FIELDS_ADVANCE_FIX = new NodeFeature(
         "mapper.source.synthetic_source_stored_fields_advance_fix"
     );
-    public static final NodeFeature SYNTHETIC_SOURCE_RESTRICTIONS_REMOVED = new NodeFeature(
-        "mapper.source.synthetic_source_restrictions_removed"
+    public static final NodeFeature SYNTHETIC_SOURCE_WITH_COPY_TO_AND_DOC_VALUES_FALSE_SUPPORT = new NodeFeature(
+        "mapper.source.synthetic_source_with_copy_to_and_doc_values_false"
     );
 
     public static final String NAME = "_source";

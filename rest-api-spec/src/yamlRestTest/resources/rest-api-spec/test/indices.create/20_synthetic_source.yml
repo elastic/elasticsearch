@@ -974,7 +974,7 @@ subobjects auto:
 ---
 synthetic_source with copy_to:
   - requires:
-      cluster_features: ["mapper.source.synthetic_source_restrictions_removed"]
+      cluster_features: ["mapper.source.synthetic_source_with_copy_to_and_doc_values_false"]
       reason: requires copy_to support in synthetic source
 
   - do:
@@ -1100,7 +1100,7 @@ synthetic_source with copy_to:
 ---
 synthetic_source with disabled doc_values:
   - requires:
-      cluster_features: ["mapper.source.synthetic_source_restrictions_removed"]
+      cluster_features: ["mapper.source.synthetic_source_with_copy_to_and_doc_values_false"]
       reason: requires disabled doc_values support in synthetic source
 
   - do:
@@ -1183,7 +1183,7 @@ synthetic_source with disabled doc_values:
 ---
 fallback synthetic_source for text field:
   - requires:
-      cluster_features: ["mapper.source.synthetic_source_restrictions_removed"]
+      cluster_features: ["mapper.source.synthetic_source_with_copy_to_and_doc_values_false"]
       reason: requires disabled doc_values support in synthetic source
 
   - do:

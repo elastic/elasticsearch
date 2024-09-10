@@ -1,6 +1,6 @@
 synthetic source:
   - requires:
-      cluster_features: ["mapper.source.synthetic_source_restrictions_removed"]
+      cluster_features: ["mapper.source.synthetic_source_with_copy_to_and_doc_values_false"]
       reason: requires synthetic source support
 
   - do:
@@ -41,7 +41,7 @@ synthetic source:
 ---
 synthetic source with copy_to:
   - requires:
-      cluster_features: ["mapper.source.synthetic_source_restrictions_removed"]
+      cluster_features: ["mapper.source.synthetic_source_with_copy_to_and_doc_values_false"]
       reason: requires copy_to support in synthetic source
 
   - do:

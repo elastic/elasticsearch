@@ -192,6 +192,7 @@ Which returns:
 [source,console-result]
 ----
 {
+  "took": 28,
   "columns": [
     {"name": "author", "type": "text"},
     {"name": "name", "type": "text"},
@@ -206,6 +207,8 @@ Which returns:
   ]
 }
 ----
+// TESTRESPONSE[s/"took": 28/"took": "$body.took"/]
+
 
 [discrete]
 [[esql-locale-param]]

@@ -50,7 +50,7 @@ public class ResourceUtils {
     static String loadResourceWithFallback(Class<?> clazz, String name) throws IOException {
         InputStream is = null;
         if (clazz.getModule().isNamed()) {
-            is = TemplateResources.class.getResourceAsStream("/"+clazz.getModule().getName()+name);
+            is = TemplateResources.class.getResourceAsStream("/" + clazz.getModule().getName() + name);
         }
         if (is == null) {
             is = clazz.getResourceAsStream(name);

@@ -637,6 +637,8 @@ public class Security extends Plugin
     // restart or master node change.
     private final AtomicInteger nodeLocalMigrationRetryCount = new AtomicInteger(0);
 
+    private final boolean autoCreateMainSecurityIndex = System.getProperty("es.xpack.security.security_main_index.auto_create", "false")
+        .equals("true");
     private final AtomicBoolean mainSecurityIndexAutoCreationInProgress = new AtomicBoolean(false);
 
     private final SetOnce<List<Closeable>> closableComponents = new SetOnce<>();
@@ -799,25 +801,15 @@ public class Security extends Plugin
         );
         this.persistentTasksService.set(persistentTasksService);
 
-        final boolean autoCreateMainSecurityIndex = DiscoveryNode.isStateless(settings);
         systemIndices.getMainIndexManager().addStateListener((oldState, newState) -> {
+            // Only consider security index auto-creation or migrations on master node
             if (clusterService.state().nodes().isLocalNodeElectedMaster()) {
-                // Only consider applying migrations if it's the master node and the security index exists
                 if (newState.indexExists()) {
+                    // Only consider applying migrations if the security index exists
                     applyPendingSecurityMigrations(newState);
-                    // In serverless-mode, auto-create the main index eagerly since the security index is always required and should
-                    // be available as quickly as possible
-                } else if (autoCreateMainSecurityIndex && mainSecurityIndexAutoCreationInProgress.compareAndSet(false, true)) {
-                    systemIndices.getMainIndexManager().prepareIndexIfNeededThenExecute(ex -> {
-                        logger.warn("Failed to auto-create security index", ex);
-                        mainSecurityIndexAutoCreationInProgress.set(false);
-                    }, () -> {
-                        logger.info(
-                            "Successfully auto-created security index [{}]",
-                            systemIndices.getMainIndexManager().getConcreteIndexName()
-                        );
-                        mainSecurityIndexAutoCreationInProgress.set(false);
-                    });
+                    // Only consider auto-creation if index does not exist AND was not previously deleted
+                } else if (false == SecurityIndexManager.isIndexDeleted(oldState, newState)) {
+                    maybeAutoCreateMainSecurityIndex();
                 }
             }
         });
@@ -1236,6 +1228,27 @@ public class Security extends Plugin
         this.reloadableComponents.set(List.copyOf(reloadableComponents));
         this.closableComponents.set(List.copyOf(closableComponents));
         return components;
+    }
+
+    private void maybeAutoCreateMainSecurityIndex() {
+        if (autoCreateMainSecurityIndex && mainSecurityIndexAutoCreationInProgress.compareAndSet(false, true)) {
+            systemIndices.getMainIndexManager().prepareIndexIfNeededThenExecute(ex -> {
+                if (false == ExceptionsHelper.unwrapCause(ex) instanceof ResourceAlreadyExistsException) {
+                    logger.warn(
+                        "Failed to auto-create main security index. "
+                            + "A write to the index or a cluster state update will re-trigger index creation",
+                        ex
+                    );
+                }
+                mainSecurityIndexAutoCreationInProgress.set(false);
+            }, () -> {
+                logger.info(
+                    "Successfully auto-created main security index [{}]",
+                    systemIndices.getMainIndexManager().getConcreteIndexName()
+                );
+                mainSecurityIndexAutoCreationInProgress.set(false);
+            });
+        }
     }
 
     private void applyPendingSecurityMigrations(SecurityIndexManager.State newState) {

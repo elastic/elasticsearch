@@ -541,6 +541,30 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterQualifiedNamePatternsOrParams(EsqlBaseParser.QualifiedNamePatternsOrParamsContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitQualifiedNamePatternsOrParams(EsqlBaseParser.QualifiedNamePatternsOrParamsContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterQualifiedNamePatternOrParam(EsqlBaseParser.QualifiedNamePatternOrParamContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitQualifiedNamePatternOrParam(EsqlBaseParser.QualifiedNamePatternOrParamContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterIdentifier(EsqlBaseParser.IdentifierContext ctx) { }
   /**
    * {@inheritDoc}

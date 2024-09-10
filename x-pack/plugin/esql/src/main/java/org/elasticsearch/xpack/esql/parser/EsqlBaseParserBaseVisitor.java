@@ -327,6 +327,20 @@ public class EsqlBaseParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> im
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
+  @Override public T visitQualifiedNamePatternsOrParams(EsqlBaseParser.QualifiedNamePatternsOrParamsContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitQualifiedNamePatternOrParam(EsqlBaseParser.QualifiedNamePatternOrParamContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
   @Override public T visitIdentifier(EsqlBaseParser.IdentifierContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}

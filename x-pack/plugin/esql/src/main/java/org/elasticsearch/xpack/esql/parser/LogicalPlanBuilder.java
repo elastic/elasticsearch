@@ -411,7 +411,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitKeepCommand(EsqlBaseParser.KeepCommandContext ctx) {
         final Holder<Boolean> hasSeenStar = new Holder<>(false);
-        List<NamedExpression> projections = visitQualifiedNamePatterns(ctx.qualifiedNamePatterns(), ne -> {
+        List<NamedExpression> projections = visitQualifiedNamePatternsOrParams(ctx.qualifiedNamePatternsOrParams(), ne -> {
             if (ne instanceof UnresolvedStar) {
                 if (hasSeenStar.get()) {
                     var src = ne.source();

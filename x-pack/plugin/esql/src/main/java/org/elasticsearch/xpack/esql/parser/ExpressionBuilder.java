@@ -255,6 +255,49 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
+    public List<NamedExpression> visitQualifiedNamePatternsOrParams(EsqlBaseParser.QualifiedNamePatternsOrParamsContext ctx) {
+        return visitQualifiedNamePatternsOrParams(ctx, ne -> {});
+    }
+
+    protected List<NamedExpression> visitQualifiedNamePatternsOrParams(
+        EsqlBaseParser.QualifiedNamePatternsOrParamsContext ctx,
+        Consumer<NamedExpression> checker
+    ) {
+        if (ctx == null) {
+            return emptyList();
+        }
+        List<EsqlBaseParser.QualifiedNamePatternOrParamContext> identifiers = ctx.qualifiedNamePatternOrParam();
+        List<NamedExpression> names = new ArrayList<>(identifiers.size());
+
+        for (EsqlBaseParser.QualifiedNamePatternOrParamContext patternContext : identifiers) {
+            names.add(visitQualifiedNamePatternOrParam(patternContext, checker));
+        }
+
+        return names;
+    }
+
+    protected NamedExpression visitQualifiedNamePatternOrParam(
+        EsqlBaseParser.QualifiedNamePatternOrParamContext ctx,
+        Consumer<NamedExpression> checker
+    ) {
+        NamedExpression ne;
+        if (ctx.qualifiedNamePattern() != null) {
+            ne = visitQualifiedNamePattern(ctx.qualifiedNamePattern());
+        } else {
+            ne = visitParams(ctx.params());
+        }
+        checker.accept(ne);
+        return ne;
+    }
+
+    public NamedExpression visitParams(EsqlBaseParser.ParamsContext ctx) {
+        // TODO
+        // How to call visitInputParam for ? or visitInputNamedOrPositionalParam for ?n
+        // How to relate ParamsContext to InputParamsContext?
+        return null;
+    }
+
+    @Override
     public List<NamedExpression> visitQualifiedNamePatterns(EsqlBaseParser.QualifiedNamePatternsContext ctx) {
         return visitQualifiedNamePatterns(ctx, ne -> {});
     }

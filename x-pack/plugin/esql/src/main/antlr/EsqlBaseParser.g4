@@ -178,6 +178,15 @@ qualifiedNamePatterns
     : qualifiedNamePattern (COMMA qualifiedNamePattern)*
     ;
 
+qualifiedNamePatternsOrParams
+    : qualifiedNamePatternOrParam (COMMA qualifiedNamePatternOrParam)*
+    ;
+
+qualifiedNamePatternOrParam
+    : qualifiedNamePattern
+    | params
+    ;
+
 identifier
     : UNQUOTED_IDENTIFIER
     | QUOTED_IDENTIFIER
@@ -218,11 +227,11 @@ orderExpression
     ;
 
 keepCommand
-    :  KEEP qualifiedNamePatterns
+    : KEEP qualifiedNamePatternsOrParams
     ;
 
 dropCommand
-    : DROP qualifiedNamePatterns
+    : DROP qualifiedNamePatternsOrParams
     ;
 
 renameCommand

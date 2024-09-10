@@ -247,12 +247,14 @@ public class AsyncSearchResponse extends ActionResponse implements ChunkedToXCon
                 }
                 builder.field("response");
             }
+            return builder;
         }).appendIfPresent(searchResponse).append((builder, p) -> {
             if (error != null) {
                 builder.startObject("error");
                 ElasticsearchException.generateThrowableXContent(builder, p, error);
                 builder.endObject();
             }
+            return builder;
         }));
     }
 

@@ -1520,14 +1520,14 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                 b.field("cluster_uuid_committed", clusterUUIDCommitted);
                 b.startObject("cluster_coordination");
                 coordinationMetadata().toXContent(b, p);
-                b.endObject();
+                return b.endObject();
             })
             .execute(xb -> {
                 if (context != XContentContext.API && persistentSettings().isEmpty() == false) {
                     xb.append((b, p) -> {
                         b.startObject("settings");
                         persistentSettings().toXContent(b, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
-                        b.endObject();
+                        return b.endObject();
                     });
                 }
             })

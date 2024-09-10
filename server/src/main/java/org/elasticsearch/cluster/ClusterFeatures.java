@@ -247,7 +247,7 @@ public class ClusterFeatures implements Diffable<ClusterFeatures>, ChunkedToXCon
             .array(nodeFeatures.entrySet().stream().sorted(Map.Entry.comparingByKey()).iterator(), e -> (builder, p) -> {
                 String[] features = e.getValue().toArray(String[]::new);
                 Arrays.sort(features);
-                builder.startObject().field("node_id", e.getKey()).array("features", features).endObject();
+                return builder.startObject().field("node_id", e.getKey()).array("features", features).endObject();
             });
     }
 

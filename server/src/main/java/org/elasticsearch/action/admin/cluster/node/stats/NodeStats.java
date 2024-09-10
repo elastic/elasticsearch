@@ -360,6 +360,7 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
                 }
                 builder.endObject();
             }
+            return builder;
         })
 
             .appendIfPresent(getIndices())

@@ -155,7 +155,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
                 }
                 builder.endObject(); // end "most_available"
             }
-            builder.endObject(); // end $nodename
+            return builder.endObject(); // end $nodename
         })
             .object(
                 "shard_sizes",
@@ -179,7 +179,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
                     builder.field("path", c.getKey().path);
                     c.getValue().toXContent(builder, p);
                 }
-                builder.endObject(); // NodeAndPath
+                return builder.endObject(); // NodeAndPath
             });
     }
 

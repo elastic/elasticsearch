@@ -881,7 +881,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         final String patternAsRegex = patternToRegex(pattern);
         final String aliasAsRegex = alias == null ? null : patternToRegex(alias);
 
-        final Automaton patternAutomaton = Operations.determinize(new RegExp(patternAsRegex).toAutomaton(), DEFAULT_DETERMINIZE_WORK_LIMIT);
+        final Automaton patternAutomaton = new RegExp(patternAsRegex).toAutomaton();
 
         if (aliasAsRegex == null) {
             return patternAutomaton;

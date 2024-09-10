@@ -20,7 +20,6 @@ import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.MultiLine;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.legacygeo.parsers.ShapeParser;
@@ -387,7 +386,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
 
         LinearRing shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]));
         Polygon expected = GEOMETRY_FACTORY.createPolygon(shell, null);
-        final IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0);
+        final IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
         final LegacyGeoShapeFieldMapper mapperBuilder = new LegacyGeoShapeFieldMapper.Builder("test", version, false, true).build(
             MapperBuilderContext.root(false, false)
         );

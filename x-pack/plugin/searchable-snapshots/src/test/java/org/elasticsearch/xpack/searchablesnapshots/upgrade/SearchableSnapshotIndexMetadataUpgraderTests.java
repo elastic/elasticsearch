@@ -116,14 +116,7 @@ public class SearchableSnapshotIndexMetadataUpgraderTests extends ESTestCase {
      * other than 7.12 versions here, but not 8.0 (since a rolling upgrade to 8.0 requires an upgrade to 7.latest first).
      */
     private Settings partialNeedsUpgrade() {
-        return searchableSnapshotSettings(
-            IndexVersionUtils.randomVersionBetween(
-                random(),
-                IndexVersion.fromId(7_12_00_99),
-                IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
-            ),
-            true
-        );
+        return searchableSnapshotSettings(randomFrom(IndexVersion.fromId(7_12_00_99), IndexVersion.fromId(7_17_00_99)), true);
     }
 
     /**

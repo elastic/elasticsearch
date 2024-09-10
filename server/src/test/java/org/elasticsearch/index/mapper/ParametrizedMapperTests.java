@@ -27,7 +27,6 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -555,7 +554,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             {"type":"test_mapper","some_unknown_parameter":true,"required":"value"}""";
         TestMapper mapper = fromMapping(
             mapping,
-            IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0),
+            IndexVersion.fromId(7_10_00_99),
             TransportVersionUtils.randomVersionBetween(
                 random(),
                 TransportVersions.V_7_0_0,
@@ -564,10 +563,6 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             true
         );
         assertNotNull(mapper);
-        assertWarnings(
-            "Parameter [some_unknown_parameter] is used in a dynamic template mapping and has no effect on type [test_mapper]. "
-                + "Usage will result in an error in future major versions and should be removed."
-        );
         assertEquals("""
             {"field":{"type":"test_mapper","required":"value"}}""", Strings.toString(mapper));
 

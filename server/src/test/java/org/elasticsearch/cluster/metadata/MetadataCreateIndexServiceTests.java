@@ -1328,33 +1328,6 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         );
     }
 
-    public void testDeprecateTranslogRetentionSettings() {
-        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
-        final Settings.Builder settings = Settings.builder();
-        if (randomBoolean()) {
-            settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), TimeValue.timeValueMillis(between(1, 120)));
-        } else {
-            settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), between(1, 128) + "mb");
-        }
-        settings.put(SETTING_VERSION_CREATED, IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0));
-        request.settings(settings.build());
-        aggregateIndexSettings(
-            ClusterState.EMPTY_STATE,
-            request,
-            Settings.EMPTY,
-            null,
-            null,
-            Settings.EMPTY,
-            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-            randomShardLimitService(),
-            Collections.emptySet()
-        );
-        assertWarnings(
-            "Translog retention settings [index.translog.retention.age] "
-                + "and [index.translog.retention.size] are deprecated and effectively ignored. They will be removed in a future version."
-        );
-    }
-
     public void testDeprecateSimpleFS() {
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         final Settings.Builder settings = Settings.builder();

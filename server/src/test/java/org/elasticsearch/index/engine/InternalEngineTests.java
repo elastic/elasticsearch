@@ -95,6 +95,7 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -6616,6 +6617,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    @UpdateForV9 // can this test be removed, it testing 7x versions behaviour
     public void testRecoverFromHardDeletesIndex() throws Exception {
         IndexWriterFactory hardDeletesWriter = (directory, iwc) -> new IndexWriter(directory, iwc) {
             boolean isTombstone(Iterable<? extends IndexableField> doc) {
@@ -6664,10 +6666,7 @@ public class InternalEngineTests extends EngineTestCase {
             .settings(
                 Settings.builder()
                     .put(defaultSettings.getSettings())
-                    .put(
-                        IndexMetadata.SETTING_VERSION_CREATED,
-                        IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0)
-                    )
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.fromId(7_10_00_99))
                     .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false)
             )
             .build();

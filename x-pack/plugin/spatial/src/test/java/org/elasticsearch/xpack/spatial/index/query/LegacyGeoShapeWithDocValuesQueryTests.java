@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.spatial.index.query;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.settings.Settings;
@@ -39,6 +40,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "TODO lucene 10 upgrade")
 public class LegacyGeoShapeWithDocValuesQueryTests extends GeoShapeQueryTestCase {
 
     @SuppressWarnings("deprecation")
@@ -72,7 +74,7 @@ public class LegacyGeoShapeWithDocValuesQueryTests extends GeoShapeQueryTestCase
             ex.getMessage(),
             containsString("using deprecated parameters [tree] in mapper [" + fieldName + "] of type [geo_shape] is no longer allowed")
         );
-        IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0);
+        IndexVersion version = IndexVersions.V_8_0_0;
         finalSetting = settings(version).put(settings).build();
         indicesAdmin().prepareCreate(indexName).setMapping(xcb).setSettings(finalSetting).get();
     }

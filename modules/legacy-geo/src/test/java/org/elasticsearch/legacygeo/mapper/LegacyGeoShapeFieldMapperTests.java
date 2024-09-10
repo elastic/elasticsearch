@@ -19,6 +19,7 @@ import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -32,7 +33,6 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.legacygeo.test.TestLegacyGeoShapeFieldMapperPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
@@ -52,6 +52,7 @@ import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+@UpdateForV9 // can we remove this entire test?
 @SuppressWarnings("deprecation")
 public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
 
@@ -122,7 +123,7 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
 
     @Override
     protected IndexVersion getVersion() {
-        return IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0);
+        return IndexVersions.V_8_0_0;
     }
 
     public void testLegacySwitches() throws IOException {

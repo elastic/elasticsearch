@@ -18,9 +18,9 @@ import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankDoc;
+import org.elasticsearch.search.rank.RankDocsRankBuilder;
 import org.elasticsearch.search.retriever.rankdoc.RankDocsQueryBuilder;
 import org.elasticsearch.search.retriever.rankdoc.RankDocsSortBuilder;
-import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -100,14 +100,26 @@ public class RankDocsRetrieverBuilderTests extends ESTestCase {
         if (randomBoolean()) {
             source.aggregation(new TermsAggregationBuilder("name").field("field"));
         }
+        if (randomBoolean()) {
+            source.explain(true);
+        }
+        if (randomBoolean()) {
+            source.profile(true);
+        }
         retriever.extractToSearchSourceBuilder(source, randomBoolean());
-        assertThat(source.sorts().size(), equalTo(2));
+        assertThat(source.sorts().size(), equalTo(1));
         assertThat(source.sorts().get(0), instanceOf(RankDocsSortBuilder.class));
-        assertThat(source.sorts().get(1), instanceOf(ScoreSortBuilder.class));
+        assertThat(source.rankBuilder(), instanceOf(RankDocsRankBuilder.class));
         assertThat(source.query(), instanceOf(BoolQueryBuilder.class));
         BoolQueryBuilder bq = (BoolQueryBuilder) source.query();
-        if (source.aggregations() != null) {
-            assertThat(bq.must().size(), equalTo(0));
+        if (source.aggregations() != null || (source.explain() != null && source.explain()) || source.profile()) {
+            if (source.profile() || (source.explain() != null && source.explain())) {
+                assertThat(bq.must().size(), equalTo(retriever.sources.size()));
+                assertThat(bq.filter().size(), equalTo(retriever.preFilterQueryBuilders.size()));
+            } else {
+                assertThat(bq.must().size(), equalTo(0));
+                assertThat(bq.filter().size(), equalTo(retriever.preFilterQueryBuilders.size() + retriever.sources.size()));
+            }
             assertThat(bq.should().size(), greaterThanOrEqualTo(1));
             assertThat(bq.should().get(0), instanceOf(RankDocsQueryBuilder.class));
             assertNull(source.postFilter());
@@ -115,8 +127,8 @@ public class RankDocsRetrieverBuilderTests extends ESTestCase {
             assertThat(bq.must().size(), equalTo(1));
             assertThat(bq.must().get(0), instanceOf(RankDocsQueryBuilder.class));
             assertNull(source.postFilter());
+            assertThat(bq.filter().size(), equalTo(retriever.preFilterQueryBuilders.size()));
         }
-        assertThat(bq.filter().size(), equalTo(retriever.preFilterQueryBuilders.size()));
     }
 
     public void testTopDocsQuery() {

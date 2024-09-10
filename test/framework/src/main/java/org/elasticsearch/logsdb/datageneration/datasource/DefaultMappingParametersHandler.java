@@ -39,8 +39,8 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
 
     private Supplier<Map<String, Object>> numberMapping(Map<String, Object> injected) {
         return () -> {
-           injected.put("doc_values", ESTestCase.randomBoolean());
-           return injected;
+            injected.put("doc_values", ESTestCase.randomBoolean());
+            return injected;
         };
     }
 

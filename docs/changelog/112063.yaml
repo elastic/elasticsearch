@@ -1,11 +1,10 @@
 pr: 112063
 summary: Spatial search functions support multi-valued fields in compute engine
-area: "ES|QL"
+area: ES|QL
 type: bug
 issues:
-  - 110830
-  - 112102
-  - 112505
+ - 112102
+ - 110830
 highlight:
   title: "ESQL: Multi-value fields supported in Geospatial predicates"
   body: |-

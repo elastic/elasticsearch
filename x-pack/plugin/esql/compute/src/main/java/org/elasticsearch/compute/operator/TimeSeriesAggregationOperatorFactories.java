@@ -59,7 +59,7 @@ public final class TimeSeriesAggregationOperatorFactories {
             for (AggregatorFunctionSupplier f : nonRates) {
                 aggregators.add(f.groupingAggregatorFactory(AggregatorMode.INITIAL));
             }
-            List<GroupingKey> groupings = this.groupings.stream().map(g -> g.get(AggregatorMode.INITIAL)).toList();
+            List<GroupingKey.Factory> groupings = this.groupings.stream().map(g -> g.get(AggregatorMode.INITIAL)).toList();
             aggregators.addAll(valuesAggregatorForGroupings(groupings, timeBucketChannel));
             return new HashAggregationOperator(
                 aggregators,
@@ -92,7 +92,7 @@ public final class TimeSeriesAggregationOperatorFactories {
             for (AggregatorFunctionSupplier f : nonRates) {
                 aggregators.add(f.groupingAggregatorFactory(AggregatorMode.INTERMEDIATE));
             }
-            List<GroupingKey> groupings = this.groupings.stream().map(g -> g.get(AggregatorMode.INTERMEDIATE)).toList();
+            List<GroupingKey.Factory> groupings = this.groupings.stream().map(g -> g.get(AggregatorMode.INTERMEDIATE)).toList();
             aggregators.addAll(valuesAggregatorForGroupings(groupings, timeBucketChannel));
             List<BlockHash.GroupSpec> hashGroups = List.of(
                 new BlockHash.GroupSpec(tsHashChannel, ElementType.BYTES_REF),
@@ -127,7 +127,7 @@ public final class TimeSeriesAggregationOperatorFactories {
             for (AggregatorFunctionSupplier f : nonRates) {
                 aggregators.add(f.groupingAggregatorFactory(AggregatorMode.FINAL));
             }
-            List<GroupingKey> groupings = this.groupings.stream().map(g -> g.get(AggregatorMode.FINAL)).toList();
+            List<GroupingKey.Factory> groupings = this.groupings.stream().map(g -> g.get(AggregatorMode.FINAL)).toList();
             return new HashAggregationOperator(
                 aggregators,
                 groupings,
@@ -142,21 +142,12 @@ public final class TimeSeriesAggregationOperatorFactories {
         }
     }
 
-    static List<GroupingAggregator.Factory> valuesAggregatorForGroupings(List<GroupingKey> groupings, int timeBucketChannel) {
+    static List<GroupingAggregator.Factory> valuesAggregatorForGroupings(List<GroupingKey.Factory> groupings, int timeBucketChannel) {
         List<GroupingAggregator.Factory> aggregators = new ArrayList<>();
-        for (GroupingKey g : groupings) {
-            if (g.channel() != timeBucketChannel) {
-                final List<Integer> channels = List.of(g.channel());
-                // TODO: perhaps introduce a specialized aggregator for this?
-                var aggregatorSupplier = (switch (g.elementType()) {
-                    case BYTES_REF -> new org.elasticsearch.compute.aggregation.ValuesBytesRefAggregatorFunctionSupplier(channels);
-                    case DOUBLE -> new org.elasticsearch.compute.aggregation.ValuesDoubleAggregatorFunctionSupplier(channels);
-                    case INT -> new org.elasticsearch.compute.aggregation.ValuesIntAggregatorFunctionSupplier(channels);
-                    case LONG -> new org.elasticsearch.compute.aggregation.ValuesLongAggregatorFunctionSupplier(channels);
-                    case BOOLEAN -> new org.elasticsearch.compute.aggregation.ValuesBooleanAggregatorFunctionSupplier(channels);
-                    case FLOAT, NULL, DOC, COMPOSITE, UNKNOWN -> throw new IllegalArgumentException("unsupported grouping type");
-                });
-                aggregators.add(aggregatorSupplier.groupingAggregatorFactory(AggregatorMode.SINGLE));
+        for (GroupingKey.Factory g : groupings) {
+            GroupingAggregator.Factory factory = g.valuesAggregatorForGroupingsInTimeSeries(timeBucketChannel);
+            if (factory != null) {
+                aggregators.add(factory);
             }
         }
         return aggregators;

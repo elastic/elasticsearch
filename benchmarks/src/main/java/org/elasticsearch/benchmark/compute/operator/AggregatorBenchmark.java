@@ -124,7 +124,7 @@ public class AggregatorBenchmark {
                 driverContext
             );
         }
-        List<GroupingKey> groups = switch (grouping) {
+        List<GroupingKey.Factory> groups = switch (grouping) {
             case LONGS -> List.of(GroupingKey.forStatelessGrouping(0, ElementType.LONG).get(AggregatorMode.SINGLE));
             case INTS -> List.of(GroupingKey.forStatelessGrouping(0, ElementType.INT).get(AggregatorMode.SINGLE));
             case DOUBLES -> List.of(GroupingKey.forStatelessGrouping(0, ElementType.DOUBLE).get(AggregatorMode.SINGLE));

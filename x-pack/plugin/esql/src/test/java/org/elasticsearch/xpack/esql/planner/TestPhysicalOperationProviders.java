@@ -232,7 +232,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
 
         TestHashAggregationOperator(
             List<GroupingAggregator.Factory> aggregators,
-            List<GroupingKey> groups,
+            List<GroupingKey.Factory> groups,
             Supplier<BlockHash> blockHash,
             String columnName,
             DriverContext driverContext
@@ -276,7 +276,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         public Operator get(DriverContext driverContext) {
             Random random = Randomness.get();
             int pageSize = random.nextBoolean() ? randomIntBetween(random, 1, 16) : randomIntBetween(random, 1, 10 * 1024);
-            List<GroupingKey> groupings = List.of(
+            List<GroupingKey.Factory> groupings = List.of(
                 GroupingKey.forStatelessGrouping(groupByChannel, groupElementType).get(AggregatorMode.INITIAL)
             );
             return new TestHashAggregationOperator(

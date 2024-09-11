@@ -32,24 +32,20 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
 
 public class HashAggregationOperator implements Operator {
-    public record HashAggregationOperatorFactory(List<GroupingKey> groups, List<GroupingAggregator.Factory> aggregators, int maxPageSize)
-        implements
-            OperatorFactory {
+    public record HashAggregationOperatorFactory(
+        List<GroupingKey.Factory> groups,
+        List<GroupingAggregator.Factory> aggregators,
+        int maxPageSize
+    ) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
             return new HashAggregationOperator(
                 aggregators,
                 groups,
-                () -> BlockHash.build(
-                    groups.stream().map(GroupingKey::toBlockHashSpec).toList(),
-                    driverContext.blockFactory(),
-                    maxPageSize,
-                    false
-                ),
+                () -> BlockHash.build(GroupingKey.toBlockHashGroupSpec(groups), driverContext.blockFactory(), maxPageSize, false),
                 driverContext
             );
         }
@@ -91,18 +87,24 @@ public class HashAggregationOperator implements Operator {
     @SuppressWarnings("this-escape")
     public HashAggregationOperator(
         List<GroupingAggregator.Factory> aggregators,
-        List<GroupingKey> groups,
+        List<GroupingKey.Factory> groups,
         Supplier<BlockHash> blockHash,
         DriverContext driverContext
     ) {
         this.aggregators = new ArrayList<>(aggregators.size());
-        this.groups = groups;
+        this.groups = new ArrayList<>(groups.size());
         this.driverContext = driverContext;
         boolean success = false;
         try {
             this.blockHash = blockHash.get();
             for (GroupingAggregator.Factory a : aggregators) {
                 this.aggregators.add(a.apply(driverContext));
+            }
+            int offset = 0;
+            for (GroupingKey.Factory g : groups) {
+                GroupingKey key = g.apply(driverContext, offset);
+                this.groups.add(key);
+                offset += key.extraIntermediateBlocks() + 1;
             }
             success = true;
         } finally {
@@ -119,6 +121,8 @@ public class HashAggregationOperator implements Operator {
 
     @Override
     public void addInput(Page page) {
+        checkState(needsInput(), "Operator is already finishing");
+
         try {
             GroupingAggregatorFunction.AddInput[] prepared = new GroupingAggregatorFunction.AddInput[aggregators.size()];
             class AddInput implements GroupingAggregatorFunction.AddInput {
@@ -164,20 +168,17 @@ public class HashAggregationOperator implements Operator {
                 }
             }
             Block[] keys = new Block[groups.size()];
+            page = wrapPage(page);
             try (AddInput add = new AddInput()) {
-                checkState(needsInput(), "Operator is already finishing");
-
-                int offset = 0;
-                for (GroupingKey key : groups) {
-                    key.receive(page, offset);
-                    offset += key.evaluateBlockCount();
+                for (int g = 0; g < groups.size(); g++) {
+                    keys[g] = groups.get(g).eval(page);
                 }
 
                 for (int i = 0; i < prepared.length; i++) {
                     prepared[i] = aggregators.get(i).prepareProcessPage(blockHash, page);
                 }
 
-                blockHash.add(wrapPage(page), add);
+                blockHash.add(new Page(keys), add);
                 hashNanos += System.nanoTime() - add.hashStart;
             } finally {
                 Releasables.close(keys);
@@ -209,10 +210,8 @@ public class HashAggregationOperator implements Operator {
             Block[] keys = blockHash.getKeys();
 
             int blockCount = 0;
-            int[] groupBlockCounts = new int[groups.size()];
             for (int g = 0; g < groups.size(); g++) {
-                groupBlockCounts[g] = groups.get(g).evaluateBlockCount();
-                blockCount += groupBlockCounts[g];
+                blockCount += groups.get(g).finishBlockCount();
             }
             int[] aggBlockCounts = new int[aggregators.size()];
             for (int a = 0; a < aggregators.size(); a++) {
@@ -224,8 +223,8 @@ public class HashAggregationOperator implements Operator {
             int offset = 0;
             for (int g = 0; g < groups.size(); g++) {
                 blocks[offset] = keys[g];
-                groups.get(g).evaluate(blocks, offset, selected, driverContext);
-                offset += groupBlockCounts[g];
+                groups.get(g).finish(blocks, selected, driverContext);
+                offset += groups.get(g).finishBlockCount();
             }
             for (int a = 0; a < aggregators.size(); a++) {
                 aggregators.get(a).evaluate(blocks, offset, selected, driverContext);

@@ -127,7 +127,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 }
                 layout.append(groupAttributeLayout);
                 Layout.ChannelAndType groupInput = source.layout.get(groupAttribute.id());
-                groupSpecs.add(new GroupSpec(groupInput == null ? null : groupInput.channel(), groupAttribute, aggregatorMode));
+                groupSpecs.add(new GroupSpec(groupInput == null ? null : groupInput.channel(), groupAttribute));
             }
 
             if (aggregatorMode == AggregatorMode.FINAL) {
@@ -159,8 +159,12 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                     context
                 );
             } else {
+                List<GroupingKey.Factory> groupings = new ArrayList<>(groupSpecs.size());
+                for (GroupSpec group : groupSpecs) {
+                    groupings.add(group.toGroupingKey().get(aggregatorMode));
+                }
                 operatorFactory = new HashAggregationOperatorFactory(
-                    groupSpecs.stream().map(GroupSpec::toGroupingKey).toList(),
+                    groupings,
                     aggregatorFactories,
                     context.pageSize(aggregateExec.estimatedRowSize())
                 );
@@ -284,12 +288,12 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         }
     }
 
-    private record GroupSpec(Integer channel, Attribute attribute, AggregatorMode mode) {
-        GroupingKey toGroupingKey() {
+    private record GroupSpec(Integer channel, Attribute attribute) {
+        GroupingKey.Supplier toGroupingKey() {
             if (channel == null) {
                 throw new EsqlIllegalArgumentException("planned to use ordinals but tried to use the hash instead");
             }
-            return GroupingKey.forStatelessGrouping(channel, elementType()).get(mode);
+            return GroupingKey.forStatelessGrouping(channel, elementType());
         }
 
         ElementType elementType() {

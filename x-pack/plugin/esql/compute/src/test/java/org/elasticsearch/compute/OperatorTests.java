@@ -33,10 +33,10 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingKey;
-import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockTestUtils;
@@ -56,7 +56,6 @@ import org.elasticsearch.compute.lucene.LuceneSourceOperatorTests;
 import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
-import org.elasticsearch.compute.operator.CannedSourceOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
@@ -236,118 +235,6 @@ public class OperatorTests extends MapperServiceTestCase {
         assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
     }
 
-    public void testStatefulGrouping() {
-        DriverContext driverContext = driverContext();
-        Stream<BytesRef> input = Stream.of(
-            new BytesRef("abc"),
-            new BytesRef("def"),
-            new BytesRef("abc"),
-            new BytesRef("abc"),
-            new BytesRef("abc"),
-            new BytesRef("abc"),
-            new BytesRef("blah")
-        );
-        List<Page> output = new ArrayList<>();
-        List<Operator> operators = new ArrayList<>();
-
-        class Example implements GroupingKey.Thing {
-            int count;
-
-            @Override
-            public int intermediateBlockCount() {
-                return 1;
-            }
-
-            @Override
-            public ElementType intermediateElementType() {
-                return ElementType.BYTES_REF;
-            }
-
-            @Override
-            public ElementType finalElementType() {
-                return ElementType.BYTES_REF;
-            }
-
-            @Override
-            public void fetchIntermediateState(BlockFactory blockFactory, Block[] blocks, int offset, int positionCount) {
-                blocks[offset] = blockFactory.newConstantIntBlockWith(count, positionCount);
-            }
-
-            @Override
-            public void receiveIntermediateState(Page page, int offset) {
-                IntBlock block = page.getBlock(offset + 1);
-                IntVector vector = block.asVector();
-                assertThat(vector.isConstant(), equalTo(true));
-                count = vector.getInt(0);
-            }
-
-            @Override
-            public void replaceIntermediateKeys(BlockFactory blockFactory, Block[] blocks, int offset) {
-                try (
-                    BytesRefBlock block = (BytesRefBlock) blocks[offset];
-                    BytesRefVector.Builder replacement = blockFactory.newBytesRefVectorBuilder(block.getPositionCount())
-                ) {
-                    BytesRefVector vector = block.asVector();
-                    for (int p = 0; p < vector.getPositionCount(); p++) {
-                        replacement.appendBytesRef(new BytesRef(count + vector.getBytesRef(p, new BytesRef()).utf8ToString()));
-                    }
-                    blocks[offset] = replacement.build().asBlock();
-                }
-            }
-        }
-
-        operators.add(
-            new HashAggregationOperator.HashAggregationOperatorFactory(
-                List.of(new GroupingKey(0, INITIAL, new Example() {
-                    @Override
-                    public void fetchIntermediateState(BlockFactory blockFactory, Block[] blocks, int offset, int positionCount) {
-                        this.count = 10; // NOCOMMIT remove me
-                        super.fetchIntermediateState(blockFactory, blocks, offset, positionCount);
-                    }
-                })),
-                List.of(),
-                16 * 1024
-            ).get(driverContext)
-        );
-        operators.add(
-            new HashAggregationOperator.HashAggregationOperatorFactory(
-                List.of(new GroupingKey(0, FINAL, new Example())),
-                List.of(),
-                16 * 1024
-            ).get(driverContext)
-        );
-        operators.add(
-            new TopNOperator(
-                driverContext.blockFactory(),
-                driverContext.breaker(),
-                3,
-                List.of(ElementType.BYTES_REF),
-                List.of(TopNEncoder.UTF8),
-                List.of(new TopNOperator.SortOrder(0, true, true)),
-                16 * 1024
-            )
-        );
-
-        Driver driver = new Driver(
-            driverContext,
-            new SequenceBytesRefBlockSourceOperator(driverContext.blockFactory(), input),
-            operators,
-            new TestResultPageSinkOperator(output::add),
-            () -> {}
-        );
-        OperatorTestCase.runDriver(driver);
-
-        assertThat(output, hasSize(1));
-        assertThat(output.get(0).getBlockCount(), equalTo(1));
-        BytesRefBlock block = output.get(0).getBlock(0);
-        BytesRefVector vector = block.asVector();
-        List<String> values = new ArrayList<>();
-        for (int p = 0; p < vector.getPositionCount(); p++) {
-            values.add(vector.getBytesRef(p, new BytesRef()).utf8ToString());
-        }
-        assertThat(values, equalTo(List.of("7abc", "7blah", "7def")));
-    }
-
     public void testLimitOperator() {
         var positions = 100;
         var limit = randomIntBetween(90, 101);
@@ -506,5 +393,150 @@ public class OperatorTests extends MapperServiceTestCase {
             randomPageSize(),
             limit
         );
+    }
+
+    public void testStatefulGrouping() {
+        DriverContext driverContext = driverContext();
+        Stream<BytesRef> input = Stream.of(
+            new BytesRef("abc"),
+            new BytesRef("def"),
+            new BytesRef("abc"),
+            new BytesRef("abc"),
+            new BytesRef("abc"),
+            new BytesRef("abc"),
+            new BytesRef("blah")
+        );
+        List<Page> output = new ArrayList<>();
+        List<Operator> operators = new ArrayList<>();
+
+        operators.add(
+            new HashAggregationOperator.HashAggregationOperatorFactory(
+                List.of(new ExampleStatefulGroupingFunction.Factory(INITIAL, 0)),
+                List.of(),
+                16 * 1024
+            ).get(driverContext)
+        );
+        operators.add(
+            new HashAggregationOperator.HashAggregationOperatorFactory(
+                List.of(new ExampleStatefulGroupingFunction.Factory(FINAL, 0)),
+                List.of(),
+                16 * 1024
+            ).get(driverContext)
+        );
+        operators.add(
+            new TopNOperator(
+                driverContext.blockFactory(),
+                driverContext.breaker(),
+                3,
+                List.of(ElementType.BYTES_REF),
+                List.of(TopNEncoder.UTF8),
+                List.of(new TopNOperator.SortOrder(0, true, true)),
+                16 * 1024
+            )
+        );
+
+        Driver driver = new Driver(
+            driverContext,
+            new SequenceBytesRefBlockSourceOperator(driverContext.blockFactory(), input),
+            operators,
+            new TestResultPageSinkOperator(output::add),
+            () -> {}
+        );
+        OperatorTestCase.runDriver(driver);
+
+        assertThat(output, hasSize(1));
+        assertThat(output.get(0).getBlockCount(), equalTo(1));
+        BytesRefBlock block = output.get(0).getBlock(0);
+        BytesRefVector vector = block.asVector();
+        List<String> values = new ArrayList<>();
+        for (int p = 0; p < vector.getPositionCount(); p++) {
+            values.add(vector.getBytesRef(p, new BytesRef()).utf8ToString());
+        }
+        assertThat(values, equalTo(List.of("7abc", "7blah", "7def")));
+    }
+
+    static class ExampleStatefulGroupingFunction implements GroupingKey.Thing {
+        record Factory(AggregatorMode mode, int inputChannel) implements GroupingKey.Factory {
+            @Override
+            public GroupingKey apply(DriverContext context, int resultOffset) {
+                return new GroupingKey(mode, new ExampleStatefulGroupingFunction(inputChannel, resultOffset));
+            }
+
+            @Override
+            public ElementType elementType() {
+                return ElementType.BYTES_REF;
+            }
+
+            @Override
+            public GroupingAggregator.Factory valuesAggregatorForGroupingsInTimeSeries(int timeBucketChannel) {
+                throw new UnsupportedOperationException();
+            }
+        }
+
+        private final int inputChannel;
+        private final int resultOffset;
+
+        int count;
+
+        ExampleStatefulGroupingFunction(int inputChannel, int resultOffset) {
+            this.inputChannel = inputChannel;
+            this.resultOffset = resultOffset;
+        }
+
+        @Override
+        public int extraIntermediateBlocks() {
+            return 1;
+        }
+
+        @Override
+        public ElementType intermediateElementType() {
+            return ElementType.BYTES_REF;
+        }
+
+        @Override
+        public ElementType finalElementType() {
+            return ElementType.BYTES_REF;
+        }
+
+        @Override
+        public Block evalRawInput(Page page) {
+            count += page.getPositionCount();
+            Block block = page.getBlock(inputChannel);
+            block.incRef();
+            return block;
+        }
+
+        @Override
+        public Block evalIntermediateInput(Page page) {
+            IntBlock block = page.getBlock(resultOffset + 1);
+            IntVector vector = block.asVector();
+            assertThat(vector.isConstant(), equalTo(true));
+            count = vector.getInt(0);
+            Block b = page.getBlock(resultOffset);
+            b.incRef();
+            return b;
+        }
+
+        @Override
+        public void fetchIntermediateState(BlockFactory blockFactory, Block[] blocks, int positionCount) {
+            blocks[resultOffset + 1] = blockFactory.newConstantIntBlockWith(count, positionCount);
+        }
+
+        @Override
+        public void replaceIntermediateKeys(BlockFactory blockFactory, Block[] blocks) {
+            try (
+                BytesRefBlock block = (BytesRefBlock) blocks[resultOffset];
+                BytesRefVector.Builder replacement = blockFactory.newBytesRefVectorBuilder(block.getPositionCount())
+            ) {
+                BytesRefVector vector = block.asVector();
+                for (int p = 0; p < vector.getPositionCount(); p++) {
+                    replacement.appendBytesRef(new BytesRef(count + vector.getBytesRef(p, new BytesRef()).utf8ToString()));
+                }
+                blocks[resultOffset] = replacement.build().asBlock();
+            }
+        }
+
+        @Override
+        public void close() {}
     }
 }

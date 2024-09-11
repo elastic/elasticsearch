@@ -14,88 +14,147 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasable;
 
+import java.util.ArrayList;
 import java.util.List;
 
-public record GroupingKey(int channel, AggregatorMode mode, Thing thing) {
-    public interface Thing {
-        int intermediateBlockCount();
+public record GroupingKey(AggregatorMode mode, Thing thing) implements EvalOperator.ExpressionEvaluator {
+    public interface Thing extends Releasable {
+        int extraIntermediateBlocks();
 
         ElementType intermediateElementType();
 
         ElementType finalElementType();
 
-        void fetchIntermediateState(BlockFactory blockFactory, Block[] blocks, int offset, int positionCount);
+        Block evalRawInput(Page page);
 
-        void receiveIntermediateState(Page page, int offset);
+        Block evalIntermediateInput(Page page);
 
-        void replaceIntermediateKeys(BlockFactory blockFactory, Block[] blocks, int offset);
+        void fetchIntermediateState(BlockFactory blockFactory, Block[] blocks, int positionCount);
+
+        void replaceIntermediateKeys(BlockFactory blockFactory, Block[] blocks);
     }
 
     public interface Supplier {
-        GroupingKey get(AggregatorMode mode);
+        Factory get(AggregatorMode mode);
+    }
+
+    public interface Factory {
+        GroupingKey apply(DriverContext context, int resultOffset);
+
+        ElementType elementType();
+
+        GroupingAggregator.Factory valuesAggregatorForGroupingsInTimeSeries(int timeBucketChannel);
     }
 
     public static GroupingKey.Supplier forStatelessGrouping(int channel, ElementType elementType) {
-        return mode -> new GroupingKey(channel, mode, new Thing() {
+        return mode -> new Factory() {
             @Override
-            public int intermediateBlockCount() {
-                return 0;
+            public GroupingKey apply(DriverContext context, int resultOffset) {
+                return new GroupingKey(mode, new Load(channel, elementType, resultOffset));
             }
 
             @Override
-            public ElementType intermediateElementType() {
+            public ElementType elementType() {
                 return elementType;
             }
 
             @Override
-            public ElementType finalElementType() {
-                return elementType;
+            public GroupingAggregator.Factory valuesAggregatorForGroupingsInTimeSeries(int timeBucketChannel) {
+                if (channel != timeBucketChannel) {
+                    final List<Integer> channels = List.of(channel);
+                    // TODO: perhaps introduce a specialized aggregator for this?
+                    return (switch (elementType()) {
+                        case BYTES_REF -> new ValuesBytesRefAggregatorFunctionSupplier(channels);
+                        case DOUBLE -> new ValuesDoubleAggregatorFunctionSupplier(channels);
+                        case INT -> new ValuesIntAggregatorFunctionSupplier(channels);
+                        case LONG -> new ValuesLongAggregatorFunctionSupplier(channels);
+                        case BOOLEAN -> new ValuesBooleanAggregatorFunctionSupplier(channels);
+                        case FLOAT, NULL, DOC, COMPOSITE, UNKNOWN -> throw new IllegalArgumentException("unsupported grouping type");
+                    }).groupingAggregatorFactory(AggregatorMode.SINGLE);
+                }
+                return null;
             }
-
-            @Override
-            public void receiveIntermediateState(Page page, int offset) {}
-
-            @Override
-            public void fetchIntermediateState(BlockFactory blockFactory, Block[] blocks, int offset, int positionCount) {}
-
-            @Override
-            public void replaceIntermediateKeys(BlockFactory blockFactory, Block[] blocks, int offset) {}
-
-            @Override
-            public String toString() {
-                return "Stateless";
-            }
-        });
+        };
     }
 
-    public static List<BlockHash.GroupSpec> toBlockHashGroupSpec(List<GroupingKey> keys) {
-        return keys.stream().map(GroupingKey::toBlockHashSpec).toList();
-    }
-
-    public BlockHash.GroupSpec toBlockHashSpec() {
-        return new BlockHash.GroupSpec(channel, elementType()); // NOCOMMIT this should probably be an evaluator and a BlockType
+    public static List<BlockHash.GroupSpec> toBlockHashGroupSpec(List<GroupingKey.Factory> keys) {
+        List<BlockHash.GroupSpec> result = new ArrayList<>(keys.size());
+        for (int k = 0; k < keys.size(); k++) {
+            result.add(new BlockHash.GroupSpec(k, keys.get(k).elementType()));
+        }
+        return result;
     }
 
     public ElementType elementType() {
         return mode.isOutputPartial() ? thing.intermediateElementType() : thing.finalElementType();
     }
 
-    public void receive(Page page, int offset) {
-        if (mode.isInputPartial()) {
-            thing.receiveIntermediateState(page, offset);
-        }
+    @Override
+    public Block eval(Page page) {
+        return mode.isInputPartial() ? thing.evalIntermediateInput(page) : thing.evalRawInput(page);
     }
 
-    public int evaluateBlockCount() {
-        return 1 + (mode.isOutputPartial() ? thing.intermediateBlockCount() : 0);
+    public int finishBlockCount() {
+        return mode.isOutputPartial() ? 1 + thing.extraIntermediateBlocks() : 1;
     }
 
-    public void evaluate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
+    public void finish(Block[] blocks, IntVector selected, DriverContext driverContext) {
         if (mode.isOutputPartial()) {
-            thing.fetchIntermediateState(driverContext.blockFactory(), blocks, offset + 1, selected.getPositionCount());
+            thing.fetchIntermediateState(driverContext.blockFactory(), blocks, selected.getPositionCount());
         } else {
-            thing.replaceIntermediateKeys(driverContext.blockFactory(), blocks, offset);
+            thing.replaceIntermediateKeys(driverContext.blockFactory(), blocks);
         }
+    }
+
+    public int extraIntermediateBlocks() {
+        return thing.extraIntermediateBlocks();
+    }
+
+    @Override
+    public void close() {
+        thing.close();
+    }
+
+    private record Load(int channel, ElementType elementType, int resultOffset) implements Thing {
+        @Override
+        public int extraIntermediateBlocks() {
+            return 0;
+        }
+
+        @Override
+        public ElementType intermediateElementType() {
+            return elementType;
+        }
+
+        @Override
+        public ElementType finalElementType() {
+            return elementType;
+        }
+
+        @Override
+        public Block evalRawInput(Page page) {
+            Block b = page.getBlock(channel);
+            b.incRef();
+            return b;
+        }
+
+        @Override
+        public Block evalIntermediateInput(Page page) {
+            Block b = page.getBlock(resultOffset);
+            b.incRef();
+            return b;
+        }
+
+        @Override
+        public void fetchIntermediateState(BlockFactory blockFactory, Block[] blocks, int positionCount) {}
+
+        @Override
+        public void replaceIntermediateKeys(BlockFactory blockFactory, Block[] blocks) {}
+
+        @Override
+        public void close() {}
     }
 }

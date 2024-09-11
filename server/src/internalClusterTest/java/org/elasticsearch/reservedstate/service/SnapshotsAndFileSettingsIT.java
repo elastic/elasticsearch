@@ -133,7 +133,7 @@ public class SnapshotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
         boolean awaitSuccessful = savedClusterState.await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
-        return clusterAdmin().state(new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get())).get();
+        return clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(metadataVersion.get())).get();
     }
 
     public void testRestoreWithRemovedFileSettings() throws Exception {
@@ -180,14 +180,15 @@ public class SnapshotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
 
         ensureGreen();
 
-        final ClusterStateResponse clusterStateResponse = clusterAdmin().state(new ClusterStateRequest().metadata(true)).actionGet();
+        final ClusterStateResponse clusterStateResponse = clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT).metadata(true))
+            .actionGet();
 
         // We expect no reserved metadata state for file based settings, the operator file was deleted.
         assertNull(clusterStateResponse.getState().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE));
 
         final ClusterGetSettingsAction.Response getSettingsResponse = clusterAdmin().execute(
             ClusterGetSettingsAction.INSTANCE,
-            new ClusterGetSettingsAction.Request()
+            new ClusterGetSettingsAction.Request(TEST_REQUEST_TIMEOUT)
         ).actionGet();
 
         assertThat(
@@ -305,14 +306,14 @@ public class SnapshotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> reserved state would be restored to non-zero version");
 
         final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
-            new ClusterStateRequest().metadata(true).waitForMetadataVersion(removedReservedState.v2().get())
+            new ClusterStateRequest(TEST_REQUEST_TIMEOUT).metadata(true).waitForMetadataVersion(removedReservedState.v2().get())
         ).actionGet();
 
         assertNotNull(clusterStateResponse.getState().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE));
 
         final ClusterGetSettingsAction.Response getSettingsResponse = clusterAdmin().execute(
             ClusterGetSettingsAction.INSTANCE,
-            new ClusterGetSettingsAction.Request()
+            new ClusterGetSettingsAction.Request(TEST_REQUEST_TIMEOUT)
         ).actionGet();
 
         assertThat(

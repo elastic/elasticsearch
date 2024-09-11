@@ -62,7 +62,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
 
         // make sure the cluster state is green, and all has been recovered
         assertTimeout(
-            clusterAdmin().prepareHealth()
+            clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                 .setWaitForEvents(Priority.LANGUID)
                 .setTimeout(healthTimeout)
                 .setWaitForGreenStatus()
@@ -76,7 +76,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
 
         // make sure the cluster state is green, and all has been recovered
         assertTimeout(
-            clusterAdmin().prepareHealth()
+            clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                 .setWaitForEvents(Priority.LANGUID)
                 .setTimeout(healthTimeout)
                 .setWaitForGreenStatus()
@@ -94,7 +94,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         internalCluster().stopRandomDataNode();
         // make sure the cluster state is green, and all has been recovered
         assertTimeout(
-            clusterAdmin().prepareHealth()
+            clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                 .setWaitForEvents(Priority.LANGUID)
                 .setTimeout(healthTimeout)
                 .setWaitForGreenStatus()
@@ -105,7 +105,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         internalCluster().stopRandomDataNode();
         // make sure the cluster state is green, and all has been recovered
         assertTimeout(
-            clusterAdmin().prepareHealth()
+            clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                 .setWaitForEvents(Priority.LANGUID)
                 .setTimeout(healthTimeout)
                 .setWaitForGreenStatus()
@@ -123,7 +123,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         internalCluster().stopRandomDataNode();
         // make sure the cluster state is green, and all has been recovered
         assertTimeout(
-            clusterAdmin().prepareHealth()
+            clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                 .setWaitForEvents(Priority.LANGUID)
                 .setTimeout(healthTimeout)
                 .setWaitForGreenStatus()
@@ -135,7 +135,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
 
         // make sure the cluster state is yellow, and all has been recovered
         assertTimeout(
-            clusterAdmin().prepareHealth()
+            clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                 .setWaitForEvents(Priority.LANGUID)
                 .setTimeout(healthTimeout)
                 .setWaitForYellowStatus()
@@ -168,7 +168,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
             prepareIndex("test").setId(Long.toString(i)).setSource(Map.<String, Object>of("test", "value" + i)).get();
         }
         ensureGreen();
-        ClusterState state = clusterAdmin().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         RecoveryResponse recoveryResponse = indicesAdmin().prepareRecoveries("test").get();
         for (RecoveryState recoveryState : recoveryResponse.shardRecoveryStates().get("test")) {
             assertNotEquals(
@@ -186,7 +186,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         }
         internalCluster().restartRandomDataNode();
         ensureGreen();
-        clusterAdmin().prepareState().get();
+        clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
 
         recoveryResponse = indicesAdmin().prepareRecoveries("test").get();
         for (RecoveryState recoveryState : recoveryResponse.shardRecoveryStates().get("test")) {

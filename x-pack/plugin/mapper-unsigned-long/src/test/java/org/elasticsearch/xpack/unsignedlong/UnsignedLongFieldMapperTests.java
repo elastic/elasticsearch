@@ -42,7 +42,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.matchesPattern;
 
 public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
 
@@ -504,15 +503,7 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
 
         @Override
         public List<SyntheticSourceInvalidExample> invalidExample() {
-            return List.of(
-                new SyntheticSourceInvalidExample(
-                    matchesPattern("field \\[field] of type \\[.+] doesn't support synthetic source because it doesn't have doc values"),
-                    b -> {
-                        minimalMapping(b);
-                        b.field("doc_values", false);
-                    }
-                )
-            );
+            return List.of();
         }
     }
 }

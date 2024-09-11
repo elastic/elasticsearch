@@ -113,7 +113,7 @@ public class ServiceAccountIT extends ESRestTestCase {
                 "monitor",
                 "manage_own_api_key",
                 "read_fleet_secrets",
-                "manage_connector
+                "manage_connector"
               ],
               "indices": [
                 {

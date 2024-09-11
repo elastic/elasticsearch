@@ -42,7 +42,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -533,8 +532,9 @@ public class IpFieldMapper extends FieldMapper {
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         InetAddress address;
+        String value = context.parser().textOrNull();
         try {
-            address = value(context.parser(), nullValue);
+            address = value == null ? nullValue : InetAddresses.forString(value);
         } catch (IllegalArgumentException e) {
             if (ignoreMalformed) {
                 context.addIgnoredField(fieldType().name());
@@ -550,14 +550,6 @@ public class IpFieldMapper extends FieldMapper {
         if (address != null) {
             indexValue(context, address);
         }
-    }
-
-    private static InetAddress value(XContentParser parser, InetAddress nullValue) throws IOException {
-        String value = parser.textOrNull();
-        if (value == null) {
-            return nullValue;
-        }
-        return InetAddresses.forString(value);
     }
 
     private void indexValue(DocumentParserContext context, InetAddress address) {

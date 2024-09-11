@@ -5,6 +5,7 @@ type: bug
 issues:
  - 112102
  - 110830
+ - 112505
 highlight:
   title: "ESQL: Multi-value fields supported in Geospatial predicates"
   body: |-

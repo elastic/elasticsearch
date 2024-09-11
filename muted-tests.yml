@@ -89,6 +89,9 @@ tests:
 - class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
   method: testSnapshotRestore {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/111799
+- class: org.elasticsearch.xpack.security.authc.kerberos.KerberosTicketValidatorTests
+  method: testValidKebrerosTicket
+  issue: https://github.com/elastic/elasticsearch/issues/112632
 
 # Examples:
 #

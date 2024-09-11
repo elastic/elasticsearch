@@ -172,6 +172,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -411,6 +412,8 @@ public class Stateless extends Plugin
             throw new IllegalArgumentException("Directly setting [" + nodeMemoryAttrName + "] is not permitted - it is reserved.");
         }
         settings.put(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false);
+        // Explicitly disable the recovery source, as it is not needed in stateless mode.
+        settings.put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false);
         return settings.build();
     }
 
@@ -917,7 +920,8 @@ public class Stateless extends Plugin
             TransportStatelessPrimaryRelocationAction.SLOW_RELOCATION_THRESHOLD_SETTING,
             GetVirtualBatchedCompoundCommitChunksPressure.CHUNKS_BYTES_LIMIT,
             CacheBlobReaderService.TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING,
-            SharedBlobCacheWarmingService.PREWARMING_RANGE_MINIMIZATION_STEP
+            SharedBlobCacheWarmingService.PREWARMING_RANGE_MINIMIZATION_STEP,
+            RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING
         );
     }
 

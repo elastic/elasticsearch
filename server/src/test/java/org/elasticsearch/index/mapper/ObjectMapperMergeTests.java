@@ -187,7 +187,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         final TextFieldMapper textFieldMapper = (TextFieldMapper) metrics.getMapper("host.name");
         assertEquals("foo.metrics.host.name", textFieldMapper.fullPath());
         assertEquals("host.name", textFieldMapper.leafName());
-        FieldMapper fieldMapper = textFieldMapper.multiFields.iterator().next();
+        FieldMapper fieldMapper = textFieldMapper.multiFields().iterator().next();
         assertEquals("foo.metrics.host.name.keyword", fieldMapper.fullPath());
         assertEquals("keyword", fieldMapper.leafName());
     }
@@ -361,7 +361,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         );
         assertEquals("host.name", textKeywordMultiField.leafName());
         assertEquals("foo.metrics.host.name", textKeywordMultiField.fullPath());
-        FieldMapper fieldMapper = textKeywordMultiField.multiFields.iterator().next();
+        FieldMapper fieldMapper = textKeywordMultiField.multiFields().iterator().next();
         assertEquals("keyword", fieldMapper.leafName());
         assertEquals("foo.metrics.host.name.keyword", fieldMapper.fullPath());
         return new ObjectMapper.Builder("foo", ObjectMapper.Defaults.SUBOBJECTS).add(

@@ -233,9 +233,11 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
         final CheckedSupplier<List<XContentBuilder>, IOException> documentsSupplier
     ) throws IOException {
         final StringBuilder sb = new StringBuilder();
+        int id = 0;
         for (var document : documentsSupplier.get()) {
-            sb.append("{ \"create\": {} }").append("\n");
+            sb.append(Strings.format("{ \"create\": { \"_id\" : \"%d\" } }", id)).append("\n");
             sb.append(Strings.toString(document)).append("\n");
+            id++;
         }
         var request = new Request("POST", "/" + dataStreamName + "/_bulk");
         request.setJsonEntity(sb.toString());

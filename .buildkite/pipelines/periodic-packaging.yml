@@ -322,8 +322,8 @@ steps:
         env:
           BWC_VERSION: 7.16.3
 
-      - label: "{{matrix.image}} / 7.17.24 / packaging-tests-upgrade"
-        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v7.17.24
+      - label: "{{matrix.image}} / 7.17.25 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v7.17.25
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -337,7 +337,7 @@ steps:
           buildDirectory: /dev/shm/bk
           diskSizeGb: 250
         env:
-          BWC_VERSION: 7.17.24
+          BWC_VERSION: 7.17.25
 
       - label: "{{matrix.image}} / 8.0.1 / packaging-tests-upgrade"
         command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.0.1
@@ -594,8 +594,8 @@ steps:
         env:
           BWC_VERSION: 8.14.3
 
-      - label: "{{matrix.image}} / 8.15.1 / packaging-tests-upgrade"
-        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.15.1
+      - label: "{{matrix.image}} / 8.15.2 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.15.2
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -609,7 +609,7 @@ steps:
           buildDirectory: /dev/shm/bk
           diskSizeGb: 250
         env:
-          BWC_VERSION: 8.15.1
+          BWC_VERSION: 8.15.2
 
       - label: "{{matrix.image}} / 8.16.0 / packaging-tests-upgrade"
         command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.16.0

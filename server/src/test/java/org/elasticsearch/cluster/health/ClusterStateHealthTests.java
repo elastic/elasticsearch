@@ -159,7 +159,7 @@ public class ClusterStateHealthTests extends ESTestCase {
         ActionTestUtils.execute(
             action,
             new CancellableTask(1, "direct", TransportClusterHealthAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of()),
-            new ClusterHealthRequest().waitForGreenStatus(),
+            new ClusterHealthRequest(TEST_REQUEST_TIMEOUT).waitForGreenStatus(),
             listener
         );
 
@@ -577,6 +577,7 @@ public class ClusterStateHealthTests extends ESTestCase {
         assertThat(clusterStateHealth.getInitializingShards(), equalTo(counter.initializing));
         assertThat(clusterStateHealth.getRelocatingShards(), equalTo(counter.relocating));
         assertThat(clusterStateHealth.getUnassignedShards(), equalTo(counter.unassigned));
+        assertThat(clusterStateHealth.getUnassignedPrimaryShards(), equalTo(counter.unassignedPrimary));
         assertThat(clusterStateHealth.getActiveShardsPercent(), is(allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(100.0))));
     }
 }

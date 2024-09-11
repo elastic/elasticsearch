@@ -749,7 +749,7 @@ POST /_scripts/painless/_execute
 {
   "script": {
     "source": """
-      emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
+      emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ENGLISH));
     """
   },
   "context": "keyword_field",

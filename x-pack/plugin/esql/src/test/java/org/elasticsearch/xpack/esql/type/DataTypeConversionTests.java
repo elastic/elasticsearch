@@ -35,7 +35,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
-import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.commonType;
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.converterFor;
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.asDateTime;
 
@@ -520,25 +519,6 @@ public class DataTypeConversionTests extends ESTestCase {
         Converter conversion = converterFor(INTEGER, INTEGER);
         assertNull(conversion.convert(null));
         assertEquals(10, conversion.convert(10));
-    }
-
-    public void testCommonType() {
-        assertEquals(BOOLEAN, commonType(BOOLEAN, NULL));
-        assertEquals(BOOLEAN, commonType(NULL, BOOLEAN));
-        assertEquals(BOOLEAN, commonType(BOOLEAN, BOOLEAN));
-        assertEquals(NULL, commonType(NULL, NULL));
-        assertEquals(INTEGER, commonType(INTEGER, KEYWORD));
-        assertEquals(LONG, commonType(TEXT, LONG));
-        assertEquals(SHORT, commonType(SHORT, BYTE));
-        assertEquals(FLOAT, commonType(BYTE, FLOAT));
-        assertEquals(FLOAT, commonType(FLOAT, INTEGER));
-        assertEquals(UNSIGNED_LONG, commonType(UNSIGNED_LONG, LONG));
-        assertEquals(DOUBLE, commonType(DOUBLE, FLOAT));
-        assertEquals(FLOAT, commonType(FLOAT, UNSIGNED_LONG));
-
-        // strings
-        assertEquals(TEXT, commonType(TEXT, KEYWORD));
-        assertEquals(TEXT, commonType(KEYWORD, TEXT));
     }
 
     public void testEsDataTypes() {

@@ -1646,12 +1646,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             UNKNOWN_VERSION_ADDED
         ),
         // 127 used to be org.elasticsearch.search.SearchContextException
-        SEARCH_SOURCE_BUILDER_EXCEPTION(
-            org.elasticsearch.search.builder.SearchSourceBuilderException.class,
-            org.elasticsearch.search.builder.SearchSourceBuilderException::new,
-            128,
-            UNKNOWN_VERSION_ADDED
-        ),
+        // 128 used to be org.elasticsearch.search.builder.SearchSourceBuilderException
         // 129 was EngineClosedException
         NO_SHARD_AVAILABLE_ACTION_EXCEPTION(
             org.elasticsearch.action.NoShardAvailableActionException.class,

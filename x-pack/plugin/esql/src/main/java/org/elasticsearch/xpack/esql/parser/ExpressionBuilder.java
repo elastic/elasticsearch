@@ -83,7 +83,7 @@ import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.bigIntegerToUnsignedLong;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.parseTemporalAmout;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.parseTemporalAmount;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIntegral;
 
 public abstract class ExpressionBuilder extends IdentifierBuilder {
@@ -458,7 +458,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         String qualifier = ctx.UNQUOTED_IDENTIFIER().getText().toLowerCase(Locale.ROOT);
 
         try {
-            TemporalAmount quantity = parseTemporalAmout(value, qualifier, source);
+            TemporalAmount quantity = parseTemporalAmount(value, qualifier, source);
             return new Literal(source, quantity, quantity instanceof Duration ? TIME_DURATION : DATE_PERIOD);
         } catch (InvalidArgumentException | ArithmeticException e) {
             // the range varies by unit: Duration#ofMinutes(), #ofHours() will Math#multiplyExact() to reduce the unit to seconds;
@@ -604,7 +604,13 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         Expression left = expression(ctx.valueExpression());
         Literal pattern = visitString(ctx.pattern);
         RegexMatch<?> result = switch (type) {
-            case EsqlBaseParser.LIKE -> new WildcardLike(source, left, new WildcardPattern(pattern.fold().toString()));
+            case EsqlBaseParser.LIKE -> {
+                try {
+                    yield new WildcardLike(source, left, new WildcardPattern(pattern.fold().toString()));
+                } catch (InvalidArgumentException e) {
+                    throw new ParsingException(source, "Invalid pattern for LIKE [{}]: [{}]", pattern, e.getMessage());
+                }
+            }
             case EsqlBaseParser.RLIKE -> new RLike(source, left, new RLikePattern(pattern.fold().toString()));
             default -> throw new ParsingException("Invalid predicate type for [{}]", source.text());
         };

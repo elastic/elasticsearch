@@ -364,7 +364,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
         assertDataStreamBackingIndexMode("logsdb", 2, DATA_STREAM_NAME);
     }
 
-    public void testStandardToLogsDBReindex() throws IOException {
+    public void testLogsDBToStandardReindex() throws IOException {
         // LogsDB data stream
         putTemplate(client, "logs-template", LOGS_TEMPLATE);
         createDataStream(client, "logs-apache-kafka");
@@ -373,7 +373,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
         putTemplate(client, "standard-template", STANDARD_TEMPLATE);
         createDataStream(client, "standard-apache-kafka");
 
-        // Index some documents in LogsDB
+        // Index some documents in the standard index
         for (int i = 0; i < 10; i++) {
             indexDocument(
                 client,
@@ -392,7 +392,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
         assertDataStreamBackingIndexMode("logsdb", 0, "logs-apache-kafka");
         assertThat(entityAsMap(client.performRequest(new Request("POST", "/logs-apache-kafka/_count"))).get("count"), Matchers.equalTo(10));
 
-        // Reindex LogsDB data stream into a standard data stream
+        // Reindex a standard data stream into a LogsDB data stream
         final Request reindexRequest = new Request("POST", "/_reindex?refresh=true");
         reindexRequest.setJsonEntity("""
             {
@@ -413,7 +413,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
         );
     }
 
-    public void testLogsDBToStandardReindex() throws IOException {
+    public void testStandardToLogsDBReindex() throws IOException {
         // LogsDB data stream
         putTemplate(client, "logs-template", LOGS_TEMPLATE);
         createDataStream(client, "logs-apache-kafka");

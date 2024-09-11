@@ -417,11 +417,6 @@ public class Verifier {
                     MatchQueryPredicate.class,
                     mqp -> { failures.add(fail(mqp, "EVAL does not support MATCH expressions")); }
                 );
-                // check no full text search functions are used
-                field.forEachDown(
-                    FullTextFunction.class,
-                    mqp -> { failures.add(fail(mqp, "EVAL does not support full text search expressions")); }
-                );
             });
         }
     }
@@ -693,6 +688,14 @@ public class Verifier {
                     );
                 }
             }
+        } else if (plan instanceof Eval eval) {
+            eval.fields().forEach(field -> {
+                // check no full text search functions are used
+                field.forEachDown(
+                    FullTextFunction.class,
+                    mqp -> { failures.add(fail(mqp, "EVAL does not support full text search expressions")); }
+                );
+            });
         }
     }
 }

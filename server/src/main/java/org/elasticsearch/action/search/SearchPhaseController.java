@@ -424,15 +424,14 @@ public final class SearchPhaseController {
     ) {
         SortedTopDocs sortedTopDocs = reducedQueryPhase.sortedTopDocs;
         int sortScoreIndex = -1;
+        int sortRankIndex = -1;
         if (sortedTopDocs.isSortedByField) {
             SortField[] sortFields = sortedTopDocs.sortFields;
             for (int i = 0; i < sortFields.length; i++) {
                 if (sortFields[i].getType() == SortField.Type.SCORE) {
                     sortScoreIndex = i;
-                    break;
                 } else if (RankDocsSortField.NAME.equals(sortFields[i].getField())) {
-                    sortScoreIndex = i;
-                    break;
+                    sortRankIndex = i;
                 }
             }
         }
@@ -470,17 +469,15 @@ public final class SearchPhaseController {
                     searchHit.setRank(((RankDoc) shardDoc).rank);
                     searchHit.score(shardDoc.score);
                 } else if (sortedTopDocs.isSortedByField) {
-                    if (shardDoc instanceof FieldDoc) {
-                        FieldDoc fieldDoc = (FieldDoc) shardDoc;
+                    if (shardDoc instanceof FieldDoc fieldDoc) {
                         searchHit.sortValues(fieldDoc.fields, reducedQueryPhase.sortValueFormats);
                         if (sortScoreIndex != -1) {
                             searchHit.score(((Number) fieldDoc.fields[sortScoreIndex]).floatValue());
                         }
-                    } else if (shardDoc instanceof RankDoc) {
-                        RankDoc rankDoc = (RankDoc) shardDoc;
+                    } else if (shardDoc instanceof RankDoc rankDoc) {
                         searchHit.sortValues(rankDoc.sortValues, reducedQueryPhase.sortValueFormats);
-                        if (sortScoreIndex != -1) {
-                            searchHit.score(RankDocsSortField.decodeScore((Long) rankDoc.sortValues[sortScoreIndex]));
+                        if (sortRankIndex != -1) {
+                            searchHit.score(RankDocsSortField.decodeScore((Long) rankDoc.sortValues[sortRankIndex]));
                         }
                         searchHit.setRank(rankDoc.rank);
                     } else {

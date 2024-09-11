@@ -1110,8 +1110,15 @@ public class VerifierTests extends ESTestCase {
             error("from test | grok last_name \"%{WORD:foo}\" | where qstr( \"Anna\")")
         );
         assertEquals("1:27: Full text functions cannot be used after KEEP", error("from test | keep emp_no | where qstr( \"Anna\")"));
+    }
 
-        // TODO Keep adding tests for all unsupported commands
+    public void testQueryStringFunctionOperands() throws Exception {
+        assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
+        assertEquals("1:19: argument of [qstr(10)] must be [string], found value [10] type [integer]", error("from test | where qstr(10)"));
+        assertEquals(
+            "1:19: Query in QSTR function needs to be statically resolved. References to fields are not allowed.",
+            error("from test | where qstr(first_name)")
+        );
     }
 
     public void testCoalesceWithMixedNumericTypes() {

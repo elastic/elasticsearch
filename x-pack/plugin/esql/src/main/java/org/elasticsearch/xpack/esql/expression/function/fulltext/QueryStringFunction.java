@@ -11,7 +11,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Foldables;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -56,15 +55,18 @@ public class QueryStringFunction extends FullTextFunction {
     }
 
     @Override
+    public String functionName() {
+        return "QSTR";
+    }
+
+    @Override
     public Query asQuery() {
-        Object queryAsObject = Foldables.valueOf(query());
-        String queryAsString = null;
+        Object queryAsObject = query().fold();
         if (queryAsObject instanceof BytesRef queryAsBytesRef) {
-            queryAsString = queryAsBytesRef.utf8ToString();
+            return new QueryStringQuery(source(), queryAsBytesRef.utf8ToString(), Map.of(), null);
         } else {
-            queryAsString = queryAsObject.toString();
+            throw new IllegalArgumentException("Query in QSTR needs to be resolved to a string");
         }
-        return new QueryStringQuery(source(), queryAsString, Map.of(), null);
     }
 
     @Override

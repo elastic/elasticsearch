@@ -668,7 +668,7 @@ public class Verifier {
     private static void checkFullTextQueryFunctions(LogicalPlan plan, Set<Failure> failures) {
         if (plan instanceof Filter f) {
             Expression condition = f.condition();
-            if (condition instanceof FullTextFunction) {
+            if (condition instanceof FullTextFunction ftf) {
                 // Similar to cases present in org.elasticsearch.xpack.esql.optimizer.rules.PushDownAndCombineFilters -
                 // we can't check if it can be pushed down as we don't have yet information about the fields present in the
                 // StringQueryPredicate
@@ -683,6 +683,15 @@ public class Verifier {
                         );
                     }
                 });
+                if (ftf.query().foldable() == false) {
+                    failures.add(
+                        fail(
+                            ftf,
+                            "Query in {} function needs to be statically resolved. References to fields are not allowed.",
+                            ftf.functionName()
+                        )
+                    );
+                }
             }
         }
     }

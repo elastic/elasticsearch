@@ -23,6 +23,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
 /**
  * Base class for full-text functions that use ES queries to match documents.
@@ -52,6 +54,15 @@ public abstract class FullTextFunction extends Function {
     @Override
     public DataType dataType() {
         return DataType.BOOLEAN;
+    }
+
+    @Override
+    protected TypeResolution resolveType() {
+        if (childrenResolved() == false) {
+            return new TypeResolution("Unresolved children");
+        }
+
+        return isString(query(), sourceText(), DEFAULT);
     }
 
     public Expression query() {

@@ -39,6 +39,7 @@ import java.util.ArrayList;
 import java.util.Random;
 import java.util.Set;
 
+import static org.elasticsearch.test.ESTestCase.TEST_REQUEST_TIMEOUT;
 import static org.elasticsearch.test.ESTestCase.safeAwait;
 
 /**
@@ -84,7 +85,7 @@ public abstract class TestCluster {
                     .<AcknowledgedResponse>newForked(
                         l -> client().execute(
                             DeleteDataStreamAction.INSTANCE,
-                            new DeleteDataStreamAction.Request(ESTestCase.TEST_REQUEST_TIMEOUT, "*").indicesOptions(
+                            new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, "*").indicesOptions(
                                 IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN
                             ),
                             l.delegateResponse((ll, e) -> {
@@ -255,7 +256,7 @@ public abstract class TestCluster {
             if (wipingAllIndices) {
                 SubscribableListener
 
-                    .<ClusterStateResponse>newForked(l -> client().admin().cluster().prepareState().execute(l))
+                    .<ClusterStateResponse>newForked(l -> client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).execute(l))
                     .<AcknowledgedResponse>andThen((l, clusterStateResponse) -> {
                         ArrayList<String> concreteIndices = new ArrayList<>();
                         for (IndexMetadata indexMetadata : clusterStateResponse.getState().metadata()) {
@@ -336,7 +337,7 @@ public abstract class TestCluster {
             .<AcknowledgedResponse>newForked(
                 l -> client().admin()
                     .cluster()
-                    .prepareDeleteRepository(ESTestCase.TEST_REQUEST_TIMEOUT, ESTestCase.TEST_REQUEST_TIMEOUT, "*")
+                    .prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "*")
                     .execute(l.delegateResponse((ll, e) -> {
                         if (e instanceof RepositoryMissingException) {
                             // ignore

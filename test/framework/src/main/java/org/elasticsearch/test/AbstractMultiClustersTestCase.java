@@ -157,7 +157,7 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
                 settings.putNull("cluster.remote." + clusterAlias + ".proxy_address");
             }
         }
-        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
+        client().admin().cluster().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).setPersistentSettings(settings).get();
         assertBusy(() -> {
             for (TransportService transportService : cluster(LOCAL_CLUSTER).getInstances(TransportService.class)) {
                 assertThat(transportService.getRemoteClusterService().getRegisteredRemoteClusterNames(), empty());
@@ -204,7 +204,11 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         }
         builder.build();
 
-        ClusterUpdateSettingsResponse resp = client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
+        ClusterUpdateSettingsResponse resp = client().admin()
+            .cluster()
+            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .setPersistentSettings(settings)
+            .get();
         if (skipUnavailable != DEFAULT_SKIP_UNAVAILABLE) {
             String key = Strings.format("cluster.remote.%s.skip_unavailable", clusterAlias);
             assertEquals(String.valueOf(skipUnavailable), resp.getPersistentSettings().get(key));

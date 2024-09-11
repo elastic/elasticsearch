@@ -53,11 +53,6 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
             this.wildcardExpressionsOriginallySpecified = Arrays.stream(names).anyMatch(Regex::isSimpleMatchPattern);
         }
 
-        @Deprecated(forRemoval = true) // temporary compatibility shim
-        public Request(String... names) {
-            this(MasterNodeRequest.TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, names);
-        }
-
         public String[] getNames() {
             return names;
         }

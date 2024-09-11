@@ -20,13 +20,13 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.KeyComparable;
-import org.elasticsearch.search.aggregations.TopBucketBuilder;
 import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -295,19 +295,34 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
                     }
                 });
             } else if (reduceContext.isFinalReduce()) {
-                TopBucketBuilder<B> top = TopBucketBuilder.build(
-                    getRequiredSize(),
-                    getOrder(),
-                    removed -> otherDocCount[0] += removed.getDocCount(),
+                final Comparator<DelayedBucket<B>> comparator = getOrder().delayedBucketComparator(
                     AbstractInternalTerms.this::reduceBucket,
                     reduceContext
                 );
-                thisReduceOrder = reduceBuckets(bucketsList, getThisReduceOrder(), bucket -> {
-                    if (bucket.getDocCount() >= getMinDocCount()) {
-                        top.add(bucket);
+                try (
+                    BucketPriorityQueue<DelayedBucket<B>> top = new BucketPriorityQueue<>(
+                        getRequiredSize(),
+                        reduceContext.bigArrays(),
+                        comparator
+                    )
+                ) {
+                    thisReduceOrder = reduceBuckets(bucketsList, getThisReduceOrder(), bucket -> {
+                        if (bucket.getDocCount() >= getMinDocCount()) {
+                            final DelayedBucket<B> removed = top.insertWithOverflow(bucket);
+                            if (removed != null) {
+                                otherDocCount[0] += removed.getDocCount();
+                                removed.nonCompetitive(reduceContext);
+                            }
+                        }
+                    });
+                    // size is an integer as it should be <= getRequiredSize()
+                    final int size = (int) top.size();
+                    result = new ArrayList<>(size);
+                    for (int i = 0; i < size; i++) {
+                        result.add(top.pop().reduced(AbstractInternalTerms.this::reduceBucket, reduceContext));
                     }
-                });
-                result = top.build();
+                    Collections.reverse(result);
+                }
             } else {
                 result = new ArrayList<>();
                 thisReduceOrder = reduceBuckets(

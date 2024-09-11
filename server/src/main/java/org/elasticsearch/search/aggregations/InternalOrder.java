@@ -81,7 +81,7 @@ public abstract class InternalOrder extends BucketOrder {
         }
 
         @Override
-        <B extends InternalMultiBucketAggregation.InternalBucket> Comparator<DelayedBucket<B>> delayedBucketComparator(
+        public <B extends InternalMultiBucketAggregation.InternalBucket> Comparator<DelayedBucket<B>> delayedBucketComparator(
             BiFunction<List<B>, AggregationReduceContext, B> reduce,
             AggregationReduceContext reduceContext
         ) {
@@ -216,7 +216,7 @@ public abstract class InternalOrder extends BucketOrder {
         }
 
         @Override
-        <B extends InternalMultiBucketAggregation.InternalBucket> Comparator<DelayedBucket<B>> delayedBucketComparator(
+        public <B extends InternalMultiBucketAggregation.InternalBucket> Comparator<DelayedBucket<B>> delayedBucketComparator(
             BiFunction<List<B>, AggregationReduceContext, B> reduce,
             AggregationReduceContext reduceContext
         ) {
@@ -284,7 +284,7 @@ public abstract class InternalOrder extends BucketOrder {
         }
 
         @Override
-        <B extends InternalMultiBucketAggregation.InternalBucket> Comparator<DelayedBucket<B>> delayedBucketComparator(
+        public <B extends InternalMultiBucketAggregation.InternalBucket> Comparator<DelayedBucket<B>> delayedBucketComparator(
             BiFunction<List<B>, AggregationReduceContext, B> reduce,
             AggregationReduceContext reduceContext
         ) {

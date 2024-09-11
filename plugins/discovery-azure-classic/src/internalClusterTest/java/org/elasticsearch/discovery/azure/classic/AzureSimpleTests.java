@@ -30,7 +30,7 @@ public class AzureSimpleTests extends AbstractAzureComputeServiceTestCase {
         assertNotNull(
             client().admin()
                 .cluster()
-                .prepareState()
+                .prepareState(TEST_REQUEST_TIMEOUT)
                 .setMasterNodeTimeout(TimeValue.timeValueSeconds(1))
                 .get()
                 .getState()
@@ -52,7 +52,7 @@ public class AzureSimpleTests extends AbstractAzureComputeServiceTestCase {
         assertNotNull(
             client().admin()
                 .cluster()
-                .prepareState()
+                .prepareState(TEST_REQUEST_TIMEOUT)
                 .setMasterNodeTimeout(TimeValue.timeValueSeconds(1))
                 .get()
                 .getState()

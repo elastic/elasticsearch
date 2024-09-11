@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -192,41 +191,35 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
                 return queryRelation == DISJOINT ? contains == false : contains;
             }
         }
-
-        protected Geometry combined(MultiValuesBytesRefIterator values) {
-            if (values.valueCount == 1) {
-                return fromBytesRef(values.next());
-            }
-            List<Geometry> geometries = new ArrayList<>();
-            while (values.hasNext()) {
-                geometries.add(fromBytesRef(values.next()));
-            }
-            return new GeometryCollection<>(geometries);
-        }
     }
 
-    protected static class MultiValuesBytesRefIterator implements Iterator<BytesRef> {
+    protected static class MultiValuesBytesRef {
         private final BytesRefBlock valueBlock;
         private final int valueCount;
         private final BytesRef scratch = new BytesRef();
         private final int firstValue;
         private int valueIndex;
 
-        MultiValuesBytesRefIterator(BytesRefBlock valueBlock, int position) {
+        MultiValuesBytesRef(BytesRefBlock valueBlock, int position) {
             this.valueBlock = valueBlock;
             this.firstValue = valueBlock.getFirstValueIndex(position);
             this.valueCount = valueBlock.getValueCount(position);
             this.valueIndex = valueBlock.getFirstValueIndex(position);
         }
 
-        @Override
-        public boolean hasNext() {
-            return valueIndex < firstValue + valueCount;
+        protected Geometry combined() {
+            if (valueCount == 1) {
+                return fromBytesRef(valueBlock.getBytesRef(valueIndex, scratch));
+            }
+            List<Geometry> geometries = new ArrayList<>();
+            while (valueIndex < firstValue + valueCount) {
+                geometries.add(fromBytesRef(valueBlock.getBytesRef(valueIndex++, scratch)));
+            }
+            return new GeometryCollection<>(geometries);
         }
 
-        @Override
-        public BytesRef next() {
-            return valueBlock.getBytesRef(valueIndex++, scratch);
+        protected Geometry fromBytesRef(BytesRef bytesRef) {
+            return SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(bytesRef);
         }
     }
 }

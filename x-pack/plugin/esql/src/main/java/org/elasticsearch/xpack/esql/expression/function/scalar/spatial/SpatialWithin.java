@@ -19,7 +19,6 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.ShapeIndexer;
 import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
@@ -37,10 +36,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -88,18 +84,13 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
             super(ShapeField.QueryRelation.WITHIN, spatialCoordinateType, encoder, shapeIndexer);
         }
 
-        private boolean geometryRelatesGeometries(MultiValuesBytesRefIterator left, MultiValuesBytesRefIterator right) throws IOException {
-            Component2D rightComponent2D = asLuceneComponent2D(crsType, combined(right));
+        private boolean geometryRelatesGeometries(MultiValuesBytesRef left, MultiValuesBytesRef right) throws IOException {
+            Component2D rightComponent2D = asLuceneComponent2D(crsType, right.combined());
             return geometryRelatesGeometry(left, rightComponent2D);
         }
 
-        private boolean geometryRelatesGeometry(Iterator<BytesRef> left, Component2D rightComponent2D) throws IOException {
-            List<Geometry> geometries = new ArrayList<>();
-            while (left.hasNext()) {
-                geometries.add(fromBytesRef(left.next()));
-            }
-            GeometryCollection<Geometry> collection = new GeometryCollection<>(geometries);
-            GeometryDocValueReader leftDocValueReader = asGeometryDocValueReader(coordinateEncoder, shapeIndexer, collection);
+        private boolean geometryRelatesGeometry(MultiValuesBytesRef left, Component2D rightComponent2D) throws IOException {
+            GeometryDocValueReader leftDocValueReader = asGeometryDocValueReader(coordinateEncoder, shapeIndexer, left.combined());
             return geometryRelatesGeometry(leftDocValueReader, rightComponent2D);
         }
     }
@@ -265,8 +256,8 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
         if (leftValue.getValueCount(position) < 1) {
             builder.appendNull();
         } else {
-            MultiValuesBytesRefIterator mvIterator = new MultiValuesBytesRefIterator(leftValue, position);
-            builder.appendBoolean(GEO.geometryRelatesGeometry(mvIterator, rightValue));
+            MultiValuesBytesRef leftValues = new MultiValuesBytesRef(leftValue, position);
+            builder.appendBoolean(GEO.geometryRelatesGeometry(leftValues, rightValue));
         }
     }
 
@@ -276,9 +267,9 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
         if (leftValue.getValueCount(position) < 1 || rightValue.getValueCount(position) < 1) {
             builder.appendNull();
         } else {
-            MultiValuesBytesRefIterator lIterator = new MultiValuesBytesRefIterator(leftValue, position);
-            MultiValuesBytesRefIterator rIterator = new MultiValuesBytesRefIterator(rightValue, position);
-            builder.appendBoolean(GEO.geometryRelatesGeometries(lIterator, rIterator));
+            MultiValuesBytesRef leftValues = new MultiValuesBytesRef(leftValue, position);
+            MultiValuesBytesRef rightValues = new MultiValuesBytesRef(rightValue, position);
+            builder.appendBoolean(GEO.geometryRelatesGeometries(leftValues, rightValues));
         }
     }
 
@@ -311,8 +302,8 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
         if (leftValue.getValueCount(position) < 1) {
             builder.appendNull();
         } else {
-            MultiValuesBytesRefIterator mvIterator = new MultiValuesBytesRefIterator(leftValue, position);
-            builder.appendBoolean(CARTESIAN.geometryRelatesGeometry(mvIterator, rightValue));
+            MultiValuesBytesRef leftValues = new MultiValuesBytesRef(leftValue, position);
+            builder.appendBoolean(CARTESIAN.geometryRelatesGeometry(leftValues, rightValue));
         }
     }
 
@@ -326,9 +317,9 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
         if (leftValue.getValueCount(position) < 1 || rightValue.getValueCount(position) < 1) {
             builder.appendNull();
         } else {
-            MultiValuesBytesRefIterator lIterator = new MultiValuesBytesRefIterator(leftValue, position);
-            MultiValuesBytesRefIterator rIterator = new MultiValuesBytesRefIterator(rightValue, position);
-            builder.appendBoolean(CARTESIAN.geometryRelatesGeometries(lIterator, rIterator));
+            MultiValuesBytesRef leftValues = new MultiValuesBytesRef(leftValue, position);
+            MultiValuesBytesRef rightValues = new MultiValuesBytesRef(rightValue, position);
+            builder.appendBoolean(CARTESIAN.geometryRelatesGeometries(leftValues, rightValues));
         }
     }
 

@@ -98,8 +98,8 @@ public class SpatialContains extends SpatialRelatesFunction {
             return geometryRelatesGeometries(left, rightComponent2Ds);
         }
 
-        private boolean geometryRelatesGeometries(MultiValuesBytesRefIterator left, MultiValuesBytesRefIterator right) throws IOException {
-            Component2D[] rightComponent2Ds = asLuceneComponent2Ds(crsType, combined(right));
+        private boolean geometryRelatesGeometries(MultiValuesBytesRef left, MultiValuesBytesRef right) throws IOException {
+            Component2D[] rightComponent2Ds = asLuceneComponent2Ds(crsType, right.combined());
             return geometryRelatesGeometries(left, rightComponent2Ds);
         }
 
@@ -109,8 +109,8 @@ public class SpatialContains extends SpatialRelatesFunction {
             return geometryRelatesGeometries(leftDocValueReader, rightComponent2Ds);
         }
 
-        private boolean geometryRelatesGeometries(MultiValuesBytesRefIterator left, Component2D[] rightComponent2Ds) throws IOException {
-            GeometryDocValueReader leftDocValueReader = asGeometryDocValueReader(coordinateEncoder, shapeIndexer, combined(left));
+        private boolean geometryRelatesGeometries(MultiValuesBytesRef left, Component2D[] rightComponent2Ds) throws IOException {
+            GeometryDocValueReader leftDocValueReader = asGeometryDocValueReader(coordinateEncoder, shapeIndexer, left.combined());
             return geometryRelatesGeometries(leftDocValueReader, rightComponent2Ds);
         }
 
@@ -308,8 +308,8 @@ public class SpatialContains extends SpatialRelatesFunction {
         if (leftValue.getValueCount(position) < 1) {
             builder.appendNull();
         } else {
-            MultiValuesBytesRefIterator mvIterator = new MultiValuesBytesRefIterator(leftValue, position);
-            builder.appendBoolean(GEO.geometryRelatesGeometries(mvIterator, rightValue));
+            MultiValuesBytesRef leftValues = new MultiValuesBytesRef(leftValue, position);
+            builder.appendBoolean(GEO.geometryRelatesGeometries(leftValues, rightValue));
         }
     }
 
@@ -319,9 +319,9 @@ public class SpatialContains extends SpatialRelatesFunction {
         if (leftValue.getValueCount(position) < 1 || rightValue.getValueCount(position) < 1) {
             builder.appendNull();
         } else {
-            MultiValuesBytesRefIterator lIterator = new MultiValuesBytesRefIterator(leftValue, position);
-            MultiValuesBytesRefIterator rIterator = new MultiValuesBytesRefIterator(rightValue, position);
-            builder.appendBoolean(GEO.geometryRelatesGeometries(lIterator, rIterator));
+            MultiValuesBytesRef leftValues = new MultiValuesBytesRef(leftValue, position);
+            MultiValuesBytesRef rightValues = new MultiValuesBytesRef(rightValue, position);
+            builder.appendBoolean(GEO.geometryRelatesGeometries(leftValues, rightValues));
         }
     }
 
@@ -354,8 +354,8 @@ public class SpatialContains extends SpatialRelatesFunction {
         if (leftValue.getValueCount(position) < 1) {
             builder.appendNull();
         } else {
-            MultiValuesBytesRefIterator mvIterator = new MultiValuesBytesRefIterator(leftValue, position);
-            builder.appendBoolean(CARTESIAN.geometryRelatesGeometries(mvIterator, rightValue));
+            MultiValuesBytesRef leftValues = new MultiValuesBytesRef(leftValue, position);
+            builder.appendBoolean(CARTESIAN.geometryRelatesGeometries(leftValues, rightValue));
         }
     }
 
@@ -369,9 +369,9 @@ public class SpatialContains extends SpatialRelatesFunction {
         if (leftValue.getValueCount(position) < 1 || rightValue.getValueCount(position) < 1) {
             builder.appendNull();
         } else {
-            MultiValuesBytesRefIterator lIterator = new MultiValuesBytesRefIterator(leftValue, position);
-            MultiValuesBytesRefIterator rIterator = new MultiValuesBytesRefIterator(rightValue, position);
-            builder.appendBoolean(CARTESIAN.geometryRelatesGeometries(lIterator, rIterator));
+            MultiValuesBytesRef leftValues = new MultiValuesBytesRef(leftValue, position);
+            MultiValuesBytesRef rightValues = new MultiValuesBytesRef(rightValue, position);
+            builder.appendBoolean(CARTESIAN.geometryRelatesGeometries(leftValues, rightValues));
         }
     }
 

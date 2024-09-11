@@ -506,7 +506,7 @@ public class OrdinalsGroupingOperator implements Operator {
                     GroupingKey.forStatelessGrouping(channelIndex, groupingElementType).get(AggregatorMode.INITIAL)
                 ),
                 () -> BlockHash.build(
-                    List.of(new GroupSpec(channelIndex, groupingElementType)),
+                    List.of(new GroupSpec(0, groupingElementType)),
                     driverContext.blockFactory(),
                     maxPageSize,
                     false

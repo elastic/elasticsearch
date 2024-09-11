@@ -254,7 +254,7 @@ public class HashAggregationOperator implements Operator {
         if (output != null) {
             output.releaseBlocks();
         }
-        Releasables.close(blockHash, () -> Releasables.close(aggregators));
+        Releasables.close(blockHash, Releasables.wrap(aggregators), Releasables.wrap(groups));
     }
 
     @Override

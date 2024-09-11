@@ -24,10 +24,6 @@ public record GroupingKey(AggregatorMode mode, Thing thing) implements EvalOpera
     public interface Thing extends Releasable {
         int extraIntermediateBlocks();
 
-        ElementType intermediateElementType();
-
-        ElementType finalElementType();
-
         Block evalRawInput(Page page);
 
         Block evalIntermediateInput(Page page);
@@ -44,7 +40,7 @@ public record GroupingKey(AggregatorMode mode, Thing thing) implements EvalOpera
     public interface Factory {
         GroupingKey apply(DriverContext context, int resultOffset);
 
-        ElementType elementType();
+        ElementType intermediateElementType();
 
         GroupingAggregator.Factory valuesAggregatorForGroupingsInTimeSeries(int timeBucketChannel);
     }
@@ -53,11 +49,11 @@ public record GroupingKey(AggregatorMode mode, Thing thing) implements EvalOpera
         return mode -> new Factory() {
             @Override
             public GroupingKey apply(DriverContext context, int resultOffset) {
-                return new GroupingKey(mode, new Load(channel, elementType, resultOffset));
+                return new GroupingKey(mode, new Load(channel, resultOffset));
             }
 
             @Override
-            public ElementType elementType() {
+            public ElementType intermediateElementType() {
                 return elementType;
             }
 
@@ -66,7 +62,7 @@ public record GroupingKey(AggregatorMode mode, Thing thing) implements EvalOpera
                 if (channel != timeBucketChannel) {
                     final List<Integer> channels = List.of(channel);
                     // TODO: perhaps introduce a specialized aggregator for this?
-                    return (switch (elementType()) {
+                    return (switch (intermediateElementType()) {
                         case BYTES_REF -> new ValuesBytesRefAggregatorFunctionSupplier(channels);
                         case DOUBLE -> new ValuesDoubleAggregatorFunctionSupplier(channels);
                         case INT -> new ValuesIntAggregatorFunctionSupplier(channels);
@@ -83,13 +79,9 @@ public record GroupingKey(AggregatorMode mode, Thing thing) implements EvalOpera
     public static List<BlockHash.GroupSpec> toBlockHashGroupSpec(List<GroupingKey.Factory> keys) {
         List<BlockHash.GroupSpec> result = new ArrayList<>(keys.size());
         for (int k = 0; k < keys.size(); k++) {
-            result.add(new BlockHash.GroupSpec(k, keys.get(k).elementType()));
+            result.add(new BlockHash.GroupSpec(k, keys.get(k).intermediateElementType()));
         }
         return result;
-    }
-
-    public ElementType elementType() {
-        return mode.isOutputPartial() ? thing.intermediateElementType() : thing.finalElementType();
     }
 
     @Override
@@ -118,20 +110,10 @@ public record GroupingKey(AggregatorMode mode, Thing thing) implements EvalOpera
         thing.close();
     }
 
-    private record Load(int channel, ElementType elementType, int resultOffset) implements Thing {
+    private record Load(int channel, int resultOffset) implements Thing {
         @Override
         public int extraIntermediateBlocks() {
             return 0;
-        }
-
-        @Override
-        public ElementType intermediateElementType() {
-            return elementType;
-        }
-
-        @Override
-        public ElementType finalElementType() {
-            return elementType;
         }
 
         @Override

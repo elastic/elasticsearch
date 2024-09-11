@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
+
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
@@ -463,7 +465,7 @@ public class OperatorTests extends MapperServiceTestCase {
             }
 
             @Override
-            public ElementType elementType() {
+            public ElementType intermediateElementType() {
                 return ElementType.BYTES_REF;
             }
 
@@ -486,16 +488,6 @@ public class OperatorTests extends MapperServiceTestCase {
         @Override
         public int extraIntermediateBlocks() {
             return 1;
-        }
-
-        @Override
-        public ElementType intermediateElementType() {
-            return ElementType.BYTES_REF;
-        }
-
-        @Override
-        public ElementType finalElementType() {
-            return ElementType.BYTES_REF;
         }
 
         @Override

@@ -652,7 +652,7 @@ public final class DocumentParser {
                         context.addIgnoredField(
                             IgnoredSourceFieldMapper.NameValue.fromContext(
                                 context,
-                                currentFieldName,
+                                context.path().pathAsText(currentFieldName),
                                 XContentDataHelper.encodeToken(context.parser())
                             )
                         );
@@ -1004,16 +1004,10 @@ public final class DocumentParser {
         }
 
         @Override
-        protected SyntheticSourceMode syntheticSourceMode() {
+        protected SyntheticSourceSupport syntheticSourceSupport() {
             // Opt out of fallback synthetic source implementation
-            // since there is custom logic in #parseCreateField()
-            return SyntheticSourceMode.NATIVE;
-        }
-
-        @Override
-        public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-            // Handled via IgnoredSourceFieldMapper infrastructure
-            return SourceLoader.SyntheticFieldLoader.NOTHING;
+            // since there is custom logic in #parseCreateField().
+            return new SyntheticSourceSupport.Native(SourceLoader.SyntheticFieldLoader.NOTHING);
         }
     };
 

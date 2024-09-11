@@ -726,16 +726,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
 
             @Override
             public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
-                return List.of(
-                    new SyntheticSourceInvalidExample(
-                        equalTo("field [field] of type [geo_point] doesn't support synthetic source because it doesn't have doc values"),
-                        b -> b.field("type", "geo_point").field("doc_values", false)
-                    ),
-                    new SyntheticSourceInvalidExample(
-                        equalTo("field [field] of type [geo_point] doesn't support synthetic source because it declares copy_to"),
-                        b -> b.field("type", "geo_point").field("copy_to", "foo")
-                    )
-                );
+                return List.of();
             }
         };
     }

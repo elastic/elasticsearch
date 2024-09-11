@@ -30,7 +30,6 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Function;
@@ -685,20 +684,7 @@ public class DateFieldMapperTests extends MapperTestCase {
 
             @Override
             public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
-                List<SyntheticSourceInvalidExample> examples = new ArrayList<>();
-                for (String fieldType : new String[] { "date", "date_nanos" }) {
-                    examples.add(
-                        new SyntheticSourceInvalidExample(
-                            equalTo(
-                                "field [field] of type ["
-                                    + fieldType
-                                    + "] doesn't support synthetic source because it doesn't have doc values"
-                            ),
-                            b -> b.field("type", fieldType).field("doc_values", false)
-                        )
-                    );
-                }
-                return examples;
+                return List.of();
             }
         };
     }

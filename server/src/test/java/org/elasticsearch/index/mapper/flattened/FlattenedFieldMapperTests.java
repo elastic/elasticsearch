@@ -749,12 +749,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
 
         @Override
         public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
-            return List.of(
-                new SyntheticSourceInvalidExample(
-                    equalTo("field [field] of type [flattened] doesn't support synthetic " + "source because it doesn't have doc values"),
-                    b -> b.field("type", "flattened").field("doc_values", false)
-                )
-            );
+            return List.of();
         }
 
         private void mapping(XContentBuilder b) throws IOException {

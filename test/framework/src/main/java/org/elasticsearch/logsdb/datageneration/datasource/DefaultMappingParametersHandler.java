@@ -20,31 +20,17 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         var map = new HashMap<String, Object>();
         map.put("store", ESTestCase.randomBoolean());
         map.put("index", ESTestCase.randomBoolean());
+        map.put("doc_values", ESTestCase.randomBoolean());
         if (ESTestCase.randomBoolean()) {
             map.put("synthetic_source_keep", ESTestCase.randomFrom("none", "arrays", "all"));
         }
         return new DataSourceResponse.LeafMappingParametersGenerator(switch (request.fieldType()) {
-            case KEYWORD -> keywordMapping(map);
-            case LONG, INTEGER, SHORT, BYTE, DOUBLE, FLOAT, HALF_FLOAT -> numberMapping(map);
-            case UNSIGNED_LONG -> unsignedLongMapping(map);
+            case KEYWORD, LONG, INTEGER, SHORT, BYTE, DOUBLE, FLOAT, HALF_FLOAT, UNSIGNED_LONG -> plain(map);
             case SCALED_FLOAT -> scaledFloatMapping(map);
         });
     }
 
-    // TODO enable doc_values: false
-    // It is disabled because it hits a bug in synthetic source.
-    private Supplier<Map<String, Object>> keywordMapping(Map<String, Object> injected) {
-        return () -> injected;
-    }
-
-    private Supplier<Map<String, Object>> numberMapping(Map<String, Object> injected) {
-        return () -> {
-            injected.put("doc_values", ESTestCase.randomBoolean());
-            return injected;
-        };
-    }
-
-    private Supplier<Map<String, Object>> unsignedLongMapping(Map<String, Object> injected) {
+    private Supplier<Map<String, Object>> plain(Map<String, Object> injected) {
         return () -> injected;
     }
 

@@ -98,8 +98,10 @@ class ESRestTestFeatureService implements TestFeatureService {
             if (extractedVersion.equals(Version.CURRENT)) {
                 throw new IllegalArgumentException(
                     Strings.format(
-                        "Cannot use a synthetic feature for the current version %s; "
-                            + "please define a test cluster feature alongside the corresponding code change instead"
+                        "Cannot use a synthetic feature [%s] for the current version [%s]; "
+                            + "please define a test cluster feature alongside the corresponding code change instead",
+                        featureId,
+                        Version.CURRENT
                     )
                 );
             }

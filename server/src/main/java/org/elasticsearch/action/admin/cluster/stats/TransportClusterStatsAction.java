@@ -238,7 +238,7 @@ public class TransportClusterStatsAction extends TransportClusterStatsBaseAction
                 RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
             );
             remoteClusterClient.execute(
-                TransportRemoteClusterStatsAction.REMOTE_TYPE,
+                TransportRemoteClusterStatsHandlerAction.REMOTE_TYPE,
                 remoteRequest,
                 groupListener.remoteListener(clusterAlias)
             );

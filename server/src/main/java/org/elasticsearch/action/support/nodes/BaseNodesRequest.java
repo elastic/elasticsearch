@@ -68,7 +68,7 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    public final void writeTo(StreamOutput out) throws IOException {
         // `BaseNodesRequest` is rather heavyweight, especially all those `DiscoveryNodes` objects in larger clusters, and there is no need
         // to send it out over the wire. Use a dedicated transport request just for the bits you need.
         TransportAction.localOnly();

@@ -11,7 +11,6 @@ package org.elasticsearch.action.admin.cluster.stats;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -34,12 +33,7 @@ import java.util.List;
  * cluster are not needed.
  */
 public class TransportRemoteClusterStatsAction extends TransportClusterStatsBaseAction<RemoteClusterStatsResponse> {
-
     public static final ActionType<RemoteClusterStatsResponse> TYPE = new ActionType<>("cluster:monitor/stats/remote");
-    public static final RemoteClusterActionType<RemoteClusterStatsResponse> REMOTE_TYPE = new RemoteClusterActionType<>(
-        TYPE.name(),
-        RemoteClusterStatsResponse::new
-    );
 
     @Inject
     public TransportRemoteClusterStatsAction(
@@ -62,23 +56,6 @@ public class TransportRemoteClusterStatsAction extends TransportClusterStatsBase
             repositoriesService,
             usageService,
             actionFilters
-        );
-        transportService.registerRequestHandler(
-            TYPE.name(),
-            // TODO: which executor here?
-            threadPool.executor(ThreadPool.Names.MANAGEMENT),
-            RemoteClusterStatsRequest::new,
-            (request, channel, task) -> execute(task, request, new ActionListener<>() {
-                @Override
-                public void onResponse(RemoteClusterStatsResponse response) {
-                    channel.sendResponse(response);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    channel.sendResponse(e);
-                }
-            })
         );
     }
 

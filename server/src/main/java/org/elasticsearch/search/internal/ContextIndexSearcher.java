@@ -55,6 +55,7 @@ import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
+import java.util.stream.Collectors;
 
 /**
  * Context-aware extension of {@link IndexSearcher}.
@@ -247,7 +248,13 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         }
         if (maxSliceNum == 1) {
             return new LeafSlice[] {
-                new LeafSlice(new ArrayList<>(leaves.stream().map(LeafReaderContextPartition::createForEntireSegment).toList())) };
+                new LeafSlice(
+                    new ArrayList<>(
+                        leaves.stream()
+                            .map(LeafReaderContextPartition::createForEntireSegment)
+                            .collect(Collectors.toCollection(ArrayList::new))
+                    )
+                ) };
         }
         // total number of documents to be searched
         final int numDocs = leaves.stream().mapToInt(l -> l.reader().maxDoc()).sum();
@@ -295,7 +302,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         for (List<LeafReaderContext> currentLeaf : queue) {
             // LeafSlice ctor reorders leaves so that leaves within a slice preserve the order they had within the IndexReader.
             // This is important given how Elasticsearch sorts leaves by descending @timestamp to get better query performance.
-            slices[upto++] = new LeafSlice(currentLeaf.stream().map(LeafReaderContextPartition::createForEntireSegment).toList());
+            slices[upto++] = new LeafSlice(
+                currentLeaf.stream()
+                    .map(LeafReaderContextPartition::createForEntireSegment)
+                    .collect(Collectors.toCollection(ArrayList::new))
+            );
         }
 
         return slices;

@@ -181,7 +181,8 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
     private boolean sourceMatchesExactly(MappingTransforms.FieldMapping mapping, List<Object> expectedValues) {
         return mapping.parentMappingParameters().stream().anyMatch(m -> m.getOrDefault("enabled", "true").equals("false"))
             || mapping.mappingParameters().getOrDefault("synthetic_source_keep", "none").equals("all")
-            || expectedValues.size() > 1 && mapping.mappingParameters().getOrDefault("syntetic_source_keep", "none").equals("none") == false;
+            || expectedValues.size() > 1
+                && mapping.mappingParameters().getOrDefault("syntetic_source_keep", "none").equals("none") == false;
     }
 
     private MatchResult matchWithGenericMatcher(List<Object> actualValues, List<Object> expectedValues) {

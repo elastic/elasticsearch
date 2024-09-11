@@ -678,15 +678,6 @@ public class Verifier {
                         );
                     }
                 });
-                if (ftf.query().foldable() == false) {
-                    failures.add(
-                        fail(
-                            ftf,
-                            "Query in {} function needs to be statically resolved. References to fields are not allowed.",
-                            ftf.functionName()
-                        )
-                    );
-                }
             }
         } else if (plan instanceof Eval eval) {
             eval.fields().forEach(field -> {

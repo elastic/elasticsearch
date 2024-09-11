@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
@@ -60,6 +61,12 @@ public abstract class FullTextFunction extends Function {
     protected TypeResolution resolveType() {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
+        }
+
+        if (query().foldable() == false) {
+            return new TypeResolution(
+                "Query in " + functionName() + " function needs to be statically resolved. References to fields are not allowed."
+            );
         }
 
         return isString(query(), sourceText(), DEFAULT);

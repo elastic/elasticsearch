@@ -11,6 +11,10 @@ package org.elasticsearch.logsdb.datageneration.fields;
 import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.FieldType;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSource;
+import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
+
+import java.util.List;
+import java.util.Set;
 
 public interface PredefinedField {
     String name();
@@ -25,7 +29,9 @@ public interface PredefinedField {
 
         @Override
         public FieldDataGenerator generator(DataSource dataSource) {
-            return fieldType().generator(fieldName, dataSource);
+            //  copy_to currently not supported for predefined fields, use WithGenerator if needed
+            var mappingParametersGenerator = dataSource.get(new DataSourceRequest.LeafMappingParametersGenerator(fieldName, fieldType, Set.of()));
+            return fieldType().generator(fieldName, dataSource, mappingParametersGenerator);
         }
     }
 

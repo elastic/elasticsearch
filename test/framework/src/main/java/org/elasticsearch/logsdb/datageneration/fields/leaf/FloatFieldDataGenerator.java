@@ -13,6 +13,7 @@ import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.FieldType;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSource;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
+import org.elasticsearch.logsdb.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -23,13 +24,13 @@ public class FloatFieldDataGenerator implements FieldDataGenerator {
     private final Supplier<Object> valueGenerator;
     private final Map<String, Object> mappingParameters;
 
-    public FloatFieldDataGenerator(String fieldName, DataSource dataSource) {
+    public FloatFieldDataGenerator(String fieldName, DataSource dataSource, DataSourceResponse.LeafMappingParametersGenerator mappingParametersGenerator) {
         var floats = dataSource.get(new DataSourceRequest.FloatGenerator());
         var nulls = dataSource.get(new DataSourceRequest.NullWrapper());
         var arrays = dataSource.get(new DataSourceRequest.ArrayWrapper());
 
         this.valueGenerator = arrays.wrapper().compose(nulls.wrapper()).apply(() -> floats.generator().get());
-        this.mappingParameters = dataSource.get(new DataSourceRequest.LeafMappingParametersGenerator(fieldName, FieldType.FLOAT))
+        this.mappingParameters = mappingParametersGenerator
             .mappingGenerator()
             .get();
     }

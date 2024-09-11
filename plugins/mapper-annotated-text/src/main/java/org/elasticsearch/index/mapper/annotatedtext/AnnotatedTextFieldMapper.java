@@ -582,7 +582,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
         var kwd = TextFieldMapper.SyntheticSourceHelper.getKeywordFieldMapperForSyntheticSource(this);
         if (kwd != null) {
-            return new SyntheticSourceSupport.Native(kwd.syntheticFieldLoader(leafName()));
+            return new SyntheticSourceSupport.Native(kwd.syntheticFieldLoader(leafName(), true));
         }
 
         return super.syntheticSourceSupport();

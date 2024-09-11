@@ -768,4 +768,15 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         );
         assertScriptDocValues(mapper, "foo", equalTo(List.of("foo")));
     }
+
+    public void testTrimmedLeafName() {
+        assertEquals("", KeywordFieldMapper.getTrimmedLeafName("", ""));
+        assertEquals("foo", KeywordFieldMapper.getTrimmedLeafName("foo", ""));
+        assertEquals("foo", KeywordFieldMapper.getTrimmedLeafName("foo", "foo"));
+        assertEquals("foo", KeywordFieldMapper.getTrimmedLeafName("foo.bar", "foo"));
+        assertEquals("foo", KeywordFieldMapper.getTrimmedLeafName("foo.bar.baz", "foo"));
+        assertEquals("path.to.foo", KeywordFieldMapper.getTrimmedLeafName("path.to.foo", "foo"));
+        assertEquals("path.to.foo", KeywordFieldMapper.getTrimmedLeafName("path.to.foo.bar", "foo"));
+        assertEquals("path.to.foo", KeywordFieldMapper.getTrimmedLeafName("path.to.foo.bar.baz", "foo"));
+    }
 }

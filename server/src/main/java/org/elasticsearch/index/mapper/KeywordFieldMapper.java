@@ -1037,13 +1037,21 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         if (fieldType.stored() || hasDocValues) {
-            return new SyntheticSourceSupport.Native(syntheticFieldLoader(leafName()));
+            return new SyntheticSourceSupport.Native(syntheticFieldLoader(leafName(), false));
         }
 
         return super.syntheticSourceSupport();
     }
 
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String simpleName) {
+    public static String getTrimmedLeafName(String fullPath, String simpleName) {
+        assert fullPath.contains(simpleName);
+        if (fullPath.endsWith(simpleName) || fullPath.contains(simpleName) == false) {
+            return fullPath;
+        }
+        return fullPath.substring(0, fullPath.lastIndexOf(simpleName) + simpleName.length());
+    }
+
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String simpleName, boolean trimLeafNameSuffix) {
         assert fieldType.stored() || hasDocValues;
 
         var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
@@ -1081,6 +1089,9 @@ public final class KeywordFieldMapper extends FieldMapper {
             });
         }
 
-        return new CompositeSyntheticFieldLoader(simpleName, fullPath(), layers);
+        // Trimming is required in the case of multi-fields, where extra suffices are added
+        // to the full path after the simple name.
+        String path = trimLeafNameSuffix ? getTrimmedLeafName(fullPath(), simpleName) : fullPath();
+        return new CompositeSyntheticFieldLoader(simpleName, path, layers);
     }
 }

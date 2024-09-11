@@ -31,7 +31,6 @@ import static java.util.Collections.emptyList;
 public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
     private final String leafFieldName;
     private final String fullFieldName;
-    private final String fieldName;
     private final Collection<Layer> parts;
     private boolean storedFieldLoadersHaveValues;
     private boolean docValuesLoadersHaveValues;
@@ -46,9 +45,6 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
         this.parts = parts;
         this.storedFieldLoadersHaveValues = false;
         this.docValuesLoadersHaveValues = false;
-        // In text mappers, the leaf name is a prefix of the full name and we want to use the leaf name, e.g. `myfield.sdfge` => 'myfield'
-        // In arrays, the leaf name is a suffix of the full name and we want to use the full name, e.g. `path.myarray` => `path.myarray`
-        this.fieldName = (fullFieldName.startsWith(leafFieldName)) ? leafFieldName : fullFieldName;
     }
 
     @Override
@@ -129,7 +125,7 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
 
     @Override
     public String fieldName() {
-        return this.fieldName;
+        return this.fullFieldName;
     }
 
     /**

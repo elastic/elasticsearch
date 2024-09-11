@@ -49,12 +49,14 @@ public class IbmWatsonxResponseHandler extends BaseResponseHandler {
 
         if (statusCode == 500) {
             throw new RetryException(true, buildError(SERVER_ERROR, request, result));
-        } else if (statusCode == 403) {
-            throw new RetryException(false, buildError(PERMISSION_DENIED, request, result));
         } else if (statusCode == 404) {
             throw new RetryException(false, buildError(resourceNotFoundError(request), request, result));
+        } else if (statusCode == 403) {
+            throw new RetryException(false, buildError(PERMISSION_DENIED, request, result));
         } else if (statusCode == 401) {
             throw new RetryException(false, buildError(AUTHENTICATION, request, result));
+        } else if (statusCode == 400) {
+            throw new RetryException(false, buildError(BAD_REQUEST, request, result));
         } else if (statusCode >= 300 && statusCode < 400) {
             throw new RetryException(false, buildError(REDIRECTION, request, result));
         } else {

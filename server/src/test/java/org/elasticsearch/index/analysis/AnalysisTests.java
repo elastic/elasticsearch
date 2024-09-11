@@ -103,4 +103,24 @@ public class AnalysisTests extends ESTestCase {
         List<String> wordList = Analysis.getWordList(env, nodeSettings, "foo.bar");
         assertEquals(Arrays.asList("hello", "world"), wordList);
     }
+
+    public void testParseDuplicates() throws IOException {
+        Path tempDir = createTempDir();
+        Path dict = tempDir.resolve("foo.dict");
+        Settings nodeSettings = Settings.builder()
+            .put("foo.path", tempDir.resolve(dict))
+            .put("bar.list", "")
+            .put("soup.deduplicate", "true")
+            .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
+            .build();
+        try (BufferedWriter writer = Files.newBufferedWriter(dict, StandardCharsets.UTF_8)) {
+            writer.write("最終契約,最終契約,最終契約,カスタム名 詞");
+            writer.write('\n');
+            writer.write("最終契約,最終契約,最終契約,カスタム名 詞");
+            writer.write('\n');
+        }
+        Environment env = TestEnvironment.newEnvironment(nodeSettings);
+        List<String> wordList = Analysis.getWordList(env, nodeSettings, "foo.path", "bar.list", "soup.deduplicate", true, true);
+        assertEquals(List.of("最終契約,最終契約,最終契約,カスタム名 詞"), wordList);
+    }
 }

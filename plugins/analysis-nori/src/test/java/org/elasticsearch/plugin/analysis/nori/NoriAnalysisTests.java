@@ -143,6 +143,20 @@ public class NoriAnalysisTests extends ESTokenStreamTestCase {
         }
     }
 
+    public void testNoriAnalyzerDuplicateUserDictRuleDeduplication() throws Exception {
+        Settings settings = Settings.builder()
+            .put("index.analysis.analyzer.my_analyzer.type", "nori")
+            .put("index.analysis.analyzer.my_analyzer.deduplicate_dictionary", "true")
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersions.NORI_DUPLICATES)
+            .putList("index.analysis.analyzer.my_analyzer.user_dictionary_rules", "c++", "C쁠쁠", "세종", "세종", "세종시 세종 시")
+            .build();
+        TestAnalysis analysis = createTestAnalysis(settings);
+        Analyzer analyzer = analysis.indexAnalyzers.get("my_analyzer");
+        try (TokenStream stream = analyzer.tokenStream("", "세종시")) {
+            assertTokenStreamContents(stream, new String[] { "세종", "시" });
+        }
+    }
+
     public void testNoriTokenizer() throws Exception {
         Settings settings = Settings.builder()
             .put("index.analysis.tokenizer.my_tokenizer.type", "nori_tokenizer")

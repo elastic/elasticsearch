@@ -447,6 +447,25 @@ public class KuromojiAnalysisTests extends ESTestCase {
         assertThat(exc.getMessage(), containsString("[制限スピード] in user dictionary at line [3]"));
     }
 
+    public void testKuromojiAnalyzerDuplicateUserDictRuleDeduplication() throws Exception {
+        Settings settings = Settings.builder()
+            .put("index.analysis.analyzer.my_analyzer.type", "kuromoji")
+            .put("index.analysis.analyzer.my_analyzer.deduplicate_dictionary", "true")
+            .putList(
+                "index.analysis.analyzer.my_analyzer.user_dictionary_rules",
+                "c++,c++,w,w",
+                "#comment",
+                "制限スピード,制限スピード,セイゲンスピード,テスト名詞",
+                "制限スピード,制限スピード,セイゲンスピード,テスト名詞"
+            )
+            .build();
+        TestAnalysis analysis = createTestAnalysis(settings);
+        Analyzer analyzer = analysis.indexAnalyzers.get("my_analyzer");
+        try (TokenStream stream = analyzer.tokenStream("", "制限スピード")) {
+            assertTokenStreamContents(stream, new String[] { "制限スピード" });
+        }
+    }
+
     public void testDiscardCompoundToken() throws Exception {
         TestAnalysis analysis = createTestAnalysis();
         TokenizerFactory tokenizerFactory = analysis.tokenizer.get("kuromoji_discard_compound_token");

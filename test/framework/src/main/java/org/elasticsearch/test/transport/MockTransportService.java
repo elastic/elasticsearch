@@ -83,6 +83,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.spy;
 
 /**
@@ -311,7 +312,7 @@ public class MockTransportService extends TransportService {
             4,
             30,
             TimeUnit.SECONDS,
-            false,
+            true,
             EsExecutors.daemonThreadFactory("mock-transport"),
             threadPool.getThreadContext()
         );
@@ -809,7 +810,7 @@ public class MockTransportService extends TransportService {
         } catch (InterruptedException e) {
             throw new IllegalStateException(e);
         } finally {
-            ThreadPool.terminate(testExecutor, 10, TimeUnit.SECONDS);
+            assertTrue(ThreadPool.terminate(testExecutor, 10, TimeUnit.SECONDS));
         }
     }
 

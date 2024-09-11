@@ -2,7 +2,7 @@
 == {es} basics
 
 This guide covers the core concepts you need to understand to get started with {es}.
-If you'd prefer to start working with {es} right away, then jump to our <<quickstart,quickstarts>> for hands-on code examples.
+If you'd prefer to start working with {es} right away, set up a <<run-elasticsearch-locally,local dev environment>> and jump to our <<quickstart,hands-on code examples>> .
 
 This guide covers the following topics:
 
@@ -227,6 +227,10 @@ You can use {es} as a basic document store to retrieve documents and their
 metadata.
 However, the real power of {es} comes from its advanced search and analytics capabilities.
 
+[discrete]
+[[search-analyze-rest-api]]
+==== Rest API
+
 Use {es}'s REST API to manage your cluster, and to index
 and search your data.
 For testing purposes, you can submit requests
@@ -235,23 +239,33 @@ From your applications, you can use an
 https://www.elastic.co/guide/en/elasticsearch/client/index.html[{es} client]
 in your programming language of choice.
 
-<<query-dsl, Query DSL>> is the primary query language for {es} today.
-It's a full-featured JSON-style query language that allows you to perform complex searches and aggregations.
-This documentation uses Query DSL for most query examples.
-
-// TODO: link to query languages table overview when we find a good place for it
-
-[TIP]
-====
-<<esql,{esql}>> is our new piped query language and compute engine that is initially mainly focused on timestamped data like logs and metrics.
-It does not yet support all the features of Query DSL, like full-text search and semantic search.
-====
+Refer to <<getting-started,first steps with Elasticsearch>> for a hands-on example of using the REST API, adding data to {es}, and running basic searches.
 
 [discrete]
-[[search-data]]
-==== Searching and filtering data
+[[search-analyze-query-languages]]
+==== Query languages
 
-{es} support a wide range of search techniques, including the following:
+{es} provides a number of query languages for interacting with your data. 
+
+*Query DSL* is the primary query language for {es} today.
+
+*{esql}* is our new piped query language and compute engine which was first added in version *8.11*.
+It does not yet support all the features of Query DSL, like full-text search and semantic search.
+
+Refer to <<search-analyze-query-languages>> for a full overview of the query languages available in {es}.
+
+[discrete]
+[[search-analyze-query-dsl]]
+===== Query DSL
+
+<<query-dsl, Query DSL>> is a full-featured JSON-style query language that enables complex searching, filtering, and aggregations.
+It is the original and most powerful query language for {es} today.
+
+[discrete]
+[[search-analyze-query-dsl-search-filter]]
+====== Search and filter with Query DSL
+
+Query DSL support a wide range of search techniques, including the following:
 
 * <<full-text-queries,*Full-text search*>>. Search text that has been analyzed and indexed to support phrase or proximity queries, fuzzy matches, and more.
 * <<keyword,*Keyword search*>>. Search for exact matches using `keyword` fields.
@@ -259,30 +273,15 @@ It does not yet support all the features of Query DSL, like full-text search and
 * <<knn-search,*Vector search*>>. Search for similar dense vectors using the kNN algorithm for embeddings generated outside of {es}.
 * <<geo-queries,*Geospatial search*>>. Search for locations and calculate spatial relationships using geospatial queries.
 
-Learn about the full range of queries supported by the <<query-dsl,Query DSL>>.
+Learn about the full range of queries supported by the <<query-dsl,Query DSL>>. 
 
 You can also filter data using Query DSL.
 Filters enable you to include or exclude documents by retrieving documents that match specific field-level criteria.
 A query that uses the `filter` parameter indicates <<filter-context,filter context>>.
 
-{esql} also has powerful filtering capabilities.
-
 [discrete]
-[[analyze-data]]
-==== Analyzing your data
-
-{es} enables a host of use cases based on aggregations and analytics.
-These include real-world applications like:
-
-* *Log analysis*: Monitoring system performance and detecting anomalies in IT infrastructure.
-* *E-commerce analytics*: Analyzing sales trends, customer behavior, and product performance.
-* *Search analytics*: Tracking user search patterns and improving relevance of search results.
-* *Business intelligence*: Generating real-time dashboards and reports for data-driven decision making.
-* *Content recommendation*: Analyzing user interactions to provide personalized content suggestions.
-
-[discrete]
-[[analyze-data-query-dsl]]
-===== Query DSL
+[[search-analyze-data-query-dsl]]
+====== Analyze with Query DSL
 
 <<search-aggregations,Aggregations>> are the primary tool for analyzing {es} data using Query DSL.
 Aggregrations enable you to build complex summaries of your data and gain
@@ -306,15 +305,57 @@ Run aggregations by specifying the <<search-search,search API>>'s `aggs` paramet
 Learn more in <<run-an-agg,Run an aggregation>>.
 
 [discrete]
-[[analyze-data-esql]]
+[[search-analyze-data-esql]]
 ===== {esql}
 
 <<esql,Elasticsearch Query Language ({esql})>> is a piped query language for filtering, transforming, and analyzing data.
 {esql} is built on top of a new compute engine, where search, aggregation, and transformation functions are
 directly executed within {es} itself.
+
+Today, it supports a subset of the features available in Query DSL, like aggregations, filters, and transformations.
+It does not yet support full-text search or semantic search.
+
 It comes with a comprehensive set of <<esql-functions-operators,functions and operators>> for working with data and has robust integration with {kib}'s Discover, dashboards and visualizations.
 
 Learn more in <<esql-getting-started,Getting started with {esql}>>, or try https://www.elastic.co/training/introduction-to-esql[our training course].
+
+[discrete]
+[[search-analyze-data-query-languages-table]]
+==== Query languages overview
+
+// TODO: do I belong here?
+
+The following table summarizes all available {es} query languages, to help you choose the right one for your use case.
+
+[cols="1,2,2,1", options="header"]
+|===
+| Name | Description | Use cases | API endpoint
+
+| <<query-dsl,Query DSL>>
+| Primary query language for {es}. Powerful and flexible JSON-style language that enables complex queries.
+| Supports full-text search, semantic search, keyword search, filtering, aggregations, and more.
+| <<search-search,`_search`>>
+
+
+| <<esql,{esql}>>
+| Introduced in *8.11*, the Elasticsearch Query Language ({esql}) is a piped query language language for filtering, transforming, and analyzing data.
+| Initially tailored towards working with time series data like logs and metrics. 
+Robust integration with {kib} for querying, visualizing, and analyzing data.
+Does not yet support full-text search.
+| <<esql-rest,`_query`>>
+
+
+| <<eql,EQL>>
+| Event Query Language (EQL) is a query language for event-based time series data. Data must contain an `@timestamp` field to use EQL.
+| Designed for the threat hunting security use case.
+| <<eql-apis,`_eql`>>
+
+| <<xpack-sql,Elasticsearch SQL>>
+| Allows native, real-time SQL-like querying against {es} data. JDBC and ODBC drivers are available for integration with business intelligence (BI) tools.
+| Enables users familiar with SQL to query {es} data using familiar syntax for BI and reporting.
+| <<sql-apis,`_sql`>>
+
+|===
 
 // New html page
 // TODO: this page won't live here long term

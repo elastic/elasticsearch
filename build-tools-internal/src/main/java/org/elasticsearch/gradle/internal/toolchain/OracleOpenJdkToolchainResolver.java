@@ -53,6 +53,29 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
         }
     }
 
+    record ReleaseCandidateJdkBuild(JavaLanguageVersion languageVersion, String version, String buildNumber, String hash)
+        implements
+            JdkBuild {
+
+        @Override
+        public String url(String os, String arch, String extension) {
+            return "https://download.java.net/java/GA/jdk"
+                + version
+                + "/"
+                + hash
+                + "/"
+                + buildNumber
+                + "/GPL/openjdk-"
+                + version
+                + "_"
+                + os
+                + "-"
+                + arch
+                + "_bin."
+                + extension;
+        }
+    }
+
     record EarlyAccessJdkBuild(JavaLanguageVersion languageVersion, String version, String buildNumber) implements JdkBuild {
 
         @Override
@@ -87,8 +110,8 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
     // package private so it can be replaced by tests
     List<JdkBuild> builds = List.of(
         getBundledJdkBuild(),
-        // 23 early access
-        new EarlyAccessJdkBuild(JavaLanguageVersion.of(23), "23", "24")
+        // 23 release candidate
+        new ReleaseCandidateJdkBuild(JavaLanguageVersion.of(23), "23", "37", "3c5b90190c68498b986a97f276efd28a")
     );
 
     private JdkBuild getBundledJdkBuild() {

@@ -85,7 +85,7 @@ breaking change].
     better indexing throughput (up to ~10%) in the most ideal scenario compared
     to `default` while affecting get by id latencies up to 10%. The higher get
     by id latencies is not a concern for many use cases like logging or metrics, since
-    these don't really rely on get by id functionality (Get APis or searching by _id).
+    these don't really rely on get by id functionality (Get APIs or searching by _id).
 
 [[index-mode-setting]] `index.mode`::
 +

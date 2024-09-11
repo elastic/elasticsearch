@@ -75,7 +75,9 @@ public class TDigestBigArraysTests extends ESTestCase {
             assertThat(array.size(), equalTo(initialSize));
 
             int newValueCount = randomIntBetween(1, 100);
-
+            if (randomBoolean()) {
+                array.ensureCapacity(initialSize + newValueCount);
+            }
             double value = randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true);
             for (int i = 0; i < newValueCount; i++) {
                 array.add(value);

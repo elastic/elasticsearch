@@ -30,12 +30,15 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class MultiClustersIT extends ESRestTestCase {
@@ -146,21 +149,40 @@ public class MultiClustersIT extends ESRestTestCase {
             Map<String, Object> result = run("FROM test-local-index,*:test-remote-index | STATS c = COUNT(*)");
             var columns = List.of(Map.of("name", "c", "type", "long"));
             var values = List.of(List.of(localDocs.size() + remoteDocs.size()));
+
+            // ensure result map has only expected top level fields
+            assertThat(result.size(), equalTo(4));
+            assertTrue(result.containsKey("took"));
+            assertTrue(result.containsKey("columns"));
+            assertTrue(result.containsKey("values"));
+            assertTrue(result.containsKey("_clusters"));
+
+            // check all sections of map except _cluster/details
             MapMatcher mapMatcher = matchesMap();
             if (result.get("took") != null) {
                 mapMatcher = mapMatcher.entry("took", ((Integer) result.get("took")).intValue());
             }
-            assertMap(result, mapMatcher.entry("columns", columns).entry("values", values));
+            assertMap(result, mapMatcher.entry("columns", columns).entry("values", values).extraOk());
+            assertClusterDetailsMap(result, false);
         }
         {
             Map<String, Object> result = run("FROM *:test-remote-index | STATS c = COUNT(*)");
             var columns = List.of(Map.of("name", "c", "type", "long"));
             var values = List.of(List.of(remoteDocs.size()));
+
+            assertThat(result.size(), equalTo(4));
+            assertTrue(result.containsKey("took"));
+            assertTrue(result.containsKey("columns"));
+            assertTrue(result.containsKey("values"));
+            assertTrue(result.containsKey("_clusters"));
+
+            // check all sections of map except _cluster/details
             MapMatcher mapMatcher = matchesMap();
             if (result.get("took") != null) {
                 mapMatcher = mapMatcher.entry("took", ((Integer) result.get("took")).intValue());
             }
-            assertMap(result, mapMatcher.entry("columns", columns).entry("values", values));
+            assertMap(result, mapMatcher.entry("columns", columns).entry("values", values).extraOk());
+            assertClusterDetailsMap(result, true);
         }
     }
 
@@ -170,22 +192,96 @@ public class MultiClustersIT extends ESRestTestCase {
             var columns = List.of(Map.of("name", "total", "type", "long"));
             long sum = Stream.concat(localDocs.stream(), remoteDocs.stream()).mapToLong(d -> d.data).sum();
             var values = List.of(List.of(Math.toIntExact(sum)));
+
+            // ensure result map has only expected top level fields
+            assertThat(result.size(), equalTo(4));
+            assertTrue(result.containsKey("took"));
+            assertTrue(result.containsKey("columns"));
+            assertTrue(result.containsKey("values"));
+            assertTrue(result.containsKey("_clusters"));
+
+            // check all sections of map except _cluster/details
             MapMatcher mapMatcher = matchesMap();
             if (result.get("took") != null) {
                 mapMatcher = mapMatcher.entry("took", ((Integer) result.get("took")).intValue());
             }
-            assertMap(result, mapMatcher.entry("columns", columns).entry("values", values));
+            assertMap(result, mapMatcher.entry("columns", columns).entry("values", values).extraOk());
+            assertClusterDetailsMap(result, false);
         }
         {
             Map<String, Object> result = run("FROM *:test-remote-index | STATS total = SUM(data)");
             var columns = List.of(Map.of("name", "total", "type", "long"));
             long sum = remoteDocs.stream().mapToLong(d -> d.data).sum();
             var values = List.of(List.of(Math.toIntExact(sum)));
+
+            // ensure result map has only expected top level fields
+            assertThat(result.size(), equalTo(4));
+            assertTrue(result.containsKey("took"));
+            assertTrue(result.containsKey("columns"));
+            assertTrue(result.containsKey("values"));
+            assertTrue(result.containsKey("_clusters"));
+
+            // check all sections of map except _cluster/details
             MapMatcher mapMatcher = matchesMap();
             if (result.get("took") != null) {
                 mapMatcher = mapMatcher.entry("took", ((Integer) result.get("took")).intValue());
             }
-            assertMap(result, mapMatcher.entry("columns", columns).entry("values", values));
+            assertMap(result, mapMatcher.entry("columns", columns).entry("values", values).extraOk());
+            assertClusterDetailsMap(result, true);
+        }
+    }
+
+    private void assertClusterDetailsMap(Map<String, Object> result, boolean remoteOnly) {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> clusters = (Map<String, Object>) result.get("_clusters");
+        System.err.println("FOO FOO FOO >>>> clusters: " + clusters);
+        logger.warn("FOO FOO FOO >>>> clusters: {}", clusters);
+        assertThat(clusters.size(), equalTo(7));
+        assertThat(clusters.keySet(), equalTo(Set.of("total", "successful", "running", "skipped", "partial", "failed", "details")));
+        int expectedNumClusters = remoteOnly ? 1 : 2;
+        Set<String> expectedClusterAliases = remoteOnly ? Set.of("remote_cluster") : Set.of("remote_cluster", "(local)");
+
+        assertThat(clusters.get("total"), equalTo(expectedNumClusters));
+        assertThat(clusters.get("successful"), equalTo(expectedNumClusters));
+        assertThat(clusters.get("running"), equalTo(0));
+        assertThat(clusters.get("skipped"), equalTo(0));
+        assertThat(clusters.get("partial"), equalTo(0));
+        assertThat(clusters.get("failed"), equalTo(0));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> details = (Map<String, Object>) clusters.get("details");
+        assertThat(details.keySet(), equalTo(expectedClusterAliases));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> remoteCluster = (Map<String, Object>) details.get("remote_cluster");
+        assertThat(remoteCluster.keySet(), equalTo(Set.of("status", "indices", "took", "_shards")));
+        assertThat(remoteCluster.get("status"), equalTo("successful"));
+        assertThat(remoteCluster.get("indices"), equalTo("remote_cluster:test-remote-index"));
+        assertThat((Integer) remoteCluster.get("took"), greaterThanOrEqualTo(0));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> remoteClusterShards = (Map<String, Object>) remoteCluster.get("_shards");
+        assertThat(remoteClusterShards.keySet(), equalTo(Set.of("total", "successful", "skipped", "failed")));
+        assertThat((Integer) remoteClusterShards.get("total"), greaterThanOrEqualTo(1));
+        assertThat((Integer) remoteClusterShards.get("successful"), equalTo((Integer) remoteClusterShards.get("total")));
+        assertThat((Integer) remoteClusterShards.get("skipped"), equalTo(0));
+        assertThat((Integer) remoteClusterShards.get("failed"), equalTo(0));
+
+        if (remoteOnly == false) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> localCluster = (Map<String, Object>) details.get("(local)");
+            assertThat(localCluster.keySet(), equalTo(Set.of("status", "indices", "took", "_shards")));
+            assertThat(localCluster.get("status"), equalTo("successful"));
+            assertThat(localCluster.get("indices"), equalTo("test-local-index"));
+            assertThat((Integer) localCluster.get("took"), greaterThanOrEqualTo(0));
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> localClusterShards = (Map<String, Object>) localCluster.get("_shards");
+            assertThat(localClusterShards.keySet(), equalTo(Set.of("total", "successful", "skipped", "failed")));
+            assertThat((Integer) localClusterShards.get("total"), greaterThanOrEqualTo(1));
+            assertThat((Integer) localClusterShards.get("successful"), equalTo((Integer) localClusterShards.get("total")));
+            assertThat((Integer) localClusterShards.get("skipped"), equalTo(0));
+            assertThat((Integer) localClusterShards.get("failed"), equalTo(0));
         }
     }
 
@@ -200,11 +296,21 @@ public class MultiClustersIT extends ESRestTestCase {
                 .sorted(Map.Entry.comparingByKey())
                 .map(e -> List.of(Math.toIntExact(e.getValue()), e.getKey()))
                 .toList();
+
+            // ensure result map has only expected top level fields
+            assertThat(result.size(), equalTo(4));
+            assertTrue(result.containsKey("took"));
+            assertTrue(result.containsKey("columns"));
+            assertTrue(result.containsKey("values"));
+            assertTrue(result.containsKey("_clusters"));
+
+            // check all sections of map except _cluster/details
             MapMatcher mapMatcher = matchesMap();
             if (result.get("took") != null) {
                 mapMatcher = mapMatcher.entry("took", ((Integer) result.get("took")).intValue());
             }
-            assertMap(result, mapMatcher.entry("columns", columns).entry("values", values));
+            assertMap(result, mapMatcher.entry("columns", columns).entry("values", values).extraOk());
+            assertClusterDetailsMap(result, false);
         }
         {
             Map<String, Object> result = run("FROM *:test-remote-index | STATS total = SUM(data) by color | SORT color");
@@ -216,11 +322,21 @@ public class MultiClustersIT extends ESRestTestCase {
                 .sorted(Map.Entry.comparingByKey())
                 .map(e -> List.of(Math.toIntExact(e.getValue()), e.getKey()))
                 .toList();
+
+            // ensure result map has only expected top level fields
+            assertThat(result.size(), equalTo(4));
+            assertTrue(result.containsKey("took"));
+            assertTrue(result.containsKey("columns"));
+            assertTrue(result.containsKey("values"));
+            assertTrue(result.containsKey("_clusters"));
+
+            // check all sections of map except _cluster/details
             MapMatcher mapMatcher = matchesMap();
             if (result.get("took") != null) {
                 mapMatcher = mapMatcher.entry("took", ((Integer) result.get("took")).intValue());
             }
-            assertMap(result, mapMatcher.entry("columns", columns).entry("values", values));
+            assertMap(result, mapMatcher.entry("columns", columns).entry("values", values).extraOk());
+            assertClusterDetailsMap(result, true);
         }
     }
 

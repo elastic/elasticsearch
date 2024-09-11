@@ -32,6 +32,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentMap;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
@@ -51,6 +52,8 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     public static final ParseField RUNNING_FIELD = new ParseField("running");
     public static final ParseField PARTIAL_FIELD = new ParseField("partial");
     public static final ParseField FAILED_FIELD = new ParseField("failed");
+    public static final ParseField DETAILS_FIELD = new ParseField("details");
+    public static final ParseField TOOK = new ParseField("took");
 
     // map key is clusterAlias on the primary querying cluster of a CCS minimize_roundtrips=true query
     // the Map itself is immutable after construction - all Clusters will be accounted for at the start of the search
@@ -71,6 +74,15 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     public EsqlExecutionInfo(Predicate<String> skipUnavailablePredicate) {
         this.clusterInfo = ConcurrentCollections.newConcurrentMap();
         this.skipUnavailablePredicate = skipUnavailablePredicate;
+    }
+
+    /**
+     * For use with fromXContent parsing only
+     * @param clusterInfo
+     */
+    public EsqlExecutionInfo(ConcurrentMap<String, Cluster> clusterInfo) {
+        this.clusterInfo = clusterInfo;
+        this.skipUnavailablePredicate = Predicates.always();
     }
 
     public EsqlExecutionInfo(StreamInput in) throws IOException {
@@ -128,7 +140,8 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     }
 
     public boolean isCrossClusterSearch() {
-        return clusterInfo.size() > 1 || clusterInfo.containsKey(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY) == false;
+        return clusterInfo.size() > 1
+            || clusterInfo.size() == 1 && clusterInfo.containsKey(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY) == false;
     }
 
     public Cluster getCluster(String clusterAlias) {
@@ -160,7 +173,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        if (isCrossClusterSearch() == false) {
+        if (isCrossClusterSearch() == false || clusterInfo.isEmpty()) {
             return Iterators.concat();
         }
         return Iterators.concat(

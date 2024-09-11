@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
@@ -39,6 +41,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     implements
         ChunkedToXContentObject,
         Releasable {
+
+    private static final Logger logger = LogManager.getLogger(EsqlQueryResponse.class);
 
     @SuppressWarnings("this-escape")
     private final AbstractRefCounted counted = AbstractRefCounted.of(this::closeInternal);
@@ -224,12 +228,16 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         Iterator<ToXContent> profileRender = profile == null
             ? List.<ToXContent>of().iterator()
             : ChunkedToXContentHelper.field("profile", profile, params);
+        Iterator<ToXContent> executionInfoRender = executionInfo == null || executionInfo.isCrossClusterSearch() == false
+            ? List.<ToXContent>of().iterator()
+            : ChunkedToXContentHelper.field("_clusters", executionInfo, params);
         return Iterators.concat(
             ChunkedToXContentHelper.startObject(),
             asyncPropertiesOrEmpty(),
             tookTime,
             columnHeadings,
             ChunkedToXContentHelper.array("values", valuesIt),
+            executionInfoRender,
             profileRender,
             ChunkedToXContentHelper.endObject()
         );

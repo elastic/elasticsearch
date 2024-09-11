@@ -209,7 +209,6 @@ Which returns:
 ----
 // TESTRESPONSE[s/"took": 28/"took": "$body.took"/]
 
-
 [discrete]
 [[esql-locale-param]]
 ==== Returning localized results

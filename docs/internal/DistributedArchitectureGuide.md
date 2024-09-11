@@ -468,9 +468,9 @@ When a cancellable task dispatches child requests through the [TransportService]
 
 A list of tasks currently running in a cluster can be requested via the [Task management API], or the [cat task management API]. The former returns each task represented using the [TaskResult] DTO, the latter returning a more compact [CAT] representation.
 
-Some [ActionRequest]s allow the results of the actions they spawn to be stored upon completion. If [ActionRequest#getShouldStoreResult] returns true, a [TaskResultStoringActionListener] will be inserted into the chain of response listeners. [TaskResultStoringActionListener] serializes the [TaskResult] of the [TransportAction] and persists it in the `.tasks` index using the [TaskResultsService].
+Some [ActionRequest]s allow the results of the actions they spawn to be stored upon completion for later retrieval. If [ActionRequest#getShouldStoreResult] returns true, a [TaskResultStoringActionListener] will be inserted into the chain of response listeners. [TaskResultStoringActionListener] serializes the [TaskResult] of the [TransportAction] and persists it in the `.tasks` index using the [TaskResultsService].
 
-The [Task management API] also exposes an endpoint where a task ID can be specified, this form of the API will return currently running tasks, or completed tasks whose results were persisted.
+The [Task management API] also exposes an endpoint where a task ID can be specified, this form of the API will return currently running tasks, or completed tasks whose results were persisted. Note that although we use the [TaskResult] DTO to return task information from all the JSON APIs, the `error` or `response` fields will only ever be populated for stored tasks that are already completed.
 
 ### Persistent Tasks
 

@@ -88,6 +88,18 @@ public abstract class NumericUtils {
         return l < 0 ? twosComplement(l) : LONG_MAX_PLUS_ONE_AS_BIGINTEGER.add(BigInteger.valueOf(l));
     }
 
+    /**
+     * Converts an unsigned long value "encoded" into a (signed) long.
+     * In case of overflow, an ArithmeticException is thrown.
+     */
+    public static long unsignedLongAsLongExact(long l) {
+        if (l < 0) {
+            return twosComplement(l);
+        }
+
+        throw new ArithmeticException(UNSIGNED_LONG_OVERFLOW);
+    }
+
     public static BigInteger unsignedLongAsBigInteger(long l) {
         return l < 0 ? BigInteger.valueOf(twosComplement(l)) : LONG_MAX_PLUS_ONE_AS_BIGINTEGER.add(BigInteger.valueOf(l));
     }

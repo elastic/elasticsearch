@@ -117,7 +117,14 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
                 .stream()
                 .map(DesiredNodeWithStatus::desiredNode)
                 .toList();
-            request = new UpdateDesiredNodesRequest(desiredNodes.historyID(), desiredNodes.version() + 1, updatedNodes, false);
+            request = new UpdateDesiredNodesRequest(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                desiredNodes.historyID(),
+                desiredNodes.version() + 1,
+                updatedNodes,
+                false
+            );
         } else {
             request = randomUpdateDesiredNodesRequest();
         }
@@ -148,6 +155,8 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
             Collections.shuffle(equivalentDesiredNodesList, random());
         }
         final UpdateDesiredNodesRequest equivalentDesiredNodesRequest = new UpdateDesiredNodesRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             updateDesiredNodesRequest.getHistoryID(),
             updateDesiredNodesRequest.getVersion(),
             equivalentDesiredNodesList,
@@ -165,6 +174,8 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
         final var latestDesiredNodes = TransportUpdateDesiredNodesAction.updateDesiredNodes(null, updateDesiredNodesRequest);
 
         final UpdateDesiredNodesRequest request = new UpdateDesiredNodesRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             latestDesiredNodes.historyID(),
             latestDesiredNodes.version(),
             randomList(1, 10, DesiredNodesTestCase::randomDesiredNode),
@@ -182,6 +193,8 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
         final var updateDesiredNodesRequest = randomUpdateDesiredNodesRequest();
         final var latestDesiredNodes = TransportUpdateDesiredNodesAction.updateDesiredNodes(null, updateDesiredNodesRequest);
         final UpdateDesiredNodesRequest request = new UpdateDesiredNodesRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             latestDesiredNodes.historyID(),
             latestDesiredNodes.version() - 1,
             List.copyOf(latestDesiredNodes.nodes().stream().map(DesiredNodeWithStatus::desiredNode).toList()),

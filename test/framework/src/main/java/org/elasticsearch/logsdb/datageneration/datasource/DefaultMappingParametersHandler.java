@@ -25,10 +25,15 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         });
     }
 
-    // TODO enable doc_values: false
-    // It is disabled because it hits a bug in synthetic source.
     private Supplier<Map<String, Object>> keywordMapping() {
-        return () -> Map.of("store", ESTestCase.randomBoolean(), "index", ESTestCase.randomBoolean());
+        return () -> Map.of(
+            "store",
+            ESTestCase.randomBoolean(),
+            "index",
+            ESTestCase.randomBoolean(),
+            "doc_values",
+            ESTestCase.randomBoolean()
+        );
     }
 
     private Supplier<Map<String, Object>> numberMapping() {
@@ -43,13 +48,29 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
     }
 
     private Supplier<Map<String, Object>> unsignedLongMapping() {
-        return () -> Map.of("store", ESTestCase.randomBoolean(), "index", ESTestCase.randomBoolean());
+        return () -> Map.of(
+            "store",
+            ESTestCase.randomBoolean(),
+            "index",
+            ESTestCase.randomBoolean(),
+            "doc_values",
+            ESTestCase.randomBoolean()
+        );
     }
 
     private Supplier<Map<String, Object>> scaledFloatMapping() {
         return () -> {
             var scalingFactor = ESTestCase.randomFrom(10, 1000, 100000, 100.5);
-            return Map.of("scaling_factor", scalingFactor, "store", ESTestCase.randomBoolean(), "index", ESTestCase.randomBoolean());
+            return Map.of(
+                "scaling_factor",
+                scalingFactor,
+                "store",
+                ESTestCase.randomBoolean(),
+                "index",
+                ESTestCase.randomBoolean(),
+                "doc_values",
+                ESTestCase.randomBoolean()
+            );
         };
     }
 

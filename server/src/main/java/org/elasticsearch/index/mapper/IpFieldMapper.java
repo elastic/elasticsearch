@@ -615,49 +615,30 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected SyntheticSourceMode syntheticSourceMode() {
-        return SyntheticSourceMode.NATIVE;
-    }
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        if (hasDocValues) {
+            var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
+            layers.add(new SortedSetDocValuesSyntheticFieldLoaderLayer(fullPath()) {
+                @Override
+                protected BytesRef convert(BytesRef value) {
+                    byte[] bytes = Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length);
+                    return new BytesRef(NetworkAddress.format(InetAddressPoint.decode(bytes)));
+                }
 
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        if (hasScript()) {
-            return SourceLoader.SyntheticFieldLoader.NOTHING;
-        }
-        if (hasDocValues == false) {
-            throw new IllegalArgumentException(
-                "field ["
-                    + fullPath()
-                    + "] of type ["
-                    + typeName()
-                    + "] doesn't support synthetic source because it doesn't have doc values"
-            );
-        }
-        if (copyTo().copyToFields().isEmpty() != true) {
-            throw new IllegalArgumentException(
-                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
-            );
-        }
+                @Override
+                protected BytesRef preserve(BytesRef value) {
+                    // No need to copy because convert has made a deep copy
+                    return value;
+                }
+            });
 
-        var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
-        layers.add(new SortedSetDocValuesSyntheticFieldLoaderLayer(fullPath()) {
-            @Override
-            protected BytesRef convert(BytesRef value) {
-                byte[] bytes = Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length);
-                return new BytesRef(NetworkAddress.format(InetAddressPoint.decode(bytes)));
+            if (ignoreMalformed) {
+                layers.add(new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath()));
             }
 
-            @Override
-            protected BytesRef preserve(BytesRef value) {
-                // No need to copy because convert has made a deep copy
-                return value;
-            }
-        });
-
-        if (ignoreMalformed) {
-            layers.add(new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath()));
+            return new SyntheticSourceSupport.Native(new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers));
         }
 
-        return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
+        return super.syntheticSourceSupport();
     }
 }

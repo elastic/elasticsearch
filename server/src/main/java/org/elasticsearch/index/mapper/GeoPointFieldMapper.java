@@ -607,37 +607,21 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     }
 
     @Override
-    protected SyntheticSourceMode syntheticSourceMode() {
-        return SyntheticSourceMode.NATIVE;
-    }
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        if (fieldType().hasDocValues()) {
+            var loader = new SortedNumericDocValuesSyntheticFieldLoader(fullPath(), leafName(), ignoreMalformed()) {
+                final GeoPoint point = new GeoPoint();
 
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        if (hasScript()) {
-            return SourceLoader.SyntheticFieldLoader.NOTHING;
-        }
-        if (fieldType().hasDocValues() == false) {
-            throw new IllegalArgumentException(
-                "field ["
-                    + fullPath()
-                    + "] of type ["
-                    + typeName()
-                    + "] doesn't support synthetic source because it doesn't have doc values"
-            );
-        }
-        if (copyTo().copyToFields().isEmpty() != true) {
-            throw new IllegalArgumentException(
-                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
-            );
-        }
-        return new SortedNumericDocValuesSyntheticFieldLoader(fullPath(), leafName(), ignoreMalformed()) {
-            final GeoPoint point = new GeoPoint();
+                @Override
+                protected void writeValue(XContentBuilder b, long value) throws IOException {
+                    point.reset(GeoEncodingUtils.decodeLatitude((int) (value >>> 32)), GeoEncodingUtils.decodeLongitude((int) value));
+                    point.toXContent(b, ToXContent.EMPTY_PARAMS);
+                }
+            };
 
-            @Override
-            protected void writeValue(XContentBuilder b, long value) throws IOException {
-                point.reset(GeoEncodingUtils.decodeLatitude((int) (value >>> 32)), GeoEncodingUtils.decodeLongitude((int) value));
-                point.toXContent(b, ToXContent.EMPTY_PARAMS);
-            }
-        };
+            return new SyntheticSourceSupport.Native(loader);
+        }
+
+        return super.syntheticSourceSupport();
     }
 }

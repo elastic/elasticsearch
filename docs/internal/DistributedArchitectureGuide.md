@@ -391,11 +391,14 @@ Each individual task is local to a node, but can be related to other tasks via a
 Tasks are tracked in-memory on each node in the node's [TaskManager], new tasks are registered via one of the [TaskManager#register] methods.
 Registration of a task creates a [Task] instance with a unique-for-the-node numeric identifier, populates it with some metadata and stores it in the [TaskManager].
 
-Tasks are uniquely addressable in a cluster via the string `{node-ID}:{local-task-ID}`, e.g. `oTUltX4IQMOUUVeiohTt8A:124`. The [TaskId] class is a DTO used to represent the globally unique ID.
-
 The [register][TaskManager#register] methods will return the registered [Task] instance, which can be used to interact with the task. The [Task] class is often sub-classed to include task-specific data and operations. Specific [Task] subclasses are created by overriding the [createTask][TaskAwareRequest#createTask] method on the [TaskAwareRequest] passed to the [TaskManager#register] methods.
 
 When a task is completed, it must be unregistered via [TaskManager#unregister].
+
+#### A note about task IDs
+The IDs given to a task are numeric, supplied by a counter that starts at zero and increments over the life of the node process. So while they are unique in the individual node process, they would collide with IDs allocated after the node restarts, or IDs allocated on other nodes.
+
+To better identify a task in the cluster scope, the string `{node-ID}:{local-task-ID}` (e.g. `oTUltX4IQMOUUVeiohTt8A:124`) is used, however for the reasons explained this tuple will only be guaranteed unique for current tasks, not historical ones. [TaskId] is the DTO used to represent this tuple.
 
 ### What Tasks Are Tracked
 

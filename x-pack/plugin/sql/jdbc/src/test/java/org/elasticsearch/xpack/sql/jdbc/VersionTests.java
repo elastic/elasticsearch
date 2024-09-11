@@ -18,6 +18,7 @@ public class VersionTests extends ESTestCase {
         assertEquals(current(), ClientVersion.CURRENT);
     }
 
+    /** Returns the current stack version. Can be unreleased. */
     public static SqlVersion current() {
         return SqlVersion.fromString(Build.current().version());
     }

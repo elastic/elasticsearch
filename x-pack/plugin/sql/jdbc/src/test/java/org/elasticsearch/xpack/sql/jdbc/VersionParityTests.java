@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.sql.proto.SqlVersions;
 
 import java.io.IOException;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.xpack.sql.proto.VersionCompatibility.INTRODUCING_VERSION_COMPATIBILITY;
 
@@ -53,15 +55,19 @@ public class VersionParityTests extends WebServerTestCase {
 
     public void testNoExceptionThrownForCompatibleVersions() throws IOException {
         String url = JdbcConfiguration.URL_PREFIX + webServerAddress();
-        SqlVersion version = VersionTests.current();
-        try {
-            do {
+        List<SqlVersion> afterVersionCompatibility = new ArrayList<>(SqlVersions.getAllVersions().size());
+        SqlVersions.getAllVersions()
+            .stream()
+            .filter(v -> v.onOrAfter(INTRODUCING_VERSION_COMPATIBILITY))
+            .forEach(afterVersionCompatibility::add);
+        afterVersionCompatibility.add(VersionTests.current());
+        for (var version : afterVersionCompatibility) {
+            try {
                 prepareResponse(version);
                 new JdbcHttpClient(new JdbcConnection(JdbcConfiguration.create(url, null, 0), false));
-                version = SqlVersions.getPreviousVersion(version);
-            } while (version.onOrAfter(INTRODUCING_VERSION_COMPATIBILITY));
-        } catch (SQLException sqle) {
-            fail("JDBC driver version and Elasticsearch server version should be compatible. Error: " + sqle);
+            } catch (SQLException sqle) {
+                fail("JDBC driver version and Elasticsearch server version should be compatible. Error: " + sqle);
+            }
         }
     }
 

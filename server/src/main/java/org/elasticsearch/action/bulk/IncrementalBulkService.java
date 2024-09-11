@@ -185,7 +185,7 @@ public class IncrementalBulkService {
                         requestContext.restore();
                         final ArrayList<Releasable> toRelease = new ArrayList<>(releasables);
                         releasables.clear();
-                        client.bulk(bulkRequest, ActionListener.runAfter(new ActionListener<>() {
+                        client.bulk(bulkRequest, ActionListener.runBefore(new ActionListener<>() {
 
                             private final boolean isFirstRequest = incrementalRequestSubmitted == false;
 

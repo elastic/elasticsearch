@@ -326,14 +326,20 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         String secondShardNode = findShard(resolveIndex(index), 1);
         IndexingPressure primaryPressure = internalCluster().getInstance(IndexingPressure.class, node);
         long memoryLimit = primaryPressure.stats().getMemoryLimit();
+        long primaryRejections = primaryPressure.stats().getPrimaryRejections();
         try (Releasable releasable = primaryPressure.markPrimaryOperationStarted(10, memoryLimit, false)) {
-            while (nextRequested.get()) {
-                nextRequested.set(false);
-                refCounted.incRef();
-                handler.addItems(List.of(indexRequest(index)), refCounted::decRef, () -> nextRequested.set(true));
+            while (primaryPressure.stats().getPrimaryRejections() == primaryRejections) {
+                while (nextRequested.get()) {
+                    nextRequested.set(false);
+                    refCounted.incRef();
+                    List<DocWriteRequest<?>> requests = new ArrayList<>();
+                    for (int i = 0; i < 20; ++i) {
+                        requests.add(indexRequest(index));
+                    }
+                    handler.addItems(requests, refCounted::decRef, () -> nextRequested.set(true));
+                }
+                assertBusy(() -> assertTrue(nextRequested.get()));
             }
-
-            assertBusy(() -> assertTrue(nextRequested.get()));
         }
 
         while (nextRequested.get()) {

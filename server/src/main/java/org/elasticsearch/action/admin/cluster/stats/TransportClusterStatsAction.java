@@ -224,7 +224,7 @@ public class TransportClusterStatsAction extends TransportClusterStatsBaseAction
         var groupListener = new RemoteClusterActionListener<>(remotes.size(), remotesFuture);
 
         for (String clusterAlias : remotes) {
-            ClusterStatsRequest remoteRequest = request.subRequest();
+            var remoteRequest = new RemoteClusterStatsRequest(request.nodesIds());
             var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
                 clusterAlias,
                 remoteClientResponseExecutor,

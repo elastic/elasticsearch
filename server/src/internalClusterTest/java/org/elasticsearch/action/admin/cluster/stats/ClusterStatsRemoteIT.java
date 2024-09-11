@@ -127,7 +127,7 @@ public class ClusterStatsRemoteIT extends AbstractMultiClustersTestCase {
             assertFalse(
                 client(clusterAlias).admin()
                     .cluster()
-                    .prepareHealth(INDEX_NAME)
+                    .prepareHealth(TEST_REQUEST_TIMEOUT, INDEX_NAME)
                     .setWaitForGreenStatus()
                     .setTimeout(TimeValue.timeValueSeconds(10))
                     .get()

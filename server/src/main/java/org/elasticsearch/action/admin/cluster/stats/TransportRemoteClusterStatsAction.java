@@ -67,7 +67,7 @@ public class TransportRemoteClusterStatsAction extends TransportClusterStatsBase
             TYPE.name(),
             // TODO: which executor here?
             threadPool.executor(ThreadPool.Names.MANAGEMENT),
-            ClusterStatsRequest::new,
+            RemoteClusterStatsRequest::new,
             (request, channel, task) -> execute(task, request, new ActionListener<>() {
                 @Override
                 public void onResponse(RemoteClusterStatsResponse response) {

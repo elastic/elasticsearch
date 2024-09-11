@@ -302,6 +302,32 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
+    public void writeBlobAtomic(
+        OperationPurpose purpose,
+        String blobName,
+        InputStream inputStream,
+        long blobSize,
+        boolean failIfAlreadyExists
+    ) throws IOException {
+        assert purpose != OperationPurpose.SNAPSHOT_DATA && BlobContainer.assertPurposeConsistency(purpose, blobName) : purpose;
+        final String tempBlob = tempBlobName(blobName);
+        final Path tempBlobPath = path.resolve(tempBlob);
+        try {
+            writeToPath(inputStream, tempBlobPath, blobSize);
+            moveBlobAtomic(purpose, tempBlob, blobName, failIfAlreadyExists);
+        } catch (IOException ex) {
+            try {
+                deleteBlobsIgnoringIfNotExists(purpose, Iterators.single(tempBlob));
+            } catch (IOException e) {
+                ex.addSuppressed(e);
+            }
+            throw ex;
+        } finally {
+            IOUtils.fsync(path, true);
+        }
+    }
+
+    @Override
     public void writeBlobAtomic(OperationPurpose purpose, final String blobName, BytesReference bytes, boolean failIfAlreadyExists)
         throws IOException {
         assert purpose != OperationPurpose.SNAPSHOT_DATA && BlobContainer.assertPurposeConsistency(purpose, blobName) : purpose;

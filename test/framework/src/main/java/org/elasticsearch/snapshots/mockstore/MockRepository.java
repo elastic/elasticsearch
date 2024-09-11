@@ -663,6 +663,30 @@ public class MockRepository extends FsRepository {
 
             @Override
             public void writeBlobAtomic(
+                OperationPurpose purpose,
+                String blobName,
+                InputStream inputStream,
+                long blobSize,
+                boolean failIfAlreadyExists
+            ) throws IOException {
+                final Random random = beforeAtomicWrite(blobName);
+                if ((delegate() instanceof FsBlobContainer) && (random.nextBoolean())) {
+                    // Simulate a failure between the write and move operation in FsBlobContainer
+                    final String tempBlobName = FsBlobContainer.tempBlobName(blobName);
+                    super.writeBlob(purpose, tempBlobName, inputStream, blobSize, failIfAlreadyExists);
+                    maybeIOExceptionOrBlock(blobName);
+                    final FsBlobContainer fsBlobContainer = (FsBlobContainer) delegate();
+                    fsBlobContainer.moveBlobAtomic(purpose, tempBlobName, blobName, failIfAlreadyExists);
+                } else {
+                    // Atomic write since it is potentially supported
+                    // by the delegating blob container
+                    maybeIOExceptionOrBlock(blobName);
+                    super.writeBlobAtomic(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
+                }
+            }
+
+            @Override
+            public void writeBlobAtomic(
                 final OperationPurpose purpose,
                 final String blobName,
                 final BytesReference bytes,

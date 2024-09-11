@@ -82,7 +82,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -1507,17 +1506,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     public final void testSyntheticSourceInvalid() throws IOException {
         boolean ignoreMalformed = shouldUseIgnoreMalformed();
         List<SyntheticSourceInvalidExample> examples = new ArrayList<>(syntheticSourceSupport(ignoreMalformed).invalidExample());
-        if (supportsCopyTo()) {
-            examples.add(
-                new SyntheticSourceInvalidExample(
-                    matchesPattern("field \\[field] of type \\[.+] doesn't support synthetic source because it declares copy_to"),
-                    b -> {
-                        syntheticSourceSupport(ignoreMalformed).example(5).mapping().accept(b);
-                        b.field("copy_to", "bar");
-                    }
-                )
-            );
-        }
         for (SyntheticSourceInvalidExample example : examples) {
             Exception e = expectThrows(
                 IllegalArgumentException.class,

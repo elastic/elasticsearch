@@ -62,7 +62,7 @@ public class QuorumGatewayIT extends ESIntegTestCase {
                         ClusterHealthResponse clusterHealth = activeClient.admin()
                             .cluster()
                             .health(
-                                new ClusterHealthRequest(new String[] {}).waitForYellowStatus()
+                                new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, new String[] {}).waitForYellowStatus()
                                     .waitForNodes("2")
                                     .waitForActiveShards(test.numPrimaries * 2)
                             )

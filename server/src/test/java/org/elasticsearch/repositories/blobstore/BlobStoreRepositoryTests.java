@@ -81,6 +81,10 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.repositories.RepositoryDataTests.generateRandomRepoData;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.INDEX_FILE_PREFIX;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.METADATA_BLOB_NAME_SUFFIX;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.METADATA_PREFIX;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.SNAPSHOT_PREFIX;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -550,7 +554,10 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                         expectedShardGenerations.put(indexId, shard, shardGeneration);
                         final var blobsToDelete = randomList(
                             100,
-                            () -> randomFrom("meta-", "index-", "snap-") + randomUUID() + randomFrom("", ".dat")
+                            () -> randomFrom(METADATA_PREFIX, INDEX_FILE_PREFIX, SNAPSHOT_PREFIX) + randomUUID() + randomFrom(
+                                "",
+                                METADATA_BLOB_NAME_SUFFIX
+                            )
                         );
                         blobCount += blobsToDelete.size();
                         final var indexPath = repo.basePath()

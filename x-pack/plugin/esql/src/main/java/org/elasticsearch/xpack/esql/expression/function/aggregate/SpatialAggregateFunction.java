@@ -29,6 +29,7 @@ public abstract class SpatialAggregateFunction extends AggregateFunction {
 
     protected SpatialAggregateFunction(StreamInput in, boolean useDocValues) throws IOException {
         super(in);
+        // The useDocValues field is only used on data nodes local planning, and therefor never serialized
         this.useDocValues = useDocValues;
     }
 

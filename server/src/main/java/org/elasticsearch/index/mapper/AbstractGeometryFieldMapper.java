@@ -201,29 +201,14 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
     protected AbstractGeometryFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
+        BuilderParams builderParams,
         Explicit<Boolean> ignoreMalformed,
         Explicit<Boolean> ignoreZValue,
-        MultiFields multiFields,
-        CopyTo copyTo,
         Parser<T> parser
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
+        super(simpleName, mappedFieldType, builderParams);
         this.ignoreMalformed = ignoreMalformed;
         this.ignoreZValue = ignoreZValue;
-        this.parser = parser;
-    }
-
-    protected AbstractGeometryFieldMapper(
-        String simpleName,
-        MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
-        Parser<T> parser,
-        OnScriptError onScriptError
-    ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, true, onScriptError);
-        this.ignoreMalformed = Explicit.EXPLICIT_FALSE;
-        this.ignoreZValue = Explicit.EXPLICIT_FALSE;
         this.parser = parser;
     }
 
@@ -252,7 +237,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
 
     @Override
     public final void parse(DocumentParserContext context) throws IOException {
-        if (hasScript) {
+        if (builderParams.hasScript()) {
             throw new DocumentParsingException(
                 context.parser().getTokenLocation(),
                 "failed to parse field [" + fieldType().name() + "] of type + " + contentType() + "]",

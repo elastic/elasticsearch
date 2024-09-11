@@ -210,7 +210,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         boolean eagerGlobalOrdinals,
         List<Relations> relations
     ) {
-        super(simpleName, mappedFieldType, MultiFields.empty(), CopyTo.empty(), false, null);
+        super(simpleName, mappedFieldType, BuilderParams.empty());
         this.parentIdFields = parentIdFields;
         this.eagerGlobalOrdinals = eagerGlobalOrdinals;
         this.relations = relations;

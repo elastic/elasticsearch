@@ -73,6 +73,8 @@ List projects = [
   'distribution:docker:ironbank-docker-export',
   'distribution:docker:ubi-docker-aarch64-export',
   'distribution:docker:ubi-docker-export',
+  'distribution:docker:wolfi-docker-aarch64-export',
+  'distribution:docker:wolfi-docker-export',
   'distribution:packages:aarch64-deb',
   'distribution:packages:deb',
   'distribution:packages:aarch64-rpm',

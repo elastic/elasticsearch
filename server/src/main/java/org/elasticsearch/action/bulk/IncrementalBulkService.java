@@ -140,6 +140,7 @@ public class IncrementalBulkService {
                         try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
                             requestContext.restore();
                             final ArrayList<Releasable> toRelease = new ArrayList<>(releasables);
+                            releasables.clear();
                             client.bulk(bulkRequest, ActionListener.runAfter(new ActionListener<>() {
 
                                 @Override
@@ -160,7 +161,6 @@ public class IncrementalBulkService {
                                 nextItems.run();
                             }));
                         }
-                        releasables.clear();
                     } else {
                         nextItems.run();
                     }
@@ -184,6 +184,7 @@ public class IncrementalBulkService {
                     try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
                         requestContext.restore();
                         final ArrayList<Releasable> toRelease = new ArrayList<>(releasables);
+                        releasables.clear();
                         client.bulk(bulkRequest, ActionListener.runAfter(new ActionListener<>() {
 
                             private final boolean isFirstRequest = incrementalRequestSubmitted == false;
@@ -201,7 +202,6 @@ public class IncrementalBulkService {
                             }
                         }, () -> toRelease.forEach(Releasable::close)));
                     }
-                    releasables.clear();
                 } else {
                     errorResponse(listener);
                 }
@@ -270,6 +270,8 @@ public class IncrementalBulkService {
                 return true;
             } catch (EsRejectedExecutionException e) {
                 handleBulkFailure(incrementalRequestSubmitted == false, e);
+                releasables.forEach(Releasable::close);
+                releasables.clear();
                 return false;
             }
         }

@@ -376,7 +376,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
         putTemplate(client, "standard-template", STANDARD_TEMPLATE);
         createDataStream(client, "standard-apache-kafka");
 
-        // Index some documents in the standard index
+        // Index some documents in the LogsDB index
         for (int i = 0; i < 10; i++) {
             indexDocument(
                 client,
@@ -395,7 +395,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
         assertDataStreamBackingIndexMode("logsdb", 0, "logs-apache-kafka");
         assertThat(entityAsMap(client.performRequest(new Request("POST", "/logs-apache-kafka/_count"))).get("count"), Matchers.equalTo(10));
 
-        // Reindex a standard data stream into a LogsDB data stream
+        // Reindex a LogsDB data stream into a standard data stream
         final Request reindexRequest = new Request("POST", "/_reindex?refresh=true");
         reindexRequest.setJsonEntity("""
             {
@@ -422,7 +422,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
         putTemplate(client, "standard-template", STANDARD_TEMPLATE);
         createDataStream(client, "standard-apache-kafka");
 
-        // Index some documents in LogsDB
+        // Index some documents in a standard index
         for (int i = 0; i < 10; i++) {
             indexDocument(
                 client,
@@ -441,7 +441,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
         assertDataStreamBackingIndexMode("standard", 0, "standard-apache-kafka");
         assertDocCount(client, "standard-apache-kafka", 10);
 
-        // Reindex LogsDB data stream into a standard data stream
+        // Reindex a standard data stream into a LogsDB data stream
         final Request reindexRequest = new Request("POST", "/_reindex?refresh=true");
         reindexRequest.setJsonEntity("""
             {

@@ -115,7 +115,7 @@ public class RetrieverRewriteIT extends ESIntegTestCase {
                 throw new IllegalStateException("node did not stop");
             }
             assertBusy(() -> {
-                ClusterHealthResponse healthResponse = clusterAdmin().prepareHealth(testIndex)
+                ClusterHealthResponse healthResponse = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, testIndex)
                     .setWaitForStatus(ClusterHealthStatus.RED) // we are now known red because the primary shard is missing
                     .setWaitForEvents(Priority.LANGUID) // ensures that the update has occurred
                     .execute()

@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Helper for adding a {@link Page} worth of {@link Block}s to a {@link BlockHash}
@@ -21,13 +22,17 @@ import org.elasticsearch.core.Releasable;
  * for how to add values to it. After adding all values, call {@link #emitOrds} to
  * flush the last batch of values to the aggs.
  */
-public class AddBlock implements Releasable {
+public class AddPage implements Releasable {
     private final BlockFactory blockFactory;
-    private final int emitBatchSize;
+    private final long emitBatchSize;
     private final GroupingAggregatorFunction.AddInput addInput;
 
     private int positionOffset = 0;
-    private int added = 0;
+    /**
+     * Number of added documents. This is a {@code long} because callers will
+     * often perform the combinatorial explosion of values.
+     */
+    private long added = 0;
     private IntBlock.Builder ords;
     /**
      * State of the current position.
@@ -49,12 +54,16 @@ public class AddBlock implements Releasable {
      */
     private int firstOrd = -1;
 
-    public AddBlock(BlockFactory blockFactory, int emitBatchSize, GroupingAggregatorFunction.AddInput addInput) {
+    public AddPage(BlockFactory blockFactory, int emitBatchSize, GroupingAggregatorFunction.AddInput addInput) {
         this.blockFactory = blockFactory;
         this.emitBatchSize = emitBatchSize;
         this.addInput = addInput;
 
         this.ords = blockFactory.newIntBlockBuilder(emitBatchSize);
+    }
+
+    long added() {
+        return added;
     }
 
     /**
@@ -64,7 +73,7 @@ public class AddBlock implements Releasable {
     protected final void appendOrdSv(int position, int ord) {
         assert firstOrd == -1 : "currently in a multivalue position";
         ords.appendInt(ord);
-        if (++added % emitBatchSize == 0) {
+        if (++added % emitBatchSize == 0L) {
             rollover(position + 1);
         }
     }
@@ -77,7 +86,7 @@ public class AddBlock implements Releasable {
     @Deprecated
     protected final void appendNullSv(int position) {
         ords.appendNull();
-        if (++added % emitBatchSize == 0) {
+        if (++added % emitBatchSize == 0L) {
             rollover(position + 1);
         }
     }
@@ -94,7 +103,7 @@ public class AddBlock implements Releasable {
      * }</pre>
      */
     protected final void appendOrdInMv(int position, int ord) {
-        if (++added % emitBatchSize == 0) {
+        if (++added % emitBatchSize == 0L) {
             switch (firstOrd) {
                 case -1 -> ords.appendInt(ord);
                 case -2 -> {
@@ -135,7 +144,20 @@ public class AddBlock implements Releasable {
         firstOrd = -1;
     }
 
-    protected final void emitOrds() {
+    /**
+     * Call when finished to emit all remaining ordinals to the aggs.
+     */
+    protected final void flushRemaining() {
+        if (firstOrd != -1) {
+            throw new IllegalStateException("in the middle of a position");
+        }
+        if (added % emitBatchSize != 0) {
+            // If the % is 0 then we just flushed and there isn't any need to flush an empty block.
+            emitOrds();
+        }
+    }
+
+    private void emitOrds() {
         try (IntBlock ordsBlock = ords.build()) {
             addInput.add(positionOffset, ordsBlock);
         }
@@ -144,11 +166,11 @@ public class AddBlock implements Releasable {
     private void rollover(int position) {
         emitOrds();
         positionOffset = position;
-        ords = blockFactory.newIntBlockBuilder(emitBatchSize); // TODO add a clear method to the builder?
+        ords = blockFactory.newIntBlockBuilder(Math.toIntExact(emitBatchSize));
     }
 
     @Override
     public void close() {
-        ords.close();
+        Releasables.closeExpectNoException(ords, addInput);
     }
 }

@@ -45,7 +45,6 @@ import org.elasticsearch.index.mapper.BlockStoredFieldsReader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.StringStoredFieldFieldLoader;
@@ -433,22 +432,14 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected SyntheticSourceMode syntheticSourceMode() {
-        return SyntheticSourceMode.NATIVE;
-    }
-
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        if (copyTo().copyToFields().isEmpty() != true) {
-            throw new IllegalArgumentException(
-                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
-            );
-        }
-        return new StringStoredFieldFieldLoader(fieldType().storedFieldNameForSyntheticSource(), leafName()) {
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        var loader = new StringStoredFieldFieldLoader(fieldType().storedFieldNameForSyntheticSource(), leafName()) {
             @Override
             protected void write(XContentBuilder b, Object value) throws IOException {
                 b.value((String) value);
             }
         };
+
+        return new SyntheticSourceSupport.Native(loader);
     }
 }

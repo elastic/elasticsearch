@@ -158,8 +158,8 @@ public class ClusterAdminClient implements ElasticsearchClient {
         execute(TransportClusterHealthAction.TYPE, request, listener);
     }
 
-    public ClusterHealthRequestBuilder prepareHealth(String... indices) {
-        return new ClusterHealthRequestBuilder(this).setIndices(indices);
+    public ClusterHealthRequestBuilder prepareHealth(TimeValue masterNodeTimeout, String... indices) {
+        return new ClusterHealthRequestBuilder(this, masterNodeTimeout).setIndices(indices);
     }
 
     public ActionFuture<ClusterStateResponse> state(final ClusterStateRequest request) {
@@ -170,8 +170,8 @@ public class ClusterAdminClient implements ElasticsearchClient {
         execute(ClusterStateAction.INSTANCE, request, listener);
     }
 
-    public ClusterStateRequestBuilder prepareState() {
-        return new ClusterStateRequestBuilder(this);
+    public ClusterStateRequestBuilder prepareState(TimeValue masterNodeTimeout) {
+        return new ClusterStateRequestBuilder(this, masterNodeTimeout);
     }
 
     public ActionFuture<ClusterUpdateSettingsResponse> updateSettings(final ClusterUpdateSettingsRequest request) {
@@ -182,8 +182,8 @@ public class ClusterAdminClient implements ElasticsearchClient {
         execute(ClusterUpdateSettingsAction.INSTANCE, request, listener);
     }
 
-    public ClusterUpdateSettingsRequestBuilder prepareUpdateSettings() {
-        return new ClusterUpdateSettingsRequestBuilder(this);
+    public ClusterUpdateSettingsRequestBuilder prepareUpdateSettings(TimeValue masterNodeTimeout, TimeValue ackTimeout) {
+        return new ClusterUpdateSettingsRequestBuilder(this, masterNodeTimeout, ackTimeout);
     }
 
     public ActionFuture<NodesInfoResponse> nodesInfo(final NodesInfoRequest request) {

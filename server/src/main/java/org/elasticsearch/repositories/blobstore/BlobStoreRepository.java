@@ -595,7 +595,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 existingSnapshots = tuple.v1();
             } else {
                 newGen = ShardGeneration.newGeneration();
-                existingSnapshots = buildBlobStoreIndexShardSnapshots(Collections.emptySet(), shardContainer, shardGeneration).v1();
+                existingSnapshots = buildBlobStoreIndexShardSnapshots(index, Collections.emptySet(), shardContainer, shardGeneration).v1();
                 existingShardGen = shardGeneration;
             }
             SnapshotFiles existingTargetFiles = null;
@@ -1307,6 +1307,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     if (useShardGenerations) {
                         newGen = -1L;
                         blobStoreIndexShardSnapshots = buildBlobStoreIndexShardSnapshots(
+                            indexId,
                             originalShardBlobs,
                             shardContainer,
                             originalRepositoryData.shardGenerations().getShardGen(indexId, shardId)
@@ -3200,6 +3201,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
             snapshotStatus.ensureNotAborted();
             Tuple<BlobStoreIndexShardSnapshots, ShardGeneration> tuple = buildBlobStoreIndexShardSnapshots(
+                context.indexId(),
                 blobs,
                 shardContainer,
                 generation
@@ -3840,13 +3842,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             blobs = shardContainer.listBlobsByPrefix(OperationPurpose.SNAPSHOT_METADATA, SNAPSHOT_INDEX_PREFIX).keySet();
         }
 
-        return buildBlobStoreIndexShardSnapshots(blobs, shardContainer, shardGen).v1();
+        return buildBlobStoreIndexShardSnapshots(indexId, blobs, shardContainer, shardGen).v1();
     }
 
     /**
      * Loads all available snapshots in the repository using the given {@code generation} or falling back to trying to determine it from
      * the given list of blobs in the shard container.
      *
+     * @param indexId    {@link IndexId} identifying the corresponding index
      * @param blobs      list of blobs in repository
      * @param generation shard generation or {@code null} in case there was no shard generation tracked in the {@link RepositoryData} for
      *                   this shard because its snapshot was created in a version older than
@@ -3854,6 +3857,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @return tuple of BlobStoreIndexShardSnapshots and the last snapshot index generation
      */
     private Tuple<BlobStoreIndexShardSnapshots, ShardGeneration> buildBlobStoreIndexShardSnapshots(
+        IndexId indexId,
         Set<String> blobs,
         BlobContainer shardContainer,
         @Nullable ShardGeneration generation
@@ -3862,13 +3866,95 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             if (generation.equals(ShardGenerations.NEW_SHARD_GEN)) {
                 return new Tuple<>(BlobStoreIndexShardSnapshots.EMPTY, ShardGenerations.NEW_SHARD_GEN);
             }
-            return new Tuple<>(
-                INDEX_SHARD_SNAPSHOTS_FORMAT.read(metadata.name(), shardContainer, generation.getGenerationUUID(), namedXContentRegistry),
-                generation
-            );
+            try {
+                return new Tuple<>(
+                    INDEX_SHARD_SNAPSHOTS_FORMAT.read(
+                        metadata.name(),
+                        shardContainer,
+                        generation.getGenerationUUID(),
+                        namedXContentRegistry
+                    ),
+                    generation
+                );
+            } catch (NoSuchFileException noSuchFileException) {
+                // This shouldn't happen (absent an external force deleting blobs from the repo) but in practice we've found bugs in the way
+                // we manipulate shard generation UUIDs under concurrent snapshot load which can lead to incorrectly deleting a referenced
+                // shard-level `index-UUID` blob during finalization. We definitely want to treat this as a test failure (see the `assert`
+                // below), but in production it is rather poor UX to leave this shard in a state where it permanently cannot take any new
+                // snapshots. Especially if we got into this state because of a bug. Thus we fall back to reconstructing the contents of the
+                // missing blob from all available shard-level snapshot metadata blobs.
+                //
+                // Note that if a shard-level snapshot metadata blob is also missing when executing this fallback then we'll lose track of,
+                // and eventually delete, the corresponding data blobs. We haven't seen any bugs that can lead to missing shard-level
+                // metadata blobs, and any such bug would prevent the shard snapshot from being restored anyway so there's no point in
+                // keeping hold of its data blobs.
+                try {
+                    final var message = Strings.format(
+                        "index %s shard generation [%s] in [%s][%s] not found - falling back to reading all shard snapshots",
+                        indexId,
+                        generation,
+                        metadata.name(),
+                        shardContainer.path()
+                    );
+                    logger.error(message, noSuchFileException);
+                    assert BlobStoreIndexShardSnapshots.areIntegrityAssertionsEnabled() == false
+                        : new AssertionError(message, noSuchFileException);
+
+                    final var shardSnapshotBlobs = shardContainer.listBlobsByPrefix(OperationPurpose.SNAPSHOT_METADATA, SNAPSHOT_PREFIX);
+                    var blobStoreIndexShardSnapshots = BlobStoreIndexShardSnapshots.EMPTY;
+                    final var messageBuilder = new StringBuilder();
+                    final var shardSnapshotBlobNameLengthBeforeExt = SNAPSHOT_PREFIX.length() + UUIDs.RANDOM_BASED_UUID_STRING_LENGTH;
+                    final var shardSnapshotBlobNameLength = shardSnapshotBlobNameLengthBeforeExt + METADATA_BLOB_NAME_SUFFIX.length();
+                    for (final var shardSnapshotBlobName : shardSnapshotBlobs.keySet()) {
+                        if (shardSnapshotBlobName.startsWith(SNAPSHOT_PREFIX)
+                            && shardSnapshotBlobName.endsWith(METADATA_BLOB_NAME_SUFFIX)
+                            && shardSnapshotBlobName.length() == shardSnapshotBlobNameLength) {
+                            final var shardSnapshot = INDEX_SHARD_SNAPSHOT_FORMAT.read(
+                                metadata.name(),
+                                shardContainer,
+                                shardSnapshotBlobName.substring(SNAPSHOT_PREFIX.length(), shardSnapshotBlobNameLengthBeforeExt),
+                                namedXContentRegistry
+                            );
+                            blobStoreIndexShardSnapshots = blobStoreIndexShardSnapshots.withAddedSnapshot(
+                                new SnapshotFiles(shardSnapshot.snapshot(), shardSnapshot.indexFiles(), null)
+                            );
+                            if (messageBuilder.length() > 0) {
+                                messageBuilder.append(", ");
+                            }
+                            messageBuilder.append(shardSnapshotBlobName);
+                        } else {
+                            throw new IllegalStateException(
+                                Strings.format(
+                                    "unexpected shard snapshot blob [%s] found in [%s][%s]",
+                                    shardSnapshotBlobName,
+                                    metadata.name(),
+                                    shardContainer.path()
+                                )
+                            );
+                        }
+                    }
+                    logger.error(
+                        "read shard snapshots [{}] due to missing shard generation [{}] for index {} in [{}][{}]",
+                        messageBuilder,
+                        generation,
+                        indexId,
+                        metadata.name(),
+                        shardContainer.path()
+                    );
+                    return new Tuple<>(blobStoreIndexShardSnapshots, generation);
+                } catch (Exception fallbackException) {
+                    logger.error(
+                        Strings.format("failed while reading all shard snapshots from [%s][%s]", metadata.name(), shardContainer.path()),
+                        fallbackException
+                    );
+                    noSuchFileException.addSuppressed(fallbackException);
+                    throw noSuchFileException;
+                }
+            }
+        } else {
+            final Tuple<BlobStoreIndexShardSnapshots, Long> legacyIndex = buildBlobStoreIndexShardSnapshots(blobs, shardContainer);
+            return new Tuple<>(legacyIndex.v1(), new ShardGeneration(legacyIndex.v2()));
         }
-        final Tuple<BlobStoreIndexShardSnapshots, Long> legacyIndex = buildBlobStoreIndexShardSnapshots(blobs, shardContainer);
-        return new Tuple<>(legacyIndex.v1(), new ShardGeneration(legacyIndex.v2()));
     }
 
     /**

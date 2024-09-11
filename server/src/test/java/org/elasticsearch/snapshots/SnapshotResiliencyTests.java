@@ -1036,7 +1036,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         continueOrDie(
             createRepoAndIndex(repoName, index, shards),
-            createIndexResponse -> client().admin().cluster().state(new ClusterStateRequest(), clusterStateResponseStepListener)
+            createIndexResponse -> client().admin()
+                .cluster()
+                .state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT), clusterStateResponseStepListener)
         );
 
         continueOrDie(clusterStateResponseStepListener, clusterStateResponse -> {
@@ -1048,7 +1050,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 @Override
                 public void run() {
                     final SubscribableListener<ClusterStateResponse> updatedClusterStateResponseStepListener = new SubscribableListener<>();
-                    masterAdminClient.cluster().state(new ClusterStateRequest(), updatedClusterStateResponseStepListener);
+                    masterAdminClient.cluster()
+                        .state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT), updatedClusterStateResponseStepListener);
                     continueOrDie(updatedClusterStateResponseStepListener, updatedClusterState -> {
                         final ShardRouting shardRouting = updatedClusterState.getState()
                             .routingTable()

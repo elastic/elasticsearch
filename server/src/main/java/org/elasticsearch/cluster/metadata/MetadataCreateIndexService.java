@@ -817,7 +817,23 @@ public class MetadataCreateIndexService {
         final NamedXContentRegistry xContentRegistry,
         final String indexName
     ) throws Exception {
-        List<CompressedXContent> templateMappings = MetadataIndexTemplateService.collectMappings(currentState, templateName, indexName);
+        return collectV2Mappings(requestMappings, currentState, templateName, Map.of(), xContentRegistry, indexName);
+    }
+
+    public static List<CompressedXContent> collectV2Mappings(
+        @Nullable final String requestMappings,
+        final ClusterState currentState,
+        final String templateName,
+        Map<String, ComponentTemplate> componentTemplateSubstitutions,
+        final NamedXContentRegistry xContentRegistry,
+        final String indexName
+    ) throws Exception {
+        List<CompressedXContent> templateMappings = MetadataIndexTemplateService.collectMappings(
+            currentState,
+            templateName,
+            componentTemplateSubstitutions,
+            indexName
+        );
         return collectV2Mappings(requestMappings, templateMappings, xContentRegistry);
     }
 

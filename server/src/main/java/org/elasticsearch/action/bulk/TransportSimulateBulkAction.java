@@ -15,6 +15,9 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.SimulateIndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
@@ -48,6 +51,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
+import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -66,6 +71,9 @@ import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.fi
 public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
     public static final NodeFeature SIMULATE_MAPPING_VALIDATION = new NodeFeature("simulate.mapping.validation");
     public static final NodeFeature SIMULATE_MAPPING_VALIDATION_TEMPLATES = new NodeFeature("simulate.mapping.validation.templates");
+    public static final NodeFeature SIMULATE_COMPONENT_TEMPLATE_SUBSTITUTIONS = new NodeFeature(
+        "simulate.component.template.substitutions"
+    );
     private final IndicesService indicesService;
     private final NamedXContentRegistry xContentRegistry;
     private final Set<IndexSettingProvider> indexSettingProviders;
@@ -109,11 +117,20 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         long relativeStartTimeNanos
     ) {
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
+        assert bulkRequest instanceof SimulateBulkRequest
+            : "TransportSimulateBulkAction should only ever be called with a SimulateBulkRequest but got a " + bulkRequest.getClass();
+        Map<String, Map<String, Object>> rawTemplateSubstitutions = ((SimulateBulkRequest) bulkRequest).getTemplateSubstitutions();
+        Map<String, ComponentTemplate> componentTemplateSubstitutions;
+        try {
+            componentTemplateSubstitutions = getComponentTemplateSubstitutionsFromRaw(rawTemplateSubstitutions);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
         for (int i = 0; i < bulkRequest.requests.size(); i++) {
             DocWriteRequest<?> docRequest = bulkRequest.requests.get(i);
             assert docRequest instanceof IndexRequest : "TransportSimulateBulkAction should only ever be called with IndexRequests";
             IndexRequest request = (IndexRequest) docRequest;
-            Exception mappingValidationException = validateMappings(request);
+            Exception mappingValidationException = validateMappings(componentTemplateSubstitutions, request);
             responses.set(
                 i,
                 BulkItemResponse.success(
@@ -136,13 +153,42 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         );
     }
 
+    static Map<String, ComponentTemplate> getComponentTemplateSubstitutionsFromRaw(
+        Map<String, Map<String, Object>> rawTemplateSubstitutions
+    ) throws IOException {
+        if (rawTemplateSubstitutions == null) {
+            return Map.of();
+        }
+        Map<String, ComponentTemplate> result = new HashMap<>(rawTemplateSubstitutions.size());
+        for (Map.Entry<String, Map<String, Object>> rawEntry : rawTemplateSubstitutions.entrySet()) {
+            result.put(rawEntry.getKey(), convertRawTemplateToComponentTemplate(rawEntry.getValue()));
+        }
+        return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static ComponentTemplate convertRawTemplateToComponentTemplate(Map<String, Object> rawTemplate) throws IOException {
+        Settings settings = null;
+        CompressedXContent mappings = null;
+        if (rawTemplate.containsKey("mappings")) {
+            mappings = new CompressedXContent((Map<String, Object>) rawTemplate.get("mappings"));
+        }
+        if (rawTemplate.containsKey("settings")) {
+            settings = Settings.builder().loadFromMap((Map<String, ?>) rawTemplate.get("settings")).build();
+        }
+        Map<String, AliasMetadata> aliases = null;
+        DataStreamLifecycle lifecycle = null;
+        Template template = new Template(settings, mappings, aliases, lifecycle);
+        return new ComponentTemplate(template, null, null);
+    }
+
     /**
      * This creates a temporary index with the mappings of the index in the request, and then attempts to index the source from the request
      * into it. If there is a mapping exception, that exception is returned. On success the returned exception is null.
      * @param request The IndexRequest whose source will be validated against the mapping (if it exists) of its index
      * @return a mapping exception if the source does not match the mappings, otherwise null
      */
-    private Exception validateMappings(IndexRequest request) {
+    private Exception validateMappings(Map<String, ComponentTemplate> componentTemplateSubstitutions, IndexRequest request) {
         final SourceToParse sourceToParse = new SourceToParse(
             request.id(),
             request.source(),
@@ -156,7 +202,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         Exception mappingValidationException = null;
         IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(request.index());
         try {
-            if (indexAbstraction != null) {
+            if (indexAbstraction != null && componentTemplateSubstitutions.isEmpty()) {
                 IndexMetadata imd = state.metadata().getIndexSafe(indexAbstraction.getWriteIndex(request, state.metadata()));
                 indicesService.withTempIndexService(imd, indexService -> {
                     indexService.mapperService().updateMapping(null, imd);
@@ -183,17 +229,21 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                  * when the index does not exist). And it does not deal with system indices since we do not intend for users to simulate
                  * writing to system indices.
                  */
+                ClusterState simulatedState = new ClusterState.Builder(state).metadata(
+                    new Metadata.Builder(state.metadata()).remove(request.index()).build()
+                ).build();
                 String matchingTemplate = findV2Template(state.metadata(), request.index(), false);
                 if (matchingTemplate != null) {
                     final Template template = TransportSimulateIndexTemplateAction.resolveTemplate(
                         matchingTemplate,
                         request.index(),
-                        state,
+                        simulatedState,
                         isDataStreamsLifecycleOnlyMode(clusterService.getSettings()),
                         xContentRegistry,
                         indicesService,
                         systemIndices,
-                        indexSettingProviders
+                        indexSettingProviders,
+                        componentTemplateSubstitutions
                     );
                     CompressedXContent mappings = template.mappings();
                     if (mappings != null) {

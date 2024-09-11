@@ -19,13 +19,18 @@ import static org.hamcrest.Matchers.equalTo;
 public class SimulateBulkRequestTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
-        testSerialization(getTestPipelineSubstitutions());
-        testSerialization(null);
-        testSerialization(Map.of());
+        testSerialization(getTestPipelineSubstitutions(), getTestTemplateSubstitutions());
+        testSerialization(getTestPipelineSubstitutions(), null);
+        testSerialization(null, getTestTemplateSubstitutions());
+        testSerialization(null, null);
+        testSerialization(Map.of(), Map.of());
     }
 
-    private void testSerialization(Map<String, Map<String, Object>> pipelineSubstitutions) throws IOException {
-        SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(pipelineSubstitutions);
+    private void testSerialization(
+        Map<String, Map<String, Object>> pipelineSubstitutions,
+        Map<String, Map<String, Object>> templateSubstitutions
+    ) throws IOException {
+        SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(pipelineSubstitutions, templateSubstitutions);
         /*
          * Note: SimulateBulkRequest does not implement equals or hashCode, so we can't test serialization in the usual way for a
          * Writable
@@ -40,6 +45,15 @@ public class SimulateBulkRequestTests extends ESTestCase {
             Map.of("processors", List.of(Map.of("processor2", Map.of()), Map.of("processor3", Map.of()))),
             "pipeline2",
             Map.of("processors", List.of(Map.of("processor3", Map.of())))
+        );
+    }
+
+    private static Map<String, Map<String, Object>> getTestTemplateSubstitutions() {
+        return Map.of(
+            "template1",
+            Map.of("mappings", Map.of("_source", Map.of("enabled", false), "properties", Map.of()), "settings", Map.of()),
+            "template2",
+            Map.of("mappings", Map.of(), "settings", Map.of())
         );
     }
 }

@@ -18,6 +18,7 @@ composed_of:
 ignore_missing_component_templates:
 - traces@custom
 - traces-apm.sampled@custom
+- traces-apm.sampled-fallback@ilm
 template:
   lifecycle:
     data_retention: 1h

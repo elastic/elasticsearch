@@ -21,6 +21,7 @@ composed_of:
 ignore_missing_component_templates:
 - logs@custom
 - logs-apm.error@custom
+- logs-apm.error-fallback@ilm
 template:
   mappings:
     properties:

@@ -23,6 +23,7 @@ composed_of:
 ignore_missing_component_templates:
 - metrics@custom
 - metrics-apm.service_summary.10m@custom
+- metrics-apm.service_summary.10m-fallback@ilm
 template:
   settings:
     index:

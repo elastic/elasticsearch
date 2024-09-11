@@ -20,6 +20,7 @@ composed_of:
 ignore_missing_component_templates:
 - metrics@custom
 - metrics-apm.app@custom
+- metrics-apm.app-fallback@ilm
 template:
   settings:
     index:

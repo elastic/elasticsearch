@@ -19,6 +19,7 @@ composed_of:
 ignore_missing_component_templates:
 - logs@custom
 - logs-apm.app@custom
+- logs-apm.app-fallback@ilm
 template:
   settings:
     index:

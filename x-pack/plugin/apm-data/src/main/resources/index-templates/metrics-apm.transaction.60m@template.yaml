@@ -23,6 +23,7 @@ composed_of:
 ignore_missing_component_templates:
 - metrics@custom
 - metrics-apm.transaction.60m@custom
+- metrics-apm.transaction.60m-fallback@ilm
 template:
   settings:
     index:

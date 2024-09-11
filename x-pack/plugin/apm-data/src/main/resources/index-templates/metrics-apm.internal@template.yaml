@@ -21,6 +21,7 @@ composed_of:
 ignore_missing_component_templates:
 - metrics@custom
 - metrics-apm.internal@custom
+- metrics-apm.internal-fallback@ilm
 template:
   settings:
     index:

@@ -20,6 +20,7 @@ composed_of:
 ignore_missing_component_templates:
 - traces@custom
 - traces-apm@custom
+- traces-apm-fallback@ilm
 template:
   settings:
     index:

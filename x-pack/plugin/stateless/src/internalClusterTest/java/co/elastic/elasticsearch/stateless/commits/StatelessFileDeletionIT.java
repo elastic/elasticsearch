@@ -25,6 +25,7 @@ import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompo
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
+import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
@@ -1122,12 +1123,18 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNode, 0);
         var initialBlobs = listBlobsWithAbsolutePath(shardCommitsContainer);
 
+        var indexShard = findIndexShard(indexName);
+        var initialGeneration = asInstanceOf(IndexEngine.class, indexShard.getEngineOrNull()).getCurrentGeneration();
+
         // Create some commits
         int commits = randomIntBetween(2, 5);
         for (int i = 0; i < commits; i++) {
             indexDocs(indexName, randomIntBetween(1, 100));
             refresh(indexName);
         }
+
+        final long recoveryGeneration = initialGeneration + commits;
+        logger.debug("--> search shard 2 will recover from generation {}", recoveryGeneration);
 
         AtomicBoolean enableChecks = new AtomicBoolean(true);
         CountDownLatch commitRegistrationStarted = new CountDownLatch(1);
@@ -1158,41 +1165,60 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
                 );
             });
 
+        final var blobsBeforeNewCommitNotificationResponse = new AtomicReference<Set<String>>();
+        final var searchShardRecovered = new CountDownLatch(1);
+
+        // Delay all new commit notifications on searchNode2 except the one to recover from
+        final var delayedNotifications = new LinkedBlockingQueue<CheckedRunnable<Exception>>();
+        final var newCommitNotificationReceived = new CountDownLatch(1);
+        final var delayNotifications = new AtomicBoolean(true);
+
+        logger.debug("--> start delaying new commit notifications on node [{}] for generations > {}", searchNode2, recoveryGeneration);
+        MockTransportService.getInstance(searchNode2)
+            .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
+                var notification = asInstanceOf(NewCommitNotificationRequest.class, request);
+                // we want to notification from recovery to be processed, as it is required to start the search shard
+                if (delayNotifications.get() && (recoveryGeneration < notification.getGeneration())) {
+                    logger.debug("--> delaying new commit notification for generation [{}]", notification.getGeneration());
+                    delayedNotifications.add(
+                        () -> handler.messageReceived(
+                            request,
+                            new TestTransportChannel(ActionListener.runBefore(new ChannelActionListener<>(channel), () -> {
+                                if (enableChecks.get()) {
+                                    // After the shard has recovered, but before sending any new commit notification response (that could
+                                    // trigger
+                                    // blob deletions), store the current blobs, so we later check that the blobs before the merge are
+                                    // intact.
+                                    // 30 seconds timeout to align with ensureGreen after we release the vbccChunkLatch
+                                    try {
+                                        assertTrue(searchShardRecovered.await(30, TimeUnit.SECONDS));
+                                    } catch (InterruptedException e) {
+                                        Thread.currentThread().interrupt();
+                                        fail(e, "safeAwait: interrupted waiting for CountDownLatch to reach zero");
+                                    }
+                                    blobsBeforeNewCommitNotificationResponse.set(listBlobsWithAbsolutePath(shardCommitsContainer));
+                                }
+                            })),
+                            task
+                        )
+                    );
+                    newCommitNotificationReceived.countDown();
+                    return;
+                }
+                logger.debug("--> handling new commit notification for generation [{}]", notification.getGeneration());
+                handler.messageReceived(request, channel, task);
+            });
+
         // Start the second search shard and waits for recovery to start
         updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2), indexName);
         safeAwait(commitRegistrationStarted);
         var blobsBeforeMerge = Sets.difference(listBlobsWithAbsolutePath(shardCommitsContainer), initialBlobs);
 
-        AtomicReference<Set<String>> blobsBeforeNewCommitNotificationResponse = new AtomicReference<>();
-        CountDownLatch searchShardRecovered = new CountDownLatch(1);
-        CountDownLatch newCommitNotificationReceived = new CountDownLatch(1);
-        MockTransportService.getInstance(searchNode2)
-            .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
-                handler.messageReceived(
-                    request,
-                    new TestTransportChannel(ActionListener.runBefore(new ChannelActionListener<>(channel), () -> {
-                        if (enableChecks.get()) {
-                            // After the shard has recovered, but before sending any new commit notification response (that could trigger
-                            // blob deletions), store the current blobs, so we later check that the blobs before the merge are intact.
-                            // 30 seconds timeout to align with ensureGreen after we release the vbccChunkLatch
-                            try {
-                                assertTrue(searchShardRecovered.await(30, TimeUnit.SECONDS));
-                            } catch (InterruptedException e) {
-                                Thread.currentThread().interrupt();
-                                fail(e, "safeAwait: interrupted waiting for CountDownLatch to reach zero");
-                            }
-                            blobsBeforeNewCommitNotificationResponse.set(listBlobsWithAbsolutePath(shardCommitsContainer));
-                        }
-                    })),
-                    task
-                );
-                newCommitNotificationReceived.countDown();
-            });
-
         // While search shard is recovering, create a new merged commit
+        logger.debug("--> force merging");
         forceMerge();
 
-        // Wait for the new commit notification to be processed on the search node
+        logger.debug("--> wait for the new commit notification to be processed on the search node");
         safeAwait(newCommitNotificationReceived);
 
         // Allow recovery to finish, and trigger check that files should not be deleted
@@ -1200,6 +1226,13 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         getVbccChunkLatch.countDown();
         ensureGreen(indexName);
         searchShardRecovered.countDown();
+
+        logger.debug("--> stop delaying new commit notifications and process delayed notifications on node [{}]", searchNode2);
+        delayNotifications.set(false);
+        CheckedRunnable<Exception> delayedNotification;
+        while ((delayedNotification = delayedNotifications.poll()) != null) {
+            delayedNotification.run();
+        }
 
         assertBusy(() -> {
             assertThat(blobsBeforeNewCommitNotificationResponse.get(), notNullValue());

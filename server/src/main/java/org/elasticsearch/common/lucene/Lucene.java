@@ -884,24 +884,26 @@ public class Lucene {
             }
         }
 
-        DirectoryReaderWithAllLiveDocs(DirectoryReader in) throws IOException {
-            super(in, new SubReaderWrapper() {
-                @Override
-                public LeafReader wrap(LeafReader leaf) {
-                    final SegmentReader segmentReader = segmentReader(leaf);
-                    final Bits hardLiveDocs = segmentReader.getHardLiveDocs();
-                    if (hardLiveDocs == null) {
-                        return new LeafReaderWithLiveDocs(leaf, null, leaf.maxDoc());
-                    }
-                    // Once soft-deletes is enabled, we no longer hard-update or hard-delete documents directly.
-                    // Two scenarios that we have hard-deletes: (1) from old segments where soft-deletes was disabled,
-                    // (2) when IndexWriter hits non-aborted exceptions. These two cases, IW flushes SegmentInfos
-                    // before exposing the hard-deletes, thus we can use the hard-delete count of SegmentInfos.
-                    final int numDocs = segmentReader.maxDoc() - segmentReader.getSegmentInfo().getDelCount();
-                    assert numDocs == popCount(hardLiveDocs) : numDocs + " != " + popCount(hardLiveDocs);
-                    return new LeafReaderWithLiveDocs(segmentReader, hardLiveDocs, numDocs);
+        private static final SubReaderWrapper ALL_LIVE_DOCS_SUB_READER_WRAPPER = new SubReaderWrapper() {
+            @Override
+            public LeafReader wrap(LeafReader leaf) {
+                final SegmentReader segmentReader = segmentReader(leaf);
+                final Bits hardLiveDocs = segmentReader.getHardLiveDocs();
+                if (hardLiveDocs == null) {
+                    return new LeafReaderWithLiveDocs(leaf, null, leaf.maxDoc());
                 }
-            });
+                // Once soft-deletes is enabled, we no longer hard-update or hard-delete documents directly.
+                // Two scenarios that we have hard-deletes: (1) from old segments where soft-deletes was disabled,
+                // (2) when IndexWriter hits non-aborted exceptions. These two cases, IW flushes SegmentInfos
+                // before exposing the hard-deletes, thus we can use the hard-delete count of SegmentInfos.
+                final int numDocs = segmentReader.maxDoc() - segmentReader.getSegmentInfo().getDelCount();
+                assert numDocs == popCount(hardLiveDocs) : numDocs + " != " + popCount(hardLiveDocs);
+                return new LeafReaderWithLiveDocs(segmentReader, hardLiveDocs, numDocs);
+            }
+        };
+
+        DirectoryReaderWithAllLiveDocs(DirectoryReader in) throws IOException {
+            super(in, ALL_LIVE_DOCS_SUB_READER_WRAPPER);
         }
 
         @Override

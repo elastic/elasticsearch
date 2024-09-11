@@ -12,7 +12,10 @@ import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.Locale;
+
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public abstract class SpatialPushDownShapeTestCase extends SpatialPushDownTestCase {
 
@@ -98,6 +101,36 @@ public abstract class SpatialPushDownShapeTestCase extends SpatialPushDownTestCa
         }
     }
 
+    public void testMultiShapeContainsMultiPolygon() {
+        assumeTrue("Test for shapes only", fieldType().contains("shape"));
+        initIndexes();
+        ArrayList<MultiShapeContainsTest> data = new ArrayList<>();
+
+        // Contains succeeds with multiple non-intersecting polygons
+        data.add(new MultiShapeContainsTest(true).small(square(0, 0, 4), square(20, 20, 4)).big(square(0, 0, 5), square(20, 20, 5)));
+        data.add(new MultiShapeContainsTest(true).small(square(-5, -5, 3), square(5, 5, 3)).big(square(-5, -5, 4), square(5, 5, 4)));
+
+        // Contains fails with multiple intersecting polygons due to the way it is implemented in the lucene triangle tree
+        data.add(new MultiShapeContainsTest(false).small(square(0, 0, 14), square(10, 10, 4)).big(square(0, 0, 15), square(10, 10, 5)));
+        data.add(new MultiShapeContainsTest(false).small(square(-5, -5, 5), square(5, 5, 5)).big(square(-5, -5, 6), square(5, 5, 6)));
+
+        for (int i = 0; i < data.size(); i++) {
+            index("indexed", "" + i, "{\"location\" : " + data.get(i).smallJson() + " }");
+            index("not-indexed", "" + i, "{\"location\" : " + data.get(i).smallJson() + " }");
+            index("indexed", "" + (i + 100), "{\"location\" : " + data.get(i).bigJson() + " }");
+            index("not-indexed", "" + (i + 100), "{\"location\" : " + data.get(i).bigJson() + " }");
+        }
+        refresh("indexed", "not-indexed");
+
+        for (int i = 0; i < data.size(); i++) {
+            MultiShapeContainsTest datum = data.get(i);
+            assertFunction(i, datum.smallJson(), "ST_WITHIN", datum.bigQuery(), true);
+            assertFunction(i, datum.smallJson(), "ST_INTERSECTS", datum.bigQuery(), true);
+            assertFunction(i + 100, datum.bigJson(), "ST_CONTAINS", datum.smallQuery(), datum.contains);
+            assertFunction(i + 100, datum.bigJson(), "ST_INTERSECTS", datum.smallQuery(), true);
+        }
+    }
+
     private String collectionToMultiPolygon(String geometrytCollection) {
         return geometrytCollection.replace("POLYGON", "").replace("GEOMETRYCOLLECTION", "MULTIPOLYGON");
     }
@@ -117,6 +150,68 @@ public abstract class SpatialPushDownShapeTestCase extends SpatialPushDownTestCa
             Object notIndexedResult = response2.response().column(0).iterator().next();
             assertEquals(spatialFunction + "[expected=" + expected + "]", expected, indexedResult);
             assertEquals(spatialFunction + "[expected=" + expected + "]", indexedResult, notIndexedResult);
+        }
+    }
+
+    private void assertFunction(int id, String expected, String spatialFunction, String wkt, boolean expectToFind) {
+        expected = expected.replaceAll("\\.0+", ".0").replace("\"", "");
+        final String predicate = String.format(Locale.ROOT, "WHERE %s(location, %s(\"%s\"))", spatialFunction, castingFunction(), wkt);
+        final String query1 = "FROM indexed METADATA _id | " + predicate + " | KEEP _id, location";
+        final String query2 = "FROM not-indexed METADATA _id | " + predicate + " | KEEP _id, location";
+        try (
+            EsqlQueryResponse response1 = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query1).get();
+            EsqlQueryResponse response2 = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query2).get();
+        ) {
+            record Result(int id, String location) {
+                Result(Iterator<Object> iterator) {
+                    this(Integer.parseInt(iterator.next().toString()), iterator.next().toString());
+                }
+            }
+            ArrayList<Result> indexedResults = new ArrayList<>();
+            ArrayList<Result> notIndexedResults = new ArrayList<>();
+            response1.response().rows().forEach(row -> indexedResults.add(new Result(row.iterator())));
+            response2.response().rows().forEach(row -> notIndexedResults.add(new Result(row.iterator())));
+            assertThat("No results found at all", indexedResults.size() + notIndexedResults.size(), greaterThanOrEqualTo(0));
+            boolean found = false;
+            ArrayList<Result> missingFromIndexedResults = new ArrayList<>();
+            ArrayList<Result> missingFromNotIndexedResults = new ArrayList<>();
+            for (int i = 0, j = 0; i < indexedResults.size() && j < notIndexedResults.size();) {
+                Result indexedResult = indexedResults.get(i);
+                Result notIndexedResult = indexedResults.get(j);
+                if (indexedResult.id() == notIndexedResult.id()) {
+                    if (indexedResult.id() == id) {
+                        assertEquals(spatialFunction + "[expected=" + expected + "]", expected, indexedResult.location);
+                        assertEquals(spatialFunction + "[expected=" + expected + "]", indexedResult, notIndexedResult);
+                        found = true;
+                    }
+                    i++;
+                    j++;
+                } else {
+                    if (indexedResult.id() < notIndexedResult.id()) {
+                        missingFromNotIndexedResults.add(indexedResult);
+                        i++;
+                    } else {
+                        missingFromIndexedResults.add(notIndexedResult);
+                        j++;
+                    }
+                }
+            }
+            if (missingFromIndexedResults.isEmpty() == false || missingFromNotIndexedResults.isEmpty() == false) {
+                StringBuilder sb = new StringBuilder("Mismatching results between indexed and not-indexed: ");
+                if (missingFromIndexedResults.isEmpty() == false) {
+                    sb.append("Missing from indexed: ").append(missingFromIndexedResults);
+                }
+                if (missingFromNotIndexedResults.isEmpty() == false) {
+                    sb.append("Missing from not-indexed: ").append(missingFromNotIndexedResults);
+                }
+                fail(sb.toString());
+            }
+            if (expectToFind && found == false) {
+                fail("Expected result not found: " + expected);
+            }
+            if (expectToFind == false && found) {
+                fail("Unexpected result found: " + expected);
+            }
         }
     }
 
@@ -140,6 +235,44 @@ public abstract class SpatialPushDownShapeTestCase extends SpatialPushDownTestCa
     protected record ShapeContainsTest(boolean intersects, boolean contains, String... data) {
         private String toJson() {
             return Arrays.toString(Arrays.stream(data).map(s -> "\"" + s + "\"").toArray());
+        }
+    }
+
+    protected record MultiShapeContainsTest(boolean contains, String[] bigger, String[] smaller) {
+        private MultiShapeContainsTest(boolean contains) {
+            this(contains, new String[] {}, new String[] {});
+        }
+
+        private MultiShapeContainsTest small(String... smaller) {
+            return new MultiShapeContainsTest(contains, bigger, smaller);
+        }
+
+        private MultiShapeContainsTest big(String... bigger) {
+            return new MultiShapeContainsTest(contains, bigger, smaller);
+        }
+
+        private String bigQuery() {
+            return query(bigger);
+        }
+
+        private String smallQuery() {
+            return query(smaller);
+        }
+
+        private String smallJson() {
+            return json(smaller);
+        }
+
+        private String bigJson() {
+            return json(bigger);
+        }
+
+        private static String json(String[] data) {
+            return Arrays.toString(Arrays.stream(data).map(s -> "\"" + s + "\"").toArray());
+        }
+
+        private static String query(String[] data) {
+            return data.length == 1 ? data[0] : "GEOMETRYCOLLECTION(" + String.join(", ", data) + ")";
         }
     }
 }

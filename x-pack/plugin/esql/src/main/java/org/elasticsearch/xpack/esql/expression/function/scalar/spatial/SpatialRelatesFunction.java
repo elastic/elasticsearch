@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.ShapeIndexer;
 import org.elasticsearch.lucene.spatial.Component2DVisitor;
@@ -28,7 +29,9 @@ import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -188,6 +191,14 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
                 boolean contains = component2D.contains(point.getX(), point.getY());
                 return queryRelation == DISJOINT ? contains == false : contains;
             }
+        }
+
+        protected Geometry combined(Iterator<BytesRef> left) {
+            List<Geometry> geometries = new ArrayList<>();
+            while (left.hasNext()) {
+                geometries.add(fromBytesRef(left.next()));
+            }
+            return new GeometryCollection<>(geometries);
         }
     }
 

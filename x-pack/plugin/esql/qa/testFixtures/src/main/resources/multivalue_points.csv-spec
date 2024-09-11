@@ -260,26 +260,25 @@ required_capability: st_contains_within
 required_capability: spatial_predicates_support_multivalues
 
 FROM multivalue_points
-| EVAL st_intersects=ST_INTERSECTS(location, subset)
-| EVAL st_contains=ST_CONTAINS(location, subset)
-| EVAL st_within=ST_WITHIN(subset, location)
-| KEEP id, st_intersects, st_contains, st_within, location, subset
+| EVAL contains_ab = ST_CONTAINS(location, subset), contains_ba = ST_CONTAINS(subset, location)
+| EVAL within_ab   =   ST_WITHIN(location, subset), within_ba   =   ST_WITHIN(subset, location)
+| KEEP id, contains_ab, contains_ba, within_ab, within_ba, location, subset
 | SORT id
 ;
 
-id:l | st_intersects:boolean | st_contains:boolean | st_within:boolean | location:geo_point                | subset:geo_point
-0    | true                  | true                | true              | ["POINT(5 5)", "POINT(-5 5)"]     | "POINT(5 5)"
-1    | true                  | true                | true              | ["POINT(0 1)","POINT(1 0)"]       | "POINT(0 1)"
-2    | true                  | true                | true              | "POINT(9 9)"                      | "POINT(9 9)"
-3    | true                  | true                | true              | ["POINT(-9 -9)","POINT(9 9)"]     | "POINT(-9 -9)"
-4    | true                  | true                | true              | ["POINT(5 5)", "POINT(15 15)"]    | "POINT(5 5)"
-5    | true                  | true                | true              | ["POINT(0 0)","POINT(11 11)"]     | "POINT(0 0)"
-6    | true                  | true                | true              | ["POINT(-9 -19)","POINT(9 9)"]    | "POINT(-9 -19)"
-7    | true                  | true                | true              | ["POINT(5 15)", "POINT(15 5)"]    | "POINT(5 15)"
-8    | true                  | true                | true              | ["POINT(0 11)","POINT(11 0)"]     | "POINT(0 11)"
-9    | true                  | true                | true              | "POINT(19 9)"                     | "POINT(19 9)"
-10   | true                  | true                | true              | ["POINT(-9 -19)","POINT(19 9)"]   | "POINT(-9 -19)"
-11   | true                  | true                | true              | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"] | ["POINT(0 0)", "POINT(55 55)"]
+id:l | contains_ab:boolean | contains_ba:boolean | within_ab:boolean  | within_ba:boolean | location:geo_point                | subset:geo_point
+0    | true                | false               | false              | true              | ["POINT(5 5)", "POINT(-5 5)"]     | "POINT(5 5)"
+1    | true                | false               | false              | true              | ["POINT(0 1)","POINT(1 0)"]       | "POINT(0 1)"
+2    | true                | true                | true               | true              | "POINT(9 9)"                      | "POINT(9 9)"
+3    | true                | false               | false              | true              | ["POINT(-9 -9)","POINT(9 9)"]     | "POINT(-9 -9)"
+4    | true                | false               | false              | true              | ["POINT(5 5)", "POINT(15 15)"]    | "POINT(5 5)"
+5    | true                | false               | false              | true              | ["POINT(0 0)","POINT(11 11)"]     | "POINT(0 0)"
+6    | true                | false               | false              | true              | ["POINT(-9 -19)","POINT(9 9)"]    | "POINT(-9 -19)"
+7    | true                | false               | false              | true              | ["POINT(5 15)", "POINT(15 5)"]    | "POINT(5 15)"
+8    | true                | false               | false              | true              | ["POINT(0 11)","POINT(11 0)"]     | "POINT(0 11)"
+9    | true                | true                | true               | true              | "POINT(19 9)"                     | "POINT(19 9)"
+10   | true                | false               | false              | true              | ["POINT(-9 -19)","POINT(19 9)"]   | "POINT(-9 -19)"
+11   | true                | false               | false              | true              | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"] | ["POINT(0 0)", "POINT(55 55)"]
 ;
 
 whereIntersectsMultiValuePointsFields

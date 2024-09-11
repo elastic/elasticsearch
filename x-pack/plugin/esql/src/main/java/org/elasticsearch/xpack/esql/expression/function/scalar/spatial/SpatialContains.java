@@ -19,7 +19,6 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.ShapeIndexer;
@@ -37,10 +36,8 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -102,6 +99,11 @@ public class SpatialContains extends SpatialRelatesFunction {
             return geometryRelatesGeometries(left, rightComponent2Ds);
         }
 
+        private boolean geometryRelatesGeometries(Iterator<BytesRef> left, Iterator<BytesRef> right) throws IOException {
+            Component2D[] rightComponent2Ds = asLuceneComponent2Ds(crsType, combined(right));
+            return geometryRelatesGeometries(left, rightComponent2Ds);
+        }
+
         private boolean geometryRelatesGeometries(BytesRef left, Component2D[] rightComponent2Ds) throws IOException {
             Geometry leftGeom = fromBytesRef(left);
             GeometryDocValueReader leftDocValueReader = asGeometryDocValueReader(coordinateEncoder, shapeIndexer, leftGeom);
@@ -109,12 +111,7 @@ public class SpatialContains extends SpatialRelatesFunction {
         }
 
         private boolean geometryRelatesGeometries(Iterator<BytesRef> left, Component2D[] rightComponent2Ds) throws IOException {
-            List<Geometry> geometries = new ArrayList<>();
-            while (left.hasNext()) {
-                geometries.add(fromBytesRef(left.next()));
-            }
-            GeometryCollection<Geometry> collection = new GeometryCollection<>(geometries);
-            GeometryDocValueReader leftDocValueReader = asGeometryDocValueReader(coordinateEncoder, shapeIndexer, collection);
+            GeometryDocValueReader leftDocValueReader = asGeometryDocValueReader(coordinateEncoder, shapeIndexer, combined(left));
             return geometryRelatesGeometries(leftDocValueReader, rightComponent2Ds);
         }
 
@@ -317,13 +314,16 @@ public class SpatialContains extends SpatialRelatesFunction {
         }
     }
 
-    @Evaluator(
-        extraName = "GeoSourceAndSource",
-        warnExceptions = { IllegalArgumentException.class, IOException.class },
-        mvCombiner = AnyCombiner.class
-    )
-    static boolean processGeoSourceAndSource(BytesRef leftValue, BytesRef rightValue) throws IOException {
-        return GEO.geometryRelatesGeometry(leftValue, rightValue);
+    @Evaluator(extraName = "GeoSourceAndSource", warnExceptions = { IllegalArgumentException.class, IOException.class })
+    static void processGeoSourceAndSource(BooleanBlock.Builder builder, int position, BytesRefBlock leftValue, BytesRefBlock rightValue)
+        throws IOException {
+        if (leftValue.getValueCount(position) < 1 || rightValue.getValueCount(position) < 1) {
+            builder.appendNull();
+        } else {
+            MultiValuesBytesRefIterator lIterator = new MultiValuesBytesRefIterator(leftValue, position);
+            MultiValuesBytesRefIterator rIterator = new MultiValuesBytesRefIterator(rightValue, position);
+            builder.appendBoolean(GEO.geometryRelatesGeometries(lIterator, rIterator));
+        }
     }
 
     @Evaluator(
@@ -360,13 +360,20 @@ public class SpatialContains extends SpatialRelatesFunction {
         }
     }
 
-    @Evaluator(
-        extraName = "CartesianSourceAndSource",
-        warnExceptions = { IllegalArgumentException.class, IOException.class },
-        mvCombiner = AnyCombiner.class
-    )
-    static boolean processCartesianSourceAndSource(BytesRef leftValue, BytesRef rightValue) throws IOException {
-        return CARTESIAN.geometryRelatesGeometry(leftValue, rightValue);
+    @Evaluator(extraName = "CartesianSourceAndSource", warnExceptions = { IllegalArgumentException.class, IOException.class })
+    static void processCartesianSourceAndSource(
+        BooleanBlock.Builder builder,
+        int position,
+        BytesRefBlock leftValue,
+        BytesRefBlock rightValue
+    ) throws IOException {
+        if (leftValue.getValueCount(position) < 1 || rightValue.getValueCount(position) < 1) {
+            builder.appendNull();
+        } else {
+            MultiValuesBytesRefIterator lIterator = new MultiValuesBytesRefIterator(leftValue, position);
+            MultiValuesBytesRefIterator rIterator = new MultiValuesBytesRefIterator(rightValue, position);
+            builder.appendBoolean(CARTESIAN.geometryRelatesGeometries(lIterator, rIterator));
+        }
     }
 
     @Evaluator(

@@ -88,6 +88,11 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
             super(ShapeField.QueryRelation.WITHIN, spatialCoordinateType, encoder, shapeIndexer);
         }
 
+        private boolean geometryRelatesGeometries(Iterator<BytesRef> left, Iterator<BytesRef> right) throws IOException {
+            Component2D rightComponent2D = asLuceneComponent2D(crsType, combined(right));
+            return geometryRelatesGeometry(left, rightComponent2D);
+        }
+
         private boolean geometryRelatesGeometry(Iterator<BytesRef> left, Component2D rightComponent2D) throws IOException {
             List<Geometry> geometries = new ArrayList<>();
             while (left.hasNext()) {
@@ -265,13 +270,16 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
         }
     }
 
-    @Evaluator(
-        extraName = "GeoSourceAndSource",
-        warnExceptions = { IllegalArgumentException.class, IOException.class },
-        mvCombiner = AnyCombiner.class
-    )
-    static boolean processGeoSourceAndSource(BytesRef leftValue, BytesRef rightValue) throws IOException {
-        return SpatialContains.GEO.geometryRelatesGeometry(rightValue, leftValue);
+    @Evaluator(extraName = "GeoSourceAndSource", warnExceptions = { IllegalArgumentException.class, IOException.class })
+    static void processGeoSourceAndSource(BooleanBlock.Builder builder, int position, BytesRefBlock leftValue, BytesRefBlock rightValue)
+        throws IOException {
+        if (leftValue.getValueCount(position) < 1 || rightValue.getValueCount(position) < 1) {
+            builder.appendNull();
+        } else {
+            MultiValuesBytesRefIterator lIterator = new MultiValuesBytesRefIterator(leftValue, position);
+            MultiValuesBytesRefIterator rIterator = new MultiValuesBytesRefIterator(rightValue, position);
+            builder.appendBoolean(GEO.geometryRelatesGeometries(lIterator, rIterator));
+        }
     }
 
     @Evaluator(
@@ -308,13 +316,20 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
         }
     }
 
-    @Evaluator(
-        extraName = "CartesianSourceAndSource",
-        warnExceptions = { IllegalArgumentException.class, IOException.class },
-        mvCombiner = AnyCombiner.class
-    )
-    static boolean processCartesianSourceAndSource(BytesRef leftValue, BytesRef rightValue) throws IOException {
-        return SpatialContains.CARTESIAN.geometryRelatesGeometry(rightValue, leftValue);
+    @Evaluator(extraName = "CartesianSourceAndSource", warnExceptions = { IllegalArgumentException.class, IOException.class })
+    static void processCartesianSourceAndSource(
+        BooleanBlock.Builder builder,
+        int position,
+        BytesRefBlock leftValue,
+        BytesRefBlock rightValue
+    ) throws IOException {
+        if (leftValue.getValueCount(position) < 1 || rightValue.getValueCount(position) < 1) {
+            builder.appendNull();
+        } else {
+            MultiValuesBytesRefIterator lIterator = new MultiValuesBytesRefIterator(leftValue, position);
+            MultiValuesBytesRefIterator rIterator = new MultiValuesBytesRefIterator(rightValue, position);
+            builder.appendBoolean(CARTESIAN.geometryRelatesGeometries(lIterator, rIterator));
+        }
     }
 
     @Evaluator(

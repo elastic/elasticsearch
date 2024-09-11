@@ -15,9 +15,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.SimulateIndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
-import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
@@ -52,7 +50,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -115,17 +112,11 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         Executor executor,
         ActionListener<BulkResponse> listener,
         long relativeStartTimeNanos
-    ) {
+    ) throws IOException {
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
         assert bulkRequest instanceof SimulateBulkRequest
             : "TransportSimulateBulkAction should only ever be called with a SimulateBulkRequest but got a " + bulkRequest.getClass();
-        Map<String, Map<String, Object>> rawTemplateSubstitutions = ((SimulateBulkRequest) bulkRequest).getTemplateSubstitutions();
-        Map<String, ComponentTemplate> componentTemplateSubstitutions;
-        try {
-            componentTemplateSubstitutions = getComponentTemplateSubstitutionsFromRaw(rawTemplateSubstitutions);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        Map<String, ComponentTemplate> componentTemplateSubstitutions = bulkRequest.getComponentTemplateSubstitutions();
         for (int i = 0; i < bulkRequest.requests.size(); i++) {
             DocWriteRequest<?> docRequest = bulkRequest.requests.get(i);
             assert docRequest instanceof IndexRequest : "TransportSimulateBulkAction should only ever be called with IndexRequests";
@@ -151,35 +142,6 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         listener.onResponse(
             new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(relativeStartTimeNanos))
         );
-    }
-
-    static Map<String, ComponentTemplate> getComponentTemplateSubstitutionsFromRaw(
-        Map<String, Map<String, Object>> rawTemplateSubstitutions
-    ) throws IOException {
-        if (rawTemplateSubstitutions == null) {
-            return Map.of();
-        }
-        Map<String, ComponentTemplate> result = new HashMap<>(rawTemplateSubstitutions.size());
-        for (Map.Entry<String, Map<String, Object>> rawEntry : rawTemplateSubstitutions.entrySet()) {
-            result.put(rawEntry.getKey(), convertRawTemplateToComponentTemplate(rawEntry.getValue()));
-        }
-        return result;
-    }
-
-    @SuppressWarnings("unchecked")
-    private static ComponentTemplate convertRawTemplateToComponentTemplate(Map<String, Object> rawTemplate) throws IOException {
-        Settings settings = null;
-        CompressedXContent mappings = null;
-        if (rawTemplate.containsKey("mappings")) {
-            mappings = new CompressedXContent((Map<String, Object>) rawTemplate.get("mappings"));
-        }
-        if (rawTemplate.containsKey("settings")) {
-            settings = Settings.builder().loadFromMap((Map<String, ?>) rawTemplate.get("settings")).build();
-        }
-        Map<String, AliasMetadata> aliases = null;
-        DataStreamLifecycle lifecycle = null;
-        Template template = new Template(settings, mappings, aliases, lifecycle);
-        return new ComponentTemplate(template, null, null);
     }
 
     /**

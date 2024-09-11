@@ -9,11 +9,18 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -114,12 +121,45 @@ public class SimulateBulkRequest extends BulkRequest {
         return pipelineSubstitutions;
     }
 
-    public Map<String, Map<String, Object>> getTemplateSubstitutions() {
-        return templateSubstitutions;
-    }
-
     @Override
     public boolean isSimulated() {
         return true;
+    }
+
+    @Override
+    public Map<String, ComponentTemplate> getComponentTemplateSubstitutions() throws IOException {
+        if (templateSubstitutions == null) {
+            return Map.of();
+        }
+        Map<String, ComponentTemplate> result = new HashMap<>(templateSubstitutions.size());
+        for (Map.Entry<String, Map<String, Object>> rawEntry : templateSubstitutions.entrySet()) {
+            result.put(rawEntry.getKey(), convertRawTemplateToComponentTemplate(rawEntry.getValue()));
+        }
+        return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static ComponentTemplate convertRawTemplateToComponentTemplate(Map<String, Object> rawTemplate) throws IOException {
+        Settings settings = null;
+        CompressedXContent mappings = null;
+        if (rawTemplate.containsKey("mappings")) {
+            mappings = new CompressedXContent((Map<String, Object>) rawTemplate.get("mappings"));
+        }
+        if (rawTemplate.containsKey("settings")) {
+            settings = Settings.builder().loadFromMap((Map<String, ?>) rawTemplate.get("settings")).build();
+        }
+        Map<String, AliasMetadata> aliases = null;
+        DataStreamLifecycle lifecycle = null;
+        Template template = new Template(settings, mappings, aliases, lifecycle);
+        return new ComponentTemplate(template, null, null);
+    }
+
+    @Override
+    public BulkRequest shallowClone() {
+        BulkRequest bulkRequest = new SimulateBulkRequest(pipelineSubstitutions, templateSubstitutions);
+        bulkRequest.setRefreshPolicy(bulkRequest.getRefreshPolicy());
+        bulkRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
+        bulkRequest.timeout(bulkRequest.timeout());
+        return bulkRequest;
     }
 }

@@ -165,25 +165,17 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
     private void forkAndExecute(Task task, BulkRequest bulkRequest, Executor executor, ActionListener<BulkResponse> releasingListener) {
         executor.execute(new ActionRunnable<>(releasingListener) {
             @Override
-            protected void doRun() {
+            protected void doRun() throws IOException {
                 applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, releasingListener);
             }
         });
     }
 
-    private boolean applyPipelines(Task task, BulkRequest bulkRequest, Executor executor, ActionListener<BulkResponse> listener) {
+    private boolean applyPipelines(Task task, BulkRequest bulkRequest, Executor executor, ActionListener<BulkResponse> listener)
+        throws IOException {
         boolean hasIndexRequestsWithPipelines = false;
         final Metadata metadata = clusterService.state().getMetadata();
-        Map<String, ComponentTemplate> templateSubstitutions = Map.of();
-        if (bulkRequest instanceof SimulateBulkRequest simulateBulkRequest) {
-            Map<String, Map<String, Object>> rawTemplateSubstitutions = simulateBulkRequest.getTemplateSubstitutions();
-            try {
-                templateSubstitutions = TransportSimulateBulkAction.getComponentTemplateSubstitutionsFromRaw(rawTemplateSubstitutions);
-                // TODO: fix the horribleness
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }
+        Map<String, ComponentTemplate> templateSubstitutions = bulkRequest.getComponentTemplateSubstitutions();
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
             IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
             if (indexRequest != null) {
@@ -257,7 +249,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                     } else {
                         ActionRunnable<BulkResponse> runnable = new ActionRunnable<>(actionListener) {
                             @Override
-                            protected void doRun() {
+                            protected void doRun() throws IOException {
                                 applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, actionListener);
                             }
 
@@ -335,7 +327,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         BulkRequest bulkRequest,
         Executor executor,
         ActionListener<BulkResponse> listener
-    ) {
+    ) throws IOException {
         final long relativeStartTimeNanos = relativeTimeNanos();
         if (applyPipelines(task, bulkRequest, executor, listener) == false) {
             doInternalExecute(task, bulkRequest, executor, listener, relativeStartTimeNanos);
@@ -356,6 +348,6 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         Executor executor,
         ActionListener<BulkResponse> listener,
         long relativeStartTimeNanos
-    );
+    ) throws IOException;
 
 }

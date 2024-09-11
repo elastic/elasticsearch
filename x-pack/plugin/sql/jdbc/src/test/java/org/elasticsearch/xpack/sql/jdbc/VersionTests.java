@@ -15,6 +15,10 @@ public class VersionTests extends ESTestCase {
     public void testVersionIsCurrent() {
         /* This test will only work properly in gradle because in gradle we run the tests
          * using the jar. */
-        assertEquals(SqlVersion.fromString(Build.current().version()), ClientVersion.CURRENT);
+        assertEquals(current(), ClientVersion.CURRENT);
+    }
+
+    public static SqlVersion current() {
+        return SqlVersion.fromString(Build.current().version());
     }
 }

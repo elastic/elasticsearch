@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -92,8 +93,8 @@ public abstract class AbstractSqlRequest extends ActionRequest {
         requestInfo.version(clientVersion);
     }
 
-    public SqlVersionId version() {
-        return SqlVersionId.from(requestInfo.version());
+    public SqlVersion version() {
+        return requestInfo.version();
     }
 
     @Override

@@ -33,12 +33,10 @@ import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.CURSOR;
 import static org.elasticsearch.xpack.sql.action.Protocol.ID_NAME;
 import static org.elasticsearch.xpack.sql.action.Protocol.IS_PARTIAL_NAME;
 import static org.elasticsearch.xpack.sql.action.Protocol.IS_RUNNING_NAME;
-import static org.elasticsearch.xpack.sql.proto.SqlVersion.DATE_NANOS_SUPPORT_VERSION;
+import static org.elasticsearch.xpack.sql.proto.VersionCompatibility.INTRODUCING_DATE_NANOS;
 import static org.hamcrest.Matchers.hasSize;
 
 public class SqlQueryResponseTests extends AbstractXContentSerializingTestCase<SqlQueryResponse> {
-
-    public static final SqlVersionId INTRODUCING_DATE_NANOS = SqlVersionId.from(DATE_NANOS_SUPPORT_VERSION);
 
     static String randomStringCursor() {
         return randomBoolean() ? "" : randomAlphaOfLength(10);

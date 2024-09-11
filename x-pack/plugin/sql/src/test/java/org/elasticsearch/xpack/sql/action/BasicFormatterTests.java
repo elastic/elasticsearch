@@ -14,8 +14,8 @@ import org.elasticsearch.xpack.sql.proto.formatter.SimpleFormatter.FormatOption;
 
 import java.util.Arrays;
 
+import static org.elasticsearch.xpack.sql.proto.VersionCompatibility.INTRODUCING_DATE_NANOS;
 import static org.elasticsearch.xpack.sql.proto.formatter.SimpleFormatter.FormatOption.CLI;
-import static org.elasticsearch.xpack.sql.util.SqlVersionIdUtils.INTRODUCING_DATE_NANOS;
 import static org.hamcrest.Matchers.arrayWithSize;
 
 public class BasicFormatterTests extends ESTestCase {

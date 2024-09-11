@@ -43,7 +43,6 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.ql.util.StringUtils;
-import org.elasticsearch.xpack.sql.action.SqlVersionId;
 import org.elasticsearch.xpack.sql.expression.Exists;
 import org.elasticsearch.xpack.sql.expression.function.Score;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Kurtosis;
@@ -58,6 +57,7 @@ import org.elasticsearch.xpack.sql.plan.logical.Having;
 import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.Pivot;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.elasticsearch.xpack.sql.stats.FeatureMetric;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
@@ -102,12 +102,12 @@ public final class Verifier {
         this.metrics = metrics;
     }
 
-    public Map<Node<?>, String> verifyFailures(LogicalPlan plan, SqlVersionId version) {
+    public Map<Node<?>, String> verifyFailures(LogicalPlan plan, SqlVersion version) {
         Collection<Failure> failures = verify(plan, version);
         return failures.stream().collect(toMap(Failure::node, Failure::message));
     }
 
-    Collection<Failure> verify(LogicalPlan plan, SqlVersionId version) {
+    Collection<Failure> verify(LogicalPlan plan, SqlVersion version) {
         Set<Failure> failures = new LinkedHashSet<>();
 
         // start bottom-up
@@ -998,7 +998,7 @@ public final class Verifier {
         }));
     }
 
-    private static void checkClientSupportsDataTypes(LogicalPlan p, Set<Failure> localFailures, SqlVersionId version) {
+    private static void checkClientSupportsDataTypes(LogicalPlan p, Set<Failure> localFailures, SqlVersion version) {
         p.output().forEach(e -> {
             if (e.resolved() && isTypeSupportedInVersion(e.dataType(), version) == false) {
                 localFailures.add(
@@ -1009,7 +1009,7 @@ public final class Verifier {
                             + "] with type ["
                             + e.dataType()
                             + "] unsupported in version ["
-                            + version.toReleaseVersion()
+                            + version
                             + "], upgrade required (to version ["
                             + versionIntroducingType(e.dataType())
                             + "] or higher)"

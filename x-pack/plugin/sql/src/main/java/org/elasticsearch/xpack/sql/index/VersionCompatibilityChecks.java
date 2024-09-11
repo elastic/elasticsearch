@@ -7,23 +7,22 @@
 
 package org.elasticsearch.xpack.sql.index;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.sql.action.SqlVersionId;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
-import static org.elasticsearch.xpack.sql.action.SqlVersionId.from;
+import static org.elasticsearch.xpack.sql.proto.VersionCompatibility.INTRODUCING_UNSIGNED_LONG;
+import static org.elasticsearch.xpack.sql.proto.VersionCompatibility.INTRODUCING_VERSION_FIELD_TYPE;
+import static org.elasticsearch.xpack.sql.proto.VersionCompatibility.supportsUnsignedLong;
+import static org.elasticsearch.xpack.sql.proto.VersionCompatibility.supportsVersionType;
 
 public final class VersionCompatibilityChecks {
 
-    public static final SqlVersionId INTRODUCING_UNSIGNED_LONG = from(TransportVersions.V_8_2_0);
-    public static final SqlVersionId INTRODUCING_VERSION_FIELD_TYPE = from(TransportVersions.V_8_4_0);
-
     private VersionCompatibilityChecks() {}
 
-    public static boolean isTypeSupportedInVersion(DataType dataType, SqlVersionId version) {
+    public static boolean isTypeSupportedInVersion(DataType dataType, SqlVersion version) {
         if (dataType == UNSIGNED_LONG) {
             return supportsUnsignedLong(version);
         }
@@ -33,21 +32,7 @@ public final class VersionCompatibilityChecks {
         return true;
     }
 
-    /**
-     * Does the provided {@code version} support the unsigned_long type (PR#60050)?
-     */
-    public static boolean supportsUnsignedLong(SqlVersionId version) {
-        return version.onOrAfter(INTRODUCING_UNSIGNED_LONG);
-    }
-
-    /**
-     * Does the provided {@code version} support the version type (PR#85502)?
-     */
-    public static boolean supportsVersionType(SqlVersionId version) {
-        return version.onOrAfter(INTRODUCING_VERSION_FIELD_TYPE);
-    }
-
-    public static @Nullable SqlVersionId versionIntroducingType(DataType dataType) {
+    public static @Nullable SqlVersion versionIntroducingType(DataType dataType) {
         if (dataType == UNSIGNED_LONG) {
             return INTRODUCING_UNSIGNED_LONG;
         }

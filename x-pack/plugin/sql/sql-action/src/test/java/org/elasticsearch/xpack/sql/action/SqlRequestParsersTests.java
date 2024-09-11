@@ -153,7 +153,9 @@ public class SqlRequestParsersTests extends ESTestCase {
         String params;
         List<SqlTypedParamValue> list = new ArrayList<>(1);
 
-        final String clientVersion = Mode.isDedicatedClient(randomMode) ? "\"version\": \"" + SqlVersionId.currentRelease() + "\"," : "";
+        final String clientVersion = Mode.isDedicatedClient(randomMode)
+            ? "\"version\": \"" + SqlVersionUtils.SERVER_COMPAT_VERSION + "\","
+            : "";
         if (Mode.isDriver(randomMode)) {
             params = "{\"value\":123, \"type\":\"whatever\"}";
             list.add(new SqlTypedParamValue("whatever", 123, true));
@@ -177,7 +179,7 @@ public class SqlRequestParsersTests extends ESTestCase {
         assertNull(request.clientId());
         assertEquals(randomMode, request.mode());
         if (Mode.isDedicatedClient(randomMode)) {
-            assertEquals(SqlVersionId.currentRelease(), request.version().toReleaseVersion());
+            assertEquals(SqlVersionUtils.SERVER_COMPAT_VERSION.toString(), request.version().toString());
         }
         assertEquals("whatever", request.cursor());
         assertEquals("select", request.query());

@@ -6,20 +6,19 @@
  */
 package org.elasticsearch.xpack.sql.cli;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.sql.cli.command.CliSession;
 import org.elasticsearch.xpack.sql.client.ClientException;
 import org.elasticsearch.xpack.sql.client.ClientVersion;
 import org.elasticsearch.xpack.sql.client.HttpClient;
 import org.elasticsearch.xpack.sql.proto.MainResponse;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
+import org.elasticsearch.xpack.sql.proto.SqlVersions;
 
 import java.sql.SQLException;
 
+import static org.elasticsearch.xpack.sql.proto.VersionCompatibility.INTRODUCING_VERSION_COMPATIBILITY;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -56,12 +55,11 @@ public class CliSessionTests extends SqlCliTestCase {
 
     public void testWrongServerVersion() throws Exception {
         HttpClient httpClient = mock(HttpClient.class);
-        TransportVersion v = TransportVersionUtils.randomVersionBetween(
-            random(),
-            null,
-            TransportVersionUtils.getPreviousVersion(TransportVersions.V_7_7_0)
-        );
-        SqlVersion version = from(v);
+        var preVersionCompat = SqlVersions.getAllVersions()
+            .stream()
+            .filter(v -> v.onOrAfter(INTRODUCING_VERSION_COMPATIBILITY) == false)
+            .toList();
+        SqlVersion version = preVersionCompat.get(random().nextInt(preVersionCompat.size()));
         when(httpClient.serverInfo()).thenReturn(
             new MainResponse(randomAlphaOfLength(5), version.toString(), ClusterName.DEFAULT.value(), UUIDs.randomBase64UUID())
         );
@@ -80,23 +78,14 @@ public class CliSessionTests extends SqlCliTestCase {
 
     public void testHigherServerVersion() throws Exception {
         HttpClient httpClient = mock(HttpClient.class);
-        TransportVersion v = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersionUtils.getPreviousVersion(TransportVersions.V_7_7_0),
-            null
-        );
+        var postVersionCompat = SqlVersions.getAllVersions().stream().filter(v -> v.onOrAfter(INTRODUCING_VERSION_COMPATIBILITY)).toList();
+        SqlVersion version = postVersionCompat.get(random().nextInt(postVersionCompat.size()));
         when(httpClient.serverInfo()).thenReturn(
-            new MainResponse(randomAlphaOfLength(5), from(v).toString(), ClusterName.DEFAULT.value(), UUIDs.randomBase64UUID())
+            new MainResponse(randomAlphaOfLength(5), version.toString(), ClusterName.DEFAULT.value(), UUIDs.randomBase64UUID())
         );
         CliSession cliSession = new CliSession(httpClient);
         cliSession.checkConnection();
         verify(httpClient, times(1)).serverInfo();
         verifyNoMoreInteractions(httpClient);
-    }
-
-    // Translating a TransportVersion to a SqlVersion/Version must go through the former's string representation, which involves a
-    // mapping; the .id() can't be used directly.
-    public static SqlVersion from(TransportVersion transportVersion) {
-        return SqlVersion.fromTransportString(transportVersion.toReleaseVersion());
     }
 }

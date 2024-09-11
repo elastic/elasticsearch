@@ -15,13 +15,14 @@ import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.sql.action.Protocol;
-import org.elasticsearch.xpack.sql.action.SqlVersionId;
+import org.elasticsearch.xpack.sql.action.SqlVersionUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.index.IndexCompatibility;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlConfiguration;
@@ -47,8 +48,8 @@ import static org.elasticsearch.xpack.sql.analysis.analyzer.AnalyzerTestUtils.an
 import static org.elasticsearch.xpack.sql.index.VersionCompatibilityChecks.isTypeSupportedInVersion;
 import static org.elasticsearch.xpack.sql.proto.Mode.isDriver;
 import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
-import static org.elasticsearch.xpack.sql.util.SqlVersionIdUtils.UNSIGNED_LONG_TEST_VERSIONS;
-import static org.elasticsearch.xpack.sql.util.SqlVersionIdUtils.VERSION_FIELD_TEST_VERSIONS;
+import static org.elasticsearch.xpack.sql.util.SqlVersionUtils.UNSIGNED_LONG_TEST_VERSIONS;
+import static org.elasticsearch.xpack.sql.util.SqlVersionUtils.VERSION_FIELD_TEST_VERSIONS;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
@@ -69,7 +70,7 @@ public class SysColumnsTests extends ESTestCase {
     private void sysColumnsInMode(Mode mode) {
         Class<? extends Number> typeClass = mode == Mode.ODBC ? Short.class : Integer.class;
         List<List<?>> rows = new ArrayList<>();
-        SysColumns.fillInRows("test", "index", MAPPING2, null, rows, null, mode);
+        SysColumns.fillInRows("test", "org/elasticsearch/xpack/sql/index", MAPPING2, null, rows, null, mode);
         assertEquals(FIELD_COUNT2, rows.size());
         assertEquals(24, rows.get(0).size());
 
@@ -141,11 +142,19 @@ public class SysColumnsTests extends ESTestCase {
 
     public void testUnsignedLongFiltering() {
         for (Mode mode : List.of(Mode.JDBC, Mode.ODBC)) {
-            for (SqlVersionId version : UNSIGNED_LONG_TEST_VERSIONS) {
+            for (SqlVersion version : UNSIGNED_LONG_TEST_VERSIONS) {
                 List<List<?>> rows = new ArrayList<>();
                 // mapping's mutated by IndexCompatibility.compatible, needs to stay in the loop
                 Map<String, EsField> mapping = loadMapping("mapping-multi-field-variation.json", true);
-                SysColumns.fillInRows("test", "index", IndexCompatibility.compatible(mapping, version), null, rows, null, mode);
+                SysColumns.fillInRows(
+                    "test",
+                    "org/elasticsearch/xpack/sql/index",
+                    IndexCompatibility.compatible(mapping, version),
+                    null,
+                    rows,
+                    null,
+                    mode
+                );
                 List<String> types = rows.stream().map(row -> name(row).toString()).collect(Collectors.toList());
                 assertEquals(
                     isTypeSupportedInVersion(UNSIGNED_LONG, version),
@@ -157,11 +166,19 @@ public class SysColumnsTests extends ESTestCase {
 
     public void testVersionTypeFiltering() {
         for (Mode mode : List.of(Mode.JDBC, Mode.ODBC)) {
-            for (SqlVersionId version : VERSION_FIELD_TEST_VERSIONS) {
+            for (SqlVersion version : VERSION_FIELD_TEST_VERSIONS) {
                 List<List<?>> rows = new ArrayList<>();
                 // mapping's mutated by IndexCompatibility.compatible, needs to stay in the loop
                 Map<String, EsField> mapping = loadMapping("mapping-multi-field-variation.json", true);
-                SysColumns.fillInRows("test", "index", IndexCompatibility.compatible(mapping, version), null, rows, null, mode);
+                SysColumns.fillInRows(
+                    "test",
+                    "org/elasticsearch/xpack/sql/index",
+                    IndexCompatibility.compatible(mapping, version),
+                    null,
+                    rows,
+                    null,
+                    mode
+                );
                 List<String> types = rows.stream().map(row -> name(row).toString()).collect(Collectors.toList());
                 assertEquals(isTypeSupportedInVersion(VERSION, version), types.contains(VERSION.toString().toLowerCase(Locale.ROOT)));
             }
@@ -279,7 +296,7 @@ public class SysColumnsTests extends ESTestCase {
             null,
             Mode.ODBC,
             null,
-            SqlVersionId.CURRENT,
+            SqlVersionUtils.SERVER_COMPAT_VERSION,
             null,
             null,
             false,
@@ -326,7 +343,7 @@ public class SysColumnsTests extends ESTestCase {
             null,
             mode,
             null,
-            SqlVersionId.CURRENT,
+            SqlVersionUtils.SERVER_COMPAT_VERSION,
             null,
             null,
             false,

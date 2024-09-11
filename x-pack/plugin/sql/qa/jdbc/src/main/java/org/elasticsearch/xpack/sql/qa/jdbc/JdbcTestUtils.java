@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.xpack.sql.jdbc.EsType;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
@@ -30,7 +29,9 @@ import java.util.Map;
 
 import static org.elasticsearch.common.time.DateUtils.toMilliSeconds;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
-import static org.elasticsearch.xpack.sql.proto.SqlVersion.DATE_NANOS_SUPPORT_VERSION;
+import static org.elasticsearch.xpack.sql.proto.VersionCompatibility.supportsDateNanos;
+import static org.elasticsearch.xpack.sql.proto.VersionCompatibility.supportsUnsignedLong;
+import static org.elasticsearch.xpack.sql.proto.VersionCompatibility.supportsVersionType;
 
 final class JdbcTestUtils {
 
@@ -45,6 +46,7 @@ final class JdbcTestUtils {
 
     static final String UNSIGNED_LONG_TYPE_NAME = "UNSIGNED_LONG";
 
+    // Build's version is always a SemVer in JDBC tests
     public static final SqlVersion CURRENT = SqlVersion.fromString(Build.current().version());
 
     /*
@@ -151,14 +153,14 @@ final class JdbcTestUtils {
     }
 
     static boolean versionSupportsDateNanos() {
-        return JDBC_DRIVER_VERSION.compareTo(DATE_NANOS_SUPPORT_VERSION) >= 0;
+        return supportsDateNanos(JDBC_DRIVER_VERSION);
     }
 
     public static boolean isUnsignedLongSupported() {
-        return JDBC_DRIVER_VERSION.compareTo(SqlVersion.fromId(TransportVersions.V_8_2_0.id())) >= 0;
+        return supportsUnsignedLong(JDBC_DRIVER_VERSION);
     }
 
     public static boolean isVersionFieldTypeSupported() {
-        return JDBC_DRIVER_VERSION.compareTo(SqlVersion.fromId(TransportVersions.V_8_4_0.id())) >= 0;
+        return supportsVersionType(JDBC_DRIVER_VERSION);
     }
 }

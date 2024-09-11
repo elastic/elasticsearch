@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.sql.qa.rest;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.cbor.CborXContent;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
+import org.elasticsearch.xpack.sql.proto.SqlVersions;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 
 import java.io.IOException;
@@ -49,25 +50,17 @@ import static org.elasticsearch.xpack.sql.proto.CoreProtocol.RUNTIME_MAPPINGS_NA
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.TIME_ZONE_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.VERSION_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.WAIT_FOR_COMPLETION_TIMEOUT_NAME;
-import static org.elasticsearch.xpack.sql.proto.SqlVersion.INTRODUCING_SQL_VERSION_ID;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.SQL_QUERY_REST_ENDPOINT;
 
 public abstract class BaseRestSqlTestCase extends RemoteClusterAwareSqlRestTestCase {
 
     private static final String TEST_INDEX = "test";
     private static final String DATA_STREAM_TEMPLATE = "test-ds-index-template";
-
-    private static final SqlVersion TEST_VERSION;
-
-    static {
-        SqlVersion version;
-        try {
-            version = SqlVersion.fromTransportString(TransportVersion.current().toReleaseVersion());
-        } catch (IllegalArgumentException __) {
-            version = INTRODUCING_SQL_VERSION_ID;
-        }
-        TEST_VERSION = version;
-    }
+    /**
+     * What's the version of the server that the clients should be compatible with?
+     * This will be either the stack version, or SqlVersions.getLatestVersion() if the stack version is not available.
+     */
+    private static final SqlVersion SERVER_COMPAT_VERSION = getServerCompatVersion();
 
     public static class RequestObjectBuilder {
         private StringBuilder request;
@@ -97,7 +90,7 @@ public abstract class BaseRestSqlTestCase extends RemoteClusterAwareSqlRestTestC
             if (isQuery) {
                 Mode mode = (m instanceof Mode) ? (Mode) m : Mode.fromString(modeString);
                 if (Mode.isDedicatedClient(mode)) {
-                    version(TEST_VERSION.version);
+                    version(SERVER_COMPAT_VERSION.toString());
                 }
             }
             return this;
@@ -314,5 +307,13 @@ public abstract class BaseRestSqlTestCase extends RemoteClusterAwareSqlRestTestC
             Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8)),
             response.getHeader("Cursor")
         );
+    }
+
+    private static SqlVersion getServerCompatVersion() {
+        try {
+            return SqlVersion.fromString(Build.current().version());
+        } catch (Exception e) {
+            return SqlVersions.getLatestVersion();
+        }
     }
 }

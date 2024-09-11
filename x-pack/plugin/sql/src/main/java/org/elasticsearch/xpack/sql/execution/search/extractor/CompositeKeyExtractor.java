@@ -27,7 +27,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypeConverter.toUnsignedLong;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.sql.index.VersionCompatibilityChecks.INTRODUCING_UNSIGNED_LONG;
+import static org.elasticsearch.xpack.sql.proto.VersionCompatibility.INTRODUCING_UNSIGNED_LONG;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.isDateBased;
 
 public class CompositeKeyExtractor implements BucketExtractor {
@@ -55,7 +55,7 @@ public class CompositeKeyExtractor implements BucketExtractor {
     CompositeKeyExtractor(StreamInput in) throws IOException {
         key = in.readString();
         property = in.readEnum(Property.class);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.fromId(INTRODUCING_UNSIGNED_LONG.id()))) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.fromId(INTRODUCING_UNSIGNED_LONG.id))) {
             dataType = SqlDataTypes.fromTypeName(in.readString());
         } else {
             // for pre-UNSIGNED_LONG versions, the only relevant fact about the dataType was if this isDateBased() or not.
@@ -69,7 +69,7 @@ public class CompositeKeyExtractor implements BucketExtractor {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(key);
         out.writeEnum(property);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.fromId(INTRODUCING_UNSIGNED_LONG.id()))) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.fromId(INTRODUCING_UNSIGNED_LONG.id))) {
             out.writeString(dataType.typeName());
         } else {
             out.writeBoolean(isDateBased(dataType));

@@ -7,17 +7,18 @@
 
 package org.elasticsearch.xpack.sql.jdbc;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.root.MainResponse;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.sql.client.ClientVersion;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
+import org.elasticsearch.xpack.sql.proto.SqlVersions;
 
 import java.io.IOException;
 import java.sql.SQLException;
+
+import static org.elasticsearch.xpack.sql.proto.VersionCompatibility.INTRODUCING_VERSION_COMPATIBILITY;
 
 /**
  * Test class for JDBC-ES server versions checks.
@@ -29,15 +30,11 @@ public class VersionParityTests extends WebServerTestCase {
 
     public void testExceptionThrownOnIncompatibleVersions() throws IOException, SQLException {
         String url = JdbcConfiguration.URL_PREFIX + webServerAddress();
-        TransportVersion firstVersion = TransportVersionUtils.getFirstVersion();
-        TransportVersion version = TransportVersions.V_7_7_0;
-        do {
-            version = TransportVersionUtils.getPreviousVersion(version);
+        for (var version = SqlVersions.getFirstVersion(); version.onOrAfter(INTRODUCING_VERSION_COMPATIBILITY) == false; version =
+            SqlVersions.getNextVersion(version)) {
             logger.info("Checking exception is thrown for version {}", version);
 
             prepareResponse(version);
-            // Client's version is wired up to patch level, excluding the qualifier => generate the test version as the server does it.
-            String versionString = version.toReleaseVersion();
 
             SQLException ex = expectThrows(
                 SQLException.class,
@@ -48,27 +45,27 @@ public class VersionParityTests extends WebServerTestCase {
                     + ClientVersion.CURRENT.majorMinorToString()
                     + " or newer; attempting to connect to a server "
                     + "version "
-                    + versionString,
+                    + version,
                 ex.getMessage()
             );
-        } while (version.compareTo(firstVersion) > 0);
+        }
     }
 
     public void testNoExceptionThrownForCompatibleVersions() throws IOException {
         String url = JdbcConfiguration.URL_PREFIX + webServerAddress();
-        TransportVersion version = TransportVersion.current();
+        SqlVersion version = VersionTests.current();
         try {
             do {
                 prepareResponse(version);
                 new JdbcHttpClient(new JdbcConnection(JdbcConfiguration.create(url, null, 0), false));
-                version = TransportVersionUtils.getPreviousVersion(version);
-            } while (version.compareTo(TransportVersions.V_7_7_0) >= 0);
+                version = SqlVersions.getPreviousVersion(version);
+            } while (version.onOrAfter(INTRODUCING_VERSION_COMPATIBILITY));
         } catch (SQLException sqle) {
             fail("JDBC driver version and Elasticsearch server version should be compatible. Error: " + sqle);
         }
     }
 
-    void prepareResponse(TransportVersion version) throws IOException {
+    void prepareResponse(SqlVersion version) throws IOException {
         MainResponse response = version == null ? createCurrentVersionMainResponse() : createMainResponse(version);
         webServer().enqueue(
             new MockResponse().setResponseCode(200)

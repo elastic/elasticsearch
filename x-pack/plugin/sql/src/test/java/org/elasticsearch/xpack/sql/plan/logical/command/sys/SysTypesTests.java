@@ -15,11 +15,11 @@ import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.action.Protocol;
-import org.elasticsearch.xpack.sql.action.SqlVersionId;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.session.SqlSession;
@@ -36,17 +36,18 @@ import java.util.Set;
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
+import static org.elasticsearch.xpack.sql.action.SqlVersionUtils.SERVER_COMPAT_VERSION;
 import static org.elasticsearch.xpack.sql.analysis.analyzer.AnalyzerTestUtils.analyzer;
 import static org.elasticsearch.xpack.sql.index.VersionCompatibilityChecks.isTypeSupportedInVersion;
-import static org.elasticsearch.xpack.sql.util.SqlVersionIdUtils.UNSIGNED_LONG_TEST_VERSIONS;
-import static org.elasticsearch.xpack.sql.util.SqlVersionIdUtils.VERSION_FIELD_TEST_VERSIONS;
+import static org.elasticsearch.xpack.sql.util.SqlVersionUtils.UNSIGNED_LONG_TEST_VERSIONS;
+import static org.elasticsearch.xpack.sql.util.SqlVersionUtils.VERSION_FIELD_TEST_VERSIONS;
 import static org.mockito.Mockito.mock;
 
 public class SysTypesTests extends ESTestCase {
 
     private final SqlParser parser = new SqlParser();
 
-    private Tuple<Command, SqlSession> sql(String sql, Mode mode, @Nullable SqlVersionId version) {
+    private Tuple<Command, SqlSession> sql(String sql, Mode mode, @Nullable SqlVersion version) {
         SqlConfiguration configuration = new SqlConfiguration(
             DateUtils.UTC,
             null,
@@ -76,7 +77,7 @@ public class SysTypesTests extends ESTestCase {
     }
 
     private Tuple<Command, SqlSession> sql(String sql) {
-        return sql(sql, randomFrom(Mode.values()), randomBoolean() ? null : SqlVersionId.CURRENT);
+        return sql(sql, randomFrom(Mode.values()), randomBoolean() ? null : SERVER_COMPAT_VERSION);
     }
 
     public void testSysTypes() {
@@ -143,9 +144,9 @@ public class SysTypesTests extends ESTestCase {
     }
 
     public void testUnsignedLongFiltering() {
-        Set<SqlVersionId> versions = new HashSet<>(UNSIGNED_LONG_TEST_VERSIONS);
+        Set<SqlVersion> versions = new HashSet<>(UNSIGNED_LONG_TEST_VERSIONS);
         versions.add(null);
-        for (SqlVersionId version : versions) {
+        for (SqlVersion version : versions) {
             for (Mode mode : Mode.values()) {
                 Tuple<Command, SqlSession> cmd = sql("SYS TYPES", mode, version);
 
@@ -163,9 +164,9 @@ public class SysTypesTests extends ESTestCase {
     }
 
     public void testVersionTypeFiltering() {
-        Set<SqlVersionId> versions = new HashSet<>(VERSION_FIELD_TEST_VERSIONS);
+        Set<SqlVersion> versions = new HashSet<>(VERSION_FIELD_TEST_VERSIONS);
         versions.add(null);
-        for (SqlVersionId version : versions) {
+        for (SqlVersion version : versions) {
             for (Mode mode : Mode.values()) {
                 Tuple<Command, SqlSession> cmd = sql("SYS TYPES", mode, version);
 

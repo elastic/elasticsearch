@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ql.async.QlStatusResponse;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 
 import java.io.IOException;
@@ -31,6 +32,7 @@ import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.CURSOR;
 import static org.elasticsearch.xpack.sql.proto.Mode.CLI;
 import static org.elasticsearch.xpack.sql.proto.Mode.JDBC;
+import static org.elasticsearch.xpack.sql.proto.VersionCompatibility.isClientCompatible;
 
 /**
  * Response to perform an sql query
@@ -40,7 +42,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
     // TODO: Simplify cursor handling
     private String cursor;
     private Mode mode;
-    private SqlVersionId sqlVersion;
+    private SqlVersion sqlVersion;
     private boolean columnar;
     private List<ColumnInfo> columns;
     // TODO investigate reusing Page here - it probably is much more efficient
@@ -94,7 +96,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
     public SqlQueryResponse(
         String cursor,
         Mode mode,
-        @Nullable SqlVersionId sqlVersion,
+        SqlVersion sqlVersion,
         boolean columnar,
         @Nullable List<ColumnInfo> columns,
         List<List<Object>> rows,
@@ -104,7 +106,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
     ) {
         this.cursor = cursor;
         this.mode = mode;
-        this.sqlVersion = sqlVersion != null ? sqlVersion : SqlVersionId.CURRENT;
+        this.sqlVersion = sqlVersion != null ? sqlVersion : SqlVersionUtils.SERVER_COMPAT_VERSION;
         this.columnar = columnar;
         this.columns = columns;
         this.rows = rows;
@@ -116,7 +118,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
     public SqlQueryResponse(
         String cursor,
         Mode mode,
-        SqlVersionId sqlVersion,
+        SqlVersion sqlVersion,
         boolean columnar,
         @Nullable List<ColumnInfo> columns,
         List<List<Object>> rows
@@ -269,11 +271,11 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
     /**
      * Serializes the provided value in SQL-compatible way based on the client mode
      */
-    public static XContentBuilder value(XContentBuilder builder, Mode mode, SqlVersionId version, Object value) throws IOException {
+    public static XContentBuilder value(XContentBuilder builder, Mode mode, SqlVersion sqlVersion, Object value) throws IOException {
         if (value instanceof ZonedDateTime zdt) {
             // use the ISO format
-            if (mode == JDBC && SqlVersionId.isClientCompatible(version) && SqlVersionId.isSemVerCompatible(version)) {
-                builder.value(StringUtils.toString(zdt, version.sqlVersion()));
+            if (mode == JDBC && isClientCompatible(SqlVersionUtils.SERVER_COMPAT_VERSION, sqlVersion)) {
+                builder.value(StringUtils.toString(zdt, sqlVersion));
             } else {
                 builder.value(StringUtils.toString(zdt));
             }

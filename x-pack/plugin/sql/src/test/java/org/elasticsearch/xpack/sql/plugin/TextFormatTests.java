@@ -28,8 +28,8 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.sql.plugin.TextFormat.CSV;
 import static org.elasticsearch.xpack.sql.plugin.TextFormat.PLAIN_TEXT;
 import static org.elasticsearch.xpack.sql.plugin.TextFormat.TSV;
+import static org.elasticsearch.xpack.sql.proto.VersionCompatibility.INTRODUCING_DATE_NANOS;
 import static org.elasticsearch.xpack.sql.proto.formatter.SimpleFormatter.FormatOption.TEXT;
-import static org.elasticsearch.xpack.sql.util.SqlVersionIdUtils.INTRODUCING_DATE_NANOS;
 
 public class TextFormatTests extends ESTestCase {
 
@@ -190,7 +190,7 @@ public class TextFormatTests extends ESTestCase {
             Mode.JDBC,
             INTRODUCING_DATE_NANOS,
             false,
-            singletonList(new ColumnInfo("index", "name", "keyword")),
+            singletonList(new ColumnInfo("org/elasticsearch/xpack/sql/index", "name", "keyword")),
             emptyList()
         );
     }
@@ -198,8 +198,8 @@ public class TextFormatTests extends ESTestCase {
     private static SqlQueryResponse regularData() {
         // headers
         List<ColumnInfo> headers = new ArrayList<>();
-        headers.add(new ColumnInfo("index", "string", "keyword"));
-        headers.add(new ColumnInfo("index", "number", "integer"));
+        headers.add(new ColumnInfo("org/elasticsearch/xpack/sql/index", "string", "keyword"));
+        headers.add(new ColumnInfo("org/elasticsearch/xpack/sql/index", "number", "integer"));
 
         // values
         List<List<Object>> values = new ArrayList<>();
@@ -212,8 +212,8 @@ public class TextFormatTests extends ESTestCase {
     private static SqlQueryResponse escapedData() {
         // headers
         List<ColumnInfo> headers = new ArrayList<>();
-        headers.add(new ColumnInfo("index", "first", "keyword"));
-        headers.add(new ColumnInfo("index", "\"special\"", "keyword"));
+        headers.add(new ColumnInfo("org/elasticsearch/xpack/sql/index", "first", "keyword"));
+        headers.add(new ColumnInfo("org/elasticsearch/xpack/sql/index", "\"special\"", "keyword"));
 
         // values
         List<List<Object>> values = new ArrayList<>();

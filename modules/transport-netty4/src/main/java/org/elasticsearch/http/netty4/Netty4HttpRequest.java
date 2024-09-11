@@ -128,6 +128,12 @@ public class Netty4HttpRequest implements HttpRequest {
         }
         try {
             final ByteBuf copiedContent = Unpooled.copiedBuffer(request.content());
+            HttpBody newContent;
+            if (content.isStream()) {
+                newContent = content;
+            } else {
+                newContent = Netty4Utils.fullHttpBodyFrom(copiedContent);
+            }
             return new Netty4HttpRequest(
                 sequence,
                 new DefaultFullHttpRequest(
@@ -140,7 +146,7 @@ public class Netty4HttpRequest implements HttpRequest {
                 ),
                 new AtomicBoolean(false),
                 false,
-                content
+                newContent
             );
         } finally {
             release();

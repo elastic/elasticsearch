@@ -8,6 +8,8 @@
 
 package org.elasticsearch.datastreams;
 
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -18,6 +20,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -407,10 +410,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
             """);
         assertOK(client.performRequest(reindexRequest));
         assertDataStreamBackingIndexMode("standard", 0, "standard-apache-kafka");
-        assertThat(
-            entityAsMap(client.performRequest(new Request("POST", "/standard-apache-kafka/_count"))).get("count"),
-            Matchers.equalTo(10)
-        );
+        assertDocCount(client, "standard-apache-kafka", 10);
     }
 
     public void testStandardToLogsDBReindex() throws IOException {
@@ -439,10 +439,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
             );
         }
         assertDataStreamBackingIndexMode("standard", 0, "standard-apache-kafka");
-        assertThat(
-            entityAsMap(client.performRequest(new Request("POST", "/standard-apache-kafka/_count"))).get("count"),
-            Matchers.equalTo(10)
-        );
+        assertDocCount(client, "standard-apache-kafka", 10);
 
         // Reindex LogsDB data stream into a standard data stream
         final Request reindexRequest = new Request("POST", "/_reindex?refresh=true");
@@ -459,7 +456,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
             """);
         assertOK(client.performRequest(reindexRequest));
         assertDataStreamBackingIndexMode("logsdb", 0, "logs-apache-kafka");
-        assertThat(entityAsMap(client.performRequest(new Request("POST", "/logs-apache-kafka/_count"))).get("count"), Matchers.equalTo(10));
+        assertDocCount(client, "logs-apache-kafka", 10);
     }
 
     public void testLogsDBSnapshotCreateRestoreMount() throws IOException {
@@ -487,9 +484,9 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
 
         final String snapshot = randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
         deleteSnapshot(repository, snapshot, true);
-        createSnapshot(repository, snapshot, true);
+        createSnapshot(client, repository, snapshot, true, index);
         deleteIndex(index);
-        restoreSnapshot(repository, snapshot, true);
+        restoreSnapshot(client, repository, snapshot, true, index);
 
         final String restoreIndex = randomAlphaOfLength(7).toLowerCase(Locale.ROOT);
         final Request mountRequest = new Request("POST", "/_snapshot/" + repository + '/' + snapshot + "/_mount");
@@ -497,10 +494,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
         mountRequest.setJsonEntity("{\"index\": \"" + index + "\",\"renamed_index\": \"" + restoreIndex + "\"}");
         assertOK(client.performRequest(mountRequest));
 
-        assertThat(
-            entityAsMap(client.performRequest(new Request("POST", "/" + restoreIndex + "/_count"))).get("count"),
-            Matchers.equalTo(10)
-        );
+        assertDocCount(client, restoreIndex, 10);
 
         assertThat(getSettings(client, restoreIndex).get("index.mode"), Matchers.equalTo(IndexMode.LOGSDB.getName()));
     }
@@ -539,12 +533,12 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
 
         final String snapshot = randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
         deleteSnapshot(sourceOnlyRepository, snapshot, true);
-        createSnapshot(sourceOnlyRepository, snapshot, true);
+        createSnapshot(client, sourceOnlyRepository, snapshot, true, index);
         deleteIndex(index);
         // Can't snapshot _source only on an index that has incomplete source ie. has _source disabled or filters the source
         final ResponseException responseException = expectThrows(
             ResponseException.class,
-            () -> restoreSnapshot(sourceOnlyRepository, snapshot, true)
+            () -> restoreSnapshot(client, sourceOnlyRepository, snapshot, true, index)
         );
         assertThat(responseException.getMessage(), Matchers.containsString("wasn't fully snapshotted"));
     }
@@ -619,5 +613,47 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
     private static Map<String, Object> getSettings(final RestClient client, final String indexName) throws IOException {
         final Request request = new Request("GET", "/" + indexName + "/_settings?flat_settings");
         return ((Map<String, Map<String, Object>>) entityAsMap(client.performRequest(request)).get(indexName)).get("settings");
+    }
+
+    private static void createSnapshot(
+        RestClient restClient,
+        String repository,
+        String snapshot,
+        boolean waitForCompletion,
+        final String... indices
+    ) throws IOException {
+        final Request request = new Request(HttpPut.METHOD_NAME, "_snapshot/" + repository + '/' + snapshot);
+        request.addParameter("wait_for_completion", Boolean.toString(waitForCompletion));
+        request.setJsonEntity("""
+            "indices": $indices
+            """.replace("$indices", String.join(", ", indices)));
+
+        final Response response = restClient.performRequest(request);
+        assertThat(
+            "Failed to create snapshot [" + snapshot + "] in repository [" + repository + "]: " + response,
+            response.getStatusLine().getStatusCode(),
+            equalTo(RestStatus.OK.getStatus())
+        );
+    }
+
+    private static void restoreSnapshot(
+        final RestClient client,
+        final String repository,
+        String snapshot,
+        boolean waitForCompletion,
+        final String... indices
+    ) throws IOException {
+        final Request request = new Request(HttpPost.METHOD_NAME, "_snapshot/" + repository + '/' + snapshot + "/_restore");
+        request.addParameter("wait_for_completion", Boolean.toString(waitForCompletion));
+        request.setJsonEntity("""
+            "indices": $indices
+            """.replace("$indices", String.join(", ", indices)));
+
+        final Response response = client.performRequest(request);
+        assertThat(
+            "Failed to restore snapshot [" + snapshot + "] from repository [" + repository + "]: " + response,
+            response.getStatusLine().getStatusCode(),
+            equalTo(RestStatus.OK.getStatus())
+        );
     }
 }

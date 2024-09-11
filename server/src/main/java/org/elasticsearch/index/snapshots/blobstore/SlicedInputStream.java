@@ -40,6 +40,7 @@ public abstract class SlicedInputStream extends InputStream {
 
     private InputStream nextStream() throws IOException {
         assert initialized == false || currentStream != null;
+        assert closed == false : "attempted to get next stream when closed";
         initialized = true;
         IOUtils.close(currentStream);
         if (nextSlice < numSlices) {
@@ -146,12 +147,10 @@ public abstract class SlicedInputStream extends InputStream {
                     throw new IOException("Mark has not been set");
                 }
 
-                nextSlice = markedSlice;
-                nextStream();
-
                 // We do not call the SlicedInputStream's skipNBytes but call skipNBytes directly on the returned stream, to ensure that
                 // the skip is performed on the marked slice and no other slices are involved. This may help uncover any bugs.
-                final InputStream stream = currentStream();
+                nextSlice = markedSlice;
+                final InputStream stream = nextStream();
                 if (stream != null) {
                     stream.skipNBytes(markedSliceOffset);
                 }

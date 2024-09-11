@@ -64,6 +64,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collector;
@@ -198,7 +199,18 @@ public class NativePrivilegeStore {
         if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(Collections.emptyList());
         } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
-            listener.onFailure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
+            logger.info("Will wait for security index to come online...");
+            final BiConsumer<SecurityIndexManager.State, SecurityIndexManager.State> indexAvailableForSearchListener = new BiConsumer<>() {
+                @Override
+                public void accept(SecurityIndexManager.State previousState, SecurityIndexManager.State nextState) {
+                    if (false == previousState.indexAvailableForSearch && nextState.indexAvailableForSearch) {
+                        logger.info("Security index is online...");
+                        securityIndexManager.removeStateListener(this);
+                        innerGetPrivileges(applications, listener);
+                    }
+                }
+            };
+            securityIndexManager.addStateListener(indexAvailableForSearchListener);
         } else {
             securityIndexManager.checkIndexVersionThenExecute(listener::onFailure, () -> {
 

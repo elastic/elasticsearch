@@ -4,7 +4,7 @@ area: Codec
 type: enhancement
 issues: []
 highlight:
-  title: Enable ZStandard compression for stored fields with
+  title: Enable ZStandard compression for indices with index.codec set to best_compression
   body: |-
     Before DEFLATE compression was used to compress stored fields in indices with index.codec index setting set to
     best_compression, with this change ZStandard is used as compression algorithm to stored fields for indices with

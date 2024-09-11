@@ -31,9 +31,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.isDataStreamsLifecycleOnlyMode;
 import static org.elasticsearch.xpack.core.template.ResourceUtils.loadResource;
 import static org.elasticsearch.xpack.core.template.ResourceUtils.loadVersionedResourceUTF8;
-import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.isDataStreamsLifecycleOnlyMode;
 
 /**
  * Creates index templates and ingest pipelines based on YAML files defined in resources.yaml.

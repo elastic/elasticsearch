@@ -52,6 +52,11 @@ public class SnapshotFilesProvider {
                 protected InputStream openSlice(int slice) throws IOException {
                     return container.readBlob(OperationPurpose.SNAPSHOT_DATA, fileInfo.partName(slice));
                 }
+
+                @Override
+                public boolean markSupported() {
+                    return false;
+                }
             };
         }
         return blobStoreRepository.maybeRateLimitRestores(inputStream, rateLimiterListener::accept);

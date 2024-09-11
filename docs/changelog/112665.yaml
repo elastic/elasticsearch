@@ -1,12 +1,13 @@
 pr: 112665
 summary: Remove zstd feature flag for index codec best compression
 area: Codec
-type: "docs, enhancement"
+type: "enhancement"
 issues: []
 highlight:
   title: Enable ZStandard compression for stored fields with
   body: |-
     Before DEFLATE compression was used to compress stored fields in indices with index.codec index setting set to
     best_compression, with this change ZStandard is used as compression algorithm to stored fields for indices with
-    index.codec index setting set to best_compression.
+    index.codec index setting set to best_compression. Experiments have shown that ZStandard offers lower storage usage
+    (upto ~12%) and higher indexing throughput (upto 14%) compared to DEFLATE.
   notable: true

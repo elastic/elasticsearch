@@ -124,6 +124,7 @@ public class TDigestBigArraysTests extends ESTestCase {
     public void testDoubleSort() {
         try (TDigestDoubleArray array = doubleArray(0)) {
             int elementsToAdd = randomIntBetween(0, 100);
+            array.ensureCapacity(elementsToAdd);
             for (int i = 0; i < elementsToAdd; i++) {
                 array.add(randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true));
             }

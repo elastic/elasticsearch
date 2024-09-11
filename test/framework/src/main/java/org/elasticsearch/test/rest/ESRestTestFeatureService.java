@@ -95,6 +95,15 @@ class ESRestTestFeatureService implements TestFeatureService {
         Matcher matcher = VERSION_FEATURE_PATTERN.matcher(featureId);
         if (matcher.matches()) {
             Version extractedVersion = Version.fromString(matcher.group(1));
+            if (extractedVersion.equals(Version.CURRENT)) {
+                throw new IllegalArgumentException(
+                    Strings.format(
+                        "Cannot use a synthetic feature for the current version %s; "
+                            + "please define a test cluster feature alongside the corresponding code change instead"
+                    )
+                );
+            }
+
             return checkCollection(nodeVersions, v -> v.onOrAfter(extractedVersion), any);
         }
 

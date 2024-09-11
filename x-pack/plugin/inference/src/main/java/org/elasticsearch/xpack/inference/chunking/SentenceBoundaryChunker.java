@@ -48,7 +48,12 @@ public class SentenceBoundaryChunker implements Chunker {
         if (chunkingSettings instanceof SentenceBoundaryChunkingSettings sentenceBoundaryChunkingSettings) {
             return chunk(input, sentenceBoundaryChunkingSettings.maxChunkSize);
         } else {
-            throw new IllegalArgumentException(Strings.format("SentenceBoundaryChunker can't use ChunkingSettings %s", chunkingSettings));
+            throw new IllegalArgumentException(
+                Strings.format(
+                    "SentenceBoundaryChunker can't use ChunkingSettings with strategy [%s]",
+                    chunkingSettings.getChunkingStrategy()
+                )
+            );
         }
     }
 

@@ -106,8 +106,7 @@ public class EmbeddingRequestChunker {
     private void splitIntoBatchedRequests(List<String> inputs) {
         Function<String, List<String>> chunkFunction;
         if (chunkingSettings != null) {
-            var chunkingStrategy = chunkingSettings.getChunkingStrategy() != null ? chunkingSettings.getChunkingStrategy() : null;
-            var chunker = ChunkerBuilder.fromChunkingStrategy(chunkingStrategy);
+            var chunker = ChunkerBuilder.fromChunkingStrategy(chunkingSettings.getChunkingStrategy());
             chunkFunction = input -> chunker.chunk(input, chunkingSettings);
         } else {
             var chunker = new WordBoundaryChunker();

@@ -49,7 +49,9 @@ public class WordBoundaryChunker implements Chunker {
         if (chunkingSettings instanceof WordBoundaryChunkingSettings wordBoundaryChunkerSettings) {
             return chunk(input, wordBoundaryChunkerSettings.maxChunkSize, wordBoundaryChunkerSettings.overlap);
         } else {
-            throw new IllegalArgumentException(Strings.format("WordBoundaryChunker can't use ChunkingSettings %s", chunkingSettings));
+            throw new IllegalArgumentException(
+                Strings.format("WordBoundaryChunker can't use ChunkingSettings with strategy [%s]", chunkingSettings.getChunkingStrategy())
+            );
         }
     }
 

@@ -346,7 +346,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         logger.debug("Creating index [{}]", indexDescriptor.getPrimaryIndex());
         final String indexName = indexDescriptor.getPrimaryIndex();
         var request = new CreateIndexRequest(indexName).mapping(indexDescriptor.getMappings()).settings(indexDescriptor.getSettings());
-        request.origin(indexDescriptor.getOrigin()); // Setting the origin
+        request.origin(indexDescriptor.getOrigin()); // Setting the origin allows the internal user to create the system index
         final OriginSettingClient originSettingClient = new OriginSettingClient(this.client, indexDescriptor.getOrigin());
 
         originSettingClient.admin().indices().create(request, new ActionListener<>() {

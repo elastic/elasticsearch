@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.chunking;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,12 +20,18 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public class SentenceBoundaryChunkingSettings implements ChunkingSettings {
     public static final String NAME = "SentenceBoundaryChunkingSettings";
     private static final ChunkingStrategy STRATEGY = ChunkingStrategy.SENTENCE;
+    private static final Set<String> VALID_KEYS = Set.of(
+        ChunkingSettingsOptions.STRATEGY.toString(),
+        ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString()
+    );
     protected final int maxChunkSize;
 
     public SentenceBoundaryChunkingSettings(Integer maxChunkSize) {
@@ -37,6 +44,14 @@ public class SentenceBoundaryChunkingSettings implements ChunkingSettings {
 
     public static SentenceBoundaryChunkingSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
+
+        var invalidSettings = map.keySet().stream().filter(key -> VALID_KEYS.contains(key) == false).toArray();
+        if (invalidSettings.length > 0) {
+            validationException.addValidationError(
+                Strings.format("Sentence based chunking settings can not have the following settings: %s", Arrays.toString(invalidSettings))
+            );
+        }
+
         Integer maxChunkSize = ServiceUtils.extractRequiredPositiveInteger(
             map,
             ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString(),

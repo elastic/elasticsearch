@@ -32,6 +32,13 @@ public class WordBoundaryChunkingSettingsTests extends AbstractWireSerializingTe
         });
     }
 
+    public void testInvalidInputsProvided() {
+        var chunkingSettingsMap = buildChunkingSettingsMap(Optional.of(randomNonNegativeInt()), Optional.of(randomNonNegativeInt()));
+        chunkingSettingsMap.put(randomAlphaOfLength(10), randomNonNegativeInt());
+
+        assertThrows(ValidationException.class, () -> { WordBoundaryChunkingSettings.fromMap(chunkingSettingsMap); });
+    }
+
     public void testOverlapGreaterThanHalfMaxChunkSize() {
         var maxChunkSize = randomNonNegativeInt();
         var overlap = randomIntBetween((maxChunkSize / 2) + 1, maxChunkSize);

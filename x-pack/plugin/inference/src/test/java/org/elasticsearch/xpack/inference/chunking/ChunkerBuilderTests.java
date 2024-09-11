@@ -12,15 +12,17 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
 
+import static org.hamcrest.Matchers.instanceOf;
+
 public class ChunkerBuilderTests extends ESTestCase {
 
     public void testNullChunkingStrategy() {
-        assert (ChunkerBuilder.fromChunkingStrategy(null) instanceof WordBoundaryChunker);
+        assertThat(ChunkerBuilder.fromChunkingStrategy(null), instanceOf(WordBoundaryChunker.class));
     }
 
     public void testValidChunkingStrategy() {
         chunkingStrategyToExpectedChunkerClassMap().forEach((chunkingStrategy, chunkerClass) -> {
-            assert (ChunkerBuilder.fromChunkingStrategy(chunkingStrategy).getClass().equals(chunkerClass));
+            assertThat(ChunkerBuilder.fromChunkingStrategy(chunkingStrategy), instanceOf(chunkerClass));
         });
     }
 

@@ -11,6 +11,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.ChunkingStrategy;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -24,6 +25,13 @@ public class SentenceBoundaryChunkingSettingsTests extends AbstractWireSerializi
             ValidationException.class,
             () -> { SentenceBoundaryChunkingSettings.fromMap(buildChunkingSettingsMap(Optional.empty())); }
         );
+    }
+
+    public void testInvalidInputsProvided() {
+        var chunkingSettingsMap = buildChunkingSettingsMap(Optional.of(randomNonNegativeInt()));
+        chunkingSettingsMap.put(randomAlphaOfLength(10), randomNonNegativeInt());
+
+        assertThrows(ValidationException.class, () -> { SentenceBoundaryChunkingSettings.fromMap(chunkingSettingsMap); });
     }
 
     public void testValidInputsProvided() {
@@ -56,10 +64,7 @@ public class SentenceBoundaryChunkingSettingsTests extends AbstractWireSerializi
 
     @Override
     protected SentenceBoundaryChunkingSettings mutateInstance(SentenceBoundaryChunkingSettings instance) throws IOException {
-        var chunkSize = instance.maxChunkSize;
-        while (chunkSize == instance.maxChunkSize) {
-            chunkSize = randomNonNegativeInt();
-        }
+        var chunkSize = randomValueOtherThan(instance.maxChunkSize, ESTestCase::randomNonNegativeInt);
 
         return new SentenceBoundaryChunkingSettings(chunkSize);
     }

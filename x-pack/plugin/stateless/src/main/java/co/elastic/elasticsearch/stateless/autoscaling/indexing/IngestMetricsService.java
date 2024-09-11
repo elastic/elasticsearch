@@ -40,11 +40,14 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class IngestMetricsService implements ClusterStateListener {
@@ -86,6 +89,13 @@ public class IngestMetricsService implements ClusterStateListener {
         Setting.Property.Dynamic
     );
 
+    public static final Setting<TimeValue> LOAD_ADJUSTMENT_AFTER_SCALING_WINDOW = Setting.timeSetting(
+        "serverless.autoscaling.ingest_metrics.load_adjustment_after_scaling_window",
+        TimeValue.THIRTY_SECONDS,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static final String NODE_INGEST_LOAD_SNAPSHOTS_METRIC_NAME = "es.autoscaling.indexing.node_ingest_load.current";
 
     private static final Logger logger = LogManager.getLogger(IngestMetricsService.class);
@@ -95,6 +105,20 @@ public class IngestMetricsService implements ClusterStateListener {
     private volatile boolean initialized;
     private volatile double highIngestionLoadWeightDuringScaling;
     private volatile double lowIngestionLoadWeightDuringScaling;
+    /**
+     * The period of time (defaults to 30s, configurable) to keep adjusting ingest load after all shutting down
+     * indexing nodes have left the cluster.
+     */
+    private volatile long loadAdjustmentAfterScalingWindowInNanos;
+    /**
+     * This is the base timestamp to compute the elapsed time since the last shutting down indexing node has left
+     * the cluster. It is updated in {@link #clusterChanged} when the indexing node is removed from the cluster,
+     * regardless whether it has left any unassigned shards. It is also updated in {@link #maybeAdjustIngestLoads}
+     * when adjustment is applied due to shutting down indexing nodes. Updates in these two places should give
+     * an accurate estimation on when we should or should not apply the after-scaling adjustment regardless the
+     * execution orders of {@link #clusterChanged} and {@link #getIndexTierMetrics}.
+     */
+    private AtomicLong loadAdjustmentAfterScalingBaseTimeInNanos = new AtomicLong(0L);
     private final LongSupplier relativeTimeInNanosSupplier;
     private final MemoryMetricsService memoryMetricsService;
     private final Map<String, NodeIngestLoad> nodesIngestLoad = ConcurrentCollections.newConcurrentMap();
@@ -119,6 +143,10 @@ public class IngestMetricsService implements ClusterStateListener {
         clusterSettings.initializeAndWatch(
             LOW_INGESTION_LOAD_WEIGHT_DURING_SCALING,
             value -> this.lowIngestionLoadWeightDuringScaling = value
+        );
+        clusterSettings.initializeAndWatch(
+            LOAD_ADJUSTMENT_AFTER_SCALING_WINDOW,
+            value -> this.loadAdjustmentAfterScalingWindowInNanos = value.getNanos()
         );
 
         setupMetrics(meterRegistry);
@@ -198,6 +226,9 @@ public class IngestMetricsService implements ClusterStateListener {
                             // Keep reporting the last ingestion load but with a MINIMUM quality to avoid scaling down
                             removedNodeIngestLoad.setQualityToMinimum();
                         }
+                        if (hasLastShuttingDownIndexNodeLeft(event.state(), removedNodeId)) {
+                            loadAdjustmentAfterScalingBaseTimeInNanos.updateAndGet(existing -> Math.max(relativeTimeInNanos(), existing));
+                        }
                     }
                 }
             }
@@ -240,12 +271,7 @@ public class IngestMetricsService implements ClusterStateListener {
                 ingestLoads.add(nodeIngestLoad.getIngestLoadSnapshot());
             }
         }
-        final var adjustedIngestLoads = calculateIngestLoadMetric(
-            clusterState,
-            ingestLoads,
-            highIngestionLoadWeightDuringScaling,
-            lowIngestionLoadWeightDuringScaling
-        );
+        final var adjustedIngestLoads = maybeAdjustIngestLoads(clusterState, ingestLoads);
         lastNodeIngestLoadSnapshotsRef.set(
             new RawAndAdjustedNodeIngestLoadSnapshots(ingestLoads, adjustedIngestLoads == ingestLoads ? null : adjustedIngestLoads)
         );
@@ -270,12 +296,11 @@ public class IngestMetricsService implements ClusterStateListener {
     }
 
     // Package-private for testing
-    static List<NodeIngestLoadSnapshot> calculateIngestLoadMetric(
-        ClusterState clusterState,
-        List<NodeIngestLoadSnapshot> ingestLoads,
-        double highIngestionLoadWeightDuringScaling,
-        double lowIngestionLoadWeightDuringScaling
-    ) {
+    List<NodeIngestLoadSnapshot> maybeAdjustIngestLoads(ClusterState clusterState, List<NodeIngestLoadSnapshot> ingestLoads) {
+        boolean adjustIngestionLoadWeight = highIngestionLoadWeightDuringScaling < 1.0 || lowIngestionLoadWeightDuringScaling < 1.0;
+        if (adjustIngestionLoadWeight == false) {
+            return ingestLoads;
+        }
         // During a scaling event, we need to account for the extra load that is caused by ongoing relocations. Poor relocation performance
         // can lead to frequent autoscaling events, where during a scale down we see an increased ingestion load and scale up, only to scale
         // down as soon as possible. We detect a scaling event by looking for shutdown metadata in the cluster. During this time we adjust
@@ -293,24 +318,34 @@ public class IngestMetricsService implements ClusterStateListener {
         // loads and 50% of each of the highest ingestion loads, we can use lowIngestionLoadWeightDuringScaling = 1.0 and
         // highIngestionLoadWeightDuringScaling = 0.5. Note that, N and S is used here to split the list, and it doesn't necessarily mean
         // that the N entries in the list all belong to nodes that have no shutdown markers.
-        final var shuttingDownNodes = Set.copyOf(clusterState.metadata().nodeShutdowns().getAllNodeIds());
-        final var shuttingDownIndexingNodes = clusterState.nodes()
-            .stream()
-            .filter(node -> shuttingDownNodes.contains(node.getId()) && isIndexNode(node))
-            .toList();
-        boolean adjustIngestionLoadWeight = highIngestionLoadWeightDuringScaling < 1.0 || lowIngestionLoadWeightDuringScaling < 1.0;
-        if (shuttingDownIndexingNodes.isEmpty() || adjustIngestionLoadWeight == false) {
+        final var indexingNodesByShutdownStatus = groupIndexNodesByShutdownStatus(clusterState);
+        final int shuttingDownIndexingNodes = indexingNodesByShutdownStatus.get(true);
+        final int notShuttingDownIndexingNodes = indexingNodesByShutdownStatus.get(false);
+
+        // No adjustment is needed if (1) No shutting down node and (2) Sufficient time has passed since last shutting down node left
+        if (shuttingDownIndexingNodes == 0 && shouldAdjustForAfterScaling() == false) {
             return ingestLoads;
         }
-        final int nodesNotShuttingDown = (int) clusterState.nodes()
-            .stream()
-            .filter(IngestMetricsService::isIndexNode)
-            .filter(node -> shuttingDownNodes.contains(node.getId()) == false)
-            .count();
+
+        final int numNodesForLowWeight;
+        if (shuttingDownIndexingNodes != 0) {
+            numNodesForLowWeight = notShuttingDownIndexingNodes;
+            // The cluster still has shutting down nodes. The after scaling base time cannot be earlier than this time.
+            // We update the timestamp here because this method may see a new cluster state before it is processed by the
+            // clusterChanged method. If we update the timestamp only in clusterChanged, this method may see a new state
+            // with no shutdown nodes and immediately stop adjustment before the timestamp can be updated in clusterChanged.
+            // Therefore, updating the timestamp here as well can help maintain its freshness. Another way to look at this
+            // is that we keep updating the timestamp here while a node is shutting down and clusterChanged updates it
+            // one last time when the node finally leaves. Thus updating in both places provides a greater coverage.
+            loadAdjustmentAfterScalingBaseTimeInNanos.updateAndGet(existing -> Math.max(relativeTimeInNanos(), existing));
+        } else {
+            // Apply high weight to only a single node for after scaling adjustment
+            numNodesForLowWeight = ingestLoads.size() - 1;
+        }
         ingestLoads.sort(Comparator.comparingDouble(NodeIngestLoadSnapshot::load));
         final List<NodeIngestLoadSnapshot> adjustedIngestLoads = IntStream.range(0, ingestLoads.size()).mapToObj(i -> {
             final NodeIngestLoadSnapshot ingestLoadSnapshot = ingestLoads.get(i);
-            var weight = i < nodesNotShuttingDown ? lowIngestionLoadWeightDuringScaling : highIngestionLoadWeightDuringScaling;
+            var weight = i < numNodesForLowWeight ? lowIngestionLoadWeightDuringScaling : highIngestionLoadWeightDuringScaling;
             return new NodeIngestLoadSnapshot(
                 ingestLoadSnapshot.nodeId(),
                 ingestLoadSnapshot.nodeName(),
@@ -324,8 +359,8 @@ public class IngestMetricsService implements ClusterStateListener {
                     + "(number of indexing nodes: %d, number of indexing nodes with a shutdown marker: %d, %s: %.2f, %s: %.2f",
                 ingestLoads,
                 adjustedIngestLoads,
-                clusterState.nodes().stream().filter(IngestMetricsService::isIndexNode).count(),
-                shuttingDownIndexingNodes.size(),
+                shuttingDownIndexingNodes + notShuttingDownIndexingNodes,
+                shuttingDownIndexingNodes,
                 HIGH_INGESTION_LOAD_WEIGHT_DURING_SCALING.getKey(),
                 highIngestionLoadWeightDuringScaling,
                 LOW_INGESTION_LOAD_WEIGHT_DURING_SCALING.getKey(),
@@ -333,6 +368,33 @@ public class IngestMetricsService implements ClusterStateListener {
             )
         );
         return adjustedIngestLoads;
+    }
+
+    private boolean shouldAdjustForAfterScaling() {
+        if (loadAdjustmentAfterScalingWindowInNanos <= 0 || loadAdjustmentAfterScalingBaseTimeInNanos.get() == 0) {
+            return false;
+        }
+        return relativeTimeInNanos() - loadAdjustmentAfterScalingBaseTimeInNanos.get() <= loadAdjustmentAfterScalingWindowInNanos;
+    }
+
+    // Package private for testing
+    long getLoadAdjustmentAfterScalingBaseTimeInNanos() {
+        return loadAdjustmentAfterScalingBaseTimeInNanos.get();
+    }
+
+    static Map<Boolean, Integer> groupIndexNodesByShutdownStatus(ClusterState clusterState) {
+        final var shuttingDownNodes = Set.copyOf(clusterState.metadata().nodeShutdowns().getAllNodeIds());
+        return clusterState.nodes()
+            .stream()
+            .filter(IngestMetricsService::isIndexNode)
+            .collect(
+                Collectors.toMap(
+                    node -> shuttingDownNodes.contains(node.getId()),
+                    node -> 1,
+                    Integer::sum,
+                    () -> new HashMap<>(Map.of(true, 0, false, 0))
+                )
+            );
     }
 
     private long relativeTimeInNanos() {
@@ -366,6 +428,10 @@ public class IngestMetricsService implements ClusterStateListener {
     // Note that this relies on the shutdown marker being present in the immediate state that comes after the node leaves the cluster.
     private static boolean successfulPlannedNodeRemoval(ClusterState state, String nodeId) {
         return isNodeMarkedForRemoval(nodeId, state.metadata().nodeShutdowns()) && nonExistingNodeWithNoUnassignedShards(state, nodeId);
+    }
+
+    private boolean hasLastShuttingDownIndexNodeLeft(ClusterState state, String nodeId) {
+        return isNodeMarkedForRemoval(nodeId, state.metadata().nodeShutdowns()) && groupIndexNodesByShutdownStatus(state).get(true) == 0;
     }
 
     // Package-private for testing

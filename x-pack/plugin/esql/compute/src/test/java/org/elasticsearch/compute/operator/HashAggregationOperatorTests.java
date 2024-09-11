@@ -8,13 +8,13 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.aggregation.GroupingKey;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunction;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxLongGroupingAggregatorFunctionTests;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumLongGroupingAggregatorFunctionTests;
-import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
@@ -53,7 +53,7 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
         }
 
         return new HashAggregationOperator.HashAggregationOperatorFactory(
-            List.of(new BlockHash.GroupSpec(0, ElementType.LONG)),
+            List.of(GroupingKey.forStatelessGrouping(0, ElementType.LONG).get(mode)),
             List.of(
                 new SumLongAggregatorFunctionSupplier(sumChannels).groupingAggregatorFactory(mode),
                 new MaxLongAggregatorFunctionSupplier(maxChannels).groupingAggregatorFactory(mode)

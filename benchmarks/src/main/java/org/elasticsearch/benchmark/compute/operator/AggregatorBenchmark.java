@@ -16,13 +16,13 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
 import org.elasticsearch.compute.aggregation.CountDistinctDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.CountDistinctLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.GroupingKey;
 import org.elasticsearch.compute.aggregation.MaxDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -124,29 +124,32 @@ public class AggregatorBenchmark {
                 driverContext
             );
         }
-        List<BlockHash.GroupSpec> groups = switch (grouping) {
-            case LONGS -> List.of(new BlockHash.GroupSpec(0, ElementType.LONG));
-            case INTS -> List.of(new BlockHash.GroupSpec(0, ElementType.INT));
-            case DOUBLES -> List.of(new BlockHash.GroupSpec(0, ElementType.DOUBLE));
-            case BOOLEANS -> List.of(new BlockHash.GroupSpec(0, ElementType.BOOLEAN));
-            case BYTES_REFS -> List.of(new BlockHash.GroupSpec(0, ElementType.BYTES_REF));
-            case TWO_LONGS -> List.of(new BlockHash.GroupSpec(0, ElementType.LONG), new BlockHash.GroupSpec(1, ElementType.LONG));
+        List<GroupingKey> groups = switch (grouping) {
+            case LONGS -> List.of(GroupingKey.forStatelessGrouping(0, ElementType.LONG).get(AggregatorMode.SINGLE));
+            case INTS -> List.of(GroupingKey.forStatelessGrouping(0, ElementType.INT).get(AggregatorMode.SINGLE));
+            case DOUBLES -> List.of(GroupingKey.forStatelessGrouping(0, ElementType.DOUBLE).get(AggregatorMode.SINGLE));
+            case BOOLEANS -> List.of(GroupingKey.forStatelessGrouping(0, ElementType.BOOLEAN).get(AggregatorMode.SINGLE));
+            case BYTES_REFS -> List.of(GroupingKey.forStatelessGrouping(0, ElementType.BYTES_REF).get(AggregatorMode.SINGLE));
+            case TWO_LONGS -> List.of(
+                GroupingKey.forStatelessGrouping(0, ElementType.LONG).get(AggregatorMode.SINGLE),
+                GroupingKey.forStatelessGrouping(1, ElementType.LONG).get(AggregatorMode.SINGLE)
+            );
             case LONGS_AND_BYTES_REFS -> List.of(
-                new BlockHash.GroupSpec(0, ElementType.LONG),
-                new BlockHash.GroupSpec(1, ElementType.BYTES_REF)
+                GroupingKey.forStatelessGrouping(0, ElementType.LONG).get(AggregatorMode.SINGLE),
+                GroupingKey.forStatelessGrouping(1, ElementType.BYTES_REF).get(AggregatorMode.SINGLE)
             );
             case TWO_LONGS_AND_BYTES_REFS -> List.of(
-                new BlockHash.GroupSpec(0, ElementType.LONG),
-                new BlockHash.GroupSpec(1, ElementType.LONG),
-                new BlockHash.GroupSpec(2, ElementType.BYTES_REF)
+                GroupingKey.forStatelessGrouping(0, ElementType.LONG).get(AggregatorMode.SINGLE),
+                GroupingKey.forStatelessGrouping(1, ElementType.LONG).get(AggregatorMode.SINGLE),
+                GroupingKey.forStatelessGrouping(2, ElementType.BYTES_REF).get(AggregatorMode.SINGLE)
             );
             default -> throw new IllegalArgumentException("unsupported grouping [" + grouping + "]");
         };
-        return new HashAggregationOperator(
+        return new HashAggregationOperator.HashAggregationOperatorFactory(
+            groups,
             List.of(supplier(op, dataType, groups.size()).groupingAggregatorFactory(AggregatorMode.SINGLE)),
-            () -> BlockHash.build(groups, driverContext.blockFactory(), 16 * 1024, false),
-            driverContext
-        );
+            16 * 1024
+        ).get(driverContext);
     }
 
     private static AggregatorFunctionSupplier supplier(String op, String dataType, int dataChannel) {

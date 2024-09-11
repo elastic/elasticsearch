@@ -11,7 +11,9 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Describable;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
+import org.elasticsearch.compute.aggregation.GroupingKey;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -230,11 +232,12 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
 
         TestHashAggregationOperator(
             List<GroupingAggregator.Factory> aggregators,
+            List<GroupingKey> groups,
             Supplier<BlockHash> blockHash,
             String columnName,
             DriverContext driverContext
         ) {
-            super(aggregators, blockHash, driverContext);
+            super(aggregators, groups, blockHash, driverContext);
             this.columnName = columnName;
         }
 
@@ -273,14 +276,13 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         public Operator get(DriverContext driverContext) {
             Random random = Randomness.get();
             int pageSize = random.nextBoolean() ? randomIntBetween(random, 1, 16) : randomIntBetween(random, 1, 10 * 1024);
+            List<GroupingKey> groupings = List.of(
+                GroupingKey.forStatelessGrouping(groupByChannel, groupElementType).get(AggregatorMode.INITIAL)
+            );
             return new TestHashAggregationOperator(
                 aggregators,
-                () -> BlockHash.build(
-                    List.of(new BlockHash.GroupSpec(groupByChannel, groupElementType)),
-                    driverContext.blockFactory(),
-                    pageSize,
-                    false
-                ),
+                groupings,
+                () -> BlockHash.build(GroupingKey.toBlockHashGroupSpec(groupings), driverContext.blockFactory(), pageSize, false),
                 columnName,
                 driverContext
             );

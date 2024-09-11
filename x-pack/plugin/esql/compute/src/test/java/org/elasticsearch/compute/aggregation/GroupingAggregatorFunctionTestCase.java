@@ -10,7 +10,6 @@ package org.elasticsearch.compute.aggregation;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BitArray;
-import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockTestUtils;
@@ -90,7 +89,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
             supplier = chunkGroups(emitChunkSize, supplier);
         }
         return new HashAggregationOperator.HashAggregationOperatorFactory(
-            List.of(new BlockHash.GroupSpec(0, ElementType.LONG)),
+            List.of(GroupingKey.forStatelessGrouping(0, ElementType.LONG).get(mode)),
             List.of(supplier.groupingAggregatorFactory(mode)),
             randomPageSize()
         );

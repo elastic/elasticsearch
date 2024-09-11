@@ -13,9 +13,9 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.compute.aggregation.GroupingKey;
 import org.elasticsearch.compute.aggregation.RateLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumDoubleAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -265,7 +265,9 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
         Operator intialAgg = new TimeSeriesAggregationOperatorFactories.Initial(
             1,
             3,
-            IntStream.range(0, nonBucketGroupings.size()).mapToObj(n -> new BlockHash.GroupSpec(5 + n, ElementType.BYTES_REF)).toList(),
+            IntStream.range(0, nonBucketGroupings.size())
+                .mapToObj(n -> GroupingKey.forStatelessGrouping(5 + n, ElementType.BYTES_REF))
+                .toList(),
             List.of(new RateLongAggregatorFunctionSupplier(List.of(4, 2), unitInMillis)),
             List.of(),
             between(1, 100)
@@ -275,19 +277,21 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
         Operator intermediateAgg = new TimeSeriesAggregationOperatorFactories.Intermediate(
             0,
             1,
-            IntStream.range(0, nonBucketGroupings.size()).mapToObj(n -> new BlockHash.GroupSpec(5 + n, ElementType.BYTES_REF)).toList(),
+            IntStream.range(0, nonBucketGroupings.size())
+                .mapToObj(n -> GroupingKey.forStatelessGrouping(5 + n, ElementType.BYTES_REF))
+                .toList(),
             List.of(new RateLongAggregatorFunctionSupplier(List.of(2, 3, 4), unitInMillis)),
             List.of(),
             between(1, 100)
         ).get(ctx);
         // tsid, bucket, rate, grouping1, grouping2
-        List<BlockHash.GroupSpec> finalGroups = new ArrayList<>();
+        List<GroupingKey.Supplier> finalGroups = new ArrayList<>();
         int groupChannel = 3;
         for (String grouping : groupings) {
             if (grouping.equals("bucket")) {
-                finalGroups.add(new BlockHash.GroupSpec(1, ElementType.LONG));
+                finalGroups.add(GroupingKey.forStatelessGrouping(1, ElementType.LONG));
             } else {
-                finalGroups.add(new BlockHash.GroupSpec(groupChannel++, ElementType.BYTES_REF));
+                finalGroups.add(GroupingKey.forStatelessGrouping(groupChannel++, ElementType.BYTES_REF));
             }
         }
         Operator finalAgg = new TimeSeriesAggregationOperatorFactories.Final(

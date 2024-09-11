@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 
@@ -15,8 +16,9 @@ import java.util.List;
 import java.util.stream.Stream;
 
 /**
- * A source operator whose output is the given double values. This operator produces pages
- * containing a single Block. The Block contains the double values from the given list, in order.
+ * A source operator whose output is the given {@link BytesRef} values.
+ * This operator produces pages containing a single {@link Block}. The Block
+ * contains the double values from the given list, in order.
  */
 public class SequenceBytesRefBlockSourceOperator extends AbstractBlockSourceOperator {
 

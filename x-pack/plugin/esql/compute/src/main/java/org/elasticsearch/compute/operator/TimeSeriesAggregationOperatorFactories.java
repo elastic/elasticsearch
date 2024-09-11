@@ -10,6 +10,7 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
+import org.elasticsearch.compute.aggregation.GroupingKey;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.aggregation.blockhash.TimeSeriesBlockHash;
 import org.elasticsearch.compute.data.ElementType;
@@ -44,7 +45,7 @@ public final class TimeSeriesAggregationOperatorFactories {
     public record Initial(
         int tsHashChannel,
         int timeBucketChannel,
-        List<BlockHash.GroupSpec> groupings,
+        List<GroupingKey.Supplier> groupings,
         List<AggregatorFunctionSupplier> rates,
         List<AggregatorFunctionSupplier> nonRates,
         int maxPageSize
@@ -58,9 +59,11 @@ public final class TimeSeriesAggregationOperatorFactories {
             for (AggregatorFunctionSupplier f : nonRates) {
                 aggregators.add(f.groupingAggregatorFactory(AggregatorMode.INITIAL));
             }
+            List<GroupingKey> groupings = this.groupings.stream().map(g -> g.get(AggregatorMode.INITIAL)).toList();
             aggregators.addAll(valuesAggregatorForGroupings(groupings, timeBucketChannel));
             return new HashAggregationOperator(
                 aggregators,
+                groupings,
                 () -> new TimeSeriesBlockHash(tsHashChannel, timeBucketChannel, driverContext),
                 driverContext
             );
@@ -75,7 +78,7 @@ public final class TimeSeriesAggregationOperatorFactories {
     public record Intermediate(
         int tsHashChannel,
         int timeBucketChannel,
-        List<BlockHash.GroupSpec> groupings,
+        List<GroupingKey.Supplier> groupings,
         List<AggregatorFunctionSupplier> rates,
         List<AggregatorFunctionSupplier> nonRates,
         int maxPageSize
@@ -89,6 +92,7 @@ public final class TimeSeriesAggregationOperatorFactories {
             for (AggregatorFunctionSupplier f : nonRates) {
                 aggregators.add(f.groupingAggregatorFactory(AggregatorMode.INTERMEDIATE));
             }
+            List<GroupingKey> groupings = this.groupings.stream().map(g -> g.get(AggregatorMode.INTERMEDIATE)).toList();
             aggregators.addAll(valuesAggregatorForGroupings(groupings, timeBucketChannel));
             List<BlockHash.GroupSpec> hashGroups = List.of(
                 new BlockHash.GroupSpec(tsHashChannel, ElementType.BYTES_REF),
@@ -96,6 +100,7 @@ public final class TimeSeriesAggregationOperatorFactories {
             );
             return new HashAggregationOperator(
                 aggregators,
+                groupings,
                 () -> BlockHash.build(hashGroups, driverContext.blockFactory(), maxPageSize, false),
                 driverContext
             );
@@ -108,7 +113,7 @@ public final class TimeSeriesAggregationOperatorFactories {
     }
 
     public record Final(
-        List<BlockHash.GroupSpec> groupings,
+        List<GroupingKey.Supplier> groupings,
         List<AggregatorFunctionSupplier> outerRates,
         List<AggregatorFunctionSupplier> nonRates,
         int maxPageSize
@@ -122,9 +127,11 @@ public final class TimeSeriesAggregationOperatorFactories {
             for (AggregatorFunctionSupplier f : nonRates) {
                 aggregators.add(f.groupingAggregatorFactory(AggregatorMode.FINAL));
             }
+            List<GroupingKey> groupings = this.groupings.stream().map(g -> g.get(AggregatorMode.FINAL)).toList();
             return new HashAggregationOperator(
                 aggregators,
-                () -> BlockHash.build(groupings, driverContext.blockFactory(), maxPageSize, false),
+                groupings,
+                () -> BlockHash.build(GroupingKey.toBlockHashGroupSpec(groupings), driverContext.blockFactory(), maxPageSize, false),
                 driverContext
             );
         }
@@ -135,9 +142,9 @@ public final class TimeSeriesAggregationOperatorFactories {
         }
     }
 
-    static List<GroupingAggregator.Factory> valuesAggregatorForGroupings(List<BlockHash.GroupSpec> groupings, int timeBucketChannel) {
+    static List<GroupingAggregator.Factory> valuesAggregatorForGroupings(List<GroupingKey> groupings, int timeBucketChannel) {
         List<GroupingAggregator.Factory> aggregators = new ArrayList<>();
-        for (BlockHash.GroupSpec g : groupings) {
+        for (GroupingKey g : groupings) {
             if (g.channel() != timeBucketChannel) {
                 final List<Integer> channels = List.of(g.channel());
                 // TODO: perhaps introduce a specialized aggregator for this?

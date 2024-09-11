@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.GroupingKey;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
@@ -27,7 +28,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -36,17 +36,20 @@ import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
 
 public class HashAggregationOperator implements Operator {
-
-    public record HashAggregationOperatorFactory(
-        List<BlockHash.GroupSpec> groups,
-        List<GroupingAggregator.Factory> aggregators,
-        int maxPageSize
-    ) implements OperatorFactory {
+    public record HashAggregationOperatorFactory(List<GroupingKey> groups, List<GroupingAggregator.Factory> aggregators, int maxPageSize)
+        implements
+            OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
             return new HashAggregationOperator(
                 aggregators,
-                () -> BlockHash.build(groups, driverContext.blockFactory(), maxPageSize, false),
+                groups,
+                () -> BlockHash.build(
+                    groups.stream().map(GroupingKey::toBlockHashSpec).toList(),
+                    driverContext.blockFactory(),
+                    maxPageSize,
+                    false
+                ),
                 driverContext
             );
         }
@@ -61,14 +64,16 @@ public class HashAggregationOperator implements Operator {
         }
     }
 
-    private boolean finished;
-    private Page output;
+    private final List<GroupingAggregator> aggregators;
+
+    private final List<GroupingKey> groups;
 
     private final BlockHash blockHash;
 
-    private final List<GroupingAggregator> aggregators;
-
     private final DriverContext driverContext;
+
+    private boolean finished;
+    private Page output;
 
     /**
      * Nanoseconds this operator has spent hashing grouping keys.
@@ -86,10 +91,12 @@ public class HashAggregationOperator implements Operator {
     @SuppressWarnings("this-escape")
     public HashAggregationOperator(
         List<GroupingAggregator.Factory> aggregators,
+        List<GroupingKey> groups,
         Supplier<BlockHash> blockHash,
         DriverContext driverContext
     ) {
         this.aggregators = new ArrayList<>(aggregators.size());
+        this.groups = groups;
         this.driverContext = driverContext;
         boolean success = false;
         try {
@@ -158,7 +165,12 @@ public class HashAggregationOperator implements Operator {
             }
             try (AddInput add = new AddInput()) {
                 checkState(needsInput(), "Operator is already finishing");
-                requireNonNull(page, "page is null");
+
+                int offset = 0;
+                for (GroupingKey key : groups) {
+                    key.receive(page, offset);
+                    offset += key.evaluateBlockCount();
+                }
 
                 for (int i = 0; i < prepared.length; i++) {
                     prepared[i] = aggregators.get(i).prepareProcessPage(blockHash, page);
@@ -192,15 +204,31 @@ public class HashAggregationOperator implements Operator {
         try {
             selected = blockHash.nonEmpty();
             Block[] keys = blockHash.getKeys();
-            int[] aggBlockCounts = aggregators.stream().mapToInt(GroupingAggregator::evaluateBlockCount).toArray();
-            blocks = new Block[keys.length + Arrays.stream(aggBlockCounts).sum()];
-            System.arraycopy(keys, 0, blocks, 0, keys.length);
-            int offset = keys.length;
-            for (int i = 0; i < aggregators.size(); i++) {
-                var aggregator = aggregators.get(i);
-                aggregator.evaluate(blocks, offset, selected, driverContext);
-                offset += aggBlockCounts[i];
+
+            int blockCount = 0;
+            int[] groupBlockCounts = new int[groups.size()];
+            for (int g = 0; g < groups.size(); g++) {
+                groupBlockCounts[g] = groups.get(g).evaluateBlockCount();
+                blockCount += groupBlockCounts[g];
             }
+            int[] aggBlockCounts = new int[aggregators.size()];
+            for (int a = 0; a < aggregators.size(); a++) {
+                aggBlockCounts[a] = aggregators.get(a).evaluateBlockCount();
+                blockCount += aggBlockCounts[a];
+            }
+
+            blocks = new Block[blockCount];
+            int offset = 0;
+            for (int g = 0; g < groups.size(); g++) {
+                blocks[offset] = keys[g];
+                groups.get(g).evaluate(blocks, offset, selected, driverContext);
+                offset += groupBlockCounts[g];
+            }
+            for (int a = 0; a < aggregators.size(); a++) {
+                aggregators.get(a).evaluate(blocks, offset, selected, driverContext);
+                offset += aggBlockCounts[a];
+            }
+
             output = new Page(blocks);
             success = true;
         } finally {

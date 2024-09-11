@@ -11,7 +11,7 @@ import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
-import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
+import org.elasticsearch.compute.aggregation.GroupingKey;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator.HashAggregationOperatorFactory;
@@ -127,7 +127,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 }
                 layout.append(groupAttributeLayout);
                 Layout.ChannelAndType groupInput = source.layout.get(groupAttribute.id());
-                groupSpecs.add(new GroupSpec(groupInput == null ? null : groupInput.channel(), groupAttribute));
+                groupSpecs.add(new GroupSpec(groupInput == null ? null : groupInput.channel(), groupAttribute, aggregatorMode));
             }
 
             if (aggregatorMode == AggregatorMode.FINAL) {
@@ -160,7 +160,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 );
             } else {
                 operatorFactory = new HashAggregationOperatorFactory(
-                    groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList(),
+                    groupSpecs.stream().map(GroupSpec::toGroupingKey).toList(),
                     aggregatorFactories,
                     context.pageSize(aggregateExec.estimatedRowSize())
                 );
@@ -284,12 +284,12 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         }
     }
 
-    private record GroupSpec(Integer channel, Attribute attribute) {
-        BlockHash.GroupSpec toHashGroupSpec() {
+    private record GroupSpec(Integer channel, Attribute attribute, AggregatorMode mode) {
+        GroupingKey toGroupingKey() {
             if (channel == null) {
                 throw new EsqlIllegalArgumentException("planned to use ordinals but tried to use the hash instead");
             }
-            return new BlockHash.GroupSpec(channel, elementType());
+            return GroupingKey.forStatelessGrouping(channel, elementType()).get(mode);
         }
 
         ElementType elementType() {

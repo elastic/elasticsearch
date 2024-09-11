@@ -21,12 +21,12 @@
 
 package org.elasticsearch.tdigest;
 
-import org.elasticsearch.tdigest.arrays.WrapperTDigestArrays;
+import org.elasticsearch.search.aggregations.metrics.TDigestBigArrays;
 
 public class SortingDigestTests extends TDigestTests {
 
     protected DigestFactory factory(final double compression) {
-        return () -> new SortingDigest(WrapperTDigestArrays.INSTANCE);
+        return () -> new SortingDigest(TDigestBigArrays.NON_RECYCLING_INSTANCE);
     }
 
     // Make this test a noop to avoid OOMs.

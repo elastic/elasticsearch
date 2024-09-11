@@ -21,11 +21,11 @@
 
 package org.elasticsearch.tdigest;
 
-import org.elasticsearch.tdigest.arrays.WrapperTDigestArrays;
+import org.elasticsearch.search.aggregations.metrics.TDigestBigArrays;
 
 public class BigCountTestsMergingDigestTests extends BigCountTests {
     @Override
     public TDigest createDigest() {
-        return new MergingDigest(WrapperTDigestArrays.INSTANCE, 100);
+        return new MergingDigest(TDigestBigArrays.NON_RECYCLING_INSTANCE, 100);
     }
 }

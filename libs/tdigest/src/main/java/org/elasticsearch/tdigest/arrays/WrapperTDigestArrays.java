@@ -12,9 +12,12 @@ import java.util.Arrays;
 
 /**
  * Temporal TDigestArrays mock with raw arrays.
+ *
  * <p>
  *     For testing only, delete after the right implementation for BigArrays is made.
  * </p>
+ *
+ * TODO: DELETE ME
  */
 public class WrapperTDigestArrays implements TDigestArrays {
 

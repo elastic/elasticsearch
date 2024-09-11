@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.tdigest.TDigest;
 import org.elasticsearch.tdigest.arrays.TDigestArrays;
-import org.elasticsearch.tdigest.arrays.WrapperTDigestArrays;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -55,7 +54,7 @@ public class TDigestState {
      * @return a TDigestState object that's optimized for performance
      */
     public static TDigestState create(double compression) {
-        return new TDigestState(Type.defaultValue(), WrapperTDigestArrays.INSTANCE, compression);
+        return new TDigestState(Type.defaultValue(), TDigestBigArrays.NON_RECYCLING_INSTANCE, compression);
     }
 
     /**
@@ -64,7 +63,7 @@ public class TDigestState {
      * @return a TDigestState object that's optimized for performance
      */
     public static TDigestState createOptimizedForAccuracy(double compression) {
-        return new TDigestState(Type.valueForHighAccuracy(), WrapperTDigestArrays.INSTANCE, compression);
+        return new TDigestState(Type.valueForHighAccuracy(), TDigestBigArrays.NON_RECYCLING_INSTANCE, compression);
     }
 
     /**
@@ -89,7 +88,7 @@ public class TDigestState {
      * @return a TDigestState object
      */
     public static TDigestState createUsingParamsFrom(TDigestState state) {
-        return new TDigestState(state.type, WrapperTDigestArrays.INSTANCE, state.compression);
+        return new TDigestState(state.type, TDigestBigArrays.NON_RECYCLING_INSTANCE, state.compression);
     }
 
     protected TDigestState(Type type, TDigestArrays bigArrays, double compression) {
@@ -126,10 +125,10 @@ public class TDigestState {
         TDigestState state;
         long size = 0;
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            state = new TDigestState(Type.valueOf(in.readString()), WrapperTDigestArrays.INSTANCE, compression);
+            state = new TDigestState(Type.valueOf(in.readString()), TDigestBigArrays.NON_RECYCLING_INSTANCE, compression);
             size = in.readVLong();
         } else {
-            state = new TDigestState(Type.valueForHighAccuracy(), WrapperTDigestArrays.INSTANCE, compression);
+            state = new TDigestState(Type.valueForHighAccuracy(), TDigestBigArrays.NON_RECYCLING_INSTANCE, compression);
         }
         int n = in.readVInt();
         if (size > 0) {

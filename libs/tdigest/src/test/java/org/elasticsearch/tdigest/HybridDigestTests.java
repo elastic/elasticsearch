@@ -21,11 +21,11 @@
 
 package org.elasticsearch.tdigest;
 
-import org.elasticsearch.tdigest.arrays.WrapperTDigestArrays;
+import org.elasticsearch.search.aggregations.metrics.TDigestBigArrays;
 
 public class HybridDigestTests extends TDigestTests {
 
     protected DigestFactory factory(final double compression) {
-        return () -> new HybridDigest(WrapperTDigestArrays.INSTANCE, compression);
+        return () -> new HybridDigest(TDigestBigArrays.NON_RECYCLING_INSTANCE, compression);
     }
 }

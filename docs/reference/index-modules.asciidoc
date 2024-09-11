@@ -82,8 +82,8 @@ breaking change].
     after segments are merged. Segment merging can be forced using
     <<indices-forcemerge,force merge>>. Experiments with indexing log datasets
     have shown that `best_compression` gives up to ~28% lower storage usage and
-    better indexing throughput (up to ~10%) in the most ideal scenario compared
-    to `default` while affecting get by id latencies up to 10%. The higher get
+    similar indexing throughput (sometimes a bit slower or faster depending on other used options) compared
+    to `default` while affecting get by id latencies between ~10% and ~33%. The higher get
     by id latencies is not a concern for many use cases like logging or metrics, since
     these don't really rely on get by id functionality (Get APIs or searching by _id).
 

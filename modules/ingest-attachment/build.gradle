@@ -138,14 +138,6 @@ tasks.named("forbiddenPatterns").configure {
   exclude '**/text-cjk-*.txt'
 }
 
-tasks.named("yamlRestTestV7CompatTransform").configure { task ->
-  // 2 new tika metadata fields are returned in v8
-  task.replaceValueInLength("_source.attachment", 8, "Test ingest attachment processor with .doc file")
-  task.replaceValueInLength("_source.attachment", 8, "Test ingest attachment processor with .docx file")
-  // Tika 2.4.0 adds an extra newline for each embedded attachment, making the content_length larger
-  task.replaceValueInMatch("_source.attachment.content_length", 20, "Test ingest attachment processor with .docx file")
-}
-
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses()
 }
@@ -153,5 +145,5 @@ tasks.named("thirdPartyAudit").configure {
 if (BuildParams.inFipsJvm) {
   tasks.named("test").configure { enabled = false }
   tasks.named("yamlRestTest").configure { enabled = false };
-  tasks.named("yamlRestTestV7CompatTest").configure { enabled = false };
+  tasks.named("yamlRestCompatTest").configure { enabled = false };
 }

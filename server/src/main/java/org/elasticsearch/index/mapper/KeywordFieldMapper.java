@@ -1029,37 +1029,22 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected SyntheticSourceMode syntheticSourceMode() {
+    protected SyntheticSourceSupport syntheticSourceSupport() {
         if (hasNormalizer()) {
-            // NOTE: no matter if we have doc values or not we use a stored field to reconstruct the original value
-            // whose doc values would be altered by the normalizer
-            return SyntheticSourceMode.FALLBACK;
+            // NOTE: no matter if we have doc values or not we use fallback synthetic source
+            // to store the original value whose doc values would be altered by the normalizer
+            return SyntheticSourceSupport.FALLBACK;
         }
+
         if (fieldType.stored() || hasDocValues) {
-            return SyntheticSourceMode.NATIVE;
+            return new SyntheticSourceSupport.Native(syntheticFieldLoader(leafName()));
         }
 
-        return SyntheticSourceMode.FALLBACK;
-    }
-
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return syntheticFieldLoader(leafName());
+        return super.syntheticSourceSupport();
     }
 
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String simpleName) {
-        if (hasScript()) {
-            return SourceLoader.SyntheticFieldLoader.NOTHING;
-        }
-        if (builderParams.copyTo().copyToFields().isEmpty() != true) {
-            throw new IllegalArgumentException(
-                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
-            );
-        }
-
-        if (syntheticSourceMode() != SyntheticSourceMode.NATIVE) {
-            return super.syntheticFieldLoader();
-        }
+        assert fieldType.stored() || hasDocValues;
 
         var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
         if (fieldType.stored()) {

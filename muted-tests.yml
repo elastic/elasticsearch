@@ -154,9 +154,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/112471
 - class: org.elasticsearch.ingest.geoip.IngestGeoIpClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/111497
-- class: org.elasticsearch.script.mustache.LangMustacheClientYamlTestSuiteIT
-  method: test {yaml=lang_mustache/50_multi_search_template/Multi-search template with errors}
-  issue: https://github.com/elastic/elasticsearch/issues/112580
+- class: org.elasticsearch.smoketest.SmokeTestIngestWithAllDepsClientYamlTestSuiteIT
+  method: test {yaml=ingest/80_ingest_simulate/Test ingest simulate with reroute and mapping validation from templates}
+  issue: https://github.com/elastic/elasticsearch/issues/112575
 - class: org.elasticsearch.xpack.security.authc.kerberos.SimpleKdcLdapServerTests
   method: testClientServiceMutualAuthentication
   issue: https://github.com/elastic/elasticsearch/issues/112529
@@ -169,17 +169,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.EsqlAsyncSecurityIT
   method: testIndexPatternErrorMessageComparison_ESQL_SearchDSL
   issue: https://github.com/elastic/elasticsearch/issues/112630
-- class: org.elasticsearch.compute.aggregation.blockhash.BlockHashTests
-  method: testBytesRefLongHashHugeCombinatorialExplosion {forcePackedHash=false}
-  issue: https://github.com/elastic/elasticsearch/issues/112442
-- class: org.elasticsearch.compute.aggregation.blockhash.BlockHashTests
-  method: testBytesRefLongHashHugeCombinatorialExplosion {forcePackedHash=true}
-  issue: https://github.com/elastic/elasticsearch/issues/112443
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testPutJob_GivenFarequoteConfig
   issue: https://github.com/elastic/elasticsearch/issues/112382
-- class: org.elasticsearch.xpack.eql.EqlClientYamlIT
-  issue: https://github.com/elastic/elasticsearch/issues/112617
 - class: org.elasticsearch.xpack.security.authc.kerberos.KerberosTicketValidatorTests
   method: testWhenKeyTabWithInvalidContentFailsValidation
   issue: https://github.com/elastic/elasticsearch/issues/112631
@@ -207,6 +199,15 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testDelete_multipleRequest
   issue: https://github.com/elastic/elasticsearch/issues/112701
+- class: org.elasticsearch.xpack.ml.integration.MlJobIT
+  method: testCreateJobInSharedIndexUpdatesMapping
+  issue: https://github.com/elastic/elasticsearch/issues/112729
+- class: org.elasticsearch.xpack.ml.integration.MlJobIT
+  method: testGetJob_GivenNoSuchJob
+  issue: https://github.com/elastic/elasticsearch/issues/112730
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/cluster/stats/line_1450}
+  issue: https://github.com/elastic/elasticsearch/issues/112732
 
 # Examples:
 #

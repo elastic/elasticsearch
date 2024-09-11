@@ -1,0 +1,5 @@
+pr: 112762
+summary: Simulate ingest API `template_substitutions` prototype
+area: Ingest Node
+type: enhancement
+issues: []

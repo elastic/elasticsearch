@@ -70,9 +70,6 @@ public class TypeParsersTests extends ESTestCase {
 
         Mapper.TypeParser typeParser = KeywordFieldMapper.PARSER;
 
-        // For indices created prior to 8.0, we should only emit a warning and not fail parsing.
-        Map<String, Object> fieldNode = XContentHelper.convertToMap(BytesReference.bytes(mapping), true, mapping.contentType()).v2();
-
         MapperService mapperService = mock(MapperService.class);
         IndexAnalyzers indexAnalyzers = IndexAnalyzers.of(defaultAnalyzers());
         when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
@@ -85,32 +82,6 @@ public class TypeParsersTests extends ESTestCase {
         IndexMetadata metadata = IndexMetadata.builder("test").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(metadata, Settings.EMPTY);
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
-
-        IndexVersion olderVersion = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0);
-        MappingParserContext olderContext = new MappingParserContext(
-            null,
-            type -> typeParser,
-            type -> null,
-            olderVersion,
-            () -> TransportVersions.MINIMUM_COMPATIBLE,
-            null,
-            ScriptCompiler.NONE,
-            mapperService.getIndexAnalyzers(),
-            mapperService.getIndexSettings(),
-            ProvidedIdFieldMapper.NO_FIELD_DATA,
-            query -> {
-                throw new UnsupportedOperationException();
-            }
-        );
-
-        TextFieldMapper.PARSER.parse("some-field", fieldNode, olderContext);
-        assertWarnings(
-            "At least one multi-field, [sub-field], "
-                + "was encountered that itself contains a multi-field. Defining multi-fields within a multi-field is deprecated "
-                + "and is not supported for indices created in 8.0 and later. To migrate the mappings, all instances of [fields] "
-                + "that occur within a [fields] block should be removed from the mappings, either by flattening the chained "
-                + "[fields] blocks into a single level, or switching to [copy_to] if appropriate."
-        );
 
         // For indices created in 8.0 or later, we should throw an error.
         Map<String, Object> fieldNodeCopy = XContentHelper.convertToMap(BytesReference.bytes(mapping), true, mapping.contentType()).v2();

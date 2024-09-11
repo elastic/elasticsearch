@@ -164,9 +164,9 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadAction
                     indexTemplatePreferIlmValue = PREFER_ILM_SETTING.get(settings);
                 }
             } else {
-                indexTemplate = MetadataIndexTemplateService.findV2Template(state.metadata(), dataStream.getName(), false);
+                indexTemplate = MetadataIndexTemplateService.findV2Template(state.metadata().getProject(), dataStream.getName(), false);
                 if (indexTemplate != null) {
-                    Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), indexTemplate);
+                    Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata().getProject(), indexTemplate);
                     ilmPolicyName = settings.get(IndexMetadata.LIFECYCLE_NAME);
                     indexTemplatePreferIlmValue = PREFER_ILM_SETTING.get(settings);
                 } else {

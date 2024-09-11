@@ -27,6 +27,8 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -338,12 +340,15 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             .putAlias(AliasMetadata.builder("foo-write"))
             .putAlias(AliasMetadata.builder("bar-write").writeIndex(randomBoolean()))
             .build();
-        final Metadata metadata = Metadata.builder().put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false).put(template).build();
+        final ProjectMetadata projectMetadata = ProjectMetadata.builder(new ProjectId(randomUUID()))
+            .put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false)
+            .put(template)
+            .build();
         String indexName = randomFrom("foo-123", "bar-xyz");
         String aliasName = randomFrom("foo-write", "bar-write");
         final IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, randomBoolean())
+            () -> MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(projectMetadata, indexName, aliasName, randomBoolean())
         );
         assertThat(ex.getMessage(), containsString("index template [test-template]"));
     }
@@ -357,7 +362,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             .template(new Template(null, null, aliases))
             .build();
 
-        final Metadata metadata = Metadata.builder()
+        final ProjectMetadata projectMetadata = ProjectMetadata.builder(new ProjectId(randomUUID()))
             .put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false)
             .put("test-template", template)
             .build();
@@ -365,7 +370,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         String aliasName = randomFrom("foo-write", "bar-write");
         final IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, randomBoolean())
+            () -> MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(projectMetadata, indexName, aliasName, randomBoolean())
         );
         assertThat(ex.getMessage(), containsString("index template [test-template]"));
     }
@@ -380,7 +385,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             .componentTemplates(Collections.singletonList("ct"))
             .build();
 
-        final Metadata metadata = Metadata.builder()
+        final ProjectMetadata projectMetadata = ProjectMetadata.builder(new ProjectId(randomUUID()))
             .put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false)
             .put("ct", ct)
             .put("test-template", template)
@@ -389,7 +394,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         String aliasName = randomFrom("foo-write", "bar-write");
         final IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, randomBoolean())
+            () -> MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(projectMetadata, indexName, aliasName, randomBoolean())
         );
         assertThat(ex.getMessage(), containsString("index template [test-template]"));
     }
@@ -407,7 +412,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             .template(new Template(null, null, null))
             .build();
 
-        final Metadata metadata = Metadata.builder()
+        final ProjectMetadata projectMetadata = ProjectMetadata.builder(new ProjectId(randomUUID()))
             .put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false)
             .put(legacyTemplate)
             .put("composable-template", composableTemplate)
@@ -416,7 +421,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         String aliasName = randomFrom("foo-write", "bar-write");
 
         // the valid v2 template takes priority over the v1 template so the validation should not throw any exception
-        MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, randomBoolean());
+        MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(projectMetadata, indexName, aliasName, randomBoolean());
     }
 
     public void testHiddenAffectsResolvedTemplates() {
@@ -425,17 +430,20 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             .putAlias(AliasMetadata.builder("foo-write"))
             .putAlias(AliasMetadata.builder("bar-write").writeIndex(randomBoolean()))
             .build();
-        final Metadata metadata = Metadata.builder().put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false).put(template).build();
+        final ProjectMetadata projectMetadata = ProjectMetadata.builder(new ProjectId(randomUUID()))
+            .put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false)
+            .put(template)
+            .build();
         String indexName = randomFrom("foo-123", "bar-xyz");
         String aliasName = randomFrom("foo-write", "bar-write");
 
         // hidden shouldn't throw
-        MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, Boolean.TRUE);
+        MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(projectMetadata, indexName, aliasName, Boolean.TRUE);
         // not hidden will throw
         final IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
             () -> MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(
-                metadata,
+                projectMetadata,
                 indexName,
                 aliasName,
                 randomFrom(Boolean.FALSE, null)
@@ -453,7 +461,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             .template(new Template(null, null, aliases))
             .build();
 
-        final Metadata metadata = Metadata.builder()
+        final ProjectMetadata projectMetadata = ProjectMetadata.builder(new ProjectId(randomUUID()))
             .put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false)
             .put("test-template", template)
             .build();
@@ -461,12 +469,12 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         String aliasName = randomFrom("foo-write", "bar-write");
 
         // hidden shouldn't throw
-        MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, Boolean.TRUE);
+        MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(projectMetadata, indexName, aliasName, Boolean.TRUE);
         // not hidden will throw
         final IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
             () -> MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(
-                metadata,
+                projectMetadata,
                 indexName,
                 aliasName,
                 randomFrom(Boolean.FALSE, null)
@@ -485,7 +493,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             .componentTemplates(Collections.singletonList("ct"))
             .build();
 
-        final Metadata metadata = Metadata.builder()
+        final ProjectMetadata projectMetadata = ProjectMetadata.builder(new ProjectId(randomUUID()))
             .put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false)
             .put("ct", ct)
             .put("test-template", template)
@@ -494,12 +502,12 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         String aliasName = randomFrom("foo-write", "bar-write");
 
         // hidden shouldn't throw
-        MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, Boolean.TRUE);
+        MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(projectMetadata, indexName, aliasName, Boolean.TRUE);
         // not hidden will throw
         final IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
             () -> MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(
-                metadata,
+                projectMetadata,
                 indexName,
                 aliasName,
                 randomFrom(Boolean.FALSE, null)

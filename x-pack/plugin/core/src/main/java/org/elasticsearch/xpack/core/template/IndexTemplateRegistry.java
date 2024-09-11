@@ -28,8 +28,8 @@ import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -260,7 +260,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     private void addTemplatesIfMissing(ClusterState state) {
         addLegacyTemplatesIfMissing(state);
         addComponentTemplatesIfMissing(state);
-        addComposableTemplatesIfMissing(state);
+        addComposableTemplatesIfMissing(state.metadata().getProject());
     }
 
     private void addLegacyTemplatesIfMissing(ClusterState state) {
@@ -380,14 +380,14 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         return true;
     }
 
-    private void addComposableTemplatesIfMissing(ClusterState state) {
+    private void addComposableTemplatesIfMissing(ProjectMetadata projectMetadata) {
         final Map<String, ComposableIndexTemplate> indexTemplates = getComposableTemplateConfigs();
         for (Map.Entry<String, ComposableIndexTemplate> newTemplate : indexTemplates.entrySet()) {
             final String templateName = newTemplate.getKey();
             final AtomicBoolean creationCheck = templateCreationsInProgress.computeIfAbsent(templateName, key -> new AtomicBoolean(false));
             if (creationCheck.compareAndSet(false, true)) {
-                ComposableIndexTemplate currentTemplate = state.metadata().getProject().templatesV2().get(templateName);
-                boolean componentTemplatesAvailable = componentTemplatesInstalled(state, newTemplate.getValue());
+                ComposableIndexTemplate currentTemplate = projectMetadata.templatesV2().get(templateName);
+                boolean componentTemplatesAvailable = componentTemplatesInstalled(projectMetadata, newTemplate.getValue());
                 if (componentTemplatesAvailable == false) {
                     creationCheck.set(false);
                     if (logger.isTraceEnabled()) {
@@ -400,7 +400,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                     }
                 } else if (Objects.isNull(currentTemplate)) {
                     logger.debug("adding composable template [{}] for [{}], because it doesn't exist", templateName, getOrigin());
-                    putComposableTemplate(state, templateName, newTemplate.getValue(), creationCheck, false);
+                    putComposableTemplate(projectMetadata, templateName, newTemplate.getValue(), creationCheck, false);
                 } else if (Objects.isNull(currentTemplate.version()) || newTemplate.getValue().version() > currentTemplate.version()) {
                     // IndexTemplateConfig now enforces templates contain a `version` property, so if the template doesn't have one we can
                     // safely assume it's an old version of the template.
@@ -411,7 +411,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                         currentTemplate.version(),
                         newTemplate.getValue().version()
                     );
-                    putComposableTemplate(state, templateName, newTemplate.getValue(), creationCheck, true);
+                    putComposableTemplate(projectMetadata, templateName, newTemplate.getValue(), creationCheck, true);
                 } else {
                     creationCheck.set(false);
                     logger.trace(
@@ -436,14 +436,14 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
      * requires automatic rollover after index template upgrades (see {@link #applyRolloverAfterTemplateV2Upgrade()}), this method also
      * verifies that the installed components templates are of the right version.
      */
-    private boolean componentTemplatesInstalled(ClusterState state, ComposableIndexTemplate indexTemplate) {
+    private boolean componentTemplatesInstalled(ProjectMetadata projectMetadata, ComposableIndexTemplate indexTemplate) {
         if (applyRolloverAfterTemplateV2Upgrade() == false) {
             // component templates and index templates can be updated independently, we only need to know that the required component
             // templates are available
-            return state.metadata().getProject().componentTemplates().keySet().containsAll(indexTemplate.getRequiredComponentTemplates());
+            return projectMetadata.componentTemplates().keySet().containsAll(indexTemplate.getRequiredComponentTemplates());
         }
         Map<String, ComponentTemplate> componentTemplateConfigs = getComponentTemplateConfigs();
-        Map<String, ComponentTemplate> installedTemplates = state.metadata().getProject().componentTemplates();
+        Map<String, ComponentTemplate> installedTemplates = projectMetadata.componentTemplates();
         for (String templateName : indexTemplate.getRequiredComponentTemplates()) {
             ComponentTemplate installedTemplate = installedTemplates.get(templateName);
             // if a required component templates is not installed - the current cluster state cannot allow this index template yet
@@ -530,7 +530,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     }
 
     private void putComposableTemplate(
-        ClusterState state,
+        ProjectMetadata projectMetadata,
         final String templateName,
         final ComposableIndexTemplate indexTemplate,
         final AtomicBoolean creationCheck,
@@ -550,7 +550,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                     public void onResponse(AcknowledgedResponse response) {
                         if (response.isAcknowledged()) {
                             if (isUpgrade && applyRolloverAfterTemplateV2Upgrade()) {
-                                invokeRollover(state, templateName, indexTemplate, creationCheck);
+                                invokeRollover(projectMetadata, templateName, indexTemplate, creationCheck);
                             } else {
                                 creationCheck.set(false);
                             }
@@ -783,14 +783,14 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     }
 
     private void invokeRollover(
-        final ClusterState state,
+        final ProjectMetadata projectMetadata,
         final String templateName,
         final ComposableIndexTemplate indexTemplate,
         final AtomicBoolean creationCheck
     ) {
         final Executor executor = threadPool.generic();
         executor.execute(() -> {
-            List<String> rolloverTargets = findRolloverTargetDataStreams(state, templateName, indexTemplate);
+            List<String> rolloverTargets = findRolloverTargetDataStreams(projectMetadata, templateName, indexTemplate);
             if (rolloverTargets.isEmpty() == false) {
                 GroupedActionListener<RolloverResponse> groupedActionListener = new GroupedActionListener<>(
                     rolloverTargets.size(),
@@ -853,20 +853,22 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
      *     as argument
      * </ol>
      *
-     * @param state         the cluster state
-     * @param templateName  the ID by which the provided index template is being registered
-     * @param indexTemplate the index template for which a data stream is looked up as rollover target
+     * @param projectMetadata the project metadata from the cluster state
+     * @param templateName    the ID by which the provided index template is being registered
+     * @param indexTemplate   the index template for which a data stream is looked up as rollover target
      * @return the list of rollover targets matching the provided index template
      */
-    static List<String> findRolloverTargetDataStreams(ClusterState state, String templateName, ComposableIndexTemplate indexTemplate) {
-        final Metadata metadata = state.metadata();
-        return metadata.getProject()
-            .dataStreams()
+    static List<String> findRolloverTargetDataStreams(
+        ProjectMetadata projectMetadata,
+        String templateName,
+        ComposableIndexTemplate indexTemplate
+    ) {
+        return projectMetadata.dataStreams()
             .values()
             .stream()
             // Limit to checking data streams that match any of the index template's index patterns
             .filter(ds -> indexTemplate.indexPatterns().stream().anyMatch(pattern -> Regex.simpleMatch(pattern, ds.getName())))
-            .filter(ds -> templateName.equals(MetadataIndexTemplateService.findV2Template(metadata, ds.getName(), ds.isHidden())))
+            .filter(ds -> templateName.equals(MetadataIndexTemplateService.findV2Template(projectMetadata, ds.getName(), ds.isHidden())))
             .map(DataStream::getName)
             .collect(Collectors.toList());
     }

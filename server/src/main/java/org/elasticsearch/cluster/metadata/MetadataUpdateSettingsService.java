@@ -257,7 +257,7 @@ public class MetadataUpdateSettingsService {
                     // Verify that this won't take us over the cluster shard limit.
                     shardLimitValidator.validateShardLimitOnReplicaUpdate(
                         currentState.nodes(),
-                        currentState.metadata(),
+                        currentState.metadata().getProject(),
                         request.indices(),
                         updatedNumberOfReplicas
                     );

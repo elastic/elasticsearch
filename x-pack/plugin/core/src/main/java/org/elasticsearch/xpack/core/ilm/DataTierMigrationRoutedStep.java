@@ -60,7 +60,11 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
             clusterState.metadata().nodeShutdowns()
         );
 
-        if (ActiveShardCount.ALL.enoughShardsActive(clusterState, index.getName()) == false) {
+        if (ActiveShardCount.ALL.enoughShardsActive(
+            clusterState.metadata().getProject(),
+            clusterState.routingTable(),
+            index.getName()
+        ) == false) {
             if (preferredTierConfiguration.isEmpty()) {
                 logger.debug(
                     "[{}] lifecycle action for index [{}] cannot make progress because not all shards are active",

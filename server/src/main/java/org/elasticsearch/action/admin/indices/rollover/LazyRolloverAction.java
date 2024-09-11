@@ -135,7 +135,11 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
             );
             final String trialSourceIndexName = trialRolloverNames.sourceName();
             final String trialRolloverIndexName = trialRolloverNames.rolloverName();
-            MetadataCreateIndexService.validateIndexName(trialRolloverIndexName, clusterState.metadata(), clusterState.routingTable());
+            MetadataCreateIndexService.validateIndexName(
+                trialRolloverIndexName,
+                clusterState.metadata().getProject(),
+                clusterState.routingTable()
+            );
 
             assert metadata.getProject().dataStreams().containsKey(rolloverRequest.getRolloverTarget())
                 : "Auto-rollover applies only to data streams";

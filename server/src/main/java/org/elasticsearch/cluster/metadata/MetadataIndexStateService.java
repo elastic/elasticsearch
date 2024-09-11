@@ -1100,7 +1100,7 @@ public class MetadataIndexStateService {
                 }
             }
 
-            shardLimitValidator.validateShardLimit(currentState.nodes(), currentState.metadata(), indices);
+            shardLimitValidator.validateShardLimit(currentState.nodes(), currentState.metadata().getProject(), indices);
             if (indicesToOpen.isEmpty()) {
                 return currentState;
             }

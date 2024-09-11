@@ -857,9 +857,12 @@ public class IndexTemplateRegistryTests extends ESTestCase {
             .metadata(Metadata.builder(state.metadata()).put("it1", it1).put("it2", it2).put("it5", it5))
             .build();
 
-        assertThat(IndexTemplateRegistry.findRolloverTargetDataStreams(state, "it1", it1), containsInAnyOrder("ds1", "ds3"));
-        assertThat(IndexTemplateRegistry.findRolloverTargetDataStreams(state, "it2", it2), contains("ds2"));
-        assertThat(IndexTemplateRegistry.findRolloverTargetDataStreams(state, "it5", it5), empty());
+        assertThat(
+            IndexTemplateRegistry.findRolloverTargetDataStreams(state.metadata().getProject(), "it1", it1),
+            containsInAnyOrder("ds1", "ds3")
+        );
+        assertThat(IndexTemplateRegistry.findRolloverTargetDataStreams(state.metadata().getProject(), "it2", it2), contains("ds2"));
+        assertThat(IndexTemplateRegistry.findRolloverTargetDataStreams(state.metadata().getProject(), "it5", it5), empty());
     }
 
     // -------------

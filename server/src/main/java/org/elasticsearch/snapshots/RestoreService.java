@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -1344,11 +1345,16 @@ public final class RestoreService implements ClusterStateApplier {
                 if (currentIndexMetadata == null) {
                     // Index doesn't exist - create it and start recovery
                     // Make sure that the index we are about to create has a valid name
-                    ensureValidIndexName(currentState.metadata(), currentState.routingTable(), snapshotIndexMetadata, renamedIndexName);
+                    ensureValidIndexName(
+                        currentState.metadata().getProject(),
+                        currentState.routingTable(),
+                        snapshotIndexMetadata,
+                        renamedIndexName
+                    );
                     shardLimitValidator.validateShardLimit(
                         snapshotIndexMetadata.getSettings(),
                         currentState.nodes(),
-                        currentState.metadata()
+                        currentState.metadata().getProject()
                     );
 
                     final IndexMetadata.Builder indexMdBuilder = restoreToCreateNewIndex(
@@ -1805,13 +1811,13 @@ public final class RestoreService implements ClusterStateApplier {
     }
 
     private void ensureValidIndexName(
-        Metadata metadata,
+        ProjectMetadata projectMetadata,
         RoutingTable routingTable,
         IndexMetadata snapshotIndexMetadata,
         String renamedIndexName
     ) {
         final boolean isHidden = snapshotIndexMetadata.isHidden();
-        MetadataCreateIndexService.validateIndexName(renamedIndexName, metadata, routingTable);
+        MetadataCreateIndexService.validateIndexName(renamedIndexName, projectMetadata, routingTable);
         createIndexService.validateDotIndex(renamedIndexName, isHidden);
         createIndexService.validateIndexSettings(renamedIndexName, snapshotIndexMetadata.getSettings(), false);
     }

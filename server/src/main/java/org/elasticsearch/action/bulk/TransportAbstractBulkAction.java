@@ -174,7 +174,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
             IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
             if (indexRequest != null) {
-                IngestService.resolvePipelinesAndUpdateIndexRequest(actionRequest, indexRequest, metadata);
+                IngestService.resolvePipelinesAndUpdateIndexRequest(actionRequest, indexRequest, metadata.getProject());
                 hasIndexRequestsWithPipelines |= IngestService.hasPipeline(indexRequest);
             }
 

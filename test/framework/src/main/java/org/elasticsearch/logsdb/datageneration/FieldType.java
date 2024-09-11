@@ -21,8 +21,6 @@ import org.elasticsearch.logsdb.datageneration.fields.leaf.ScaledFloatFieldDataG
 import org.elasticsearch.logsdb.datageneration.fields.leaf.ShortFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.UnsignedLongFieldDataGenerator;
 
-import java.util.List;
-
 /**
  * Lists all leaf field types that are supported for data generation.
  */
@@ -38,7 +36,11 @@ public enum FieldType {
     HALF_FLOAT,
     SCALED_FLOAT;
 
-    public FieldDataGenerator generator(String fieldName, DataSource dataSource, DataSourceResponse.LeafMappingParametersGenerator mappingParametersGenerator) {
+    public FieldDataGenerator generator(
+        String fieldName,
+        DataSource dataSource,
+        DataSourceResponse.LeafMappingParametersGenerator mappingParametersGenerator
+    ) {
         return switch (this) {
             case KEYWORD -> new KeywordFieldDataGenerator(fieldName, dataSource, mappingParametersGenerator);
             case LONG -> new LongFieldDataGenerator(fieldName, dataSource, mappingParametersGenerator);

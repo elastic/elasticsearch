@@ -12,7 +12,6 @@ import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
 import org.elasticsearch.logsdb.datageneration.FieldType;
 import org.elasticsearch.logsdb.datageneration.fields.DynamicMapping;
 
-import java.util.List;
 import java.util.Set;
 
 public interface DataSourceRequest<TResponse extends DataSourceResponse> {

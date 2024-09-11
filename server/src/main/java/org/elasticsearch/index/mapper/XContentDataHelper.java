@@ -124,7 +124,6 @@ public final class XContentDataHelper {
             }
         }
 
-
         if (partsWithData == 0) {
             return;
         }

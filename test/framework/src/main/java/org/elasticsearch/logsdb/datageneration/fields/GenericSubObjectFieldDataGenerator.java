@@ -40,7 +40,9 @@ public class GenericSubObjectFieldDataGenerator {
             var fieldName = generateFieldName(existingFieldNames);
 
             if (context.shouldAddDynamicObjectField(dynamicMapping)) {
-                result.add(new ChildField(fieldName, new ObjectFieldDataGenerator(context.subObject(fieldName, DynamicMapping.FORCED)), true));
+                result.add(
+                    new ChildField(fieldName, new ObjectFieldDataGenerator(context.subObject(fieldName, DynamicMapping.FORCED)), true)
+                );
             } else if (context.shouldAddObjectField()) {
                 result.add(new ChildField(fieldName, new ObjectFieldDataGenerator(context.subObject(fieldName, dynamicMapping)), false));
             } else if (context.shouldAddNestedField()) {
@@ -53,8 +55,17 @@ public class GenericSubObjectFieldDataGenerator {
                     context.markFieldAsEligibleForCopyTo(fieldName);
                 }
 
-                var mappingParametersGenerator = context.specification().dataSource().get(new DataSourceRequest.LeafMappingParametersGenerator(fieldName, fieldTypeInfo.fieldType(), context.getEligibleCopyToDestinations()));
-                var generator = fieldTypeInfo.fieldType().generator(fieldName, context.specification().dataSource(), mappingParametersGenerator);
+                var mappingParametersGenerator = context.specification()
+                    .dataSource()
+                    .get(
+                        new DataSourceRequest.LeafMappingParametersGenerator(
+                            fieldName,
+                            fieldTypeInfo.fieldType(),
+                            context.getEligibleCopyToDestinations()
+                        )
+                    );
+                var generator = fieldTypeInfo.fieldType()
+                    .generator(fieldName, context.specification().dataSource(), mappingParametersGenerator);
                 result.add(new ChildField(fieldName, generator, fieldTypeInfo.dynamic()));
             }
         }

@@ -10,7 +10,6 @@ package org.elasticsearch.logsdb.datageneration.fields.leaf;
 
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
-import org.elasticsearch.logsdb.datageneration.FieldType;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSource;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceResponse;
@@ -24,15 +23,17 @@ public class HalfFloatFieldDataGenerator implements FieldDataGenerator {
     private final Supplier<Object> valueGenerator;
     private final Map<String, Object> mappingParameters;
 
-    public HalfFloatFieldDataGenerator(String fieldName, DataSource dataSource, DataSourceResponse.LeafMappingParametersGenerator mappingParametersGenerator) {
+    public HalfFloatFieldDataGenerator(
+        String fieldName,
+        DataSource dataSource,
+        DataSourceResponse.LeafMappingParametersGenerator mappingParametersGenerator
+    ) {
         var halfFloats = dataSource.get(new DataSourceRequest.HalfFloatGenerator());
         var nulls = dataSource.get(new DataSourceRequest.NullWrapper());
         var arrays = dataSource.get(new DataSourceRequest.ArrayWrapper());
 
         this.valueGenerator = arrays.wrapper().compose(nulls.wrapper()).apply(() -> halfFloats.generator().get());
-        this.mappingParameters = mappingParametersGenerator
-            .mappingGenerator()
-            .get();
+        this.mappingParameters = mappingParametersGenerator.mappingGenerator().get();
     }
 
     @Override

@@ -699,8 +699,7 @@ public final class DocumentParser {
             boolean fieldWithStoredArraySource = mapper instanceof FieldMapper
                 && context.sourceKeepModeFromIndexSettings() == Mapper.SourceKeepMode.ARRAYS;
             boolean dynamicRuntimeContext = context.dynamic() == ObjectMapper.Dynamic.RUNTIME;
-            boolean copyToFieldHasValuesInDocument = context.isWithinCopyTo() == false
-                && context.isCopyToDestinationField(fullPath);
+            boolean copyToFieldHasValuesInDocument = context.isWithinCopyTo() == false && context.isCopyToDestinationField(fullPath);
             if (objectRequiresStoringSource
                 || fieldWithFallbackSyntheticSource
                 || dynamicRuntimeContext
@@ -708,21 +707,13 @@ public final class DocumentParser {
                 || copyToFieldHasValuesInDocument) {
                 Tuple<DocumentParserContext, XContentBuilder> tuple = XContentDataHelper.cloneSubContext(context);
                 context.addIgnoredField(
-                    IgnoredSourceFieldMapper.NameValue.fromContext(
-                        context,
-                        fullPath,
-                        XContentDataHelper.encodeXContentBuilder(tuple.v2())
-                    )
+                    IgnoredSourceFieldMapper.NameValue.fromContext(context, fullPath, XContentDataHelper.encodeXContentBuilder(tuple.v2()))
                 );
                 context = tuple.v1();
             } else if (mapper instanceof ObjectMapper objectMapper
                 && (objectMapper.isEnabled() == false || objectMapper.dynamic == ObjectMapper.Dynamic.FALSE)) {
                     context.addIgnoredField(
-                        IgnoredSourceFieldMapper.NameValue.fromContext(
-                            context,
-                            fullPath,
-                            XContentDataHelper.encodeToken(context.parser())
-                        )
+                        IgnoredSourceFieldMapper.NameValue.fromContext(context, fullPath, XContentDataHelper.encodeToken(context.parser()))
                     );
                     return;
                 }

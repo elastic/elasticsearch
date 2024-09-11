@@ -12,9 +12,7 @@ import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceResponse;
 
-import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -38,7 +36,8 @@ class Context {
     }
 
     private Context(
-        DataGeneratorSpecification specification, String path,
+        DataGeneratorSpecification specification,
+        String path,
         int objectDepth,
         AtomicInteger nestedFieldsCount,
         Set<String> eligibleCopyToDestinations,
@@ -67,7 +66,14 @@ class Context {
     }
 
     public Context subObject(String name, DynamicMapping dynamicMapping) {
-        return new Context(specification, pathToField(name), objectDepth + 1, nestedFieldsCount, eligibleCopyToDestinations, dynamicMapping);
+        return new Context(
+            specification,
+            pathToField(name),
+            objectDepth + 1,
+            nestedFieldsCount,
+            eligibleCopyToDestinations,
+            dynamicMapping
+        );
     }
 
     public Context nestedObject(String name, DynamicMapping dynamicMapping) {

@@ -13,7 +13,6 @@ import org.elasticsearch.logsdb.datageneration.FieldType;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSource;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
 
-import java.util.List;
 import java.util.Set;
 
 public interface PredefinedField {
@@ -29,8 +28,10 @@ public interface PredefinedField {
 
         @Override
         public FieldDataGenerator generator(DataSource dataSource) {
-            //  copy_to currently not supported for predefined fields, use WithGenerator if needed
-            var mappingParametersGenerator = dataSource.get(new DataSourceRequest.LeafMappingParametersGenerator(fieldName, fieldType, Set.of()));
+            // copy_to currently not supported for predefined fields, use WithGenerator if needed
+            var mappingParametersGenerator = dataSource.get(
+                new DataSourceRequest.LeafMappingParametersGenerator(fieldName, fieldType, Set.of())
+            );
             return fieldType().generator(fieldName, dataSource, mappingParametersGenerator);
         }
     }

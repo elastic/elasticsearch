@@ -34,14 +34,20 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         return () -> injected;
     }
 
-    private Supplier<Map<String, Object>> keywordMapping(DataSourceRequest.LeafMappingParametersGenerator request, Map<String, Object> injected) {
+    private Supplier<Map<String, Object>> keywordMapping(
+        DataSourceRequest.LeafMappingParametersGenerator request,
+        Map<String, Object> injected
+    ) {
         return () -> {
             // Inject copy_to sometimes but reflect that it is not widely used in reality.
             // We only add copy_to to keywords because we get into trouble with numeric fields that are copied to dynamic fields.
             // If first copied value is numeric, dynamic field is created with numeric field type and then copy of text values fail.
             // Actual value being copied does not influence the core logic of copy_to anyway.
             if (ESTestCase.randomDouble() <= 0.05) {
-                var options = request.eligibleCopyToFields().stream().filter(f -> f.equals(request.fieldName()) == false).collect(Collectors.toSet());
+                var options = request.eligibleCopyToFields()
+                    .stream()
+                    .filter(f -> f.equals(request.fieldName()) == false)
+                    .collect(Collectors.toSet());
 
                 if (options.isEmpty() == false) {
                     injected.put("copy_to", ESTestCase.randomFrom(options));

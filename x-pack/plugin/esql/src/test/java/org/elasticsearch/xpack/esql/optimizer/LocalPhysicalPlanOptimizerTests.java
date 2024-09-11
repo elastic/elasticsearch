@@ -531,7 +531,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var exchange = as(firstLimit.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
         var field = as(project.child(), FieldExtractExec.class);
-        var secondLimit =  as(field.child(), LimitExec.class);
+        var secondLimit = as(field.child(), LimitExec.class);
         var filter = as(secondLimit.child(), FilterExec.class);
         var fieldExtract = as(filter.child(), FieldExtractExec.class);
         var query = as(fieldExtract.child(), EsQueryExec.class);

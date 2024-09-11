@@ -218,7 +218,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
             int doc = ShardDocSortField.decodeDoc(sortValue);
             int shardRequestIndex = ShardDocSortField.decodeShardRequestIndex(sortValue);
             docs[i] = new RankDoc(doc, hit.getScore(), shardRequestIndex);
-            docs[i].rank = i;
+            docs[i].rank = i + 1;
         }
         return docs;
     }

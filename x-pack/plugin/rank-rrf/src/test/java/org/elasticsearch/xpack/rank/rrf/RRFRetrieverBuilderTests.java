@@ -74,52 +74,6 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             );
             assertEquals("[terminate_after] cannot be used in children of compound retrievers", iae.getMessage());
         }
-
-        try (
-            XContentParser parser = createParser(
-                JsonXContent.jsonXContent,
-                "{\"retriever\":{\"rrf_nl\":{\"retrievers\":" + "[{\"standard\":{\"sort\":[\"f1\"]}},{\"standard\":{\"sort\":[\"f2\"]}}]}}}"
-            )
-        ) {
-            SearchSourceBuilder ssb = new SearchSourceBuilder();
-            IllegalArgumentException iae = expectThrows(
-                IllegalArgumentException.class,
-                () -> ssb.parseXContent(parser, true, nf -> true)
-                    .rewrite(new QueryRewriteContext(parserConfig(), null, null, null, new PointInTimeBuilder(new BytesArray("pitid"))))
-            );
-            assertEquals("[sort] cannot be used in children of compound retrievers", iae.getMessage());
-        }
-
-        try (
-            XContentParser parser = createParser(
-                JsonXContent.jsonXContent,
-                "{\"retriever\":{\"rrf_nl\":{\"retrievers\":" + "[{\"standard\":{\"min_score\":1}},{\"standard\":{\"min_score\":2}}]}}}"
-            )
-        ) {
-            SearchSourceBuilder ssb = new SearchSourceBuilder();
-            IllegalArgumentException iae = expectThrows(
-                IllegalArgumentException.class,
-                () -> ssb.parseXContent(parser, true, nf -> true)
-                    .rewrite(new QueryRewriteContext(parserConfig(), null, null, null, new PointInTimeBuilder(new BytesArray("pitid"))))
-            );
-            assertEquals("[min_score] cannot be used in children of compound retrievers", iae.getMessage());
-        }
-
-        try (
-            XContentParser parser = createParser(
-                JsonXContent.jsonXContent,
-                "{\"retriever\":{\"rrf_nl\":{\"retrievers\":"
-                    + "[{\"standard\":{\"collapse\":{\"field\":\"f0\"}}},{\"standard\":{\"collapse\":{\"field\":\"f1\"}}}]}}}"
-            )
-        ) {
-            SearchSourceBuilder ssb = new SearchSourceBuilder();
-            IllegalArgumentException iae = expectThrows(
-                IllegalArgumentException.class,
-                () -> ssb.parseXContent(parser, true, nf -> true)
-                    .rewrite(new QueryRewriteContext(parserConfig(), null, null, null, new PointInTimeBuilder(new BytesArray("pitid"))))
-            );
-            assertEquals("[collapse] cannot be used in children of compound retrievers", iae.getMessage());
-        }
     }
 
     @Override

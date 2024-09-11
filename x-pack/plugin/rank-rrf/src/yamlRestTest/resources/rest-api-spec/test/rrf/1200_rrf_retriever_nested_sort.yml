@@ -1,0 +1,101 @@
+setup:
+  - requires:
+      cluster_features: 'rrf_retriever_supported'
+      reason: 'test requires rrf retriever implementation'
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              text:
+                type: text
+              keyword:
+                type: keyword
+              integer:
+                type: integer
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          text: "term"
+          integer: 3
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          text: "term term"
+          integer: 1
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body:
+          text: "term term term"
+          keyword: B
+          integer: 2
+
+  - do:
+      indices.refresh: {}
+
+---
+"rrf retriever with custom nested sort":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          track_total_hits: true
+          retriever:
+            rrf:
+              retrievers: [
+                {
+                  # this one retrievers docs 3, 2, and 1
+                  # but due to sorting, it will revert the order to 1, 3, 2 which due to
+                  # rank_window_size: 2 will only return 1 and 3
+                  standard: {
+                    query: {
+                      term: {
+                        text: term
+                      }
+                    },
+                    sort: [
+                      {
+                        integer: {
+                          order: desc
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  # this one retrieves doc 3
+                  standard: {
+                    query: {
+                      term: {
+                        keyword: B
+                      }
+                    }
+                  }
+                }
+              ]
+              rank_window_size: 2
+              rank_constant: 10
+          size: 2
+
+  - match: { hits.total : 3 }
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.0._rank: 1 }
+
+  - match: { hits.hits.1._id: "1" }
+  - match: { hits.hits.1._rank: 2 }

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloa
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
+import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsModel;
@@ -97,7 +98,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
             @Override
             public void doInfer(
                 Model model,
-                List<String> input,
+                InferenceInputs inputs,
                 Map<String, Object> taskSettings,
                 InputType inputType,
                 TimeValue timeout,

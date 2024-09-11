@@ -364,16 +364,22 @@ public class AggregatorImplementer {
             builder.addComment("No masking");
             builder.addStatement("$T block = page.getBlock(channels.get(0))", valueBlockType(init, combine));
             builder.addStatement("$T vector = block.asVector()", valueVectorType(init, combine));
-            builder.beginControlFlow("if (vector != null)").addStatement("addRawVector(vector)");
-            builder.nextControlFlow("else").addStatement("addRawBlock(block)").endControlFlow();
+            builder.beginControlFlow("if (vector != null)");
+            builder.addStatement("addRawVector(vector)");
+            builder.nextControlFlow("else");
+            builder.addStatement("addRawBlock(block)");
+            builder.endControlFlow();
             builder.addStatement("return");
         }
         builder.endControlFlow();
         builder.addComment("Some positions masked away, others kept");
         builder.addStatement("$T block = page.getBlock(channels.get(0))", valueBlockType(init, combine));
         builder.addStatement("$T vector = block.asVector()", valueVectorType(init, combine));
-        builder.beginControlFlow("if (vector != null)").addStatement("addRawVector(vector, mask)");
-        builder.nextControlFlow("else").addStatement("addRawBlock(block, mask)").endControlFlow();
+        builder.beginControlFlow("if (vector != null)");
+        builder.addStatement("addRawVector(vector, mask)");
+        builder.nextControlFlow("else");
+        builder.addStatement("addRawBlock(block, mask)");
+        builder.endControlFlow();
         return builder.build();
     }
 

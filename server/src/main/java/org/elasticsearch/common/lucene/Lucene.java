@@ -884,7 +884,7 @@ public class Lucene {
             }
         }
 
-        private static final SubReaderWrapper SUB_READER_WRAPPER = new SubReaderWrapper() {
+        private static final SubReaderWrapper ALL_LIVE_DOCS_SUB_READER_WRAPPER = new SubReaderWrapper() {
             @Override
             public LeafReader wrap(LeafReader leaf) {
                 final SegmentReader segmentReader = segmentReader(leaf);
@@ -903,7 +903,7 @@ public class Lucene {
         };
 
         DirectoryReaderWithAllLiveDocs(DirectoryReader in) throws IOException {
-            super(in, SUB_READER_WRAPPER);
+            super(in, ALL_LIVE_DOCS_SUB_READER_WRAPPER);
         }
 
         @Override

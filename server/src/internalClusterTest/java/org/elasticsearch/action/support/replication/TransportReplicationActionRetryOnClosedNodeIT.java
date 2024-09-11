@@ -39,7 +39,6 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matchers;
-import org.junit.Ignore;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -50,7 +49,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
-@Ignore
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class TransportReplicationActionRetryOnClosedNodeIT extends ESIntegTestCase {
 
@@ -176,6 +174,7 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends ESIntegTestCa
         }
     }
 
+    @AwaitsFix(bugUrl = "disable it for now")
     public void testRetryOnStoppedTransportService() throws Exception {
         internalCluster().startMasterOnlyNodes(2);
         String primary = internalCluster().startDataOnlyNode();

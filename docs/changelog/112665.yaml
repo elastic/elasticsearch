@@ -1,7 +1,7 @@
 pr: 112665
 summary: Remove zstd feature flag for index codec best compression
 area: Codec
-type: "docs, enhancement"
+type: enhancement
 issues: []
 highlight:
   title: Enable ZStandard compression for stored fields with

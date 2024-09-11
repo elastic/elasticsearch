@@ -505,6 +505,8 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
         assertThat(getSettings(client, restoreIndex).get("index.mode"), Matchers.equalTo(IndexMode.LOGSDB.getName()));
     }
 
+    //NOTE: this test will fail on snapshot creation after fixing
+    //https://github.com/elastic/elasticsearch/issues/112735
     public void testLogsDBSourceOnlySnapshotCreation() throws IOException {
         final String repository = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         registerRepository(repository, FsRepository.TYPE, Settings.builder().put("location", randomAlphaOfLength(6)));

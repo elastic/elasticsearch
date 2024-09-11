@@ -35,7 +35,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         internalCluster().startNodes(2, masterNodeSettings);
         Settings dateNodeSettings = dataNode();
         internalCluster().startNodes(2, dateNodeSettings);
-        ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth()
+        ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForNodes("4")
             .setWaitForNoRelocatingShards(true)

@@ -75,7 +75,12 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         assertThat(FileSystemUtils.files(location).length, equalTo(numberOfFiles));
 
         logger.info("--> check that repository is really there");
-        ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().clear().setMetadata(true).get();
+        ClusterStateResponse clusterStateResponse = client.admin()
+            .cluster()
+            .prepareState(TEST_REQUEST_TIMEOUT)
+            .clear()
+            .setMetadata(true)
+            .get();
         Metadata metadata = clusterStateResponse.getState().getMetadata();
         RepositoriesMetadata repositoriesMetadata = metadata.custom(RepositoriesMetadata.TYPE);
         assertThat(repositoriesMetadata, notNullValue());
@@ -86,7 +91,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         createRepository("test-repo-2", "fs");
 
         logger.info("--> check that both repositories are in cluster state");
-        clusterStateResponse = client.admin().cluster().prepareState().clear().setMetadata(true).get();
+        clusterStateResponse = client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).clear().setMetadata(true).get();
         metadata = clusterStateResponse.getState().getMetadata();
         repositoriesMetadata = metadata.custom(RepositoriesMetadata.TYPE);
         assertThat(repositoriesMetadata, notNullValue());
@@ -117,7 +122,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
                 .isAcknowledged(),
             equalTo(true)
         );
-        assertEquals(beforeStateUuid, client.admin().cluster().prepareState().clear().get().getState().stateUUID());
+        assertEquals(beforeStateUuid, client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).clear().get().getState().stateUUID());
 
         logger.info("--> delete repository test-repo-1");
         client.admin().cluster().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "test-repo-1").get();

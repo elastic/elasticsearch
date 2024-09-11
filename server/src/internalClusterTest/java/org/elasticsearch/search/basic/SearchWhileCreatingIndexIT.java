@@ -61,7 +61,7 @@ public class SearchWhileCreatingIndexIT extends ESIntegTestCase {
 
         logger.info("using preference {}", preference);
         // we want to make sure that while recovery happens, and a replica gets recovered, its properly refreshed
-        ClusterHealthStatus status = clusterAdmin().prepareHealth("test").get().getStatus();
+        ClusterHealthStatus status = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "test").get().getStatus();
         while (status != ClusterHealthStatus.GREEN) {
             // first, verify that search normal search works
             assertHitCount(prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "test")), 1);
@@ -97,7 +97,7 @@ public class SearchWhileCreatingIndexIT extends ESIntegTestCase {
                     assertHitCount(searchResponse, 1);
                 }
             );
-            status = clusterAdmin().prepareHealth("test").get().getStatus();
+            status = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "test").get().getStatus();
             internalCluster().ensureAtLeastNumDataNodes(numberOfReplicas + 1);
         }
         cluster().wipeIndices("test");

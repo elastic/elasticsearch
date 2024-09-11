@@ -88,7 +88,7 @@ public class HealthServiceIT extends ESIntegTestCase {
             ClusterState state = internalCluster().client()
                 .admin()
                 .cluster()
-                .prepareState()
+                .prepareState(TEST_REQUEST_TIMEOUT)
                 .clear()
                 .setMetadata(true)
                 .setNodes(true)

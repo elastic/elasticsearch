@@ -163,6 +163,7 @@ public class HashAggregationOperator implements Operator {
                     Releasables.closeExpectNoException(prepared);
                 }
             }
+            Block[] keys = new Block[groups.size()];
             try (AddInput add = new AddInput()) {
                 checkState(needsInput(), "Operator is already finishing");
 
@@ -178,6 +179,8 @@ public class HashAggregationOperator implements Operator {
 
                 blockHash.add(wrapPage(page), add);
                 hashNanos += System.nanoTime() - add.hashStart;
+            } finally {
+                Releasables.close(keys);
             }
         } finally {
             page.releaseBlocks();

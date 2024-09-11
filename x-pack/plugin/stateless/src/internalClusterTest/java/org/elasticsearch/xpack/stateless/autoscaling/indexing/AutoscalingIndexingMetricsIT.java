@@ -66,6 +66,7 @@ import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetr
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.HIGH_INGESTION_LOAD_WEIGHT_DURING_SCALING;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.LOW_INGESTION_LOAD_WEIGHT_DURING_SCALING;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.NODE_INGEST_LOAD_SNAPSHOTS_METRIC_NAME;
+import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.groupIndexNodesByShutdownStatus;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.empty;
@@ -510,8 +511,10 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
 
     public void testIngestLoadsMetricsWithShutdownMetadata() throws Exception {
         final int numNodes = between(1, 6);
+        final TimeValue adjustmentAfterScalingWindow = TimeValue.timeValueSeconds(between(0, 2));
         final Settings nodeSettings = Settings.builder()
             .put(IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+            .put(IngestMetricsService.LOAD_ADJUSTMENT_AFTER_SCALING_WINDOW.getKey(), adjustmentAfterScalingWindow)
             .build();
         IntStream.range(0, numNodes).forEach(i -> startMasterAndIndexNode(nodeSettings));
 
@@ -545,6 +548,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
             Math.min(between(1, 3), numNodes),
             clusterService.state().nodes().getDataNodes().values()
         );
+        logger.info("--> creating shutdown records for [{}]", shuttingDownNodes.stream().map(DiscoveryNode::getName).toList());
         markNodesForShutdown(shuttingDownNodes, List.of(SingleNodeShutdownMetadata.Type.SIGTERM));
 
         // Ingest load metrics are not impacted by shutdown metadata because the setting is not enabled
@@ -580,13 +584,56 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         assertThat(groupedMeasurements.get(true), hasSize(numNodes));
         groupedMeasurements.get(true).forEach(m -> assertThat(m.attributes().get("quality"), is(MetricQuality.MINIMUM)));
 
-        // Remove shutdown metadata and ingest load metrics will be back to normal
-        deleteShutdownMetadataForNodes(shuttingDownNodes);
-        assertBusy(() -> {
-            final var ingestionLoadMetrics = getNodesIngestLoad();
-            assertThat(ingestionLoadMetrics, hasSize(numNodes));
-            assertTrue(ingestionLoadMetrics.stream().allMatch(l -> l.metricQuality().equals(MetricQuality.EXACT)));
-        });
+        // Add replacement nodes to the cluster and ensure master is not shutting down
+        final List<String> newNodeNames = IntStream.range(0, shuttingDownNodes.size())
+            .mapToObj(i -> startMasterAndIndexNode(nodeSettings))
+            .toList();
+        ensureStableCluster(numNodes + shuttingDownNodes.size());
+        assertBusy(
+            () -> assertFalse(shuttingDownNodes.stream().map(DiscoveryNode::getName).toList().contains(internalCluster().getMasterName()))
+        );
+
+        // Stop the shutting down nodes and ingest load metrics will be back to normal after adjustmentAfterScaling window
+        for (DiscoveryNode node : shuttingDownNodes) {
+            internalCluster().stopNode(node.getName());
+        }
+        ensureStableCluster(numNodes);
+        // There should be no shutting down nodes
+        assertThat(
+            groupIndexNodesByShutdownStatus(internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state()).get(true),
+            equalTo(0)
+        );
+        // Whether the shutdown markers are removed should have no impact
+        if (randomBoolean()) {
+            deleteShutdownMetadataForNodes(shuttingDownNodes);
+        }
+
+        final var ingestionLoadMetrics = getNodesIngestLoad();
+        assertThat(ingestionLoadMetrics, hasSize(numNodes));
+        final long afterScalingBaseTimeInNanos = internalCluster().getCurrentMasterNodeInstance(IngestMetricsService.class)
+            .getLoadAdjustmentAfterScalingBaseTimeInNanos();
+
+        // Check for after-scaling adjustment if it is enabled and the metrics are retrieved within the adjustmentAfterScaling window
+        if (adjustmentAfterScalingWindow.equals(TimeValue.ZERO) == false
+            && System.nanoTime() - afterScalingBaseTimeInNanos < adjustmentAfterScalingWindow.getNanos()) {
+            assertTrue(ingestionLoadMetrics.stream().allMatch(l -> l.metricQuality().equals(MetricQuality.MINIMUM)));
+            // Expect at least 1 ingestion load with value 0.0
+            assertThat(ingestionLoadMetrics.stream().filter(l -> l.load() < EPSILON).count(), greaterThanOrEqualTo(1L));
+            // Metrics should be eventually back to exact once we are outside the window of after-scaling adjustment
+            assertBusy(() -> {
+                final var ingestionLoadMetrics2 = getNodesIngestLoad();
+                assertThat(ingestionLoadMetrics2, hasSize(numNodes));
+                assertTrue(ingestionLoadMetrics2.stream().allMatch(l -> l.metricQuality().equals(MetricQuality.EXACT)));
+            });
+        } else {
+            // If after-scaling is not enable, the metric quality should be back to Exact immediately for old nodes.
+            // It can be Minimum or Missing for new nodes depending on how quickly they join the cluster and publish update.
+            assertTrue(
+                "ingestLoads: " + ingestionLoadMetrics,
+                ingestionLoadMetrics.stream()
+                    .allMatch(l -> l.metricQuality().equals(MetricQuality.EXACT) || newNodeNames.contains(l.nodeName()))
+            );
+        }
     }
 
     public void testOnlyMasterNodePublishesIngestLoadMetrics() throws Exception {
@@ -687,6 +734,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         final int numNodes = between(2, 5);
         final Settings nodeSettings = Settings.builder()
             .put(IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+            .put(IngestMetricsService.LOAD_ADJUSTMENT_AFTER_SCALING_WINDOW.getKey(), TimeValue.timeValueSeconds(1))
             .build();
         IntStream.range(0, numNodes).forEach(i -> startMasterAndIndexNode(nodeSettings));
 
@@ -744,6 +792,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
             .put(IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING.getKey(), TimeValue.timeValueSeconds(1))
             .put(HIGH_INGESTION_LOAD_WEIGHT_DURING_SCALING.getKey(), randomDoubleBetween(0.0, 1.0, true))
             .put(LOW_INGESTION_LOAD_WEIGHT_DURING_SCALING.getKey(), randomDoubleBetween(0.0, 1.0, true))
+            .put(IngestMetricsService.LOAD_ADJUSTMENT_AFTER_SCALING_WINDOW.getKey(), TimeValue.timeValueSeconds(1))
             .build();
         var masterNode = startMasterOnlyNode(nodeSettings);
         var indexNode = startIndexNode(nodeSettings);

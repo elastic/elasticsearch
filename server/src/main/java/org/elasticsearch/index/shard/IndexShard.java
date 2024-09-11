@@ -1700,13 +1700,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private static final class NonClosingReaderWrapper extends FilterDirectoryReader {
 
+        private static final LeafReader[] EMPTY_LEAF_READERS = new LeafReader[0];
+
+        private static final FilterDirectoryReader.SubReaderWrapper SUB_READER_WRAPPER = new SubReaderWrapper() {
+            @Override
+            public LeafReader wrap(LeafReader reader) {
+                return reader;
+            }
+
+            @Override
+            protected LeafReader[] wrap(List<? extends LeafReader> readers) {
+                return readers.toArray(EMPTY_LEAF_READERS);
+            }
+        };
+
         private NonClosingReaderWrapper(DirectoryReader in) throws IOException {
-            super(in, new SubReaderWrapper() {
-                @Override
-                public LeafReader wrap(LeafReader reader) {
-                    return reader;
-                }
-            });
+            super(in, SUB_READER_WRAPPER);
         }
 
         @Override

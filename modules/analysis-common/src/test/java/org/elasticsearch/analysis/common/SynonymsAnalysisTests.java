@@ -337,7 +337,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(
                 IndexMetadata.SETTING_VERSION_CREATED,
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_0_0, IndexVersion.current())
+                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
             )
             .put("path.home", createTempDir().toString())
             .put("index.analysis.filter.synonyms.type", "synonym")
@@ -391,7 +391,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(
                 IndexMetadata.SETTING_VERSION_CREATED,
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_0_0, IndexVersion.current())
+                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
             )
             .put("path.home", createTempDir().toString())
             .build();
@@ -423,7 +423,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(
                 IndexMetadata.SETTING_VERSION_CREATED,
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_0_0, IndexVersion.current())
+                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
             )
             .put("path.home", createTempDir().toString())
             .putList("common_words", "a", "b")

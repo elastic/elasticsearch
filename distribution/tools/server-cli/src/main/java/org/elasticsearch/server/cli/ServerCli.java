@@ -32,6 +32,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * The main CLI for running Elasticsearch.
@@ -44,6 +45,8 @@ class ServerCli extends EnvironmentAwareCommand {
     private final OptionSpecBuilder quietOption;
     private final OptionSpec<String> enrollmentTokenOption;
 
+    // flag for indicating shutdown has begun. we use an AtomicBoolean to double as a synchronization object
+    private final AtomicBoolean shuttingDown = new AtomicBoolean(false);
     private volatile ServerProcess server;
 
     // visible for testing
@@ -98,7 +101,14 @@ class ServerCli extends EnvironmentAwareCommand {
             syncPlugins(terminal, env, processInfo);
 
             ServerArgs args = createArgs(options, env, secrets, processInfo);
-            this.server = startServer(terminal, processInfo, args);
+            synchronized (shuttingDown) {
+                // if we are shutting down there is no reason to start the server
+                if (shuttingDown.get()) {
+                    terminal.println("CLI is shutting down, skipping starting server process");
+                    return;
+                }
+                this.server = startServer(terminal, processInfo, args);
+            }
         }
 
         if (options.has(daemonizeOption)) {
@@ -233,8 +243,11 @@ class ServerCli extends EnvironmentAwareCommand {
 
     @Override
     public void close() throws IOException {
-        if (server != null) {
-            server.stop();
+        synchronized (shuttingDown) {
+            shuttingDown.set(true);
+            if (server != null) {
+                server.stop();
+            }
         }
     }
 

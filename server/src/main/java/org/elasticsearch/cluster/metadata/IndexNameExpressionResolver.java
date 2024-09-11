@@ -567,17 +567,14 @@ public class IndexNameExpressionResolver {
             // Exclude this one as it's a net-new system index, and we explicitly don't want those.
             return false;
         }
-        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-            IndexAbstraction indexAbstraction = context.getState().metadata().getIndicesLookup().get(index.getName());
-            if (context.options.allowFailureIndices() == false) {
-                DataStream parentDataStream = indexAbstraction.getParentDataStream();
-                if (parentDataStream != null && parentDataStream.isFailureStoreEnabled()) {
-                    if (parentDataStream.isFailureStoreIndex(index.getName())) {
-                        if (options.ignoreUnavailable()) {
-                            return false;
-                        } else {
-                            throw new FailureIndexNotSupportedException(index);
-                        }
+        if (DataStream.isFailureStoreFeatureFlagEnabled() && context.options.allowFailureIndices() == false) {
+            DataStream parentDataStream = context.getState().metadata().getIndicesLookup().get(index.getName()).getParentDataStream();
+            if (parentDataStream != null && parentDataStream.isFailureStoreEnabled()) {
+                if (parentDataStream.isFailureStoreIndex(index.getName())) {
+                    if (options.ignoreUnavailable()) {
+                        return false;
+                    } else {
+                        throw new FailureIndexNotSupportedException(index);
                     }
                 }
             }

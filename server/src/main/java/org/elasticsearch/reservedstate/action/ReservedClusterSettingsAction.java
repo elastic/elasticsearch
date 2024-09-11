@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequ
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsUpdater;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.xcontent.XContentParser;
@@ -58,7 +59,11 @@ public class ReservedClusterSettingsAction implements ReservedClusterStateHandle
         toDelete.removeAll(newSettings.keys());
         toDelete.forEach(k -> newSettings.put(k, (String) null));
 
-        final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = new ClusterUpdateSettingsRequest();
+        final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = new ClusterUpdateSettingsRequest(
+            // timeouts are unused, any value will do
+            TimeValue.THIRTY_SECONDS,
+            TimeValue.THIRTY_SECONDS
+        );
         clusterUpdateSettingsRequest.persistentSettings(newSettings);
         return clusterUpdateSettingsRequest;
     }

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -388,11 +387,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
 
     public void testPerformActionSomeShardsOnlyOnNewNodes() throws Exception {
         VersionInformation oldVersion = new VersionInformation(
-            VersionUtils.randomVersionBetween(
-                random(),
-                Version.fromId(Version.CURRENT.major * 1_000_000 + 99),
-                VersionUtils.getPreviousVersion()
-            ),
+            VersionUtils.randomCompatibleVersion(random(), VersionUtils.getPreviousVersion()),
             IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersionUtils.randomCompatibleVersion(random())
         );
@@ -457,11 +452,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
 
     public void testPerformActionSomeShardsOnlyOnNewNodesButNewNodesInvalidAttrs() {
         VersionInformation oldVersion = new VersionInformation(
-            VersionUtils.randomVersionBetween(
-                random(),
-                Version.fromId(Version.CURRENT.major * 1_000_000 + 99),
-                VersionUtils.getPreviousVersion()
-            ),
+            VersionUtils.randomCompatibleVersion(random(), VersionUtils.getPreviousVersion()),
             IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersionUtils.randomCompatibleVersion(random())
         );
@@ -534,11 +525,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
 
     public void testPerformActionNewShardsExistButWithInvalidAttributes() throws Exception {
         VersionInformation oldVersion = new VersionInformation(
-            VersionUtils.randomVersionBetween(
-                random(),
-                Version.fromId(Version.CURRENT.major * 1_000_000 + 99),
-                VersionUtils.getPreviousVersion()
-            ),
+            VersionUtils.randomCompatibleVersion(random(), VersionUtils.getPreviousVersion()),
             IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersionUtils.randomCompatibleVersion(random())
         );

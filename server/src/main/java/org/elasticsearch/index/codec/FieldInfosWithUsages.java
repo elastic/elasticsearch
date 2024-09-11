@@ -30,9 +30,6 @@ public class FieldInfosWithUsages extends FieldInfos {
             if (fi.hasNorms()) {
                 usages++;
             }
-            if (fi.hasVectors()) {
-                usages++;
-            }
             if (fi.getDocValuesType() != DocValuesType.NONE) {
                 usages++;
             }

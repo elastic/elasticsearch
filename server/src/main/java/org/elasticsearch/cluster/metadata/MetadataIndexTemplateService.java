@@ -697,7 +697,7 @@ public class MetadataIndexTemplateService {
         final var now = Instant.now();
         final var metadata = currentState.getMetadata();
 
-        final var combinedMappings = collectMappings(indexTemplate, metadata.componentTemplates(), "tmp_idx");
+        final var combinedMappings = collectMappings(indexTemplate, metadata.componentTemplates(), Map.of(), "tmp_idx");
         final var combinedSettings = resolveSettings(indexTemplate, metadata.componentTemplates());
         // First apply settings sourced from index setting providers:
         for (var provider : indexSettingProviders) {
@@ -1347,10 +1347,6 @@ public class MetadataIndexTemplateService {
     /**
      * Collect the given v2 template into an ordered list of mappings.
      */
-    public static List<CompressedXContent> collectMappings(final ClusterState state, final String templateName, final String indexName) {
-        return collectMappings(state, templateName, Map.of(), indexName);
-    }
-
     public static List<CompressedXContent> collectMappings(
         final ClusterState state,
         final String templateName,
@@ -1372,14 +1368,6 @@ public class MetadataIndexTemplateService {
      * Collect the given v2 template into an ordered list of mappings.
      */
     public static List<CompressedXContent> collectMappings(
-        final ComposableIndexTemplate template,
-        final Map<String, ComponentTemplate> componentTemplates,
-        final String indexName
-    ) {
-        return collectMappings(template, componentTemplates, Map.of(), indexName);
-    }
-
-    private static List<CompressedXContent> collectMappings(
         final ComposableIndexTemplate template,
         final Map<String, ComponentTemplate> componentTemplates,
         final Map<String, ComponentTemplate> componentTemplateSubstitutions,
@@ -1733,7 +1721,7 @@ public class MetadataIndexTemplateService {
             String indexName = DataStream.BACKING_INDEX_PREFIX + temporaryIndexName;
             // Parse mappings to ensure they are valid after being composed
 
-            List<CompressedXContent> mappings = collectMappings(stateWithIndex, templateName, indexName);
+            List<CompressedXContent> mappings = collectMappings(stateWithIndex, templateName, Map.of(), indexName);
             try {
                 MapperService mapperService = tempIndexService.mapperService();
                 mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mappings, MapperService.MergeReason.INDEX_TEMPLATE);

@@ -286,15 +286,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final DocWriteRequest<?> originalRequest,
         final IndexRequest indexRequest,
         final Metadata metadata,
-        final long epochMillis
-    ) {
-        resolvePipelinesAndUpdateIndexRequest(originalRequest, indexRequest, metadata, epochMillis, Map.of());
-    }
-
-    static void resolvePipelinesAndUpdateIndexRequest(
-        final DocWriteRequest<?> originalRequest,
-        final IndexRequest indexRequest,
-        final Metadata metadata,
         final long epochMillis,
         final Map<String, ComponentTemplate> templateSubstitutions
     ) {

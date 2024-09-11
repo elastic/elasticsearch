@@ -647,6 +647,7 @@ public class MetadataCreateIndexService {
             request.mappings(),
             currentState,
             templateName,
+            Map.of(),
             xContentRegistry,
             request.index()
         );
@@ -805,19 +806,10 @@ public class MetadataCreateIndexService {
         List<CompressedXContent> templateMappings = MetadataIndexTemplateService.collectMappings(
             composableIndexTemplate,
             componentTemplates,
+            Map.of(),
             indexName
         );
         return collectV2Mappings(null, templateMappings, xContentRegistry);
-    }
-
-    public static List<CompressedXContent> collectV2Mappings(
-        @Nullable final String requestMappings,
-        final ClusterState currentState,
-        final String templateName,
-        final NamedXContentRegistry xContentRegistry,
-        final String indexName
-    ) throws Exception {
-        return collectV2Mappings(requestMappings, currentState, templateName, Map.of(), xContentRegistry, indexName);
     }
 
     public static List<CompressedXContent> collectV2Mappings(

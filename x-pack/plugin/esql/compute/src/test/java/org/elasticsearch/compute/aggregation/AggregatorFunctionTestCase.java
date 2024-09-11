@@ -69,8 +69,14 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
 
     @Override
     protected final Matcher<String> expectedToStringOfSimple() {
+        return equalTo(
+            "AggregationOperator[aggregators=[Aggregator[aggregatorFunction=" + expectedToStringOfSimpleAggregator() + ", mode=SINGLE]]]"
+        );
+    }
+
+    protected String expectedToStringOfSimpleAggregator() {
         String type = getClass().getSimpleName().replace("Tests", "");
-        return equalTo("AggregationOperator[aggregators=[Aggregator[aggregatorFunction=" + type + "[channels=[0]], mode=SINGLE]]]");
+        return type + "[channels=[0]]";
     }
 
     @Override
@@ -162,7 +168,7 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
 
     // Returns an intermediate state that is equivalent to what the local execution planner will emit
     // if it determines that certain shards have no relevant data.
-    final List<Page> nullIntermediateState(BlockFactory blockFactory) {
+    List<Page> nullIntermediateState(BlockFactory blockFactory) {
         try (var agg = aggregatorFunction(List.of()).aggregator(driverContext())) {
             var method = agg.getClass().getMethod("intermediateStateDesc");
             @SuppressWarnings("unchecked")

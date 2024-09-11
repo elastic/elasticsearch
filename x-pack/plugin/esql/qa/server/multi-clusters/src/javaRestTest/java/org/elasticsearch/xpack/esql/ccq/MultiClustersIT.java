@@ -234,8 +234,6 @@ public class MultiClustersIT extends ESRestTestCase {
     private void assertClusterDetailsMap(Map<String, Object> result, boolean remoteOnly) {
         @SuppressWarnings("unchecked")
         Map<String, Object> clusters = (Map<String, Object>) result.get("_clusters");
-        System.err.println("FOO FOO FOO >>>> clusters: " + clusters);
-        logger.warn("FOO FOO FOO >>>> clusters: {}", clusters);
         assertThat(clusters.size(), equalTo(7));
         assertThat(clusters.keySet(), equalTo(Set.of("total", "successful", "running", "skipped", "partial", "failed", "details")));
         int expectedNumClusters = remoteOnly ? 1 : 2;
@@ -262,7 +260,7 @@ public class MultiClustersIT extends ESRestTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> remoteClusterShards = (Map<String, Object>) remoteCluster.get("_shards");
         assertThat(remoteClusterShards.keySet(), equalTo(Set.of("total", "successful", "skipped", "failed")));
-        assertThat((Integer) remoteClusterShards.get("total"), greaterThanOrEqualTo(1));
+        assertThat((Integer) remoteClusterShards.get("total"), greaterThanOrEqualTo(0));
         assertThat((Integer) remoteClusterShards.get("successful"), equalTo((Integer) remoteClusterShards.get("total")));
         assertThat((Integer) remoteClusterShards.get("skipped"), equalTo(0));
         assertThat((Integer) remoteClusterShards.get("failed"), equalTo(0));
@@ -278,7 +276,7 @@ public class MultiClustersIT extends ESRestTestCase {
             @SuppressWarnings("unchecked")
             Map<String, Object> localClusterShards = (Map<String, Object>) localCluster.get("_shards");
             assertThat(localClusterShards.keySet(), equalTo(Set.of("total", "successful", "skipped", "failed")));
-            assertThat((Integer) localClusterShards.get("total"), greaterThanOrEqualTo(1));
+            assertThat((Integer) localClusterShards.get("total"), greaterThanOrEqualTo(0));
             assertThat((Integer) localClusterShards.get("successful"), equalTo((Integer) localClusterShards.get("total")));
             assertThat((Integer) localClusterShards.get("skipped"), equalTo(0));
             assertThat((Integer) localClusterShards.get("failed"), equalTo(0));

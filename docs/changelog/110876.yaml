@@ -1,0 +1,6 @@
+pr: 110876
+summary: Add support for exists queries for `rank_features`
+area: Search
+type: enhancement
+issues:
+ - 98096

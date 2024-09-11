@@ -2153,21 +2153,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected SyntheticSourceMode syntheticSourceMode() {
-        return SyntheticSourceMode.NATIVE;
-    }
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        var loader = fieldType().indexed
+            ? new IndexedSyntheticFieldLoader(indexCreatedVersion, fieldType().similarity)
+            : new DocValuesSyntheticFieldLoader(indexCreatedVersion);
 
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        if (copyTo().copyToFields().isEmpty() != true) {
-            throw new IllegalArgumentException(
-                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
-            );
-        }
-        if (fieldType().indexed) {
-            return new IndexedSyntheticFieldLoader(indexCreatedVersion, fieldType().similarity);
-        }
-        return new DocValuesSyntheticFieldLoader(indexCreatedVersion);
+        return new SyntheticSourceSupport.Native(loader);
     }
 
     private class IndexedSyntheticFieldLoader extends SourceLoader.DocValuesBasedSyntheticFieldLoader {

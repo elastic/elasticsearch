@@ -12,7 +12,10 @@ import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexGraveyard.IndexGraveyardDiff;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 
@@ -74,20 +77,25 @@ public class ClusterChangedEvent {
      * Note that this is an object reference equality test, not an equals test.
      */
     public boolean routingTableChanged() {
-        return state.routingTable() != previousState.routingTable();
+        // GlobalRoutingTable.routingTables is immutable, meaning that we can simply test the reference equality of the global routing
+        // table.
+        return state.globalRoutingTable() != previousState.globalRoutingTable();
     }
 
     /**
      * Returns <code>true</code> iff the routing table has changed for the given index.
      * Note that this is an object reference equality test, not an equals test.
      */
-    public boolean indexRoutingTableChanged(String index) {
+    public boolean indexRoutingTableChanged(Index index) {
         Objects.requireNonNull(index, "index must not be null");
-        if (state.routingTable().hasIndex(index) == false && previousState.routingTable().hasIndex(index) == false) {
+        ProjectId projectId = state.globalRoutingTable().getProjectLookup().project(index);
+        ProjectId previousProjectId = previousState.globalRoutingTable().getProjectLookup().project(index);
+        if (projectId == null && previousProjectId == null) {
             return false;
         }
-        if (state.routingTable().hasIndex(index) && previousState.routingTable().hasIndex(index)) {
-            return state.routingTable().index(index) != previousState.routingTable().index(index);
+        if (projectId != null && previousProjectId != null) {
+            IndexRoutingTable previousIndexRoutingTable = previousState.globalRoutingTable().routingTable(previousProjectId).index(index);
+            return state.globalRoutingTable().routingTable(projectId).index(index) != previousIndexRoutingTable;
         }
         return true;
     }
@@ -129,7 +137,25 @@ public class ClusterChangedEvent {
      * returned iff they have been added, updated or removed between the previous and the current state
      */
     public Set<String> changedCustomProjectMetadataSet() {
-        return changedCustoms(state.metadata().getProject().customs(), previousState.metadata().getProject().customs());
+        // TODO: none of the usages of these `changedCustom` methods actually need the full list; they just want to know if a specific entry
+        // changed.
+        Set<String> result = new HashSet<>();
+        for (ProjectMetadata project : state.metadata().projects().values()) {
+            ProjectMetadata previousProject = previousState.metadata().projects().get(project.id());
+            if (previousProject == null) {
+                result.addAll(project.customs().keySet());
+                continue;
+            }
+            result.addAll(changedCustoms(project.customs(), previousProject.customs()));
+        }
+        for (ProjectMetadata previousProject : previousState.metadata().projects().values()) {
+            ProjectMetadata project = state.metadata().projects().get(previousProject.id());
+            if (project != null) {
+                continue;
+            }
+            result.addAll(previousProject.customs().keySet());
+        }
+        return result;
     }
 
     private <C extends Metadata.MetadataCustom<C>> Set<String> changedCustoms(
@@ -241,36 +267,54 @@ public class ClusterChangedEvent {
         final Metadata previousMetadata = previousState.metadata();
         final Metadata currentMetadata = state.metadata();
 
-        if (currentMetadata.getProject().indices() != previousMetadata.getProject().indices()) {
-            for (IndexMetadata index : previousMetadata.getProject().indices().values()) {
-                IndexMetadata current = currentMetadata.getProject().index(index.getIndex());
-                if (current == null) {
+        for (ProjectMetadata project : currentMetadata.projects().values()) {
+            ProjectMetadata previousProject = previousMetadata.projects().get(project.id());
+            // No indices could have been deleted if this project didn't exist in the previous cluster state.
+            if (previousProject == null) {
+                continue;
+            }
+            if (project.indices() != previousProject.indices()) {
+                for (IndexMetadata index : previousProject.indices().values()) {
+                    IndexMetadata current = project.index(index.getIndex());
+                    if (current == null) {
+                        if (deleted == null) {
+                            deleted = new HashSet<>();
+                        }
+                        deleted.add(index.getIndex());
+                    }
+                }
+            }
+
+            final IndexGraveyard currentGraveyard = project.indexGraveyard();
+            final IndexGraveyard previousGraveyard = previousProject.indexGraveyard();
+
+            // Look for new entries in the index graveyard, where there's no corresponding index in the
+            // previous metadata. This indicates that a dangling index has been explicitly deleted, so
+            // each node should make sure to delete any related data.
+            if (currentGraveyard != previousGraveyard) {
+                final IndexGraveyardDiff indexGraveyardDiff = (IndexGraveyardDiff) currentGraveyard.diff(previousGraveyard);
+                final List<IndexGraveyard.Tombstone> added = indexGraveyardDiff.getAdded();
+                if (added.isEmpty() == false) {
                     if (deleted == null) {
                         deleted = new HashSet<>();
                     }
-                    deleted.add(index.getIndex());
+                    for (IndexGraveyard.Tombstone tombstone : added) {
+                        deleted.add(tombstone.getIndex());
+                    }
                 }
             }
         }
 
-        final IndexGraveyard currentGraveyard = currentMetadata.getProject().indexGraveyard();
-        final IndexGraveyard previousGraveyard = previousMetadata.getProject().indexGraveyard();
-
-        // Look for new entries in the index graveyard, where there's no corresponding index in the
-        // previous metadata. This indicates that a dangling index has been explicitly deleted, so
-        // each node should make sure to delete any related data.
-        if (currentGraveyard != previousGraveyard) {
-            final IndexGraveyardDiff indexGraveyardDiff = (IndexGraveyardDiff) currentGraveyard.diff(previousGraveyard);
-
-            final List<IndexGraveyard.Tombstone> added = indexGraveyardDiff.getAdded();
-
-            if (added.isEmpty() == false) {
+        // If a project is removed, we remove all its indices as well.
+        for (ProjectMetadata previousProject : previousMetadata.projects().values()) {
+            if (currentMetadata.projects().containsKey(previousProject.id())) {
+                continue;
+            }
+            for (IndexMetadata index : previousProject.indices().values()) {
                 if (deleted == null) {
                     deleted = new HashSet<>();
                 }
-                for (IndexGraveyard.Tombstone tombstone : added) {
-                    deleted.add(tombstone.getIndex());
-                }
+                deleted.add(index.getIndex());
             }
         }
 
@@ -284,8 +328,12 @@ public class ClusterChangedEvent {
         // to re-process the same deletes or process deletes about indices it never knew about. This is not
         // an issue because there are safeguards in place in the delete store operation in case the index
         // folder doesn't exist on the file system.
-        List<IndexGraveyard.Tombstone> tombstones = state.metadata().getProject().indexGraveyard().getTombstones();
-        return tombstones.stream().map(IndexGraveyard.Tombstone::getIndex).toList();
+        return state.metadata()
+            .projects()
+            .values()
+            .stream()
+            .flatMap(project -> project.indexGraveyard().getTombstones().stream().map(IndexGraveyard.Tombstone::getIndex))
+            .toList();
     }
 
 }

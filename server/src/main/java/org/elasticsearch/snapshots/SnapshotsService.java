@@ -1292,10 +1292,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             continue;
                         }
                         final RepositoryShardId shardId = shardStatus.getKey();
-                        if (event.indexRoutingTableChanged(shardId.indexName())) {
-                            IndexRoutingTable indexShardRoutingTable = event.state()
-                                .getRoutingTable()
-                                .index(entry.indexByName(shardId.indexName()));
+                        final Index index = entry.indexByName(shardId.indexName());
+                        if (event.indexRoutingTableChanged(index)) {
+                            IndexRoutingTable indexShardRoutingTable = event.state().getRoutingTable().index(index);
                             if (indexShardRoutingTable == null) {
                                 // index got removed concurrently and we have to fail WAITING, QUEUED and PAUSED_FOR_REMOVAL state shards
                                 return true;

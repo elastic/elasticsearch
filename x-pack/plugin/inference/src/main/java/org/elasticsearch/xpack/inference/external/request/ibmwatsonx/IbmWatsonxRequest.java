@@ -19,6 +19,7 @@ import org.apache.http.message.BasicHeader;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.inference.external.request.Request;
@@ -55,7 +56,7 @@ public interface IbmWatsonxRequest extends Request {
                 return (String) map.get("access_token");
             });
         } catch (Exception e) {
-            logger.error("Failed to add Bearer token to the request");
+            throw new XContentParseException("Failed to add Bearer token to the request");
         }
 
         Header bearerHeader = new BasicHeader(HttpHeaders.AUTHORIZATION, "Bearer " + bearerToken);

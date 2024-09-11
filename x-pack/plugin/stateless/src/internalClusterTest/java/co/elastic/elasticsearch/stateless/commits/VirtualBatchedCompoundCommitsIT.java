@@ -48,6 +48,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.CheckedRunnable;
@@ -1231,7 +1232,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
 
                 final List<Measurement> sizeMeasurements = metricsPlugin.getLongHistogramMeasurement(BCC_TOTAL_SIZE_HISTOGRAM_METRIC);
                 assertThat(sizeMeasurements, hasSize(1));
-                assertMeasurement2(sizeMeasurements.get(0), virtualBcc.getTotalSizeInBytes(), indexName, shardId);
+                assertMeasurement2(sizeMeasurements.get(0), ByteSizeUnit.BYTES.toMB(virtualBcc.getTotalSizeInBytes()), indexName, shardId);
 
                 final List<Measurement> nCommitsMeasurements = metricsPlugin.getLongHistogramMeasurement(
                     BCC_NUMBER_COMMITS_HISTOGRAM_METRIC

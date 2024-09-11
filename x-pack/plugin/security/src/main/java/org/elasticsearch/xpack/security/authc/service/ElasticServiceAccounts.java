@@ -158,11 +158,14 @@ final class ElasticServiceAccounts {
                     .allowRestrictedIndices(false)
                     .build(),
                 // Custom permissions required for running Elastic connectors integration
-                RoleDescriptor.IndicesPrivileges.builder().indices(".elastic-connectors*").privileges("read", "write", "manage").build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".elastic-connectors*")
+                    .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance")
+                    .build(),
                 // Permissions for data indices and access control filters used by Elastic connectors integration
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("content-*", ".search-acl-filter-*")
-                    .privileges("read", "write", "manage")
+                    .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance")
                     .build(), },
             new RoleDescriptor.ApplicationResourcePrivileges[] {
                 RoleDescriptor.ApplicationResourcePrivileges.builder()

@@ -312,11 +312,15 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
             // Each index template should be composed of the following optional component templates:
             // <data_stream.type>@custom
             // <data_stream.type>-<data_stream.dataset>@custom
+            // <data_stream.type>-fallback@ilm
             final List<String> optionalComponentTemplates = template.composedOf()
                 .stream()
                 .filter(t -> template.getIgnoreMissingComponentTemplates().contains(t))
                 .toList();
-            assertThat(optionalComponentTemplates, containsInAnyOrder(namePrefix + "@custom", dataStreamType + "@custom"));
+            assertThat(
+                optionalComponentTemplates,
+                containsInAnyOrder(namePrefix + "@custom", dataStreamType + "@custom", namePrefix + "-fallback@ilm")
+            );
 
             // There should be no required custom component templates.
             final List<String> requiredCustomComponentTemplates = template.getRequiredComponentTemplates()

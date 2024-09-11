@@ -2,5 +2,4 @@ pr: 112062
 summary: Add ability to rescore inner hits
 area: Ranking
 type: enhancement
-issues:
-  - 108163
+issues: []

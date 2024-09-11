@@ -78,6 +78,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -347,8 +348,20 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
      */
     public void testHttpClientStats() throws Exception {
         try (var ctx = setupClientCtx()) {
-            var totalBytesSent = 0L;
+            Function<HttpServerTransport, Long> totalRecvBytes = (HttpServerTransport httpTransport) -> {
+                var stats = httpTransport.stats().clientStats();
+                var bytes = 0L;
+                for (var s : stats) {
+                    bytes += s.requestSizeBytes();
+                }
+                return bytes;
+            };
+
             var httpTransport = internalCluster().getInstance(HttpServerTransport.class, ctx.nodeName);
+
+            // need to offset starting point, since we reuse cluster and other tests already sent some data
+            var totalBytesSent = totalRecvBytes.apply(httpTransport);
+
             for (var reqNo = 0; reqNo < randomIntBetween(2, 10); reqNo++) {
                 var id = opaqueId(reqNo);
                 var contentSize = randomIntBetween(0, maxContentLength());
@@ -358,13 +371,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
                 var handler = ctx.awaitRestChannelAccepted(id);
                 handler.readAllBytes();
                 handler.sendResponse(new RestResponse(RestStatus.OK, ""));
-
-                var stats = httpTransport.stats().clientStats();
-                var totalBytesRecv = 0L;
-                for (var s : stats) {
-                    totalBytesRecv += s.requestSizeBytes();
-                }
-                assertEquals(totalBytesSent, totalBytesRecv);
+                assertEquals(totalBytesSent, totalRecvBytes.apply(httpTransport));
             }
         }
     }

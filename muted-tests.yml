@@ -77,6 +77,9 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.kerberos.SimpleKdcLdapServerTests
   method: testClientServiceMutualAuthentication
   issue: https://github.com/elastic/elasticsearch/issues/112529
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testSnapshotRestore {cluster=OLD}
+  issue: https://github.com/elastic/elasticsearch/issues/111777
 
 # Examples:
 #

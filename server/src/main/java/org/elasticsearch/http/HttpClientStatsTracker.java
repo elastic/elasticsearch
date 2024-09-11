@@ -228,6 +228,8 @@ public class HttpClientStatsTracker {
             requestCount += 1;
             if (httpRequest.body().isFull()) {
                 requestSizeBytes += httpRequest.body().asFull().bytes().length();
+            } else {
+                httpRequest.body().asStream().addTracingHandler((chunk, last) -> requestSizeBytes += chunk.length());
             }
         }
 

@@ -36,6 +36,7 @@ import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.handler.stream.ChunkedStream;
 import io.netty.handler.stream.ChunkedWriteHandler;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ESNetty4IntegTestCase;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -51,6 +52,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.http.HttpBodyTracer;
 import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpTransportSettings;
@@ -65,6 +67,8 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
 import java.util.Collection;
@@ -338,6 +342,67 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         }
     }
 
+    /**
+     * ensures that {@link org.elasticsearch.http.HttpClientStatsTracker} counts streamed content bytes
+     */
+    public void testHttpClientStats() throws Exception {
+        try (var ctx = setupClientCtx()) {
+            var totalBytesSent = 0L;
+            var httpTransport = internalCluster().getInstance(HttpServerTransport.class, ctx.nodeName);
+            for (var reqNo = 0; reqNo < randomIntBetween(2, 10); reqNo++) {
+                var id = opaqueId(reqNo);
+                var contentSize = randomIntBetween(0, maxContentLength());
+                totalBytesSent += contentSize;
+                ctx.clientChannel.writeAndFlush(httpRequest(id, contentSize));
+                ctx.clientChannel.writeAndFlush(randomContent(contentSize, true));
+                var handler = ctx.awaitRestChannelAccepted(id);
+                handler.readAllBytes();
+                handler.sendResponse(new RestResponse(RestStatus.OK, ""));
+
+                var stats = httpTransport.stats().clientStats();
+                var totalBytesRecv = 0L;
+                for (var s : stats) {
+                    totalBytesRecv += s.requestSizeBytes();
+                }
+                assertEquals(totalBytesSent, totalBytesRecv);
+            }
+        }
+    }
+
+    @TestLogging(
+        reason = "testing TRACE logging",
+        value = "org.elasticsearch.http.HttpTracer:TRACE,org.elasticsearch.http.HttpBodyTracer:TRACE"
+    )
+    public void testHttpBodyLogging() throws Exception {
+        try (var ctx = setupClientCtx()) {
+            MockLog.assertThatLogger(() -> {
+                try {
+                    var req = fullHttpRequest(opaqueId(0), randomByteBuf(8 * 1024));
+                    ctx.clientChannel.writeAndFlush(req);
+                    var handler = ctx.awaitRestChannelAccepted(opaqueId(0));
+                    handler.readAllBytes();
+                } catch (Exception e) {
+                    fail(e);
+                }
+            },
+                HttpBodyTracer.class,
+                new MockLog.SeenEventExpectation(
+                    "request part",
+                    HttpBodyTracer.class.getCanonicalName(),
+                    Level.TRACE,
+                    "* request body [part *]*"
+                ),
+                new MockLog.SeenEventExpectation(
+                    "request end",
+                    HttpBodyTracer.class.getCanonicalName(),
+                    Level.TRACE,
+                    "* request body (gzip compressed, base64-encoded, and split into * parts on preceding log lines; for details see "
+                        + "https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-network.html#http-rest-request-tracer)"
+                )
+            );
+        }
+    }
+
     private int maxContentLength() {
         return HttpHandlingSettings.fromSettings(internalCluster().getInstance(Settings.class)).maxContentLength();
     }
@@ -388,6 +453,10 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         } else {
             return new DefaultHttpContent(buf);
         }
+    }
+
+    static ByteBuf randomByteBuf(int size) {
+        return Unpooled.wrappedBuffer(randomByteArrayOfLength(size));
     }
 
     Ctx setupClientCtx() throws Exception {

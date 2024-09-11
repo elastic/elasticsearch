@@ -40,24 +40,28 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
      * Construct a request to add voting config exclusions for master-eligible nodes matching the given node names, and wait for a
      * default 30 seconds for these exclusions to take effect, removing the nodes from the voting configuration.
      *
+     * @param masterNodeTimeout Specifies how long to wait when the master has not been discovered yet, or is disconnected, or is busy
+     *                          processing other tasks.
      * @param nodeNames Names of the nodes to add - see {@link AddVotingConfigExclusionsRequest#resolveVotingConfigExclusions(ClusterState)}
      */
-    public AddVotingConfigExclusionsRequest(String... nodeNames) {
-        this(Strings.EMPTY_ARRAY, nodeNames, TimeValue.timeValueSeconds(30));
+    public AddVotingConfigExclusionsRequest(TimeValue masterNodeTimeout, String... nodeNames) {
+        this(masterNodeTimeout, Strings.EMPTY_ARRAY, nodeNames, TimeValue.timeValueSeconds(30));
     }
 
     /**
      * Construct a request to add voting config exclusions for master-eligible nodes matching the given descriptions, and wait for these
      * nodes to be removed from the voting configuration.
      *
-     * @param nodeIds   Ids of the nodes whose exclusions to add - see
-     *                  {@link AddVotingConfigExclusionsRequest#resolveVotingConfigExclusions(ClusterState)}.
-     * @param nodeNames Names of the nodes whose exclusions to add - see
-     *                  {@link AddVotingConfigExclusionsRequest#resolveVotingConfigExclusions(ClusterState)}.
-     * @param timeout   How long to wait for the added exclusions to take effect and be removed from the voting configuration.
+     * @param masterNodeTimeout Specifies how long to wait when the master has not been discovered yet, or is disconnected, or is busy
+     *                          processing other tasks.
+     * @param nodeIds           Ids of the nodes whose exclusions to add - see
+     *                          {@link AddVotingConfigExclusionsRequest#resolveVotingConfigExclusions(ClusterState)}.
+     * @param nodeNames         Names of the nodes whose exclusions to add - see
+     *                          {@link AddVotingConfigExclusionsRequest#resolveVotingConfigExclusions(ClusterState)}.
+     * @param timeout           How long to wait for the added exclusions to take effect and be removed from the voting configuration.
      */
-    public AddVotingConfigExclusionsRequest(String[] nodeIds, String[] nodeNames, TimeValue timeout) {
-        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    public AddVotingConfigExclusionsRequest(TimeValue masterNodeTimeout, String[] nodeIds, String[] nodeNames, TimeValue timeout) {
+        super(masterNodeTimeout);
         if (timeout.compareTo(TimeValue.ZERO) < 0) {
             throw new IllegalArgumentException("timeout [" + timeout + "] must be non-negative");
         }

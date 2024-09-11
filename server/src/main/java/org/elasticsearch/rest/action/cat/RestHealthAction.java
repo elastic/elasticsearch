@@ -15,6 +15,7 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestResponseListener;
@@ -50,9 +51,9 @@ public class RestHealthAction extends AbstractCatAction {
 
     @Override
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
-        ClusterHealthRequest clusterHealthRequest = new ClusterHealthRequest();
+        final var clusterHealthRequest = new ClusterHealthRequest(RestUtils.getMasterNodeTimeout(request));
 
-        return channel -> client.admin().cluster().health(clusterHealthRequest, new RestResponseListener<ClusterHealthResponse>(channel) {
+        return channel -> client.admin().cluster().health(clusterHealthRequest, new RestResponseListener<>(channel) {
             @Override
             public RestResponse buildResponse(final ClusterHealthResponse health) throws Exception {
                 return RestTable.buildResponse(buildTable(health, request), channel);

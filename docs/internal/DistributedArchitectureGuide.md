@@ -448,15 +448,13 @@ Another way to track the operations of a task is by following the parent/child r
 [Cancel Task REST API]:https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html#task-cancellation
 [RestCancellableNodeClient]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/rest/action/RestCancellableNodeClient.java
 
-Some long-running tasks are implemented to be cancel-able. Cancellation can be done via the [Cancel Task REST API] or programmatically using [TaskManager#cancelTaskAndDescendants]. Perhaps the most common use of cancellation you will see is cancellation of [TransportAction]s dispatched from the REST layer when the client disconnects, to facilitate this we use the [RestCancellableNodeClient].
+Some long-running tasks are implemented to be cancel-able. Cancellation of a task and its descendants can be done via the [Cancel Task REST API] or programmatically using [TaskManager#cancelTaskAndDescendants]. Perhaps the most common use of cancellation you will see is cancellation of [TransportAction]s dispatched from the REST layer when the client disconnects, to facilitate this we use the [RestCancellableNodeClient].
 
-When a task is cancelled, that task and all of its descendant tasks will be cancelled. In order to support cancellation, the [Task] instance associated with the task must extend [CancellableTask].
+In order to support cancellation, the [Task] instance associated with the task must extend [CancellableTask]. It is the job of any workload tracked by a [CancellableTask] to periodically check whether it has been cancelled and if so, halt.
 
 When a [Task] extends [CancellableTask] the [TaskManager] keeps track of it and any child tasks that it spawns. When the task is cancelled, requests are sent to any nodes that have had child tasks submitted to them to ban the starting of any further children of that task, and any cancellable child tasks already running are themselves cancelled (see [BanParentRequestHandler]).
 
-When a cancellable task dispatches child requests through the [TransportService], it registers a proxy so that if one of those child requests completes exceptionally, all other outstanding child requests descended from the same parent are cancelled (see [UnregisterChildTransportResponseHandler]).
-
-It is the job of any long-running workload tracked by a [CancellableTask] to periodically check whether it has been cancelled and if so, halt.
+When a cancellable task dispatches child requests through the [TransportService], it registers a proxy response handler that will instruct the remote node to cancel that child and any lingering descendants in the event that it completes exceptionally (see [UnregisterChildTransportResponseHandler]). A typical use-case for this is when no response is received within the time-out, the sending node will cancel the remote action and complete with a timeout exception.
 
 ### Publishing Task Results
 

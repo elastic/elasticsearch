@@ -31,6 +31,7 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -165,6 +166,12 @@ public abstract class Plugin implements Closeable {
          * A provider of utilities to observe and report parsing of documents
          */
         DocumentParsingProvider documentParsingProvider();
+
+        /**
+         * The task manager for the node. This should only be used by plugins
+         * to track task removal by registering a RemovedTaskListener.
+         */
+        TaskManager taskManager();
     }
 
     /**

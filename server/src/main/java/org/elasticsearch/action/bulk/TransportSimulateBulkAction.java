@@ -183,7 +183,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                  * when the index does not exist). And it does not deal with system indices since we do not intend for users to simulate
                  * writing to system indices.
                  */
-                String matchingTemplate = findV2Template(state.metadata(), request.index(), false);
+                String matchingTemplate = findV2Template(state.metadata().getProject(), request.index(), false);
                 if (matchingTemplate != null) {
                     final Template template = TransportSimulateIndexTemplateAction.resolveTemplate(
                         matchingTemplate,
@@ -227,7 +227,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                         });
                     }
                 } else {
-                    List<IndexTemplateMetadata> matchingTemplates = findV1Templates(state.metadata(), request.index(), false);
+                    List<IndexTemplateMetadata> matchingTemplates = findV1Templates(state.metadata().getProject(), request.index(), false);
                     final Map<String, Object> mappingsMap = MetadataCreateIndexService.parseV1Mappings(
                         "{}",
                         matchingTemplates.stream().map(IndexTemplateMetadata::getMappings).collect(toList()),

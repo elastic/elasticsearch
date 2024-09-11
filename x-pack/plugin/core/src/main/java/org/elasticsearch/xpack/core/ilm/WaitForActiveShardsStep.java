@@ -140,7 +140,11 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
         }
 
         ActiveShardCount activeShardCount = ActiveShardCount.parseString(waitForActiveShardsSettingValue);
-        boolean enoughShardsActive = activeShardCount.enoughShardsActive(clusterState, rolledIndexName);
+        boolean enoughShardsActive = activeShardCount.enoughShardsActive(
+            clusterState.metadata().getProject(),
+            clusterState.routingTable(),
+            rolledIndexName
+        );
 
         IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(rolledIndexName);
         int currentActiveShards = 0;

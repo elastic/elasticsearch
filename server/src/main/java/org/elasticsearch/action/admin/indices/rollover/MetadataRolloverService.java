@@ -242,16 +242,16 @@ public class MetadataRolloverService {
         final String sourceIndexName = names.sourceName;
         final String rolloverIndexName = names.rolloverName;
         final String unresolvedName = names.unresolvedName;
-        final Metadata metadata = currentState.metadata();
+        final ProjectMetadata projectMetadata = currentState.metadata().getProject();
         final IndexMetadata writeIndex = currentState.metadata().getProject().index(alias.getWriteIndex());
         final AliasMetadata aliasMetadata = writeIndex.getAliases().get(alias.getName());
         final boolean explicitWriteIndex = Boolean.TRUE.equals(aliasMetadata.writeIndex());
         final Boolean isHidden = IndexMetadata.INDEX_HIDDEN_SETTING.exists(createIndexRequest.settings())
             ? IndexMetadata.INDEX_HIDDEN_SETTING.get(createIndexRequest.settings())
             : null;
-        MetadataCreateIndexService.validateIndexName(rolloverIndexName, metadata, currentState.routingTable()); // fails if the index
-                                                                                                                // already exists
-        checkNoDuplicatedAliasInIndexTemplate(metadata, rolloverIndexName, aliasName, isHidden);
+        // fails if the index already exists
+        MetadataCreateIndexService.validateIndexName(rolloverIndexName, projectMetadata, currentState.routingTable());
+        checkNoDuplicatedAliasInIndexTemplate(projectMetadata, rolloverIndexName, aliasName, isHidden);
         if (onlyValidate) {
             return new RolloverResult(rolloverIndexName, sourceIndexName, currentState);
         }
@@ -311,7 +311,7 @@ public class MetadataRolloverService {
         final SystemDataStreamDescriptor systemDataStreamDescriptor;
         if (dataStream.isSystem() == false) {
             systemDataStreamDescriptor = null;
-            templateV2 = lookupTemplateForDataStream(dataStreamName, metadata);
+            templateV2 = lookupTemplateForDataStream(dataStreamName, metadata.getProject());
         } else {
             systemDataStreamDescriptor = systemIndices.findMatchingDataStreamDescriptor(dataStreamName);
             if (systemDataStreamDescriptor == null) {
@@ -326,8 +326,8 @@ public class MetadataRolloverService {
         final Tuple<String, Long> nextIndexAndGeneration = dataStream.nextWriteIndexAndGeneration(metadata, dataStreamIndices);
         final String newWriteIndexName = nextIndexAndGeneration.v1();
         final long newGeneration = nextIndexAndGeneration.v2();
-        MetadataCreateIndexService.validateIndexName(newWriteIndexName, metadata, currentState.routingTable()); // fails if the index
-                                                                                                                // already exists
+        // fails if the index already exists
+        MetadataCreateIndexService.validateIndexName(newWriteIndexName, metadata.getProject(), currentState.routingTable());
         if (onlyValidate) {
             return new RolloverResult(newWriteIndexName, isLazyCreation ? NON_EXISTENT_SOURCE : originalWriteIndex.getName(), currentState);
         }
@@ -592,14 +592,14 @@ public class MetadataRolloverService {
      * To avoid this, we make sure that there is no duplicated alias in index templates before creating a new index.
      */
     static void checkNoDuplicatedAliasInIndexTemplate(
-        Metadata metadata,
+        ProjectMetadata projectMetadata,
         String rolloverIndexName,
         String rolloverRequestAlias,
         @Nullable Boolean isHidden
     ) {
-        final String matchedV2Template = findV2Template(metadata, rolloverIndexName, isHidden == null ? false : isHidden);
+        final String matchedV2Template = findV2Template(projectMetadata, rolloverIndexName, isHidden == null ? false : isHidden);
         if (matchedV2Template != null) {
-            List<Map<String, AliasMetadata>> aliases = MetadataIndexTemplateService.resolveAliases(metadata, matchedV2Template);
+            List<Map<String, AliasMetadata>> aliases = MetadataIndexTemplateService.resolveAliases(projectMetadata, matchedV2Template);
             for (Map<String, AliasMetadata> aliasConfig : aliases) {
                 if (aliasConfig.containsKey(rolloverRequestAlias)) {
                     throw new IllegalArgumentException(
@@ -616,7 +616,7 @@ public class MetadataRolloverService {
             return;
         }
 
-        final List<IndexTemplateMetadata> matchedTemplates = findV1Templates(metadata, rolloverIndexName, isHidden);
+        final List<IndexTemplateMetadata> matchedTemplates = findV1Templates(projectMetadata, rolloverIndexName, isHidden);
         for (IndexTemplateMetadata template : matchedTemplates) {
             if (template.aliases().containsKey(rolloverRequestAlias)) {
                 throw new IllegalArgumentException(

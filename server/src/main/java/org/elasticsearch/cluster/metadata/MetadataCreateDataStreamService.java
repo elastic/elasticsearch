@@ -273,7 +273,7 @@ public class MetadataCreateDataStreamService {
         final boolean isSystem = systemDataStreamDescriptor != null;
         final ComposableIndexTemplate template = isSystem
             ? systemDataStreamDescriptor.getComposableIndexTemplate()
-            : lookupTemplateForDataStream(dataStreamName, currentState.metadata());
+            : lookupTemplateForDataStream(dataStreamName, currentState.metadata().getProject());
         // The initial backing index and the initial failure store index will have the same initial generation.
         // This is not a problem as both have different prefixes (`.ds-` vs `.fs-`) and both will be using the same `generation` field
         // when rolling over in the future.
@@ -355,7 +355,7 @@ public class MetadataCreateDataStreamService {
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
 
         List<String> aliases = new ArrayList<>();
-        var resolvedAliases = MetadataIndexTemplateService.resolveAliases(currentState.metadata(), template);
+        var resolvedAliases = MetadataIndexTemplateService.resolveAliases(currentState.metadata().getProject(), template);
         for (var resolvedAliasMap : resolvedAliases) {
             for (var alias : resolvedAliasMap.values()) {
                 aliases.add(alias.getAlias());
@@ -466,12 +466,12 @@ public class MetadataCreateDataStreamService {
         return currentState;
     }
 
-    public static ComposableIndexTemplate lookupTemplateForDataStream(String dataStreamName, Metadata metadata) {
-        final String v2Template = MetadataIndexTemplateService.findV2Template(metadata, dataStreamName, false);
+    public static ComposableIndexTemplate lookupTemplateForDataStream(String dataStreamName, ProjectMetadata projectMetadata) {
+        final String v2Template = MetadataIndexTemplateService.findV2Template(projectMetadata, dataStreamName, false);
         if (v2Template == null) {
             throw new IllegalArgumentException("no matching index template found for data stream [" + dataStreamName + "]");
         }
-        ComposableIndexTemplate composableIndexTemplate = metadata.getProject().templatesV2().get(v2Template);
+        ComposableIndexTemplate composableIndexTemplate = projectMetadata.templatesV2().get(v2Template);
         if (composableIndexTemplate.getDataStreamTemplate() == null) {
             throw new IllegalArgumentException(
                 "matching index template [" + v2Template + "] for data stream [" + dataStreamName + "] has no data stream template"

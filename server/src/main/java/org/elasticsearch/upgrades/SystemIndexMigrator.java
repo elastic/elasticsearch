@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
@@ -363,7 +364,8 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
     private void migrateSingleIndex(ClusterState clusterState, Consumer<BulkByScrollResponse> listener) {
         final SystemIndexMigrationInfo migrationInfo = currentMigrationInfo();
         String oldIndexName = migrationInfo.getCurrentIndexName();
-        final IndexMetadata imd = clusterState.metadata().getProject().index(oldIndexName);
+        final ProjectMetadata projectMetadata = clusterState.metadata().getProject();
+        final IndexMetadata imd = projectMetadata.index(oldIndexName);
         if (imd.getState().equals(CLOSE)) {
             logger.error(
                 "unable to migrate index [{}] from feature [{}] because it is closed",
@@ -380,7 +382,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
          * This should be on for all System indices except for .kibana_ indices. See allowsTemplates in KibanaPlugin.java for more info.
          */
         if (migrationInfo.allowsTemplates() == false) {
-            final String v2template = MetadataIndexTemplateService.findV2Template(clusterState.metadata(), newIndexName, false);
+            final String v2template = MetadataIndexTemplateService.findV2Template(projectMetadata, newIndexName, false);
             if (Objects.nonNull(v2template)) {
                 logger.error(
                     "unable to create new index [{}] from feature [{}] because it would match composable template [{}]",
@@ -396,7 +398,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                 return;
             }
             final List<IndexTemplateMetadata> v1templates = MetadataIndexTemplateService.findV1Templates(
-                clusterState.metadata(),
+                projectMetadata,
                 newIndexName,
                 false
             );

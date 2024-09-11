@@ -59,7 +59,11 @@ public class ShrunkShardsAllocatedStep extends ClusterStateWaitStep {
         if (indexExists == false) {
             return new Result(false, new Info(false, -1, false));
         }
-        boolean allShardsActive = ActiveShardCount.ALL.enoughShardsActive(clusterState, shrunkenIndexName);
+        boolean allShardsActive = ActiveShardCount.ALL.enoughShardsActive(
+            clusterState.metadata().getProject(),
+            clusterState.routingTable(),
+            shrunkenIndexName
+        );
         int numShrunkIndexShards = clusterState.metadata().getProject().index(shrunkenIndexName).getNumberOfShards();
         if (allShardsActive) {
             return new Result(true, null);

@@ -116,9 +116,9 @@ public class LifecyclePolicyUtils {
         );
 
         final List<String> dataStreams = allDataStreams.stream().filter(dsName -> {
-            String indexTemplate = MetadataIndexTemplateService.findV2Template(state.metadata(), dsName, false);
+            String indexTemplate = MetadataIndexTemplateService.findV2Template(state.metadata().getProject(), dsName, false);
             if (indexTemplate != null) {
-                Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), indexTemplate);
+                Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata().getProject(), indexTemplate);
                 return policyName.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(settings));
             } else {
                 return false;
@@ -126,7 +126,7 @@ public class LifecyclePolicyUtils {
         }).collect(Collectors.toList());
 
         final List<String> composableTemplates = state.metadata().getProject().templatesV2().keySet().stream().filter(templateName -> {
-            Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), templateName);
+            Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata().getProject(), templateName);
             return policyName.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(settings));
         }).collect(Collectors.toList());
 

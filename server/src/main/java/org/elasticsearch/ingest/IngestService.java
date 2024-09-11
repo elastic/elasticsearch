@@ -37,8 +37,8 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
@@ -265,20 +265,20 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      *
      * @param originalRequest Original write request received.
      * @param indexRequest    The {@link org.elasticsearch.action.index.IndexRequest} object to update.
-     * @param metadata        Cluster metadata from where the pipeline information could be derived.
+     * @param projectMetadata Project metadata from the cluster state from where the pipeline information is derived.
      */
     public static void resolvePipelinesAndUpdateIndexRequest(
         final DocWriteRequest<?> originalRequest,
         final IndexRequest indexRequest,
-        final Metadata metadata
+        final ProjectMetadata projectMetadata
     ) {
-        resolvePipelinesAndUpdateIndexRequest(originalRequest, indexRequest, metadata, System.currentTimeMillis());
+        resolvePipelinesAndUpdateIndexRequest(originalRequest, indexRequest, projectMetadata, System.currentTimeMillis());
     }
 
     static void resolvePipelinesAndUpdateIndexRequest(
         final DocWriteRequest<?> originalRequest,
         final IndexRequest indexRequest,
-        final Metadata metadata,
+        final ProjectMetadata projectMetadata,
         final long epochMillis
     ) {
         if (indexRequest.isPipelineResolved()) {
@@ -287,9 +287,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
         String requestPipeline = indexRequest.getPipeline();
 
-        Pipelines pipelines = resolvePipelinesFromMetadata(originalRequest, indexRequest, metadata, epochMillis) //
-            .or(() -> resolvePipelinesFromIndexTemplates(indexRequest, metadata))
-            .orElse(Pipelines.NO_PIPELINES_DEFINED);
+        Pipelines pipelines = resolvePipelinesFromMetadata(originalRequest, indexRequest, projectMetadata, epochMillis).or(
+            () -> resolvePipelinesFromIndexTemplates(indexRequest, projectMetadata)
+        ).orElse(Pipelines.NO_PIPELINES_DEFINED);
 
         // The pipeline coming as part of the request always has priority over the resolved one from metadata or templates
         if (requestPipeline != null) {
@@ -1045,7 +1045,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     // clear the current pipeline, then re-resolve the pipelines for this request
                     indexRequest.setPipeline(null);
                     indexRequest.isPipelineResolved(false);
-                    resolvePipelinesAndUpdateIndexRequest(null, indexRequest, state.metadata());
+                    resolvePipelinesAndUpdateIndexRequest(null, indexRequest, state.metadata().getProject());
                     newPipelines = getAndResetPipelines(indexRequest);
 
                     // for backwards compatibility, when a pipeline changes the target index for a document without using the reroute
@@ -1413,28 +1413,27 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private static Optional<Pipelines> resolvePipelinesFromMetadata(
         DocWriteRequest<?> originalRequest,
         IndexRequest indexRequest,
-        Metadata metadata,
+        ProjectMetadata projectMetadata,
         long epochMillis
     ) {
         IndexMetadata indexMetadata = null;
         // start to look for default or final pipelines via settings found in the cluster metadata
         if (originalRequest != null) {
-            indexMetadata = metadata.getProject()
-                .indices()
+            indexMetadata = projectMetadata.indices()
                 .get(IndexNameExpressionResolver.resolveDateMathExpression(originalRequest.index(), epochMillis));
         }
         // check the alias for the index request (this is how normal index requests are modeled)
         if (indexMetadata == null && indexRequest.index() != null) {
-            IndexAbstraction indexAbstraction = metadata.getProject().getIndicesLookup().get(indexRequest.index());
+            IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(indexRequest.index());
             if (indexAbstraction != null && indexAbstraction.getWriteIndex() != null) {
-                indexMetadata = metadata.getProject().index(indexAbstraction.getWriteIndex());
+                indexMetadata = projectMetadata.index(indexAbstraction.getWriteIndex());
             }
         }
         // check the alias for the action request (this is how upserts are modeled)
         if (indexMetadata == null && originalRequest != null && originalRequest.index() != null) {
-            IndexAbstraction indexAbstraction = metadata.getProject().getIndicesLookup().get(originalRequest.index());
+            IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(originalRequest.index());
             if (indexAbstraction != null && indexAbstraction.getWriteIndex() != null) {
-                indexMetadata = metadata.getProject().index(indexAbstraction.getWriteIndex());
+                indexMetadata = projectMetadata.index(indexAbstraction.getWriteIndex());
             }
         }
 
@@ -1446,7 +1445,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return Optional.of(new Pipelines(IndexSettings.DEFAULT_PIPELINE.get(settings), IndexSettings.FINAL_PIPELINE.get(settings)));
     }
 
-    private static Optional<Pipelines> resolvePipelinesFromIndexTemplates(IndexRequest indexRequest, Metadata metadata) {
+    private static Optional<Pipelines> resolvePipelinesFromIndexTemplates(IndexRequest indexRequest, ProjectMetadata projectMetadata) {
         if (indexRequest.index() == null) {
             return Optional.empty();
         }
@@ -1454,15 +1453,15 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         // the index does not exist yet (and this is a valid request), so match index
         // templates to look for pipelines in either a matching V2 template (which takes
         // precedence), or if a V2 template does not match, any V1 templates
-        String v2Template = MetadataIndexTemplateService.findV2Template(metadata, indexRequest.index(), false);
+        String v2Template = MetadataIndexTemplateService.findV2Template(projectMetadata, indexRequest.index(), false);
         if (v2Template != null) {
-            final Settings settings = MetadataIndexTemplateService.resolveSettings(metadata, v2Template);
+            final Settings settings = MetadataIndexTemplateService.resolveSettings(projectMetadata, v2Template);
             return Optional.of(new Pipelines(IndexSettings.DEFAULT_PIPELINE.get(settings), IndexSettings.FINAL_PIPELINE.get(settings)));
         }
 
         String defaultPipeline = null;
         String finalPipeline = null;
-        List<IndexTemplateMetadata> templates = MetadataIndexTemplateService.findV1Templates(metadata, indexRequest.index(), null);
+        List<IndexTemplateMetadata> templates = MetadataIndexTemplateService.findV1Templates(projectMetadata, indexRequest.index(), null);
         // order of templates are the highest order first
         for (final IndexTemplateMetadata template : templates) {
             final Settings settings = template.settings();

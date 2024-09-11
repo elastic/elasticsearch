@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class IpRangeFieldMapperTests extends RangeFieldMapperTests {
@@ -200,19 +199,6 @@ public class IpRangeFieldMapperTests extends RangeFieldMapperTests {
         } else {
             output.put("lte", null);
         }
-    }
-
-    public void testInvalidSyntheticSource() {
-        Exception e = expectThrows(IllegalArgumentException.class, () -> createDocumentMapper(syntheticSourceMapping(b -> {
-            b.startObject("field");
-            b.field("type", "ip_range");
-            b.field("doc_values", false);
-            b.endObject();
-        })));
-        assertThat(
-            e.getMessage(),
-            equalTo("field [field] of type [ip_range] doesn't support synthetic source because it doesn't have doc values")
-        );
     }
 
     @Override

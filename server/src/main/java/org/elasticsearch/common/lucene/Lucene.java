@@ -73,7 +73,7 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
-import org.elasticsearch.search.retriever.rankdoc.RankDocsSortField;
+import org.elasticsearch.search.retriever.rankdoc.RankDocsAndScoreSortField;
 import org.elasticsearch.search.sort.ShardDocSortField;
 
 import java.io.IOException;
@@ -552,7 +552,7 @@ public class Lucene {
             return newSortField;
         } else if (sortField.getClass() == ShardDocSortField.class) {
             return new SortField(sortField.getField(), SortField.Type.LONG, sortField.getReverse());
-        } else if (sortField.getClass() == RankDocsSortField.class) {
+        } else if (sortField.getClass() == RankDocsAndScoreSortField.class) {
             return new SortField(sortField.getField(), SortField.Type.INT, sortField.getReverse());
         } else {
             return sortField;

@@ -51,7 +51,7 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
-import org.elasticsearch.search.retriever.rankdoc.RankDocsSortField;
+import org.elasticsearch.search.retriever.rankdoc.RankDocsAndScoreSortField;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
@@ -430,7 +430,7 @@ public final class SearchPhaseController {
             for (int i = 0; i < sortFields.length; i++) {
                 if (sortFields[i].getType() == SortField.Type.SCORE) {
                     sortScoreIndex = i;
-                } else if (RankDocsSortField.NAME.equals(sortFields[i].getField())) {
+                } else if (RankDocsAndScoreSortField.NAME.equals(sortFields[i].getField())) {
                     sortRankIndex = i;
                 }
             }
@@ -477,7 +477,7 @@ public final class SearchPhaseController {
                     } else if (shardDoc instanceof RankDoc rankDoc) {
                         searchHit.sortValues(rankDoc.sortValues, reducedQueryPhase.sortValueFormats);
                         if (sortRankIndex != -1) {
-                            searchHit.score(RankDocsSortField.decodeScore((Long) rankDoc.sortValues[sortRankIndex]));
+                            searchHit.score(RankDocsAndScoreSortField.decodeScore((Long) rankDoc.sortValues[sortRankIndex]));
                         }
                         searchHit.setRank(rankDoc.rank);
                     } else {
@@ -697,13 +697,13 @@ public final class SearchPhaseController {
     private static SortedTopDocs extractRankDocs(SortedTopDocs originalDocs) {
         int rankIndex = -1;
         for (int i = 0; i < originalDocs.sortFields().length; i++) {
-            if (RankDocsSortField.NAME.equals(originalDocs.sortFields[i].getField())) {
+            if (RankDocsAndScoreSortField.NAME.equals(originalDocs.sortFields[i].getField())) {
                 rankIndex = i;
                 break;
             }
         }
         if (rankIndex < 0) {
-            throw new IllegalArgumentException("{" + RankDocsSortField.NAME + "} not found in sort fields");
+            throw new IllegalArgumentException("{" + RankDocsAndScoreSortField.NAME + "} not found in sort fields");
         }
         List<RankDoc> rankedDocs = new ArrayList<>();
         for (int i = 0; i < originalDocs.scoreDocs.length; i++) {
@@ -716,7 +716,7 @@ public final class SearchPhaseController {
                 originalDocs.scoreDocs[i].score,
                 originalDocs.scoreDocs[i].shardIndex
             );
-            rankedDoc.rank = RankDocsSortField.decodeRank(rank);
+            rankedDoc.rank = RankDocsAndScoreSortField.decodeRank(rank);
             rankedDoc.sortValues = ((FieldDoc) originalDocs.scoreDocs[i]).fields;
             rankedDocs.add(rankedDoc);
         }

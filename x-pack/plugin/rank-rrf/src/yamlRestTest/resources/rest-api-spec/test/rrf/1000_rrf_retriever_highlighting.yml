@@ -1,0 +1,110 @@
+setup:
+  - requires:
+      cluster_features: 'rrf_retriever_supported'
+      reason: 'test requires rrf retriever implementation'
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              text:
+                type: text
+              keyword:
+                type: keyword
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          text: "search for the truth"
+          keyword: A
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          text: "You know, for Search!"
+          keyword: B
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body:
+          text: "nothing related but still a match"
+          keyword: B
+
+  - do:
+      indices.refresh: {}
+
+---
+"rrf retriever highlighting results":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          track_total_hits: true
+          retriever:
+            rrf:
+              retrievers: [
+                {
+                  # this one retrievers docs 1 and 2
+                  standard: {
+                    query: {
+                      match: {
+                        text: "search"
+                      }
+                    }
+                  }
+                },
+                {
+                  # this one retrieves docs 2 and 3
+                  standard: {
+                    query: {
+                      term: {
+                        keyword: B
+                      }
+                    }
+                  }
+                }
+              ]
+              rank_window_size: 5
+              rank_constant: 10
+          size: 3
+          highlight: {
+            fields: {
+              "text": {
+                "fragment_size": 150,
+                "number_of_fragments": 3,
+                "highlight_query": {
+                  "match": {
+                    "text": {
+                      "query": "Search"
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+  - match: { hits.total : 3 }
+
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.0._rank: 1 }
+  - match: { hits.hits.0.highlight.text.0: "You know, for <em>Search</em>!" }
+
+  - match: { hits.hits.1._id: "1" }
+  - match: { hits.hits.1._rank: 2 }
+  - match: { hits.hits.1.highlight.text.0: "<em>search</em> for the truth" }
+
+  - match: { hits.hits.2._id: "3" }
+  - match: { hits.hits.2._rank: 3 }
+  - not_exists: hits.hits.2.highlight

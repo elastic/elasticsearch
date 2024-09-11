@@ -29,7 +29,7 @@ import java.util.stream.Collectors;
  * This is used when we want to score and rank the documents irrespective of their original scores,
  * but based on the provided rank they were assigned, e.g. through an RRF retriever.
  **/
-public class RankDocsSortField extends SortField {
+public class RankDocsAndScoreSortField extends SortField {
 
     public static final String NAME = "_rank";
 
@@ -53,7 +53,7 @@ public class RankDocsSortField extends SortField {
         return Float.intBitsToFloat(floatBits);
     }
 
-    public RankDocsSortField(RankDoc[] rankDocs) {
+    public RankDocsAndScoreSortField(RankDoc[] rankDocs) {
         super(NAME, new FieldComparatorSource() {
             @Override
             public FieldComparator<?> newComparator(String fieldname, int numHits, Pruning pruning, boolean reversed) {

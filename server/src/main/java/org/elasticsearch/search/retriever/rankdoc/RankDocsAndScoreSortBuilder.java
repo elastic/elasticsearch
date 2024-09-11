@@ -27,7 +27,7 @@ import java.util.Arrays;
 import java.util.Objects;
 
 /**
- * Builds a {@code RankDocsSortField} that sorts documents by their rank as computed through the {@code RankDocsRetrieverBuilder}.
+ * Builds a {@code RankDocsAndScoreSortField} that sorts documents by their rank as computed through the {@code RankDocsRetrieverBuilder}.
  */
 public class RankDocsAndScoreSortBuilder extends SortBuilder<RankDocsAndScoreSortBuilder> {
     public static final String NAME = "rank_docs_sort";
@@ -75,7 +75,7 @@ public class RankDocsAndScoreSortBuilder extends SortBuilder<RankDocsAndScoreSor
         RankDoc[] shardRankDocs = Arrays.stream(rankDocs)
             .filter(r -> r.shardIndex == context.getShardRequestIndex())
             .toArray(RankDoc[]::new);
-        return new SortFieldAndFormat(new RankDocsSortField(shardRankDocs), DocValueFormat.RAW);
+        return new SortFieldAndFormat(new RankDocsAndScoreSortField(shardRankDocs), DocValueFormat.RAW);
     }
 
     @Override

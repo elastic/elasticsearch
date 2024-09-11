@@ -63,8 +63,8 @@ public class RankDocsAndScoreSortBuilderTests extends AbstractSortTestCase<RankD
     @Override
     protected void sortFieldAssertions(RankDocsAndScoreSortBuilder builder, SortField sortField, DocValueFormat format) throws IOException {
         assertThat(builder.order(), equalTo(SortOrder.ASC));
-        assertThat(sortField, instanceOf(RankDocsSortField.class));
-        assertThat(sortField.getField(), equalTo(RankDocsSortField.NAME));
+        assertThat(sortField, instanceOf(RankDocsAndScoreSortField.class));
+        assertThat(sortField.getField(), equalTo(RankDocsAndScoreSortField.NAME));
         assertThat(sortField.getType(), equalTo(SortField.Type.CUSTOM));
         assertThat(sortField.getReverse(), equalTo(false));
     }

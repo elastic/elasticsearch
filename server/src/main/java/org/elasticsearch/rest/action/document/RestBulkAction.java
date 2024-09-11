@@ -176,7 +176,6 @@ public class RestBulkAction extends BaseRestHandler {
 
         @Override
         public void handleChunk(RestChannel channel, ReleasableBytesReference chunk, boolean isLast) {
-            assert Transports.assertTransportThread();
             assert handler != null;
             assert channel == restChannel;
             if (shortCircuited) {

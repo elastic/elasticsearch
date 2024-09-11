@@ -139,13 +139,12 @@ public class IncrementalBulkService {
                         incrementalRequestSubmitted = true;
                         try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
                             requestContext.restore();
+                            final ArrayList<Releasable> toRelease = new ArrayList<>(releasables);
                             client.bulk(bulkRequest, ActionListener.runAfter(new ActionListener<>() {
-
-                                private final ArrayList<Releasable> toRelease = new ArrayList<>(releasables);
 
                                 @Override
                                 public void onResponse(BulkResponse bulkResponse) {
-                                    successResponse(bulkResponse, toRelease);
+                                    handleBulkSuccess(bulkResponse);
                                     createNewBulkRequest(
                                         new BulkRequest.IncrementalState(bulkResponse.getIncrementalState().shardLevelFailures(), true)
                                     );
@@ -154,10 +153,10 @@ public class IncrementalBulkService {
                                 @Override
                                 public void onFailure(Exception e) {
                                     handleBulkFailure(isFirstRequest, e);
-                                    toRelease.forEach(Releasable::close);
                                 }
                             }, () -> {
                                 requestContext = threadContext.newStoredContext();
+                                toRelease.forEach(Releasable::close);
                                 nextItems.run();
                             }));
                         }
@@ -184,24 +183,23 @@ public class IncrementalBulkService {
                 if (internalAddItems(items, releasable)) {
                     try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
                         requestContext.restore();
-                        client.bulk(bulkRequest, new ActionListener<>() {
+                        final ArrayList<Releasable> toRelease = new ArrayList<>(releasables);
+                        client.bulk(bulkRequest, ActionListener.runAfter(new ActionListener<>() {
 
                             private final boolean isFirstRequest = incrementalRequestSubmitted == false;
-                            private final ArrayList<Releasable> toRelease = new ArrayList<>(releasables);
 
                             @Override
                             public void onResponse(BulkResponse bulkResponse) {
-                                successResponse(bulkResponse, toRelease);
+                                handleBulkSuccess(bulkResponse);
                                 listener.onResponse(combineResponses());
                             }
 
                             @Override
                             public void onFailure(Exception e) {
                                 handleBulkFailure(isFirstRequest, e);
-                                toRelease.forEach(Releasable::close);
                                 errorResponse(listener);
                             }
-                        });
+                        }, () -> toRelease.forEach(Releasable::close)));
                     }
                     releasables.clear();
                 } else {
@@ -226,18 +224,17 @@ public class IncrementalBulkService {
             Releasables.close(releasable);
         }
 
-        private void successResponse(BulkResponse bulkResponse, ArrayList<Releasable> toRelease) {
-            responses.add(bulkResponse);
-            toRelease.forEach(Releasable::close);
-            bulkRequest = null;
-        }
-
         private void errorResponse(ActionListener<BulkResponse> listener) {
             if (globalFailure) {
                 listener.onFailure(bulkActionLevelFailure);
             } else {
                 listener.onResponse(combineResponses());
             }
+        }
+
+        private void handleBulkSuccess(BulkResponse bulkResponse) {
+            responses.add(bulkResponse);
+            bulkRequest = null;
         }
 
         private void handleBulkFailure(boolean isFirstRequest, Exception e) {

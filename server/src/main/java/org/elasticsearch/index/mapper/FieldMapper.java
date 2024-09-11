@@ -444,6 +444,80 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
+     * <p>
+     * Specifies the mode of synthetic source support by the mapper.
+     * <br>
+     * This is used to determine if a field mapper has support for
+     * constructing synthetic source.
+     * In case it doesn't (meaning {@link SyntheticSourceMode#FALLBACK}),
+     * we will store raw source data for this field as is
+     * and then use it for synthetic source.
+     * </p>
+     * <p>
+     * This method is final in order to support common use cases like fallback synthetic source and copy_to.
+     * Mappers that need custom support of synthetic source should override {@link #syntheticSourceSupport()}.
+     * </p>
+     * @return {@link SyntheticSourceMode}
+     */
+    final SyntheticSourceMode syntheticSourceMode() {
+        if (hasScript()) {
+            return SyntheticSourceMode.NATIVE;
+        }
+
+        if (builderParams.copyTo.copyToFields().isEmpty() == false) {
+            // When copy_to is used, we need to use fallback logic to store source of the field exactly.
+            // Otherwise, due to possible differences between synthetic source and stored source,
+            // values of fields that are destinations of copy_to would be different after reindexing.
+            return SyntheticSourceMode.FALLBACK;
+        }
+
+        return syntheticSourceSupport().mode();
+    }
+
+    /**
+     * Returns synthetic field loader for the mapper.
+     * If mapper does not support synthetic source, it is handled using generic implementation
+     * in {@link DocumentParser#parseObjectOrField} and {@link ObjectMapper#syntheticFieldLoader()}.
+     * <br>
+     *
+     * This method is final in order to support common use cases like fallback synthetic source.
+     * Mappers that need custom support of synthetic source should override {@link #syntheticSourceSupport()}.
+     *
+     * @return implementation of {@link SourceLoader.SyntheticFieldLoader}
+     */
+    @Override
+    public final SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        if (hasScript()) {
+            return SourceLoader.SyntheticFieldLoader.NOTHING;
+        }
+
+        if (syntheticSourceMode() == SyntheticSourceMode.FALLBACK) {
+            // Nothing because it is handled at `DocumentParser/ObjectMapper` level.
+            return SourceLoader.SyntheticFieldLoader.NOTHING;
+        }
+
+        return syntheticSourceSupport().loader();
+    }
+
+    /**
+     * <p>
+     * Returns implementation of synthetic source support for the mapper.
+     * <br>
+     * By default (meaning {@link SyntheticSourceSupport.Fallback}),
+     * an exact full copy of parsed field value is stored separately
+     * and used for synthetic source.
+     * </p>
+     * <p>
+     * Field mappers must override this method if they provide
+     * a more efficient field-specific implementation of synthetic source.
+     * </p>
+     * @return {@link SyntheticSourceMode}
+     */
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        return SyntheticSourceSupport.FALLBACK;
+    }
+
+    /**
      * Specifies the mode of synthetic source support by the mapper.
      *
      * <pre>
@@ -459,48 +533,33 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
-     * <p>
-     * Specifies the mode of synthetic source support by the mapper.
-     * <br>
-     * This is used to determine if a field mapper has support for
-     * constructing synthetic source.
-     * In case it doesn't (meaning {@link SyntheticSourceMode#FALLBACK}),
-     * we will store raw source data for this field as is
-     * and then use it for synthetic source.
-     * </p>
-     * <p>
-     * Field mappers must override this method if they provide
-     * a custom implementation of {@link #syntheticFieldLoader()}
-     * in order to use a more efficient field-specific implementation.
-     * </p>
-     * @return {@link SyntheticSourceMode}
+     * Interface that defines how a field supports synthetic source.
      */
-    protected SyntheticSourceMode syntheticSourceMode() {
-        return SyntheticSourceMode.FALLBACK;
-    }
-
-    /**
-     * Mappers override this method with native synthetic source support.
-     * If mapper does not support synthetic source, it is generated using generic implementation
-     * in {@link DocumentParser#parseObjectOrField} and {@link ObjectMapper#syntheticFieldLoader()}.
-     *
-     * @return implementation of {@link SourceLoader.SyntheticFieldLoader}
-     */
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        // If mapper supports synthetic source natively, it overrides this method,
-        // so we won't see those here.
-        if (syntheticSourceMode() == SyntheticSourceMode.FALLBACK) {
-            if (builderParams.copyTo.copyToFields().isEmpty() != true) {
-                throw new IllegalArgumentException(
-                    "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
-                );
+    protected sealed interface SyntheticSourceSupport permits SyntheticSourceSupport.Fallback, SyntheticSourceSupport.Native {
+        final class Fallback implements SyntheticSourceSupport {
+            @Override
+            public SyntheticSourceMode mode() {
+                return SyntheticSourceMode.FALLBACK;
             }
-            // Nothing because it is handled at `ObjectMapper` level.
-            return SourceLoader.SyntheticFieldLoader.NOTHING;
+
+            @Override
+            public SourceLoader.SyntheticFieldLoader loader() {
+                return null;
+            }
         }
 
-        return super.syntheticFieldLoader();
+        SyntheticSourceSupport FALLBACK = new Fallback();
+
+        record Native(SourceLoader.SyntheticFieldLoader loader) implements SyntheticSourceSupport {
+            @Override
+            public SyntheticSourceMode mode() {
+                return SyntheticSourceMode.NATIVE;
+            }
+        }
+
+        SyntheticSourceMode mode();
+
+        SourceLoader.SyntheticFieldLoader loader();
     }
 
     public static final class MultiFields implements Iterable<FieldMapper>, ToXContent {

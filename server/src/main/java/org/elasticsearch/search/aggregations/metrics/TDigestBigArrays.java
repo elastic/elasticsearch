@@ -29,16 +29,16 @@ public class TDigestBigArrays implements TDigestArrays {
     }
 
     @Override
-    public TDigestDoubleArray newDoubleArray(int initialSize) {
+    public TDigestDoubleBigArray newDoubleArray(int initialSize) {
         return new TDigestDoubleBigArray(bigArrays, initialSize);
     }
 
     @Override
-    public TDigestIntArray newIntArray(int initialSize) {
+    public TDigestIntBigArray newIntArray(int initialSize) {
         return new TDigestIntBigArray(bigArrays, initialSize);
     }
 
-    static class TDigestIntBigArray implements TDigestIntArray, Releasable {
+    public static class TDigestIntBigArray implements TDigestIntArray, Releasable {
         private final IntArray array;
 
         TDigestIntBigArray(BigArrays bigArrays, int initialSize) {
@@ -66,7 +66,7 @@ public class TDigestBigArrays implements TDigestArrays {
         }
     }
 
-    static class TDigestDoubleBigArray implements TDigestDoubleArray, Releasable {
+    public static class TDigestDoubleBigArray implements TDigestDoubleArray, Releasable {
         private final BigArrays bigArrays;
 
         private DoubleArray array;

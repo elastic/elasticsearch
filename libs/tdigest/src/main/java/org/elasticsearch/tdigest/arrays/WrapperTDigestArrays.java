@@ -26,13 +26,21 @@ public class WrapperTDigestArrays implements TDigestArrays {
     private WrapperTDigestArrays() {}
 
     @Override
-    public TDigestDoubleArray newDoubleArray(int initialCapacity) {
+    public WrapperTDigestDoubleArray newDoubleArray(int initialCapacity) {
         return new WrapperTDigestDoubleArray(initialCapacity);
     }
 
     @Override
-    public TDigestIntArray newIntArray(int initialSize) {
+    public WrapperTDigestIntArray newIntArray(int initialSize) {
         return new WrapperTDigestIntArray(initialSize);
+    }
+
+    public WrapperTDigestDoubleArray newDoubleArray(double[] array) {
+        return new WrapperTDigestDoubleArray(array);
+    }
+
+    public WrapperTDigestIntArray newIntArray(int[] array) {
+        return new WrapperTDigestIntArray(array);
     }
 
     public static class WrapperTDigestDoubleArray implements TDigestDoubleArray {

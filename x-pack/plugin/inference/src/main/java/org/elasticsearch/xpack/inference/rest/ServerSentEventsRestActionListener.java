@@ -13,7 +13,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.BytesStream;
@@ -50,8 +49,8 @@ import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK
  * A version of {@link org.elasticsearch.rest.action.RestChunkedToXContentListener} that reads from a {@link Flow.Publisher} and encodes
  * the response in Server-Sent Events.
  */
-public class StreamingRestChunkedToXContentListener implements ActionListener<InferenceAction.Response> {
-    private static final Logger logger = LogManager.getLogger(StreamingRestChunkedToXContentListener.class);
+public class ServerSentEventsRestActionListener implements ActionListener<InferenceAction.Response> {
+    private static final Logger logger = LogManager.getLogger(ServerSentEventsRestActionListener.class);
     private final StreamingSubscriber subscriber = new StreamingSubscriber();
     private final AtomicBoolean isLastPart = new AtomicBoolean(false);
     private final RestChannel channel;
@@ -65,13 +64,13 @@ public class StreamingRestChunkedToXContentListener implements ActionListener<In
      * After transmitting the chunk, {@link #requestNextChunk(ActionListener)} will set the next listener and request the next
      * chunk. This cycle will repeat until this listener completes with the DONE chunk and the stream closes.
      */
-    private SubscribableListener<ChunkedRestResponseBodyPart> nextBodyPartListener;
+    private ActionListener<ChunkedRestResponseBodyPart> nextBodyPartListener;
 
-    public StreamingRestChunkedToXContentListener(RestChannel channel) {
+    public ServerSentEventsRestActionListener(RestChannel channel) {
         this(channel, channel.request());
     }
 
-    public StreamingRestChunkedToXContentListener(RestChannel channel, ToXContent.Params params) {
+    public ServerSentEventsRestActionListener(RestChannel channel, ToXContent.Params params) {
         this.channel = channel;
         this.params = params;
     }
@@ -95,17 +94,27 @@ public class StreamingRestChunkedToXContentListener implements ActionListener<In
 
     protected void ensureOpen() {
         if (channel.request().getHttpChannel().isOpen() == false) {
-            onFailure(new TaskCancelledException("response channel [" + channel.request().getHttpChannel() + "] closed"));
+            throw new TaskCancelledException("response channel [" + channel.request().getHttpChannel() + "] closed");
         }
     }
 
     private void initializeStream(InferenceAction.Response response) {
-        nextBodyPartListener = new SubscribableListener<>();
-        nextBodyPartListener.addListener(ActionListener.wrap(bodyPart -> {
+        nextBodyPartListener = ActionListener.wrap(bodyPart -> {
             // this is the first response, so we need to send the RestResponse to open the stream
             // all subsequent bytes will be delivered through the nextBodyPartListener
             channel.sendResponse(RestResponse.chunked(RestStatus.OK, bodyPart, this::release));
-        }, this::onFailure));
+        }, e -> {
+            assert false : "body part listener's onFailure should never be called";
+            // we shouldn't be here, but just in case we are we should close out the stream
+            isLastPart.set(true);
+            channel.sendResponse(
+                RestResponse.chunked(
+                    ExceptionsHelper.status(e),
+                    new ServerSentEventResponseBodyPart(ServerSentEvents.ERROR, errorChunk(e)),
+                    this::release
+                )
+            );
+        });
         // subscribe will call onSubscribe, which requests the first chunk
         response.publisher().subscribe(subscriber);
     }
@@ -178,8 +187,7 @@ public class StreamingRestChunkedToXContentListener implements ActionListener<In
     }
 
     private void requestNextChunk(ActionListener<ChunkedRestResponseBodyPart> listener) {
-        nextBodyPartListener = new SubscribableListener<>();
-        nextBodyPartListener.addListener(listener);
+        nextBodyPartListener = listener;
         subscriber.subscription.request(1);
     }
 
@@ -228,7 +236,7 @@ public class StreamingRestChunkedToXContentListener implements ActionListener<In
             }
         }
 
-        private SubscribableListener<ChunkedRestResponseBodyPart> nextBodyPartListener() {
+        private ActionListener<ChunkedRestResponseBodyPart> nextBodyPartListener() {
             assert nextBodyPartListener != null : "Subscriber should only be called when Subscription#request is called.";
             var nextListener = nextBodyPartListener;
             nextBodyPartListener = null;

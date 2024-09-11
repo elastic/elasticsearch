@@ -72,7 +72,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 1)
-public class StreamingRestChunkedToXContentListenerTests extends ESIntegTestCase {
+public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
     private static final String INFERENCE_ROUTE = "/_inference";
     private static final String REQUEST_COUNT = "request_count";
     private static final String WITH_ERROR = "with_error";
@@ -125,7 +125,7 @@ public class StreamingRestChunkedToXContentListenerTests extends ESIntegTestCase
                     var publisher = new RandomPublisher(requestCount, withError);
                     var inferenceServiceResults = new StreamingInferenceServiceResults(publisher);
                     var inferenceResponse = new InferenceAction.Response(inferenceServiceResults, inferenceServiceResults.publisher());
-                    new StreamingRestChunkedToXContentListener(channel).onResponse(inferenceResponse);
+                    new ServerSentEventsRestActionListener(channel).onResponse(inferenceResponse);
                 }
             }, new RestHandler() {
                 @Override
@@ -135,7 +135,7 @@ public class StreamingRestChunkedToXContentListenerTests extends ESIntegTestCase
 
                 @Override
                 public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {
-                    new StreamingRestChunkedToXContentListener(channel).onFailure(expectedException);
+                    new ServerSentEventsRestActionListener(channel).onFailure(expectedException);
                 }
             }, new RestHandler() {
                 @Override
@@ -146,7 +146,7 @@ public class StreamingRestChunkedToXContentListenerTests extends ESIntegTestCase
                 @Override
                 public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {
                     var inferenceResponse = new InferenceAction.Response(new SingleInferenceServiceResults());
-                    new StreamingRestChunkedToXContentListener(channel).onResponse(inferenceResponse);
+                    new ServerSentEventsRestActionListener(channel).onResponse(inferenceResponse);
                 }
             });
         }

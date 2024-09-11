@@ -192,7 +192,7 @@ There are multiple ways to ingest data into {es}, but it depends on whether you'
 
 [discrete]
 [[es-ingestion-overview-time-series]]
-==== Time-series data
+==== Timestamped data
 
 For timestamped data, you have the following options for adding data to {es} data streams:
 
@@ -204,7 +204,7 @@ You can use the Fleet UI in {kib} to centrally manage Elastic Agents and their p
 
 [TIP]
 ====
-If you're interested in data ingestion pipelines for time-series data, use the decision tree in the {cloud}/ec-cloud-ingest-data.html#ec-data-ingest-pipeline[Elastic Cloud docs] to understand your options.
+If you're interested in data ingestion pipelines for timestamped data, use the decision tree in the {cloud}/ec-cloud-ingest-data.html#ec-data-ingest-pipeline[Elastic Cloud docs] to understand your options.
 ====
 
 [discrete]

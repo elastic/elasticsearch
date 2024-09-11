@@ -20,8 +20,6 @@ restResources {
   }
 }
 
-tasks.named("yamlRestTestV7CompatTest").configure { enabled = false };
-
 tasks.named('yamlRestTest') {
   usesDefaultDistribution()
 }

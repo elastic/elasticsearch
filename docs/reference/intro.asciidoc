@@ -2,7 +2,7 @@
 == {es} basics
 
 This guide covers the core concepts you need to understand to get started with {es}.
-If you'd prefer to get started with code examples, jump to our <<quickstart,quickstarts>>.
+If you'd prefer to start working with {es} right away, then jump to our <<quickstart,quickstarts>> for hands-on code examples.
 
 This guide covers the following topics:
 
@@ -33,6 +33,14 @@ Combined with https://www.elastic.co/kibana[{kib}], it powers the following Elas
 ====
 
 [discrete]
+[[elasticsearch-intro-elastic-stack]]
+.What is the Elastic Stack?
+*******************************
+{es} is the core component of the Elastic Stack, a suite of products for collecting, storing, searching, and visualizing data.
+{estc-welcome-current}/stack-components.html[Learn more about the Elastic Stack].
+*******************************
+
+[discrete]
 [[elasticsearch-intro-use-cases]]
 ==== Use cases
 
@@ -52,7 +60,7 @@ Combined with https://www.elastic.co/kibana[{kib}], it powers the following Elas
 * *Hybrid search*: Combine full-text search with vector search using state-of-the-art ranking algorithms.
 * *Search applications*: Add hybrid search capabilities to apps or websites, or build enterprise search engines over your organization's internal data sources.
 * *Retrieval augmented generation (RAG)*: Use {es} as a retrieval engine to update and augment Generative AI models.
-* *Geospatial search*: {es} is the leading search and analytics engine for geospatial data.
+* *Geospatial search*: Search for locations and calculate spatial relationships using geospatial queries.
 
 **Security**
 
@@ -63,14 +71,6 @@ Combined with https://www.elastic.co/kibana[{kib}], it powers the following Elas
 This is just a sample of search, observability, and security use cases enabled by {es}.
 Refer to our https://www.elastic.co/customers/success-stories[customer success stories] for concrete examples across a range of industries.
 
-[discrete]
-[[elasticsearch-intro-elastic-stack]]
-.What is the Elastic Stack?
-*******************************
-{es} is the core component of the Elastic Stack, a suite of products for collecting, storing, searching, and visualizing data.
-{estc-welcome-current}/stack-components.html[Learn more about the Elastic Stack].
-*******************************
-
 [[elasticsearch-intro-deploy]]
 === Run {es}
 
@@ -79,7 +79,7 @@ You can deploy {es} in various ways.
 
 **Quick start option**
 
-* <<run-elasticsearch-locally,*Local dev*>>: Get started quickly with a minimal local Docker setup. Recommended if you like getting started in a local environment.
+* <<run-elasticsearch-locally,*Local dev*>>: Get started quickly with a minimal local Docker setup for development and testing.
 
 **Hosted options**
 
@@ -102,19 +102,15 @@ You can deploy {es} in various ways.
 The index is the fundamental unit of storage in {es}, a logical namespace for storing data that share similar characteristics.
 After you have {es} <<elasticsearch-intro-deploy,deployed>>, you'll get started by creating an index to store your data.
 
+An index is a collection of documents uniquely identified by a name or an <<aliases,alias>>.
+This unique name is important because it's used to target the index in search queries and other operations.
+
 [TIP]
 ====
 A closely related concept is a <<data-streams,data stream>>.
-This index abstraction is optimized for append-only time-series data, and is made up of hidden, auto-generated backing indices.
-If you're working with time-series data, we recommend the {observability-guide}[Elastic Observability] solution.
+This index abstraction is optimized for append-only timestamped data, and is made up of hidden, auto-generated backing indices.
+If you're working with timestamped data, we recommend the {observability-guide}[Elastic Observability] solution.
 ====
-
-Some key facts about indices:
-
-* An index is a collection of documents
-* An index has a unique name
-* An index can also be referred to by an <<aliases,alias>>
-* An index has a mapping that defines the schema of its documents
 
 [discrete]
 [[elasticsearch-intro-documents-fields]]
@@ -159,10 +155,8 @@ A simple {es} document might look like this:
 
 An indexed document contains data and metadata.
 In {es}, <<mapping-fields,metadata fields>> are prefixed with an underscore.
+For example, the following fields are metadata fields:
 
-The most important metadata fields are:
-
-* `_source`: Contains the original JSON document.
 * `_index`: The name of the index where the document is stored.
 * `_id`: The document's ID. IDs must be unique per index.
 
@@ -175,8 +169,8 @@ A mapping defines the <<mapping-types,data type>> for each field, how the field 
 and how it should be stored.
 When adding documents to {es}, you have two options for mappings:
 
-* <<mapping-dynamic, Dynamic mapping>>: Let {es} automatically detect the data types and create the mappings for you. This is great for getting started quickly, but can lead to unexpected results for complex data.
-* <<mapping-explicit, Explicit mapping>>: Define the mappings up front by specifying data types for each field. Recommended for production use cases, because you have much more control over how your data is indexed.
+* <<mapping-dynamic, Dynamic mapping>>: Let {es} automatically detect the data types and create the mappings for you. This is great for getting started quickly, but can yield suboptimal results for complex data due to automatic field type inference.
+* <<mapping-explicit, Explicit mapping>>: Define the mappings up front by specifying data types for each field. Recommended for production use cases, because you have full control over how your data is indexed to suit your specific use case.
 
 [TIP]
 ====
@@ -188,10 +182,11 @@ This is useful when you have a mix of known and unknown fields in your data.
 [[es-ingestion-overview]]
 === Add data to {es}
 
-There are multiple ways to ingest data into {es}, but it depends on whether you're working with time-series data or general content that doesn't have a timestamp.
+There are multiple ways to ingest data into {es}.
+The option that you choose depends on whether you're working with timestamped data, non-timestamped data, where the data is coming from, its complexity, and more.
 
 [discrete]
-[[es-ingestion-overview-time-series]]
+[[es-ingestion-overview-timestamped]]
 ==== Timestamped data
 
 For timestamped data, you have the following options for adding data to {es} data streams:
@@ -228,12 +223,12 @@ After you get past the basics, you should use the <<docs-bulk,Bulk API>> for eff
 [[search-analyze]]
 === Search and analyze data
 
-You can use {es} as a basic document store to simply retrieve documents and their
+You can use {es} as a basic document store to retrieve documents and their
 metadata.
 However, the real power of {es} comes from its advanced search and analytics capabilities.
 
-{es} provides a simple, coherent REST API for managing your cluster and indexing
-and searching your data.
+Use {es}'s REST API to manage your cluster, and to index
+and search your data.
 For testing purposes, you can submit requests
 directly from the command line or through the Dev Tools {kibana-ref}/console-kibana.html[Console] in {kib}.
 From your applications, you can use an
@@ -248,7 +243,8 @@ This documentation uses Query DSL for most query examples.
 
 [TIP]
 ====
-<<esql,{esql}>> is our new piped query language (and compute engine) that is initially mainly focused on time-series data like logs and metrics.
+<<esql,{esql}>> is our new piped query language and compute engine that is initially mainly focused on timestamped data like logs and metrics.
+It does not yet support all the features of Query DSL, like full-text search and semantic search.
 ====
 
 [discrete]
@@ -257,7 +253,7 @@ This documentation uses Query DSL for most query examples.
 
 {es} support a wide range of search techniques, including the following:
 
-* <<full-text-queries,*Full-text search*>>. Search text that has been analyzed and indexed to support full-text search based on relevance.
+* <<full-text-queries,*Full-text search*>>. Search text that has been analyzed and indexed to support phrase or proximity queries, fuzzy matches, and more.
 * <<keyword,*Keyword search*>>. Search for exact matches using `keyword` fields.
 * <<semantic-search-semantic-text,*Semantic search*>>. Search `semantic_text` fields using dense or sparse vector search on embeddings generated in your {es} cluster.
 * <<knn-search,*Vector search*>>. Search for similar dense vectors using the kNN algorithm for embeddings generated outside of {es}.
@@ -265,7 +261,7 @@ This documentation uses Query DSL for most query examples.
 
 Learn about the full range of queries supported by the <<query-dsl,Query DSL>>.
 
-You can also filter data using the Query DSL.
+You can also filter data using Query DSL.
 Filters enable you to include or exclude documents by retrieving documents that match specific field-level criteria.
 A query that uses the `filter` parameter indicates <<filter-context,filter context>>.
 
@@ -288,7 +284,7 @@ These include real-world applications like:
 [[analyze-data-query-dsl]]
 ===== Query DSL
 
-<<search-aggregations,Aggregations>> are the primary tool for analyzing {es} data using the Query DSL.
+<<search-aggregations,Aggregations>> are the primary tool for analyzing {es} data using Query DSL.
 Aggregrations enable you to build complex summaries of your data and gain
 insight into key metrics, patterns, and trends.
 

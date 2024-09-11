@@ -25,11 +25,10 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
+import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -52,11 +51,11 @@ public class DateMathExpressionResolverTests extends ESTestCase {
 
     public void testNormal() throws Exception {
         int numIndexExpressions = randomIntBetween(1, 9);
-        List<String> indexExpressions = new ArrayList<>(numIndexExpressions);
+        List<ResolvedExpression> indexExpressions = new ArrayList<>(numIndexExpressions);
         for (int i = 0; i < numIndexExpressions; i++) {
-            indexExpressions.add(randomAlphaOfLength(10));
+            indexExpressions.add(new ResolvedExpression(randomAlphaOfLength(10), "data"));
         }
-        List<String> result = DateMathExpressionResolver.resolve(context, indexExpressions);
+        List<ResolvedExpression> result = DateMathExpressionResolver.resolve(context, indexExpressions);
         assertThat(result.size(), equalTo(indexExpressions.size()));
         for (int i = 0; i < indexExpressions.size(); i++) {
             assertThat(result.get(i), equalTo(indexExpressions.get(i)));
@@ -64,31 +63,49 @@ public class DateMathExpressionResolverTests extends ESTestCase {
     }
 
     public void testExpression() throws Exception {
-        List<String> indexExpressions = Arrays.asList("<.marvel-{now}>", "<.watch_history-{now}>", "<logstash-{now}>");
-        List<String> result = DateMathExpressionResolver.resolve(context, indexExpressions);
+        List<ResolvedExpression> indexExpressions = List.of(
+            new ResolvedExpression("<.marvel-{now}>", "data"),
+            new ResolvedExpression("<.watch_history-{now}>", "data"),
+            new ResolvedExpression("<logstash-{now}>", "data")
+        );
+        List<ResolvedExpression> result = DateMathExpressionResolver.resolve(context, indexExpressions);
         assertThat(result.size(), equalTo(3));
-        assertThat(result.get(0), equalTo(".marvel-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime()))));
-        assertThat(result.get(1), equalTo(".watch_history-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime()))));
-        assertThat(result.get(2), equalTo("logstash-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime()))));
+        assertThat(
+            result.get(0),
+            equalTo(new ResolvedExpression(".marvel-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime())), "data"))
+        );
+        assertThat(
+            result.get(1),
+            equalTo(new ResolvedExpression(".watch_history-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime())), "data"))
+        );
+        assertThat(
+            result.get(2),
+            equalTo(new ResolvedExpression("logstash-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime())), "data"))
+        );
     }
 
     public void testExpressionWithWildcardAndExclusions() {
-        List<String> indexExpressions = Arrays.asList(
-            "<-before-inner-{now}>",
-            "-<before-outer-{now}>",
-            "<wild*card-{now}*>",
-            "<-after-inner-{now}>",
-            "-<after-outer-{now}>"
+        List<ResolvedExpression> indexExpressions = List.of(
+            new ResolvedExpression("<-before-inner-{now}>", "data"),
+            new ResolvedExpression("-<before-outer-{now}>", "data"),
+            new ResolvedExpression("<wild*card-{now}*>", "data"),
+            new ResolvedExpression("<-after-inner-{now}>", "data"),
+            new ResolvedExpression("-<after-outer-{now}>", "data")
         );
-        List<String> result = DateMathExpressionResolver.resolve(context, indexExpressions);
+        List<ResolvedExpression> result = DateMathExpressionResolver.resolve(context, indexExpressions);
         assertThat(
             result,
             Matchers.contains(
-                equalTo("-before-inner-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime()))),
-                equalTo("-<before-outer-{now}>"), // doesn't evaluate because it doesn't start with "<" and it is not an exclusion
-                equalTo("wild*card-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime())) + "*"),
-                equalTo("-after-inner-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime()))),
-                equalTo("-after-outer-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime())))
+                equalTo(
+                    new ResolvedExpression("-before-inner-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime())), "data")
+                ),
+                // below doesn't evaluate because it doesn't start with "<" and it is not an exclusion
+                equalTo(new ResolvedExpression("-<before-outer-{now}>", "data")),
+                equalTo(
+                    new ResolvedExpression("wild*card-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime())) + "*", "data")
+                ),
+                equalTo(new ResolvedExpression("-after-inner-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime())), "data")),
+                equalTo(new ResolvedExpression("-after-outer-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime())), "data"))
             )
         );
         Context noWildcardExpandContext = new Context(
@@ -100,70 +117,117 @@ public class DateMathExpressionResolverTests extends ESTestCase {
         assertThat(
             result,
             Matchers.contains(
-                equalTo("-before-inner-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime()))),
+                equalTo(
+                    new ResolvedExpression("-before-inner-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime())), "data")
+                ),
                 // doesn't evaluate because it doesn't start with "<" and there can't be exclusions without wildcard expansion
-                equalTo("-<before-outer-{now}>"),
-                equalTo("wild*card-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime())) + "*"),
-                equalTo("-after-inner-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime()))),
+                equalTo(new ResolvedExpression("-<before-outer-{now}>", "data")),
+                equalTo(
+                    new ResolvedExpression("wild*card-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime())) + "*", "data")
+                ),
+                equalTo(new ResolvedExpression("-after-inner-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime())), "data")),
                 // doesn't evaluate because it doesn't start with "<" and there can't be exclusions without wildcard expansion
-                equalTo("-<after-outer-{now}>")
+                equalTo(new ResolvedExpression("-<after-outer-{now}>", "data"))
             )
         );
     }
 
     public void testEmpty() throws Exception {
-        List<String> result = DateMathExpressionResolver.resolve(context, Collections.<String>emptyList());
+        List<ResolvedExpression> result = DateMathExpressionResolver.resolve(context, List.of());
         assertThat(result.size(), equalTo(0));
     }
 
     public void testExpression_Static() throws Exception {
-        List<String> result = DateMathExpressionResolver.resolve(context, Arrays.asList("<.marvel-test>"));
+        List<ResolvedExpression> result = DateMathExpressionResolver.resolve(
+            context,
+            List.of(new ResolvedExpression("<.marvel-test>", "data"))
+        );
         assertThat(result.size(), equalTo(1));
-        assertThat(result.get(0), equalTo(".marvel-test"));
+        assertThat(result.get(0), equalTo(new ResolvedExpression(".marvel-test", "data")));
     }
 
     public void testExpression_MultiParts() throws Exception {
-        List<String> result = DateMathExpressionResolver.resolve(context, Arrays.asList("<.text1-{now/d}-text2-{now/M}>"));
+        List<ResolvedExpression> result = DateMathExpressionResolver.resolve(
+            context,
+            List.of(new ResolvedExpression("<.text1-{now/d}-text2-{now/M}>", "data"))
+        );
         assertThat(result.size(), equalTo(1));
         assertThat(
             result.get(0),
             equalTo(
-                ".text1-"
-                    + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime()))
-                    + "-text2-"
-                    + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime()).withDayOfMonth(1))
+                new ResolvedExpression(
+                    ".text1-"
+                        + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime()))
+                        + "-text2-"
+                        + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime()).withDayOfMonth(1)),
+                    "data"
+                )
             )
         );
     }
 
     public void testExpression_CustomFormat() throws Exception {
-        List<String> results = DateMathExpressionResolver.resolve(context, Arrays.asList("<.marvel-{now/d{yyyy.MM.dd}}>"));
+        List<ResolvedExpression> results = DateMathExpressionResolver.resolve(
+            context,
+            List.of(new ResolvedExpression("<.marvel-{now/d{yyyy.MM.dd}}>", "data"))
+        );
         assertThat(results.size(), equalTo(1));
-        assertThat(results.get(0), equalTo(".marvel-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime()))));
+        assertThat(
+            results.get(0),
+            equalTo(new ResolvedExpression(".marvel-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime())), "data"))
+        );
     }
 
     public void testExpression_EscapeStatic() throws Exception {
-        List<String> result = DateMathExpressionResolver.resolve(context, Arrays.asList("<.mar\\{v\\}el-{now/d}>"));
+        List<ResolvedExpression> result = DateMathExpressionResolver.resolve(
+            context,
+            List.of(new ResolvedExpression("<.mar\\{v\\}el-{now/d}>", "data"))
+        );
         assertThat(result.size(), equalTo(1));
-        assertThat(result.get(0), equalTo(".mar{v}el-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime()))));
+        assertThat(
+            result.get(0),
+            equalTo(new ResolvedExpression(".mar{v}el-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime())), "data"))
+        );
     }
 
     public void testExpression_EscapeDateFormat() throws Exception {
-        List<String> result = DateMathExpressionResolver.resolve(context, Arrays.asList("<.marvel-{now/d{'\\{year\\}'yyyy}}>"));
+        List<ResolvedExpression> result = DateMathExpressionResolver.resolve(
+            context,
+            List.of(new ResolvedExpression("<.marvel-{now/d{'\\{year\\}'yyyy}}>", "data"))
+        );
         assertThat(result.size(), equalTo(1));
-        assertThat(result.get(0), equalTo(".marvel-" + formatDate("'{year}'yyyy", dateFromMillis(context.getStartTime()))));
+        assertThat(
+            result.get(0),
+            equalTo(new ResolvedExpression(".marvel-" + formatDate("'{year}'yyyy", dateFromMillis(context.getStartTime())), "data"))
+        );
     }
 
     public void testExpression_MixedArray() throws Exception {
-        List<String> result = DateMathExpressionResolver.resolve(
+        List<ResolvedExpression> result = DateMathExpressionResolver.resolve(
             context,
-            Arrays.asList("name1", "<.marvel-{now/d}>", "name2", "<.logstash-{now/M{uuuu.MM}}>")
+            List.of(
+                new ResolvedExpression("name1", "data"),
+                new ResolvedExpression("<.marvel-{now/d}>", "data"),
+                new ResolvedExpression("name2", "data"),
+                new ResolvedExpression("<.logstash-{now/M{uuuu.MM}}>", "data")
+            )
         );
         assertThat(result.size(), equalTo(4));
-        assertThat(result.get(0), equalTo("name1"));
-        assertThat(result.get(1), equalTo(".marvel-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime()))));
-        assertThat(result.get(2), equalTo("name2"));
-        assertThat(result.get(3), equalTo(".logstash-" + formatDate("uuuu.MM", dateFromMillis(context.getStartTime()).withDayOfMonth(1))));
+        assertThat(result.get(0), equalTo(new ResolvedExpression("name1", "data")));
+        assertThat(
+            result.get(1),
+            equalTo(new ResolvedExpression(".marvel-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime())), "data"))
+        );
+        assertThat(result.get(2), equalTo(new ResolvedExpression("name2", "data")));
+        assertThat(
+            result.get(3),
+            equalTo(
+                new ResolvedExpression(
+                    ".logstash-" + formatDate("uuuu.MM", dateFromMillis(context.getStartTime()).withDayOfMonth(1)),
+                    "data"
+                )
+            )
+        );
     }
 
     public void testExpression_CustomTimeZoneInIndexName() throws Exception {
@@ -202,19 +266,22 @@ public class DateMathExpressionResolverTests extends ESTestCase {
             name -> false,
             name -> false
         );
-        List<String> results = DateMathExpressionResolver.resolve(
+        List<ResolvedExpression> results = DateMathExpressionResolver.resolve(
             context,
-            Arrays.asList("<.marvel-{now/d{yyyy.MM.dd|" + timeZone.getId() + "}}>")
+            List.of(new ResolvedExpression("<.marvel-{now/d{yyyy.MM.dd|" + timeZone.getId() + "}}>", "data"))
         );
         assertThat(results.size(), equalTo(1));
         logger.info("timezone: [{}], now [{}], name: [{}]", timeZone, now, results.get(0));
-        assertThat(results.get(0), equalTo(".marvel-" + formatDate("uuuu.MM.dd", now.withZoneSameInstant(timeZone))));
+        assertThat(
+            results.get(0),
+            equalTo(new ResolvedExpression(".marvel-" + formatDate("uuuu.MM.dd", now.withZoneSameInstant(timeZone)), "data"))
+        );
     }
 
     public void testExpressionInvalidUnescaped() throws Exception {
         Exception e = expectThrows(
             ElasticsearchParseException.class,
-            () -> DateMathExpressionResolver.resolve(context, Arrays.asList("<.mar}vel-{now/d}>"))
+            () -> DateMathExpressionResolver.resolve(context, List.of(new ResolvedExpression("<.mar}vel-{now/d}>", "data")))
         );
         assertThat(e.getMessage(), containsString("invalid dynamic name expression"));
         assertThat(e.getMessage(), containsString("invalid character at position ["));
@@ -223,7 +290,7 @@ public class DateMathExpressionResolverTests extends ESTestCase {
     public void testExpressionInvalidDateMathFormat() throws Exception {
         Exception e = expectThrows(
             ElasticsearchParseException.class,
-            () -> DateMathExpressionResolver.resolve(context, Arrays.asList("<.marvel-{now/d{}>"))
+            () -> DateMathExpressionResolver.resolve(context, List.of(new ResolvedExpression("<.marvel-{now/d{}>", "data")))
         );
         assertThat(e.getMessage(), containsString("invalid dynamic name expression"));
         assertThat(e.getMessage(), containsString("date math placeholder is open ended"));
@@ -232,7 +299,7 @@ public class DateMathExpressionResolverTests extends ESTestCase {
     public void testExpressionInvalidEmptyDateMathFormat() throws Exception {
         Exception e = expectThrows(
             ElasticsearchParseException.class,
-            () -> DateMathExpressionResolver.resolve(context, Arrays.asList("<.marvel-{now/d{}}>"))
+            () -> DateMathExpressionResolver.resolve(context, List.of(new ResolvedExpression("<.marvel-{now/d{}}>", "data")))
         );
         assertThat(e.getMessage(), containsString("invalid dynamic name expression"));
         assertThat(e.getMessage(), containsString("missing date format"));
@@ -241,7 +308,7 @@ public class DateMathExpressionResolverTests extends ESTestCase {
     public void testExpressionInvalidOpenEnded() throws Exception {
         Exception e = expectThrows(
             ElasticsearchParseException.class,
-            () -> DateMathExpressionResolver.resolve(context, Arrays.asList("<.marvel-{now/d>"))
+            () -> DateMathExpressionResolver.resolve(context, List.of(new ResolvedExpression("<.marvel-{now/d>", "data")))
         );
         assertThat(e.getMessage(), containsString("invalid dynamic name expression"));
         assertThat(e.getMessage(), containsString("date math placeholder is open ended"));

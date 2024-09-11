@@ -865,7 +865,7 @@ public record IndicesOptions(
      * @return Whether selectors (dollar-sign syntax) are allowed in the index expression.
      */
     public boolean allowSelectors() {
-        return gatekeeperOptions.allowSelectors();
+        return DataStream.isFailureStoreFeatureFlagEnabled() && gatekeeperOptions.allowSelectors();
     }
 
     /**

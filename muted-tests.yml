@@ -92,6 +92,9 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.kerberos.KerberosTicketValidatorTests
   method: testValidKebrerosTicket
   issue: https://github.com/elastic/elasticsearch/issues/112632
+- class: org.elasticsearch.xpack.security.authc.kerberos.KerberosTicketValidatorTests
+  method: testKerbTicketGeneratedForDifferentServerFailsValidation
+  issue: https://github.com/elastic/elasticsearch/issues/112639
 
 # Examples:
 #

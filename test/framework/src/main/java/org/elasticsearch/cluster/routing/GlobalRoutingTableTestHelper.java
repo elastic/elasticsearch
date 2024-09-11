@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -30,6 +31,34 @@ public final class GlobalRoutingTableTestHelper {
             projectRouting.put(projectId, rtBuilder.build());
         });
         return new GlobalRoutingTable(0L, projectRouting.build());
+    }
+
+    /**
+     * Update the existing {@link GlobalRoutingTable}
+     * @param newIndicesConsumer Called for indices that do not exist in the routing table
+     * @param updateIndicesConsumer Called for indices that already exist in the routing table
+     */
+    public static GlobalRoutingTable updateRoutingTable(
+        ClusterState clusterState,
+        BiConsumer<RoutingTable.Builder, IndexMetadata> newIndicesConsumer,
+        BiConsumer<RoutingTable.Builder, IndexMetadata> updateIndicesConsumer
+    ) {
+        final GlobalRoutingTable.Builder globalBuilder = GlobalRoutingTable.builder(clusterState.globalRoutingTable());
+        clusterState.metadata().projects().forEach((projectId, projectMetadata) -> {
+            final RoutingTable existingRoutingTable = clusterState.routingTable(projectId);
+            final RoutingTable.Builder rtBuilder = existingRoutingTable == null
+                ? RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+                : RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, existingRoutingTable);
+            projectMetadata.indices().values().forEach(indexMetadata -> {
+                if (existingRoutingTable != null && existingRoutingTable.hasIndex(indexMetadata.getIndex())) {
+                    updateIndicesConsumer.accept(rtBuilder, indexMetadata);
+                } else {
+                    newIndicesConsumer.accept(rtBuilder, indexMetadata);
+                }
+            });
+            globalBuilder.put(projectId, rtBuilder.build());
+        });
+        return globalBuilder.build();
     }
 
     private GlobalRoutingTableTestHelper() {

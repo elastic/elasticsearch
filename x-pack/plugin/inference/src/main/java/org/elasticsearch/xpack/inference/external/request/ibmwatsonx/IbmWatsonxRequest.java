@@ -55,7 +55,7 @@ public interface IbmWatsonxRequest extends Request {
                 return (String) map.get("access_token");
             });
         } catch (Exception e) {
-            logger.error("Failed to add Bearer token to the request", e);
+            logger.error("Failed to add Bearer token to the request");
         }
 
         Header bearerHeader = new BasicHeader(HttpHeaders.AUTHORIZATION, "Bearer " + bearerToken);

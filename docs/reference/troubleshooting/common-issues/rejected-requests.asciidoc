@@ -56,7 +56,7 @@ rejections, use the <<cluster-nodes-stats,node stats API>>.
 
 [source,console]
 ----
-GET _nodes/stats?human=true&filter_path=nodes.*.indexing_pressure
+GET _nodes/stats?human&filter_path=nodes.*.indexing_pressure
 ----
 
 These stats are cumulative from node startup. 

@@ -58,14 +58,14 @@ If a particular `action` is suspected, you can filter the tasks further. The mos
 +
 [source,console]
 ----
-GET /_tasks?pretty=true&human=true&detailed=true&actions=indices:data/write/bulk
+GET /_tasks?human&detailed&actions=indices:data/write/bulk
 ----
 
 * Filter for search actions:
 +
 [source,console]
 ----
-GET /_tasks?pretty=true&human=true&detailed=true&actions=indices:data/write/search
+GET /_tasks?human&detailed&actions=indices:data/write/search
 ----
 
 The API response may contain additional tasks columns, including `description` and `header`, which provides the task parameters, target, and requestor. You can use this information to perform further diagnosis.

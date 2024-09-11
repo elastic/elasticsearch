@@ -56,7 +56,7 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
             }
             """;
         indicesAdmin().create(new CreateIndexRequest(indexName).mapping(mapping)).actionGet();
-        BulkRequest bulkRequest = new BulkRequest();
+        BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of());
         bulkRequest.add(new IndexRequest(indexName).source("""
             {
               "foo1": "baz"
@@ -92,7 +92,7 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
          * mapping-less "random-index-template" created by the parent class), so we expect no mapping validation failure.
          */
         String indexName = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
-        BulkRequest bulkRequest = new BulkRequest();
+        BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of());
         bulkRequest.add(new IndexRequest(indexName).source("""
             {
               "foo1": "baz"
@@ -139,7 +139,7 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
         request.indexTemplate(composableIndexTemplate);
 
         client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
-        BulkRequest bulkRequest = new BulkRequest();
+        BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of());
         bulkRequest.add(new IndexRequest(indexName).source("""
             {
               "foo1": "baz"
@@ -171,7 +171,7 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
         indicesAdmin().putTemplate(
             new PutIndexTemplateRequest("test-template").patterns(List.of("my-index-*")).mapping("foo1", "type=integer")
         ).actionGet();
-        BulkRequest bulkRequest = new BulkRequest();
+        BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of());
         bulkRequest.add(new IndexRequest(indexName).source("""
             {
               "foo1": "baz"
@@ -225,7 +225,7 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
         client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
         {
             // First, try with no @timestamp to make sure we're picking up data-stream-specific templates
-            BulkRequest bulkRequest = new BulkRequest();
+            BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of());
             bulkRequest.add(new IndexRequest(indexName).source("""
                 {
                   "foo1": "baz"
@@ -251,7 +251,7 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
         }
         {
             // Now with @timestamp
-            BulkRequest bulkRequest = new BulkRequest();
+            BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of());
             bulkRequest.add(new IndexRequest(indexName).source("""
                 {
                   "@timestamp": "2024-08-27",

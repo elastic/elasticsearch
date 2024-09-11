@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -161,16 +162,22 @@ public abstract class RestEnrichTestCase extends ESRestTestCase {
         Map<String, Object> result = runEsql("from test | enrich countries | keep number | sort number");
         var columns = List.of(Map.of("name", "number", "type", "long"));
         var values = List.of(List.of(1000), List.of(1000), List.of(5000));
-
-        assertMap(result, matchesMap().entry("columns", columns).entry("values", values));
+        MapMatcher mapMatcher = matchesMap();
+        if (result.get("took") != null) {
+            mapMatcher = mapMatcher.entry("took", ((Integer) result.get("took")).intValue());
+        }
+        assertMap(result, mapMatcher.entry("columns", columns).entry("values", values));
     }
 
     public void testMatchField_ImplicitFieldsList_WithStats() throws IOException {
         Map<String, Object> result = runEsql("from test | enrich countries | stats s = sum(number) by country_name");
         var columns = List.of(Map.of("name", "s", "type", "long"), Map.of("name", "country_name", "type", "keyword"));
         var values = List.of(List.of(2000, "United States of America"), List.of(5000, "China"));
-
-        assertMap(result, matchesMap().entry("columns", columns).entry("values", values));
+        MapMatcher mapMatcher = matchesMap();
+        if (result.get("took") != null) {
+            mapMatcher = mapMatcher.entry("took", ((Integer) result.get("took")).intValue());
+        }
+        assertMap(result, mapMatcher.entry("columns", columns).entry("values", values));
     }
 
     private Map<String, Object> runEsql(String query) throws IOException {

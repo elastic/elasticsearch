@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestLegacyFeatures;
@@ -1062,9 +1063,14 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
                 }""");
             // {"columns":[{"name":"dv","type":"keyword"},{"name":"no_dv","type":"keyword"}],"values":[["test",null]]}
             try {
+                Map<String, Object> result = entityAsMap(client().performRequest(esql));
+                MapMatcher mapMatcher = matchesMap();
+                if (result.get("took") != null) {
+                    mapMatcher = mapMatcher.entry("took", ((Integer) result.get("took")).intValue());
+                }
                 assertMap(
-                    entityAsMap(client().performRequest(esql)),
-                    matchesMap().entry(
+                    result,
+                    mapMatcher.entry(
                         "columns",
                         List.of(Map.of("name", "dv", "type", "keyword"), Map.of("name", "no_dv", "type", "keyword"))
                     ).entry("values", List.of(List.of("test", "test")))

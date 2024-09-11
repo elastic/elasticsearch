@@ -89,31 +89,6 @@ env:integer | c.env:keyword
           1 |   Development
 ;
 
-withQualifierNoConflictEval
-required_capability: enrich_load
-required_capability: enrich_with_qualifier
-ROW client_ip = "172.21.0.5"
-| ENRICH clientip_policy c ON client_ip
-| EVAl x = to_lower(c.env), y = to_upper(env)
-| KEEP x, y
-;
-
-x:keyword     | y:keyword
-development   | DEVELOPMENT
-;
-
-withQualifierNoConflictEvalLimit0
-required_capability: enrich_with_qualifier
-ROW client_ip = "172.21.0.5"
-| ENRICH clientip_policy c ON client_ip
-| EVAl x = to_lower(c.env), y = to_upper(env)
-| KEEP x, y
-| LIMIT 0
-;
-
-x:keyword     | y:keyword
-;
-
 withQualifierNoConflictKeepWildcard
 required_capability: enrich_load
 required_capability: enrich_with_qualifier

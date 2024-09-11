@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.Column;
@@ -815,7 +814,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private LogicalPlan resolveEnrich(Enrich enrich, List<Attribute> childrenOutput) {
-            // TODO: validation error if there's a qualifier but we still have conflicts with existing fields, e.g.
+            // TODO: csv test with shadowing WITH qualifier
+            // TODO: TEST validation error if we're trying to address a qualified name implicitly (in the unambiguous case)
             // | ENRICH policy AS p
             // but there's an existing field p.foo, and the policy has an enrich field called foo (which would be qualified to p.foo,
             // conflicting with the existing field).
@@ -871,7 +871,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         UnresolvedAttribute ua = new UnresolvedAttribute(up.source(), up.pattern());
         return resolveAgainstList(
             a -> up.match(a.name()),
-            null,
             ua,
             attrList,
             true,
@@ -880,13 +879,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     private static List<Attribute> resolveAgainstList(UnresolvedAttribute ua, Collection<Attribute> attrList) {
-        String suffix = "." + ua.name();
-        Predicate<Attribute> matchLoosely = a -> a.name().equals(ua.name()) || a.name().endsWith(suffix);
-        Predicate<Attribute> matchExactly = a -> a.name().equals(ua.name());
-
         return resolveAgainstList(
-            matchLoosely,
-            matchExactly,
+            a -> a.name().equals(ua.name()),
             ua,
             attrList,
             false,
@@ -895,14 +889,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     private static List<Attribute> resolveAgainstList(
-        Predicate<Attribute> matchLoosely,
-        @Nullable Predicate<Attribute> matchExact,
+        Predicate<Attribute> match,
         UnresolvedAttribute ua,
         Collection<Attribute> attrList,
         boolean isPattern,
         Function<List<String>, String> messageProducer
     ) {
-        List<Attribute> matches = maybeResolveAgainstList(matchLoosely, matchExact, ua, attrList, isPattern);
+        List<Attribute> matches = maybeResolveAgainstList(match, ua, attrList, isPattern);
         return potentialCandidatesIfNoMatchesFound(ua, matches, attrList, messageProducer);
     }
 
@@ -919,33 +912,25 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * never resolved against.
      */
     private static List<Attribute> maybeResolveAgainstList(
-        Predicate<Attribute> matchLoosely,
-        @Nullable Predicate<Attribute> matchExactly,
+        Predicate<Attribute> match,
         UnresolvedAttribute unresolved,
         Collection<Attribute> attrList,
         boolean allowMultipleMatches
     ) {
-        List<Attribute> looseMatches = attrList.stream().filter(a -> a.synthetic() == false && matchLoosely.test(a)).toList();
+        List<Attribute> matches = attrList.stream().filter(a -> a.synthetic() == false && match.test(a)).toList();
 
-        if (looseMatches.isEmpty()) {
-            return looseMatches;
-        }
-
-        List<Attribute> result;
-        if (looseMatches.size() > 1 && matchExactly != null) {
-            result = looseMatches.stream().filter(matchExactly).toList();
-        } else {
-            result = looseMatches;
+        if (matches.isEmpty()) {
+            return matches;
         }
 
         // found exact match or multiple if pattern
-        if (result.size() == 1 || allowMultipleMatches) {
+        if (matches.size() == 1 || allowMultipleMatches) {
             // NB: only add the location if the match is univocal; b/c otherwise adding the location will overwrite any preexisting one
-            return result.stream().map(a -> a.withLocation(unresolved.source())).toList();
+            return matches.stream().map(a -> a.withLocation(unresolved.source())).toList();
         }
 
         // report ambiguity
-        List<String> refs = looseMatches.stream().sorted((a, b) -> {
+        List<String> refs = matches.stream().sorted((a, b) -> {
             int lineDiff = a.sourceLocation().getLineNumber() - b.sourceLocation().getLineNumber();
             int colDiff = a.sourceLocation().getColumnNumber() - b.sourceLocation().getColumnNumber();
             return lineDiff != 0 ? lineDiff : (colDiff != 0 ? colDiff : a.name().compareTo(b.name()));

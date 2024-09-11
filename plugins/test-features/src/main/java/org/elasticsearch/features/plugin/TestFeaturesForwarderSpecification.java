@@ -16,6 +16,10 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+/**
+ * This class is responsible for taking all test features defined by {@link #getTestFeatures()}
+ * and publishing them as proper node features.
+ */
 public class TestFeaturesForwarderSpecification implements FeatureSpecification {
     @Override
     public Set<NodeFeature> getFeatures() {

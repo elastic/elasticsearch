@@ -13,10 +13,3 @@ esplugin {
   description 'This plugin publishes all test features as cluster features'
   classname 'org.elasticsearch.features.plugin.TestFeaturesPlugin'
 }
-/*
-restResources {
-  restApi {
-    include '_cluster'
-  }
-}
-*/

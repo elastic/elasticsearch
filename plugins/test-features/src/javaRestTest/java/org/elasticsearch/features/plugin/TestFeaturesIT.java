@@ -19,7 +19,7 @@ public class TestFeaturesIT extends ESRestTestCase {
         .setting("xpack.watcher.enabled", "false")
         .setting("xpack.ml.enabled", "false")
         .nodes(1)
-        .plugin("test-features")
+        // test-features plugin added by default in DefaultLocalClusterSpecBuilder
         .build();
 
     @Override

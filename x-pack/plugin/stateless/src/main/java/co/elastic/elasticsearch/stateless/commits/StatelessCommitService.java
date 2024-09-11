@@ -47,6 +47,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -150,7 +151,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         Setting.Property.NodeScope
     );
 
-    public static final String BCC_TOTAL_SIZE_HISTOGRAM_METRIC = "es.bcc.total_size_in_bytes.histogram";
+    public static final String BCC_TOTAL_SIZE_HISTOGRAM_METRIC = "es.bcc.total_size_in_megabytes.histogram";
     public static final String BCC_NUMBER_COMMITS_HISTOGRAM_METRIC = "es.bcc.number_of_commits.histogram";
     public static final String BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC = "es.bcc.elapsed_time_before_freeze.histogram";
 
@@ -178,7 +179,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
     private final int bccMaxAmountOfCommits;
     private final long bccUploadMaxSizeInBytes;
-    private final LongHistogram bccSizeInBytesHistogram;
+    private final LongHistogram bccSizeInMegabytesHistogram;
     private final LongHistogram bccNumberCommitsHistogram;
     private final LongHistogram bccAgeHistogram;
 
@@ -236,11 +237,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         );
         this.bccMaxAmountOfCommits = STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.get(settings);
         this.bccUploadMaxSizeInBytes = STATELESS_UPLOAD_MAX_SIZE.get(settings).getBytes();
-        this.bccSizeInBytesHistogram = telemetryProvider.getMeterRegistry()
+        this.bccSizeInMegabytesHistogram = telemetryProvider.getMeterRegistry()
             .registerLongHistogram(
                 BCC_TOTAL_SIZE_HISTOGRAM_METRIC,
-                "Histogram for total size in bytes of batched compound commits",
-                "bytes"
+                "Histogram for total size in megabytes of batched compound commits",
+                "megabytes"
             );
         this.bccNumberCommitsHistogram = telemetryProvider.getMeterRegistry()
             .registerLongHistogram(
@@ -565,7 +566,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             "shard_id",
             virtualBcc.getShardId().id()
         );
-        bccSizeInBytesHistogram.record(virtualBcc.getTotalSizeInBytes(), attributes);
+        bccSizeInMegabytesHistogram.record(ByteSizeUnit.BYTES.toMB(virtualBcc.getTotalSizeInBytes()), attributes);
         bccNumberCommitsHistogram.record(virtualBcc.size(), attributes);
         bccAgeHistogram.record(threadPool.relativeTimeInMillis() - virtualBcc.getCreationTimeInMillis(), attributes);
 

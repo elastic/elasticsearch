@@ -446,8 +446,9 @@ Another way to track the operations of a task is by following the parent/child r
 [BanParentRequestHandler]:https://github.com/elastic/elasticsearch/blob/5e8fd548b959039b6b77ad53715415b429568bc0/server/src/main/java/org/elasticsearch/tasks/TaskCancellationService.java#L356
 [UnregisterChildTransportResponseHandler]:https://github.com/elastic/elasticsearch/blob/5e8fd548b959039b6b77ad53715415b429568bc0/server/src/main/java/org/elasticsearch/transport/TransportService.java#L1763
 [Cancel Task REST API]:https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html#task-cancellation
+[RestCancellableNodeClient]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/rest/action/RestCancellableNodeClient.java
 
-Some long-running tasks are implemented to be cancel-able. Cancellation can be done via the [Cancel Task REST API] or programmatically using [TaskManager#cancelTaskAndDescendants].
+Some long-running tasks are implemented to be cancel-able. Cancellation can be done via the [Cancel Task REST API] or programmatically using [TaskManager#cancelTaskAndDescendants]. Perhaps the most common use of cancellation you will see is cancellation of [TransportAction]s dispatched from the REST layer when the client disconnects, to facilitate this we use the [RestCancellableNodeClient].
 
 When a task is cancelled, that task and all of its descendant tasks will be cancelled. In order to support cancellation, the [Task] instance associated with the task must extend [CancellableTask].
 

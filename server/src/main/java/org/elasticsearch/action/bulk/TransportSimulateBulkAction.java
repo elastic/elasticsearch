@@ -165,6 +165,10 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(request.index());
         try {
             if (indexAbstraction != null && componentTemplateSubstitutions.isEmpty()) {
+                /*
+                 * In this case the index exists and we don't have any component template overrides. So we can just use withTempIndexService
+                 * to do the mapping validation, using all the existing logic for validation.
+                 */
                 IndexMetadata imd = state.metadata().getIndexSafe(indexAbstraction.getWriteIndex(request, state.metadata()));
                 indicesService.withTempIndexService(imd, indexService -> {
                     indexService.mapperService().updateMapping(null, imd);
@@ -185,13 +189,14 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                 });
             } else {
                 /*
-                 * The index did not exist, so we put together the mappings from existing templates.
-                 * This reproduces a lot of the mapping resolution logic in MetadataCreateIndexService.applyCreateIndexRequest(). However,
-                 * it does not deal with aliases (since an alias cannot be created if an index does not exist, and this is the path for
-                 * when the index does not exist). And it does not deal with system indices since we do not intend for users to simulate
-                 * writing to system indices.
+                 * The index did not exist, or we have component template substitutions, so we put together the mappings from existing
+                 * templates This reproduces a lot of the mapping resolution logic in MetadataCreateIndexService.applyCreateIndexRequest().
+                 * However, it does not deal with aliases (since an alias cannot be created if an index does not exist, and this is the
+                 * path for when the index does not exist). And it does not deal with system indices since we do not intend for users to
+                 * simulate writing to system indices.
                  */
-                ClusterState simulatedState = new ClusterState.Builder(state).metadata(
+                // First, we remove the index from the cluster state if necessary (since we're going to use the templates)
+                ClusterState simulatedState = indexAbstraction == null ? state : new ClusterState.Builder(state).metadata(
                     new Metadata.Builder(state.metadata()).remove(request.index()).build()
                 ).build();
                 String matchingTemplate = findV2Template(state.metadata(), request.index(), false);

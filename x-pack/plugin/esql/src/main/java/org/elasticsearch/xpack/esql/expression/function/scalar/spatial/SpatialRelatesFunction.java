@@ -193,10 +193,13 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
             }
         }
 
-        protected Geometry combined(Iterator<BytesRef> left) {
+        protected Geometry combined(MultiValuesBytesRefIterator values) {
+            if (values.valueCount == 1) {
+                return fromBytesRef(values.next());
+            }
             List<Geometry> geometries = new ArrayList<>();
-            while (left.hasNext()) {
-                geometries.add(fromBytesRef(left.next()));
+            while (values.hasNext()) {
+                geometries.add(fromBytesRef(values.next()));
             }
             return new GeometryCollection<>(geometries);
         }

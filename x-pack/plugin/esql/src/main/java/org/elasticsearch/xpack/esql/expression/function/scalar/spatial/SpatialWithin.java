@@ -88,7 +88,7 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
             super(ShapeField.QueryRelation.WITHIN, spatialCoordinateType, encoder, shapeIndexer);
         }
 
-        private boolean geometryRelatesGeometries(Iterator<BytesRef> left, Iterator<BytesRef> right) throws IOException {
+        private boolean geometryRelatesGeometries(MultiValuesBytesRefIterator left, MultiValuesBytesRefIterator right) throws IOException {
             Component2D rightComponent2D = asLuceneComponent2D(crsType, combined(right));
             return geometryRelatesGeometry(left, rightComponent2D);
         }

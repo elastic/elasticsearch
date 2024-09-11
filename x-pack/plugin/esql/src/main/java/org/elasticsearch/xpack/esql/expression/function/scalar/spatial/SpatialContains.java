@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
@@ -99,7 +98,7 @@ public class SpatialContains extends SpatialRelatesFunction {
             return geometryRelatesGeometries(left, rightComponent2Ds);
         }
 
-        private boolean geometryRelatesGeometries(Iterator<BytesRef> left, Iterator<BytesRef> right) throws IOException {
+        private boolean geometryRelatesGeometries(MultiValuesBytesRefIterator left, MultiValuesBytesRefIterator right) throws IOException {
             Component2D[] rightComponent2Ds = asLuceneComponent2Ds(crsType, combined(right));
             return geometryRelatesGeometries(left, rightComponent2Ds);
         }
@@ -110,7 +109,7 @@ public class SpatialContains extends SpatialRelatesFunction {
             return geometryRelatesGeometries(leftDocValueReader, rightComponent2Ds);
         }
 
-        private boolean geometryRelatesGeometries(Iterator<BytesRef> left, Component2D[] rightComponent2Ds) throws IOException {
+        private boolean geometryRelatesGeometries(MultiValuesBytesRefIterator left, Component2D[] rightComponent2Ds) throws IOException {
             GeometryDocValueReader leftDocValueReader = asGeometryDocValueReader(coordinateEncoder, shapeIndexer, combined(left));
             return geometryRelatesGeometries(leftDocValueReader, rightComponent2Ds);
         }

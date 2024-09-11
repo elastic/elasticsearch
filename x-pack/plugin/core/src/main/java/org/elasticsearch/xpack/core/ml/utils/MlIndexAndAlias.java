@@ -224,10 +224,9 @@ public final class MlIndexAndAlias {
     }
 
     private static void waitForShardsReady(Client client, String index, TimeValue masterNodeTimeout, ActionListener<Boolean> listener) {
-        ClusterHealthRequest healthRequest = new ClusterHealthRequest(index).waitForYellowStatus()
+        ClusterHealthRequest healthRequest = new ClusterHealthRequest(masterNodeTimeout, index).waitForYellowStatus()
             .waitForNoRelocatingShards(true)
-            .waitForNoInitializingShards(true)
-            .masterNodeTimeout(masterNodeTimeout);
+            .waitForNoInitializingShards(true);
         executeAsyncWithOrigin(
             client.threadPool().getThreadContext(),
             ML_ORIGIN,

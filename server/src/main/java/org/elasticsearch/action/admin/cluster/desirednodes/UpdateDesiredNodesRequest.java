@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.metadata.DesiredNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -47,8 +48,15 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> DesiredNode.fromXContent(p), NODES_FIELD);
     }
 
-    public UpdateDesiredNodesRequest(String historyID, long version, List<DesiredNode> nodes, boolean dryRun) {
-        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+    public UpdateDesiredNodesRequest(
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
+        String historyID,
+        long version,
+        List<DesiredNode> nodes,
+        boolean dryRun
+    ) {
+        super(masterNodeTimeout, ackTimeout);
         assert historyID != null;
         assert nodes != null;
         this.historyID = historyID;
@@ -80,10 +88,16 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
         }
     }
 
-    public static UpdateDesiredNodesRequest fromXContent(String historyID, long version, boolean dryRun, XContentParser parser)
-        throws IOException {
+    public static UpdateDesiredNodesRequest fromXContent(
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
+        String historyID,
+        long version,
+        boolean dryRun,
+        XContentParser parser
+    ) throws IOException {
         List<DesiredNode> nodes = PARSER.parse(parser, null);
-        return new UpdateDesiredNodesRequest(historyID, version, nodes, dryRun);
+        return new UpdateDesiredNodesRequest(masterNodeTimeout, ackTimeout, historyID, version, nodes, dryRun);
     }
 
     public String getHistoryID() {

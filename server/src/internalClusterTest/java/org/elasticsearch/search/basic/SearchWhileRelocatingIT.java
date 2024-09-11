@@ -125,7 +125,7 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
                 threads[j].join();
             }
             // this might time out on some machines if they are really busy and you hit lots of throttling
-            ClusterHealthResponse resp = clusterAdmin().prepareHealth()
+            ClusterHealthResponse resp = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                 .setWaitForYellowStatus()
                 .setWaitForNoRelocatingShards(true)
                 .setWaitForEvents(Priority.LANGUID)

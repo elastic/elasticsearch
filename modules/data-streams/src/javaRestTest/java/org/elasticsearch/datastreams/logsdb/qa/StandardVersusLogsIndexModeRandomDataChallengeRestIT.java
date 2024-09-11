@@ -8,14 +8,15 @@
 
 package org.elasticsearch.datastreams.logsdb.qa;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.logsdb.datageneration.DataGenerator;
 import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
 import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
-import org.elasticsearch.logsdb.datageneration.FieldType;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceResponse;
@@ -36,12 +37,14 @@ import java.util.Map;
  */
 public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends StandardVersusLogsIndexModeChallengeRestIT {
     private final ObjectMapper.Subobjects subobjects;
+    private final boolean keepArraySource;
 
     private final DataGenerator dataGenerator;
 
     public StandardVersusLogsIndexModeRandomDataChallengeRestIT() {
         super();
         this.subobjects = randomFrom(ObjectMapper.Subobjects.values());
+        this.keepArraySource = randomBoolean();
 
         var specificationBuilder = DataGeneratorSpecification.builder().withFullyDynamicMapping(randomBoolean());
         if (subobjects != ObjectMapper.Subobjects.ENABLED) {
@@ -74,7 +77,18 @@ public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends Standa
         }))
             .withPredefinedFields(
                 List.of(
-                    new PredefinedField.WithType("host.name", FieldType.KEYWORD),
+                    // Customized because it always needs doc_values for aggregations.
+                    new PredefinedField.WithGenerator("host.name", new FieldDataGenerator() {
+                        @Override
+                        public CheckedConsumer<XContentBuilder, IOException> mappingWriter() {
+                            return b -> b.startObject().field("type", "keyword").endObject();
+                        }
+
+                        @Override
+                        public CheckedConsumer<XContentBuilder, IOException> fieldValueGenerator() {
+                            return b -> b.value(randomAlphaOfLength(5));
+                        }
+                    }),
                     // Needed for terms query
                     new PredefinedField.WithGenerator("method", new FieldDataGenerator() {
                         @Override
@@ -117,6 +131,13 @@ public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends Standa
             dataGenerator.writeMapping(builder, Map.of("subobjects", subobjects.toString()));
         } else {
             dataGenerator.writeMapping(builder);
+        }
+    }
+
+    @Override
+    public void contenderSettings(Settings.Builder builder) {
+        if (keepArraySource) {
+            builder.put(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING.getKey(), "arrays");
         }
     }
 

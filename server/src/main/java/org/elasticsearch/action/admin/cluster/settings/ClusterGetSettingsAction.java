@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -33,8 +34,8 @@ public class ClusterGetSettingsAction extends ActionType<ClusterGetSettingsActio
      * Request to retrieve the cluster settings
      */
     public static class Request extends MasterNodeReadRequest<Request> {
-        public Request() {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        public Request(TimeValue masterNodeTimeout) {
+            super(masterNodeTimeout);
         }
 
         public Request(StreamInput in) throws IOException {

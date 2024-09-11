@@ -84,8 +84,7 @@ public class RestShardsAction extends AbstractCatAction {
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
 
-        final var clusterStateRequest = new ClusterStateRequest();
-        clusterStateRequest.masterNodeTimeout(getMasterNodeTimeout(request));
+        final var clusterStateRequest = new ClusterStateRequest(getMasterNodeTimeout(request));
         clusterStateRequest.clear().nodes(true).routingTable(true).indices(indices).indicesOptions(IndicesOptions.strictExpandHidden());
 
         return channel -> {

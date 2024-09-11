@@ -815,6 +815,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         expectError("from a | where foo like 12", "mismatched input '12'");
         expectError("from a | where foo rlike 12", "mismatched input '12'");
+
+        expectError(
+            "from a | where foo like \"(?i)(^|[^a-zA-Z0-9_-])nmap($|\\\\.)\"",
+            "line 1:17: Invalid pattern for LIKE [(?i)(^|[^a-zA-Z0-9_-])nmap($|\\.)]: "
+                + "[Invalid sequence - escape character is not followed by special wildcard char]"
+        );
     }
 
     public void testEnrich() {
@@ -1407,6 +1413,22 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
+    public void testIntervalParam() {
+        LogicalPlan stm = statement(
+            "row x = ?1::datetime | eval y = ?1::datetime + ?2::date_period",
+            new QueryParams(List.of(new QueryParam("datetime", "2024-01-01", KEYWORD), new QueryParam("date_period", "3 days", KEYWORD)))
+        );
+        assertThat(stm, instanceOf(Eval.class));
+        Eval eval = (Eval) stm;
+        assertThat(eval.fields().size(), is(1));
+
+        NamedExpression field = eval.fields().get(0);
+        assertThat(field.name(), is("y"));
+        assertThat(field, instanceOf(Alias.class));
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).left().children().get(0)).value(), equalTo("2024-01-01"));
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).right().children().get(0)).value(), equalTo("3 days"));
+    }
+
     public void testFieldContainingDotsAndNumbers() {
         LogicalPlan where = processingCommand("where `a.b.1m.4321`");
         assertThat(where, instanceOf(Filter.class));
@@ -1670,12 +1692,20 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     private LogicalPlan unresolvedRelation(String index) {
-        return new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, index), false, List.of(), IndexMode.STANDARD, null);
+        return new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, index), false, List.of(), IndexMode.STANDARD, null, "FROM");
     }
 
     private LogicalPlan unresolvedTSRelation(String index) {
         List<Attribute> metadata = List.of(new MetadataAttribute(EMPTY, MetadataAttribute.TSID_FIELD, DataType.KEYWORD, false));
-        return new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, index), false, metadata, IndexMode.TIME_SERIES, null);
+        return new UnresolvedRelation(
+            EMPTY,
+            new TableIdentifier(EMPTY, null, index),
+            false,
+            metadata,
+            IndexMode.TIME_SERIES,
+            null,
+            "FROM TS"
+        );
     }
 
     public void testMetricWithGroupKeyAsAgg() {

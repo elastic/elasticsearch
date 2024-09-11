@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshotsIntegritySuppressor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -98,7 +99,7 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
         return CollectionUtils.appendToCopy(super.nodePlugins(), getTestTransportPlugin());
     }
 
-    public void testConcurrentDeleteFromOtherCluster() throws InterruptedException {
+    public void testConcurrentDeleteFromOtherCluster() {
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
         final String repoNameOnFirstCluster = "test-repo";
@@ -125,10 +126,13 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
         secondCluster.client().admin().cluster().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repoNameOnSecondCluster, "snap-1").get();
         secondCluster.client().admin().cluster().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repoNameOnSecondCluster, "snap-2").get();
 
-        final SnapshotException sne = expectThrows(
-            SnapshotException.class,
-            clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoNameOnFirstCluster, "snap-4").setWaitForCompletion(true)
-        );
+        final SnapshotException sne;
+        try (var ignored = new BlobStoreIndexShardSnapshotsIntegritySuppressor()) {
+            sne = expectThrows(
+                SnapshotException.class,
+                clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoNameOnFirstCluster, "snap-4").setWaitForCompletion(true)
+            );
+        }
         assertThat(sne.getMessage(), containsString("failed to update snapshot in repository"));
         final RepositoryException cause = (RepositoryException) sne.getCause();
         assertThat(
@@ -138,7 +142,7 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
                     + repoNameOnFirstCluster
                     + "] concurrent modification of the index-N file, expected current generation [2] but it was not found in "
                     + "the repository. The last cluster to write to this repository was ["
-                    + secondCluster.client().admin().cluster().prepareState().get().getState().metadata().clusterUUID()
+                    + secondCluster.client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().clusterUUID()
                     + "] at generation [4]."
             )
         );
@@ -147,7 +151,7 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
         createFullSnapshot(repoNameOnFirstCluster, "snap-5");
     }
 
-    public void testConcurrentWipeAndRecreateFromOtherCluster() throws InterruptedException, IOException {
+    public void testConcurrentWipeAndRecreateFromOtherCluster() throws IOException {
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";

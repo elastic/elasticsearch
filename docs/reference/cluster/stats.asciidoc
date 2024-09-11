@@ -1307,6 +1307,142 @@ Each repository type may also include other statistics about the repositories of
 
 ====
 
+`ccs`::
+(object) Contains information relating to <<modules-cross-cluster-search, {ccs}>> settings and activity in the cluster.
++
+.Properties of `ccs`
+[%collapsible%open]
+=====
+
+
+`_search`:::
+(object) Contains the telemetry information about the <<modules-cross-cluster-search, {ccs}>> usage in the cluster.
++
+.Properties of `_search`
+[%collapsible%open]
+======
+`total`:::
+(integer) The total number of {ccs} requests that have been executed by the cluster.
+
+`success`:::
+(integer) The total number of {ccs} requests that have been successfully executed by the cluster.
+
+`skipped`:::
+(integer) The total number of {ccs} requests (successful or failed) that had at least one remote cluster skipped.
+
+`took`:::
+(object) Contains statistics about the time taken to execute {ccs} requests.
++
+.Properties of `took`
+[%collapsible%open]
+=======
+`max`:::
+(integer) The maximum time taken to execute a {ccs} request, in milliseconds.
+
+`avg`:::
+(integer) The median time taken to execute a {ccs} request, in milliseconds.
+
+`p90`:::
+(integer) The 90th percentile of the time taken to execute {ccs} requests, in milliseconds.
+=======
+
+`took_mrt_true`::
+(object) Contains statistics about the time taken to execute {ccs} requests for which the
+<<ccs-minimize-roundtrips,`ccs_minimize_roundtrips`>> setting was set to `true`.
++
+.Properties of `took_mrt_true`
+[%collapsible%open]
+=======
+`max`:::
+(integer) The maximum time taken to execute a {ccs} request, in milliseconds.
+
+`avg`:::
+(integer) The median time taken to execute a {ccs} request, in milliseconds.
+
+`p90`:::
+(integer) The 90th percentile of the time taken to execute {ccs} requests, in milliseconds.
+=======
+
+`took_mrt_false`::
+(object) Contains statistics about the time taken to execute {ccs} requests for which the
+<<ccs-minimize-roundtrips,`ccs_minimize_roundtrips`>> setting was set to `false`.
++
+.Properties of `took_mrt_false`
+[%collapsible%open]
+=======
+`max`:::
+(integer) The maximum time taken to execute a {ccs} request, in milliseconds.
+
+`avg`:::
+(integer) The median time taken to execute a {ccs} request, in milliseconds.
+
+`p90`:::
+(integer) The 90th percentile of the time taken to execute {ccs} requests, in milliseconds.
+=======
+
+`remotes_per_search_max`::
+(integer) The maximum number of remote clusters that were queried in a single {ccs} request.
+
+`remotes_per_search_avg`::
+(float) The average number of remote clusters that were queried in a single {ccs} request.
+
+`failure_reasons`::
+(object) Contains statistics about the reasons for {ccs} request failures.
+The keys are the failure reason names and the values are the number of requests that failed for that reason.
+
+`features`::
+(object) Contains statistics about the features used in {ccs} requests. The keys are the names of the search feature,
+and the values are the number of requests that used that feature. Single request can use more than one feature
+(e.g. both `async` and `wildcard`). Known features are:
+
+* `async` - <<async-search, Async search>>
+
+* `mrt` - <<ccs-minimize-roundtrips,`ccs_minimize_roundtrips`>> setting was set to `true`.
+
+* `wildcard` - <<api-multi-index,Multi-target syntax>> for indices with wildcards was used in the search request.
+
+`clients`::
+(object) Contains statistics about the clients that executed {ccs} requests.
+The keys are the names of the clients, and the values are the number of requests that were executed by that client.
+Only known clients (such as `kibana` or `elasticsearch`) are counted.
+
+`clusters`::
+(object) Contains statistics about the clusters that were queried in {ccs} requests.
+The keys are cluster names, and the values are per-cluster telemetry data.
+This also includes the local cluster itself, which uses the name `(local)`.
++
+.Properties of per-cluster data:
+[%collapsible%open]
+=======
+`total`:::
+(integer) The total number of successful (not skipped) {ccs} requests that were executed against this cluster.
+This may include requests where partial results were returned, but not requests in which the cluster has been skipped entirely.
+
+`skipped`:::
+(integer) The total number of {ccs} requests for which this cluster was skipped.
+
+`took`:::
+(object) Contains statistics about the time taken to execute requests against this cluster.
++
+.Properties of `took`
+[%collapsible%open]
+========
+`max`:::
+(integer) The maximum time taken to execute a {ccs} request, in milliseconds.
+
+`avg`:::
+(integer) The median time taken to execute a {ccs} request, in milliseconds.
+
+`p90`:::
+(integer) The 90th percentile of the time taken to execute {ccs} requests, in milliseconds.
+========
+
+=======
+
+======
+
+=====
+
 [[cluster-stats-api-example]]
 ==== {api-examples-title}
 
@@ -1607,7 +1743,35 @@ The API returns the following response:
    },
    "repositories": {
      ...
-   }
+   },
+   "ccs": {
+     "_search": {
+        "total": 7,
+        "success": 7,
+        "skipped": 0,
+        "took": {
+            "max": 36,
+            "avg": 20,
+            "p90": 33
+        },
+        "took_mrt_true": {
+            "max": 33,
+            "avg": 15,
+            "p90": 33
+        },
+        "took_mrt_false": {
+            "max": 36,
+            "avg": 26,
+            "p90": 36
+        },
+        "remotes_per_search_max": 3,
+        "remotes_per_search_avg": 2.0,
+        "failure_reasons": { ... },
+        "features": { ... },
+        "clients": { ... },
+        "clusters": { ... }
+     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"plugins": \[[^\]]*\]/"plugins": $body.$_path/]
@@ -1618,10 +1782,15 @@ The API returns the following response:
 // TESTRESPONSE[s/"packaging_types": \[[^\]]*\]/"packaging_types": $body.$_path/]
 // TESTRESPONSE[s/"snapshots": \{[^\}]*\}/"snapshots": $body.$_path/]
 // TESTRESPONSE[s/"repositories": \{[^\}]*\}/"repositories": $body.$_path/]
+// TESTRESPONSE[s/"clusters": \{[^\}]*\}/"clusters": $body.$_path/]
+// TESTRESPONSE[s/"features": \{[^\}]*\}/"features": $body.$_path/]
+// TESTRESPONSE[s/"clients": \{[^\}]*\}/"clients": $body.$_path/]
+// TESTRESPONSE[s/"failure_reasons": \{[^\}]*\}/"failure_reasons": $body.$_path/]
 // TESTRESPONSE[s/"field_types": \[[^\]]*\]/"field_types": $body.$_path/]
 // TESTRESPONSE[s/"runtime_field_types": \[[^\]]*\]/"runtime_field_types": $body.$_path/]
 // TESTRESPONSE[s/"search": \{[^\}]*\}/"search": $body.$_path/]
-// TESTRESPONSE[s/: true|false/: $body.$_path/]
+// TESTRESPONSE[s/"remotes_per_search_avg": [.0-9]+/"remotes_per_search_avg": $body.$_path/]
+// TESTRESPONSE[s/: (true|false)/: $body.$_path/]
 // TESTRESPONSE[s/: (\-)?[0-9]+/: $body.$_path/]
 // TESTRESPONSE[s/: "[^"]*"/: $body.$_path/]
 // These replacements do a few things:

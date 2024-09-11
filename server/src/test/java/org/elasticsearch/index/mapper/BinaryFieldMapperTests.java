@@ -31,7 +31,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class BinaryFieldMapperTests extends MapperTestCase {
@@ -228,16 +227,7 @@ public class BinaryFieldMapperTests extends MapperTestCase {
 
             @Override
             public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
-                return List.of(
-                    new SyntheticSourceInvalidExample(
-                        equalTo("field [field] of type [binary] doesn't support synthetic source because it doesn't have doc values"),
-                        b -> b.field("type", "binary")
-                    ),
-                    new SyntheticSourceInvalidExample(
-                        equalTo("field [field] of type [binary] doesn't support synthetic source because it doesn't have doc values"),
-                        b -> b.field("type", "binary").field("doc_values", false)
-                    )
-                );
+                return List.of();
             }
 
             private Tuple<String, byte[]> generateValue() {

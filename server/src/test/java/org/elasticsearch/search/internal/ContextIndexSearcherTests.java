@@ -75,7 +75,6 @@ import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -250,7 +249,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
                     Integer.MAX_VALUE,
                     1
                 );
-                Integer totalHits = searcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager());
+                Integer totalHits = searcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager(searcher.getSlices()));
                 assertEquals(numDocs, totalHits.intValue());
                 int numExpectedTasks = ContextIndexSearcher.computeSlices(searcher.getIndexReader().leaves(), Integer.MAX_VALUE, 1).length;
                 // check that each slice except for one that executes on the calling thread goes to the executor, no matter the queue size
@@ -405,7 +404,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
         int sumDocs = 0;
         assertThat(slices.length, lessThanOrEqualTo(numThreads));
         for (LeafSlice slice : slices) {
-            int sliceDocs = Arrays.stream(slice.leaves).mapToInt(l -> l.reader().maxDoc()).sum();
+            int sliceDocs = slice.getMaxDocs();
             assertThat(sliceDocs, greaterThanOrEqualTo((int) (0.1 * numDocs)));
             sumDocs += sliceDocs;
         }
@@ -587,7 +586,10 @@ public class ContextIndexSearcherTests extends ESTestCase {
                         return null;
                     }
                 };
-                Integer hitCount = contextIndexSearcher.search(testQuery, new TotalHitCountCollectorManager());
+                Integer hitCount = contextIndexSearcher.search(
+                    testQuery,
+                    new TotalHitCountCollectorManager(contextIndexSearcher.getSlices())
+                );
                 assertEquals(0, hitCount.intValue());
                 assertTrue(contextIndexSearcher.timeExceeded());
             } finally {

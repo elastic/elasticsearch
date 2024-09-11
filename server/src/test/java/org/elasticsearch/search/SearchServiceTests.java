@@ -2794,7 +2794,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                     assertNotEquals("Sanity check to ensure this isn't the default of 1 when pool size is unset", 1, expectedSlices);
 
                     final long priorExecutorTaskCount = executor.getCompletedTaskCount();
-                    searcher.search(termQuery, new TotalHitCountCollectorManager());
+                    searcher.search(termQuery, new TotalHitCountCollectorManager(searcher.getSlices()));
                     assertBusy(
                         () -> assertEquals(
                             "DFS supports parallel collection, so the number of slices should be > 1.",
@@ -2824,7 +2824,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                     assertNotEquals("Sanity check to ensure this isn't the default of 1 when pool size is unset", 1, expectedSlices);
 
                     final long priorExecutorTaskCount = executor.getCompletedTaskCount();
-                    searcher.search(termQuery, new TotalHitCountCollectorManager());
+                    searcher.search(termQuery, new TotalHitCountCollectorManager(searcher.getSlices()));
                     assertBusy(
                         () -> assertEquals(
                             "QUERY supports parallel collection when enabled, so the number of slices should be > 1.",
@@ -2839,7 +2839,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                     ContextIndexSearcher searcher = searchContext.searcher();
                     assertFalse(searcher.hasExecutor());
                     final long priorExecutorTaskCount = executor.getCompletedTaskCount();
-                    searcher.search(termQuery, new TotalHitCountCollectorManager());
+                    searcher.search(termQuery, new TotalHitCountCollectorManager(searcher.getSlices()));
                     assertBusy(
                         () -> assertEquals(
                             "The number of slices should be 1 as FETCH does not support parallel collection and thus runs on the calling"
@@ -2855,7 +2855,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                     ContextIndexSearcher searcher = searchContext.searcher();
                     assertFalse(searcher.hasExecutor());
                     final long priorExecutorTaskCount = executor.getCompletedTaskCount();
-                    searcher.search(termQuery, new TotalHitCountCollectorManager());
+                    searcher.search(termQuery, new TotalHitCountCollectorManager(searcher.getSlices()));
                     assertBusy(
                         () -> assertEquals(
                             "The number of slices should be 1 as NONE does not support parallel collection.",
@@ -2878,7 +2878,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                         ContextIndexSearcher searcher = searchContext.searcher();
                         assertFalse(searcher.hasExecutor());
                         final long priorExecutorTaskCount = executor.getCompletedTaskCount();
-                        searcher.search(termQuery, new TotalHitCountCollectorManager());
+                        searcher.search(termQuery, new TotalHitCountCollectorManager(searcher.getSlices()));
                         assertBusy(
                             () -> assertEquals(
                                 "The number of slices should be 1 when QUERY parallel collection is disabled.",
@@ -2915,7 +2915,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                         assertNotEquals("Sanity check to ensure this isn't the default of 1 when pool size is unset", 1, expectedSlices);
 
                         final long priorExecutorTaskCount = executor.getCompletedTaskCount();
-                        searcher.search(termQuery, new TotalHitCountCollectorManager());
+                        searcher.search(termQuery, new TotalHitCountCollectorManager(searcher.getSlices()));
                         assertBusy(
                             () -> assertEquals(
                                 "QUERY supports parallel collection when enabled, so the number of slices should be > 1.",

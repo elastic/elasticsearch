@@ -246,7 +246,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             throw new IllegalArgumentException("maxSliceNum must be >= 1 (got " + maxSliceNum + ")");
         }
         if (maxSliceNum == 1) {
-            return new LeafSlice[] { new LeafSlice(new ArrayList<>(leaves)) };
+            return new LeafSlice[] {
+                new LeafSlice(new ArrayList<>(leaves.stream().map(LeafReaderContextPartition::createForEntireSegment).toList())) };
         }
         // total number of documents to be searched
         final int numDocs = leaves.stream().mapToInt(l -> l.reader().maxDoc()).sum();
@@ -294,7 +295,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         for (List<LeafReaderContext> currentLeaf : queue) {
             // LeafSlice ctor reorders leaves so that leaves within a slice preserve the order they had within the IndexReader.
             // This is important given how Elasticsearch sorts leaves by descending @timestamp to get better query performance.
-            slices[upto++] = new LeafSlice(currentLeaf);
+            slices[upto++] = new LeafSlice(currentLeaf.stream().map(LeafReaderContextPartition::createForEntireSegment).toList());
         }
 
         return slices;
@@ -347,10 +348,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             }
             final List<Callable<C>> listTasks = new ArrayList<>(leafSlices.length);
             for (int i = 0; i < leafSlices.length; ++i) {
-                final LeafReaderContext[] leaves = leafSlices[i].leaves;
+                final LeafReaderContextPartition[] leaves = leafSlices[i].partitions;
                 final C collector = collectors.get(i);
                 listTasks.add(() -> {
-                    search(Arrays.asList(leaves), weight, collector);
+                    search(leaves, weight, collector);
                     return collector;
                 });
             }
@@ -415,7 +416,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     @Override
-    protected void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
+    protected void searchLeaf(LeafReaderContext ctx, int minDocId, int maxDocId, Weight weight, Collector collector) throws IOException {
         cancellable.checkCancelled();
         final LeafCollector leafCollector;
         try {
@@ -435,7 +436,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                     bulkScorer = new CancellableBulkScorer(bulkScorer, cancellable::checkCancelled);
                 }
                 try {
-                    bulkScorer.score(leafCollector, liveDocs);
+                    bulkScorer.score(leafCollector, liveDocs, minDocId, maxDocId);
                 } catch (CollectionTerminatedException e) {
                     // collection was terminated prematurely
                     // continue with the following leaf

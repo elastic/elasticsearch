@@ -1510,7 +1510,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             setScorerCalled = true;
             if (expectedScorable != null) {
                 while (expectedScorable.equals(scorer.getClass()) == false && scorer instanceof FilterScorable) {
-                    scorer = scorer.getChildren().iterator().next().child;
+                    scorer = scorer.getChildren().iterator().next().child();
                 }
                 assertEquals(expectedScorable, scorer.getClass());
             }

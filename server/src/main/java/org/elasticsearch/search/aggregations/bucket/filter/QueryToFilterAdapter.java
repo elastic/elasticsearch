@@ -214,7 +214,8 @@ public class QueryToFilterAdapter {
             // No hits in this segment.
             return 0;
         }
-        scorer.score(counter, live);
+        IndexSearcher.LeafReaderContextPartition partition = IndexSearcher.LeafReaderContextPartition.createForEntireSegment(ctx);
+        scorer.score(counter, live, partition.minDocId, partition.maxDocId);
         return counter.readAndReset(ctx);
     }
 
@@ -227,7 +228,8 @@ public class QueryToFilterAdapter {
             // No hits in this segment.
             return;
         }
-        scorer.score(collector, live);
+        IndexSearcher.LeafReaderContextPartition partition = IndexSearcher.LeafReaderContextPartition.createForEntireSegment(ctx);
+        scorer.score(collector, live, partition.minDocId, partition.maxDocId);
     }
 
     /**

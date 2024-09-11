@@ -39,13 +39,13 @@ public class MultiOrdinals extends Ordinals {
         float acceptableOverheadRatio
     ) {
         int bitsPerOrd = PackedInts.bitsRequired(numOrds);
-        bitsPerOrd = PackedInts.fastestFormatAndBits(numDocsWithValue, bitsPerOrd, acceptableOverheadRatio).bitsPerValue;
+        bitsPerOrd = PackedInts.fastestFormatAndBits(numDocsWithValue, bitsPerOrd, acceptableOverheadRatio).bitsPerValue();
         // Compute the worst-case number of bits per value for offsets in the worst case, eg. if no docs have a value at the
         // beginning of the block and all docs have one at the end of the block
         final float avgValuesPerDoc = (float) numDocsWithValue / maxDoc;
         final int maxDelta = (int) Math.ceil(OFFSETS_PAGE_SIZE * (1 - avgValuesPerDoc) * avgValuesPerDoc);
         int bitsPerOffset = PackedInts.bitsRequired(maxDelta) + 1; // +1 because of the sign
-        bitsPerOffset = PackedInts.fastestFormatAndBits(maxDoc, bitsPerOffset, acceptableOverheadRatio).bitsPerValue;
+        bitsPerOffset = PackedInts.fastestFormatAndBits(maxDoc, bitsPerOffset, acceptableOverheadRatio).bitsPerValue();
 
         final long expectedMultiSizeInBytes = (long) numDocsWithValue * bitsPerOrd + (long) maxDoc * bitsPerOffset;
         final long expectedSingleSizeInBytes = (long) maxDoc * bitsPerOrd;

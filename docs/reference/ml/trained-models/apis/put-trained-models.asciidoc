@@ -780,7 +780,7 @@ include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizatio
 .Properties of deberta_v2
 [%collapsible%open]
 ====
-do_lower_case:::
+`do_lower_case`:::
 (Optional, boolean)
 include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-do-lower-case]
 +

@@ -302,7 +302,7 @@ public class ServiceAccountIT extends ESRestTestCase {
                 },
                 {
                   "names": [
-                    "search-*",
+                    "content-*",
                     ".search-acl-filter-*"
                   ],
                   "privileges": [

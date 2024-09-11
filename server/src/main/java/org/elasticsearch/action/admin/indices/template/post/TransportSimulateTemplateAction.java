@@ -160,7 +160,6 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
         Map<String, List<String>> overlapping = new HashMap<>();
         overlapping.putAll(findConflictingV1Templates(tempClusterState, matchingTemplate, templateV2.indexPatterns()));
         overlapping.putAll(findConflictingV2Templates(tempClusterState, matchingTemplate, templateV2.indexPatterns()));
-
         Template template = TransportSimulateIndexTemplateAction.resolveTemplate(
             matchingTemplate,
             temporaryIndexName,
@@ -169,7 +168,8 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
             xContentRegistry,
             indicesService,
             systemIndices,
-            indexSettingProviders
+            indexSettingProviders,
+            Map.of()
         );
         if (request.includeDefaults()) {
             listener.onResponse(

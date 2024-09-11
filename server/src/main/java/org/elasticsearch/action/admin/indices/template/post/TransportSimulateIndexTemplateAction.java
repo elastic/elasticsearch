@@ -156,7 +156,8 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             xContentRegistry,
             indicesService,
             systemIndices,
-            indexSettingProviders
+            indexSettingProviders,
+            Map.of()
         );
 
         final Map<String, List<String>> overlapping = new HashMap<>();
@@ -225,29 +226,6 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
      * Take a template and index name as well as state where the template exists, and return a final
      * {@link Template} that represents all the resolved Settings, Mappings, Aliases and Lifecycle
      */
-    public static Template resolveTemplate(
-        final String matchingTemplate,
-        final String indexName,
-        final ClusterState simulatedState,
-        final boolean isDslOnlyMode,
-        final NamedXContentRegistry xContentRegistry,
-        final IndicesService indicesService,
-        final SystemIndices systemIndices,
-        Set<IndexSettingProvider> indexSettingProviders
-    ) throws Exception {
-        return resolveTemplate(
-            matchingTemplate,
-            indexName,
-            simulatedState,
-            isDslOnlyMode,
-            xContentRegistry,
-            indicesService,
-            systemIndices,
-            indexSettingProviders,
-            Map.of()
-        );
-    }
-
     public static Template resolveTemplate(
         final String matchingTemplate,
         final String indexName,

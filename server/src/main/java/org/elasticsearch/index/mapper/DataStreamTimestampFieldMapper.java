@@ -270,9 +270,4 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
     public boolean isEnabled() {
         return enabled;
     }
-
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return SourceLoader.SyntheticFieldLoader.NOTHING;
-    }
 }

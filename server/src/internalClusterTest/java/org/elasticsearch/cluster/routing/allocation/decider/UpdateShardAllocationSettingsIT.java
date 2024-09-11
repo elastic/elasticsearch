@@ -100,7 +100,7 @@ public class UpdateShardAllocationSettingsIT extends ESIntegTestCase {
         updateClusterSettings(Settings.builder().put(CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey(), true));
         final String indexName = "idx";
         createIndex(indexName, 1, 1);
-        ClusterState clusterState = clusterAdmin().prepareState().get().getState();
+        ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         assertFalse(
             "replica should be unassigned",
             clusterState.getRoutingTable().index(indexName).shardsWithState(ShardRoutingState.UNASSIGNED).isEmpty()
@@ -109,7 +109,7 @@ public class UpdateShardAllocationSettingsIT extends ESIntegTestCase {
         // the same host - the replica should get assigned
         updateClusterSettings(Settings.builder().put(CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey(), false));
 
-        clusterState = clusterAdmin().prepareState().get().getState();
+        clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         assertTrue(
             "all shards should be assigned",
             clusterState.getRoutingTable().index(indexName).shardsWithState(ShardRoutingState.UNASSIGNED).isEmpty()

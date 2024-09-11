@@ -28,7 +28,7 @@ public class RestartInactiveAutoExpandReplicaNotStaleIT extends ESIntegTestCase 
 
         ensureGreen();
 
-        ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState().get();
+        ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
         IndexMetadata target = clusterStateResponse.getState().getMetadata().index("test");
 
         internalCluster().restartNode(replica, new InternalTestCluster.RestartCallback() {

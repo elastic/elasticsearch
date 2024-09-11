@@ -98,6 +98,7 @@ import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -668,8 +669,8 @@ public class InternalEngine extends Engine {
     }
 
     // Package private for testing purposes only
-    boolean hasAcquiredIndexCommits() {
-        return combinedDeletionPolicy.hasAcquiredIndexCommits();
+    boolean hasAcquiredIndexCommitsForTesting() {
+        return combinedDeletionPolicy.hasAcquiredIndexCommitsForTesting();
     }
 
     @Override
@@ -3130,6 +3131,13 @@ public class InternalEngine extends Engine {
         boolean singleConsumer,
         boolean accessStats
     ) throws IOException {
+        if (enableRecoverySource == false) {
+            throw new IllegalStateException(
+                "Changes snapshot are unavailable when the "
+                    + RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey()
+                    + " setting is disabled."
+            );
+        }
         ensureOpen();
         refreshIfNeeded(source, toSeqNo);
         Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL);

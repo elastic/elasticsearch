@@ -345,18 +345,14 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected SyntheticSourceMode syntheticSourceMode() {
-        return SyntheticSourceMode.NATIVE;
-    }
-
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+    protected SyntheticSourceSupport syntheticSourceSupport() {
         String value = fieldType().value();
-        ;
+
         if (value == null) {
-            return SourceLoader.SyntheticFieldLoader.NOTHING;
+            return new SyntheticSourceSupport.Native(SourceLoader.SyntheticFieldLoader.NOTHING);
         }
-        return new SourceLoader.SyntheticFieldLoader() {
+
+        var loader = new SourceLoader.SyntheticFieldLoader() {
             @Override
             public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
                 return Stream.of();
@@ -389,5 +385,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 return fullPath();
             }
         };
+
+        return new SyntheticSourceSupport.Native(loader);
     }
 }

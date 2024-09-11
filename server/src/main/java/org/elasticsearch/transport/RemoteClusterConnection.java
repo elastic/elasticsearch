@@ -148,7 +148,10 @@ final class RemoteClusterConnection implements Closeable {
                         }), RemoteClusterNodesAction.Response::new, TransportResponseHandler.TRANSPORT_WORKER)
                     );
                 } else {
-                    final ClusterStateRequest request = new ClusterStateRequest();
+                    final ClusterStateRequest request = new ClusterStateRequest(
+                        /* Timeout doesn't really matter with .local(true) */
+                        TimeValue.THIRTY_SECONDS
+                    );
                     request.clear();
                     request.nodes(true);
                     request.local(true); // run this on the node that gets the request it's as good as any other

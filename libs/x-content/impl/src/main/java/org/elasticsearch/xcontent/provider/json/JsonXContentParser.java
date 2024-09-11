@@ -111,7 +111,7 @@ public class JsonXContentParser extends AbstractXContentParser {
     }
 
     private void throwOnNoText() {
-        throw new IllegalStateException("Can't get text on a " + currentToken() + " at " + getTokenLocation());
+        throw new IllegalArgumentException("Expected text at " + getTokenLocation() + " but found " + currentToken());
     }
 
     @Override

@@ -69,10 +69,10 @@ import java.util.stream.IntStream;
 
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.ACCURATE_LOAD_WINDOW;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.HIGH_INGESTION_LOAD_WEIGHT_DURING_SCALING;
+import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.LOAD_ADJUSTMENT_AFTER_SCALING_WINDOW;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.LOW_INGESTION_LOAD_WEIGHT_DURING_SCALING;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.NODE_INGEST_LOAD_SNAPSHOTS_METRIC_NAME;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.STALE_LOAD_WINDOW;
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.calculateIngestLoadMetric;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -432,7 +432,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
         assertThat(indexTierMetricsAfterMasterHandover.getNodesLoad(), is(empty()));
     }
 
-    public void testIngestLoadsMetricsAdjustmentWhenNodesAreShuttingDown() {
+    public void testIngestLoadsMetricsAdjustmentForNodesShutdown() {
         final List<DiscoveryNode> indexNodes = IntStream.range(0, between(1, 8))
             .mapToObj(
                 i -> DiscoveryNodeUtils.builder("node-" + i)
@@ -460,14 +460,17 @@ public class IngestMetricsServiceTests extends ESTestCase {
 
         final var meterRegistry = new RecordingMeterRegistry();
         final MetricRecorder<Instrument> metricRecorder = meterRegistry.getRecorder();
+        final AtomicLong currentTimeInNanos = new AtomicLong(System.nanoTime());
+        final TimeValue adjustmentAfterScalingWindow = TimeValue.timeValueSeconds(randomLongBetween(0, 30));
         var service = new IngestMetricsService(
             clusterSettings(
                 Settings.builder()
                     .put(HIGH_INGESTION_LOAD_WEIGHT_DURING_SCALING.getKey(), randomDoubleBetween(0.0, 1.0, true))
                     .put(LOW_INGESTION_LOAD_WEIGHT_DURING_SCALING.getKey(), randomDoubleBetween(0.0, 1.0, true))
+                    .put(LOAD_ADJUSTMENT_AFTER_SCALING_WINDOW.getKey(), adjustmentAfterScalingWindow)
                     .build()
             ),
-            () -> 0,
+            currentTimeInNanos::get,
             memoryMetricsService,
             meterRegistry
         );
@@ -478,7 +481,8 @@ public class IngestMetricsServiceTests extends ESTestCase {
         assertMetricsForRawIngestLoads(service, metricRecorder, publishedLoads1);
 
         // Simulate nodes shutting down and new nodes joining
-        List<DiscoveryNode> shuttingDownNodes = randomSubsetOf(Math.min(between(1, 3), indexNodes.size()), indexNodes);
+        final int numShuttingDownIndexingNodes = Math.min(between(1, 3), indexNodes.size());
+        List<DiscoveryNode> shuttingDownNodes = randomSubsetOf(numShuttingDownIndexingNodes, indexNodes);
         shuttingDownNodes.addAll(randomSubsetOf(searchNodes));
         final var nodeShutdownMetadata = createShutdownMetadata(shuttingDownNodes);
         final List<DiscoveryNode> newNodes = IntStream.range(
@@ -504,7 +508,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
             final Map<String, Double> publishedLoads2 = trackRandomIngestionLoads(service, seqNoSupplier, state2);
             final var readMetrics2 = service.getIndexTierMetrics(state2).getNodesLoad();
             assertEquals(publishedLoads2.size(), readMetrics2.size());
-            assertIngestionLoadWeightApplied(service, publishedLoads2.values(), readMetrics2);
+            assertIngestionLoadWeightApplied(service, publishedLoads2.values(), readMetrics2, numShuttingDownIndexingNodes);
             assertMetricsForRawAndAdjustedIngestLoads(service, metricRecorder, publishedLoads2, readMetrics2);
 
             state3 = stateWithNewNodes(state2, newNodes);
@@ -526,18 +530,45 @@ public class IngestMetricsServiceTests extends ESTestCase {
         publishedLoads3 = trackRandomIngestionLoads(service, seqNoSupplier, state3);
         final var readMetrics3 = service.getIndexTierMetrics(state3).getNodesLoad();
         assertEquals(publishedLoads3.size(), readMetrics3.size());
-        assertIngestionLoadWeightApplied(service, publishedLoads3.values(), readMetrics3);
+        assertIngestionLoadWeightApplied(service, publishedLoads3.values(), readMetrics3, numShuttingDownIndexingNodes);
         assertMetricsForRawAndAdjustedIngestLoads(service, metricRecorder, publishedLoads3, readMetrics3);
 
-        // shutdown metadata removed, i.e. shutdown cancelled and nodes remain in the cluster
-        metricRecorder.resetCalls();
-        final ClusterState state4 = ClusterState.builder(state3)
-            .metadata(Metadata.builder(state3.metadata()).removeCustom(NodesShutdownMetadata.TYPE))
-            .build();
-        service.clusterChanged(new ClusterChangedEvent("shutdown-cancelled", state4, state3));
+        // Shutting down node left
+        final DiscoveryNodes.Builder b = DiscoveryNodes.builder(state3.nodes());
+        state3.nodes().forEach(node -> {
+            if (shuttingDownNodes.contains(node)) {
+                b.remove(node);
+                if (node.isMasterNode()) {
+                    b.localNodeId(newNodes.get(0).getId()).masterNodeId(newNodes.get(0).getId());
+                }
+            }
+        });
+        final ClusterState.Builder clusterStateBuilder = ClusterState.builder(state3).nodes(b.build());
+        // Whether shutdown markers are removed should have no impact
+        if (randomBoolean()) {
+            clusterStateBuilder.metadata(Metadata.builder(state3.metadata()).removeCustom(NodesShutdownMetadata.TYPE));
+        }
+        final ClusterState state4 = clusterStateBuilder.build();
+        service.clusterChanged(new ClusterChangedEvent("shutdown-node-left", state4, state3));
         final Map<String, Double> publishedLoads4 = trackRandomIngestionLoads(service, seqNoSupplier, state4);
-        assertExactIngestionLoads(service, publishedLoads4.values(), state4);
-        assertMetricsForRawIngestLoads(service, metricRecorder, publishedLoads4);
+
+        metricRecorder.resetCalls();
+        if (adjustmentAfterScalingWindow.equals(TimeValue.ZERO)) {
+            assertExactIngestionLoads(service, publishedLoads4.values(), state4);
+            assertMetricsForRawIngestLoads(service, metricRecorder, publishedLoads4);
+        } else {
+            // After-scaling adjustment since we are still within the time window
+            final var readMetrics4 = service.getIndexTierMetrics(state4).getNodesLoad();
+            assertEquals(publishedLoads4.size(), readMetrics4.size());
+            assertIngestionLoadWeightApplied(service, publishedLoads4.values(), readMetrics4, 1);
+            assertMetricsForRawAndAdjustedIngestLoads(service, metricRecorder, publishedLoads4, readMetrics4);
+
+            // Move the time forward to be beyond the adjustment after scaling window
+            currentTimeInNanos.addAndGet(adjustmentAfterScalingWindow.getNanos() + randomLongBetween(1, 100));
+            metricRecorder.resetCalls();
+            assertExactIngestionLoads(service, publishedLoads4.values(), state4);
+            assertMetricsForRawIngestLoads(service, metricRecorder, publishedLoads4);
+        }
     }
 
     // Tests that if during shutdown some nodes leave (w/o having shutdown marker), we'd still consider them if they leave
@@ -594,7 +625,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
         final var readMetrics2 = service.getIndexTierMetrics(stateWithShutDowns).getNodesLoad();
         assertFalse(readMetrics2.isEmpty());
         assertEquals(publishedLoads2.size(), readMetrics2.size());
-        assertIngestionLoadWeightApplied(service, publishedLoads2, readMetrics2);
+        assertIngestionLoadWeightApplied(service, publishedLoads2, readMetrics2, shuttingDownNodes.size());
 
         final var stateWithAllNodes = stateWithNewNodes(stateWithShutDowns, newNodes);
         service.clusterChanged(new ClusterChangedEvent("node-join", stateWithAllNodes, stateWithShutDowns));
@@ -602,7 +633,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
         final var readMetrics3 = service.getIndexTierMetrics(stateWithAllNodes).getNodesLoad();
         assertFalse(readMetrics3.isEmpty());
         assertEquals(publishedLoads3.size(), readMetrics3.size());
-        assertIngestionLoadWeightApplied(service, publishedLoads3, readMetrics3);
+        assertIngestionLoadWeightApplied(service, publishedLoads3, readMetrics3, shuttingDownNodes.size());
 
         // some non-shutting down nodes disappears
         final var droppingNodes = randomSubsetOf(1, newNodes);
@@ -626,7 +657,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
         assertTrue(readMetrics4.stream().allMatch(load -> load.metricQuality().equals(MetricQuality.MINIMUM)));
     }
 
-    public void testCalculateIngestLoadMetric() {
+    public void testMaybeAdjustIngestLoadsForShuttingDownNodes() {
         var noneShuttingDownNodesCount = between(0, 2);
         var shuttingDownNodesCount = between(noneShuttingDownNodesCount == 0 ? 1 : 0, 2);
         final var nodeRoles = Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INDEX_ROLE);
@@ -663,7 +694,18 @@ public class IngestMetricsServiceTests extends ESTestCase {
                 new NodeIngestLoadSnapshot(randomIdentifier(), randomIdentifier(), l, randomFrom(MetricQuality.values()))
             )
         );
-        var calculatedLoads = calculateIngestLoadMetric(state, publishedLoads, highWeight, lowWeight);
+        var service = new IngestMetricsService(
+            clusterSettings(
+                Settings.builder()
+                    .put(HIGH_INGESTION_LOAD_WEIGHT_DURING_SCALING.getKey(), highWeight)
+                    .put(LOW_INGESTION_LOAD_WEIGHT_DURING_SCALING.getKey(), lowWeight)
+                    .build()
+            ),
+            () -> 0,
+            memoryMetricsService,
+            MeterRegistry.NOOP
+        );
+        var calculatedLoads = service.maybeAdjustIngestLoads(state, publishedLoads);
         assertThat(calculatedLoads.size(), equalTo(publishedLoads.size()));
         if (shuttingDownNodesCount == 0 || (lowWeight == 1.0 && highWeight == 1.0)) {
             assertEquals(publishedLoads, calculatedLoads);
@@ -701,25 +743,31 @@ public class IngestMetricsServiceTests extends ESTestCase {
     }
 
     private Map<String, Double> trackRandomIngestionLoads(IngestMetricsService service, LongSupplier seqNoSupplier, ClusterState state) {
-        final Map<String, Double> ingestionLoads = state.nodes()
+        final List<DiscoveryNode> indexingNodes = state.nodes()
             .stream()
+            .filter(node -> node.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE))
+            .toList();
+        final Map<String, Double> ingestionLoads = indexingNodes.stream()
             .collect(Collectors.toUnmodifiableMap(DiscoveryNode::getId, ignore -> randomIngestionLoad()));
-        state.nodes()
-            .forEach(
-                node -> service.trackNodeIngestLoad(
-                    state,
-                    node.getId(),
-                    node.getName(),
-                    seqNoSupplier.getAsLong(),
-                    ingestionLoads.get(node.getId())
-                )
-            );
+        indexingNodes.forEach(
+            node -> service.trackNodeIngestLoad(
+                state,
+                node.getId(),
+                node.getName(),
+                seqNoSupplier.getAsLong(),
+                ingestionLoads.get(node.getId())
+            )
+        );
         return ingestionLoads;
     }
 
     private void assertExactIngestionLoads(IngestMetricsService service, Collection<Double> publishedLoads, ClusterState state) {
+        final List<DiscoveryNode> indexingNodes = state.nodes()
+            .stream()
+            .filter(node -> node.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE))
+            .toList();
         final List<NodeIngestLoadSnapshot> readMetrics = service.getIndexTierMetrics(state).getNodesLoad();
-        assertThat(readMetrics.size(), equalTo(state.nodes().size()));
+        assertThat(readMetrics.size(), equalTo(indexingNodes.size()));
         assertTrue(readMetrics.stream().allMatch(nodeLoad -> nodeLoad.metricQuality() == MetricQuality.EXACT));
         assertArrayEquals(
             publishedLoads.stream().mapToDouble(Double::doubleValue).sorted().toArray(),
@@ -731,15 +779,24 @@ public class IngestMetricsServiceTests extends ESTestCase {
     private void assertIngestionLoadWeightApplied(
         IngestMetricsService service,
         Collection<Double> publishedLoads,
-        List<NodeIngestLoadSnapshot> readMetrics
+        List<NodeIngestLoadSnapshot> readMetrics,
+        int numForHighWeight
     ) {
-        boolean weightApplied = service.getHighIngestionLoadWeightDuringScaling() < 1.0
-            || service.getLowIngestionLoadWeightDuringScaling() < 1.0;
+        final double highWeight = service.getHighIngestionLoadWeightDuringScaling();
+        final double lowWeight = service.getLowIngestionLoadWeightDuringScaling();
+        boolean weightApplied = highWeight < 1.0 || lowWeight < 1.0;
         double totalPublishedIngestionLoad = publishedLoads.stream().reduce(Double::sum).get();
         double totalReadMetric = readMetrics.stream().map(NodeIngestLoadSnapshot::load).reduce(Double::sum).get();
         if (weightApplied) {
             assertTrue(readMetrics.stream().allMatch(l -> l.metricQuality().equals(MetricQuality.MINIMUM)));
             assertThat(totalReadMetric, lessThan(totalPublishedIngestionLoad));
+            final List<Double> sortedPublishedLoads = publishedLoads.stream().sorted().toList();
+            for (int i = 0; i < sortedPublishedLoads.size() - numForHighWeight; i++) {
+                assertTrue(doublesEquals(sortedPublishedLoads.get(i) * lowWeight, readMetrics.get(i).load()));
+            }
+            for (int i = sortedPublishedLoads.size() - numForHighWeight; i < sortedPublishedLoads.size(); i++) {
+                assertTrue(doublesEquals(sortedPublishedLoads.get(i) * highWeight, readMetrics.get(i).load()));
+            }
         } else {
             assertTrue(readMetrics.stream().allMatch(l -> l.metricQuality().equals(MetricQuality.EXACT)));
             assertEquals(totalReadMetric, totalPublishedIngestionLoad, EPSILON);
@@ -844,7 +901,8 @@ public class IngestMetricsServiceTests extends ESTestCase {
                 ACCURATE_LOAD_WINDOW,
                 STALE_LOAD_WINDOW,
                 HIGH_INGESTION_LOAD_WEIGHT_DURING_SCALING,
-                LOW_INGESTION_LOAD_WEIGHT_DURING_SCALING
+                LOW_INGESTION_LOAD_WEIGHT_DURING_SCALING,
+                LOAD_ADJUSTMENT_AFTER_SCALING_WINDOW
             )
         );
     }

@@ -2,7 +2,7 @@
 == {es} basics
 
 This guide covers the core concepts you need to understand to get started with {es}.
-If you'd prefer to start working with {es} right away, set up a <<run-elasticsearch-locally,local dev environment>> and jump to our <<quickstart,hands-on code examples>> .
+If you'd prefer to start working with {es} right away, set up a <<run-elasticsearch-locally,local dev environment>> and jump to <<quickstart,hands-on code examples>> .
 
 This guide covers the following topics:
 
@@ -69,7 +69,7 @@ Combined with https://www.elastic.co/kibana[{kib}], it powers the following Elas
 * *Threat hunting*: Search and analyze data to detect and respond to security threats.
 
 This is just a sample of search, observability, and security use cases enabled by {es}.
-Refer to our https://www.elastic.co/customers/success-stories[customer success stories] for concrete examples across a range of industries.
+Refer to Elastic https://www.elastic.co/customers/success-stories[customer success stories] for concrete examples across a range of industries.
 
 [[elasticsearch-intro-deploy]]
 === Run {es}
@@ -83,7 +83,7 @@ You can deploy {es} in various ways.
 
 **Hosted options**
 
-* {cloud}/ec-getting-started-trial.html[*Elastic Cloud Hosted*]: {es} is available as part of our hosted Elastic Stack offering, deployed in the cloud with your provider of choice. Sign up for a https://cloud.elastic.co/registration[14-day free trial].
+* {cloud}/ec-getting-started-trial.html[*Elastic Cloud Hosted*]: {es} is available as part of the hosted Elastic Stack offering, deployed in the cloud with your provider of choice. Sign up for a https://cloud.elastic.co/registration[14-day free trial].
 * {serverless-docs}/general/sign-up-trial[*Elastic Cloud Serverless* (technical preview)]: Create serverless projects for autoscaled and fully managed {es} deployments. Sign up for a https://cloud.elastic.co/serverless-registration[14-day free trial].
 
 **Advanced options**
@@ -216,7 +216,7 @@ After you get past the basics, you should use the <<docs-bulk,Bulk API>> for eff
 ====
 * {kibana-ref}/connect-to-elasticsearch.html#upload-data-kibana[File upload]: Use the {kib} file uploader to upload and index CSV, JSON, and log files.
 * {kibana-ref}/connect-to-elasticsearch.html#_add_sample_data[Sample data]: Load sample data sets into your {es} cluster using {kib}.
-* {enterprise-search-ref}/crawler.html[Web crawler]: Extract and index web page content into {es} documents.
+* https://github.com/elastic/crawler[Web crawler]: Extract and index web page content into {es} documents.
 * {enterprise-search-ref}/connectors.html[Connectors]: Sync data from various third-party data sources to create searchable, read-only replicas in {es}.
 
 // New html page
@@ -249,7 +249,7 @@ Refer to <<getting-started,first steps with Elasticsearch>> for a hands-on examp
 
 *Query DSL* is the primary query language for {es} today.
 
-*{esql}* is our new piped query language and compute engine which was first added in version *8.11*.
+*{esql}* is a new piped query language and compute engine which was first added in version *8.11*.
 It does not yet support all the features of Query DSL, like full-text search and semantic search.
 
 Refer to <<search-analyze-query-languages>> for a full overview of the query languages available in {es}.
@@ -267,11 +267,11 @@ It is the original and most powerful query language for {es} today.
 
 Query DSL support a wide range of search techniques, including the following:
 
-* <<full-text-queries,*Full-text search*>>. Search text that has been analyzed and indexed to support phrase or proximity queries, fuzzy matches, and more.
-* <<keyword,*Keyword search*>>. Search for exact matches using `keyword` fields.
-* <<semantic-search-semantic-text,*Semantic search*>>. Search `semantic_text` fields using dense or sparse vector search on embeddings generated in your {es} cluster.
-* <<knn-search,*Vector search*>>. Search for similar dense vectors using the kNN algorithm for embeddings generated outside of {es}.
-* <<geo-queries,*Geospatial search*>>. Search for locations and calculate spatial relationships using geospatial queries.
+* <<full-text-queries,*Full-text search*>>: Search text that has been analyzed and indexed to support phrase or proximity queries, fuzzy matches, and more.
+* <<keyword,*Keyword search*>>: Search for exact matches using `keyword` fields.
+* <<semantic-search-semantic-text,*Semantic search*>>: Search `semantic_text` fields using dense or sparse vector search on embeddings generated in your {es} cluster.
+* <<knn-search,*Vector search*>>: Search for similar dense vectors using the kNN algorithm for embeddings generated outside of {es}.
+* <<geo-queries,*Geospatial search*>>: Search for locations and calculate spatial relationships using geospatial queries.
 
 Learn about the full range of queries supported by the <<query-dsl,Query DSL>>. 
 

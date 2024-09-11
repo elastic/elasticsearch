@@ -17,6 +17,7 @@ dependencies {
   javaRestTestImplementation project(path: xpackModule('rank-rrf'))
   javaRestTestImplementation project(path: xpackModule('esql-core'))
   javaRestTestImplementation project(path: xpackModule('esql'))
+  javaRestTestImplementation project(path: xpackModule('snapshot-repo-test-kit'))
 }
 
 // location for keys and certificates

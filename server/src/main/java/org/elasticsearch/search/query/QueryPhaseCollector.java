@@ -189,14 +189,10 @@ public final class QueryPhaseCollector implements TwoPhaseCollector {
             return new FilterLeafCollector(topDocsLeafCollector) {
                 @Override
                 public void setScorer(Scorable scorer) throws IOException {
-                    super.setScorer(new FilterScorable(scorer) {
-                        @Override
-                        public void setMinCompetitiveScore(float minScore) {
-                            // Ignore calls to setMinCompetitiveScore. The top docs collector may try to skip low
-                            // scoring hits, but the overall score_mode won't allow it because an aggs collector
-                            // was originally provided which never supports TOP_SCORES is not supported for aggs
-                        }
-                    });
+                    // Ignore calls to setMinCompetitiveScore. The top docs collector may try to skip low
+                    // scoring hits, but the overall score_mode won't allow it because an aggs collector
+                    // was originally provided which never supports TOP_SCORES is not supported for aggs
+                    super.setScorer(wrapToIgnoreMinCompetitiveScore(scorer));
                 }
 
                 @Override
@@ -206,6 +202,13 @@ public final class QueryPhaseCollector implements TwoPhaseCollector {
             };
         }
         return new CompositeLeafCollector(postFilterBits, topDocsLeafCollector, aggsLeafCollector);
+    }
+
+    private static FilterScorable wrapToIgnoreMinCompetitiveScore(Scorable scorer) {
+        return new FilterScorable(scorer) {
+            @Override
+            public void setMinCompetitiveScore(float minScore) {}
+        };
     }
 
     private class TopDocsLeafCollector implements LeafCollector {
@@ -262,14 +265,10 @@ public final class QueryPhaseCollector implements TwoPhaseCollector {
             if (cacheScores && topDocsLeafCollector != null && aggsLeafCollector != null) {
                 scorer = ScoreCachingWrappingScorer.wrap(scorer);
             }
-            scorer = new FilterScorable(scorer) {
-                @Override
-                public void setMinCompetitiveScore(float minScore) {
-                    // Ignore calls to setMinCompetitiveScore so that if the top docs collector
-                    // wants to skip low-scoring hits, the aggs collector still sees all hits.
-                    // this is important also for terminate_after in case used when total hits tracking is early terminated.
-                }
-            };
+            // Ignore calls to setMinCompetitiveScore so that if the top docs collector
+            // wants to skip low-scoring hits, the aggs collector still sees all hits.
+            // this is important also for terminate_after in case used when total hits tracking is early terminated.
+            scorer = wrapToIgnoreMinCompetitiveScore(scorer);
             if (topDocsLeafCollector != null) {
                 topDocsLeafCollector.setScorer(scorer);
             }

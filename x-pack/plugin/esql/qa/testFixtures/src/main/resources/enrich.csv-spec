@@ -35,7 +35,7 @@ withQualifierConflict
 required_capability: enrich_load
 required_capability: enrich_with_qualifier
 ROW client_ip = "172.21.0.5", env = 1
-| ENRICH clientip_policy ON client_ip AS c
+| ENRICH clientip_policy c ON client_ip
 ;
 
 client_ip:keyword | env:integer | c.env:keyword
@@ -45,7 +45,7 @@ client_ip:keyword | env:integer | c.env:keyword
 withQualifierConflictLimit0
 required_capability: enrich_with_qualifier
 ROW client_ip = "172.21.0.5", env = 1
-| ENRICH clientip_policy ON client_ip  AS c
+| ENRICH clientip_policy c ON client_ip
 | LIMIT 0
 ;
 
@@ -56,7 +56,7 @@ withQualifierConflictEval
 required_capability: enrich_load
 required_capability: enrich_with_qualifier
 ROW client_ip = "172.21.0.5", env = 1
-| ENRICH clientip_policy ON client_ip AS c
+| ENRICH clientip_policy c ON client_ip
 | EVAl x = to_lower(c.env), y = env + 2
 | KEEP x, y
 ;
@@ -68,7 +68,7 @@ development   |         3
 withQualifierConflictEvalLimit0
 required_capability: enrich_with_qualifier
 ROW client_ip = "172.21.0.5", env = 1
-| ENRICH clientip_policy ON client_ip AS c
+| ENRICH clientip_policy c ON client_ip
 | EVAl x = to_lower(c.env), y = env + 2
 | KEEP x, y
 | LIMIT 0
@@ -81,7 +81,7 @@ withQualifierConflictKeepWildcard
 required_capability: enrich_load
 required_capability: enrich_with_qualifier
 ROW client_ip = "172.21.0.5", env = 1
-| ENRICH clientip_policy ON client_ip AS c
+| ENRICH clientip_policy c ON client_ip
 | KEEP *env
 ;
 
@@ -93,7 +93,7 @@ withQualifierNoConflictEval
 required_capability: enrich_load
 required_capability: enrich_with_qualifier
 ROW client_ip = "172.21.0.5"
-| ENRICH clientip_policy ON client_ip AS c
+| ENRICH clientip_policy c ON client_ip
 | EVAl x = to_lower(c.env), y = to_upper(env)
 | KEEP x, y
 ;
@@ -105,7 +105,7 @@ development   | DEVELOPMENT
 withQualifierNoConflictEvalLimit0
 required_capability: enrich_with_qualifier
 ROW client_ip = "172.21.0.5"
-| ENRICH clientip_policy ON client_ip AS c
+| ENRICH clientip_policy c ON client_ip
 | EVAl x = to_lower(c.env), y = to_upper(env)
 | KEEP x, y
 | LIMIT 0
@@ -118,7 +118,7 @@ withQualifierNoConflictKeepWildcard
 required_capability: enrich_load
 required_capability: enrich_with_qualifier
 ROW client_ip = "172.21.0.5"
-| ENRICH clientip_policy ON client_ip AS c
+| ENRICH clientip_policy c ON client_ip
 | KEEP *env
 ;
 
@@ -126,9 +126,9 @@ c.env:keyword
 Development
 ;
 
-// TODO: test cases for ENRICH ... AS qualifier
+// TODO: test cases for ENRICH policy qualifier ...
 // - no ON clause
-// - WITH clause (but without explicit aliases)
+// - WITH clause (with/without explicit aliases?)
 
 shadowing
 required_capability: enrich_load

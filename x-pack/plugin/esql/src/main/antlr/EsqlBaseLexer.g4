@@ -359,15 +359,10 @@ RENAME_WS
     : WS -> channel(HIDDEN)
     ;
 
-// | ENRICH ON key AS qualifier
-// | ENRICH ON key WITH fields
+// | ENRICH policy qualifier ON key WITH fields
 mode ENRICH_MODE;
 ENRICH_PIPE : PIPE -> type(PIPE), popMode;
 ENRICH_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET), pushMode(SETTING_MODE);
-
-ON : 'on'     -> pushMode(ENRICH_FIELD_MODE);
-WITH : 'with' -> pushMode(ENRICH_FIELD_MODE);
-ENRICH_AS : AS -> pushMode(ENRICH_FIELD_MODE);
 
 // similar to that of an index
 // see https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html#indices-create-api-path-params
@@ -377,11 +372,7 @@ fragment ENRICH_POLICY_NAME_BODY
 
 ENRICH_POLICY_NAME
     // allow prefix for the policy to specify its resolution
-    : (ENRICH_POLICY_NAME_BODY+ COLON)? ENRICH_POLICY_NAME_BODY+
-    ;
-
-ENRICH_MODE_UNQUOTED_VALUE
-    : ENRICH_POLICY_NAME -> type(ENRICH_POLICY_NAME)
+    : (ENRICH_POLICY_NAME_BODY+ COLON)? ENRICH_POLICY_NAME_BODY+ -> pushMode(ENRICH_FIELD_MODE)
     ;
 
 ENRICH_LINE_COMMENT
@@ -398,13 +389,12 @@ ENRICH_WS
 
 // submode for Enrich to allow different lexing between policy source (loose) and field identifiers
 mode ENRICH_FIELD_MODE;
+ON : 'on';
+WITH : 'with';
 ENRICH_FIELD_PIPE : PIPE -> type(PIPE), popMode, popMode;
 ENRICH_FIELD_ASSIGN : ASSIGN -> type(ASSIGN);
 ENRICH_FIELD_COMMA : COMMA -> type(COMMA);
 ENRICH_FIELD_DOT: DOT -> type(DOT);
-
-ENRICH_FIELD_WITH : WITH -> type(WITH) ;
-ENRICH_FIELD_AS : AS -> type(AS) ;
 
 ENRICH_FIELD_ID_PATTERN
     : ID_PATTERN -> type(ID_PATTERN)

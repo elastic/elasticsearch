@@ -442,10 +442,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             Tuple<Mode, String> tuple = parsePolicyName(ctx.policyName);
             Mode mode = tuple.v1();
             String policyNameString = tuple.v2();
-
-            // TODO: temporary hack; also, allows for wildcard patterns which make no sense.
-            var parsedQualifier = visitQualifiedNamePattern(ctx.qualifier);
-            String qualifier = parsedQualifier == null ? null : parsedQualifier.name();
+            // TODO: tests with lots of different quotings around the qualifier, also weird things like pattern `*`.
+            var qualifier = visitQualifiedNamePattern(ctx.qualifier);
+            String qualifierString = qualifier == null ? null : qualifier.name();
 
             NamedExpression matchField = ctx.ON() != null ? visitQualifiedNamePattern(ctx.matchField) : new EmptyAttribute(source);
             if (matchField instanceof UnresolvedNamePattern up) {
@@ -462,7 +461,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 matchField,
                 null,
                 Map.of(),
-                qualifier,
+                qualifierString,
                 keepClauses.isEmpty() ? List.of() : keepClauses
             );
         };

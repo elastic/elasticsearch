@@ -295,7 +295,10 @@ metaCommand
     ;
 
 enrichCommand
-    : ENRICH policyName=ENRICH_POLICY_NAME (ON matchField=qualifiedNamePattern)? (WITH enrichWithClause (COMMA enrichWithClause)*)? (AS qualifier=qualifiedNamePattern)?
+    // TODO: statement parser tests for e.g. `ENRICH policy on ON ...` resp. just `ENRICH policy on` and the same with
+    // `with`, and `ENRICH policy with ON ...` etc.
+    // TODO: Should we use a qualifiedNamePattern here? We *could* also go with just an identifier (no dot-separated names).
+    : ENRICH policyName=ENRICH_POLICY_NAME (qualifier=qualifiedNamePattern)? (ON matchField=qualifiedNamePattern)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
     ;
 
 enrichWithClause

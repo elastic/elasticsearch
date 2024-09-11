@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CancellableSingleObjectCache;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.IndicesService;
@@ -51,6 +52,8 @@ import java.util.function.BooleanSupplier;
 public class TransportClusterStatsAction extends TransportClusterStatsBaseAction<ClusterStatsResponse> {
 
     public static final ActionType<ClusterStatsResponse> TYPE = new ActionType<>("cluster:monitor/stats");
+
+    public static final FeatureFlag CCS_TELEMETRY_FEATURE_FLAG = new FeatureFlag("ccs_telemetry");
 
     private final MetadataStatsCache<MappingStats> mappingStatsCache;
     private final MetadataStatsCache<AnalysisStats> analysisStatsCache;
@@ -178,8 +181,12 @@ public class TransportClusterStatsAction extends TransportClusterStatsBaseAction
         }
     }
 
+    private static boolean doRemotes(ClusterStatsRequest request) {
+        return CCS_TELEMETRY_FEATURE_FLAG.isEnabled() && request.doRemotes();
+    }
+
     private Map<String, ClusterStatsResponse.RemoteClusterStats> getRemoteClusterStats(ClusterStatsRequest request) {
-        if (request.doRemotes() == false) {
+        if (doRemotes(request) == false) {
             return null;
         }
         Map<String, ClusterStatsResponse.RemoteClusterStats> remoteClustersStats = new HashMap<>();
@@ -211,7 +218,7 @@ public class TransportClusterStatsAction extends TransportClusterStatsBaseAction
     }
 
     private ActionFuture<Map<String, RemoteClusterStatsResponse>> getStatsFromRemotes(ClusterStatsRequest request) {
-        if (request.doRemotes() == false) {
+        if (doRemotes(request) == false) {
             // this will never be used since getRemoteClusterStats has the same check
             return null;
         }

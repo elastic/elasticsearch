@@ -36,6 +36,7 @@ public class QueryStringFunction extends FullTextFunction {
 
     @FunctionInfo(
         returnType = "boolean",
+        preview = true,
         description = "Performs a query string query. Returns true if the provided query string matches the row.",
         examples = { @Example(file = "qstr-function", tag = "qstr-with-field") }
     )

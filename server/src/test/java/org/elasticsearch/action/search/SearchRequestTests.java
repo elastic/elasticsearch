@@ -27,7 +27,6 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SubSearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
-import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.rank.TestRankBuilder;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
@@ -605,18 +604,6 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
             assertEquals("[rank] cannot be used with [suggest]", validationErrors.validationErrors().get(0));
-        }
-        {
-            SearchRequest searchRequest = new SearchRequest().source(
-                new SearchSourceBuilder().rankBuilder(new TestRankBuilder(100))
-                    .query(QueryBuilders.termQuery("field", "term"))
-                    .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, null)))
-                    .highlighter(new HighlightBuilder().field("field"))
-            );
-            ActionRequestValidationException validationErrors = searchRequest.validate();
-            assertNotNull(validationErrors);
-            assertEquals(1, validationErrors.validationErrors().size());
-            assertEquals("[rank] cannot be used with [highlighter]", validationErrors.validationErrors().get(0));
         }
         {
             SearchRequest searchRequest = new SearchRequest("test").source(

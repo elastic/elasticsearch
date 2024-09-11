@@ -66,7 +66,7 @@ public class AlibabaCloudSearchCompletionAction implements ExecutableAction {
             listener.onFailure(
                 new ElasticsearchStatusException(
                     "Alibaba Completion's inputs must be an odd number. The last input is the current query, "
-                        + "all preceding inputs are the completion history as pairs of user input and the assistants response.",
+                        + "all preceding inputs are the completion history as pairs of user input and the assistant's response.",
                     RestStatus.BAD_REQUEST
                 )
             );

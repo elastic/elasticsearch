@@ -46,7 +46,7 @@ public class AVLTreeDigest extends AbstractTDigest {
      *                    quantiles.  Conversely, you should expect to track about 5 N centroids for this
      *                    accuracy.
      */
-    public AVLTreeDigest(double compression) {
+    AVLTreeDigest(double compression) {
         this.compression = compression;
         summary = new AVLGroupTree();
     }

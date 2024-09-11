@@ -157,21 +157,12 @@ final class ElasticServiceAccounts {
                     .privileges("read", "write", "create_index", "auto_configure")
                     .allowRestrictedIndices(false)
                     .build(),
-                // Elastic connectors package requires custom permissions to manage connectors
-                // and hence Fleet Server requires additional permissions
+                // Custom permissions required for running Elastic connectors integration
+                RoleDescriptor.IndicesPrivileges.builder().indices(".elastic-connectors*").privileges("read", "write", "manage").build(),
+                // Permissions for data indices and access control filters used by Elastic connectors integration
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(
-                        ".elastic-connectors",
-                        ".elastic-connectors-v*",
-                        ".elastic-connectors-sync-jobs",
-                        ".elastic-connectors-sync-jobs-v*"
-                    )
-                    .privileges("read", "write")
-                    .build(),
-                // Permissions required by connectors for data indices and corresponding access control filters
-                RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("search-*", ".search-acl-filter-*")
-                    .privileges("read", "write", "view_index_metadata", "maintenance")
+                    .indices("content-*", ".search-acl-filter-*")
+                    .privileges("read", "write", "manage")
                     .build(), },
             new RoleDescriptor.ApplicationResourcePrivileges[] {
                 RoleDescriptor.ApplicationResourcePrivileges.builder()

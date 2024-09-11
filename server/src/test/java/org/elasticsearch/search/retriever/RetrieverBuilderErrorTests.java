@@ -72,14 +72,6 @@ public class RetrieverBuilderErrorTests extends ESTestCase {
             assertThat(iae.getMessage(), containsString("cannot specify [retriever] and [terminate_after]"));
         }
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"sort\": [\"field\"], \"retriever\":{\"standard\":{}}}")) {
-            SearchSourceBuilder ssb = new SearchSourceBuilder();
-            ssb.parseXContent(parser, true, nf -> true);
-            ActionRequestValidationException iae = ssb.validate(null, false, false);
-            assertNotNull(iae);
-            assertThat(iae.getMessage(), containsString("cannot specify [retriever] and [sort]"));
-        }
-
         try (
             XContentParser parser = createParser(
                 JsonXContent.jsonXContent,
@@ -93,14 +85,6 @@ public class RetrieverBuilderErrorTests extends ESTestCase {
             assertThat(iae.getMessage(), containsString("cannot specify [retriever] and [rescore]"));
         }
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"min_score\": 2, \"retriever\":{\"standard\":{}}}")) {
-            SearchSourceBuilder ssb = new SearchSourceBuilder();
-            ssb.parseXContent(parser, true, nf -> true);
-            ActionRequestValidationException iae = ssb.validate(null, false, false);
-            assertNotNull(iae);
-            assertThat(iae.getMessage(), containsString("cannot specify [retriever] and [min_score]"));
-        }
-
         try (
             XContentParser parser = createParser(
                 JsonXContent.jsonXContent,
@@ -111,7 +95,7 @@ public class RetrieverBuilderErrorTests extends ESTestCase {
             ssb.parseXContent(parser, true, nf -> true);
             ActionRequestValidationException iae = ssb.validate(null, false, false);
             assertNotNull(iae);
-            assertThat(iae.getMessage(), containsString("cannot specify [retriever] and [query, terminate_after, min_score]"));
+            assertThat(iae.getMessage(), containsString("cannot specify [retriever] and [query, terminate_after]"));
         }
     }
 

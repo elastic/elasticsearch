@@ -22,6 +22,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -259,6 +260,17 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
         }
     }
 
+    /**
+     * Captures the role of the failure store in this document response. For example,
+     * - USED, means that this document was stored in the failure store
+     * - NOT_ENABLED, means that this document was rejected by elasticsearch, but it could have been stored in
+     * the failure store has it been enabled.
+     * - FAILED, means that this failed document was eligible to be stored in the failure store and the failure store
+     * was enabled but something went wrong.
+     * - NOT_APPLICABLE_OR_UNKNOWN, means either that we have no information about this response, for example, in a mixed state
+     * cluster or the document wasn't eligible for the failure store, either because it was successfully stored in the data stream
+     * or it failed to be indexed in an index (failure store is only supported in data streams).
+     */
     public enum FailureStoreStatus {
         NOT_APPLICABLE_OR_UNKNOWN(0),
         USED(1),
@@ -274,14 +286,25 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
             this.label = this.toString().toLowerCase(Locale.ROOT);
         }
 
+        /**
+         * @return id of the status, mainly used for wire serialisation purposes
+         */
         public byte getId() {
             return id;
         }
 
+        /**
+         * @return the label of this status for display, just lowercase of the enum
+         */
         public String getLabel() {
             return label;
         }
 
+        /**
+         * @param id a candidate id that (hopefully) can be converted to a FailureStoreStatus, used in wire serialisation
+         * @return the failure store status that corresponds to the id.
+         * @throws IllegalArgumentException when the id cannot produce a failure store status
+         */
         public static FailureStoreStatus fromId(byte id) {
             return switch (id) {
                 case 0 -> NOT_APPLICABLE_OR_UNKNOWN;
@@ -292,21 +315,24 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
             };
         }
 
-        public static FailureStoreStatus fromLabel(String label) {
-            for (FailureStoreStatus failureStoreStatus : FailureStoreStatus.values()) {
-                if (failureStoreStatus.getLabel().equals(label)) {
-                    return failureStoreStatus;
-                }
-            }
-            throw new IllegalArgumentException("Unknown failure store status: [" + label + "]");
-        }
-
+        /**
+         * The status <code>NOT_APPLICABLE_OR_UNKNOWN</code> does not add useful information, so we choose to not display
+         * it to the user to not increase the XContent version of the BulkResponse significantly.
+         * @return true, if it should be displayed, false otherwise.
+         */
         public static boolean shouldBeDisplayed(FailureStoreStatus failureStoreStatus) {
             return forDisplay.contains(failureStoreStatus);
         }
 
-        public static FailureStoreStatus inferFromIndexName(String indexName) {
-            if (indexName.startsWith(DataStream.FAILURE_STORE_PREFIX)) {
+        /**
+         * This helper function tried to determine if the failure store was used or not from the index name. This
+         * should only be used in mixed cluster where the failure store status information is missing.
+         * @param response the response part of the BulkItemResponse.
+         * @return <code>USED</code> if the doc was indexed in an index with the failure store prefix, <code>NOT_APPLICABLE_OR_UNKNOWN</code>
+         * otherwise.
+         */
+        static FailureStoreStatus inferFromResponse(@Nullable DocWriteResponse response) {
+            if (response != null && response.getIndex().startsWith(DataStream.FAILURE_STORE_PREFIX)) {
                 return USED;
             }
             return NOT_APPLICABLE_OR_UNKNOWN;
@@ -321,7 +347,9 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
 
     private final Failure failure;
 
-    private final FailureStoreStatus failureStoreStatus;
+    // This field gets updates along the way, to avoid copying the document
+    // we set it along the way, just as we add suppressed exception to existing failures.
+    private FailureStoreStatus failureStoreStatus;
 
     BulkItemResponse(ShardId shardId, StreamInput in) throws IOException {
         id = in.readVInt();
@@ -331,11 +359,7 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
         if (in.getTransportVersion().onOrAfter(TransportVersions.ADD_FAILURE_STORE_STATUS_ON_BULK_RESPONSE)) {
             failureStoreStatus = FailureStoreStatus.fromId(in.readByte());
         } else {
-            if (response != null) {
-                failureStoreStatus = FailureStoreStatus.inferFromIndexName(response.getIndex());
-            } else {
-                failureStoreStatus = FailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN;
-            }
+            failureStoreStatus = FailureStoreStatus.inferFromResponse(response);
         }
         assertConsistent();
     }
@@ -348,11 +372,7 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
         if (in.getTransportVersion().onOrAfter(TransportVersions.ADD_FAILURE_STORE_STATUS_ON_BULK_RESPONSE)) {
             failureStoreStatus = FailureStoreStatus.fromId(in.readByte());
         } else {
-            if (response != null) {
-                failureStoreStatus = FailureStoreStatus.inferFromIndexName(response.getIndex());
-            } else {
-                failureStoreStatus = FailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN;
-            }
+            failureStoreStatus = FailureStoreStatus.inferFromResponse(response);
         }
         assertConsistent();
     }
@@ -386,8 +406,12 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
         return new BulkItemResponse(id, opType, null, failure);
     }
 
-    public static BulkItemResponse updateFailureStoreStatus(BulkItemResponse response, FailureStoreStatus failureStoreStatus) {
-        return new BulkItemResponse(response.id, response.opType, response.response, response.failure, failureStoreStatus);
+    /**
+     * Sets the failure store status of this response.
+     * @param failureStoreStatus the new status to override the existing one.
+     */
+    void setFailureStoreStatus(FailureStoreStatus failureStoreStatus) {
+        this.failureStoreStatus = failureStoreStatus;
     }
 
     /**

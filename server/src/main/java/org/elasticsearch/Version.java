@@ -124,6 +124,7 @@ public class Version implements VersionId<Version>, ToXContentFragment {
     public static final Version V_7_17_22 = new Version(7_17_22_99);
     public static final Version V_7_17_23 = new Version(7_17_23_99);
     public static final Version V_7_17_24 = new Version(7_17_24_99);
+    public static final Version V_7_17_25 = new Version(7_17_25_99);
 
     public static final Version V_8_0_0 = new Version(8_00_00_99);
     public static final Version V_8_0_1 = new Version(8_00_01_99);
@@ -182,6 +183,7 @@ public class Version implements VersionId<Version>, ToXContentFragment {
     public static final Version V_8_14_3 = new Version(8_14_03_99);
     public static final Version V_8_15_0 = new Version(8_15_00_99);
     public static final Version V_8_15_1 = new Version(8_15_01_99);
+    public static final Version V_8_15_2 = new Version(8_15_02_99);
     public static final Version V_8_16_0 = new Version(8_16_00_99);
     public static final Version CURRENT = V_8_16_0;
 
@@ -270,7 +272,9 @@ public class Version implements VersionId<Version>, ToXContentFragment {
 
     /**
      * Returns the version given its string representation, current version if the argument is null or empty
+     * @deprecated Use of semantic release versions should be minimized; please avoid use of this method if possible.
      */
+    @Deprecated
     public static Version fromString(String version) {
         if (Strings.hasLength(version) == false) {
             return Version.CURRENT;

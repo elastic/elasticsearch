@@ -22,6 +22,7 @@ import java.nio.file.Path;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.getRepositoryDataBlobName;
 import static org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService.NAME;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -73,6 +74,6 @@ public class RepositoryIntegrityHealthIndicatorServiceIT extends AbstractSnapsho
 
     private void corruptRepository(String name, Path location) throws IOException {
         final RepositoryData repositoryData = getRepositoryData(name);
-        Files.delete(location.resolve("index-" + repositoryData.getGenId()));
+        Files.delete(location.resolve(getRepositoryDataBlobName(repositoryData.getGenId())));
     }
 }

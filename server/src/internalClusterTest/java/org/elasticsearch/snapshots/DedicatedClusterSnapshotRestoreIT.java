@@ -86,6 +86,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.METADATA_BLOB_NAME_SUFFIX;
 import static org.elasticsearch.test.NodeRoles.nonMasterNode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
@@ -244,7 +245,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> shutdown one of the nodes");
         internalCluster().stopRandomDataNode();
         assertThat(
-            clusterAdmin().prepareHealth()
+            clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                 .setWaitForEvents(Priority.LANGUID)
                 .setTimeout(TimeValue.timeValueMinutes(1))
                 .setWaitForNodes("<2")
@@ -431,7 +432,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         });
 
         assertThat(
-            clusterAdmin().prepareHealth()
+            clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                 .setWaitForEvents(Priority.LANGUID)
                 .setTimeout(TimeValue.timeValueMinutes(1))
                 .setWaitForNodes("2")
@@ -665,7 +666,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertAcked(indicesAdmin().prepareDelete(sourceIdx).get());
         assertAcked(indicesAdmin().prepareDelete(shrunkIdx).get());
         internalCluster().stopRandomDataNode();
-        clusterAdmin().prepareHealth().setTimeout(TimeValue.timeValueSeconds(30)).setWaitForNodes("1");
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setTimeout(TimeValue.timeValueSeconds(30)).setWaitForNodes("1");
 
         logger.info("--> start a new data node");
         final Settings dataSettings = Settings.builder()
@@ -673,7 +674,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()) // to get a new node id
             .build();
         internalCluster().startDataOnlyNode(dataSettings);
-        clusterAdmin().prepareHealth().setTimeout(TimeValue.timeValueSeconds(30)).setWaitForNodes("2");
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setTimeout(TimeValue.timeValueSeconds(30)).setWaitForNodes("2");
 
         logger.info("--> restore the shrunk index and ensure all shards are allocated");
         RestoreSnapshotResponse restoreResponse = clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repo, snapshot)
@@ -1126,7 +1127,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> wait for relocations to start");
 
         assertBusy(
-            () -> assertThat(clusterAdmin().prepareHealth(indexName).get().getRelocatingShards(), greaterThan(0)),
+            () -> assertThat(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, indexName).get().getRelocatingShards(), greaterThan(0)),
             1L,
             TimeUnit.MINUTES
         );
@@ -1316,7 +1317,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         List<Path> files = new ArrayList<>();
         forEachFileRecursively(repoPath.resolve("indices"), ((file, basicFileAttributes) -> {
             final String fileName = file.getFileName().toString();
-            if (fileName.startsWith(BlobStoreRepository.METADATA_PREFIX) && fileName.endsWith(".dat")) {
+            if (fileName.startsWith(BlobStoreRepository.METADATA_PREFIX) && fileName.endsWith(METADATA_BLOB_NAME_SUFFIX)) {
                 files.add(file);
             }
         }));

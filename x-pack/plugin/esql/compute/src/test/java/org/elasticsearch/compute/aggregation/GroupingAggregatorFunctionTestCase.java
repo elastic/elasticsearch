@@ -52,11 +52,14 @@ import static org.elasticsearch.compute.data.BlockTestUtils.append;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
+/**
+ * Shared tests for testing grouped aggregations.
+ */
 public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperatorTestCase {
     protected abstract AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels);
 
     protected final int aggregatorIntermediateBlockCount() {
-        try (var agg = aggregatorFunction(List.of()).aggregator(driverContext())) {
+        try (var agg = aggregatorFunction(List.of()).groupingAggregator(driverContext())) {
             return agg.intermediateBlockCount();
         }
     }
@@ -101,14 +104,18 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     @Override
     protected final Matcher<String> expectedToStringOfSimple() {
         String hash = "blockHash=LongBlockHash{channel=0, entries=0, seenNull=false}";
-        String type = getClass().getSimpleName().replace("Tests", "");
         return equalTo(
             "HashAggregationOperator["
                 + hash
                 + ", aggregators=[GroupingAggregator[aggregatorFunction="
-                + type
-                + "[channels=[1]], mode=SINGLE]]]"
+                + expectedToStringOfSimpleAggregator()
+                + ", mode=SINGLE]]]"
         );
+    }
+
+    protected String expectedToStringOfSimpleAggregator() {
+        String type = getClass().getSimpleName().replace("Tests", "");
+        return type + "[channels=[1]]";
     }
 
     private SeenGroups seenGroups(List<Page> input) {
@@ -544,7 +551,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                     @Override
                     public AddInput prepareProcessPage(SeenGroupIds ignoredSeenGroupIds, Page page) {
                         return new AddInput() {
-                            AddInput delegateAddInput = delegate.prepareProcessPage(bigArrays -> {
+                            final AddInput delegateAddInput = delegate.prepareProcessPage(bigArrays -> {
                                 BitArray seen = new BitArray(0, bigArrays);
                                 seen.or(seenGroupIds);
                                 return seen;
@@ -595,7 +602,17 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                                     delegateAddInput.add(positionOffset + offset, blockFactory.newIntArrayVector(chunk, count));
                                 }
                             }
+
+                            @Override
+                            public void close() {
+                                delegateAddInput.close();
+                            }
                         };
+                    }
+
+                    @Override
+                    public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
+                        delegate.selectedMayContainUnseenGroups(seenGroupIds);
                     }
 
                     @Override

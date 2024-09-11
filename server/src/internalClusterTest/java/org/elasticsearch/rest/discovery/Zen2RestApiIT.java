@@ -51,7 +51,12 @@ public class Zen2RestApiIT extends ESIntegTestCase {
         );
         ensureGreen("test");
 
-        final DiscoveryNodes discoveryNodes = clusterAdmin().prepareState().clear().setNodes(true).get().getState().nodes();
+        final DiscoveryNodes discoveryNodes = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .clear()
+            .setNodes(true)
+            .get()
+            .getState()
+            .nodes();
         final Map<String, String> nodeIdsByName = Maps.newMapWithExpectedSize(discoveryNodes.getSize());
         discoveryNodes.forEach(n -> nodeIdsByName.put(n.getName(), n.getId()));
 
@@ -98,7 +103,7 @@ public class Zen2RestApiIT extends ESIntegTestCase {
 
                     ClusterHealthResponse clusterHealthResponse = client(viaNode).admin()
                         .cluster()
-                        .prepareHealth()
+                        .prepareHealth(TEST_REQUEST_TIMEOUT)
                         .setWaitForEvents(Priority.LANGUID)
                         .setWaitForNodes(Integer.toString(1))
                         .setTimeout(TimeValue.timeValueSeconds(30L))

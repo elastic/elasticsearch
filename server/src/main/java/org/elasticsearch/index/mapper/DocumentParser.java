@@ -687,6 +687,8 @@ public final class DocumentParser {
     ) throws IOException {
         // Check if we need to record the array source. This only applies to synthetic source.
         if (context.canAddIgnoredField()) {
+            String fullPath = context.path().pathAsText(arrayFieldName);
+
             boolean objectRequiresStoringSource = mapper instanceof ObjectMapper objectMapper
                 && (objectMapper.storeArraySource()
                     || (context.sourceKeepModeFromIndexSettings() == Mapper.SourceKeepMode.ARRAYS
@@ -698,7 +700,7 @@ public final class DocumentParser {
                 && context.sourceKeepModeFromIndexSettings() == Mapper.SourceKeepMode.ARRAYS;
             boolean dynamicRuntimeContext = context.dynamic() == ObjectMapper.Dynamic.RUNTIME;
             boolean copyToFieldHasValuesInDocument = context.isWithinCopyTo() == false
-                && context.isCopyToDestinationField(context.path().pathAsText(arrayFieldName));
+                && context.isCopyToDestinationField(fullPath);
             if (objectRequiresStoringSource
                 || fieldWithFallbackSyntheticSource
                 || dynamicRuntimeContext
@@ -708,7 +710,7 @@ public final class DocumentParser {
                 context.addIgnoredField(
                     IgnoredSourceFieldMapper.NameValue.fromContext(
                         context,
-                        context.path().pathAsText(arrayFieldName),
+                        fullPath,
                         XContentDataHelper.encodeXContentBuilder(tuple.v2())
                     )
                 );
@@ -718,7 +720,7 @@ public final class DocumentParser {
                     context.addIgnoredField(
                         IgnoredSourceFieldMapper.NameValue.fromContext(
                             context,
-                            context.path().pathAsText(arrayFieldName),
+                            fullPath,
                             XContentDataHelper.encodeToken(context.parser())
                         )
                     );

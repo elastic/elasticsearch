@@ -117,22 +117,36 @@ public final class XContentDataHelper {
      * @throws IOException
      */
     static void writeMerged(XContentBuilder b, String fieldName, List<BytesRef> encodedParts) throws IOException {
-        var partsWithData = encodedParts.stream().filter(XContentDataHelper::isDataPresent).toList();
+        var partsWithData = 0;
+        for (BytesRef encodedPart : encodedParts) {
+            if (isDataPresent(encodedPart)) {
+                partsWithData++;
+            }
+        }
 
-        if (partsWithData.isEmpty()) {
+
+        if (partsWithData == 0) {
             return;
         }
 
-        if (partsWithData.size() == 1) {
-            var part = partsWithData.get(0);
+        if (partsWithData == 1) {
             b.field(fieldName);
-            XContentDataHelper.decodeAndWrite(b, part);
+            for (BytesRef encodedPart : encodedParts) {
+                if (isDataPresent(encodedPart)) {
+                    XContentDataHelper.decodeAndWrite(b, encodedPart);
+                }
+            }
+
             return;
         }
 
         b.startArray(fieldName);
 
-        for (var encodedValue : partsWithData) {
+        for (var encodedValue : encodedParts) {
+            if (isDataPresent(encodedValue) == false) {
+                continue;
+            }
+
             Optional<XContentType> encodedXContentType = switch ((char) encodedValue.bytes[encodedValue.offset]) {
                 case CBOR_OBJECT_ENCODING, JSON_OBJECT_ENCODING, YAML_OBJECT_ENCODING, SMILE_OBJECT_ENCODING -> Optional.of(
                     getXContentType(encodedValue)

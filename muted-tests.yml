@@ -202,6 +202,9 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testCreateJobInSharedIndexUpdatesMapping
   issue: https://github.com/elastic/elasticsearch/issues/112729
+- class: org.elasticsearch.xpack.ml.integration.MlJobIT
+  method: testGetJob_GivenNoSuchJob
+  issue: https://github.com/elastic/elasticsearch/issues/112730
 
 # Examples:
 #

@@ -8,6 +8,9 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
+import org.elasticsearch.common.io.stream.FilterStreamInput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
@@ -121,10 +124,27 @@ public class InternalOrderTests extends AbstractXContentSerializingTestCase<Buck
         BucketOrder testInstance = createTestInstance();
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             instanceWriter().write(output, testInstance);
-            BucketOrder order1 = instanceReader().read(output.bytes().streamInput());
-            instanceWriter().write(output, testInstance);
-            BucketOrder order2 = instanceReader().read(output.bytes().streamInput());
-            assertSame(order1, order2);
+            if (testInstance instanceof CompoundOrder || testInstance instanceof InternalOrder.Aggregation) {
+                assertNotSame(testInstance, instanceReader().read(output.bytes().streamInput()));
+            }
+            StreamInput dedupe = new DeduplicatorStreamInput(output.bytes().streamInput(), testInstance);
+            assertSame(testInstance, instanceReader().read(dedupe));
+        }
+    }
+
+    private static class DeduplicatorStreamInput extends FilterStreamInput implements DelayableWriteable.Deduplicator {
+
+        private final BucketOrder order;
+
+        protected DeduplicatorStreamInput(StreamInput delegate, BucketOrder order) {
+            super(delegate);
+            this.order = order;
+        }
+
+        @SuppressWarnings("unchecked")
+        @Override
+        public <T> T deduplicate(T object) {
+            return (T) order;
         }
     }
 

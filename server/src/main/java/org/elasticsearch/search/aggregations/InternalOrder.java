@@ -8,10 +8,10 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.search.aggregations.Aggregator.BucketComparator;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
@@ -28,7 +28,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.ToLongFunction;
@@ -471,8 +470,6 @@ public abstract class InternalOrder extends BucketOrder {
      */
     public static class Streams {
 
-        private static final BucketOrderDeduplicator bucketOrderDeduplicator = new BucketOrderDeduplicator();
-
         /**
          * Read a {@link BucketOrder} from a {@link StreamInput}.
          *
@@ -481,6 +478,10 @@ public abstract class InternalOrder extends BucketOrder {
          * @throws IOException on error reading from the stream.
          */
         public static BucketOrder readOrder(StreamInput in) throws IOException {
+            return readOrder(in, true);
+        }
+
+        private static BucketOrder readOrder(StreamInput in, boolean dedupe) throws IOException {
             byte id = in.readByte();
             switch (id) {
                 case COUNT_DESC_ID:
@@ -494,14 +495,20 @@ public abstract class InternalOrder extends BucketOrder {
                 case Aggregation.ID:
                     boolean asc = in.readBoolean();
                     String key = in.readString();
-                    return bucketOrderDeduplicator.deduplicate(new Aggregation(key, asc));
+                    if (dedupe && in instanceof DelayableWriteable.Deduplicator bo) {
+                        return bo.deduplicate(new Aggregation(key, asc));
+                    }
+                    return new Aggregation(key, asc);
                 case CompoundOrder.ID:
                     int size = in.readVInt();
                     List<BucketOrder> compoundOrder = new ArrayList<>(size);
                     for (int i = 0; i < size; i++) {
-                        compoundOrder.add(Streams.readOrder(in));
+                        compoundOrder.add(Streams.readOrder(in, false));
                     }
-                    return bucketOrderDeduplicator.deduplicate(new CompoundOrder(compoundOrder, false));
+                    if (dedupe && in instanceof DelayableWriteable.Deduplicator bo) {
+                        return bo.deduplicate(new CompoundOrder(compoundOrder, false));
+                    }
+                    return new CompoundOrder(compoundOrder, false);
                 default:
                     throw new RuntimeException("unknown order id [" + id + "]");
             }
@@ -598,30 +605,6 @@ public abstract class InternalOrder extends BucketOrder {
                 default -> // assume all other orders are sorting on a sub-aggregation. Validation occurs later.
                     aggregation(orderKey, orderAsc);
             };
-        }
-    }
-
-    /**
-     * A cache for deserializing {@link BucketOrder}.
-     */
-    private static class BucketOrderDeduplicator {
-        // This cache should be enough to deserialize one request
-        private static final int MAX_SIZE = 16;
-
-        private final Map<BucketOrder, BucketOrder> map = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency(16);
-
-        private BucketOrderDeduplicator() {}
-
-        public BucketOrder deduplicate(BucketOrder bucketOrder) {
-            final BucketOrder res = map.get(bucketOrder);
-            if (res != null) {
-                return res;
-            }
-            if (map.size() >= MAX_SIZE) {
-                map.clear();
-            }
-            map.put(bucketOrder, bucketOrder);
-            return bucketOrder;
         }
     }
 }

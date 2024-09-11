@@ -10,7 +10,7 @@ package org.elasticsearch.cluster.routing;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
@@ -380,9 +380,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     /**
      * Returns <code>true</code> iff all replicas are active for the given shard routing. Otherwise <code>false</code>
      */
-    public boolean allShardsActive(ShardId shardId, Metadata metadata) {
+    public boolean allShardsActive(ShardId shardId, ProjectMetadata project) {
         final List<ShardRouting> shards = assignedShards(shardId);
-        final int shardCopies = metadata.getProject().getIndexSafe(shardId.getIndex()).getNumberOfReplicas() + 1;
+        final int shardCopies = project.getIndexSafe(shardId.getIndex()).getNumberOfReplicas() + 1;
         if (shards.size() < shardCopies) {
             return false; // if we are empty nothing is active if we have less than total at least one is unassigned
         }

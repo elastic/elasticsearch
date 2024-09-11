@@ -13,6 +13,9 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
@@ -108,37 +111,50 @@ public class IndexMetadataUpdater implements RoutingChangesObserver {
      * @param minClusterTransportVersion minimum TransportVersion used between nodes of this cluster
      * @return adapted {@link Metadata}, potentially the original one if no change was needed.
      */
-    public Metadata applyChanges(Metadata oldMetadata, RoutingTable newRoutingTable, TransportVersion minClusterTransportVersion) {
-        Map<Index, List<Map.Entry<ShardId, Updates>>> changesGroupedByIndex = shardChanges.entrySet()
+    public Metadata applyChanges(Metadata oldMetadata, GlobalRoutingTable newRoutingTable, TransportVersion minClusterTransportVersion) {
+        final Map<Index, List<Map.Entry<ShardId, Updates>>> changesGroupedByIndex = shardChanges.entrySet()
             .stream()
             .collect(Collectors.groupingBy(e -> e.getKey().getIndex()));
 
-        final Map<String, IndexMetadata> updatedIndices = Maps.newHashMapWithExpectedSize(changesGroupedByIndex.size());
-        for (Map.Entry<Index, List<Map.Entry<ShardId, Updates>>> indexChanges : changesGroupedByIndex.entrySet()) {
-            Index index = indexChanges.getKey();
-            final IndexMetadata oldIndexMetadata = oldMetadata.getProject().getIndexSafe(index);
-            IndexMetadata updatedIndexMetadata = oldIndexMetadata;
-            for (Map.Entry<ShardId, Updates> shardEntry : indexChanges.getValue()) {
-                ShardId shardId = shardEntry.getKey();
-                Updates updates = shardEntry.getValue();
-                updatedIndexMetadata = updateInSyncAllocations(
-                    newRoutingTable,
-                    oldIndexMetadata,
-                    updatedIndexMetadata,
-                    shardId,
-                    updates,
-                    minClusterTransportVersion
-                );
-                updatedIndexMetadata = updates.increaseTerm
-                    ? updatedIndexMetadata.withIncrementedPrimaryTerm(shardId.id())
-                    : updatedIndexMetadata;
+        final GlobalRoutingTable.ProjectLookup projectLookup = newRoutingTable.getProjectLookup();
+        final Map<ProjectId, List<Index>> indicesByProject = changesGroupedByIndex.keySet().stream().collect(Collectors.groupingBy(idx -> {
+            final ProjectId projectId = projectLookup.project(idx);
+            if (projectId == null) {
+                throw new IllegalStateException("cannot find project for index [" + idx + "]");
             }
+            return projectId;
+        }));
 
-            if (updatedIndexMetadata != oldIndexMetadata) {
-                updatedIndices.put(updatedIndexMetadata.getIndex().getName(), updatedIndexMetadata.withIncrementedVersion());
+        final Metadata.Builder updatedMetadata = Metadata.builder(oldMetadata);
+        indicesByProject.forEach((projectId, indices) -> {
+            final ProjectMetadata projectMetadata = oldMetadata.getProject(projectId);
+            final Map<String, IndexMetadata> updatedIndices = Maps.newHashMapWithExpectedSize(indices.size());
+            for (Index index : indices) {
+                var indexChanges = changesGroupedByIndex.get(index);
+                final IndexMetadata oldIndexMetadata = projectMetadata.getIndexSafe(index);
+                IndexMetadata updatedIndexMetadata = oldIndexMetadata;
+                for (Map.Entry<ShardId, Updates> shardEntry : indexChanges) {
+                    ShardId shardId = shardEntry.getKey();
+                    Updates updates = shardEntry.getValue();
+                    updatedIndexMetadata = updateInSyncAllocations(
+                        newRoutingTable.routingTable(projectId),
+                        oldIndexMetadata,
+                        updatedIndexMetadata,
+                        shardId,
+                        updates,
+                        minClusterTransportVersion
+                    );
+                    updatedIndexMetadata = updates.increaseTerm
+                        ? updatedIndexMetadata.withIncrementedPrimaryTerm(shardId.id())
+                        : updatedIndexMetadata;
+                }
+                if (updatedIndexMetadata != oldIndexMetadata) {
+                    updatedIndices.put(updatedIndexMetadata.getIndex().getName(), updatedIndexMetadata.withIncrementedVersion());
+                }
             }
-        }
-        return oldMetadata.withAllocationAndTermUpdatesOnly(updatedIndices);
+            updatedMetadata.put(projectMetadata.withAllocationAndTermUpdatesOnly(updatedIndices));
+        });
+        return updatedMetadata.build();
     }
 
     /**

@@ -338,7 +338,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         final ProjectId projectId = state.metadata().getProject().id();
 
         final GlobalRoutingTable newRoutingTable = state.globalRoutingTable().rebuild(allocation.routingNodes());
-        final Metadata newMetadata = allocation.updateMetadataWithRoutingChanges(newRoutingTable.routingTable(projectId));
+        final Metadata newMetadata = allocation.updateMetadataWithRoutingChanges(newRoutingTable);
         assert newRoutingTable.validate(newMetadata);
 
         return state.copyAndUpdate(builder -> builder.routingTable(newRoutingTable).metadata(newMetadata));

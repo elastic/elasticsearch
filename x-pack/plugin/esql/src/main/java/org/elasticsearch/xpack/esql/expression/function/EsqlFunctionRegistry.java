@@ -359,7 +359,7 @@ public class EsqlFunctionRegistry {
                 def(ToString.class, ToString::new, "to_string", "to_str"),
                 def(ToTimeDuration.class, ToTimeDuration::new, "to_timeduration"),
                 def(ToUnsignedLong.class, ToUnsignedLong::new, "to_unsigned_long", "to_ulong", "to_ul"),
-                def(ToVersion.class, ToVersion::new, "to_version", "to_ver") },
+                def(ToVersion.class, ToVersion::new, "to_version", "to_ver"), },
             // multivalue functions
             new FunctionDefinition[] {
                 def(MvAppend.class, MvAppend::new, "mv_append"),

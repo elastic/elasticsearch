@@ -1,11 +1,11 @@
 pr: 112451
 summary: Update data stream lifecycle telemetry to track global retention
 area: Data streams
-type: breaking
+type: "breaking, enhancement"
 issues: []
 breaking:
   title: Update data stream lifecycle telemetry to track global retention
-  area: "REST API"
+  area: REST API
   details: |-
     In this release we introduced global retention settings that fulfil the following criteria:
 
@@ -25,6 +25,5 @@ breaking:
 
     Considering the above changes, having a field named `retention` in the usage API was confusing. For this reason, we
     renamed it to `data_retention` and added telemetry about the other configurations too.
-
   impact: Users that use the field `data_lifecycle.retention` should use the `data_lifecycle.data_retention`
   notable: false

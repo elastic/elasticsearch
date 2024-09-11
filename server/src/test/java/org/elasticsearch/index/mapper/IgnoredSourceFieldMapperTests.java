@@ -213,6 +213,18 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         );
     }
 
+    public void testIgnoredDynamicArrayNestedInObject() throws IOException {
+        int intValue = randomInt();
+
+        String syntheticSource = getSyntheticSourceWithFieldLimit(b -> {
+            b.startObject("bar");
+            b.field("a", List.of(intValue, intValue));
+            b.endObject();
+        });
+        assertEquals(String.format(Locale.ROOT, """
+            {"bar":{"a":[%s,%s]}}""", intValue, intValue), syntheticSource);
+    }
+
     public void testDisabledRootObjectSingleField() throws IOException {
         String name = randomAlphaOfLength(20);
         DocumentMapper documentMapper = createMapperService(topMapping(b -> {

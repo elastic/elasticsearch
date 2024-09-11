@@ -150,8 +150,11 @@ public class EsqlSecurityIT extends ESRestTestCase {
             Response resp = runESQLCommand(user, "from index-user1 | stats sum=sum(value)");
             assertOK(resp);
             Map<String, Object> responseMap = entityAsMap(resp);
-            MapMatcher matcher = responseMatcher().entry("took", ((Integer) responseMap.get("took")).intValue())
-                .entry("columns", List.of(Map.of("name", "sum", "type", "double")))
+            MapMatcher mapMatcher = responseMatcher();
+            if (responseMap.get("took") != null) {
+                mapMatcher = mapMatcher.entry("took", ((Integer) responseMap.get("took")).intValue());
+            }
+            MapMatcher matcher = mapMatcher.entry("columns", List.of(Map.of("name", "sum", "type", "double")))
                 .entry("values", List.of(List.of(43.0d)));
             assertMap(responseMap, matcher);
         }
@@ -160,8 +163,11 @@ public class EsqlSecurityIT extends ESRestTestCase {
             Response resp = runESQLCommand(user, "from index-user2 | stats sum=sum(value)");
             assertOK(resp);
             Map<String, Object> responseMap = entityAsMap(resp);
-            MapMatcher matcher = responseMatcher().entry("took", ((Integer) responseMap.get("took")).intValue())
-                .entry("columns", List.of(Map.of("name", "sum", "type", "double")))
+            MapMatcher mapMatcher = responseMatcher();
+            if (responseMap.get("took") != null) {
+                mapMatcher = mapMatcher.entry("took", ((Integer) responseMap.get("took")).intValue());
+            }
+            MapMatcher matcher = mapMatcher.entry("columns", List.of(Map.of("name", "sum", "type", "double")))
                 .entry("values", List.of(List.of(72.0d)));
             assertMap(responseMap, matcher);
         }
@@ -170,8 +176,11 @@ public class EsqlSecurityIT extends ESRestTestCase {
             Response resp = runESQLCommand("metadata1_read2", "from " + index + " | stats sum=sum(value)");
             assertOK(resp);
             Map<String, Object> responseMap = entityAsMap(resp);
-            MapMatcher matcher = responseMatcher().entry("took", ((Integer) responseMap.get("took")).intValue())
-                .entry("columns", List.of(Map.of("name", "sum", "type", "double")))
+            MapMatcher mapMatcher = responseMatcher();
+            if (responseMap.get("took") != null) {
+                mapMatcher = mapMatcher.entry("took", ((Integer) responseMap.get("took")).intValue());
+            }
+            MapMatcher matcher = mapMatcher.entry("columns", List.of(Map.of("name", "sum", "type", "double")))
                 .entry("values", List.of(List.of(72.0d)));
             assertMap(responseMap, matcher);
         }

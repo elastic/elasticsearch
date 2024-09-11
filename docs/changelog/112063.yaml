@@ -4,6 +4,7 @@ area: ES|QL
 type: bug
 issues:
  - 112102
+ - 112505
  - 110830
 highlight:
   title: "ESQL: Multi-value fields supported in Geospatial predicates"

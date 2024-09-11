@@ -522,10 +522,7 @@ public class RepositoryVerifyIntegrityIT extends AbstractSnapshotIntegTestCase {
             );
         }
         assertEquals(200, response.getStatusLine().getStatusCode());
-        assertThat(
-            getAnomalies(ObjectPath.createFromResponse(response)),
-            equalTo(Set.of("failed to load shard generation", "failed to load shard snapshot"))
-        );
+        assertThat(getAnomalies(ObjectPath.createFromResponse(response)), equalTo(Set.of("failed to load shard snapshot")));
     }
 
     public void testShardPathUnreadable() throws IOException {

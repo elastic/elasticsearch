@@ -11,7 +11,7 @@ package org.elasticsearch.tdigest.arrays;
 /**
  * Minimal interface for DoubleArray-like classes used within TDigest.
  */
-public interface TDigestDoubleArray {
+public interface TDigestDoubleArray extends AutoCloseable {
     int size();
 
     double get(int index);
@@ -40,4 +40,10 @@ public interface TDigestDoubleArray {
      * Sorts the array in place in ascending order.
      */
     void sort();
+
+    /**
+     * Overriding close to remove the exception from the signature.
+     */
+    @Override
+    void close();
 }

@@ -93,6 +93,11 @@ public class WrapperTDigestArrays implements TDigestArrays {
                 array = newArray;
             }
         }
+
+        @Override
+        public void close() {
+            // No-op
+        }
     }
 
     public static class WrapperTDigestIntArray implements TDigestIntArray {
@@ -121,6 +126,11 @@ public class WrapperTDigestArrays implements TDigestArrays {
         public void set(int index, int value) {
             assert index >= 0 && index < array.length;
             array[index] = value;
+        }
+
+        @Override
+        public void close() {
+            // No-op
         }
     }
 }

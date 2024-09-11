@@ -68,7 +68,6 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -988,35 +987,21 @@ public class WildcardFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected SyntheticSourceMode syntheticSourceMode() {
-        return SyntheticSourceMode.NATIVE;
-    }
-
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        if (copyTo().copyToFields().isEmpty() != true) {
-            throw new IllegalArgumentException(
-                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
-            );
-        }
-
-        var loader = new WildcardSyntheticFieldLoader();
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
+        layers.add(new WildcardSyntheticFieldLoader());
         if (ignoreAbove != Defaults.IGNORE_ABOVE) {
-            return new CompositeSyntheticFieldLoader(
-                leafName(),
-                fullPath(),
-                loader,
-                new CompositeSyntheticFieldLoader.StoredFieldLayer(originalName()) {
-                    @Override
-                    protected void writeValue(Object value, XContentBuilder b) throws IOException {
-                        BytesRef r = (BytesRef) value;
-                        b.utf8Value(r.bytes, r.offset, r.length);
-                    }
+            layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(originalName()) {
+                @Override
+                protected void writeValue(Object value, XContentBuilder b) throws IOException {
+                    BytesRef r = (BytesRef) value;
+                    b.utf8Value(r.bytes, r.offset, r.length);
                 }
-            );
+            });
         }
 
-        return new CompositeSyntheticFieldLoader(leafName(), fullPath(), loader);
+        var loader = new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
+        return new SyntheticSourceSupport.Native(loader);
     }
 
     private class WildcardSyntheticFieldLoader implements CompositeSyntheticFieldLoader.DocValuesLayer {

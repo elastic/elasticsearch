@@ -34,7 +34,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
 
         NumShards numShards = getNumShards("test");
 
-        ClusterStateResponse stateResponse = clusterAdmin().prepareState().get();
+        ClusterStateResponse stateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
         assertThat(stateResponse.getState().metadata().index("test").getState(), equalTo(IndexMetadata.State.OPEN));
         assertThat(stateResponse.getState().routingTable().index("test").size(), equalTo(numShards.numPrimaries));
         assertEquals(
@@ -48,7 +48,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
         logger.info("--> closing test index...");
         assertAcked(indicesAdmin().prepareClose("test"));
 
-        stateResponse = clusterAdmin().prepareState().get();
+        stateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
         assertThat(stateResponse.getState().metadata().index("test").getState(), equalTo(IndexMetadata.State.CLOSE));
         assertThat(stateResponse.getState().routingTable().index("test"), notNullValue());
 
@@ -66,7 +66,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
         logger.info("--> waiting for green status");
         ensureGreen();
 
-        stateResponse = clusterAdmin().prepareState().get();
+        stateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
         assertThat(stateResponse.getState().metadata().index("test").getState(), equalTo(IndexMetadata.State.OPEN));
 
         assertThat(stateResponse.getState().routingTable().index("test").size(), equalTo(numShards.numPrimaries));
@@ -86,7 +86,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
             .setSettings(Settings.builder().put("index.routing.allocation.include.tag", "no_such_node").build())
             .get();
 
-        ClusterHealthResponse health = clusterAdmin().prepareHealth("test").setWaitForNodes(">=2").get();
+        ClusterHealthResponse health = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "test").setWaitForNodes(">=2").get();
         assertThat(health.isTimedOut(), equalTo(false));
         assertThat(health.getStatus(), equalTo(ClusterHealthStatus.RED));
 
@@ -102,7 +102,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
 
         NumShards numShards = getNumShards("test");
 
-        ClusterStateResponse stateResponse = clusterAdmin().prepareState().get();
+        ClusterStateResponse stateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
         assertThat(stateResponse.getState().metadata().index("test").getState(), equalTo(IndexMetadata.State.OPEN));
         assertThat(stateResponse.getState().routingTable().index("test").size(), equalTo(numShards.numPrimaries));
         assertEquals(

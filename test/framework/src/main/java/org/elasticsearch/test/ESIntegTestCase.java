@@ -580,7 +580,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             try {
                 if (cluster() != null) {
                     if (currentClusterScope != Scope.TEST) {
-                        Metadata metadata = clusterAdmin().prepareState().get().getState().getMetadata();
+                        Metadata metadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().getMetadata();
 
                         final Set<String> persistentKeys = new HashSet<>(metadata.persistentSettings().keySet());
                         assertThat("test leaves persistent cluster metadata behind", persistentKeys, empty());
@@ -873,25 +873,25 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Waits until all nodes have no pending tasks.
      */
     public void waitNoPendingTasksOnAll() throws Exception {
-        assertNoTimeout(clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).get());
+        assertNoTimeout(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).get());
         assertBusy(() -> {
             for (Client client : clients()) {
-                ClusterHealthResponse clusterHealth = client.admin().cluster().prepareHealth().setLocal(true).get();
+                ClusterHealthResponse clusterHealth = client.admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setLocal(true).get();
                 assertThat("client " + client + " still has in flight fetch", clusterHealth.getNumberOfInFlightFetch(), equalTo(0));
                 PendingClusterTasksResponse pendingTasks = client.execute(
                     TransportPendingClusterTasksAction.TYPE,
-                    new PendingClusterTasksRequest().local(true)
+                    new PendingClusterTasksRequest(TEST_REQUEST_TIMEOUT).local(true)
                 ).get();
                 assertThat(
                     "client " + client + " still has pending tasks " + pendingTasks,
                     pendingTasks.pendingTasks(),
                     Matchers.emptyIterable()
                 );
-                clusterHealth = client.admin().cluster().prepareHealth().setLocal(true).get();
+                clusterHealth = client.admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setLocal(true).get();
                 assertThat("client " + client + " still has in flight fetch", clusterHealth.getNumberOfInFlightFetch(), equalTo(0));
             }
         });
-        assertNoTimeout(clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).get());
+        assertNoTimeout(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).get());
     }
 
     /** Ensures the result counts are as expected, and logs the results if different */
@@ -980,7 +980,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         String color = clusterHealthStatus.name().toLowerCase(Locale.ROOT);
         String method = "ensure" + Strings.capitalize(color);
 
-        ClusterHealthRequest healthRequest = new ClusterHealthRequest(indices).masterNodeTimeout(timeout)
+        ClusterHealthRequest healthRequest = new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, indices).masterNodeTimeout(timeout)
             .timeout(timeout)
             .waitForStatus(clusterHealthStatus)
             .waitForEvents(Priority.LANGUID)
@@ -1019,10 +1019,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT),
                     listeners.acquire(allocationExplainRef::set)
                 );
-                clusterAdmin().prepareState().execute(listeners.acquire(clusterStateRef::set));
+                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).execute(listeners.acquire(clusterStateRef::set));
                 client().execute(
                     TransportPendingClusterTasksAction.TYPE,
-                    new PendingClusterTasksRequest(),
+                    new PendingClusterTasksRequest(TEST_REQUEST_TIMEOUT),
                     listeners.acquire(pendingTasksRef::set)
                 );
                 try (var writer = new StringWriter()) {
@@ -1075,7 +1075,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * using the cluster health API.
      */
     public ClusterHealthStatus waitForRelocation(ClusterHealthStatus status) {
-        ClusterHealthRequest request = new ClusterHealthRequest(new String[] {}).waitForNoRelocatingShards(true)
+        ClusterHealthRequest request = new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, new String[] {}).waitForNoRelocatingShards(true)
             .waitForEvents(Priority.LANGUID);
         if (status != null) {
             request.waitForStatus(status);
@@ -1085,7 +1085,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             logger.info(
                 "waitForRelocation timed out (status={}), cluster state:\n{}\n{}",
                 status,
-                clusterAdmin().prepareState().get().getState(),
+                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState(),
                 getClusterPendingTasks()
             );
             assertThat("timed out waiting for relocation", actionGet.isTimedOut(), equalTo(false));
@@ -1102,7 +1102,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     public static PendingClusterTasksResponse getClusterPendingTasks(Client client) {
         try {
-            return client.execute(TransportPendingClusterTasksAction.TYPE, new PendingClusterTasksRequest()).get(10, TimeUnit.SECONDS);
+            return client.execute(TransportPendingClusterTasksAction.TYPE, new PendingClusterTasksRequest(TEST_REQUEST_TIMEOUT))
+                .get(10, TimeUnit.SECONDS);
         } catch (Exception e) {
             return fail(e);
         }
@@ -1203,7 +1204,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             ClusterState state = internalCluster.client()
                 .admin()
                 .cluster()
-                .prepareState()
+                .prepareState(TEST_REQUEST_TIMEOUT)
                 .clear()
                 .setMetadata(true)
                 .setNodes(true)
@@ -1219,13 +1220,17 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Prints the current cluster state as debug logging.
      */
     public void logClusterState() {
-        logger.debug("cluster state:\n{}\n{}", clusterAdmin().prepareState().get().getState(), getClusterPendingTasks());
+        logger.debug(
+            "cluster state:\n{}\n{}",
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState(),
+            getClusterPendingTasks()
+        );
     }
 
     protected void ensureClusterSizeConsistency() {
         if (cluster() != null && cluster().size() > 0) { // if static init fails the cluster can be null
             logger.trace("Check consistency for [{}] nodes", cluster().size());
-            assertNoTimeout(clusterAdmin().prepareHealth().setWaitForNodes(Integer.toString(cluster().size())).get());
+            assertNoTimeout(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForNodes(Integer.toString(cluster().size())).get());
         }
     }
 
@@ -1242,64 +1247,68 @@ public abstract class ESIntegTestCase extends ESTestCase {
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
         final List<SubscribableListener<ClusterStateResponse>> localStates = new ArrayList<>(cluster().size());
         for (Client client : cluster().getClients()) {
-            localStates.add(SubscribableListener.newForked(l -> client.admin().cluster().prepareState().all().setLocal(true).execute(l)));
+            localStates.add(
+                SubscribableListener.newForked(
+                    l -> client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).all().setLocal(true).execute(l)
+                )
+            );
         }
         try (RefCountingListener refCountingListener = new RefCountingListener(future)) {
-            SubscribableListener.<ClusterStateResponse>newForked(l -> client().admin().cluster().prepareState().all().execute(l))
-                .andThenAccept(masterStateResponse -> {
-                    byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterStateResponse.getState());
-                    // remove local node reference
-                    final ClusterState masterClusterState = ClusterState.Builder.fromBytes(
-                        masterClusterStateBytes,
-                        null,
-                        namedWriteableRegistry
-                    );
-                    Map<String, Object> masterStateMap = convertToMap(masterClusterState);
-                    int masterClusterStateSize = ClusterState.Builder.toBytes(masterClusterState).length;
-                    String masterId = masterClusterState.nodes().getMasterNodeId();
-                    for (SubscribableListener<ClusterStateResponse> localStateListener : localStates) {
-                        localStateListener.andThenAccept(localClusterStateResponse -> {
-                            byte[] localClusterStateBytes = ClusterState.Builder.toBytes(localClusterStateResponse.getState());
-                            // remove local node reference
-                            final ClusterState localClusterState = ClusterState.Builder.fromBytes(
-                                localClusterStateBytes,
-                                null,
-                                namedWriteableRegistry
-                            );
-                            final Map<String, Object> localStateMap = convertToMap(localClusterState);
-                            final int localClusterStateSize = ClusterState.Builder.toBytes(localClusterState).length;
-                            // Check that the non-master node has the same version of the cluster state as the master and
-                            // that the master node matches the master (otherwise there is no requirement for the cluster state to
-                            // match)
-                            if (masterClusterState.version() == localClusterState.version()
-                                && masterId.equals(localClusterState.nodes().getMasterNodeId())) {
-                                try {
-                                    assertEquals(
-                                        "cluster state UUID does not match",
-                                        masterClusterState.stateUUID(),
-                                        localClusterState.stateUUID()
-                                    );
-                                    // We cannot compare serialization bytes since serialization order of maps is not guaranteed
-                                    // but we can compare serialization sizes - they should be the same
-                                    assertEquals("cluster state size does not match", masterClusterStateSize, localClusterStateSize);
-                                    // Compare JSON serialization
-                                    assertNull(
-                                        "cluster state JSON serialization does not match",
-                                        differenceBetweenMapsIgnoringArrayOrder(masterStateMap, localStateMap)
-                                    );
-                                } catch (final AssertionError error) {
-                                    logger.error(
-                                        "Cluster state from master:\n{}\nLocal cluster state:\n{}",
-                                        masterClusterState.toString(),
-                                        localClusterState.toString()
-                                    );
-                                    throw error;
-                                }
+            SubscribableListener.<ClusterStateResponse>newForked(
+                l -> client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).all().execute(l)
+            ).andThenAccept(masterStateResponse -> {
+                byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterStateResponse.getState());
+                // remove local node reference
+                final ClusterState masterClusterState = ClusterState.Builder.fromBytes(
+                    masterClusterStateBytes,
+                    null,
+                    namedWriteableRegistry
+                );
+                Map<String, Object> masterStateMap = convertToMap(masterClusterState);
+                int masterClusterStateSize = ClusterState.Builder.toBytes(masterClusterState).length;
+                String masterId = masterClusterState.nodes().getMasterNodeId();
+                for (SubscribableListener<ClusterStateResponse> localStateListener : localStates) {
+                    localStateListener.andThenAccept(localClusterStateResponse -> {
+                        byte[] localClusterStateBytes = ClusterState.Builder.toBytes(localClusterStateResponse.getState());
+                        // remove local node reference
+                        final ClusterState localClusterState = ClusterState.Builder.fromBytes(
+                            localClusterStateBytes,
+                            null,
+                            namedWriteableRegistry
+                        );
+                        final Map<String, Object> localStateMap = convertToMap(localClusterState);
+                        final int localClusterStateSize = ClusterState.Builder.toBytes(localClusterState).length;
+                        // Check that the non-master node has the same version of the cluster state as the master and
+                        // that the master node matches the master (otherwise there is no requirement for the cluster state to
+                        // match)
+                        if (masterClusterState.version() == localClusterState.version()
+                            && masterId.equals(localClusterState.nodes().getMasterNodeId())) {
+                            try {
+                                assertEquals(
+                                    "cluster state UUID does not match",
+                                    masterClusterState.stateUUID(),
+                                    localClusterState.stateUUID()
+                                );
+                                // We cannot compare serialization bytes since serialization order of maps is not guaranteed
+                                // but we can compare serialization sizes - they should be the same
+                                assertEquals("cluster state size does not match", masterClusterStateSize, localClusterStateSize);
+                                // Compare JSON serialization
+                                assertNull(
+                                    "cluster state JSON serialization does not match",
+                                    differenceBetweenMapsIgnoringArrayOrder(masterStateMap, localStateMap)
+                                );
+                            } catch (final AssertionError error) {
+                                logger.error(
+                                    "Cluster state from master:\n{}\nLocal cluster state:\n{}",
+                                    masterClusterState.toString(),
+                                    localClusterState.toString()
+                                );
+                                throw error;
                             }
-                        }).addListener(refCountingListener.acquire());
-                    }
-                })
-                .addListener(refCountingListener.acquire());
+                        }
+                    }).addListener(refCountingListener.acquire());
+                }
+            }).addListener(refCountingListener.acquire());
         }
         safeGet(future);
     }
@@ -1307,7 +1316,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     protected void ensureClusterStateCanBeReadByNodeTool() throws IOException {
         if (cluster() != null && cluster().size() > 0) {
             final Client masterClient = client();
-            Metadata metadata = masterClient.admin().cluster().prepareState().all().get().getState().metadata();
+            Metadata metadata = masterClient.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).all().get().getState().metadata();
             final Map<String, String> serializationParams = Maps.newMapWithExpectedSize(2);
             serializationParams.put("binary", "true");
             serializationParams.put(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY);
@@ -1449,7 +1458,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         logger.debug("ensuring cluster is stable with [{}] nodes. access node: [{}]. timeout: [{}]", nodeCount, viaNode, timeValue);
         ClusterHealthResponse clusterHealthResponse = client(viaNode).admin()
             .cluster()
-            .prepareHealth()
+            .prepareHealth(TEST_REQUEST_TIMEOUT)
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForNodes(Integer.toString(nodeCount))
             .setTimeout(timeValue)
@@ -1457,7 +1466,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             .setWaitForNoRelocatingShards(true)
             .get();
         if (clusterHealthResponse.isTimedOut()) {
-            ClusterStateResponse stateResponse = client(viaNode).admin().cluster().prepareState().get();
+            ClusterStateResponse stateResponse = client(viaNode).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get();
             fail(
                 "failed to reach a stable cluster of ["
                     + nodeCount
@@ -1812,7 +1821,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     /** Sets cluster persistent settings **/
     public static void updateClusterSettings(Settings.Builder persistentSettings) {
-        assertAcked(clusterAdmin().prepareUpdateSettings().setPersistentSettings(persistentSettings).get());
+        assertAcked(
+            clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).setPersistentSettings(persistentSettings).get()
+        );
     }
 
     private static CountDownLatch newLatch(List<CountDownLatch> latches) {
@@ -2267,7 +2278,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     protected NumShards getNumShards(String index) {
-        Metadata metadata = clusterAdmin().prepareState().get().getState().metadata();
+        Metadata metadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata();
         assertThat(metadata.hasIndex(index), equalTo(true));
         int numShards = Integer.valueOf(metadata.index(index).getSettings().get(SETTING_NUMBER_OF_SHARDS));
         int numReplicas = Integer.valueOf(metadata.index(index).getSettings().get(SETTING_NUMBER_OF_REPLICAS));
@@ -2279,7 +2290,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     public Set<String> assertAllShardsOnNodes(String index, String... pattern) {
         Set<String> nodes = new HashSet<>();
-        ClusterState clusterState = clusterAdmin().prepareState().get().getState();
+        ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
             for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
                 final IndexShardRoutingTable indexShard = indexRoutingTable.shard(shardId);

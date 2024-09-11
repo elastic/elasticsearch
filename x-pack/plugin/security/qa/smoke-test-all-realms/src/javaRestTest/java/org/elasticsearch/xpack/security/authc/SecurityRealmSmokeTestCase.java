@@ -83,9 +83,11 @@ public abstract class SecurityRealmSmokeTestCase extends ESRestTestCase {
         // - AD (configured but won't work because we don't want external fixtures in this test suite)
         .setting("xpack.security.authc.realms.active_directory.ad3.order", "3")
         .setting("xpack.security.authc.realms.active_directory.ad3.domain_name", "localhost")
+        // role mappings don't matter, but we need to read the file as part of the test
         .setting("xpack.security.authc.realms.active_directory.ad3.files.role_mapping", "ldap_role_mapping.yml")
         // - PKI (works)
         .setting("xpack.security.authc.realms.pki.pki4.order", "4")
+        // role mappings don't matter, but we need to read the file as part of the test
         .setting("xpack.security.authc.realms.pki.pki4.files.role_mapping", "pki_role_mapping.yml")
         // - SAML (configured but won't work because we don't want external fixtures in this test suite)
         .setting("xpack.security.authc.realms.saml.saml5.order", "5")

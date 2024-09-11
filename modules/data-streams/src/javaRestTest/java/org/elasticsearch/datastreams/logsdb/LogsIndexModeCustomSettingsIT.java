@@ -283,35 +283,6 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
         assertThat(ignoreDynamicBeyondLimitIndexSetting, equalTo("false"));
     }
 
-    public void testAddNonCompatibleMapping() throws IOException {
-        var nonCompatibleMappingAdditionTemplate = """
-            {
-              "template": {
-                "mappings": {
-                  "properties": {
-                    "bomb": {
-                      "type": "ip",
-                      "doc_values": false
-                    }
-                  }
-                }
-              }
-            }""";
-
-        Exception e = assertThrows(
-            ResponseException.class,
-            () -> putComponentTemplate(client, "logs@custom", nonCompatibleMappingAdditionTemplate)
-        );
-        assertThat(
-            e.getMessage(),
-            containsString("updating component template [logs@custom] results in invalid composable template [logs]")
-        );
-        assertThat(
-            e.getMessage(),
-            containsString("field [bomb] of type [ip] doesn't support synthetic source because it doesn't have doc values")
-        );
-    }
-
     private static Map<String, Object> getMapping(final RestClient client, final String indexName) throws IOException {
         final Request request = new Request("GET", "/" + indexName + "/_mapping");
 

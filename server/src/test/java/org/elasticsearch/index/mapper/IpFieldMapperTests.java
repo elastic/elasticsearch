@@ -388,12 +388,7 @@ public class IpFieldMapperTests extends MapperTestCase {
 
         @Override
         public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
-            return List.of(
-                new SyntheticSourceInvalidExample(
-                    equalTo("field [field] of type [ip] doesn't support synthetic source because it doesn't have doc values"),
-                    b -> b.field("type", "ip").field("doc_values", false)
-                )
-            );
+            return List.of();
         }
     }
 

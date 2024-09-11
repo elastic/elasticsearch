@@ -50,16 +50,16 @@ Valid columns are:
 (Default) IP address, such as `127.0.1.1`.
 
 `heap.percent`, `hp`, `heapPercent`::
-(Default) Maximum configured heap, such as `7`.
+(Default) Used percentage of total allocated Elasticsearch JVM heap, such as `7`. This reflects only the {es} process running within the operating system and is the most direct indicator of its JVM/heap/memory resource performance.
 
 `heap.max`, `hm`, `heapMax`::
-(Default) Total heap, such as `4gb`.
+Total heap, such as `4gb`.
 
 `ram.percent`, `rp`, `ramPercent`::
-(Default) Used total memory percentage, such as `47`.
+(Default) Used percentage of total operating system's memory, such as `47`. This reflects all processes running on operating system instead of only {es} and is not guaranteed to correlate to its performance. 
 
 `file_desc.percent`, `fdp`, `fileDescriptorPercent`::
-(Default) Used file descriptors percentage, such as `1`.
+Used file descriptors percentage, such as `1`.
 
 `node.role`, `r`, `role`, `nodeRole`::
 (Default) Roles of the node.
@@ -138,16 +138,16 @@ Used file descriptors, such as `123`.
 Maximum number of file descriptors, such as `1024`.
 
 `cpu`::
-Recent system CPU usage as percent, such as `12`.
+(Default) Recent system CPU usage as percent, such as `12`.
 
 `load_1m`, `l`::
-Most recent load average, such as `0.22`.
+(Default) Most recent load average, such as `0.22`.
 
 `load_5m`, `l`::
-Load average for the last five minutes, such as `0.78`.
+(Default) Load average for the last five minutes, such as `0.78`.
 
 `load_15m`, `l`::
-Load average for the last fifteen minutes, such as `1.24`.
+(Default) Load average for the last fifteen minutes, such as `1.24`.
 
 `uptime`, `u`::
 Node uptime, such as `17.3m`.

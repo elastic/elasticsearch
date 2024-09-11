@@ -125,7 +125,10 @@ public class ClusterServiceUtils {
     }
 
     public static ClusterService createClusterService(
-        ThreadPool threadPool, DiscoveryNode localNode, Settings nodeSettings, ClusterSettings clusterSettings
+        ThreadPool threadPool,
+        DiscoveryNode localNode,
+        Settings nodeSettings,
+        ClusterSettings clusterSettings
     ) {
         ClusterService clusterService = new ClusterService(
             nodeSettings,

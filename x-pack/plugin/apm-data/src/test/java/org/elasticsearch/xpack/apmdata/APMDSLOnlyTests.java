@@ -26,9 +26,9 @@ import org.elasticsearch.xpack.stack.StackTemplateRegistryAccessor;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.Set;
-import java.util.Map;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -44,16 +44,9 @@ public class APMDSLOnlyTests extends ESTestCase {
     @Before
     public void createRegistryAndClient() {
         final ClusterSettings clusterSettings = new ClusterSettings(
-            Settings.builder().put(
-                DataStreamLifecycle.DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME,
-                "true"
-            ).build(),
-            Stream.concat(
-                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(),
-                Set.of(
-                    APMPlugin.APM_DATA_REGISTRY_ENABLED
-                ).stream()
-            ).collect(Collectors.toSet())
+            Settings.builder().put(DataStreamLifecycle.DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME, "true").build(),
+            Stream.concat(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(), Set.of(APMPlugin.APM_DATA_REGISTRY_ENABLED).stream())
+                .collect(Collectors.toSet())
         );
 
         threadPool = new TestThreadPool(this.getClass().getName());

@@ -545,7 +545,7 @@ public abstract class TDigestTests extends ESTestCase {
         }
     }
 
-    protected TDigestArrays arrays() {
+    protected static TDigestArrays arrays() {
         return WrapperTDigestArrays.INSTANCE;
     }
 }

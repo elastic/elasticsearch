@@ -149,7 +149,7 @@ public class TDigestBigArraysTests extends ESTestCase {
         return arrays().newDoubleArray(initialSize);
     }
 
-    protected TDigestArrays arrays() {
+    private static TDigestArrays arrays() {
         return WrapperTDigestArrays.INSTANCE;
     }
 }

@@ -204,7 +204,7 @@ public class TDigestStateTests extends ESTestCase {
         assertEquals(serializedBackwardsCompatible, backwardsCompatible);
     }
 
-    protected TDigestArrays arrays() {
+    private static TDigestArrays arrays() {
         return WrapperTDigestArrays.INSTANCE;
     }
 }

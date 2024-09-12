@@ -29,6 +29,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
@@ -537,6 +538,8 @@ public class NodeEnvironmentTests extends ESTestCase {
         }
     }
 
+    @UpdateForV9
+    @AwaitsFix(bugUrl = "test won't work until we remove and bump minimum index versions")
     public void testIndexCompatibilityChecks() throws IOException {
         final Settings settings = buildEnvSettings(Settings.EMPTY);
 
@@ -634,6 +637,8 @@ public class NodeEnvironmentTests extends ESTestCase {
         env.close();
     }
 
+    @UpdateForV9
+    @AwaitsFix(bugUrl = "test won't work until we remove and bump minimum index versions")
     public void testGetBestDowngradeVersion() {
         assertThat(NodeEnvironment.getBestDowngradeVersion("7.17.0"), Matchers.equalTo("7.17.0"));
         assertThat(NodeEnvironment.getBestDowngradeVersion("7.17.5"), Matchers.equalTo("7.17.5"));

@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper.vectors;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 
@@ -27,7 +28,7 @@ public class VectorEncoderDecoderTests extends ESTestCase {
         for (IndexVersion version : List.of(
             IndexVersionUtils.randomVersionBetween(
                 random(),
-                DenseVectorFieldMapper.MAGNITUDE_STORED_INDEX_VERSION,
+                IndexVersions.MINIMUM_COMPATIBLE,
                 IndexVersionUtils.getPreviousVersion(DenseVectorFieldMapper.LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)
             ),
             DenseVectorFieldMapper.LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION

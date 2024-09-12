@@ -28,7 +28,7 @@ public class MedianTests extends ESTestCase {
 
     public void testAVL() {
         double[] data = new double[] { 7, 15, 36, 39, 40, 41 };
-        TDigest digest = new AVLTreeDigest(100);
+        TDigest digest = new AVLTreeDigest(WrapperTDigestArrays.INSTANCE, 100);
         for (double value : data) {
             digest.add(value);
         }

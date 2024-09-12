@@ -104,12 +104,12 @@ public class TDigestState {
         return new TDigestState(WrapperTDigestArrays.INSTANCE, state.type, state.compression);
     }
 
-    protected TDigestState(TDigestArrays bigArrays, Type type, double compression) {
+    protected TDigestState(TDigestArrays arrays, Type type, double compression) {
         tdigest = switch (type) {
-            case HYBRID -> TDigest.createHybridDigest(bigArrays, compression);
-            case AVL_TREE -> TDigest.createAvlTreeDigest(compression);
-            case SORTING -> TDigest.createSortingDigest(bigArrays);
-            case MERGING -> TDigest.createMergingDigest(bigArrays, compression);
+            case HYBRID -> TDigest.createHybridDigest(arrays, compression);
+            case AVL_TREE -> TDigest.createAvlTreeDigest(arrays, compression);
+            case SORTING -> TDigest.createSortingDigest(arrays);
+            case MERGING -> TDigest.createMergingDigest(arrays, compression);
         };
         this.type = type;
         this.compression = compression;

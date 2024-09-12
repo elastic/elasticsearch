@@ -28,4 +28,8 @@ public interface TDigestArrays {
     TDigestDoubleArray newDoubleArray(int initialSize);
 
     TDigestIntArray newIntArray(int initialSize);
+
+    TDigestLongArray newLongArray(int initialSize);
+
+    TDigestByteArray newByteArray(int initialSize);
 }

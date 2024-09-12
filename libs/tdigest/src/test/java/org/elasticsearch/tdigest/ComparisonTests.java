@@ -40,7 +40,7 @@ public class ComparisonTests extends ESTestCase {
 
     private void loadData(Supplier<Double> sampleGenerator) {
         final int COMPRESSION = 100;
-        avlTreeDigest = TDigest.createAvlTreeDigest(COMPRESSION);
+        avlTreeDigest = TDigest.createAvlTreeDigest(WrapperTDigestArrays.INSTANCE, COMPRESSION);
         mergingDigest = TDigest.createMergingDigest(WrapperTDigestArrays.INSTANCE, COMPRESSION);
         sortingDigest = TDigest.createSortingDigest(WrapperTDigestArrays.INSTANCE);
         hybridDigest = TDigest.createHybridDigest(WrapperTDigestArrays.INSTANCE, COMPRESSION);

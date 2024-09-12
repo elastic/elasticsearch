@@ -63,8 +63,8 @@ public abstract class TDigest {
      *                    The number of centroids retained will be a smallish (usually less than 10) multiple of this number.
      * @return the AvlTreeDigest
      */
-    public static TDigest createAvlTreeDigest(double compression) {
-        return new AVLTreeDigest(compression);
+    public static TDigest createAvlTreeDigest(TDigestArrays arrays, double compression) {
+        return new AVLTreeDigest(arrays, compression);
     }
 
     /**

@@ -19,17 +19,26 @@
  * This project is based on a modification of https://github.com/tdunning/t-digest which is licensed under the Apache 2.0 License.
  */
 
-package org.elasticsearch.tdigest;
+package org.elasticsearch.tdigest.arrays;
 
-import org.elasticsearch.tdigest.arrays.WrapperTDigestArrays;
+/**
+ * Minimal interface for LongArray-like classes used within TDigest.
+ */
+public interface TDigestLongArray extends AutoCloseable {
+    int size();
 
-public class AVLTreeDigestTests extends TDigestTests {
+    long get(int index);
 
-    protected DigestFactory factory(final double compression) {
-        return () -> {
-            AVLTreeDigest digest = new AVLTreeDigest(WrapperTDigestArrays.INSTANCE, compression);
-            digest.setRandomSeed(randomLong());
-            return digest;
-        };
-    }
+    void set(int index, long value);
+
+    /**
+     * Resizes the array. If the new size is bigger than the current size, the new elements are set to 0.
+     */
+    void resize(int newSize);
+
+    /**
+     * Overriding close to remove the exception from the signature.
+     */
+    @Override
+    void close();
 }

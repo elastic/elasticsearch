@@ -24,13 +24,11 @@ package org.elasticsearch.tdigest.arrays;
 import java.util.Arrays;
 
 /**
- * Temporal TDigestArrays mock with raw arrays.
+ * Temporal TDigestArrays with raw arrays.
  *
  * <p>
- *     For testing only, delete after the right implementation for BigArrays is made.
+ *     Delete after the right implementation for BigArrays is made.
  * </p>
- *
- * TODO: DELETE ME
  */
 public class WrapperTDigestArrays implements TDigestArrays {
 
@@ -48,6 +46,16 @@ public class WrapperTDigestArrays implements TDigestArrays {
         return new WrapperTDigestIntArray(initialSize);
     }
 
+    @Override
+    public TDigestLongArray newLongArray(int initialSize) {
+        return new WrapperTDigestLongArray(initialSize);
+    }
+
+    @Override
+    public TDigestByteArray newByteArray(int initialSize) {
+        return new WrapperTDigestByteArray(initialSize);
+    }
+
     public WrapperTDigestDoubleArray newDoubleArray(double[] array) {
         return new WrapperTDigestDoubleArray(array);
     }
@@ -61,8 +69,7 @@ public class WrapperTDigestArrays implements TDigestArrays {
         private int size;
 
         public WrapperTDigestDoubleArray(int initialSize) {
-            this.array = new double[initialSize];
-            this.size = initialSize;
+            this(new double[initialSize]);
         }
 
         public WrapperTDigestDoubleArray(double[] array) {
@@ -108,37 +115,155 @@ public class WrapperTDigestArrays implements TDigestArrays {
         }
 
         @Override
+        public void resize(int newSize) {
+            if (newSize > array.length) {
+                array = Arrays.copyOf(array, newSize);
+            }
+            if (newSize > size) {
+                Arrays.fill(array, size, newSize, 0);
+            }
+            size = newSize;
+        }
+
+        @Override
         public void close() {
             // No-op
         }
     }
 
     public static class WrapperTDigestIntArray implements TDigestIntArray {
-        private final int[] array;
+        private int[] array;
+        private int size;
 
         public WrapperTDigestIntArray(int initialSize) {
-            this.array = new int[initialSize];
+            this(new int[initialSize]);
         }
 
         public WrapperTDigestIntArray(int[] array) {
             this.array = array;
+            this.size = array.length;
         }
 
         @Override
         public int size() {
-            return array.length;
+            return size;
         }
 
         @Override
         public int get(int index) {
-            assert index >= 0 && index < array.length;
+            assert index >= 0 && index < size;
             return array[index];
         }
 
         @Override
         public void set(int index, int value) {
-            assert index >= 0 && index < array.length;
+            assert index >= 0 && index < size;
             array[index] = value;
+        }
+
+        @Override
+        public void resize(int newSize) {
+            if (newSize > array.length) {
+                array = Arrays.copyOf(array, newSize);
+            }
+            if (newSize > size) {
+                Arrays.fill(array, size, newSize, 0);
+            }
+            size = newSize;
+        }
+
+        @Override
+        public void close() {
+            // No-op
+        }
+    }
+
+    public static class WrapperTDigestLongArray implements TDigestLongArray {
+        private long[] array;
+        private int size;
+
+        public WrapperTDigestLongArray(int initialSize) {
+            this(new long[initialSize]);
+        }
+
+        public WrapperTDigestLongArray(long[] array) {
+            this.array = array;
+            this.size = array.length;
+        }
+
+        @Override
+        public int size() {
+            return size;
+        }
+
+        @Override
+        public long get(int index) {
+            assert index >= 0 && index < size;
+            return array[index];
+        }
+
+        @Override
+        public void set(int index, long value) {
+            assert index >= 0 && index < size;
+            array[index] = value;
+        }
+
+        @Override
+        public void resize(int newSize) {
+            if (newSize > array.length) {
+                array = Arrays.copyOf(array, newSize);
+            }
+            if (newSize > size) {
+                Arrays.fill(array, size, newSize, 0);
+            }
+            size = newSize;
+        }
+
+        @Override
+        public void close() {
+            // No-op
+        }
+    }
+
+    public static class WrapperTDigestByteArray implements TDigestByteArray {
+        private byte[] array;
+        private int size;
+
+        public WrapperTDigestByteArray(int initialSize) {
+            this(new byte[initialSize]);
+        }
+
+        public WrapperTDigestByteArray(byte[] array) {
+            this.array = array;
+            this.size = array.length;
+        }
+
+        @Override
+        public int size() {
+            return size;
+        }
+
+        @Override
+        public byte get(int index) {
+            assert index >= 0 && index < size;
+            return array[index];
+        }
+
+        @Override
+        public void set(int index, byte value) {
+            assert index >= 0 && index < size;
+            array[index] = value;
+        }
+
+        @Override
+        public void resize(int newSize) {
+            if (newSize > array.length) {
+                array = Arrays.copyOf(array, newSize);
+            }
+            if (newSize > size) {
+                Arrays.fill(array, size, newSize, (byte) 0);
+            }
+            size = newSize;
         }
 
         @Override

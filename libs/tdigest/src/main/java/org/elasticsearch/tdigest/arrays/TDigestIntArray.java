@@ -32,6 +32,11 @@ public interface TDigestIntArray extends AutoCloseable {
     void set(int index, int value);
 
     /**
+     * Resizes the array. If the new size is bigger than the current size, the new elements are set to 0.
+     */
+    void resize(int newSize);
+
+    /**
      * Copies {@code len} elements from {@code buf} to this array.
      * <p>
      *     Copy must be made in reverse order. That is, starting from offset+len-1 to offset.

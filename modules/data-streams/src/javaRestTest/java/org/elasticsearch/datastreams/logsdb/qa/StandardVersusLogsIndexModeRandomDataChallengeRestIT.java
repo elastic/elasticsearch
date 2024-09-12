@@ -44,7 +44,7 @@ public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends Standa
     public StandardVersusLogsIndexModeRandomDataChallengeRestIT() {
         super();
         // TODO enable subobjects: auto
-        // It is disable because it currently does not have auto flattening and that results in asserts being triggered when using copy_to.
+        // It is disabled because it currently does not have auto flattening and that results in asserts being triggered when using copy_to.
         this.subobjects = randomValueOtherThan(ObjectMapper.Subobjects.AUTO, () -> randomFrom(ObjectMapper.Subobjects.values()));
         this.keepArraySource = randomBoolean();
 

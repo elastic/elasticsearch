@@ -9,6 +9,7 @@ package org.elasticsearch.rest;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ParsedMediaType;
 import org.hamcrest.CustomTypeSafeMatcher;
@@ -163,6 +164,8 @@ public class RestCompatibleVersionHelperTests extends ESTestCase {
         assertThat(requestWith(acceptHeader(null), contentTypeHeader("application/json"), bodyPresent()), not(isCompatible()));
     }
 
+    @UpdateForV9
+    @AwaitsFix(bugUrl = "this can be re-enabled once our rest api version is bumped to V_9")
     public void testObsoleteVersion() {
         ElasticsearchStatusException e = expectThrows(
             ElasticsearchStatusException.class,

@@ -79,6 +79,7 @@ public class SearchLoadProbe {
     private volatile float maxQueueContributionFactor;
     private volatile double shardReadLoadThreshold;
 
+    @SuppressWarnings("this-escape")
     public SearchLoadProbe(ClusterSettings clusterSettings, Function<String, ExecutorLoadStats> searchExecutorStatsProvider) {
         this.searchExecutorStatsProvider = searchExecutorStatsProvider;
         clusterSettings.initializeAndWatch(MAX_TIME_TO_CLEAR_QUEUE, this::setMaxTimeToClearQueue);

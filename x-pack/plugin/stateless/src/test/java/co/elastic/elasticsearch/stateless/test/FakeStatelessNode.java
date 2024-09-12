@@ -163,6 +163,7 @@ public class FakeStatelessNode implements Closeable {
         this(environmentSupplier, nodeEnvironmentSupplier, xContentRegistry, 1);
     }
 
+    @SuppressWarnings("this-escape")
     public FakeStatelessNode(
         Function<Settings, Environment> environmentSupplier,
         CheckedFunction<Settings, NodeEnvironment, IOException> nodeEnvironmentSupplier,

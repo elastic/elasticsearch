@@ -64,6 +64,7 @@ public class IngestLoadProbe {
     private volatile TimeValue maxTimeToClearQueue;
     private volatile float maxQueueContributionFactor;
 
+    @SuppressWarnings("this-escape")
     public IngestLoadProbe(ClusterSettings clusterSettings, Function<String, ExecutorStats> executorStatsProvider) {
         this.executorStatsProvider = executorStatsProvider;
         clusterSettings.initializeAndWatch(MAX_TIME_TO_CLEAR_QUEUE, this::setMaxTimeToClearQueue);

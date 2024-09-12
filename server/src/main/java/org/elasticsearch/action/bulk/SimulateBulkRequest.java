@@ -157,9 +157,9 @@ public class SimulateBulkRequest extends BulkRequest {
     @Override
     public BulkRequest shallowClone() {
         BulkRequest bulkRequest = new SimulateBulkRequest(pipelineSubstitutions, templateSubstitutions);
-        bulkRequest.setRefreshPolicy(bulkRequest.getRefreshPolicy());
-        bulkRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
-        bulkRequest.timeout(bulkRequest.timeout());
+        bulkRequest.setRefreshPolicy(getRefreshPolicy());
+        bulkRequest.waitForActiveShards(waitForActiveShards());
+        bulkRequest.timeout(timeout());
         return bulkRequest;
     }
 }

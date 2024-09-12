@@ -490,9 +490,9 @@ public class BulkRequest extends ActionRequest
      */
     public BulkRequest shallowClone() {
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.setRefreshPolicy(bulkRequest.getRefreshPolicy());
-        bulkRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
-        bulkRequest.timeout(bulkRequest.timeout());
+        bulkRequest.setRefreshPolicy(getRefreshPolicy());
+        bulkRequest.waitForActiveShards(waitForActiveShards());
+        bulkRequest.timeout(timeout());
         return bulkRequest;
     }
 }

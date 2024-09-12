@@ -988,7 +988,7 @@ values are
 +
 --
 * `bert`: Use for BERT-style models
-* `deberta_v2`: Use for DeBERTa v2-style models
+* `deberta_v2`: Use for DeBERTa v2 and v3-style models
 * `mpnet`: Use for MPNet-style models
 * `roberta`: Use for RoBERTa-style and BART-style models
 * experimental:[] `xlm_roberta`: Use for XLMRoBERTa-style models
@@ -1043,7 +1043,7 @@ Indicates how tokens are truncated when they exceed `max_sequence_length`.
 The default value is `first`.
 +
 --
-* `balanced`: Both the first and second sequences are truncated such that `len(truncated(seq1)) = min(len(seq1), (max_sequence_length - special_character_count) / 2)` and `len(seq2) = max_sequence_length - len(truncated(seq1)) - special_character_count`.
+* `balanced`: One or both of the first and second sequences may be truncated so as to balance the tokens included from both sequences
 * `none`: No truncation occurs; the inference request receives an error.
 * `first`: Only the first sequence is truncated.
 * `second`: Only the second sequence is truncated. If there is just one sequence,

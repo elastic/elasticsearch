@@ -81,30 +81,32 @@ import java.util.Map;
  */
 public class SimulateBulkRequest extends BulkRequest {
     private final Map<String, Map<String, Object>> pipelineSubstitutions;
-    private final Map<String, Map<String, Object>> templateSubstitutions;
+    private final Map<String, Map<String, Object>> componentTemplateSubstitutions;
 
     /**
      * @param pipelineSubstitutions The pipeline definitions that are to be used in place of any pre-existing pipeline definitions with
      *                              the same pipelineId. The key of the map is the pipelineId, and the value the pipeline definition as
      *                              parsed by XContentHelper.convertToMap().
+     * @param componentTemplateSubstitutions The component template definitions that are to be used in place of any pre-existing
+     *                                       component template definitions with the same name.
      */
     public SimulateBulkRequest(
         @Nullable Map<String, Map<String, Object>> pipelineSubstitutions,
-        @Nullable Map<String, Map<String, Object>> templateSubstitutions
+        @Nullable Map<String, Map<String, Object>> componentTemplateSubstitutions
     ) {
         super();
         this.pipelineSubstitutions = pipelineSubstitutions;
-        this.templateSubstitutions = templateSubstitutions;
+        this.componentTemplateSubstitutions = componentTemplateSubstitutions;
     }
 
     @SuppressWarnings("unchecked")
     public SimulateBulkRequest(StreamInput in) throws IOException {
         super(in);
         this.pipelineSubstitutions = (Map<String, Map<String, Object>>) in.readGenericValue();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_TEMPLATES_SUBSTITUTIONS)) {
-            this.templateSubstitutions = (Map<String, Map<String, Object>>) in.readGenericValue();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_COMPONENT_TEMPLATES_SUBSTITUTIONS)) {
+            this.componentTemplateSubstitutions = (Map<String, Map<String, Object>>) in.readGenericValue();
         } else {
-            templateSubstitutions = Map.of();
+            componentTemplateSubstitutions = Map.of();
         }
     }
 
@@ -112,8 +114,8 @@ public class SimulateBulkRequest extends BulkRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeGenericValue(pipelineSubstitutions);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_TEMPLATES_SUBSTITUTIONS)) {
-            out.writeGenericValue(templateSubstitutions);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_COMPONENT_TEMPLATES_SUBSTITUTIONS)) {
+            out.writeGenericValue(componentTemplateSubstitutions);
         }
     }
 
@@ -128,11 +130,11 @@ public class SimulateBulkRequest extends BulkRequest {
 
     @Override
     public Map<String, ComponentTemplate> getComponentTemplateSubstitutions() throws IOException {
-        if (templateSubstitutions == null) {
+        if (componentTemplateSubstitutions == null) {
             return Map.of();
         }
-        Map<String, ComponentTemplate> result = new HashMap<>(templateSubstitutions.size());
-        for (Map.Entry<String, Map<String, Object>> rawEntry : templateSubstitutions.entrySet()) {
+        Map<String, ComponentTemplate> result = new HashMap<>(componentTemplateSubstitutions.size());
+        for (Map.Entry<String, Map<String, Object>> rawEntry : componentTemplateSubstitutions.entrySet()) {
             result.put(rawEntry.getKey(), convertRawTemplateToComponentTemplate(rawEntry.getValue()));
         }
         return result;
@@ -156,7 +158,7 @@ public class SimulateBulkRequest extends BulkRequest {
 
     @Override
     public BulkRequest shallowClone() {
-        BulkRequest bulkRequest = new SimulateBulkRequest(pipelineSubstitutions, templateSubstitutions);
+        BulkRequest bulkRequest = new SimulateBulkRequest(pipelineSubstitutions, componentTemplateSubstitutions);
         bulkRequest.setRefreshPolicy(getRefreshPolicy());
         bulkRequest.waitForActiveShards(waitForActiveShards());
         bulkRequest.timeout(timeout());

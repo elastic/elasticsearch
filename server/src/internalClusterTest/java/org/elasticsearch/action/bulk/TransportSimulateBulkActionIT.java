@@ -14,12 +14,14 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.SimulateIndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -84,6 +86,107 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
         Map<String, Object> indexMapping = clusterStateResponse.getState().metadata().index(indexName).mapping().sourceAsMap();
         Map<String, Object> fields = (Map<String, Object>) indexMapping.get("properties");
         assertThat(fields.size(), equalTo(1));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testMappingValidationIndexExistsWithComponentTemplate() throws IOException {
+        /*
+         * This test simulates a BulkRequest of two documents into an existing index. Then we make sure the index contains no documents, and
+         * that the index's mapping in the cluster state has not been updated with the two new field. With the mapping from the template
+         * that was used to create the index, we would expect the second document to throw an exception because it uses a field that does
+         * not exist. But we substitute a new version of the component template named "test-component-template" that allows for the new
+         * field.
+         */
+        String originalComponentTemplateMappingString = """
+            {
+              "_doc":{
+                "dynamic":"strict",
+                "properties":{
+                  "foo1":{
+                    "type":"text"
+                  }
+                }
+              }
+            }
+            """;
+        CompressedXContent mapping = CompressedXContent.fromJSON(originalComponentTemplateMappingString);
+        Template template = new Template(Settings.EMPTY, mapping, null);
+        PutComponentTemplateAction.Request componentTemplateActionRequest = new PutComponentTemplateAction.Request(
+            "test-component-template"
+        );
+        ComponentTemplate componentTemplate = new ComponentTemplate(template, null, null);
+        componentTemplateActionRequest.componentTemplate(componentTemplate);
+        client().execute(PutComponentTemplateAction.INSTANCE, componentTemplateActionRequest).actionGet();
+        ComposableIndexTemplate composableIndexTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("my-index-*"))
+            .componentTemplates(List.of("test-component-template"))
+            .build();
+        TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request("test");
+        request.indexTemplate(composableIndexTemplate);
+        client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
+
+        String indexName = "my-index-1";
+        // First, run before the index is created:
+        assertMappingsUpdatedFromComponentTemplateSubstitutions(indexName);
+        // Now, create the index and make sure the component template substitutions work the same:
+        indicesAdmin().create(new CreateIndexRequest(indexName)).actionGet();
+        assertMappingsUpdatedFromComponentTemplateSubstitutions(indexName);
+        // Now make sure nothing was actually changed:
+        indicesAdmin().refresh(new RefreshRequest(indexName)).actionGet();
+        SearchResponse searchResponse = client().search(new SearchRequest(indexName)).actionGet();
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
+        searchResponse.decRef();
+        ClusterStateResponse clusterStateResponse = admin().cluster().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT)).actionGet();
+        Map<String, Object> indexMapping = clusterStateResponse.getState().metadata().index(indexName).mapping().sourceAsMap();
+        Map<String, Object> fields = (Map<String, Object>) indexMapping.get("properties");
+        assertThat(fields.size(), equalTo(1));
+    }
+
+    private void assertMappingsUpdatedFromComponentTemplateSubstitutions(String indexName) {
+        IndexRequest indexRequest1 = new IndexRequest(indexName).source("""
+            {
+              "foo1": "baz"
+            }
+            """, XContentType.JSON).id(randomUUID());
+        IndexRequest indexRequest2 = new IndexRequest(indexName).source("""
+            {
+              "foo3": "baz"
+            }
+            """, XContentType.JSON).id(randomUUID());
+        {
+            // First we use the original component template, and expect a failure in the second document:
+            BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of());
+            bulkRequest.add(indexRequest1);
+            bulkRequest.add(indexRequest2);
+            BulkResponse response = client().execute(new ActionType<BulkResponse>(SimulateBulkAction.NAME), bulkRequest).actionGet();
+            assertThat(response.getItems().length, equalTo(2));
+            assertThat(response.getItems()[0].getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+            assertNull(((SimulateIndexResponse) response.getItems()[0].getResponse()).getException());
+            assertThat(response.getItems()[1].getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+            assertThat(
+                ((SimulateIndexResponse) response.getItems()[1].getResponse()).getException().getMessage(),
+                containsString("mapping set to strict, dynamic introduction of")
+            );
+        }
+
+        {
+            // Now we substitute a "test-component-template" that defines both fields, so we expect no exception:
+            BulkRequest bulkRequest = new SimulateBulkRequest(
+                Map.of(),
+                Map.of(
+                    "test-component-template",
+                    Map.of("dynamic", "strict", "properties", Map.of("foo1", Map.of("type", "text"), "foo3", Map.of("type", "text")))
+                )
+            );
+            bulkRequest.add(indexRequest1);
+            bulkRequest.add(indexRequest2);
+            BulkResponse response = client().execute(new ActionType<BulkResponse>(SimulateBulkAction.NAME), bulkRequest).actionGet();
+            assertThat(response.getItems().length, equalTo(2));
+            assertThat(response.getItems()[0].getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+            assertNull(((SimulateIndexResponse) response.getItems()[0].getResponse()).getException());
+            assertThat(response.getItems()[1].getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+            assertNull(((SimulateIndexResponse) response.getItems()[1].getResponse()).getException());
+        }
     }
 
     public void testMappingValidationIndexDoesNotExistsNoTemplate() {

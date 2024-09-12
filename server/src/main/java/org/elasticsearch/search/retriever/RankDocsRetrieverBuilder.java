@@ -140,7 +140,7 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
     }
 
     private boolean shouldTrackTotalHits(SearchSourceBuilder searchSourceBuilder) {
-        return searchSourceBuilder.trackTotalHitsUpTo() != null && searchSourceBuilder.trackTotalHitsUpTo() > rankDocs.get().length;
+        return searchSourceBuilder.trackTotalHitsUpTo() == null || searchSourceBuilder.trackTotalHitsUpTo() > rankDocs.get().length;
     }
 
     @Override

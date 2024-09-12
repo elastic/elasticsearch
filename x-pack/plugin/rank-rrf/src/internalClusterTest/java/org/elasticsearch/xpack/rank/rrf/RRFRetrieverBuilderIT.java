@@ -458,7 +458,7 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         });
     }
 
-    public void testRRFInnerRetrieverTopDocsErrorNotRaisedIfNoAggs() {
+    public void testRRFInnerRetrieverTopDocsErrorNotRaisedIfNoTrackTotalHits() {
         final int rankWindowSize = 100;
         final int rankConstant = 10;
         SearchSourceBuilder source = new SearchSourceBuilder();
@@ -488,6 +488,7 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
             )
         );
         source.size(1);
+        source.trackTotalHits(false);
         SearchRequestBuilder req = client().prepareSearch(INDEX).setSource(source);
         ElasticsearchAssertions.assertNoFailures(req);
     }

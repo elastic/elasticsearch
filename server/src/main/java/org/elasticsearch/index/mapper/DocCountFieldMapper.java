@@ -20,8 +20,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Map;
-import java.util.stream.Stream;
 
 /** Mapper for the doc_count field. */
 public class DocCountFieldMapper extends MetadataFieldMapper {
@@ -128,8 +126,8 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return new SyntheticFieldLoader();
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        return new SyntheticSourceSupport.Native(new SyntheticFieldLoader());
     }
 
     /**
@@ -139,14 +137,9 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
         return reader.postings(TERM);
     }
 
-    private static class SyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
+    private static class SyntheticFieldLoader extends SourceLoader.DocValuesBasedSyntheticFieldLoader {
         private PostingsEnum postings;
         private boolean hasValue;
-
-        @Override
-        public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-            return Stream.empty();
-        }
 
         @Override
         public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {

@@ -32,7 +32,11 @@ public class MapperFeatures implements FeatureSpecification {
             IndexModeFieldMapper.QUERYING_INDEX_MODE,
             NodeMappingStats.SEGMENT_LEVEL_FIELDS_STATS,
             BooleanFieldMapper.BOOLEAN_DIMENSION,
-            ObjectMapper.SUBOBJECTS_AUTO
+            ObjectMapper.SUBOBJECTS_AUTO,
+            KeywordFieldMapper.KEYWORD_NORMALIZER_SYNTHETIC_SOURCE,
+            SourceFieldMapper.SYNTHETIC_SOURCE_STORED_FIELDS_ADVANCE_FIX,
+            Mapper.SYNTHETIC_SOURCE_KEEP_FEATURE,
+            SourceFieldMapper.SYNTHETIC_SOURCE_WITH_COPY_TO_AND_DOC_VALUES_FALSE_SUPPORT
         );
     }
 }

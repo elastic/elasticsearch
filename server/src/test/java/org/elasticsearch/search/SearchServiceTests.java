@@ -1548,7 +1548,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
         clearScrollRequest.setScrollIds(clearScrollIds);
-        client().clearScroll(clearScrollRequest);
+        client().clearScroll(clearScrollRequest).get();
 
         for (int i = 0; i < clearScrollIds.size(); i++) {
             client().prepareSearch("index").setSize(1).setScroll(TimeValue.timeValueMinutes(1)).get().decRef();
@@ -2719,7 +2719,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             try {
                 ClusterUpdateSettingsResponse response = client().admin()
                     .cluster()
-                    .prepareUpdateSettings()
+                    .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                     .setPersistentSettings(Settings.builder().put(SEARCH_WORKER_THREADS_ENABLED.getKey(), false).build())
                     .get();
                 assertTrue(response.isAcknowledged());
@@ -2730,7 +2730,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 // reset original default setting
                 client().admin()
                     .cluster()
-                    .prepareUpdateSettings()
+                    .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                     .setPersistentSettings(Settings.builder().putNull(SEARCH_WORKER_THREADS_ENABLED.getKey()).build())
                     .get();
                 try (SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.DFS, randomBoolean())) {
@@ -2868,7 +2868,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             try {
                 ClusterUpdateSettingsResponse response = client().admin()
                     .cluster()
-                    .prepareUpdateSettings()
+                    .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                     .setPersistentSettings(Settings.builder().put(QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.getKey(), false).build())
                     .get();
                 assertTrue(response.isAcknowledged());
@@ -2891,7 +2891,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 // Reset to the original default setting and check to ensure it takes effect.
                 client().admin()
                     .cluster()
-                    .prepareUpdateSettings()
+                    .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                     .setPersistentSettings(Settings.builder().putNull(QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.getKey()).build())
                     .get();
                 {

@@ -87,6 +87,8 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         }
 
         final var equivalentUpdateRequest = new UpdateDesiredNodesRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             updateDesiredNodesRequest.getHistoryID(),
             updateDesiredNodesRequest.getVersion(),
             desiredNodesList,
@@ -105,6 +107,8 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         updateDesiredNodes(updateDesiredNodesRequest);
 
         final var backwardsUpdateDesiredNodesRequest = new UpdateDesiredNodesRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             updateDesiredNodesRequest.getHistoryID(),
             updateDesiredNodesRequest.getVersion() - 1,
             updateDesiredNodesRequest.getNodes(),
@@ -123,6 +127,8 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         updateDesiredNodes(updateDesiredNodesRequest);
 
         final var updateDesiredNodesRequestWithSameHistoryIdAndVersionAndDifferentSpecs = new UpdateDesiredNodesRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             updateDesiredNodesRequest.getHistoryID(),
             updateDesiredNodesRequest.getVersion(),
             randomList(1, 10, DesiredNodesTestCase::randomDesiredNode),
@@ -192,6 +198,8 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         // This test verifies that the validation doesn't throw on desired nodes
         // with a higher number of available processors than the node running the tests.
         final var updateDesiredNodesRequest = new UpdateDesiredNodesRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             UUIDs.randomBase64UUID(),
             randomIntBetween(1, 20),
             randomList(
@@ -267,7 +275,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
             future.actionGet();
         }
 
-        final ClusterState state = clusterAdmin().prepareState().get().getState();
+        final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         final DesiredNodes latestDesiredNodes = DesiredNodes.latestFromClusterState(state);
         assertThat(latestDesiredNodes, is(nullValue()));
     }
@@ -309,6 +317,8 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
 
     private UpdateDesiredNodesRequest randomUpdateDesiredNodesRequest(Settings settings) {
         return new UpdateDesiredNodesRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             UUIDs.randomBase64UUID(),
             randomIntBetween(2, 20),
             randomList(2, 10, () -> randomDesiredNode(settings)),
@@ -318,6 +328,8 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
 
     private UpdateDesiredNodesRequest randomDryRunUpdateDesiredNodesRequest(Settings settings) {
         return new UpdateDesiredNodesRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             UUIDs.randomBase64UUID(),
             randomIntBetween(2, 20),
             randomList(2, 10, () -> randomDesiredNode(settings)),
@@ -331,7 +343,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
     }
 
     private DesiredNodes getLatestDesiredNodes() {
-        final GetDesiredNodesAction.Request request = new GetDesiredNodesAction.Request();
+        final GetDesiredNodesAction.Request request = new GetDesiredNodesAction.Request(TEST_REQUEST_TIMEOUT);
         final GetDesiredNodesAction.Response response = client().execute(GetDesiredNodesAction.INSTANCE, request).actionGet();
         return response.getDesiredNodes();
     }

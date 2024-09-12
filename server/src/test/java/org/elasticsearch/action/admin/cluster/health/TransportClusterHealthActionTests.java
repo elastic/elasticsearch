@@ -33,7 +33,7 @@ public class TransportClusterHealthActionTests extends ESTestCase {
 
     public void testWaitForInitializingShards() throws Exception {
         final String[] indices = { "test" };
-        final ClusterHealthRequest request = new ClusterHealthRequest();
+        final ClusterHealthRequest request = new ClusterHealthRequest(TEST_REQUEST_TIMEOUT);
         request.waitForNoInitializingShards(true);
         ClusterState clusterState = randomClusterStateWithInitializingShards("test", 0);
         ClusterHealthResponse response = new ClusterHealthResponse("", indices, clusterState);
@@ -52,7 +52,7 @@ public class TransportClusterHealthActionTests extends ESTestCase {
 
     public void testWaitForAllShards() {
         final String[] indices = { "test" };
-        final ClusterHealthRequest request = new ClusterHealthRequest();
+        final ClusterHealthRequest request = new ClusterHealthRequest(TEST_REQUEST_TIMEOUT);
         request.waitForActiveShards(ActiveShardCount.ALL);
 
         ClusterState clusterState = randomClusterStateWithInitializingShards("test", 1);

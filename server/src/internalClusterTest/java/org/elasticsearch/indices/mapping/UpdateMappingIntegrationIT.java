@@ -62,7 +62,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         indicesAdmin().prepareCreate("test")
             .setSettings(indexSettings(1, 0).put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), Long.MAX_VALUE))
             .get();
-        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
         updateClusterSettings(
             Settings.builder().put(MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMinutes(5))
         );
@@ -100,7 +100,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         indicesAdmin().prepareCreate("test").setSettings(indexSettings(1, 0)).setMapping("""
             {"properties":{"body":{"type":"text"}}}
             """).get();
-        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         AcknowledgedResponse putMappingResponse = indicesAdmin().preparePutMapping("test").setSource("""
             {"properties":{"date":{"type":"integer"}}}
@@ -115,7 +115,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
 
     public void testUpdateMappingWithoutTypeMultiObjects() {
         createIndex("test", 1, 0);
-        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         AcknowledgedResponse putMappingResponse = indicesAdmin().preparePutMapping("test").setSource("""
             {"properties":{"date":{"type":"integer"}}}""", XContentType.JSON).get();
@@ -131,7 +131,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         indicesAdmin().prepareCreate("test").setSettings(indexSettings(2, 0)).setMapping("""
             {"properties":{"body":{"type":"text"}}}
             """).get();
-        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         try {
             indicesAdmin().preparePutMapping("test").setSource("""
@@ -163,7 +163,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
     public void testUpdateMappingNoChanges() {
         indicesAdmin().prepareCreate("test").setSettings(indexSettings(2, 0)).setMapping("""
             {"properties":{"body":{"type":"text"}}}""").get();
-        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         AcknowledgedResponse putMappingResponse = indicesAdmin().preparePutMapping("test").setSource("""
             {"_doc":{"properties":{"body":{"type":"text"}}}}

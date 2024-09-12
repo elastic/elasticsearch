@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
-import org.elasticsearch.xpack.esql.io.stream.PlanNamedTypes;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -67,7 +66,7 @@ public class EsRelation extends LeafPlan {
             in.readOptionalString();
             in.readOptionalString();
         }
-        IndexMode indexMode = PlanNamedTypes.readIndexMode(in);
+        IndexMode indexMode = readIndexMode(in);
         boolean frozen = in.readBoolean();
         return new EsRelation(source, esIndex, attributes, indexMode, frozen);
     }
@@ -83,7 +82,7 @@ public class EsRelation extends LeafPlan {
             out.writeOptionalString(null);
             out.writeOptionalString(null);
         }
-        PlanNamedTypes.writeIndexMode(out, indexMode());
+        writeIndexMode(out, indexMode());
         out.writeBoolean(frozen());
     }
 
@@ -142,6 +141,11 @@ public class EsRelation extends LeafPlan {
     }
 
     @Override
+    public String commandName() {
+        return "FROM";
+    }
+
+    @Override
     public boolean expressionsResolved() {
         // For unresolved expressions to exist in EsRelation is fine, as long as they are not used in later operations
         // This allows for them to be converted to null@unsupported fields in final output, an important feature of ES|QL
@@ -173,5 +177,21 @@ public class EsRelation extends LeafPlan {
     @Override
     public String nodeString() {
         return nodeName() + "[" + index + "]" + NodeUtils.limitedToString(attrs);
+    }
+
+    public static IndexMode readIndexMode(StreamInput in) throws IOException {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ADD_INDEX_MODE_TO_SOURCE)) {
+            return IndexMode.fromString(in.readString());
+        } else {
+            return IndexMode.STANDARD;
+        }
+    }
+
+    public static void writeIndexMode(StreamOutput out, IndexMode indexMode) throws IOException {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ADD_INDEX_MODE_TO_SOURCE)) {
+            out.writeString(indexMode.getName());
+        } else if (indexMode != IndexMode.STANDARD) {
+            throw new IllegalStateException("not ready to support index mode [" + indexMode + "]");
+        }
     }
 }

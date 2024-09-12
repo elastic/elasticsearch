@@ -1148,6 +1148,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             }
             builder.endArray();
         }
+        builder.field("preview", info.preview());
 
         String rendered = Strings.toString(builder.endObject());
         LogManager.getLogger(getTestClass()).info("Writing kibana function definition for [{}]:\n{}", functionName(), rendered);

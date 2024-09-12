@@ -33,7 +33,13 @@ public abstract class PhysicalPlan extends QueryPlan<PhysicalPlan> {
             ExchangeExec.ENTRY,
             ExchangeSinkExec.ENTRY,
             ExchangeSourceExec.ENTRY,
-            FieldExtractExec.ENTRY
+            FieldExtractExec.ENTRY,
+            FilterExec.ENTRY,
+            FragmentExec.ENTRY,
+            GrokExec.ENTRY,
+            LimitExec.ENTRY,
+            LocalSourceExec.ENTRY,
+            HashJoinExec.ENTRY
         );
     }
 

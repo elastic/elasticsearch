@@ -101,6 +101,7 @@ public class IndexEngine extends InternalEngine {
 
     private final AtomicBoolean ongoingFlushMustUpload = new AtomicBoolean(false);
 
+    @SuppressWarnings("this-escape")
     public IndexEngine(
         EngineConfig engineConfig,
         TranslogReplicator translogReplicator,

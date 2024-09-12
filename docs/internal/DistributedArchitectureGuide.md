@@ -384,7 +384,7 @@ There are several more Decider Services, implementing the `AutoscalingDeciderSer
 
 The tasks infrastructure is used to track currently executing operations in the Elasticsearch cluster. The [Task management API] provides an interface for querying, cancelling, and monitoring the status of tasks.
 
-Each individual task is local to a node, but can be related to other tasks via a parent-child relationship.
+Each individual task is local to a node, but can be related to other tasks, on the same node or other nodes, via a parent-child relationship.
 
 ### Task tracking and registration
 

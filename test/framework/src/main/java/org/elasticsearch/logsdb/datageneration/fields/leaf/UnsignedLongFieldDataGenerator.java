@@ -10,9 +10,9 @@ package org.elasticsearch.logsdb.datageneration.fields.leaf;
 
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
-import org.elasticsearch.logsdb.datageneration.FieldType;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSource;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
+import org.elasticsearch.logsdb.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -23,15 +23,17 @@ public class UnsignedLongFieldDataGenerator implements FieldDataGenerator {
     private final Supplier<Object> valueGenerator;
     private final Map<String, Object> mappingParameters;
 
-    public UnsignedLongFieldDataGenerator(String fieldName, DataSource dataSource) {
+    public UnsignedLongFieldDataGenerator(
+        String fieldName,
+        DataSource dataSource,
+        DataSourceResponse.LeafMappingParametersGenerator mappingParametersGenerator
+    ) {
         var unsignedLongs = dataSource.get(new DataSourceRequest.UnsignedLongGenerator());
         var nulls = dataSource.get(new DataSourceRequest.NullWrapper());
         var arrays = dataSource.get(new DataSourceRequest.ArrayWrapper());
 
         this.valueGenerator = arrays.wrapper().compose(nulls.wrapper()).apply(() -> unsignedLongs.generator().get());
-        this.mappingParameters = dataSource.get(new DataSourceRequest.LeafMappingParametersGenerator(fieldName, FieldType.UNSIGNED_LONG))
-            .mappingGenerator()
-            .get();
+        this.mappingParameters = mappingParametersGenerator.mappingGenerator().get();
     }
 
     @Override

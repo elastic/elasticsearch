@@ -300,7 +300,7 @@ We have both the ranker's `score` and the `_rank` option to show our top-ranked 
             "value" : 5,
             "relation" : "eq"
         },
-        "max_score" : null,
+        "max_score" : ...,
         "hits" : [
             {
                 "_index" : "example-index",

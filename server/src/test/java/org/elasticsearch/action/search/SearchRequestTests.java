@@ -586,18 +586,6 @@ public class SearchRequestTests extends AbstractSearchTestCase {
                 new SearchSourceBuilder().rankBuilder(new TestRankBuilder(100))
                     .query(QueryBuilders.termQuery("field", "term"))
                     .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, null)))
-                    .sort("test")
-            );
-            ActionRequestValidationException validationErrors = searchRequest.validate();
-            assertNotNull(validationErrors);
-            assertEquals(1, validationErrors.validationErrors().size());
-            assertEquals("[rank] cannot be used with [sort]", validationErrors.validationErrors().get(0));
-        }
-        {
-            SearchRequest searchRequest = new SearchRequest().source(
-                new SearchSourceBuilder().rankBuilder(new TestRankBuilder(100))
-                    .query(QueryBuilders.termQuery("field", "term"))
-                    .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, null)))
                     .suggest(new SuggestBuilder().setGlobalText("test").addSuggestion("suggestion", new TermSuggestionBuilder("term")))
             );
             ActionRequestValidationException validationErrors = searchRequest.validate();

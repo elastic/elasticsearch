@@ -87,7 +87,7 @@ setup:
           size: 3
           min_score: 0.1
 
-  - match: { hits.total : 1 }
+  - match: { hits.total : 3 }
 
   - match: { hits.hits.0._id: "2" }
   - match: { hits.hits.0._rank: 1 }

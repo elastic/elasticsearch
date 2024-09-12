@@ -677,7 +677,7 @@ public class ResolveClusterIT extends AbstractMultiClustersTestCase {
         assertFalse(
             client(REMOTE_CLUSTER_1).admin()
                 .cluster()
-                .prepareHealth(remoteIndex1)
+                .prepareHealth(TEST_REQUEST_TIMEOUT, remoteIndex1)
                 .setWaitForYellowStatus()
                 .setTimeout(TimeValue.timeValueSeconds(10))
                 .get()
@@ -715,7 +715,7 @@ public class ResolveClusterIT extends AbstractMultiClustersTestCase {
         assertFalse(
             client(REMOTE_CLUSTER_2).admin()
                 .cluster()
-                .prepareHealth(remoteIndex2)
+                .prepareHealth(TEST_REQUEST_TIMEOUT, remoteIndex2)
                 .setWaitForYellowStatus()
                 .setTimeout(TimeValue.timeValueSeconds(10))
                 .get()

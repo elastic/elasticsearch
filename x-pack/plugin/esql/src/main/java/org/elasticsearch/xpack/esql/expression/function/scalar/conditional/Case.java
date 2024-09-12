@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -46,7 +48,11 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 public final class Case extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Case", Case::new);
 
-    record Condition(Expression condition, Expression value) {}
+    record Condition(Expression condition, Expression value) {
+        ConditionEvaluatorSupplier toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+            return new ConditionEvaluatorSupplier(condition.source(), toEvaluator.apply(condition), toEvaluator.apply(value));
+        }
+    }
 
     private final List<Condition> conditions;
     private final Expression elseValue;
@@ -56,9 +62,12 @@ public final class Case extends EsqlScalarFunction {
         returnType = {
             "boolean",
             "cartesian_point",
+            "cartesian_shape",
             "date",
+            "date_nanos",
             "double",
             "geo_point",
+            "geo_shape",
             "integer",
             "ip",
             "keyword",
@@ -94,9 +103,12 @@ public final class Case extends EsqlScalarFunction {
             type = {
                 "boolean",
                 "cartesian_point",
+                "cartesian_shape",
                 "date",
+                "date_nanos",
                 "double",
                 "geo_point",
+                "geo_shape",
                 "integer",
                 "ip",
                 "keyword",
@@ -215,23 +227,24 @@ public final class Case extends EsqlScalarFunction {
             if (condition.condition.foldable() == false) {
                 return false;
             }
-            Boolean b = (Boolean) condition.condition.fold();
-            if (b != null && b) {
+            if (Boolean.TRUE.equals(condition.condition.fold())) {
+                /*
+                 * `fold` can make four things here:
+                 * 1. `TRUE`
+                 * 2. `FALSE`
+                 * 3. null
+                 * 4. A list with more than one `TRUE` or `FALSE` in it.
+                 *
+                 * In the first case, we're foldable if the condition is foldable.
+                 * The multivalued field will make a warning, but eventually
+                 * become null. And null will become false. So cases 2-4 are
+                 * the same. In those cases we are foldable only if the *rest*
+                 * of the condition is foldable.
+                 */
                 return condition.value.foldable();
             }
         }
         return elseValue.foldable();
-    }
-
-    @Override
-    public Object fold() {
-        for (Condition condition : conditions) {
-            Boolean b = (Boolean) condition.condition.fold();
-            if (b != null && b) {
-                return condition.value.fold();
-            }
-        }
-        return elseValue.fold();
     }
 
     /**
@@ -261,8 +274,20 @@ public final class Case extends EsqlScalarFunction {
                 continue;
             }
             modified = true;
-            Boolean b = (Boolean) condition.condition.fold();
-            if (b != null && b) {
+            if (Boolean.TRUE.equals(condition.condition.fold())) {
+                /*
+                 * `fold` can make four things here:
+                 * 1. `TRUE`
+                 * 2. `FALSE`
+                 * 3. null
+                 * 4. A list with more than one `TRUE` or `FALSE` in it.
+                 *
+                 * In the first case, we fold to the value of the condition.
+                 * The multivalued field will make a warning, but eventually
+                 * become null. And null will become false. So cases 2-4 are
+                 * the same. In those cases we fold the entire condition
+                 * away, returning just what ever's remaining in the CASE.
+                 */
                 newChildren.add(condition.value);
                 return finishPartialFold(newChildren);
             }
@@ -277,24 +302,23 @@ public final class Case extends EsqlScalarFunction {
     }
 
     private Expression finishPartialFold(List<Expression> newChildren) {
-        if (newChildren.size() == 1) {
-            return newChildren.get(0);
-        }
-        return replaceChildren(newChildren);
+        return switch (newChildren.size()) {
+            case 0 -> new Literal(source(), null, dataType());
+            case 1 -> newChildren.get(0);
+            default -> replaceChildren(newChildren);
+        };
     }
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         ElementType resultType = PlannerUtils.toElementType(dataType());
-        List<ConditionEvaluatorSupplier> conditionsFactories = conditions.stream()
-            .map(c -> new ConditionEvaluatorSupplier(toEvaluator.apply(c.condition), toEvaluator.apply(c.value)))
-            .toList();
+        List<ConditionEvaluatorSupplier> conditionsFactories = conditions.stream().map(c -> c.toEvaluator(toEvaluator)).toList();
         ExpressionEvaluator.Factory elseValueFactory = toEvaluator.apply(elseValue);
         return new ExpressionEvaluator.Factory() {
             @Override
             public ExpressionEvaluator get(DriverContext context) {
                 return new CaseEvaluator(
-                    context,
+                    context.blockFactory(),
                     resultType,
                     conditionsFactories.stream().map(x -> x.apply(context)).toList(),
                     elseValueFactory.get(context)
@@ -303,40 +327,58 @@ public final class Case extends EsqlScalarFunction {
 
             @Override
             public String toString() {
-                return "CaseEvaluator[resultType="
-                    + resultType
-                    + ", conditions="
-                    + conditionsFactories
-                    + ", elseVal="
-                    + elseValueFactory
-                    + ']';
+                return "CaseEvaluator[conditions=" + conditionsFactories + ", elseVal=" + elseValueFactory + ']';
             }
         };
     }
 
-    record ConditionEvaluatorSupplier(ExpressionEvaluator.Factory condition, ExpressionEvaluator.Factory value)
+    record ConditionEvaluatorSupplier(Source conditionSource, ExpressionEvaluator.Factory condition, ExpressionEvaluator.Factory value)
         implements
             Function<DriverContext, ConditionEvaluator> {
         @Override
         public ConditionEvaluator apply(DriverContext driverContext) {
-            return new ConditionEvaluator(condition.get(driverContext), value.get(driverContext));
+            return new ConditionEvaluator(
+                /*
+                 * We treat failures as null just like any other failure.
+                 * It's just that we then *immediately* convert it to
+                 * true or false using the tri-valued boolean logic stuff.
+                 * And that makes it into false. This is, *exactly* what
+                 * happens in PostgreSQL and MySQL and SQLite:
+                 * > SELECT CASE WHEN null THEN 1 ELSE 2 END;
+                 * 2
+                 * Rather than go into depth about this in the warning message,
+                 * we just say "false".
+                 */
+                Warnings.createWarningsTreatedAsFalse(driverContext.warningsMode(), conditionSource),
+                condition.get(driverContext),
+                value.get(driverContext)
+            );
         }
 
         @Override
         public String toString() {
-            return "ConditionEvaluator[" + "condition=" + condition + ", value=" + value + ']';
+            return "ConditionEvaluator[condition=" + condition + ", value=" + value + ']';
         }
     }
 
-    record ConditionEvaluator(EvalOperator.ExpressionEvaluator condition, EvalOperator.ExpressionEvaluator value) implements Releasable {
+    record ConditionEvaluator(
+        Warnings conditionWarnings,
+        EvalOperator.ExpressionEvaluator condition,
+        EvalOperator.ExpressionEvaluator value
+    ) implements Releasable {
         @Override
         public void close() {
             Releasables.closeExpectNoException(condition, value);
         }
+
+        @Override
+        public String toString() {
+            return "ConditionEvaluator[condition=" + condition + ", value=" + value + ']';
+        }
     }
 
     private record CaseEvaluator(
-        DriverContext driverContext,
+        BlockFactory blockFactory,
         ElementType resultType,
         List<ConditionEvaluator> conditions,
         EvalOperator.ExpressionEvaluator elseVal
@@ -353,16 +395,23 @@ public final class Case extends EsqlScalarFunction {
              * a time - but it's not at all fast.
              */
             int positionCount = page.getPositionCount();
-            try (Block.Builder result = resultType.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+            try (Block.Builder result = resultType.newBlockBuilder(positionCount, blockFactory)) {
                 position: for (int p = 0; p < positionCount; p++) {
                     int[] positions = new int[] { p };
                     Page limited = new Page(
+                        1,
                         IntStream.range(0, page.getBlockCount()).mapToObj(b -> page.getBlock(b).filter(positions)).toArray(Block[]::new)
                     );
                     try (Releasable ignored = limited::releaseBlocks) {
                         for (ConditionEvaluator condition : conditions) {
                             try (BooleanBlock b = (BooleanBlock) condition.condition.eval(limited)) {
                                 if (b.isNull(0)) {
+                                    continue;
+                                }
+                                if (b.getValueCount(0) > 1) {
+                                    condition.conditionWarnings.registerException(
+                                        new IllegalArgumentException("CASE expects a single-valued boolean")
+                                    );
                                     continue;
                                 }
                                 if (false == b.getBoolean(b.getFirstValueIndex(0))) {
@@ -390,7 +439,7 @@ public final class Case extends EsqlScalarFunction {
 
         @Override
         public String toString() {
-            return "CaseEvaluator[resultType=" + resultType + ", conditions=" + conditions + ", elseVal=" + elseVal + ']';
+            return "CaseEvaluator[conditions=" + conditions + ", elseVal=" + elseVal + ']';
         }
     }
 }

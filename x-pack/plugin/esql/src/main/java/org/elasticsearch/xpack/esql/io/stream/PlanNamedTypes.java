@@ -9,19 +9,12 @@ package org.elasticsearch.xpack.esql.io.stream;
 
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.iterable.Iterables;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.index.EsIndex;
-import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -50,8 +43,6 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.Entry.of;
 
@@ -92,11 +83,11 @@ public final class PlanNamedTypes {
             of(PhysicalPlan.class, EsQueryExec.ENTRY),
             of(PhysicalPlan.class, EsSourceExec.ENTRY),
             of(PhysicalPlan.class, EvalExec.ENTRY),
-            of(PhysicalPlan.class, EnrichExec.class, PlanNamedTypes::writeEnrichExec, PlanNamedTypes::readEnrichExec),
+            of(PhysicalPlan.class, EnrichExec.ENTRY),
             of(PhysicalPlan.class, ExchangeExec.ENTRY),
             of(PhysicalPlan.class, ExchangeSinkExec.ENTRY),
             of(PhysicalPlan.class, ExchangeSourceExec.ENTRY),
-            of(PhysicalPlan.class, FieldExtractExec.class, PlanNamedTypes::writeFieldExtractExec, PlanNamedTypes::readFieldExtractExec),
+            of(PhysicalPlan.class, FieldExtractExec.ENTRY),
             of(PhysicalPlan.class, FilterExec.class, PlanNamedTypes::writeFilterExec, PlanNamedTypes::readFilterExec),
             of(PhysicalPlan.class, FragmentExec.class, PlanNamedTypes::writeFragmentExec, PlanNamedTypes::readFragmentExec),
             of(PhysicalPlan.class, GrokExec.class, PlanNamedTypes::writeGrokExec, PlanNamedTypes::readGrokExec),
@@ -114,72 +105,6 @@ public final class PlanNamedTypes {
     }
 
     // -- physical plan nodes
-    static EnrichExec readEnrichExec(PlanStreamInput in) throws IOException {
-        final Source source = Source.readFrom(in);
-        final PhysicalPlan child = in.readPhysicalPlanNode();
-        final NamedExpression matchField = in.readNamedWriteable(NamedExpression.class);
-        final String policyName = in.readString();
-        final String matchType = (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) ? in.readString() : "match";
-        final String policyMatchField = in.readString();
-        final Map<String, String> concreteIndices;
-        final Enrich.Mode mode;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            mode = in.readEnum(Enrich.Mode.class);
-            concreteIndices = in.readMap(StreamInput::readString, StreamInput::readString);
-        } else {
-            mode = Enrich.Mode.ANY;
-            EsIndex esIndex = new EsIndex(in);
-            if (esIndex.concreteIndices().size() != 1) {
-                throw new IllegalStateException("expected a single concrete enrich index; got " + esIndex.concreteIndices());
-            }
-            concreteIndices = Map.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, Iterables.get(esIndex.concreteIndices(), 0));
-        }
-        return new EnrichExec(
-            source,
-            child,
-            mode,
-            matchType,
-            matchField,
-            policyName,
-            policyMatchField,
-            concreteIndices,
-            in.readNamedWriteableCollectionAsList(NamedExpression.class)
-        );
-    }
-
-    static void writeEnrichExec(PlanStreamOutput out, EnrichExec enrich) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writePhysicalPlanNode(enrich.child());
-        out.writeNamedWriteable(enrich.matchField());
-        out.writeString(enrich.policyName());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            out.writeString(enrich.matchType());
-        }
-        out.writeString(enrich.policyMatchField());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeEnum(enrich.mode());
-            out.writeMap(enrich.concreteIndices(), StreamOutput::writeString, StreamOutput::writeString);
-        } else {
-            if (enrich.concreteIndices().keySet().equals(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY))) {
-                String concreteIndex = enrich.concreteIndices().get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-                new EsIndex(concreteIndex, Map.of(), Map.of(concreteIndex, IndexMode.STANDARD)).writeTo(out);
-            } else {
-                throw new IllegalStateException("expected a single concrete enrich index; got " + enrich.concreteIndices());
-            }
-        }
-        out.writeNamedWriteableCollection(enrich.enrichFields());
-    }
-
-    static FieldExtractExec readFieldExtractExec(PlanStreamInput in) throws IOException {
-        return new FieldExtractExec(Source.readFrom(in), in.readPhysicalPlanNode(), in.readNamedWriteableCollectionAsList(Attribute.class));
-    }
-
-    static void writeFieldExtractExec(PlanStreamOutput out, FieldExtractExec fieldExtractExec) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writePhysicalPlanNode(fieldExtractExec.child());
-        out.writeNamedWriteableCollection(fieldExtractExec.attributesToExtract());
-    }
-
     static FilterExec readFilterExec(PlanStreamInput in) throws IOException {
         return new FilterExec(Source.readFrom(in), in.readPhysicalPlanNode(), in.readNamedWriteable(Expression.class));
     }

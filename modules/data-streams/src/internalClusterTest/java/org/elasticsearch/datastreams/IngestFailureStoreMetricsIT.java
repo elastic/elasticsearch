@@ -19,14 +19,11 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -237,7 +234,7 @@ public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
         createDataStream();
 
         String destination = dataStream + "-destination";
-        final var createDataStreamRequest = new CreateDataStreamAction.Request(destination);
+        final var createDataStreamRequest = new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, destination);
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet());
         createReroutePipeline(destination);
 
@@ -306,7 +303,7 @@ public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
     }
 
     private void createDataStream() {
-        final var createDataStreamRequest = new CreateDataStreamAction.Request(dataStream);
+        final var createDataStreamRequest = new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataStream);
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet());
     }
 
@@ -319,9 +316,7 @@ public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
     }
 
     private void createPipeline(String processor) {
-        String pipelineDefinition = Strings.format("{\"processors\": [{%s}]}", processor);
-        BytesReference bytes = new BytesArray(pipelineDefinition);
-        clusterAdmin().putPipeline(new PutPipelineRequest(pipeline, bytes, XContentType.JSON)).actionGet();
+        putJsonPipeline(pipeline, Strings.format("{\"processors\": [{%s}]}", processor));
     }
 
     private void indexDocs(String dataStream, int numDocs, String pipeline) {

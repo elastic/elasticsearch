@@ -136,13 +136,22 @@ public class UpdateHealthInfoCacheIT extends ESIntegTestCase {
             .admin()
             .cluster()
             .updateSettings(
-                new ClusterUpdateSettingsRequest().persistentSettings(
+                new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).persistentSettings(
                     Settings.builder().put(LocalHealthMonitor.POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(10))
                 )
             );
     }
 
     private static Map<String, DiscoveryNode> getNodes(InternalTestCluster internalCluster) {
-        return internalCluster.client().admin().cluster().prepareState().clear().setNodes(true).get().getState().getNodes().getNodes();
+        return internalCluster.client()
+            .admin()
+            .cluster()
+            .prepareState(TEST_REQUEST_TIMEOUT)
+            .clear()
+            .setNodes(true)
+            .get()
+            .getState()
+            .getNodes()
+            .getNodes();
     }
 }

@@ -27,7 +27,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         buildFile << """
             apply plugin: 'elasticsearch.internal-distribution-bwc-setup'
         """
-        execute("git branch origin/8.0", file("cloned"))
+        execute("git branch origin/8.x", file("cloned"))
         execute("git branch origin/7.16", file("cloned"))
         execute("git branch origin/7.15", file("cloned"))
     }
@@ -113,9 +113,9 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         result.task(":distribution:bwc:minor:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
         and: "assemble task triggered"
         result.output.contains("[8.0.0] > Task :distribution:archives:darwin-tar:extractedAssemble")
-        result.output.contains("expandedRootPath /distribution/bwc/minor/build/bwc/checkout-8.0/" +
+        result.output.contains("expandedRootPath /distribution/bwc/minor/build/bwc/checkout-8.x/" +
                         "distribution/archives/darwin-tar/build/install")
-        result.output.contains("nested folder /distribution/bwc/minor/build/bwc/checkout-8.0/" +
+        result.output.contains("nested folder /distribution/bwc/minor/build/bwc/checkout-8.x/" +
                         "distribution/archives/darwin-tar/build/install/elasticsearch-8.0.0-SNAPSHOT")
     }
 

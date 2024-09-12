@@ -65,7 +65,6 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
 
     private static void setUpRequestParams(MasterNodeReadRequest<?> clusterRequest, RestRequest request) {
         clusterRequest.local(request.paramAsBoolean("local", clusterRequest.local()));
-        clusterRequest.masterNodeTimeout(getMasterNodeTimeout(request));
     }
 
     @Override
@@ -76,7 +75,7 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
             return prepareLegacyRequest(request, client, renderDefaults);
         }
 
-        ClusterGetSettingsAction.Request clusterSettingsRequest = new ClusterGetSettingsAction.Request();
+        ClusterGetSettingsAction.Request clusterSettingsRequest = new ClusterGetSettingsAction.Request(getMasterNodeTimeout(request));
 
         setUpRequestParams(clusterSettingsRequest, request);
 
@@ -90,7 +89,7 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
     }
 
     private RestChannelConsumer prepareLegacyRequest(final RestRequest request, final NodeClient client, final boolean renderDefaults) {
-        ClusterStateRequest clusterStateRequest = new ClusterStateRequest().routingTable(false).nodes(false);
+        ClusterStateRequest clusterStateRequest = new ClusterStateRequest(getMasterNodeTimeout(request)).routingTable(false).nodes(false);
         setUpRequestParams(clusterStateRequest, request);
         return channel -> client.admin()
             .cluster()

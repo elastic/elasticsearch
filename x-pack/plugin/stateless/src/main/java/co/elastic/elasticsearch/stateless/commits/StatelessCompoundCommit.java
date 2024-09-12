@@ -19,7 +19,6 @@ package co.elastic.elasticsearch.stateless.commits;
 
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
-import co.elastic.elasticsearch.stateless.utils.IndexingShardRecoveryComparator;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -51,7 +50,6 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -514,9 +512,6 @@ public record StatelessCompoundCommit(
             args -> new InternalFile((String) args[0], (long) args[1])
         );
 
-        // Order commit files in an optimized order for indexing shard recoveries
-        public static final Comparator<String> INTERNAL_FILES_COMPARATOR = new IndexingShardRecoveryComparator();
-
         static {
             PARSER.declareString(constructorArg(), new ParseField("name"));
             PARSER.declareLong(constructorArg(), new ParseField("length"));
@@ -539,7 +534,11 @@ public record StatelessCompoundCommit(
 
         @Override
         public int compareTo(InternalFile o) {
-            return INTERNAL_FILES_COMPARATOR.compare(this.name, o.name);
+            int cmp = Long.compare(length, o.length);
+            if (cmp != 0) {
+                return cmp;
+            }
+            return name.compareTo(o.name);
         }
     }
 }

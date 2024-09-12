@@ -48,7 +48,7 @@ public class AllocationFailuresResetIT extends ESIntegTestCase {
     private void awaitShardAllocMaxRetries() throws Exception {
         var maxRetries = MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.get(internalCluster().getDefaultSettings());
         assertBusy(() -> {
-            var state = clusterAdmin().prepareState().get().getState();
+            var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             var index = state.getRoutingTable().index(INDEX);
             assertNotNull(index);
             var shard = index.shard(SHARD).primaryShard();
@@ -61,7 +61,7 @@ public class AllocationFailuresResetIT extends ESIntegTestCase {
 
     private void awaitShardAllocSucceed() throws Exception {
         assertBusy(() -> {
-            var state = clusterAdmin().prepareState().get().getState();
+            var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             var index = state.getRoutingTable().index(INDEX);
             assertNotNull(index);
             var shard = index.shard(SHARD).primaryShard();

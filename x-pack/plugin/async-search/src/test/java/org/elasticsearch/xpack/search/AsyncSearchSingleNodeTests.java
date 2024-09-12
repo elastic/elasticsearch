@@ -62,7 +62,7 @@ public class AsyncSearchSingleNodeTests extends ESSingleNodeTestCase {
             assertEquals(10, searchResponse.getSuccessfulShards());
             assertEquals(0, searchResponse.getFailedShards());
             assertEquals(0, searchResponse.getShardFailures().length);
-            assertEquals(10, searchResponse.getHits().getTotalHits().value);
+            assertEquals(10, searchResponse.getHits().getTotalHits().value());
             assertEquals(0, searchResponse.getHits().getHits().length);
             StringTerms terms = searchResponse.getAggregations().get("text");
             assertEquals(1, terms.getBuckets().size());
@@ -106,7 +106,7 @@ public class AsyncSearchSingleNodeTests extends ESSingleNodeTestCase {
             assertEquals(10, searchResponse.getTotalShards());
             assertEquals(5, searchResponse.getSuccessfulShards());
             assertEquals(5, searchResponse.getFailedShards());
-            assertEquals(10, searchResponse.getHits().getTotalHits().value);
+            assertEquals(10, searchResponse.getHits().getTotalHits().value());
             assertEquals(5, searchResponse.getHits().getHits().length);
             StringTerms terms = searchResponse.getAggregations().get("text");
             assertEquals(1, terms.getBuckets().size());

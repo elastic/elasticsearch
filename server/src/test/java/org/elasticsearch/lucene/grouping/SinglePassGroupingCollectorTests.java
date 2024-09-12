@@ -139,10 +139,10 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
         TopFieldGroups collapseTopFieldDocs = collapsingCollector.getTopGroups(0);
         assertEquals(collapseField.getField(), collapseTopFieldDocs.field);
         assertEquals(expectedNumGroups, collapseTopFieldDocs.scoreDocs.length);
-        assertEquals(totalHits, collapseTopFieldDocs.totalHits.value);
-        assertEquals(TotalHits.Relation.EQUAL_TO, collapseTopFieldDocs.totalHits.relation);
+        assertEquals(totalHits, collapseTopFieldDocs.totalHits.value());
+        assertEquals(TotalHits.Relation.EQUAL_TO, collapseTopFieldDocs.totalHits.relation());
         assertEquals(totalHits, topDocs.scoreDocs.length);
-        assertEquals(totalHits, topDocs.totalHits.value);
+        assertEquals(totalHits, topDocs.totalHits.value());
 
         Set<Object> seen = new HashSet<>();
         // collapse field is the last sort

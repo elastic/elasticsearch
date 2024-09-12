@@ -827,7 +827,9 @@ public class ObjectMapper extends Mapper {
     private class SyntheticSourceFieldLoader implements SourceLoader.SyntheticFieldLoader {
         private final List<SourceLoader.SyntheticFieldLoader> fields;
         private final boolean isFragment;
-        private boolean hasValue;
+        private boolean storedFieldLoadersHaveValues;
+        private boolean docValuesLoadersHaveValues;
+        private boolean ignoredValuesPresent;
         private List<IgnoredSourceFieldMapper.NameValue> ignoredValues;
 
         private SyntheticSourceFieldLoader(List<SourceLoader.SyntheticFieldLoader> fields, boolean isFragment) {
@@ -837,10 +839,12 @@ public class ObjectMapper extends Mapper {
 
         @Override
         public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-            return fields.stream().flatMap(SourceLoader.SyntheticFieldLoader::storedFieldLoaders).map(e -> Map.entry(e.getKey(), values -> {
-                hasValue = true;
-                e.getValue().load(values);
-            }));
+            return fields.stream()
+                .flatMap(SourceLoader.SyntheticFieldLoader::storedFieldLoaders)
+                .map(e -> Map.entry(e.getKey(), newValues -> {
+                    storedFieldLoadersHaveValues = true;
+                    e.getValue().load(newValues);
+                }));
         }
 
         @Override
@@ -872,19 +876,19 @@ public class ObjectMapper extends Mapper {
                     boolean leafHasValue = docValueLoader.advanceToDoc(docId);
                     anyLeafHasDocValues |= leafHasValue;
                 }
-                hasValue |= anyLeafHasDocValues;
+                docValuesLoadersHaveValues = anyLeafHasDocValues;
                 return anyLeafHasDocValues;
             }
         }
 
         @Override
         public boolean hasValue() {
-            return hasValue;
+            return storedFieldLoadersHaveValues || docValuesLoadersHaveValues || ignoredValuesPresent;
         }
 
         @Override
         public void write(XContentBuilder b) throws IOException {
-            if (hasValue == false) {
+            if (hasValue() == false) {
                 return;
             }
             if (isRoot() && isEnabled() == false) {
@@ -915,8 +919,14 @@ public class ObjectMapper extends Mapper {
                 }
                 for (SourceLoader.SyntheticFieldLoader field : fields) {
                     if (field.hasValue()) {
-                        // Skip if the field source is stored separately, to avoid double-printing.
-                        orderedFields.computeIfAbsent(field.fieldName(), k -> new FieldWriter.FieldLoader(field));
+                        if (orderedFields.containsKey(field.fieldName()) == false) {
+                            orderedFields.put(field.fieldName(), new FieldWriter.FieldLoader(field));
+                        } else {
+                            // Skip if the field source is stored separately, to avoid double-printing.
+                            // Make sure to reset the state of loader so that values stored inside will not
+                            // be used after this document is finished.
+                            field.reset();
+                        }
                     }
                 }
 
@@ -931,8 +941,27 @@ public class ObjectMapper extends Mapper {
                     }
                 }
             }
-            hasValue = false;
             b.endObject();
+            softReset();
+        }
+
+        /**
+         * reset() is expensive since it will descend the hierarchy and reset the loader
+         * of every field.
+         * We perform a reset of a child field inside write() only when it is needed.
+         * We know that either write() or reset() was called for every field,
+         * so in the end of write() we can do this soft reset only.
+         */
+        private void softReset() {
+            storedFieldLoadersHaveValues = false;
+            docValuesLoadersHaveValues = false;
+            ignoredValuesPresent = false;
+        }
+
+        @Override
+        public void reset() {
+            softReset();
+            fields.forEach(SourceLoader.SyntheticFieldLoader::reset);
         }
 
         @Override
@@ -941,9 +970,9 @@ public class ObjectMapper extends Mapper {
                 return false;
             }
             ignoredValues = objectsWithIgnoredFields.remove(ObjectMapper.this.fullPath());
-            hasValue |= ignoredValues != null;
+            ignoredValuesPresent |= ignoredValues != null;
             for (SourceLoader.SyntheticFieldLoader loader : fields) {
-                hasValue |= loader.setIgnoredValues(objectsWithIgnoredFields);
+                ignoredValuesPresent |= loader.setIgnoredValues(objectsWithIgnoredFields);
             }
             return this.ignoredValues != null;
         }

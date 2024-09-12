@@ -293,12 +293,14 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
             .query(QueryBuilders.matchQuery("metadata.xpack.cluster_uuid", clusterUUID));
 
         assertResponse(prepareSearch(".watches").setSource(searchSource), response -> {
-            if (response.getHits().getTotalHits().value > 0) {
+            if (response.getHits().getTotalHits().value() > 0) {
                 List<String> invalidWatches = new ArrayList<>();
                 for (SearchHit hit : response.getHits().getHits()) {
                     invalidWatches.add(ObjectPath.eval("metadata.xpack.watch", hit.getSourceAsMap()));
                 }
-                fail("Found [" + response.getHits().getTotalHits().value + "] invalid watches when none were expected: " + invalidWatches);
+                fail(
+                    "Found [" + response.getHits().getTotalHits().value() + "] invalid watches when none were expected: " + invalidWatches
+                );
             }
         });
     }

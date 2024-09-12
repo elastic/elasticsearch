@@ -93,8 +93,13 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
                 Settings.builder()
                     .put(
                         "index.routing.allocation.require._name",
-                        clusterAdmin().prepareState().get().getState().nodes().getDataNodes().values().toArray(DiscoveryNode[]::new)[0]
-                            .getName()
+                        clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+                            .get()
+                            .getState()
+                            .nodes()
+                            .getDataNodes()
+                            .values()
+                            .toArray(DiscoveryNode[]::new)[0].getName()
                     )
                     .put("index.blocks.write", true),
                 index
@@ -154,7 +159,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
                             + "] shards for routing ["
                             + routing
                             + "] and got hits ["
-                            + response.getHits().getTotalHits().value
+                            + response.getHits().getTotalHits().value()
                             + "]"
                     );
 
@@ -162,7 +167,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
                         response.getTotalShards() + " was not in " + expectedShards + " for " + index,
                         expectedShards.contains(response.getTotalShards())
                     );
-                    assertEquals(expectedDocuments, response.getHits().getTotalHits().value);
+                    assertEquals(expectedDocuments, response.getHits().getTotalHits().value());
 
                     Set<String> found = new HashSet<>();
                     response.getHits().forEach(h -> found.add(h.getId()));
@@ -182,7 +187,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
                 prepareSearch().setQuery(QueryBuilders.termQuery("_routing", routing)).setIndices(index).setSize(100),
                 response -> {
                     assertEquals(expectedShards, response.getTotalShards());
-                    assertEquals(expectedDocuments, response.getHits().getTotalHits().value);
+                    assertEquals(expectedDocuments, response.getHits().getTotalHits().value());
 
                     Set<String> found = new HashSet<>();
                     response.getHits().forEach(h -> found.add(h.getId()));

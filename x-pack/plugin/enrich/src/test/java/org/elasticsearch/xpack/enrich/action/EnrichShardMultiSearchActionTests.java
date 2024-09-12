@@ -64,7 +64,7 @@ public class EnrichShardMultiSearchActionTests extends ESSingleNodeTestCase {
                 assertThat(response.getResponses().length, equalTo(numSearches));
                 for (int i = 0; i < numSearches; i++) {
                     assertThat(response.getResponses()[i].isFailure(), is(false));
-                    assertThat(response.getResponses()[i].getResponse().getHits().getTotalHits().value, equalTo(1L));
+                    assertThat(response.getResponses()[i].getResponse().getHits().getTotalHits().value(), equalTo(1L));
                     assertThat(response.getResponses()[i].getResponse().getHits().getHits()[0].getSourceAsMap().size(), equalTo(1));
                     assertThat(
                         response.getResponses()[i].getResponse().getHits().getHits()[0].getSourceAsMap().get("key1"),

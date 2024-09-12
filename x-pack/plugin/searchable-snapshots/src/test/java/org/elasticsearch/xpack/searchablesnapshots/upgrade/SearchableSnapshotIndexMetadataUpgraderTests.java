@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.upgrade;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -27,6 +29,8 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
+@UpdateForV9
+@LuceneTestCase.AwaitsFix(bugUrl = "this testing a number of pre 8.0 upgrade scenarios so needs updating or removal for 9.0")
 public class SearchableSnapshotIndexMetadataUpgraderTests extends ESTestCase {
 
     public void testNoUpgradeNeeded() {
@@ -116,14 +120,7 @@ public class SearchableSnapshotIndexMetadataUpgraderTests extends ESTestCase {
      * other than 7.12 versions here, but not 8.0 (since a rolling upgrade to 8.0 requires an upgrade to 7.latest first).
      */
     private Settings partialNeedsUpgrade() {
-        return searchableSnapshotSettings(
-            IndexVersionUtils.randomVersionBetween(
-                random(),
-                IndexVersions.V_7_12_0,
-                IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
-            ),
-            true
-        );
+        return searchableSnapshotSettings(randomFrom(IndexVersion.fromId(7_12_00_99), IndexVersion.fromId(7_17_00_99)), true);
     }
 
     /**
@@ -132,7 +129,7 @@ public class SearchableSnapshotIndexMetadataUpgraderTests extends ESTestCase {
     private Settings partial_7_13plus() {
         return shardLimitGroupFrozen(
             searchableSnapshotSettings(
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_13_0, IndexVersion.current()),
+                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_0_0, IndexVersion.current()),
                 true
             )
         );

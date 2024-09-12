@@ -74,6 +74,11 @@ public class ExplainableScriptIT extends ESIntegTestCase {
                         }
 
                         @Override
+                        public boolean needs_termStats() {
+                            return false;
+                        }
+
+                        @Override
                         public ScoreScript newInstance(DocReader docReader) {
                             return new MyScript(params1, lookup, ((DocValuesDocReader) docReader).getLeafReaderContext());
                         }
@@ -138,7 +143,7 @@ public class ExplainableScriptIT extends ESIntegTestCase {
             ),
             response -> {
                 SearchHits hits = response.getHits();
-                assertThat(hits.getTotalHits().value, equalTo(20L));
+                assertThat(hits.getTotalHits().value(), equalTo(20L));
                 int idCounter = 19;
                 for (SearchHit hit : hits.getHits()) {
                     assertThat(hit.getId(), equalTo(Integer.toString(idCounter)));

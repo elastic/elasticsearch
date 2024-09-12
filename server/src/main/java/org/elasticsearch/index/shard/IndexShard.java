@@ -73,7 +73,6 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.bulk.stats.BulkOperationListener;
 import org.elasticsearch.index.bulk.stats.BulkStats;
@@ -83,6 +82,7 @@ import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.codec.FieldInfosWithUsages;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Engine.GetResult;
@@ -1700,13 +1700,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private static final class NonClosingReaderWrapper extends FilterDirectoryReader {
 
+        private static final LeafReader[] EMPTY_LEAF_READERS = new LeafReader[0];
+
+        private static final FilterDirectoryReader.SubReaderWrapper SUB_READER_WRAPPER = new SubReaderWrapper() {
+            @Override
+            public LeafReader wrap(LeafReader reader) {
+                return reader;
+            }
+
+            @Override
+            protected LeafReader[] wrap(List<? extends LeafReader> readers) {
+                return readers.toArray(EMPTY_LEAF_READERS);
+            }
+        };
+
         private NonClosingReaderWrapper(DirectoryReader in) throws IOException {
-            super(in, new SubReaderWrapper() {
-                @Override
-                public LeafReader wrap(LeafReader reader) {
-                    return reader;
-                }
-            });
+            super(in, SUB_READER_WRAPPER);
         }
 
         @Override
@@ -3370,7 +3379,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     ) {
         assert assertPrimaryMode();
         // only needed for BWC reasons involving rolling upgrades from versions that do not support PRRLs:
-        assert indexSettings.getIndexVersionCreated().before(IndexVersions.V_7_4_0) || indexSettings.isSoftDeleteEnabled() == false;
+        assert indexSettings.isSoftDeleteEnabled() == false;
         return replicationTracker.addPeerRecoveryRetentionLease(nodeId, globalCheckpoint, listener);
     }
 
@@ -4084,11 +4093,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 try (var searcher = getEngine().acquireSearcher("shard_field_stats", Engine.SearcherScope.INTERNAL)) {
                     int numSegments = 0;
                     int totalFields = 0;
+                    long usages = 0;
                     for (LeafReaderContext leaf : searcher.getLeafContexts()) {
                         numSegments++;
-                        totalFields += leaf.reader().getFieldInfos().size();
+                        var fieldInfos = leaf.reader().getFieldInfos();
+                        totalFields += fieldInfos.size();
+                        if (fieldInfos instanceof FieldInfosWithUsages ft) {
+                            if (usages != -1) {
+                                usages += ft.getTotalUsages();
+                            }
+                        } else {
+                            usages = -1;
+                        }
                     }
-                    shardFieldStats = new ShardFieldStats(numSegments, totalFields);
+                    shardFieldStats = new ShardFieldStats(numSegments, totalFields, usages);
                 } catch (AlreadyClosedException ignored) {
 
                 }

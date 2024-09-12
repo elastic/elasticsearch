@@ -10,6 +10,7 @@ package org.elasticsearch.logstashbridge.threadpool;
 import org.elasticsearch.logstashbridge.StableBridgeAPI;
 import org.elasticsearch.logstashbridge.common.SettingsBridge;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.TimeUnit;
@@ -17,7 +18,7 @@ import java.util.concurrent.TimeUnit;
 public class ThreadPoolBridge extends StableBridgeAPI.Proxy<ThreadPool> {
 
     public ThreadPoolBridge(final SettingsBridge settingsBridge) {
-        this(new ThreadPool(settingsBridge.unwrap(), MeterRegistry.NOOP));
+        this(new ThreadPool(settingsBridge.unwrap(), MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders()));
     }
 
     public ThreadPoolBridge(final ThreadPool delegate) {

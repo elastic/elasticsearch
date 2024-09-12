@@ -103,6 +103,7 @@ public final class Lucene50FieldInfosFormat extends FieldInfosFormat {
                             storePayloads,
                             indexOptions,
                             docValuesType,
+                            false,
                             dvGen,
                             attributes,
                             0,

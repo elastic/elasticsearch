@@ -103,20 +103,20 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
         indexRandom(true, prepareIndex(index).setSource(field, "bar"));
 
         assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()), response -> {
-            final long hits = response.getHits().getTotalHits().value;
+            final long hits = response.getHits().getTotalHits().value();
             assertThat(hits, greaterThan(0L));
             assertResponse(
                 client().filterWithHeader(
                     singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD))
                 ).prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()),
-                response2 -> assertEquals(response2.getHits().getTotalHits().value, hits)
+                response2 -> assertEquals(response2.getHits().getTotalHits().value(), hits)
             );
             final long multiHits;
             MultiSearchResponse multiSearchResponse = client().prepareMultiSearch()
                 .add(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()))
                 .get();
             try {
-                multiHits = multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits().value;
+                multiHits = multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits().value();
                 assertThat(hits, greaterThan(0L));
             } finally {
                 multiSearchResponse.decRef();
@@ -125,7 +125,7 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
                 singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD))
             ).prepareMultiSearch().add(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery())).get();
             try {
-                assertEquals(multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits().value, multiHits);
+                assertEquals(multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits().value(), multiHits);
             } finally {
                 multiSearchResponse.decRef();
             }

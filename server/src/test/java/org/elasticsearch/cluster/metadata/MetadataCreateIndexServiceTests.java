@@ -8,6 +8,10 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.TransportVersion;
@@ -170,18 +174,14 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
         assertEquals(
             "index [source] already exists",
-            expectThrows(
-                ResourceAlreadyExistsException.class,
-                () -> MetadataCreateIndexService.validateShrinkIndex(state, "target", "source", Settings.EMPTY)
-            ).getMessage()
+            expectThrows(ResourceAlreadyExistsException.class, () -> validateShrinkIndex(state, "target", "source", Settings.EMPTY))
+                .getMessage()
         );
 
         assertEquals(
             "no such index [no_such_index]",
-            expectThrows(
-                IndexNotFoundException.class,
-                () -> MetadataCreateIndexService.validateShrinkIndex(state, "no_such_index", "target", Settings.EMPTY)
-            ).getMessage()
+            expectThrows(IndexNotFoundException.class, () -> validateShrinkIndex(state, "no_such_index", "target", Settings.EMPTY))
+                .getMessage()
         );
 
         Settings targetSettings = Settings.builder().put("index.number_of_shards", 1).build();
@@ -189,7 +189,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             "can't shrink an index with only one shard",
             expectThrows(
                 IllegalArgumentException.class,
-                () -> MetadataCreateIndexService.validateShrinkIndex(
+                () -> validateShrinkIndex(
                     createClusterState("source", 1, 0, Settings.builder().put("index.blocks.write", true).build()),
                     "source",
                     "target",
@@ -202,7 +202,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             "the number of target shards [10] must be less that the number of source shards [5]",
             expectThrows(
                 IllegalArgumentException.class,
-                () -> MetadataCreateIndexService.validateShrinkIndex(
+                () -> validateShrinkIndex(
                     createClusterState("source", 5, 0, Settings.builder().put("index.blocks.write", true).build()),
                     "source",
                     "target",
@@ -215,7 +215,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             "index source must be read-only to resize index. use \"index.blocks.write=true\"",
             expectThrows(
                 IllegalStateException.class,
-                () -> MetadataCreateIndexService.validateShrinkIndex(
+                () -> validateShrinkIndex(
                     createClusterState("source", randomIntBetween(2, 100), randomIntBetween(0, 10), Settings.EMPTY),
                     "source",
                     "target",
@@ -228,7 +228,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             "index source must have all shards allocated on the same node to shrink index",
             expectThrows(
                 IllegalStateException.class,
-                () -> MetadataCreateIndexService.validateShrinkIndex(state, "source", "target", targetSettings)
+                () -> validateShrinkIndex(state, "source", "target", targetSettings)
 
             ).getMessage()
         );
@@ -236,7 +236,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             "the number of source shards [8] must be a multiple of [3]",
             expectThrows(
                 IllegalArgumentException.class,
-                () -> MetadataCreateIndexService.validateShrinkIndex(
+                () -> validateShrinkIndex(
                     createClusterState("source", 8, randomIntBetween(0, 10), Settings.builder().put("index.blocks.write", true).build()),
                     "source",
                     "target",
@@ -267,12 +267,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         do {
             targetShards = randomIntBetween(1, numShards / 2);
         } while (isShrinkable(numShards, targetShards) == false);
-        MetadataCreateIndexService.validateShrinkIndex(
-            clusterState,
-            "source",
-            "target",
-            Settings.builder().put("index.number_of_shards", targetShards).build()
-        );
+        validateShrinkIndex(clusterState, "source", "target", Settings.builder().put("index.number_of_shards", targetShards).build());
     }
 
     public void testValidateSplitIndex() {
@@ -287,25 +282,21 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
         assertEquals(
             "index [source] already exists",
-            expectThrows(
-                ResourceAlreadyExistsException.class,
-                () -> MetadataCreateIndexService.validateSplitIndex(state, "target", "source", targetSettings)
-            ).getMessage()
+            expectThrows(ResourceAlreadyExistsException.class, () -> validateSplitIndex(state, "target", "source", targetSettings))
+                .getMessage()
         );
 
         assertEquals(
             "no such index [no_such_index]",
-            expectThrows(
-                IndexNotFoundException.class,
-                () -> MetadataCreateIndexService.validateSplitIndex(state, "no_such_index", "target", targetSettings)
-            ).getMessage()
+            expectThrows(IndexNotFoundException.class, () -> validateSplitIndex(state, "no_such_index", "target", targetSettings))
+                .getMessage()
         );
 
         assertEquals(
             "the number of source shards [10] must be less that the number of target shards [5]",
             expectThrows(
                 IllegalArgumentException.class,
-                () -> MetadataCreateIndexService.validateSplitIndex(
+                () -> validateSplitIndex(
                     createClusterState("source", 10, 0, Settings.builder().put("index.blocks.write", true).build()),
                     "source",
                     "target",
@@ -318,7 +309,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             "index source must be read-only to resize index. use \"index.blocks.write=true\"",
             expectThrows(
                 IllegalStateException.class,
-                () -> MetadataCreateIndexService.validateSplitIndex(
+                () -> validateSplitIndex(
                     createClusterState("source", randomIntBetween(2, 100), randomIntBetween(0, 10), Settings.EMPTY),
                     "source",
                     "target",
@@ -331,7 +322,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             "the number of source shards [3] must be a factor of [4]",
             expectThrows(
                 IllegalArgumentException.class,
-                () -> MetadataCreateIndexService.validateSplitIndex(
+                () -> validateSplitIndex(
                     createClusterState("source", 3, randomIntBetween(0, 10), Settings.builder().put("index.blocks.write", true).build()),
                     "source",
                     "target",
@@ -367,12 +358,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         routingTable = ESAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, "source").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
-        MetadataCreateIndexService.validateSplitIndex(
-            clusterState,
-            "source",
-            "target",
-            Settings.builder().put("index.number_of_shards", targetShards).build()
-        );
+        validateSplitIndex(clusterState, "source", "target", Settings.builder().put("index.number_of_shards", targetShards).build());
     }
 
     public void testPrepareResizeIndexSettings() {
@@ -528,7 +514,9 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             additionalIndexScopedSettings.stream()
         ).collect(Collectors.toSet());
         MetadataCreateIndexService.prepareResizeIndexSettings(
-            clusterState,
+            clusterState.metadata(),
+            clusterState.blocks(),
+            clusterState.routingTable(),
             indexSettingsBuilder,
             clusterState.metadata().index(indexName).getIndex(),
             "target",
@@ -576,9 +564,10 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     }
 
     private static void validateIndexName(MetadataCreateIndexService metadataCreateIndexService, String indexName, String errorMessage) {
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).build();
         InvalidIndexNameException e = expectThrows(
             InvalidIndexNameException.class,
-            () -> MetadataCreateIndexService.validateIndexName(indexName, ClusterState.builder(ClusterName.DEFAULT).build())
+            () -> MetadataCreateIndexService.validateIndexName(indexName, state.metadata(), state.routingTable())
         );
         assertThat(e.getMessage(), endsWith(errorMessage));
     }
@@ -612,9 +601,20 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/112453")
     public void testValidateDotIndex() {
         List<SystemIndexDescriptor> systemIndexDescriptors = new ArrayList<>();
         systemIndexDescriptors.add(SystemIndexDescriptorUtils.createUnmanaged(".test-one*", "test"));
+        // TODO Lucene 10 upgrade
+        // The "~" operator in Rexeg Automata doesn't seem to work as expected any more without minimization
+        Automaton patternAutomaton = new RegExp("\\.test-~(one.*)").toAutomaton();
+        assertTrue(
+            new CharacterRunAutomaton(Operations.determinize(patternAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)).run(
+                ".test-~(one.*)"
+            )
+        );
+        // TODO remove this smoke test ^^^ once the issue is fixed
+
         systemIndexDescriptors.add(SystemIndexDescriptorUtils.createUnmanaged(".test-~(one*)", "test"));
         systemIndexDescriptors.add(SystemIndexDescriptorUtils.createUnmanaged(".pattern-test*", "test-1"));
 
@@ -967,13 +967,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertThat(
             expectThrows(
                 IllegalStateException.class,
-                () -> clusterStateCreateIndex(
-                    currentClusterState,
-                    Set.of(),
-                    newIndex,
-                    null,
-                    TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
-                )
+                () -> clusterStateCreateIndex(currentClusterState, newIndex, null, TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             ).getMessage(),
             startsWith("alias [alias1] has more than one write index [")
         );
@@ -991,7 +985,6 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
         ClusterState updatedClusterState = clusterStateCreateIndex(
             currentClusterState,
-            Set.of(INDEX_READ_ONLY_BLOCK),
             newIndexMetadata,
             null,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
@@ -1037,7 +1030,6 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
         ClusterState updatedClusterState = clusterStateCreateIndex(
             currentClusterState,
-            Set.of(INDEX_READ_ONLY_BLOCK),
             newIndexMetadata,
             metadataTransformer,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
@@ -1336,33 +1328,6 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         );
     }
 
-    public void testDeprecateTranslogRetentionSettings() {
-        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
-        final Settings.Builder settings = Settings.builder();
-        if (randomBoolean()) {
-            settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), TimeValue.timeValueMillis(between(1, 120)));
-        } else {
-            settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), between(1, 128) + "mb");
-        }
-        settings.put(SETTING_VERSION_CREATED, IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0));
-        request.settings(settings.build());
-        aggregateIndexSettings(
-            ClusterState.EMPTY_STATE,
-            request,
-            Settings.EMPTY,
-            null,
-            null,
-            Settings.EMPTY,
-            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-            randomShardLimitService(),
-            Collections.emptySet()
-        );
-        assertWarnings(
-            "Translog retention settings [index.translog.retention.age] "
-                + "and [index.translog.retention.size] are deprecated and effectively ignored. They will be removed in a future version."
-        );
-    }
-
     public void testDeprecateSimpleFS() {
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         final Settings.Builder settings = Settings.builder();
@@ -1430,5 +1395,20 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         } finally {
             threadPool.shutdown();
         }
+    }
+
+    private List<String> validateShrinkIndex(ClusterState state, String sourceIndex, String targetIndexName, Settings targetIndexSettings) {
+        return MetadataCreateIndexService.validateShrinkIndex(
+            state.metadata(),
+            state.blocks(),
+            state.routingTable(),
+            sourceIndex,
+            targetIndexName,
+            targetIndexSettings
+        );
+    }
+
+    private void validateSplitIndex(ClusterState state, String sourceIndex, String targetIndexName, Settings targetIndexSettings) {
+        MetadataCreateIndexService.validateSplitIndex(state.metadata(), state.blocks(), sourceIndex, targetIndexName, targetIndexSettings);
     }
 }

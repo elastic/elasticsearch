@@ -74,7 +74,7 @@ public final class MapperRegistry {
     public Map<String, MetadataFieldMapper.TypeParser> getMetadataMapperParsers(IndexVersion indexCreatedVersion) {
         if (indexCreatedVersion.onOrAfter(IndexVersions.V_8_0_0)) {
             return metadataMapperParsers;
-        } else if (indexCreatedVersion.onOrAfter(IndexVersions.V_7_0_0)) {
+        } else if (indexCreatedVersion.onOrAfter(IndexVersion.fromId(7000099))) {
             return metadataMapperParsers7x;
         } else if (indexCreatedVersion.onOrAfter(IndexVersion.fromId(6000099))) {
             return metadataMapperParsers6x;

@@ -23,6 +23,7 @@ import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SerialMergeScheduler;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -173,9 +174,10 @@ public class PersistentCache implements Closeable {
                         final Bits liveDocs = leafReaderContext.reader().getLiveDocs();
                         final IntPredicate isLiveDoc = liveDocs == null ? i -> true : liveDocs::get;
                         final DocIdSetIterator docIdSetIterator = scorer.iterator();
+                        StoredFields storedFields = leafReaderContext.reader().storedFields();
                         while (docIdSetIterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                             if (isLiveDoc.test(docIdSetIterator.docID())) {
-                                final Document document = leafReaderContext.reader().document(docIdSetIterator.docID());
+                                final Document document = storedFields.document(docIdSetIterator.docID());
                                 final String cacheFileId = getValue(document, CACHE_ID_FIELD);
                                 if (predicate.test(snapshotCacheDir.resolve(cacheFileId))) {
                                     long size = buildCacheFileRanges(document).stream().mapToLong(ByteRange::length).sum();
@@ -423,9 +425,10 @@ public class PersistentCache implements Closeable {
                 for (LeafReaderContext leafReaderContext : indexReader.leaves()) {
                     final LeafReader leafReader = leafReaderContext.reader();
                     final Bits liveDocs = leafReader.getLiveDocs();
+                    final StoredFields storedFields = leafReader.storedFields();
                     for (int i = 0; i < leafReader.maxDoc(); i++) {
                         if (liveDocs == null || liveDocs.get(i)) {
-                            final Document document = leafReader.document(i);
+                            final Document document = storedFields.document(i);
                             logger.trace("loading document [{}]", document);
                             documents.put(getValue(document, CACHE_ID_FIELD), document);
                         }

@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -107,6 +108,8 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         expectThrows(IllegalArgumentException.class, () -> getLatestSnapshotForShardFuture(Collections.emptyList(), "idx", 0, false));
     }
 
+    @UpdateForV9
+    // below we were selecting an index version between current and 7.5.0, this has been updated to 8.0.0 now but that might need to change
     public void testGetShardSnapshotReturnsTheLatestSuccessfulSnapshot() throws Exception {
         final String repoName = "repo-name";
         final Path repoPath = randomRepoPath();
@@ -114,7 +117,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
 
         final boolean useBwCFormat = randomBoolean();
         if (useBwCFormat) {
-            final IndexVersion version = randomVersionBetween(random(), IndexVersions.V_7_5_0, IndexVersion.current());
+            final IndexVersion version = randomVersionBetween(random(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current());
             initWithSnapshotVersion(repoName, repoPath, version);
         }
 
@@ -137,7 +140,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
             final SnapshotInfo snapshotInfo = createSnapshot(repoName, Strings.format("snap-%03d", i), snapshotIndices);
             if (snapshotInfo.indices().contains(indexName)) {
                 lastSnapshot = snapshotInfo;
-                ClusterStateResponse clusterStateResponse = admin().cluster().prepareState().get();
+                ClusterStateResponse clusterStateResponse = admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get();
                 IndexMetadata indexMetadata = clusterStateResponse.getState().metadata().index(indexName);
                 expectedIndexMetadataId = IndexMetaDataGenerations.buildUniqueIdentifier(indexMetadata);
             }

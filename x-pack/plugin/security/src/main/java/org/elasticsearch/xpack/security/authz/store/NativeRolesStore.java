@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.core.security.action.role.RoleDescriptorRequestVa
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
 import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
@@ -277,7 +278,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                     TransportSearchAction.TYPE,
                     searchRequest,
                     ActionListener.wrap(searchResponse -> {
-                        long total = searchResponse.getHits().getTotalHits().value;
+                        long total = searchResponse.getHits().getTotalHits().value();
                         if (total == 0) {
                             logger.debug("No roles found for query [{}]", searchRequest.source().query());
                             listener.onResponse(QueryRoleResult.EMPTY);
@@ -476,7 +477,15 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                                 + TransportVersions.SECURITY_ROLE_DESCRIPTION.toReleaseVersion()
                                 + "] or higher to support specifying role description"
                         );
-                    }
+                    } else if (Arrays.stream(role.getConditionalClusterPrivileges())
+                        .anyMatch(privilege -> privilege instanceof ConfigurableClusterPrivileges.ManageRolesPrivilege)
+                        && clusterService.state().getMinTransportVersion().before(TransportVersions.ADD_MANAGE_ROLES_PRIVILEGE)) {
+                            return new IllegalStateException(
+                                "all nodes must have version ["
+                                    + TransportVersions.ADD_MANAGE_ROLES_PRIVILEGE.toReleaseVersion()
+                                    + "] or higher to support the manage roles privilege"
+                            );
+                        }
         try {
             DLSRoleQueryValidator.validateQueryField(role.getIndicesPrivileges(), xContentRegistry);
         } catch (ElasticsearchException | IllegalArgumentException e) {
@@ -721,28 +730,28 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                             if (responses[0].isFailure()) {
                                 usageStats.put("size", 0);
                             } else {
-                                usageStats.put("size", responses[0].getResponse().getHits().getTotalHits().value);
+                                usageStats.put("size", responses[0].getResponse().getHits().getTotalHits().value());
                             }
                             if (responses[1].isFailure()) {
                                 usageStats.put("fls", false);
                             } else {
-                                usageStats.put("fls", responses[1].getResponse().getHits().getTotalHits().value > 0L);
+                                usageStats.put("fls", responses[1].getResponse().getHits().getTotalHits().value() > 0L);
                             }
 
                             if (responses[2].isFailure()) {
                                 usageStats.put("dls", false);
                             } else {
-                                usageStats.put("dls", responses[2].getResponse().getHits().getTotalHits().value > 0L);
+                                usageStats.put("dls", responses[2].getResponse().getHits().getTotalHits().value() > 0L);
                             }
                             if (responses[3].isFailure()) {
                                 usageStats.put("remote_indices", 0);
                             } else {
-                                usageStats.put("remote_indices", responses[3].getResponse().getHits().getTotalHits().value);
+                                usageStats.put("remote_indices", responses[3].getResponse().getHits().getTotalHits().value());
                             }
                             if (responses[4].isFailure()) {
                                 usageStats.put("remote_cluster", 0);
                             } else {
-                                usageStats.put("remote_cluster", responses[4].getResponse().getHits().getTotalHits().value);
+                                usageStats.put("remote_cluster", responses[4].getResponse().getHits().getTotalHits().value());
                             }
                             delegate.onResponse(usageStats);
                         }

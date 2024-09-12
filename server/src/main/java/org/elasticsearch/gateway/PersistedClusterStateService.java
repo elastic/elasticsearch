@@ -24,6 +24,7 @@ import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SerialMergeScheduler;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -446,7 +447,7 @@ public class PersistedClusterStateService {
                                 // resources during test execution
                                 checkIndex.setThreadCount(1);
                                 checkIndex.setInfoStream(printStream);
-                                checkIndex.setChecksumsOnly(true);
+                                checkIndex.setLevel(CheckIndex.Level.MIN_LEVEL_FOR_CHECKSUM_CHECKS);
                                 isClean = checkIndex.checkIndex().clean;
                             }
 
@@ -702,15 +703,16 @@ public class PersistedClusterStateService {
                 final Bits liveDocs = leafReaderContext.reader().getLiveDocs();
                 final IntPredicate isLiveDoc = liveDocs == null ? i -> true : liveDocs::get;
                 final DocIdSetIterator docIdSetIterator = scorer.iterator();
+                final StoredFields storedFields = leafReaderContext.reader().storedFields();
                 while (docIdSetIterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                     if (isLiveDoc.test(docIdSetIterator.docID())) {
                         logger.trace("processing doc {}", docIdSetIterator.docID());
-                        final Document document = leafReaderContext.reader().document(docIdSetIterator.docID());
+                        final Document document = storedFields.document(docIdSetIterator.docID());
                         final BytesArray documentData = new BytesArray(document.getBinaryValue(DATA_FIELD_NAME));
 
                         if (document.getField(PAGE_FIELD_NAME) == null) {
                             // legacy format: not paginated or compressed
-                            assert IndexVersions.MINIMUM_COMPATIBLE.before(IndexVersions.V_7_16_0);
+                            assert IndexVersions.MINIMUM_COMPATIBLE.before(IndexVersion.fromId(7_16_00_99));
                             bytesReferenceConsumer.accept(documentData);
                             continue;
                         }

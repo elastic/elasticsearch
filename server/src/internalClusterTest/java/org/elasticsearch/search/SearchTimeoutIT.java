@@ -63,7 +63,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
         assertEquals(0, searchResponse.getFailedShards());
         assertThat(searchResponse.getSuccessfulShards(), greaterThan(0));
         assertEquals(searchResponse.getSuccessfulShards(), searchResponse.getTotalShards());
-        assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), greaterThan(0L));
         assertThat(searchResponse.getHits().getHits().length, greaterThan(0));
     }
 
@@ -80,7 +80,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
         assertEquals(0, searchResponse.getFailedShards());
         assertThat(searchResponse.getSuccessfulShards(), greaterThan(0));
         assertEquals(searchResponse.getSuccessfulShards(), searchResponse.getTotalShards());
-        assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), greaterThan(0L));
         assertEquals(searchResponse.getHits().getHits().length, 0);
         StringTerms terms = searchResponse.getAggregations().get("terms");
         assertEquals(1, terms.getBuckets().size());

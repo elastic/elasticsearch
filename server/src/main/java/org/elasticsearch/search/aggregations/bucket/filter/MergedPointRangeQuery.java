@@ -12,7 +12,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -20,7 +19,6 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 
@@ -117,15 +115,6 @@ public class MergedPointRangeQuery extends Query {
             }
 
             @Override
-            public Scorer scorer(LeafReaderContext context) throws IOException {
-                ScorerSupplier scorerSupplier = scorerSupplier(context);
-                if (scorerSupplier == null) {
-                    return null;
-                }
-                return scorerSupplier.get(Long.MAX_VALUE);
-            }
-
-            @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                 /*
                  * If we're sure docs only have a single value for the field
@@ -141,19 +130,6 @@ public class MergedPointRangeQuery extends Query {
                     return singleValuedSegmentWeight().scorerSupplier(context);
                 }
                 return multiValuedSegmentWeight().scorerSupplier(context);
-            }
-
-            @Override
-            public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
-                PointValues points = context.reader().getPointValues(field);
-                if (points == null) {
-                    return null;
-                }
-                if (points.size() == points.getDocCount()) {
-                    // Each doc that has points has exactly one point.
-                    return singleValuedSegmentWeight().bulkScorer(context);
-                }
-                return multiValuedSegmentWeight().bulkScorer(context);
             }
 
             private Weight singleValuedSegmentWeight() throws IOException {

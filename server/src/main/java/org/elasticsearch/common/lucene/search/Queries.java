@@ -122,7 +122,7 @@ public class Queries {
         }
         int optionalClauses = 0;
         for (BooleanClause c : query.clauses()) {
-            if (c.getOccur() == BooleanClause.Occur.SHOULD) {
+            if (c.occur() == BooleanClause.Occur.SHOULD) {
                 optionalClauses++;
             }
         }

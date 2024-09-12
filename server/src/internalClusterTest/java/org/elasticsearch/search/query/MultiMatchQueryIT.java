@@ -346,7 +346,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                     ).type(MatchQueryParser.Type.PHRASE)
                 )
             ),
-            response -> assertThat(response.getHits().getTotalHits().value, greaterThan(1L))
+            response -> assertThat(response.getHits().getTotalHits().value(), greaterThan(1L))
         );
 
         assertSearchHitsWithoutFailures(
@@ -427,8 +427,8 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                         matchResp -> {
                             assertThat(
                                 "field: " + field + " query: " + builder.toString(),
-                                multiMatchResp.getHits().getTotalHits().value,
-                                equalTo(matchResp.getHits().getTotalHits().value)
+                                multiMatchResp.getHits().getTotalHits().value(),
+                                equalTo(matchResp.getHits().getTotalHits().value())
                             );
                             SearchHits hits = multiMatchResp.getHits();
                             if (field.startsWith("missing")) {
@@ -450,7 +450,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         var response = prepareSearch("test").setSize(0).setQuery(matchAllQuery()).get();
         final int numDocs;
         try {
-            numDocs = (int) response.getHits().getTotalHits().value;
+            numDocs = (int) response.getHits().getTotalHits().value();
         } finally {
             response.decRef();
         }
@@ -943,7 +943,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         assertNoFailures(right);
         SearchHits leftHits = left.getHits();
         SearchHits rightHits = right.getHits();
-        assertThat(leftHits.getTotalHits().value, equalTo(rightHits.getTotalHits().value));
+        assertThat(leftHits.getTotalHits().value(), equalTo(rightHits.getTotalHits().value()));
         assertThat(leftHits.getHits().length, equalTo(rightHits.getHits().length));
         SearchHit[] hits = leftHits.getHits();
         SearchHit[] rHits = rightHits.getHits();

@@ -105,7 +105,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final NodeFeature INT4_QUANTIZATION = new NodeFeature("mapper.vectors.int4_quantization");
     public static final NodeFeature BIT_VECTORS = new NodeFeature("mapper.vectors.bit_vectors");
 
-    public static final IndexVersion MAGNITUDE_STORED_INDEX_VERSION = IndexVersions.V_7_5_0;
     public static final IndexVersion INDEXED_BY_DEFAULT_INDEX_VERSION = IndexVersions.FIRST_DETACHED_INDEX_VERSION;
     public static final IndexVersion NORMALIZE_COSINE = IndexVersions.NORMALIZED_VECTOR_COSINE;
     public static final IndexVersion DEFAULT_TO_INT8 = DEFAULT_DENSE_VECTOR_TO_INT8_HNSW;
@@ -297,10 +296,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     indexOptions.getValue(),
                     meta.getValue()
                 ),
+                builderParams(this, context),
                 indexOptions.getValue(),
-                indexVersionCreated,
-                multiFieldsBuilder.build(this, context),
-                copyTo
+                indexVersionCreated
             );
         }
     }
@@ -1963,12 +1961,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
     private DenseVectorFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
+        BuilderParams params,
         IndexOptions indexOptions,
-        IndexVersion indexCreatedVersion,
-        MultiFields multiFields,
-        CopyTo copyTo
+        IndexVersion indexCreatedVersion
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, params);
         this.indexOptions = indexOptions;
         this.indexCreatedVersion = indexCreatedVersion;
     }
@@ -2015,10 +2012,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
             Mapper update = new DenseVectorFieldMapper(
                 leafName(),
                 updatedDenseVectorFieldType,
+                builderParams,
                 indexOptions,
-                indexCreatedVersion,
-                multiFields(),
-                copyTo
+                indexCreatedVersion
             );
             context.addDynamicMapper(update);
             return;
@@ -2039,19 +2035,15 @@ public class DenseVectorFieldMapper extends FieldMapper {
         // this code is here and not in the VectorEncoderDecoder so not to create extra arrays
         int dims = fieldType().dims;
         ElementType elementType = fieldType().elementType;
-        int numBytes = indexCreatedVersion.onOrAfter(MAGNITUDE_STORED_INDEX_VERSION)
-            ? elementType.getNumBytes(dims) + MAGNITUDE_BYTES
-            : elementType.getNumBytes(dims);
+        int numBytes = elementType.getNumBytes(dims) + MAGNITUDE_BYTES;
 
         ByteBuffer byteBuffer = elementType.createByteBuffer(indexCreatedVersion, numBytes);
         VectorData vectorData = elementType.parseKnnVector(context, this);
         vectorData.addToBuffer(byteBuffer);
-        if (indexCreatedVersion.onOrAfter(MAGNITUDE_STORED_INDEX_VERSION)) {
-            // encode vector magnitude at the end
-            double dotProduct = elementType.computeSquaredMagnitude(vectorData);
-            float vectorMagnitude = (float) Math.sqrt(dotProduct);
-            byteBuffer.putFloat(vectorMagnitude);
-        }
+        // encode vector magnitude at the end
+        double dotProduct = elementType.computeSquaredMagnitude(vectorData);
+        float vectorMagnitude = (float) Math.sqrt(dotProduct);
+        byteBuffer.putFloat(vectorMagnitude);
         Field field = new BinaryDocValuesField(fieldType().name(), new BytesRef(byteBuffer.array()));
         context.doc().addWithKey(fieldType().name(), field);
     }
@@ -2156,24 +2148,15 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected SyntheticSourceMode syntheticSourceMode() {
-        return SyntheticSourceMode.NATIVE;
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        var loader = fieldType().indexed
+            ? new IndexedSyntheticFieldLoader(indexCreatedVersion, fieldType().similarity)
+            : new DocValuesSyntheticFieldLoader(indexCreatedVersion);
+
+        return new SyntheticSourceSupport.Native(loader);
     }
 
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        if (copyTo.copyToFields().isEmpty() != true) {
-            throw new IllegalArgumentException(
-                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
-            );
-        }
-        if (fieldType().indexed) {
-            return new IndexedSyntheticFieldLoader(indexCreatedVersion, fieldType().similarity);
-        }
-        return new DocValuesSyntheticFieldLoader(indexCreatedVersion);
-    }
-
-    private class IndexedSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
+    private class IndexedSyntheticFieldLoader extends SourceLoader.DocValuesBasedSyntheticFieldLoader {
         private FloatVectorValues values;
         private ByteVectorValues byteVectorValues;
         private boolean hasValue;
@@ -2186,11 +2169,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private IndexedSyntheticFieldLoader(IndexVersion indexCreatedVersion, VectorSimilarity vectorSimilarity) {
             this.indexCreatedVersion = indexCreatedVersion;
             this.vectorSimilarity = vectorSimilarity;
-        }
-
-        @Override
-        public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-            return Stream.of();
         }
 
         @Override
@@ -2254,18 +2232,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    private class DocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
+    private class DocValuesSyntheticFieldLoader extends SourceLoader.DocValuesBasedSyntheticFieldLoader {
         private BinaryDocValues values;
         private boolean hasValue;
         private final IndexVersion indexCreatedVersion;
 
         private DocValuesSyntheticFieldLoader(IndexVersion indexCreatedVersion) {
             this.indexCreatedVersion = indexCreatedVersion;
-        }
-
-        @Override
-        public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-            return Stream.of();
         }
 
         @Override

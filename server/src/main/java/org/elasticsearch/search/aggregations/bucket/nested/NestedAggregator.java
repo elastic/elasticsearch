@@ -196,7 +196,6 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
             }
 
             for (; childDocId < currentParentDoc; childDocId = childDocs.nextDoc()) {
-                cachedScorer.doc = childDocId;
                 for (var bucket : bucketBuffer) {
                     collectBucket(sub, childDocId, bucket);
                 }
@@ -206,19 +205,12 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
     }
 
     private static class CachedScorable extends Scorable {
-        int doc;
         float score;
 
         @Override
         public final float score() {
             return score;
         }
-
-        @Override
-        public int docID() {
-            return doc;
-        }
-
     }
 
 }

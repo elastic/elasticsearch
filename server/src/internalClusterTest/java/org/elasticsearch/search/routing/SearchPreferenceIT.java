@@ -59,7 +59,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         }
         refresh();
         internalCluster().stopRandomDataNode();
-        clusterAdmin().prepareHealth().setWaitForStatus(ClusterHealthStatus.RED).get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForStatus(ClusterHealthStatus.RED).get();
         String[] preferences = new String[] {
             "_local",
             "_prefer_nodes:somenode",
@@ -122,17 +122,17 @@ public class SearchPreferenceIT extends ESIntegTestCase {
 
         assertResponse(
             prepareSearch().setQuery(matchAllQuery()),
-            response -> assertThat(response.getHits().getTotalHits().value, equalTo(1L))
+            response -> assertThat(response.getHits().getTotalHits().value(), equalTo(1L))
         );
 
         assertResponse(
             prepareSearch().setQuery(matchAllQuery()).setPreference("_local"),
-            response -> assertThat(response.getHits().getTotalHits().value, equalTo(1L))
+            response -> assertThat(response.getHits().getTotalHits().value(), equalTo(1L))
         );
 
         assertResponse(
             prepareSearch().setQuery(matchAllQuery()).setPreference("1234"),
-            response -> assertThat(response.getHits().getTotalHits().value, equalTo(1L))
+            response -> assertThat(response.getHits().getTotalHits().value(), equalTo(1L))
         );
     }
 

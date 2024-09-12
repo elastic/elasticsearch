@@ -115,7 +115,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             mockSearchPhaseContext.assertNoFailure();
             SearchResponse searchResponse = mockSearchPhaseContext.searchResponse.get();
             assertNotNull(searchResponse);
-            assertEquals(numHits, searchResponse.getHits().getTotalHits().value);
+            assertEquals(numHits, searchResponse.getHits().getTotalHits().value());
             if (numHits != 0) {
                 assertEquals(42, searchResponse.getHits().getAt(0).docId());
             }
@@ -243,7 +243,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             mockSearchPhaseContext.assertNoFailure();
             SearchResponse searchResponse = mockSearchPhaseContext.searchResponse.get();
             assertNotNull(searchResponse);
-            assertEquals(2, searchResponse.getHits().getTotalHits().value);
+            assertEquals(2, searchResponse.getHits().getTotalHits().value());
             assertEquals(84, searchResponse.getHits().getAt(0).docId());
             assertEquals(42, searchResponse.getHits().getAt(1).docId());
             assertEquals(0, searchResponse.getFailedShards());
@@ -352,7 +352,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             mockSearchPhaseContext.assertNoFailure();
             SearchResponse searchResponse = mockSearchPhaseContext.searchResponse.get();
             assertNotNull(searchResponse);
-            assertEquals(2, searchResponse.getHits().getTotalHits().value);
+            assertEquals(2, searchResponse.getHits().getTotalHits().value());
             assertEquals(84, searchResponse.getHits().getAt(0).docId());
             assertEquals(1, searchResponse.getFailedShards());
             assertEquals(1, searchResponse.getSuccessfulShards());
@@ -467,7 +467,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             mockSearchPhaseContext.assertNoFailure();
             SearchResponse searchResponse = mockSearchPhaseContext.searchResponse.get();
             assertNotNull(searchResponse);
-            assertEquals(numHits, searchResponse.getHits().getTotalHits().value);
+            assertEquals(numHits, searchResponse.getHits().getTotalHits().value());
             assertEquals(Math.min(numHits, resultSetSize), searchResponse.getHits().getHits().length);
             SearchHit[] hits = searchResponse.getHits().getHits();
             for (int i = 0; i < hits.length; i++) {
@@ -702,7 +702,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             mockSearchPhaseContext.assertNoFailure();
             SearchResponse searchResponse = mockSearchPhaseContext.searchResponse.get();
             assertNotNull(searchResponse);
-            assertEquals(2, searchResponse.getHits().getTotalHits().value);
+            assertEquals(2, searchResponse.getHits().getTotalHits().value());
             assertEquals(1, searchResponse.getHits().getHits().length);
             assertEquals(84, searchResponse.getHits().getAt(0).docId());
             assertEquals(0, searchResponse.getFailedShards());

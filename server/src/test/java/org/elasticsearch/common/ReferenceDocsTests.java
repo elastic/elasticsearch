@@ -66,7 +66,7 @@ public class ReferenceDocsTests extends ESTestCase {
             builder.startObject("UNEXPECTED").endObject().endObject();
 
             try (var stream = BytesReference.bytes(builder).streamInput()) {
-                expectThrows(IllegalStateException.class, () -> ReferenceDocs.readLinksBySymbol(stream));
+                expectThrows(IllegalArgumentException.class, () -> ReferenceDocs.readLinksBySymbol(stream));
             }
         }
 

@@ -70,9 +70,9 @@ public class SearchScrollIT extends ESIntegTestCase {
 
     public void testSimpleScrollQueryThenFetch() throws Exception {
         indicesAdmin().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 3)).get();
-        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
-        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         for (int i = 0; i < 100; i++) {
             prepareIndex("test").setId(Integer.toString(i)).setSource(jsonBuilder().startObject().field("field", i).endObject()).get();
@@ -88,7 +88,7 @@ public class SearchScrollIT extends ESIntegTestCase {
         try {
             long counter = 0;
 
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
             assertThat(searchResponse.getHits().getHits().length, equalTo(35));
             for (SearchHit hit : searchResponse.getHits()) {
                 assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter++));
@@ -97,7 +97,7 @@ public class SearchScrollIT extends ESIntegTestCase {
             searchResponse.decRef();
             searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).get();
 
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
             assertThat(searchResponse.getHits().getHits().length, equalTo(35));
             for (SearchHit hit : searchResponse.getHits()) {
                 assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter++));
@@ -106,7 +106,7 @@ public class SearchScrollIT extends ESIntegTestCase {
             searchResponse.decRef();
             searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).get();
 
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
             assertThat(searchResponse.getHits().getHits().length, equalTo(30));
             for (SearchHit hit : searchResponse.getHits()) {
                 assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter++));
@@ -119,9 +119,9 @@ public class SearchScrollIT extends ESIntegTestCase {
 
     public void testSimpleScrollQueryThenFetchSmallSizeUnevenDistribution() throws Exception {
         indicesAdmin().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 3)).get();
-        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
-        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         for (int i = 0; i < 100; i++) {
             String routing = "0";
@@ -144,7 +144,7 @@ public class SearchScrollIT extends ESIntegTestCase {
         try {
             long counter = 0;
 
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
             assertThat(searchResponse.getHits().getHits().length, equalTo(3));
             for (SearchHit hit : searchResponse.getHits()) {
                 assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter++));
@@ -154,7 +154,7 @@ public class SearchScrollIT extends ESIntegTestCase {
                 searchResponse.decRef();
                 searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).get();
 
-                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
                 assertThat(searchResponse.getHits().getHits().length, equalTo(3));
                 for (SearchHit hit : searchResponse.getHits()) {
                     assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter++));
@@ -165,7 +165,7 @@ public class SearchScrollIT extends ESIntegTestCase {
             searchResponse.decRef();
             searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).get();
 
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
             assertThat(searchResponse.getHits().getHits().length, equalTo(1));
             for (SearchHit hit : searchResponse.getHits()) {
                 assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter++));
@@ -175,7 +175,7 @@ public class SearchScrollIT extends ESIntegTestCase {
             searchResponse.decRef();
             searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).get();
 
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
             assertThat(searchResponse.getHits().getHits().length, equalTo(0));
             for (SearchHit hit : searchResponse.getHits()) {
                 assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter++));
@@ -189,7 +189,7 @@ public class SearchScrollIT extends ESIntegTestCase {
 
     public void testScrollAndUpdateIndex() throws Exception {
         indicesAdmin().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 5)).get();
-        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         for (int i = 0; i < 500; i++) {
             prepareIndex("test").setId(Integer.toString(i))
@@ -241,9 +241,9 @@ public class SearchScrollIT extends ESIntegTestCase {
 
     public void testSimpleScrollQueryThenFetch_clearScrollIds() throws Exception {
         indicesAdmin().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 3)).get();
-        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
-        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         for (int i = 0; i < 100; i++) {
             prepareIndex("test").setId(Integer.toString(i)).setSource(jsonBuilder().startObject().field("field", i).endObject()).get();
@@ -261,7 +261,7 @@ public class SearchScrollIT extends ESIntegTestCase {
             .addSort("field", SortOrder.ASC)
             .get();
         try {
-            assertThat(searchResponse1.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse1.getHits().getTotalHits().value(), equalTo(100L));
             assertThat(searchResponse1.getHits().getHits().length, equalTo(35));
             for (SearchHit hit : searchResponse1.getHits()) {
                 assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter1++));
@@ -277,7 +277,7 @@ public class SearchScrollIT extends ESIntegTestCase {
             .addSort("field", SortOrder.ASC)
             .get();
         try {
-            assertThat(searchResponse2.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse2.getHits().getTotalHits().value(), equalTo(100L));
             assertThat(searchResponse2.getHits().getHits().length, equalTo(35));
             for (SearchHit hit : searchResponse2.getHits()) {
                 assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter2++));
@@ -288,7 +288,7 @@ public class SearchScrollIT extends ESIntegTestCase {
 
         searchResponse1 = client().prepareSearchScroll(searchResponse1.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).get();
         try {
-            assertThat(searchResponse1.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse1.getHits().getTotalHits().value(), equalTo(100L));
             assertThat(searchResponse1.getHits().getHits().length, equalTo(35));
             for (SearchHit hit : searchResponse1.getHits()) {
                 assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter1++));
@@ -299,7 +299,7 @@ public class SearchScrollIT extends ESIntegTestCase {
 
         searchResponse2 = client().prepareSearchScroll(searchResponse2.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).get();
         try {
-            assertThat(searchResponse2.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse2.getHits().getTotalHits().value(), equalTo(100L));
             assertThat(searchResponse2.getHits().getHits().length, equalTo(35));
             for (SearchHit hit : searchResponse2.getHits()) {
                 assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter2++));
@@ -360,9 +360,9 @@ public class SearchScrollIT extends ESIntegTestCase {
 
     public void testSimpleScrollQueryThenFetchClearAllScrollIds() throws Exception {
         indicesAdmin().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 3)).get();
-        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
-        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         for (int i = 0; i < 100; i++) {
             prepareIndex("test").setId(Integer.toString(i)).setSource(jsonBuilder().startObject().field("field", i).endObject()).get();
@@ -380,7 +380,7 @@ public class SearchScrollIT extends ESIntegTestCase {
             .addSort("field", SortOrder.ASC)
             .get();
         try {
-            assertThat(searchResponse1.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse1.getHits().getTotalHits().value(), equalTo(100L));
             assertThat(searchResponse1.getHits().getHits().length, equalTo(35));
             for (SearchHit hit : searchResponse1.getHits()) {
                 assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter1++));
@@ -396,7 +396,7 @@ public class SearchScrollIT extends ESIntegTestCase {
             .addSort("field", SortOrder.ASC)
             .get();
         try {
-            assertThat(searchResponse2.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse2.getHits().getTotalHits().value(), equalTo(100L));
             assertThat(searchResponse2.getHits().getHits().length, equalTo(35));
             for (SearchHit hit : searchResponse2.getHits()) {
                 assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter2++));
@@ -407,7 +407,7 @@ public class SearchScrollIT extends ESIntegTestCase {
 
         searchResponse1 = client().prepareSearchScroll(searchResponse1.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).get();
         try {
-            assertThat(searchResponse1.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse1.getHits().getTotalHits().value(), equalTo(100L));
             assertThat(searchResponse1.getHits().getHits().length, equalTo(35));
             for (SearchHit hit : searchResponse1.getHits()) {
                 assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter1++));
@@ -418,7 +418,7 @@ public class SearchScrollIT extends ESIntegTestCase {
 
         searchResponse2 = client().prepareSearchScroll(searchResponse2.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).get();
         try {
-            assertThat(searchResponse2.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse2.getHits().getTotalHits().value(), equalTo(100L));
             assertThat(searchResponse2.getHits().getHits().length, equalTo(35));
             for (SearchHit hit : searchResponse2.getHits()) {
                 assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter2++));
@@ -534,7 +534,7 @@ public class SearchScrollIT extends ESIntegTestCase {
             prepareSearch().setQuery(matchAllQuery()).setSize(35).setScroll(TimeValue.timeValueMinutes(2)).addSort("field", SortOrder.ASC),
             searchResponse -> {
                 long counter = 0;
-                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
                 assertThat(searchResponse.getHits().getHits().length, equalTo(35));
                 for (SearchHit hit : searchResponse.getHits()) {
                     assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter++));
@@ -553,7 +553,7 @@ public class SearchScrollIT extends ESIntegTestCase {
     public void testScrollInvalidDefaultKeepAlive() throws IOException {
         IllegalArgumentException exc = expectThrows(
             IllegalArgumentException.class,
-            clusterAdmin().prepareUpdateSettings()
+            clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                 .setPersistentSettings(Settings.builder().put("search.max_keep_alive", "1m").put("search.default_keep_alive", "2m"))
         );
         assertThat(exc.getMessage(), containsString("was (2m > 1m)"));
@@ -564,7 +564,8 @@ public class SearchScrollIT extends ESIntegTestCase {
 
         exc = expectThrows(
             IllegalArgumentException.class,
-            clusterAdmin().prepareUpdateSettings().setPersistentSettings(Settings.builder().put("search.default_keep_alive", "3m"))
+            clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .setPersistentSettings(Settings.builder().put("search.default_keep_alive", "3m"))
         );
         assertThat(exc.getMessage(), containsString("was (3m > 2m)"));
 
@@ -572,7 +573,8 @@ public class SearchScrollIT extends ESIntegTestCase {
 
         exc = expectThrows(
             IllegalArgumentException.class,
-            clusterAdmin().prepareUpdateSettings().setPersistentSettings(Settings.builder().put("search.max_keep_alive", "30s"))
+            clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .setPersistentSettings(Settings.builder().put("search.max_keep_alive", "30s"))
         );
         assertThat(exc.getMessage(), containsString("was (1m > 30s)"));
     }
@@ -598,7 +600,7 @@ public class SearchScrollIT extends ESIntegTestCase {
 
         assertResponse(prepareSearch().setQuery(matchAllQuery()).setSize(1).setScroll(TimeValue.timeValueMinutes(5)), searchResponse -> {
             assertNotNull(searchResponse.getScrollId());
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(2L));
             assertThat(searchResponse.getHits().getHits().length, equalTo(1));
             Exception ex = expectThrows(
                 Exception.class,

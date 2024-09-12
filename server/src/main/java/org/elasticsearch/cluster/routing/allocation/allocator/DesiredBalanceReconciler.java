@@ -27,7 +27,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.PriorityComparator;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.telemetry.metric.DoubleGauge;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
@@ -89,7 +88,10 @@ public class DesiredBalanceReconciler {
     private final DoubleGauge undesiredAllocationsRatio;
 
     public DesiredBalanceReconciler(ClusterSettings clusterSettings, ThreadPool threadPool, MeterRegistry meterRegistry) {
-        this.undesiredAllocationLogInterval = new FrequencyCappedAction(threadPool);
+        this.undesiredAllocationLogInterval = new FrequencyCappedAction(
+            threadPool.relativeTimeInMillisSupplier(),
+            TimeValue.timeValueMinutes(5)
+        );
         clusterSettings.initializeAndWatch(UNDESIRED_ALLOCATIONS_LOG_INTERVAL_SETTING, this.undesiredAllocationLogInterval::setMinInterval);
         clusterSettings.initializeAndWatch(
             UNDESIRED_ALLOCATIONS_LOG_THRESHOLD_SETTING,
@@ -193,9 +195,7 @@ public class DesiredBalanceReconciler {
 
             final var shardCounts = allocation.metadata().stream().filter(indexMetadata ->
             // skip any pre-7.2 closed indices which have no routing table entries at all
-            indexMetadata.getCreationVersion().onOrAfter(IndexVersions.V_7_2_0)
-                || indexMetadata.getState() == IndexMetadata.State.OPEN
-                || MetadataIndexStateService.isIndexVerifiedBeforeClosed(indexMetadata))
+            indexMetadata.getState() == IndexMetadata.State.OPEN || MetadataIndexStateService.isIndexVerifiedBeforeClosed(indexMetadata))
                 .flatMap(
                     indexMetadata -> IntStream.range(0, indexMetadata.getNumberOfShards())
                         .mapToObj(

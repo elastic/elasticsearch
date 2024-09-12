@@ -345,37 +345,17 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         tokenizers.put("simple_pattern_split", SimplePatternSplitTokenizerFactory::new);
         tokenizers.put("thai", ThaiTokenizerFactory::new);
         tokenizers.put("nGram", (IndexSettings indexSettings, Environment environment, String name, Settings settings) -> {
-            if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.V_8_0_0)) {
-                throw new IllegalArgumentException(
-                    "The [nGram] tokenizer name was deprecated in 7.6. "
-                        + "Please use the tokenizer name to [ngram] for indices created in versions 8 or higher instead."
-                );
-            } else if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.V_7_6_0)) {
-                deprecationLogger.warn(
-                    DeprecationCategory.ANALYSIS,
-                    "nGram_tokenizer_deprecation",
-                    "The [nGram] tokenizer name is deprecated and will be removed in a future version. "
-                        + "Please change the tokenizer name to [ngram] instead."
-                );
-            }
-            return new NGramTokenizerFactory(indexSettings, environment, name, settings);
+            throw new IllegalArgumentException(
+                "The [nGram] tokenizer name was deprecated in 7.6 and removed in 8.0.0. "
+                    + "Please use the tokenizer name to [ngram] for indices created in versions 8 or higher instead."
+            );
         });
         tokenizers.put("ngram", NGramTokenizerFactory::new);
         tokenizers.put("edgeNGram", (IndexSettings indexSettings, Environment environment, String name, Settings settings) -> {
-            if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.V_8_0_0)) {
-                throw new IllegalArgumentException(
-                    "The [edgeNGram] tokenizer name was deprecated in 7.6. "
-                        + "Please use the tokenizer name to [edge_nGram] for indices created in versions 8 or higher instead."
-                );
-            } else if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.V_7_6_0)) {
-                deprecationLogger.warn(
-                    DeprecationCategory.ANALYSIS,
-                    "edgeNGram_tokenizer_deprecation",
-                    "The [edgeNGram] tokenizer name is deprecated and will be removed in a future version. "
-                        + "Please change the tokenizer name to [edge_ngram] instead."
-                );
-            }
-            return new EdgeNGramTokenizerFactory(indexSettings, environment, name, settings);
+            throw new IllegalArgumentException(
+                "The [edgeNGram] tokenizer name was deprecated in 7.6 and removed in 8.0.0. "
+                    + "Please use the tokenizer name to [edge_nGram] for indices created in versions 8 or higher instead."
+            );
         });
         tokenizers.put("edge_ngram", EdgeNGramTokenizerFactory::new);
         tokenizers.put("char_group", CharGroupTokenizerFactory::new);
@@ -563,10 +543,9 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
             )
         );
         filters.add(PreConfiguredTokenFilter.indexVersion("word_delimiter_graph", false, false, (input, version) -> {
-            boolean adjustOffsets = version.onOrAfter(IndexVersions.V_7_3_0);
             return new WordDelimiterGraphFilter(
                 input,
-                adjustOffsets,
+                true,
                 WordDelimiterIterator.DEFAULT_WORD_DELIM_TABLE,
                 WordDelimiterGraphFilter.GENERATE_WORD_PARTS | WordDelimiterGraphFilter.GENERATE_NUMBER_PARTS
                     | WordDelimiterGraphFilter.SPLIT_ON_CASE_CHANGE | WordDelimiterGraphFilter.SPLIT_ON_NUMERICS
@@ -587,12 +566,12 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         tokenizers.add(PreConfiguredTokenizer.singleton("letter", LetterTokenizer::new));
         tokenizers.add(PreConfiguredTokenizer.singleton("whitespace", WhitespaceTokenizer::new));
         tokenizers.add(PreConfiguredTokenizer.singleton("ngram", NGramTokenizer::new));
-        tokenizers.add(PreConfiguredTokenizer.indexVersion("edge_ngram", (version) -> {
-            if (version.onOrAfter(IndexVersions.V_7_3_0)) {
-                return new EdgeNGramTokenizer(NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE, NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
-            }
-            return new EdgeNGramTokenizer(EdgeNGramTokenizer.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenizer.DEFAULT_MAX_GRAM_SIZE);
-        }));
+        tokenizers.add(
+            PreConfiguredTokenizer.indexVersion(
+                "edge_ngram",
+                (version) -> new EdgeNGramTokenizer(NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE, NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE)
+            )
+        );
         tokenizers.add(PreConfiguredTokenizer.singleton("pattern", () -> new PatternTokenizer(Regex.compile("\\W+", null), -1)));
         tokenizers.add(PreConfiguredTokenizer.singleton("thai", ThaiTokenizer::new));
         // TODO deprecate and remove in API
@@ -601,42 +580,18 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
 
         // Temporary shim for aliases. TODO deprecate after they are moved
         tokenizers.add(PreConfiguredTokenizer.indexVersion("nGram", (version) -> {
-            if (version.onOrAfter(IndexVersions.V_8_0_0)) {
-                throw new IllegalArgumentException(
-                    "The [nGram] tokenizer name was deprecated in 7.6. "
-                        + "Please use the tokenizer name to [ngram] for indices created in versions 8 or higher instead."
-                );
-            } else if (version.onOrAfter(IndexVersions.V_7_6_0)) {
-                deprecationLogger.warn(
-                    DeprecationCategory.ANALYSIS,
-                    "nGram_tokenizer_deprecation",
-                    "The [nGram] tokenizer name is deprecated and will be removed in a future version. "
-                        + "Please change the tokenizer name to [ngram] instead."
-                );
-            }
-            return new NGramTokenizer();
+            throw new IllegalArgumentException(
+                "The [nGram] tokenizer name was deprecated in 7.6. "
+                    + "Please use the tokenizer name to [ngram] for indices created in versions 8 or higher instead."
+            );
         }));
         tokenizers.add(PreConfiguredTokenizer.indexVersion("edgeNGram", (version) -> {
-            if (version.onOrAfter(IndexVersions.V_8_0_0)) {
-                throw new IllegalArgumentException(
-                    "The [edgeNGram] tokenizer name was deprecated in 7.6. "
-                        + "Please use the tokenizer name to [edge_ngram] for indices created in versions 8 or higher instead."
-                );
-            } else if (version.onOrAfter(IndexVersions.V_7_6_0)) {
-                deprecationLogger.warn(
-                    DeprecationCategory.ANALYSIS,
-                    "edgeNGram_tokenizer_deprecation",
-                    "The [edgeNGram] tokenizer name is deprecated and will be removed in a future version. "
-                        + "Please change the tokenizer name to [edge_ngram] instead."
-                );
-            }
-            if (version.onOrAfter(IndexVersions.V_7_3_0)) {
-                return new EdgeNGramTokenizer(NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE, NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
-            }
-            return new EdgeNGramTokenizer(EdgeNGramTokenizer.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenizer.DEFAULT_MAX_GRAM_SIZE);
+            throw new IllegalArgumentException(
+                "The [edgeNGram] tokenizer name was deprecated in 7.6. "
+                    + "Please use the tokenizer name to [edge_ngram] for indices created in versions 8 or higher instead."
+            );
         }));
         tokenizers.add(PreConfiguredTokenizer.singleton("PathHierarchy", PathHierarchyTokenizer::new));
-
         return tokenizers;
     }
 }

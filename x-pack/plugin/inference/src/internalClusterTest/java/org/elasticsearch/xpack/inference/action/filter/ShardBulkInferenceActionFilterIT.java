@@ -135,7 +135,7 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().size(0).trackTotalHits(true);
         SearchResponse searchResponse = client().search(new SearchRequest(INDEX_NAME).source(sourceBuilder)).get();
         try {
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(totalDocs));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(totalDocs));
         } finally {
             searchResponse.decRef();
         }

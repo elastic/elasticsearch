@@ -46,7 +46,6 @@ import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.index.mapper.StoredValueFetcher;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.lucene.spatial.BinaryShapeDocValuesField;
@@ -111,7 +110,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         final Parameter<Explicit<Boolean>> coerce;
         final Parameter<Explicit<Orientation>> orientation = orientationParam(m -> builder(m).orientation.get());
         private final Parameter<Script> script = Parameter.scriptParam(m -> builder(m).script.get());
-        private final Parameter<OnScriptError> onScriptError = Parameter.onScriptErrorParam(m -> builder(m).onScriptError.get(), script);
+        private final Parameter<OnScriptError> onScriptErrorParam = Parameter.onScriptErrorParam(m -> builder(m).onScriptError, script);
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final ScriptCompiler scriptCompiler;
         private final IndexVersion version;
@@ -131,7 +130,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             this.geoFormatterFactory = geoFormatterFactory;
             this.ignoreMalformed = ignoreMalformedParam(m -> builder(m).ignoreMalformed.get(), ignoreMalformedByDefault);
             this.coerce = coerceParam(m -> builder(m).coerce.get(), coerceByDefault);
-            this.hasDocValues = Parameter.docValuesParam(m -> builder(m).hasDocValues.get(), IndexVersions.V_7_8_0.onOrBefore(version));
+            this.hasDocValues = Parameter.docValuesParam(m -> builder(m).hasDocValues.get(), false);
             addScriptValidation(script, indexed, hasDocValues);
         }
 
@@ -152,7 +151,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 coerce,
                 orientation,
                 script,
-                onScriptError,
+                onScriptErrorParam,
                 meta };
         }
 
@@ -194,29 +193,17 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 geoFormatterFactory,
                 meta.get()
             );
-            if (script.get() == null) {
-                return new GeoShapeWithDocValuesFieldMapper(
-                    leafName(),
-                    ft,
-                    multiFieldsBuilder.build(this, context),
-                    copyTo,
-                    new GeoShapeIndexer(orientation.get().value(), ft.name()),
-                    parser,
-                    this
-                );
-            }
+            hasScript = script.get() != null;
+            onScriptError = onScriptErrorParam.get();
             return new GeoShapeWithDocValuesFieldMapper(
                 leafName(),
                 ft,
-                multiFieldsBuilder.build(this, context),
-                copyTo,
+                builderParams(this, context),
                 new GeoShapeIndexer(orientation.get().value(), ft.name()),
                 parser,
-                onScriptError.get(),
                 this
             );
         }
-
     }
 
     public static final class GeoShapeWithDocValuesFieldType extends AbstractShapeGeometryFieldType<Geometry> implements GeoShapeQueryable {
@@ -258,13 +245,6 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         @Override
         public Query geoShapeQuery(SearchExecutionContext context, String fieldName, ShapeRelation relation, LatLonGeometry... geometries) {
             failIfNotIndexedNorDocValuesFallback(context);
-            // CONTAINS queries are not supported by VECTOR strategy for indices created before version 7.5.0 (Lucene 8.3.0)
-            if (relation == ShapeRelation.CONTAINS && context.indexVersionCreated().before(IndexVersions.V_7_5_0)) {
-                throw new QueryShardException(
-                    context,
-                    ShapeRelation.CONTAINS + " query relation not supported for Field [" + fieldName + "]."
-                );
-            }
             Query query;
             if (isIndexed()) {
                 query = LatLonShape.newGeometryQuery(fieldName, relation.getLuceneRelation(), geometries);
@@ -365,8 +345,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
     public GeoShapeWithDocValuesFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
+        BuilderParams builderParams,
         GeoShapeIndexer indexer,
         GeoShapeParser parser,
         Builder builder
@@ -374,29 +353,13 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         super(
             simpleName,
             mappedFieldType,
+            builderParams,
             builder.ignoreMalformed.get(),
             builder.coerce.get(),
             builder.ignoreZValue.get(),
             builder.orientation.get(),
-            multiFields,
-            copyTo,
             parser
         );
-        this.builder = builder;
-        this.indexer = indexer;
-    }
-
-    protected GeoShapeWithDocValuesFieldMapper(
-        String simpleName,
-        MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
-        GeoShapeIndexer indexer,
-        Parser<Geometry> parser,
-        OnScriptError onScriptError,
-        Builder builder
-    ) {
-        super(simpleName, mappedFieldType, multiFields, builder.coerce.get(), builder.orientation.get(), copyTo, parser, onScriptError);
         this.builder = builder;
         this.indexer = indexer;
     }

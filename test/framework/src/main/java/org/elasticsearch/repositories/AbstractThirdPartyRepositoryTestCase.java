@@ -44,6 +44,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.METADATA_PREFIX;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.SNAPSHOT_PREFIX;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomNonDataPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -424,7 +426,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
             final BlobStore blobStore = repo.blobStore();
             blobStore.blobContainer(repo.basePath().add("indices").add("foo"))
                 .writeBlob(randomPurpose(), "bar", new ByteArrayInputStream(new byte[3]), 3, false);
-            for (String prefix : Arrays.asList("snap-", "meta-")) {
+            for (String prefix : Arrays.asList(SNAPSHOT_PREFIX, METADATA_PREFIX)) {
                 blobStore.blobContainer(repo.basePath())
                     .writeBlob(randomNonDataPurpose(), prefix + "foo.dat", new ByteArrayInputStream(new byte[3]), 3, false);
             }

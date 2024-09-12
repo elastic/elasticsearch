@@ -143,7 +143,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -229,7 +228,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         "search.worker_threads_enabled",
         true,
         Property.NodeScope,
-        Property.Dynamic
+        Property.Dynamic,
+        Property.DeprecatedWarning
     );
 
     public static final Setting<Boolean> QUERY_PHASE_PARALLEL_COLLECTION_ENABLED = Setting.boolSetting(
@@ -278,11 +278,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final BigArrays bigArrays;
 
-    private final DfsPhase dfsPhase = new DfsPhase();
-
     private final FetchPhase fetchPhase;
     private final RankFeatureShardPhase rankFeatureShardPhase;
-    private volatile boolean enableSearchWorkerThreads;
+    private volatile Executor searchExecutor;
     private volatile boolean enableQueryPhaseParallelCollection;
 
     private volatile long defaultKeepAlive;
@@ -376,7 +374,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER, this::setEnableRewriteAggsToFilterByFilter);
 
-        enableSearchWorkerThreads = SEARCH_WORKER_THREADS_ENABLED.get(settings);
+        if (SEARCH_WORKER_THREADS_ENABLED.get(settings)) {
+            searchExecutor = threadPool.executor(Names.SEARCH);
+        }
+
         clusterService.getClusterSettings().addSettingsUpdateConsumer(SEARCH_WORKER_THREADS_ENABLED, this::setEnableSearchWorkerThreads);
 
         enableQueryPhaseParallelCollection = QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.get(settings);
@@ -385,7 +386,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private void setEnableSearchWorkerThreads(boolean enableSearchWorkerThreads) {
-        this.enableSearchWorkerThreads = enableSearchWorkerThreads;
+        if (enableSearchWorkerThreads) {
+            searchExecutor = threadPool.executor(Names.SEARCH);
+        } else {
+            searchExecutor = null;
+        }
     }
 
     private void setEnableQueryPhaseParallelCollection(boolean enableQueryPhaseParallelCollection) {
@@ -511,7 +516,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
             SearchContext context = createContext(readerContext, request, task, ResultsType.DFS, false)
         ) {
-            dfsPhase.execute(context);
+            DfsPhase.execute(context);
             return context.dfsResult();
         } catch (Exception e) {
             logger.trace("Dfs phase failed", e);
@@ -1126,7 +1131,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 reader.indexShard().shardId(),
                 request.getClusterAlias()
             );
-            ExecutorService executor = this.enableSearchWorkerThreads ? threadPool.executor(Names.SEARCH_WORKER) : null;
             searchContext = new DefaultSearchContext(
                 reader,
                 request,
@@ -1135,7 +1139,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 timeout,
                 fetchPhase,
                 lowLevelCancellation,
-                executor,
+                searchExecutor,
                 resultsType,
                 enableQueryPhaseParallelCollection,
                 minimumDocsPerSlice
@@ -1664,13 +1668,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public void canMatch(CanMatchNodeRequest request, ActionListener<CanMatchNodeResponse> listener) {
-        final List<ShardSearchRequest> shardSearchRequests = request.createShardSearchRequests();
-        final List<CanMatchNodeResponse.ResponseOrFailure> responses = new ArrayList<>(shardSearchRequests.size());
-        for (ShardSearchRequest shardSearchRequest : shardSearchRequests) {
-            CanMatchShardResponse canMatchShardResponse;
+        var shardLevelRequests = request.getShardLevelRequests();
+        final List<CanMatchNodeResponse.ResponseOrFailure> responses = new ArrayList<>(shardLevelRequests.size());
+        for (var shardLevelRequest : shardLevelRequests) {
             try {
-                canMatchShardResponse = canMatch(shardSearchRequest);
-                responses.add(new CanMatchNodeResponse.ResponseOrFailure(canMatchShardResponse));
+                responses.add(new CanMatchNodeResponse.ResponseOrFailure(canMatch(request.createShardSearchRequest(shardLevelRequest))));
             } catch (Exception e) {
                 responses.add(new CanMatchNodeResponse.ResponseOrFailure(e));
             }
@@ -1781,14 +1783,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     @SuppressWarnings("unchecked")
     public static boolean queryStillMatchesAfterRewrite(ShardSearchRequest request, QueryRewriteContext context) throws IOException {
         Rewriteable.rewrite(request.getRewriteable(), context, false);
-        boolean canMatch = request.getAliasFilter().getQueryBuilder() instanceof MatchNoneQueryBuilder == false;
-        if (canRewriteToMatchNone(request.source())) {
-            canMatch &= request.source()
-                .subSearches()
-                .stream()
-                .anyMatch(sqwb -> sqwb.getQueryBuilder() instanceof MatchNoneQueryBuilder == false);
+        if (request.getAliasFilter().getQueryBuilder() instanceof MatchNoneQueryBuilder) {
+            return false;
         }
-        return canMatch;
+        final var source = request.source();
+        return canRewriteToMatchNone(source) == false
+            || source.subSearches().stream().anyMatch(sqwb -> sqwb.getQueryBuilder() instanceof MatchNoneQueryBuilder == false);
     }
 
     /**
@@ -1808,19 +1808,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return aggregations == null || aggregations.mustVisitAllDocs() == false;
     }
 
-    @SuppressWarnings({ "rawtypes", "unchecked" })
+    @SuppressWarnings("unchecked")
     private void rewriteAndFetchShardRequest(IndexShard shard, ShardSearchRequest request, ActionListener<ShardSearchRequest> listener) {
-        ActionListener<Rewriteable> actionListener = listener.delegateFailureAndWrap((l, r) -> {
-            if (request.readerId() != null) {
-                l.onResponse(request);
-            } else {
-                shard.ensureShardSearchActive(b -> l.onResponse(request));
-            }
-        });
         // we also do rewrite on the coordinating node (TransportSearchService) but we also need to do it here.
         // AliasFilters and other things may need to be rewritten on the data node, but not per individual shard.
-        // These are uncommon-cases but we are very efficient doing the rewrite here.
-        Rewriteable.rewriteAndFetch(request.getRewriteable(), indicesService.getDataRewriteContext(request::nowInMillis), actionListener);
+        // These are uncommon-cases, but we are very efficient doing the rewrite here.
+        Rewriteable.rewriteAndFetch(
+            request.getRewriteable(),
+            indicesService.getDataRewriteContext(request::nowInMillis),
+            request.readerId() == null
+                ? listener.delegateFailureAndWrap((l, r) -> shard.ensureShardSearchActive(b -> l.onResponse(request)))
+                : listener.safeMap(r -> request)
+        );
     }
 
     /**

@@ -77,8 +77,8 @@ public class RetrieverRewriteIT extends ESIntegTestCase {
         ElasticsearchAssertions.assertResponse(req, resp -> {
             assertNull(resp.pointInTimeId());
             assertNotNull(resp.getHits().getTotalHits());
-            assertThat(resp.getHits().getTotalHits().value, equalTo(1L));
-            assertThat(resp.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
+            assertThat(resp.getHits().getTotalHits().value(), equalTo(1L));
+            assertThat(resp.getHits().getTotalHits().relation(), equalTo(TotalHits.Relation.EQUAL_TO));
             assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_0"));
         });
     }
@@ -90,8 +90,8 @@ public class RetrieverRewriteIT extends ESIntegTestCase {
         ElasticsearchAssertions.assertResponse(req, resp -> {
             assertNull(resp.pointInTimeId());
             assertNotNull(resp.getHits().getTotalHits());
-            assertThat(resp.getHits().getTotalHits().value, equalTo(1L));
-            assertThat(resp.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
+            assertThat(resp.getHits().getTotalHits().value(), equalTo(1L));
+            assertThat(resp.getHits().getTotalHits().relation(), equalTo(TotalHits.Relation.EQUAL_TO));
             assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_2"));
         });
     }
@@ -115,7 +115,7 @@ public class RetrieverRewriteIT extends ESIntegTestCase {
                 throw new IllegalStateException("node did not stop");
             }
             assertBusy(() -> {
-                ClusterHealthResponse healthResponse = clusterAdmin().prepareHealth(testIndex)
+                ClusterHealthResponse healthResponse = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, testIndex)
                     .setWaitForStatus(ClusterHealthStatus.RED) // we are now known red because the primary shard is missing
                     .setWaitForEvents(Priority.LANGUID) // ensures that the update has occurred
                     .execute()

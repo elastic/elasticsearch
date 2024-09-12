@@ -23,6 +23,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.getRepositoryDataBlobName;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomNonDataPurpose;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
 import static org.hamcrest.Matchers.containsString;
@@ -65,7 +66,10 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
         );
 
         logger.info("-->  ensure cleanup is still in progress");
-        final RepositoryCleanupInProgress cleanup = clusterAdmin().prepareState().get().getState().custom(RepositoryCleanupInProgress.TYPE);
+        final RepositoryCleanupInProgress cleanup = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getState()
+            .custom(RepositoryCleanupInProgress.TYPE);
         assertTrue(cleanup.hasCleanupInProgress());
 
         logger.info("-->  unblocking master node");
@@ -151,12 +155,7 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
                         createOldIndexNFuture,
                         () -> repository.blobStore()
                             .blobContainer(repository.basePath())
-                            .writeBlob(
-                                randomNonDataPurpose(),
-                                BlobStoreRepository.INDEX_FILE_PREFIX + generation,
-                                new BytesArray(new byte[1]),
-                                true
-                            )
+                            .writeBlob(randomNonDataPurpose(), getRepositoryDataBlobName(generation), new BytesArray(new byte[1]), true)
                     )
                 );
             createOldIndexNFuture.get();

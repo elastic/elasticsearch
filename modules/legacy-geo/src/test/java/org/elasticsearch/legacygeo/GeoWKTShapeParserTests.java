@@ -13,12 +13,12 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeometryNormalizer;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.MultiLine;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.legacygeo.builders.CoordinatesBuilder;
 import org.elasticsearch.legacygeo.builders.EnvelopeBuilder;
@@ -34,7 +34,6 @@ import org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.legacygeo.parsers.GeoWKTParser;
 import org.elasticsearch.legacygeo.parsers.ShapeParser;
 import org.elasticsearch.legacygeo.test.RandomShapeGenerator;
-import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -301,6 +300,8 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         assertThat(e, hasToString(containsString("coordinate dimensions do not match")));
     }
 
+    @UpdateForV9
+    @AwaitsFix(bugUrl = "this test is using pre 8.0.0 index versions so needs to be removed or updated")
     public void testParseMixedDimensionPolyWithHoleStoredZ() throws IOException {
         List<Coordinate> shellCoordinates = new ArrayList<>();
         shellCoordinates.add(new Coordinate(100, 0));
@@ -323,17 +324,10 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().value(builder.toWKT());
         XContentParser parser = createParser(xContentBuilder);
         parser.nextToken();
-
-        final IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0);
-        final LegacyGeoShapeFieldMapper mapperBuilder = new LegacyGeoShapeFieldMapper.Builder("test", version, false, true).build(
-            MapperBuilderContext.root(false, false)
-        );
-
-        // test store z disabled
-        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> ShapeParser.parse(parser, mapperBuilder));
-        assertThat(e, hasToString(containsString("unable to add coordinate to CoordinateBuilder: coordinate dimensions do not match")));
     }
 
+    @UpdateForV9
+    @AwaitsFix(bugUrl = "this test is using pre 8.0.0 index versions so needs to be removed or updated")
     public void testParsePolyWithStoredZ() throws IOException {
         List<Coordinate> shellCoordinates = new ArrayList<>();
         shellCoordinates.add(new Coordinate(100, 0, 0));
@@ -347,32 +341,16 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().value(builder.toWKT());
         XContentParser parser = createParser(xContentBuilder);
         parser.nextToken();
-
-        final IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0);
-        final LegacyGeoShapeFieldMapper mapperBuilder = new LegacyGeoShapeFieldMapper.Builder("test", version, false, true).build(
-            MapperBuilderContext.root(false, false)
-        );
-
-        ShapeBuilder<?, ?, ?> shapeBuilder = ShapeParser.parse(parser, mapperBuilder);
-        assertEquals(shapeBuilder.numDimensions(), 3);
     }
 
+    @UpdateForV9
+    @AwaitsFix(bugUrl = "this test is using pre 8.0.0 index versions so needs to be removed or updated")
     public void testParseOpenPolygon() throws IOException {
         String openPolygon = "POLYGON ((100 5, 100 10, 90 10, 90 5))";
 
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().value(openPolygon);
         XContentParser parser = createParser(xContentBuilder);
         parser.nextToken();
-
-        final IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0);
-        final LegacyGeoShapeFieldMapper defaultMapperBuilder = new LegacyGeoShapeFieldMapper.Builder("test", version, false, true).coerce(
-            false
-        ).build(MapperBuilderContext.root(false, false));
-        ElasticsearchParseException exception = expectThrows(
-            ElasticsearchParseException.class,
-            () -> ShapeParser.parse(parser, defaultMapperBuilder)
-        );
-        assertEquals("invalid LinearRing found (coordinates are not closed)", exception.getMessage());
 
         final LegacyGeoShapeFieldMapper coercingMapperBuilder = new LegacyGeoShapeFieldMapper.Builder(
             "test",

@@ -76,7 +76,7 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
                         try {
                             while (stop.get() == false) {
                                 assertResponse(prepareSearch().setSize(numDocs), response -> {
-                                    if (response.getHits().getTotalHits().value != numDocs) {
+                                    if (response.getHits().getTotalHits().value() != numDocs) {
                                         // if we did not search all shards but had no serious failures that is potentially fine
                                         // if only the hit-count is wrong. this can happen if the cluster-state is behind when the
                                         // request comes in. It's a small window but a known limitation.
@@ -85,7 +85,7 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
                                                 .allMatch(ssf -> ssf.getCause() instanceof NoShardAvailableActionException)) {
                                             nonCriticalExceptions.add(
                                                 "Count is "
-                                                    + response.getHits().getTotalHits().value
+                                                    + response.getHits().getTotalHits().value()
                                                     + " but "
                                                     + numDocs
                                                     + " was expected. "
@@ -99,7 +99,7 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
                                     final SearchHits sh = response.getHits();
                                     assertThat(
                                         "Expected hits to be the same size the actual hits array",
-                                        sh.getTotalHits().value,
+                                        sh.getTotalHits().value(),
                                         equalTo((long) (sh.getHits().length))
                                     );
                                 });
@@ -125,7 +125,7 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
                 threads[j].join();
             }
             // this might time out on some machines if they are really busy and you hit lots of throttling
-            ClusterHealthResponse resp = clusterAdmin().prepareHealth()
+            ClusterHealthResponse resp = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                 .setWaitForYellowStatus()
                 .setWaitForNoRelocatingShards(true)
                 .setWaitForEvents(Priority.LANGUID)

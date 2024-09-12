@@ -50,7 +50,7 @@ public class MetricInspectionHelper {
     }
 
     public static boolean hasValue(InternalTopHits agg) {
-        return (agg.getHits().getTotalHits().value == 0
+        return (agg.getHits().getTotalHits().value() == 0
             && Double.isNaN(agg.getHits().getMaxScore())
             && Double.isNaN(agg.getTopDocs().maxScore)) == false;
     }

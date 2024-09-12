@@ -122,7 +122,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
                 parser,
                 meta.get()
             );
-            return new ShapeFieldMapper(leafName(), ft, multiFieldsBuilder.build(this, context), copyTo, parser, this);
+            return new ShapeFieldMapper(leafName(), ft, builderParams(this, context), parser, this);
         }
     }
 
@@ -161,13 +161,6 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
         @Override
         public Query shapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
-            // CONTAINS queries are not supported by VECTOR strategy for indices created before version 7.5.0 (Lucene 8.3.0);
-            if (relation == ShapeRelation.CONTAINS && context.indexVersionCreated().before(IndexVersions.V_7_5_0)) {
-                throw new QueryShardException(
-                    context,
-                    ShapeRelation.CONTAINS + " query relation not supported for Field [" + fieldName + "]."
-                );
-            }
             try {
                 return XYQueriesUtils.toXYShapeQuery(shape, fieldName, relation, isIndexed(), hasDocValues());
             } catch (IllegalArgumentException e) {
@@ -192,20 +185,18 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
     public ShapeFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
+        BuilderParams builderParams,
         Parser<Geometry> parser,
         Builder builder
     ) {
         super(
             simpleName,
             mappedFieldType,
+            builderParams,
             builder.ignoreMalformed.get(),
             builder.coerce.get(),
             builder.ignoreZValue.get(),
             builder.orientation.get(),
-            multiFields,
-            copyTo,
             parser
         );
         this.builder = builder;

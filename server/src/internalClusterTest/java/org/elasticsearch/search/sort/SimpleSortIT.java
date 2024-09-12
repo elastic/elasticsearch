@@ -361,7 +361,7 @@ public class SimpleSortIT extends ESIntegTestCase {
         assertNoFailuresAndResponse(
             prepareSearch().setQuery(matchAllQuery()).addScriptField("id", scripField).addSort("svalue", SortOrder.ASC),
             searchResponse -> {
-                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
                 assertThat(searchResponse.getHits().getAt(0).field("id").getValue(), equalTo("1"));
                 assertThat(searchResponse.getHits().getAt(1).field("id").getValue(), equalTo("3"));
                 assertThat(searchResponse.getHits().getAt(2).field("id").getValue(), equalTo("2"));
@@ -372,7 +372,7 @@ public class SimpleSortIT extends ESIntegTestCase {
                 .addScriptField("id", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['id'][0]", Collections.emptyMap()))
                 .addSort("svalue", SortOrder.ASC),
             searchResponse -> {
-                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
                 assertThat(searchResponse.getHits().getAt(0).field("id").getValue(), equalTo("1"));
                 assertThat(searchResponse.getHits().getAt(1).field("id").getValue(), equalTo("3"));
                 assertThat(searchResponse.getHits().getAt(2).field("id").getValue(), equalTo("2"));
@@ -390,7 +390,7 @@ public class SimpleSortIT extends ESIntegTestCase {
                 }
                 assertThat(searchResponse.getFailedShards(), equalTo(0));
 
-                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
                 assertThat(searchResponse.getHits().getAt(0).field("id").getValue(), equalTo("3"));
                 assertThat(searchResponse.getHits().getAt(1).field("id").getValue(), equalTo("1"));
                 assertThat(searchResponse.getHits().getAt(2).field("id").getValue(), equalTo("2"));
@@ -408,7 +408,7 @@ public class SimpleSortIT extends ESIntegTestCase {
                 }
                 assertThat(searchResponse.getFailedShards(), equalTo(0));
 
-                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(1L));
                 assertThat(searchResponse.getHits().getAt(0).field("id").getValue(), equalTo("2"));
             }
         );

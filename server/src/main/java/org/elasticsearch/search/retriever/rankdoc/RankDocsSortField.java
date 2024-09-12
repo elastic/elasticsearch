@@ -16,6 +16,7 @@ import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.comparators.NumericComparator;
+import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
 import org.elasticsearch.search.rank.RankDoc;
 
@@ -67,6 +68,16 @@ public class RankDocsSortField extends SortField {
         @Override
         public void setTopValue(Integer value) {
             topValue = value;
+        }
+
+        @Override
+        protected long missingValueAsComparableLong() {
+            return missingValue;
+        }
+
+        @Override
+        protected long sortableBytesToLong(byte[] bytes) {
+            return NumericUtils.sortableBytesToInt(bytes, 0);
         }
 
         @Override

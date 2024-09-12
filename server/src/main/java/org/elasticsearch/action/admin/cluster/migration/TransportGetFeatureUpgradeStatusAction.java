@@ -57,7 +57,9 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
      */
     @UpdateForV9
     public static final Version NO_UPGRADE_REQUIRED_VERSION = Version.V_7_0_0;
-    public static final IndexVersion NO_UPGRADE_REQUIRED_INDEX_VERSION = IndexVersions.V_7_0_0;
+    @UpdateForV9
+    // TODO lucene 10 upgrade, we increased this to IndexVersions.V_8_0_0, not sure if that was premature. Check with ie. core/infra
+    public static final IndexVersion NO_UPGRADE_REQUIRED_INDEX_VERSION = IndexVersions.V_8_0_0;
 
     private final SystemIndices systemIndices;
     PersistentTasksService persistentTasksService;

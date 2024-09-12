@@ -27,7 +27,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -46,6 +45,7 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollectorManager;
@@ -75,7 +75,6 @@ import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -250,7 +249,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
                     Integer.MAX_VALUE,
                     1
                 );
-                Integer totalHits = searcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager());
+                Integer totalHits = searcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager(searcher.getSlices()));
                 assertEquals(numDocs, totalHits.intValue());
                 int numExpectedTasks = ContextIndexSearcher.computeSlices(searcher.getIndexReader().leaves(), Integer.MAX_VALUE, 1).length;
                 // check that each slice except for one that executes on the calling thread goes to the executor, no matter the queue size
@@ -366,7 +365,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
         assertEquals(1, searcher.count(new CreateScorerOnceQuery(new MatchAllDocsQuery())));
 
         TopDocs topDocs = searcher.search(new BoostQuery(new ConstantScoreQuery(new TermQuery(new Term("foo", "bar"))), 3f), 1);
-        assertEquals(1, topDocs.totalHits.value);
+        assertEquals(1, topDocs.totalHits.value());
         assertEquals(1, topDocs.scoreDocs.length);
         assertEquals(3f, topDocs.scoreDocs[0].score, 0);
 
@@ -405,7 +404,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
         int sumDocs = 0;
         assertThat(slices.length, lessThanOrEqualTo(numThreads));
         for (LeafSlice slice : slices) {
-            int sliceDocs = Arrays.stream(slice.leaves).mapToInt(l -> l.reader().maxDoc()).sum();
+            int sliceDocs = slice.getMaxDocs();
             assertThat(sliceDocs, greaterThanOrEqualTo((int) (0.1 * numDocs)));
             sumDocs += sliceDocs;
         }
@@ -496,9 +495,14 @@ public class ContextIndexSearcherTests extends ESTestCase {
                         }
                         return new ConstantScoreWeight(this, boost) {
                             @Override
-                            public Scorer scorer(LeafReaderContext context) {
+                            public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                                 contextIndexSearcher.throwTimeExceededException();
-                                return new ConstantScoreScorer(this, score(), scoreMode, DocIdSetIterator.all(context.reader().maxDoc()));
+                                Scorer scorer = new ConstantScoreScorer(
+                                    score(),
+                                    scoreMode,
+                                    DocIdSetIterator.all(context.reader().maxDoc())
+                                );
+                                return new DefaultScorerSupplier(scorer);
                             }
 
                             @Override
@@ -582,7 +586,10 @@ public class ContextIndexSearcherTests extends ESTestCase {
                         return null;
                     }
                 };
-                Integer hitCount = contextIndexSearcher.search(testQuery, new TotalHitCountCollectorManager());
+                Integer hitCount = contextIndexSearcher.search(
+                    testQuery,
+                    new TotalHitCountCollectorManager(contextIndexSearcher.getSlices())
+                );
                 assertEquals(0, hitCount.intValue());
                 assertTrue(contextIndexSearcher.timeExceeded());
             } finally {
@@ -746,15 +753,9 @@ public class ContextIndexSearcherTests extends ESTestCase {
         }
 
         @Override
-        public Scorer scorer(LeafReaderContext context) throws IOException {
+        public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
             assertTrue(seenLeaves.add(context.reader().getCoreCacheHelper().getKey()));
-            return weight.scorer(context);
-        }
-
-        @Override
-        public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
-            assertTrue(seenLeaves.add(context.reader().getCoreCacheHelper().getKey()));
-            return weight.bulkScorer(context);
+            return weight.scorerSupplier(context);
         }
 
         @Override

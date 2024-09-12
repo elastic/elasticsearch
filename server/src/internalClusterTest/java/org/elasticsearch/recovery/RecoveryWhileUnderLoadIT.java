@@ -102,7 +102,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             logger.info("--> waiting for GREEN health status ...");
             // make sure the cluster state is green, and all has been recovered
             assertNoTimeout(
-                clusterAdmin().prepareHealth()
+                clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                     .setWaitForEvents(Priority.LANGUID)
                     .setTimeout(TimeValue.timeValueMinutes(5))
                     .setWaitForGreenStatus()
@@ -163,7 +163,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
 
             logger.info("--> waiting for GREEN health status ...");
             assertNoTimeout(
-                clusterAdmin().prepareHealth()
+                clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                     .setWaitForEvents(Priority.LANGUID)
                     .setTimeout(TimeValue.timeValueMinutes(5))
                     .setWaitForGreenStatus()
@@ -225,7 +225,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
 
             logger.info("--> waiting for GREEN health status ...");
             assertNoTimeout(
-                clusterAdmin().prepareHealth()
+                clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                     .setWaitForEvents(Priority.LANGUID)
                     .setTimeout(TimeValue.timeValueMinutes(5))
                     .setWaitForGreenStatus()
@@ -242,7 +242,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             allowNodes("test", 3);
             logger.info("--> waiting for relocations ...");
             assertNoTimeout(
-                clusterAdmin().prepareHealth()
+                clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                     .setWaitForEvents(Priority.LANGUID)
                     .setTimeout(TimeValue.timeValueMinutes(5))
                     .setWaitForNoRelocatingShards(true)
@@ -252,7 +252,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             allowNodes("test", 2);
             logger.info("--> waiting for relocations ...");
             assertNoTimeout(
-                clusterAdmin().prepareHealth()
+                clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                     .setWaitForEvents(Priority.LANGUID)
                     .setTimeout(TimeValue.timeValueMinutes(5))
                     .setWaitForNoRelocatingShards(true)
@@ -262,7 +262,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             allowNodes("test", 1);
             logger.info("--> waiting for relocations ...");
             assertNoTimeout(
-                clusterAdmin().prepareHealth()
+                clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                     .setWaitForEvents(Priority.LANGUID)
                     .setTimeout(TimeValue.timeValueMinutes(5))
                     .setWaitForNoRelocatingShards(true)
@@ -273,7 +273,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             logger.info("--> indexing threads stopped");
 
             assertNoTimeout(
-                clusterAdmin().prepareHealth()
+                clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                     .setWaitForEvents(Priority.LANGUID)
                     .setTimeout(TimeValue.timeValueMinutes(5))
                     .setWaitForNoRelocatingShards(true)
@@ -343,7 +343,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
                 prepareSearch().setSize((int) numberOfDocs).setQuery(matchAllQuery()).setTrackTotalHits(true).addSort("id", SortOrder.ASC),
                 response -> {
                     logSearchResponse(numberOfShards, numberOfDocs, finalI, response);
-                    iterationHitCount[finalI] = response.getHits().getTotalHits().value;
+                    iterationHitCount[finalI] = response.getHits().getTotalHits().value();
                     if (iterationHitCount[finalI] != numberOfDocs) {
                         error[0] = true;
                     }
@@ -390,7 +390,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
                 boolean[] errorOccurred = new boolean[1];
                 for (int i = 0; i < iterations; i++) {
                     assertResponse(prepareSearch().setTrackTotalHits(true).setSize(0).setQuery(matchAllQuery()), response -> {
-                        if (response.getHits().getTotalHits().value != numberOfDocs) {
+                        if (response.getHits().getTotalHits().value() != numberOfDocs) {
                             errorOccurred[0] = true;
                         }
                     });
@@ -420,7 +420,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
         logger.info(
             "iteration [{}] - returned documents: {} (expected {})",
             iteration,
-            searchResponse.getHits().getTotalHits().value,
+            searchResponse.getHits().getTotalHits().value(),
             numberOfDocs
         );
     }

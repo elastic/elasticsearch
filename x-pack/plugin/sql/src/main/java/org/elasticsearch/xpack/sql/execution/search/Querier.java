@@ -224,7 +224,7 @@ public class Querier {
         }
 
         var totalHits = response.getHits().getTotalHits();
-        var hits = totalHits != null ? "hits " + totalHits.relation + " " + totalHits.value + ", " : "";
+        var hits = totalHits != null ? "hits " + totalHits.relation() + " " + totalHits.value() + ", " : "";
         logger.trace(
             "Got search response [{}{} aggregations: [{}], {} failed shards, {} skipped shards, "
                 + "{} successful shards, {} total shards, took {}, timed out [{}]]",
@@ -549,7 +549,7 @@ public class Querier {
 
             List<BucketExtractor> exts = new ArrayList<>(refs.size());
             TotalHits totalHits = response.getHits().getTotalHits();
-            ConstantExtractor totalCount = new TotalHitsExtractor(totalHits == null ? -1L : totalHits.value);
+            ConstantExtractor totalCount = new TotalHitsExtractor(totalHits == null ? -1L : totalHits.value());
             for (QueryContainer.FieldInfo ref : refs) {
                 exts.add(createExtractor(ref.extraction(), totalCount));
             }

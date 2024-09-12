@@ -26,14 +26,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.plan.ShardRecoveryPlan;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshot;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
@@ -62,7 +61,6 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
 import static org.elasticsearch.index.engine.Engine.ES_VERSION;
 import static org.elasticsearch.index.engine.Engine.HISTORY_UUID_KEY;
-import static org.elasticsearch.test.index.IndexVersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -202,6 +200,8 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
         });
     }
 
+    @UpdateForV9
+    @AwaitsFix(bugUrl = "this is testing pre-7.0 upgrade behavior so probably needs some updating")
     public void testLogicallyEquivalentSnapshotIsUsedEvenIfFilesAreDifferent() throws Exception {
         createStore(store -> {
             boolean shareFilesWithSource = randomBoolean();
@@ -214,18 +214,9 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
             final IndexVersion snapshotVersion;
             final Version luceneVersion;
             if (compatibleVersion) {
-                snapshotVersion = randomBoolean() ? null : IndexVersionUtils.randomCompatibleVersion(random());
-                // If snapshotVersion is not present,
-                // then lucene version must be < RecoverySettings.SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION
-                if (snapshotVersion == null) {
-                    luceneVersion = randomVersionBetween(
-                        random(),
-                        IndexVersions.V_7_0_0,
-                        RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_INDEX_VERSION
-                    ).luceneVersion();
-                } else {
-                    luceneVersion = IndexVersionUtils.randomCompatibleVersion(random()).luceneVersion();
-                }
+                // TODO lucene 10 upgrade, double check the removal of pre V_8_0_0 IndexVersions here
+                snapshotVersion = IndexVersionUtils.randomCompatibleVersion(random());
+                luceneVersion = IndexVersionUtils.randomCompatibleVersion(random()).luceneVersion();
             } else {
                 snapshotVersion = IndexVersion.fromId(Integer.MAX_VALUE);
                 luceneVersion = org.apache.lucene.util.Version.parse("255.255.255");
@@ -387,6 +378,8 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
         });
     }
 
+    @UpdateForV9
+    @AwaitsFix(bugUrl = "this is testing v7.14 compat functionality so can probably be removed")
     public void testFallbacksToSourceOnlyPlanIfTargetNodeIsInUnsupportedVersion() throws Exception {
         createStore(store -> {
             Store.MetadataSnapshot targetMetadataSnapshot = generateRandomTargetState(store);
@@ -411,7 +404,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                     }
                 },
                 true,
-                IndexVersions.V_7_14_0, // Unsupported version,
+                IndexVersion.fromId(7_14_00_99), // Unsupported version,
                 randomBoolean()
             );
 

@@ -101,7 +101,7 @@ public abstract class GeoBoundingBoxQueryIntegTestCase extends ESIntegTestCase {
             client().prepareSearch() // from NY
                 .setQuery(geoBoundingBoxQuery("location").setCorners(40.73, -74.1, 40.717, -73.99)),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
                 assertThat(response.getHits().getHits().length, equalTo(2));
                 for (SearchHit hit : response.getHits()) {
                     assertThat(hit.getId(), anyOf(equalTo("1"), equalTo("3"), equalTo("5")));
@@ -113,7 +113,7 @@ public abstract class GeoBoundingBoxQueryIntegTestCase extends ESIntegTestCase {
             client().prepareSearch() // from NY
                 .setQuery(geoBoundingBoxQuery("location").setCorners(40.73, -74.1, 40.717, -73.99)),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
                 assertThat(response.getHits().getHits().length, equalTo(2));
                 for (SearchHit hit : response.getHits()) {
                     assertThat(hit.getId(), anyOf(equalTo("1"), equalTo("3"), equalTo("5")));
@@ -125,7 +125,7 @@ public abstract class GeoBoundingBoxQueryIntegTestCase extends ESIntegTestCase {
             client().prepareSearch() // top == bottom && left == right
                 .setQuery(geoBoundingBoxQuery("location").setCorners(40.7143528, -74.0059731, 40.7143528, -74.0059731)),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getHits().length, equalTo(1));
                 for (SearchHit hit : response.getHits()) {
                     assertThat(hit.getId(), equalTo("1"));
@@ -137,7 +137,7 @@ public abstract class GeoBoundingBoxQueryIntegTestCase extends ESIntegTestCase {
             client().prepareSearch() // top == bottom
                 .setQuery(geoBoundingBoxQuery("location").setCorners(40.759011, -74.00009, 40.759011, -73.0059731)),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getHits().length, equalTo(1));
                 for (SearchHit hit : response.getHits()) {
                     assertThat(hit.getId(), equalTo("2"));
@@ -149,7 +149,7 @@ public abstract class GeoBoundingBoxQueryIntegTestCase extends ESIntegTestCase {
             client().prepareSearch() // left == right
                 .setQuery(geoBoundingBoxQuery("location").setCorners(41.8, -73.9844722, 40.7, -73.9844722)),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getHits().length, equalTo(1));
                 for (SearchHit hit : response.getHits()) {
                     assertThat(hit.getId(), equalTo("2"));
@@ -162,7 +162,7 @@ public abstract class GeoBoundingBoxQueryIntegTestCase extends ESIntegTestCase {
             client().prepareSearch() // from NY
                 .setQuery(geoDistanceQuery("location").point(40.5, -73.9).distance(25, DistanceUnit.KILOMETERS)),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
                 assertThat(response.getHits().getHits().length, equalTo(2));
                 for (SearchHit hit : response.getHits()) {
                     assertThat(hit.getId(), anyOf(equalTo("7"), equalTo("4")));

@@ -32,7 +32,8 @@ public class BWCLucene70Codec extends BWCCodec {
     private final LiveDocsFormat liveDocsFormat = new Lucene50LiveDocsFormat();
     private final CompoundFormat compoundFormat = new Lucene50CompoundFormat();
     private final StoredFieldsFormat storedFieldsFormat;
-    private final DocValuesFormat defaultDVFormat = DocValuesFormat.forName("Lucene70");
+    // TODO lucene 10 upgrade: resolve below hack that gets us past missing Lucene70 codec for now
+    private final DocValuesFormat defaultDVFormat = null;
     private final DocValuesFormat docValuesFormat = new PerFieldDocValuesFormat() {
         @Override
         public DocValuesFormat getDocValuesFormatForField(String field) {

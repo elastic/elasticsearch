@@ -24,12 +24,17 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 
+import static org.elasticsearch.action.search.TransportSearchAction.CCS_TELEMETRY_FEATURE_FLAG;
+
 public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResponse> implements ToXContentFragment {
 
     final ClusterStatsNodes nodesStats;
     final ClusterStatsIndices indicesStats;
     final ClusterHealthStatus status;
     final ClusterSnapshotStats clusterSnapshotStats;
+    final RepositoryUsageStats repositoryUsageStats;
+
+    final CCSTelemetrySnapshot ccsMetrics;
     final long timestamp;
     final String clusterUUID;
 
@@ -49,6 +54,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         this.timestamp = timestamp;
         nodesStats = new ClusterStatsNodes(nodes);
         indicesStats = new ClusterStatsIndices(nodes, mappingStats, analysisStats, versionStats);
+        ccsMetrics = new CCSTelemetrySnapshot();
         ClusterHealthStatus status = null;
         for (ClusterStatsNodeResponse response : nodes) {
             // only the master node populates the status
@@ -57,8 +63,17 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
                 break;
             }
         }
+        nodes.forEach(node -> ccsMetrics.add(node.getCcsMetrics()));
         this.status = status;
         this.clusterSnapshotStats = clusterSnapshotStats;
+
+        this.repositoryUsageStats = nodes.stream()
+            .map(ClusterStatsNodeResponse::repositoryUsageStats)
+            // only populated on snapshot nodes (i.e. master and data nodes)
+            .filter(r -> r.isEmpty() == false)
+            // stats should be the same on every node so just pick one of them
+            .findAny()
+            .orElse(RepositoryUsageStats.EMPTY);
     }
 
     public String getClusterUUID() {
@@ -79,6 +94,10 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
 
     public ClusterStatsIndices getIndicesStats() {
         return indicesStats;
+    }
+
+    public CCSTelemetrySnapshot getCcsMetrics() {
+        return ccsMetrics;
     }
 
     @Override
@@ -112,6 +131,15 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
 
         builder.field("snapshots");
         clusterSnapshotStats.toXContent(builder, params);
+
+        builder.field("repositories");
+        repositoryUsageStats.toXContent(builder, params);
+
+        if (CCS_TELEMETRY_FEATURE_FLAG.isEnabled()) {
+            builder.startObject("ccs");
+            ccsMetrics.toXContent(builder, params);
+            builder.endObject();
+        }
 
         return builder;
     }

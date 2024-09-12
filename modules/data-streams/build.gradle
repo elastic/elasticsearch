@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.test-with-dependencies'
 apply plugin: 'elasticsearch.internal-cluster-test'
@@ -23,11 +24,7 @@ dependencies {
   internalClusterTestImplementation project(":modules:mapper-extras")
 }
 
-tasks.named('yamlRestTest') {
-  usesDefaultDistribution()
-}
-
-tasks.named('javaRestTest') {
+tasks.withType(StandaloneRestIntegTestTask).configureEach {
   usesDefaultDistribution()
 }
 

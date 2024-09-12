@@ -61,7 +61,7 @@ public class SearchWhileCreatingIndexIT extends ESIntegTestCase {
 
         logger.info("using preference {}", preference);
         // we want to make sure that while recovery happens, and a replica gets recovered, its properly refreshed
-        ClusterHealthStatus status = clusterAdmin().prepareHealth("test").get().getStatus();
+        ClusterHealthStatus status = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "test").get().getStatus();
         while (status != ClusterHealthStatus.GREEN) {
             // first, verify that search normal search works
             assertHitCount(prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "test")), 1);
@@ -71,14 +71,14 @@ public class SearchWhileCreatingIndexIT extends ESIntegTestCase {
                     .setPreference(preference + Integer.toString(counter++))
                     .setQuery(QueryBuilders.termQuery("field", "test")),
                 searchResponse -> {
-                    if (searchResponse.getHits().getTotalHits().value != 1) {
+                    if (searchResponse.getHits().getTotalHits().value() != 1) {
                         refresh();
                         assertResponse(
                             client.prepareSearch("test").setPreference(preference).setQuery(QueryBuilders.termQuery("field", "test")),
                             searchResponseAfterRefresh -> {
                                 logger.info(
                                     "hits count mismatch on any shard search failed, post explicit refresh hits are {}",
-                                    searchResponseAfterRefresh.getHits().getTotalHits().value
+                                    searchResponseAfterRefresh.getHits().getTotalHits().value()
                                 );
                                 ensureGreen();
                                 assertResponse(
@@ -87,7 +87,7 @@ public class SearchWhileCreatingIndexIT extends ESIntegTestCase {
                                         .setQuery(QueryBuilders.termQuery("field", "test")),
                                     searchResponseAfterGreen -> logger.info(
                                         "hits count mismatch on any shard search failed, post explicit wait for green hits are {}",
-                                        searchResponseAfterGreen.getHits().getTotalHits().value
+                                        searchResponseAfterGreen.getHits().getTotalHits().value()
                                     )
                                 );
                             }
@@ -97,7 +97,7 @@ public class SearchWhileCreatingIndexIT extends ESIntegTestCase {
                     assertHitCount(searchResponse, 1);
                 }
             );
-            status = clusterAdmin().prepareHealth("test").get().getStatus();
+            status = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "test").get().getStatus();
             internalCluster().ensureAtLeastNumDataNodes(numberOfReplicas + 1);
         }
         cluster().wipeIndices("test");

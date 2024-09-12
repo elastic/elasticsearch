@@ -25,6 +25,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostAttribute;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.QueryBuilder;
@@ -689,7 +690,7 @@ public class MatchQueryParser {
             List<SpanQuery> clauses = new ArrayList<>();
             int[] articulationPoints = graph.articulationPoints();
             int lastState = 0;
-            int maxClauseCount = BooleanQuery.getMaxClauseCount();
+            int maxClauseCount = IndexSearcher.getMaxClauseCount();
             for (int i = 0; i <= articulationPoints.length; i++) {
                 int start = lastState;
                 int end = -1;
@@ -707,7 +708,7 @@ public class MatchQueryParser {
                         SpanQuery q = createSpanQuery(ts, field, usePrefix);
                         if (q != null) {
                             if (queries.size() >= maxClauseCount) {
-                                throw new BooleanQuery.TooManyClauses();
+                                throw new IndexSearcher.TooManyClauses();
                             }
                             queries.add(q);
                         }
@@ -721,14 +722,14 @@ public class MatchQueryParser {
                     Term[] terms = graph.getTerms(field, start);
                     assert terms.length > 0;
                     if (terms.length >= maxClauseCount) {
-                        throw new BooleanQuery.TooManyClauses();
+                        throw new IndexSearcher.TooManyClauses();
                     }
                     queryPos = newSpanQuery(terms, usePrefix);
                 }
 
                 if (queryPos != null) {
                     if (clauses.size() >= maxClauseCount) {
-                        throw new BooleanQuery.TooManyClauses();
+                        throw new IndexSearcher.TooManyClauses();
                     }
                     clauses.add(queryPos);
                 }

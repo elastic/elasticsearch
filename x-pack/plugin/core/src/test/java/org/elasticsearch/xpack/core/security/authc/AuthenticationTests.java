@@ -1089,6 +1089,51 @@ public class AuthenticationTests extends ESTestCase {
         );
     }
 
+    public void testMaybeRewriteMetadataForApiKeyRoleDescriptorsWithRemoteCluster() {
+        final String apiKeyId = randomAlphaOfLengthBetween(1, 10);
+        final String apiKeyName = randomAlphaOfLengthBetween(1, 10);
+        final Map<String, Object> metadata = Map.ofEntries(
+            entry(AuthenticationField.API_KEY_ID_KEY, apiKeyId),
+            entry(AuthenticationField.API_KEY_NAME_KEY, apiKeyName),
+            entry(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, new BytesArray("""
+                {"base_role":{"cluster":["all"],
+                 "remote_cluster":[{"privileges":["monitor_enrich"],"clusters":["*"]}]
+                }}""")),
+            entry(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, new BytesArray("""
+                {"limited_by_role":{"cluster":["*"],
+                 "remote_cluster":[{"privileges":["monitor_enrich"],"clusters":["*"]}]
+                }}"""))
+        );
+
+        final Authentication original = AuthenticationTestHelper.builder()
+            .apiKey()
+            .metadata(metadata)
+            .transportVersion(TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS)
+            .build();
+
+        // pick a version before that of the authentication instance to force a rewrite
+        final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
+            random(),
+            Authentication.VERSION_API_KEY_ROLES_AS_BYTES,
+            TransportVersionUtils.getPreviousVersion(original.getEffectiveSubject().getTransportVersion())
+        );
+
+        final Map<String, Object> rewrittenMetadata = original.maybeRewriteForOlderVersion(olderVersion)
+            .getEffectiveSubject()
+            .getMetadata();
+        assertThat(rewrittenMetadata.keySet(), equalTo(original.getAuthenticatingSubject().getMetadata().keySet()));
+        assertThat(
+            ((BytesReference) rewrittenMetadata.get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY)).toBytesRef(),
+            equalTo(new BytesArray("""
+                {"base_role":{"cluster":["all"]}}""").toBytesRef())
+        );
+        assertThat(
+            ((BytesReference) rewrittenMetadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)).toBytesRef(),
+            equalTo(new BytesArray("""
+                {"limited_by_role":{"cluster":["*"]}}""").toBytesRef())
+        );
+    }
+
     public void testMaybeRemoveRemoteIndicesFromRoleDescriptors() {
         final boolean includeClusterPrivileges = randomBoolean();
         final BytesReference roleWithoutRemoteIndices = new BytesArray(Strings.format("""

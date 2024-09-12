@@ -38,7 +38,6 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ElasticsearchParseException;
@@ -51,7 +50,6 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -61,13 +59,13 @@ import org.elasticsearch.index.fielddata.plain.StringBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.BinaryFieldMapper.CustomBinaryDocValuesField;
 import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -86,9 +84,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Stream;
-
-import static java.util.Collections.emptyList;
 
 /**
  * A {@link FieldMapper} for indexing fields with ngrams for efficient wildcard matching
@@ -248,8 +243,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 ),
                 ignoreAbove.get(),
                 context.isSourceSynthetic(),
-                multiFieldsBuilder.build(this, context),
-                copyTo,
+                builderParams(this, context),
                 nullValue.get(),
                 indexVersionCreated
             );
@@ -272,11 +266,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
         private WildcardFieldType(String name, String nullValue, int ignoreAbove, IndexVersion version, Map<String, String> meta) {
             super(name, true, false, true, Defaults.TEXT_SEARCH_INFO, meta);
-            if (version.onOrAfter(IndexVersions.V_7_10_0)) {
-                this.analyzer = WILDCARD_ANALYZER_7_10;
-            } else {
-                this.analyzer = WILDCARD_ANALYZER_7_9;
-            }
+            this.analyzer = WILDCARD_ANALYZER_7_10;
             this.nullValue = nullValue;
             this.ignoreAbove = ignoreAbove;
         }
@@ -350,7 +340,7 @@ public class WildcardFieldMapper extends FieldMapper {
             }
             Automaton automaton = caseInsensitive
                 ? AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term(name(), wildcardPattern))
-                : WildcardQuery.toAutomaton(new Term(name(), wildcardPattern));
+                : WildcardQuery.toAutomaton(new Term(name(), wildcardPattern), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
             if (clauseCount > 0) {
                 // We can accelerate execution with the ngram query
                 BooleanQuery approxQuery = rewritten.build();
@@ -380,7 +370,6 @@ public class WildcardFieldMapper extends FieldMapper {
             RegExp regExp = new RegExp(value, syntaxFlags, matchFlags);
             Automaton a = regExp.toAutomaton();
             a = Operations.determinize(a, maxDeterminizedStates);
-            a = MinimizationOperations.minimize(a, maxDeterminizedStates);
             if (Operations.isTotal(a)) { // Will match all
                 return existsQuery(context);
             }
@@ -391,7 +380,7 @@ public class WildcardFieldMapper extends FieldMapper {
             Query approxNgramQuery = rewriteBoolToNgramQuery(approxBooleanQuery);
 
             RegExp regex = new RegExp(value, syntaxFlags, matchFlags);
-            Automaton automaton = regex.toAutomaton(maxDeterminizedStates);
+            Automaton automaton = Operations.determinize(regex.toAutomaton(), maxDeterminizedStates);
 
             // We can accelerate execution with the ngram query
             return new BinaryDvConfirmedAutomatonQuery(approxNgramQuery, name(), value, automaton);
@@ -551,9 +540,9 @@ public class WildcardFieldMapper extends FieldMapper {
                 BooleanQuery.Builder rewritten = new BooleanQuery.Builder();
                 int clauseCount = 0;
                 for (BooleanClause clause : bq) {
-                    Query q = rewriteBoolToNgramQuery(clause.getQuery());
+                    Query q = rewriteBoolToNgramQuery(clause.query());
                     if (q != null) {
-                        if (clause.getOccur().equals(Occur.FILTER)) {
+                        if (clause.occur().equals(Occur.FILTER)) {
                             // Can't drop "should" clauses because it can elevate a sibling optional item
                             // to mandatory (shoulds with 1 clause) causing false negatives
                             // Dropping MUSTs increase false positives which are OK because are verified anyway.
@@ -562,7 +551,7 @@ public class WildcardFieldMapper extends FieldMapper {
                                 break;
                             }
                         }
-                        rewritten.add(q, clause.getOccur());
+                        rewritten.add(q, clause.occur());
                     }
                 }
                 return rewritten.build();
@@ -904,12 +893,11 @@ public class WildcardFieldMapper extends FieldMapper {
         WildcardFieldType mappedFieldType,
         int ignoreAbove,
         boolean storeIgnored,
-        MultiFields multiFields,
-        CopyTo copyTo,
+        BuilderParams builderParams,
         String nullValue,
         IndexVersion indexVersionCreated
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, builderParams);
         this.nullValue = nullValue;
         this.ignoreAbove = ignoreAbove;
         this.storeIgnored = storeIgnored;
@@ -992,34 +980,27 @@ public class WildcardFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected SyntheticSourceMode syntheticSourceMode() {
-        return SyntheticSourceMode.NATIVE;
-    }
-
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        if (copyTo.copyToFields().isEmpty() != true) {
-            throw new IllegalArgumentException(
-                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
-            );
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
+        layers.add(new WildcardSyntheticFieldLoader());
+        if (ignoreAbove != Defaults.IGNORE_ABOVE) {
+            layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(originalName()) {
+                @Override
+                protected void writeValue(Object value, XContentBuilder b) throws IOException {
+                    BytesRef r = (BytesRef) value;
+                    b.utf8Value(r.bytes, r.offset, r.length);
+                }
+            });
         }
-        return new WildcardSyntheticFieldLoader();
+
+        var loader = new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
+        return new SyntheticSourceSupport.Native(loader);
     }
 
-    private class WildcardSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
+    private class WildcardSyntheticFieldLoader implements CompositeSyntheticFieldLoader.DocValuesLayer {
         private final ByteArrayStreamInput docValuesStream = new ByteArrayStreamInput();
         private int docValueCount;
         private BytesRef docValueBytes;
-
-        private List<Object> storedValues = emptyList();
-
-        @Override
-        public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-            if (ignoreAbove != Defaults.IGNORE_ABOVE) {
-                return Stream.of(Map.entry(originalName(), storedValues -> this.storedValues = storedValues));
-            }
-            return Stream.empty();
-        }
 
         @Override
         public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
@@ -1044,33 +1025,21 @@ public class WildcardFieldMapper extends FieldMapper {
 
         @Override
         public boolean hasValue() {
-            return docValueCount > 0 || storedValues.isEmpty() == false;
+            return docValueCount > 0;
+        }
+
+        @Override
+        public long valueCount() {
+            return docValueCount;
         }
 
         @Override
         public void write(XContentBuilder b) throws IOException {
-            switch (docValueCount + storedValues.size()) {
-                case 0:
-                    return;
-                case 1:
-                    b.field(leafName());
-                    break;
-                default:
-                    b.startArray(leafName());
-            }
             for (int i = 0; i < docValueCount; i++) {
                 int length = docValuesStream.readVInt();
                 b.utf8Value(docValueBytes.bytes, docValuesStream.getPosition(), length);
                 docValuesStream.skipBytes(length);
             }
-            for (Object o : storedValues) {
-                BytesRef r = (BytesRef) o;
-                b.utf8Value(r.bytes, r.offset, r.length);
-            }
-            if (docValueCount + storedValues.size() > 1) {
-                b.endArray();
-            }
-            storedValues = emptyList();
         }
 
         @Override

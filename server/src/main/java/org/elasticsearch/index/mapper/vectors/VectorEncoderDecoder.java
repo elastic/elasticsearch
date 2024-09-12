@@ -17,7 +17,6 @@ import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION;
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAGNITUDE_STORED_INDEX_VERSION;
 
 public final class VectorEncoderDecoder {
     public static final byte INT_BYTES = 4;
@@ -25,9 +24,7 @@ public final class VectorEncoderDecoder {
     private VectorEncoderDecoder() {}
 
     public static int denseVectorLength(IndexVersion indexVersion, BytesRef vectorBR) {
-        return indexVersion.onOrAfter(MAGNITUDE_STORED_INDEX_VERSION)
-            ? (vectorBR.length - INT_BYTES) / INT_BYTES
-            : vectorBR.length / INT_BYTES;
+        return (vectorBR.length - INT_BYTES) / INT_BYTES;
     }
 
     /**
@@ -36,7 +33,6 @@ public final class VectorEncoderDecoder {
      * equal to 7.5.0, since vectors created prior to that do not store the magnitude.
      */
     public static float decodeMagnitude(IndexVersion indexVersion, BytesRef vectorBR) {
-        assert indexVersion.onOrAfter(MAGNITUDE_STORED_INDEX_VERSION);
         ByteBuffer byteBuffer = indexVersion.onOrAfter(LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)
             ? ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length).order(ByteOrder.LITTLE_ENDIAN)
             : ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length);
@@ -54,11 +50,7 @@ public final class VectorEncoderDecoder {
         if (vectorBR == null) {
             throw new IllegalArgumentException(DenseVectorScriptDocValues.MISSING_VECTOR_FIELD_MESSAGE);
         }
-        if (indexVersion.onOrAfter(MAGNITUDE_STORED_INDEX_VERSION)) {
-            return decodeMagnitude(indexVersion, vectorBR);
-        } else {
-            return calculateMagnitude(decodedVector);
-        }
+        return decodeMagnitude(indexVersion, vectorBR);
     }
 
     /**

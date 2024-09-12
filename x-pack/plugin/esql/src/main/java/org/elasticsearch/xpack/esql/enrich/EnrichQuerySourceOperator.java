@@ -89,7 +89,10 @@ final class EnrichQuerySourceOperator extends SourceOperator {
                         continue;
                     }
                     final DocCollector collector = new DocCollector(docsBuilder);
-                    scorer.score(collector, leaf.reader().getLiveDocs());
+                    IndexSearcher.LeafReaderContextPartition partition = IndexSearcher.LeafReaderContextPartition.createForEntireSegment(
+                        leaf
+                    );
+                    scorer.score(collector, leaf.reader().getLiveDocs(), partition.minDocId, partition.maxDocId);
                     int matches = collector.matches;
 
                     if (segmentsBuilder != null) {

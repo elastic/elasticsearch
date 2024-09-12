@@ -80,7 +80,8 @@ public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
         PreBuiltAnalyzers randomPreBuiltAnalyzer = PreBuiltAnalyzers.values()[randomInt];
         String analyzerName = randomPreBuiltAnalyzer.name().toLowerCase(Locale.ROOT);
 
-        IndexVersion randomVersion = IndexVersionUtils.randomVersion(random());
+        // TODO Lucene 10 upgrade, after removal of old IndexVersions, return to "IndexVersionUtils.randomVersion(random())"
+        IndexVersion randomVersion = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_0_0, IndexVersion.current());
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, randomVersion).build();
 
         NamedAnalyzer namedAnalyzer = new PreBuiltAnalyzerProvider(

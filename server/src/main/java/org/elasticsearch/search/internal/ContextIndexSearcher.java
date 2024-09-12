@@ -55,6 +55,7 @@ import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
+import java.util.stream.Collectors;
 
 /**
  * Context-aware extension of {@link IndexSearcher}.
@@ -75,6 +76,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private QueryProfiler profiler;
     private final MutableQueryTimeout cancellable;
 
+    private final boolean hasExecutor;
     private final int maximumNumberOfSlices;
     // don't create slices with less than this number of docs
     private final int minimumDocsPerSlice;
@@ -132,6 +134,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         int minimumDocsPerSlice
     ) throws IOException {
         super(wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader, executor);
+        this.hasExecutor = executor != null;
         setSimilarity(similarity);
         setQueryCache(queryCache);
         setQueryCachingPolicy(queryCachingPolicy);
@@ -140,17 +143,21 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         this.maximumNumberOfSlices = maximumNumberOfSlices;
     }
 
+    /**
+     * Whether an executor was provided at construction time or not. This indicates whether operations that support concurrency
+     * may be executed concurrently. It is not straightforward to deduct this from {@link #getTaskExecutor()} because {@link IndexSearcher}
+     * creates a {@link org.apache.lucene.search.TaskExecutor} anyways.
+     */
+    public boolean hasExecutor() {
+        return hasExecutor;
+    }
+
     @Override
     protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
         // we offload to the executor unconditionally, including requests that don't support concurrency
         LeafSlice[] leafSlices = computeSlices(getLeafContexts(), maximumNumberOfSlices, minimumDocsPerSlice);
         assert leafSlices.length <= maximumNumberOfSlices : "more slices created than the maximum allowed";
         return leafSlices;
-    }
-
-    // package private for testing
-    int getMinimumDocsPerSlice() {
-        return minimumDocsPerSlice;
     }
 
     public void setProfiler(QueryProfiler profiler) {
@@ -240,7 +247,14 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             throw new IllegalArgumentException("maxSliceNum must be >= 1 (got " + maxSliceNum + ")");
         }
         if (maxSliceNum == 1) {
-            return new LeafSlice[] { new LeafSlice(new ArrayList<>(leaves)) };
+            return new LeafSlice[] {
+                new LeafSlice(
+                    new ArrayList<>(
+                        leaves.stream()
+                            .map(LeafReaderContextPartition::createForEntireSegment)
+                            .collect(Collectors.toCollection(ArrayList::new))
+                    )
+                ) };
         }
         // total number of documents to be searched
         final int numDocs = leaves.stream().mapToInt(l -> l.reader().maxDoc()).sum();
@@ -288,7 +302,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         for (List<LeafReaderContext> currentLeaf : queue) {
             // LeafSlice ctor reorders leaves so that leaves within a slice preserve the order they had within the IndexReader.
             // This is important given how Elasticsearch sorts leaves by descending @timestamp to get better query performance.
-            slices[upto++] = new LeafSlice(currentLeaf);
+            slices[upto++] = new LeafSlice(
+                currentLeaf.stream()
+                    .map(LeafReaderContextPartition::createForEntireSegment)
+                    .collect(Collectors.toCollection(ArrayList::new))
+            );
         }
 
         return slices;
@@ -319,12 +337,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     /**
-     * Similar to the lucene implementation, with the following changes made:
-     * 1) postCollection is performed after each segment is collected. This is needed for aggregations, performed by search worker threads
-     * so it can be parallelized. Also, it needs to happen in the same thread where doc_values are read, as it consumes them and Lucene
-     * does not allow consuming them from a different thread.
-     * 2) handles the ES TimeExceededException
-     * */
+     * Same implementation as the default one in Lucene, with an additional call to postCollection in cased there are no segments.
+     * The rest is a plain copy from Lucene.
+     */
     private <C extends Collector, T> T search(Weight weight, CollectorManager<C, T> collectorManager, C firstCollector) throws IOException {
         LeafSlice[] leafSlices = getSlices();
         if (leafSlices.length == 0) {
@@ -344,10 +359,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             }
             final List<Callable<C>> listTasks = new ArrayList<>(leafSlices.length);
             for (int i = 0; i < leafSlices.length; ++i) {
-                final LeafReaderContext[] leaves = leafSlices[i].leaves;
+                final LeafReaderContextPartition[] leaves = leafSlices[i].partitions;
                 final C collector = collectors.get(i);
                 listTasks.add(() -> {
-                    search(Arrays.asList(leaves), weight, collector);
+                    search(leaves, weight, collector);
                     return collector;
                 });
             }
@@ -356,14 +371,18 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         }
     }
 
+    /**
+     * Similar to the lucene implementation, with the following changes made:
+     * 1) postCollection is performed after each segment is collected. This is needed for aggregations, performed by search threads
+     * so it can be parallelized. Also, it needs to happen in the same thread where doc_values are read, as it consumes them and Lucene
+     * does not allow consuming them from a different thread.
+     * 2) handles the ES TimeExceededException
+     */
     @Override
     public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
-        collector.setWeight(weight);
         boolean success = false;
         try {
-            for (LeafReaderContext ctx : leaves) { // search each subreader
-                searchLeaf(ctx, weight, collector);
-            }
+            super.search(leaves, weight, collector);
             success = true;
         } catch (@SuppressWarnings("unused") TimeExceededException e) {
             timeExceeded = true;
@@ -408,7 +427,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     @Override
-    protected void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
+    protected void searchLeaf(LeafReaderContext ctx, int minDocId, int maxDocId, Weight weight, Collector collector) throws IOException {
         cancellable.checkCancelled();
         final LeafCollector leafCollector;
         try {
@@ -428,7 +447,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                     bulkScorer = new CancellableBulkScorer(bulkScorer, cancellable::checkCancelled);
                 }
                 try {
-                    bulkScorer.score(leafCollector, liveDocs);
+                    bulkScorer.score(leafCollector, liveDocs, minDocId, maxDocId);
                 } catch (CollectionTerminatedException e) {
                     // collection was terminated prematurely
                     // continue with the following leaf
@@ -490,13 +509,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public TermStatistics termStatistics(Term term, int docFreq, long totalTermFreq) throws IOException {
-        if (aggregatedDfs == null) {
-            // we are either executing the dfs phase or the search_type doesn't include the dfs phase.
-            return super.termStatistics(term, docFreq, totalTermFreq);
-        }
-        TermStatistics termStatistics = aggregatedDfs.termStatistics().get(term);
+        TermStatistics termStatistics = termStatisticsFromDfs(term);
+
         if (termStatistics == null) {
-            // we don't have stats for this - this might be a must_not clauses etc. that doesn't allow extract terms on the query
+            // we don't have stats for this - dfs might be disabled pr this might be a must_not clauses etc.
+            // that doesn't allow extract terms on the query
             return super.termStatistics(term, docFreq, totalTermFreq);
         }
         return termStatistics;
@@ -514,6 +531,33 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             return super.collectionStatistics(field);
         }
         return collectionStatistics;
+    }
+
+    public long docFreq(Term term, long docFreq) throws IOException {
+        TermStatistics termStatistics = termStatisticsFromDfs(term);
+
+        if (termStatistics == null) {
+            return docFreq;
+        }
+        return termStatistics.docFreq();
+    }
+
+    public long totalTermFreq(Term term, long totalTermFreq) throws IOException {
+        TermStatistics termStatistics = termStatisticsFromDfs(term);
+
+        if (termStatistics == null) {
+            return totalTermFreq;
+        }
+        return termStatistics.docFreq();
+    }
+
+    private TermStatistics termStatisticsFromDfs(Term term) {
+        if (aggregatedDfs == null) {
+            // we are either executing the dfs phase or the search_type doesn't include the dfs phase.
+            return null;
+        }
+
+        return aggregatedDfs.termStatistics().get(term);
     }
 
     public DirectoryReader getDirectoryReader() {

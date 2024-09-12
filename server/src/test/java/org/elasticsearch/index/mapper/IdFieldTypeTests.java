@@ -18,6 +18,8 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.Mockito;
 
+import java.util.List;
+
 public class IdFieldTypeTests extends ESTestCase {
 
     public void testRangeQuery() {
@@ -48,7 +50,7 @@ public class IdFieldTypeTests extends ESTestCase {
         Mockito.when(context.indexVersionCreated()).thenReturn(IndexVersion.current());
         MappedFieldType ft = new ProvidedIdFieldMapper.IdFieldType(() -> false);
         Query query = ft.termQuery("id", context);
-        assertEquals(new TermInSetQuery("_id", Uid.encodeId("id")), query);
+        assertEquals(new TermInSetQuery("_id", List.of(Uid.encodeId("id"))), query);
     }
 
     public void testIsAggregatable() {

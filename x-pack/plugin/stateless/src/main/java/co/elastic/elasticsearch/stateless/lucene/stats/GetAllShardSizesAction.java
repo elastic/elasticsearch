@@ -17,6 +17,9 @@
 
 package co.elastic.elasticsearch.stateless.lucene.stats;
 
+import co.elastic.elasticsearch.stateless.api.ShardSizeStatsReader;
+import co.elastic.elasticsearch.stateless.api.ShardSizeStatsReader.ShardSize;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -24,14 +27,12 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -51,14 +52,9 @@ public class GetAllShardSizesAction {
         private final ShardSizeStatsReader reader;
 
         @Inject
-        public TransportGetAllShardSizes(
-            ClusterService clusterService,
-            IndicesService indicesService,
-            ActionFilters actionFilters,
-            TransportService transportService
-        ) {
+        public TransportGetAllShardSizes(ShardSizeStatsReader reader, ActionFilters actionFilters, TransportService transportService) {
             super(NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
-            this.reader = new ShardSizeStatsReader(clusterService, indicesService);
+            this.reader = reader;
         }
 
         @Override

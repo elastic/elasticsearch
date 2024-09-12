@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.search;
 
-import co.elastic.elasticsearch.stateless.lucene.stats.ShardSize;
+import co.elastic.elasticsearch.stateless.api.ShardSizeStatsReader;
 import co.elastic.elasticsearch.stateless.lucene.stats.ShardSizeTests;
 
 import org.elasticsearch.common.UUIDs;
@@ -44,7 +44,7 @@ public class PublishShardSizesRequestTests extends AbstractWireSerializingTestCa
         return new ShardId(randomIdentifier(), UUIDs.randomBase64UUID(), randomIntBetween(0, 99));
     }
 
-    private static Map<ShardId, ShardSize> randomShardSizes() {
+    private static Map<ShardId, ShardSizeStatsReader.ShardSize> randomShardSizes() {
         return randomMap(1, 25, () -> Tuple.tuple(randomShardId(), ShardSizeTests.randomShardSize()));
     }
 

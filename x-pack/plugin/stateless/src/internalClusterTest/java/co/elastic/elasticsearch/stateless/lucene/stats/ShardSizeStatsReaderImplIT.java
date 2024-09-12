@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless.lucene.stats;
 
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.StatelessComponents;
+import co.elastic.elasticsearch.stateless.api.ShardSizeStatsReader.ShardSize;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
@@ -47,7 +48,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ShardSizeStatsReaderIT extends AbstractStatelessIntegTestCase {
+public class ShardSizeStatsReaderImplIT extends AbstractStatelessIntegTestCase {
 
     private static final TimeValue DEFAULT_BOOST_WINDOW = TimeValue.timeValueDays(7);
 
@@ -257,7 +258,10 @@ public class ShardSizeStatsReaderIT extends AbstractStatelessIntegTestCase {
         var discoveryNode = internalCluster().clusterService().state().nodes().get(shard.routingEntry().currentNodeId()).getName();
         var clusterService = internalCluster().getInstance(ClusterService.class, discoveryNode);
         var indicesService = internalCluster().getInstance(IndicesService.class, discoveryNode);
-        return new ShardSizeStatsReader(clusterService, indicesService, () -> currentTimeMillis).getShardSize(shard, DEFAULT_BOOST_WINDOW);
+        return new ShardSizeStatsReaderImpl(clusterService, indicesService, () -> currentTimeMillis).getShardSize(
+            shard,
+            DEFAULT_BOOST_WINDOW
+        );
     }
 
     private long getShardSizeFromObjectStore(IndexShard shard) throws IOException {

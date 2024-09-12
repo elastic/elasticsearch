@@ -30,6 +30,8 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction.ConcreteIndex;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -206,7 +208,7 @@ public class TransportBulkActionTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(
                 invalidRequest1,
-                metadata.getIndicesLookup().get(invalidRequest1.index())
+                metadata.getProject().getIndicesLookup().get(invalidRequest1.index())
             )
         );
         assertThat(
@@ -223,7 +225,7 @@ public class TransportBulkActionTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(
                 invalidRequest2,
-                metadata.getIndicesLookup().get(invalidRequest2.index())
+                metadata.getProject().getIndicesLookup().get(invalidRequest2.index())
             )
         );
         assertThat(
@@ -238,28 +240,52 @@ public class TransportBulkActionTests extends ESTestCase {
         DocWriteRequest<?> validRequest = new IndexRequest(backingIndexName).opType(DocWriteRequest.OpType.INDEX)
             .setIfSeqNo(1)
             .setIfPrimaryTerm(1);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata.getIndicesLookup().get(validRequest.index()));
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(
+            validRequest,
+            metadata.getProject().getIndicesLookup().get(validRequest.index())
+        );
         validRequest = new DeleteRequest(backingIndexName);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata.getIndicesLookup().get(validRequest.index()));
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(
+            validRequest,
+            metadata.getProject().getIndicesLookup().get(validRequest.index())
+        );
         validRequest = new UpdateRequest(backingIndexName, "_id");
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata.getIndicesLookup().get(validRequest.index()));
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(
+            validRequest,
+            metadata.getProject().getIndicesLookup().get(validRequest.index())
+        );
 
         // Testing append only write via ds name
         validRequest = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata.getIndicesLookup().get(validRequest.index()));
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(
+            validRequest,
+            metadata.getProject().getIndicesLookup().get(validRequest.index())
+        );
 
         validRequest = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.INDEX);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata.getIndicesLookup().get(validRequest.index()));
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(
+            validRequest,
+            metadata.getProject().getIndicesLookup().get(validRequest.index())
+        );
 
         // Append only for a backing index that doesn't exist is allowed:
         validRequest = new IndexRequest(DataStream.getDefaultBackingIndexName("logs-barbaz", 1)).opType(DocWriteRequest.OpType.CREATE);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata.getIndicesLookup().get(validRequest.index()));
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(
+            validRequest,
+            metadata.getProject().getIndicesLookup().get(validRequest.index())
+        );
 
         // Some other index names:
         validRequest = new IndexRequest("my-index").opType(DocWriteRequest.OpType.CREATE);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata.getIndicesLookup().get(validRequest.index()));
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(
+            validRequest,
+            metadata.getProject().getIndicesLookup().get(validRequest.index())
+        );
         validRequest = new IndexRequest("foobar").opType(DocWriteRequest.OpType.CREATE);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata.getIndicesLookup().get(validRequest.index()));
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(
+            validRequest,
+            metadata.getProject().getIndicesLookup().get(validRequest.index())
+        );
     }
 
     public void testProhibitCustomRoutingOnDataStream() throws Exception {
@@ -274,7 +300,7 @@ public class TransportBulkActionTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> prohibitCustomRoutingOnDataStream(
                 writeRequestAgainstDataStream,
-                metadata.getIndicesLookup().get(writeRequestAgainstDataStream.index())
+                metadata.getProject().getIndicesLookup().get(writeRequestAgainstDataStream.index())
             )
         );
         assertThat(
@@ -289,7 +315,10 @@ public class TransportBulkActionTests extends ESTestCase {
         DocWriteRequest<?> writeRequestAgainstIndex = new IndexRequest(DataStream.getDefaultBackingIndexName(dataStreamName, 1L)).opType(
             DocWriteRequest.OpType.INDEX
         ).routing("custom");
-        prohibitCustomRoutingOnDataStream(writeRequestAgainstIndex, metadata.getIndicesLookup().get(writeRequestAgainstIndex.index()));
+        prohibitCustomRoutingOnDataStream(
+            writeRequestAgainstIndex,
+            metadata.getProject().getIndicesLookup().get(writeRequestAgainstIndex.index())
+        );
     }
 
     public void testOnlySystem() throws IOException {
@@ -380,7 +409,7 @@ public class TransportBulkActionTests extends ESTestCase {
         IndexMetadata backingIndex2 = DataStreamTestHelper.createFirstBackingIndex(dataStreamWithoutFailureStore, testTime).build();
         IndexMetadata failureStoreIndex1 = DataStreamTestHelper.createFirstFailureStore(dataStreamWithFailureStore, testTime).build();
 
-        Metadata metadata = Metadata.builder()
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(new ProjectId(randomUUID()))
             .dataStreams(
                 Map.of(
                     dataStreamWithFailureStore,
@@ -419,14 +448,17 @@ public class TransportBulkActionTests extends ESTestCase {
             .build();
 
         // Data stream with failure store should store failures
-        assertThat(TransportBulkAction.resolveFailureInternal(dataStreamWithFailureStore, metadata, testTime), is(true));
+        assertThat(TransportBulkAction.resolveFailureInternal(dataStreamWithFailureStore, projectMetadata, testTime), is(true));
         // Data stream without failure store should not
-        assertThat(TransportBulkAction.resolveFailureInternal(dataStreamWithoutFailureStore, metadata, testTime), is(false));
+        assertThat(TransportBulkAction.resolveFailureInternal(dataStreamWithoutFailureStore, projectMetadata, testTime), is(false));
         // An index should not be considered for failure storage
-        assertThat(TransportBulkAction.resolveFailureInternal(backingIndex1.getIndex().getName(), metadata, testTime), is(nullValue()));
+        assertThat(
+            TransportBulkAction.resolveFailureInternal(backingIndex1.getIndex().getName(), projectMetadata, testTime),
+            is(nullValue())
+        );
         // even if that index is itself a failure store
         assertThat(
-            TransportBulkAction.resolveFailureInternal(failureStoreIndex1.getIndex().getName(), metadata, testTime),
+            TransportBulkAction.resolveFailureInternal(failureStoreIndex1.getIndex().getName(), projectMetadata, testTime),
             is(nullValue())
         );
     }
@@ -439,7 +471,7 @@ public class TransportBulkActionTests extends ESTestCase {
         String indexTemplate = "test-index";
         long testTime = randomMillisUpToYear9999();
 
-        Metadata metadata = Metadata.builder()
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(new ProjectId(randomUUID()))
             .indexTemplates(
                 Map.of(
                     dsTemplateWithFailureStore,
@@ -459,11 +491,11 @@ public class TransportBulkActionTests extends ESTestCase {
             .build();
 
         // Data stream with failure store should store failures
-        assertThat(TransportBulkAction.resolveFailureInternal(dsTemplateWithFailureStore + "-1", metadata, testTime), is(true));
+        assertThat(TransportBulkAction.resolveFailureInternal(dsTemplateWithFailureStore + "-1", projectMetadata, testTime), is(true));
         // Data stream without failure store should not
-        assertThat(TransportBulkAction.resolveFailureInternal(dsTemplateWithoutFailureStore + "-1", metadata, testTime), is(false));
+        assertThat(TransportBulkAction.resolveFailureInternal(dsTemplateWithoutFailureStore + "-1", projectMetadata, testTime), is(false));
         // An index template should not be considered for failure storage
-        assertThat(TransportBulkAction.resolveFailureInternal(indexTemplate + "-1", metadata, testTime), is(nullValue()));
+        assertThat(TransportBulkAction.resolveFailureInternal(indexTemplate + "-1", projectMetadata, testTime), is(nullValue()));
     }
 
     private BulkRequest buildBulkRequest(List<String> indices) {

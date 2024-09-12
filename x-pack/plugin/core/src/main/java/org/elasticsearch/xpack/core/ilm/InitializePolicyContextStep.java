@@ -34,7 +34,7 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
 
     @Override
     public ClusterState performAction(Index index, ClusterState clusterState) {
-        IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
+        IndexMetadata indexMetadata = clusterState.getMetadata().getProject().index(index);
         if (indexMetadata == null) {
             logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), index.getName());
             // Index must have been since deleted, ignore it

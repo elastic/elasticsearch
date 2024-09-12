@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
@@ -127,7 +128,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                 return;
             }
 
-            if (stateIndexName != null && clusterState.metadata().hasIndex(stateIndexName) == false) {
+            if (stateIndexName != null && clusterState.metadata().getProject().hasIndex(stateIndexName) == false) {
                 markAsFailed(new IndexNotFoundException(stateIndexName, "cannot migrate because that index does not exist"));
                 return;
             }
@@ -146,7 +147,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             systemIndices.getFeatures()
                 .stream()
                 .flatMap(feature -> SystemIndexMigrationInfo.fromFeature(feature, clusterState.metadata(), indexScopedSettings))
-                .filter(migrationInfo -> needsToBeMigrated(clusterState.metadata().index(migrationInfo.getCurrentIndexName())))
+                .filter(migrationInfo -> needsToBeMigrated(clusterState.metadata().getProject().index(migrationInfo.getCurrentIndexName())))
                 .sorted() // Stable order between nodes
                 .collect(Collectors.toCollection(() -> migrationQueue));
 
@@ -179,7 +180,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                         + nextMigrationInfo.getFeatureName()
                         + "] of locally computed queue, see logs";
                 if (nextMigrationInfo.getCurrentIndexName().equals(stateIndexName) == false) {
-                    if (clusterState.metadata().hasIndex(stateIndexName) == false) {
+                    if (clusterState.metadata().getProject().hasIndex(stateIndexName) == false) {
                         // If we don't have that index at all, and also don't have the next one
                         markAsFailed(
                             new IllegalStateException(
@@ -363,7 +364,8 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
     private void migrateSingleIndex(ClusterState clusterState, Consumer<BulkByScrollResponse> listener) {
         final SystemIndexMigrationInfo migrationInfo = currentMigrationInfo();
         String oldIndexName = migrationInfo.getCurrentIndexName();
-        final IndexMetadata imd = clusterState.metadata().index(oldIndexName);
+        final ProjectMetadata projectMetadata = clusterState.metadata().getProject();
+        final IndexMetadata imd = projectMetadata.index(oldIndexName);
         if (imd.getState().equals(CLOSE)) {
             logger.error(
                 "unable to migrate index [{}] from feature [{}] because it is closed",
@@ -380,7 +382,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
          * This should be on for all System indices except for .kibana_ indices. See allowsTemplates in KibanaPlugin.java for more info.
          */
         if (migrationInfo.allowsTemplates() == false) {
-            final String v2template = MetadataIndexTemplateService.findV2Template(clusterState.metadata(), newIndexName, false);
+            final String v2template = MetadataIndexTemplateService.findV2Template(projectMetadata, newIndexName, false);
             if (Objects.nonNull(v2template)) {
                 logger.error(
                     "unable to create new index [{}] from feature [{}] because it would match composable template [{}]",
@@ -396,7 +398,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                 return;
             }
             final List<IndexTemplateMetadata> v1templates = MetadataIndexTemplateService.findV1Templates(
-                clusterState.metadata(),
+                projectMetadata,
                 newIndexName,
                 false
             );
@@ -511,7 +513,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         aliasesRequest.addAlias(migrationInfo.getNextIndexName(), migrationInfo.getCurrentIndexName());
 
         // Copy all the aliases from the old index
-        IndexMetadata imd = clusterService.state().metadata().index(migrationInfo.getCurrentIndexName());
+        IndexMetadata imd = clusterService.state().metadata().getProject().index(migrationInfo.getCurrentIndexName());
         imd.getAliases().values().forEach(aliasToAdd -> {
             aliasesRequest.addAliasAction(
                 IndicesAliasesRequest.AliasActions.add()
@@ -603,9 +605,9 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         submitUnbatchedTask(clusterService, "clear migration results", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                if (currentState.metadata().custom(FeatureMigrationResults.TYPE) != null) {
+                if (currentState.metadata().getProject().custom(FeatureMigrationResults.TYPE) != null) {
                     return ClusterState.builder(currentState)
-                        .metadata(Metadata.builder(currentState.metadata()).removeCustom(FeatureMigrationResults.TYPE))
+                        .metadata(Metadata.builder(currentState.metadata()).removeProjectCustom(FeatureMigrationResults.TYPE))
                         .build();
                 }
                 return currentState;

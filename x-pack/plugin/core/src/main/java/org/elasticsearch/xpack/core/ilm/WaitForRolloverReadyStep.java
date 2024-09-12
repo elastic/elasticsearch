@@ -81,7 +81,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
 
     @Override
     public void evaluateCondition(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout) {
-        IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index.getName());
+        IndexAbstraction indexAbstraction = metadata.getProject().getIndicesLookup().get(index.getName());
         assert indexAbstraction != null : "invalid cluster metadata. index [" + index.getName() + "] was not found";
         final String rolloverTarget;
         final boolean targetFailureStore;
@@ -95,14 +95,14 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
                     index.getName(),
                     targetFailureStore ? "failure store " : "",
                     dataStream.getName(),
-                    metadata.index(index).getLifecyclePolicyName()
+                    metadata.getProject().index(index).getLifecyclePolicyName()
                 );
                 listener.onResponse(true, EmptyInfo.INSTANCE);
                 return;
             }
             rolloverTarget = dataStream.getName();
         } else {
-            IndexMetadata indexMetadata = metadata.index(index);
+            IndexMetadata indexMetadata = metadata.getProject().index(index);
             String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(indexMetadata.getSettings());
 
             if (Strings.isNullOrEmpty(rolloverAlias)) {

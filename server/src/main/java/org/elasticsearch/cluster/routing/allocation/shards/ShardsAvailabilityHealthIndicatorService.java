@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.health.ClusterShardHealth;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
@@ -188,7 +189,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         boolean verbose,
         TimeValue replicaUnassignedBufferTime
     ) {
-        for (IndexRoutingTable indexShardRouting : state.routingTable()) {
+        for (IndexRoutingTable indexShardRouting : state.globalRoutingTable().indexRouting()) {
             for (int i = 0; i < indexShardRouting.size(); i++) {
                 IndexShardRoutingTable shardRouting = indexShardRouting.shard(i);
                 status.addPrimary(shardRouting.primaryShard(), state, shutdown, verbose);
@@ -483,7 +484,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             }
             if ((routing.active() || isRestarting || isNew) == false) {
                 String indexName = routing.getIndexName();
-                Settings indexSettings = state.getMetadata().index(indexName).getSettings();
+                ProjectId projectId = state.globalRoutingTable().getProjectLookup().project(routing.index());
+                Settings indexSettings = state.getMetadata().getProject(projectId).index(indexName).getSettings();
                 if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexSettings)) {
                     searchableSnapshotsState.addSearchableSnapshotWithUnavailableShard(indexName);
                 } else {
@@ -688,16 +690,21 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         ClusterState state,
         List<NodeAllocationResult> nodeAllocationResults
     ) {
-        IndexMetadata indexMetadata = state.metadata().index(shardRouting.index());
+        IndexMetadata indexMetadata = indexMetadata(state, shardRouting);
         List<Diagnosis.Definition> diagnosisDefs = new ArrayList<>();
         if (indexMetadata != null) {
             diagnosisDefs.addAll(checkIsAllocationDisabled(indexMetadata, nodeAllocationResults));
-            diagnosisDefs.addAll(checkNodeRoleRelatedIssues(indexMetadata, nodeAllocationResults, state, shardRouting));
+            diagnosisDefs.addAll(checkNodeRoleRelatedIssues(indexMetadata, nodeAllocationResults, state));
         }
         if (diagnosisDefs.isEmpty()) {
             diagnosisDefs.add(ACTION_CHECK_ALLOCATION_EXPLAIN_API);
         }
         return diagnosisDefs;
+    }
+
+    private static IndexMetadata indexMetadata(ClusterState state, ShardRouting shardRouting) {
+        final ProjectId projectId = state.globalRoutingTable().getProjectLookup().project(shardRouting.index());
+        return state.metadata().getProject(projectId).index(shardRouting.index());
     }
 
     /**
@@ -747,14 +754,12 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
      * @param indexMetadata Index metadata for the shard being diagnosed.
      * @param nodeAllocationResults allocation decision results for all nodes in the cluster.
      * @param clusterState the current cluster state.
-     * @param shardRouting the shard the nodeAllocationResults refer to
      * @return A list of diagnoses for the provided unassigned shard
      */
     protected List<Diagnosis.Definition> checkNodeRoleRelatedIssues(
         IndexMetadata indexMetadata,
         List<NodeAllocationResult> nodeAllocationResults,
-        ClusterState clusterState,
-        ShardRouting shardRouting
+        ClusterState clusterState
     ) {
         List<Diagnosis.Definition> diagnosisDefs = new ArrayList<>();
         if (indexMetadata.getTierPreference().isEmpty() == false) {
@@ -1265,11 +1270,11 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         // from the list of the unavailable searchable snapshots because the data is available via the original index.
         void updateSearchableSnapshotWithAvailableIndices(Metadata clusterMetadata, Set<String> indicesWithUnavailableShards) {
             for (String index : searchableSnapshotWithUnavailableShard) {
-                assert clusterMetadata.index(index) != null : "Index metadata of index '" + index + "' should not be null";
-                Settings indexSettings = clusterMetadata.index(index).getSettings();
+                assert clusterMetadata.getProject().index(index) != null : "Index metadata of index '" + index + "' should not be null";
+                Settings indexSettings = clusterMetadata.getProject().index(index).getSettings();
                 String originalIndex = indexSettings.get(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_INDEX_NAME_SETTING_KEY);
                 if (originalIndex != null
-                    && clusterMetadata.indices().containsKey(originalIndex) != false
+                    && clusterMetadata.getProject().indices().containsKey(originalIndex) != false
                     && indicesWithUnavailableShards.contains(originalIndex) == false) {
                     addSearchableSnapshotWithOriginalIndexAvailable(index);
                 }

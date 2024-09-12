@@ -22,7 +22,7 @@ import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.MetadataUpgrader;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TestCustomMetadata;
+import org.elasticsearch.test.TestClusterCustomMetadata;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -51,7 +51,7 @@ public class GatewayMetaStateTests extends ESTestCase {
         Metadata upgrade = GatewayMetaState.upgradeMetadata(metadata, new MockIndexMetadataVerifier(false), metadataUpgrader);
         assertNotSame(upgrade, metadata);
         assertFalse(Metadata.isGlobalStateEquals(upgrade, metadata));
-        assertTrue(upgrade.templates().containsKey("added_test_template"));
+        assertTrue(upgrade.getProject().templates().containsKey("added_test_template"));
     }
 
     public void testNoMetadataUpgrade() {
@@ -60,8 +60,8 @@ public class GatewayMetaStateTests extends ESTestCase {
         Metadata upgrade = GatewayMetaState.upgradeMetadata(metadata, new MockIndexMetadataVerifier(false), metadataUpgrader);
         assertSame(upgrade, metadata);
         assertTrue(Metadata.isGlobalStateEquals(upgrade, metadata));
-        for (IndexMetadata indexMetadata : upgrade) {
-            assertTrue(metadata.hasIndexMetadata(indexMetadata));
+        for (IndexMetadata indexMetadata : upgrade.getProject()) {
+            assertTrue(metadata.getProject().hasIndexMetadata(indexMetadata));
         }
     }
 
@@ -81,8 +81,8 @@ public class GatewayMetaStateTests extends ESTestCase {
         Metadata upgrade = GatewayMetaState.upgradeMetadata(metadata, new MockIndexMetadataVerifier(true), metadataUpgrader);
         assertNotSame(upgrade, metadata);
         assertTrue(Metadata.isGlobalStateEquals(upgrade, metadata));
-        for (IndexMetadata indexMetadata : upgrade) {
-            assertFalse(metadata.hasIndexMetadata(indexMetadata));
+        for (IndexMetadata indexMetadata : upgrade.getProject()) {
+            assertFalse(metadata.getProject().hasIndexMetadata(indexMetadata));
         }
     }
 
@@ -92,8 +92,8 @@ public class GatewayMetaStateTests extends ESTestCase {
         Metadata upgrade = GatewayMetaState.upgradeMetadata(metadata, new MockIndexMetadataVerifier(false), metadataUpgrader);
         assertSame(upgrade, metadata);
         assertTrue(Metadata.isGlobalStateEquals(upgrade, metadata));
-        for (IndexMetadata indexMetadata : upgrade) {
-            assertTrue(metadata.hasIndexMetadata(indexMetadata));
+        for (IndexMetadata indexMetadata : upgrade.getProject()) {
+            assertTrue(metadata.getProject().hasIndexMetadata(indexMetadata));
         }
     }
 
@@ -140,12 +140,18 @@ public class GatewayMetaStateTests extends ESTestCase {
         Metadata upgrade = GatewayMetaState.upgradeMetadata(metadata, new MockIndexMetadataVerifier(false), metadataUpgrader);
         assertNotSame(upgrade, metadata);
         assertFalse(Metadata.isGlobalStateEquals(upgrade, metadata));
-        assertNotNull(upgrade.templates().get("template1"));
-        assertThat(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(upgrade.templates().get("template1").settings()), equalTo(20));
-        assertNotNull(upgrade.templates().get("template2"));
-        assertThat(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(upgrade.templates().get("template2").settings()), equalTo(10));
-        for (IndexMetadata indexMetadata : upgrade) {
-            assertTrue(metadata.hasIndexMetadata(indexMetadata));
+        assertNotNull(upgrade.getProject().templates().get("template1"));
+        assertThat(
+            IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(upgrade.getProject().templates().get("template1").settings()),
+            equalTo(20)
+        );
+        assertNotNull(upgrade.getProject().templates().get("template2"));
+        assertThat(
+            IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(upgrade.getProject().templates().get("template2").settings()),
+            equalTo(10)
+        );
+        for (IndexMetadata indexMetadata : upgrade.getProject()) {
+            assertTrue(metadata.getProject().hasIndexMetadata(indexMetadata));
         }
     }
 
@@ -204,7 +210,7 @@ public class GatewayMetaStateTests extends ESTestCase {
         }
     }
 
-    private static class CustomMetadata1 extends TestCustomMetadata {
+    private static class CustomMetadata1 extends TestClusterCustomMetadata {
         public static final String TYPE = "custom_md_1";
 
         CustomMetadata1(String data) {
@@ -227,9 +233,9 @@ public class GatewayMetaStateTests extends ESTestCase {
         }
     }
 
-    private static Metadata randomMetadata(TestCustomMetadata... customMetadatas) {
+    private static Metadata randomMetadata(TestClusterCustomMetadata... customMetadatas) {
         Metadata.Builder builder = Metadata.builder();
-        for (TestCustomMetadata customMetadata : customMetadatas) {
+        for (TestClusterCustomMetadata customMetadata : customMetadatas) {
             builder.putCustom(customMetadata.getWriteableName(), customMetadata);
         }
         for (int i = 0; i < randomIntBetween(1, 5); i++) {

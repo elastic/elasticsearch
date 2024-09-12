@@ -154,10 +154,10 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
 
         ClusterState state = clusterService.state();
         Exception mappingValidationException = null;
-        IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(request.index());
+        IndexAbstraction indexAbstraction = state.metadata().getProject().getIndicesLookup().get(request.index());
         try {
             if (indexAbstraction != null) {
-                IndexMetadata imd = state.metadata().getIndexSafe(indexAbstraction.getWriteIndex(request, state.metadata()));
+                IndexMetadata imd = state.metadata().getProject().getIndexSafe(indexAbstraction.getWriteIndex(request, state.metadata()));
                 indicesService.withTempIndexService(imd, indexService -> {
                     indexService.mapperService().updateMapping(null, imd);
                     return IndexShard.prepareIndex(
@@ -183,7 +183,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                  * when the index does not exist). And it does not deal with system indices since we do not intend for users to simulate
                  * writing to system indices.
                  */
-                String matchingTemplate = findV2Template(state.metadata(), request.index(), false);
+                String matchingTemplate = findV2Template(state.metadata().getProject(), request.index(), false);
                 if (matchingTemplate != null) {
                     final Template template = TransportSimulateIndexTemplateAction.resolveTemplate(
                         matchingTemplate,
@@ -227,7 +227,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                         });
                     }
                 } else {
-                    List<IndexTemplateMetadata> matchingTemplates = findV1Templates(state.metadata(), request.index(), false);
+                    List<IndexTemplateMetadata> matchingTemplates = findV1Templates(state.metadata().getProject(), request.index(), false);
                     final Map<String, Object> mappingsMap = MetadataCreateIndexService.parseV1Mappings(
                         "{}",
                         matchingTemplates.stream().map(IndexTemplateMetadata::getMappings).collect(toList()),

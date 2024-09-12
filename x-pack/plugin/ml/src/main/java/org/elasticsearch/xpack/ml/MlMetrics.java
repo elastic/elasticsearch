@@ -319,10 +319,10 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
         final ClusterState previousState = event.previousState();
 
         if (firstTime || event.metadataChanged()) {
-            final PersistentTasksCustomMetadata tasks = currentState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            final PersistentTasksCustomMetadata tasks = currentState.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
             final PersistentTasksCustomMetadata oldTasks = firstTime
                 ? null
-                : previousState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+                : previousState.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
             if (tasks != null && tasks.equals(oldTasks) == false) {
                 if (hasMasterRole) {
                     mlTaskStatusCounts = findTaskStatuses(tasks);

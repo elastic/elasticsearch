@@ -94,7 +94,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
     public void testComputeBalance() {
         var desiredBalanceComputer = createDesiredBalanceComputer();
         var clusterState = createInitialClusterState(3);
-        var index = clusterState.metadata().index(TEST_INDEX).getIndex();
+        var index = clusterState.metadata().getProject().index(TEST_INDEX).getIndex();
 
         var desiredBalance = desiredBalanceComputer.compute(DesiredBalance.INITIAL, createInput(clusterState), queue(), input -> true);
 
@@ -112,7 +112,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
     public void testStopsComputingWhenStale() {
         var desiredBalanceComputer = createDesiredBalanceComputer();
         var clusterState = createInitialClusterState(3);
-        var index = clusterState.metadata().index(TEST_INDEX).getIndex();
+        var index = clusterState.metadata().getProject().index(TEST_INDEX).getIndex();
 
         // if the isFresh flag is false then we only do one iteration, allocating the primaries but not the replicas
         var desiredBalance0 = DesiredBalance.INITIAL;
@@ -143,7 +143,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
     public void testIgnoresOutOfScopePrimaries() {
         var desiredBalanceComputer = createDesiredBalanceComputer();
         var clusterState = mutateAllocationStatuses(createInitialClusterState(3));
-        var index = clusterState.metadata().index(TEST_INDEX).getIndex();
+        var index = clusterState.metadata().getProject().index(TEST_INDEX).getIndex();
         var primaryShard = mutateAllocationStatus(clusterState.routingTable().index(TEST_INDEX).shard(0).primaryShard());
 
         var desiredBalance = desiredBalanceComputer.compute(
@@ -179,7 +179,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         var desiredBalanceComputer = createDesiredBalanceComputer();
         var clusterState = mutateAllocationStatuses(createInitialClusterState(3));
 
-        var index = clusterState.metadata().index(TEST_INDEX).getIndex();
+        var index = clusterState.metadata().getProject().index(TEST_INDEX).getIndex();
         var originalReplicaShard = clusterState.routingTable().index(TEST_INDEX).shard(0).replicaShards().get(0);
         var replicaShard = mutateAllocationStatus(originalReplicaShard);
 
@@ -209,7 +209,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
     public void testAssignShardsToTheirPreviousLocationIfAvailable() {
         var desiredBalanceComputer = createDesiredBalanceComputer();
         var clusterState = createInitialClusterState(3);
-        var index = clusterState.metadata().index(TEST_INDEX).getIndex();
+        var index = clusterState.metadata().getProject().index(TEST_INDEX).getIndex();
 
         var changes = new RoutingChangesObserver.DelegatingRoutingChangesObserver();
         var routingNodes = clusterState.mutableRoutingNodes();
@@ -234,7 +234,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 );
             }
         }
-        clusterState = ClusterState.builder(clusterState).routingTable(RoutingTable.of(routingNodes)).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(clusterState.globalRoutingTable().rebuild(routingNodes)).build();
 
         var ignored = randomBoolean()
             ? new ShardRouting[0]
@@ -261,7 +261,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
     public void testRespectsAssignmentOfUnknownPrimaries() {
         var desiredBalanceComputer = createDesiredBalanceComputer();
         var clusterState = createInitialClusterState(3);
-        var index = clusterState.metadata().index(TEST_INDEX).getIndex();
+        var index = clusterState.metadata().getProject().index(TEST_INDEX).getIndex();
 
         var changes = new RoutingChangesObserver.DelegatingRoutingChangesObserver();
         var routingNodes = clusterState.mutableRoutingNodes();
@@ -282,7 +282,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 break;
             }
         }
-        clusterState = ClusterState.builder(clusterState).routingTable(RoutingTable.of(routingNodes)).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(clusterState.globalRoutingTable().rebuild(routingNodes)).build();
 
         var desiredBalance = desiredBalanceComputer.compute(DesiredBalance.INITIAL, createInput(clusterState), queue(), input -> true);
 
@@ -300,7 +300,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
     public void testRespectsAssignmentOfUnknownReplicas() {
         var desiredBalanceComputer = createDesiredBalanceComputer();
         var clusterState = createInitialClusterState(3);
-        var index = clusterState.metadata().index(TEST_INDEX).getIndex();
+        var index = clusterState.metadata().getProject().index(TEST_INDEX).getIndex();
 
         var changes = new RoutingChangesObserver.DelegatingRoutingChangesObserver();
         var routingNodes = clusterState.mutableRoutingNodes();
@@ -329,7 +329,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 break;
             }
         }
-        clusterState = ClusterState.builder(clusterState).routingTable(RoutingTable.of(routingNodes)).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(clusterState.globalRoutingTable().rebuild(routingNodes)).build();
 
         var desiredBalance = desiredBalanceComputer.compute(DesiredBalance.INITIAL, createInput(clusterState), queue(), input -> true);
 
@@ -347,7 +347,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
     public void testRespectsAssignmentByGatewayAllocators() {
         var desiredBalanceComputer = createDesiredBalanceComputer();
         var clusterState = createInitialClusterState(3);
-        var index = clusterState.metadata().index(TEST_INDEX).getIndex();
+        var index = clusterState.metadata().getProject().index(TEST_INDEX).getIndex();
 
         final var routingAllocation = new RoutingAllocation(
             new AllocationDeciders(List.of()),
@@ -412,7 +412,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             }
         });
         var clusterState = createInitialClusterState(3);
-        var index = clusterState.metadata().index(TEST_INDEX).getIndex();
+        var index = clusterState.metadata().getProject().index(TEST_INDEX).getIndex();
 
         // first, manually assign the shards to their expected locations to pre-populate the desired balance
         var changes = new RoutingChangesObserver.DelegatingRoutingChangesObserver();
@@ -425,7 +425,9 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 0L
             );
         }
-        clusterState = ClusterState.builder(clusterState).routingTable(RoutingTable.of(desiredRoutingNodes)).build();
+        clusterState = ClusterState.builder(clusterState)
+            .routingTable(clusterState.globalRoutingTable().rebuild(desiredRoutingNodes))
+            .build();
 
         var desiredBalance1 = desiredBalanceComputer.compute(DesiredBalance.INITIAL, createInput(clusterState), queue(), input -> true);
         assertDesiredAssignments(
@@ -492,7 +494,9 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 }
             }
         }
-        clusterState = ClusterState.builder(clusterState).routingTable(RoutingTable.of(randomRoutingNodes)).build();
+        clusterState = ClusterState.builder(clusterState)
+            .routingTable(clusterState.globalRoutingTable().rebuild(randomRoutingNodes))
+            .build();
 
         allocateCalled.set(false);
 
@@ -521,7 +525,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
     public void testAppliesMoveCommands() {
         var desiredBalanceComputer = createDesiredBalanceComputer();
         var clusterState = createInitialClusterState(3);
-        var index = clusterState.metadata().index(TEST_INDEX).getIndex();
+        var index = clusterState.metadata().getProject().index(TEST_INDEX).getIndex();
 
         var changes = new RoutingChangesObserver.DelegatingRoutingChangesObserver();
         var routingNodes = clusterState.mutableRoutingNodes();
@@ -529,7 +533,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             var shardRouting = iterator.next();
             routingNodes.startShard(iterator.initialize(shardRouting.primary() ? "node-0" : "node-1", null, 0L, changes), changes, 0L);
         }
-        clusterState = ClusterState.builder(clusterState).routingTable(RoutingTable.of(routingNodes)).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(clusterState.globalRoutingTable().rebuild(routingNodes)).build();
 
         var desiredBalance = desiredBalanceComputer.compute(
             DesiredBalance.INITIAL,
@@ -1321,6 +1325,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 final var unassignedIterator = allocation.routingNodes().unassigned().iterator();
                 while (unassignedIterator.hasNext()) {
                     final var shardRouting = unassignedIterator.next();
+                    final var projectId = allocation.globalRoutingTable().getProjectLookup().project(shardRouting.index());
                     if (shardRouting.primary()) {
                         unassignedIterator.initialize("node-0", null, 0L, allocation.changes());
                     } else if (isCorrespondingPrimaryStarted(shardRouting, allocation)) {

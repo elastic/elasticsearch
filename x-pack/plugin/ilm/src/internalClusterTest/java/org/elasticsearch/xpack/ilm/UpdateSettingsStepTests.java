@@ -107,7 +107,7 @@ public class UpdateSettingsStepTests extends ESSingleNodeTestCase {
 
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         ClusterState state = clusterService.state();
-        IndexMetadata indexMetadata = state.metadata().index("test");
+        IndexMetadata indexMetadata = state.metadata().getProject().index("test");
         ThreadPool threadPool = getInstanceFromNode(ThreadPool.class);
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
 

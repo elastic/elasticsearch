@@ -2216,7 +2216,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .andThen(l -> masterDeleteIndexService.deleteIndices(new DeleteIndexClusterStateUpdateRequest(l.map(r -> {
                 assertTrue(r.isAcknowledged());
                 return null;
-            })).indices(new Index[] { internalCluster().clusterService().state().metadata().index(indexToDelete).getIndex() })
+            })).indices(new Index[] { internalCluster().clusterService().state().metadata().getProject().index(indexToDelete).getIndex() })
                 .ackTimeout(TimeValue.timeValueSeconds(10))
                 .masterNodeTimeout(TimeValue.timeValueSeconds(10))))
             // ultimately create the index again so that taking a full snapshot will pick up any missing shard gen blob, and deleting that

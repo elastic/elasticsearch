@@ -33,7 +33,7 @@ public class IndexRoutingTableTests extends ESTestCase {
     private void innerReadyForSearch(boolean fastRefresh) {
         Index index = new Index(randomIdentifier(), UUIDs.randomBase64UUID());
         ClusterState clusterState = mock(ClusterState.class, Mockito.RETURNS_DEEP_STUBS);
-        when(clusterState.metadata().index(any(Index.class)).getSettings()).thenReturn(
+        when(clusterState.metadata().getProject().index(any(Index.class)).getSettings()).thenReturn(
             Settings.builder().put(INDEX_FAST_REFRESH_SETTING.getKey(), fastRefresh).build()
         );
         // 2 primaries that are search and index

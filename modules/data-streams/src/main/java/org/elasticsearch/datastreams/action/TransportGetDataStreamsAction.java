@@ -164,9 +164,9 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadAction
                     indexTemplatePreferIlmValue = PREFER_ILM_SETTING.get(settings);
                 }
             } else {
-                indexTemplate = MetadataIndexTemplateService.findV2Template(state.metadata(), dataStream.getName(), false);
+                indexTemplate = MetadataIndexTemplateService.findV2Template(state.metadata().getProject(), dataStream.getName(), false);
                 if (indexTemplate != null) {
-                    Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), indexTemplate);
+                    Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata().getProject(), indexTemplate);
                     ilmPolicyName = settings.get(IndexMetadata.LIFECYCLE_NAME);
                     indexTemplatePreferIlmValue = PREFER_ILM_SETTING.get(settings);
                 } else {
@@ -208,7 +208,7 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadAction
                 // But it is not enforced in API, so we explicitly sort here.
                 var sortedRanges = dataStream.getIndices()
                     .stream()
-                    .map(metadata::index)
+                    .map(metadata.getProject()::index)
                     .filter(m -> m.getIndexMode() == IndexMode.TIME_SERIES)
                     .map(m -> new IndexInfo(m.getIndex().getName(), m.getTimeSeriesStart(), m.getTimeSeriesEnd()))
                     .sorted()
@@ -276,13 +276,13 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadAction
         List<Index> backingIndices
     ) {
         for (Index index : backingIndices) {
-            IndexMetadata indexMetadata = metadata.index(index);
+            IndexMetadata indexMetadata = metadata.getProject().index(index);
             Boolean preferIlm = PREFER_ILM_SETTING.get(indexMetadata.getSettings());
             assert preferIlm != null : "must use the default prefer ilm setting value, if nothing else";
             ManagedBy managedBy;
-            if (metadata.isIndexManagedByILM(indexMetadata)) {
+            if (metadata.getProject().isIndexManagedByILM(indexMetadata)) {
                 managedBy = ManagedBy.ILM;
-            } else if (dataStream.isIndexManagedByDataStreamLifecycle(index, metadata::index)) {
+            } else if (dataStream.isIndexManagedByDataStreamLifecycle(index, metadata.getProject()::index)) {
                 managedBy = ManagedBy.LIFECYCLE;
             } else {
                 managedBy = ManagedBy.UNMANAGED;
@@ -297,7 +297,7 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadAction
         GetDataStreamAction.Request request
     ) {
         List<String> results = DataStreamsActionUtil.getDataStreamNames(iner, clusterState, request.getNames(), request.indicesOptions());
-        Map<String, DataStream> dataStreams = clusterState.metadata().dataStreams();
+        Map<String, DataStream> dataStreams = clusterState.metadata().getProject().dataStreams();
 
         return results.stream().map(dataStreams::get).sorted(Comparator.comparing(DataStream::getName)).toList();
     }

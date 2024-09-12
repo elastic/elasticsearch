@@ -130,6 +130,7 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
         @Override
         public ClusterState execute(ClusterState currentState) {
             SnapshotLifecycleMetadata snapMeta = currentState.metadata()
+                .getProject()
                 .custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
             var currentMode = LifecycleOperationMetadata.currentSLMMode(currentState);
             final SnapshotLifecyclePolicyMetadata existingPolicyMetadata = snapMeta.getSnapshotConfigurations()

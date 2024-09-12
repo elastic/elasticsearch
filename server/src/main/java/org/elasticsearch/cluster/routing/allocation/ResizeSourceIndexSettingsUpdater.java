@@ -10,9 +10,11 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
-import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -38,12 +40,14 @@ public class ResizeSourceIndexSettingsUpdater implements RoutingChangesObserver 
         }
     }
 
-    public Metadata applyChanges(Metadata metadata, RoutingTable routingTable) {
+    public Metadata applyChanges(Metadata metadata, GlobalRoutingTable routingTable) {
+        final GlobalRoutingTable.ProjectLookup projectLookup = routingTable.getProjectLookup();
         if (changes.isEmpty() == false) {
-            final Map<Index, Settings> updates = Maps.newHashMapWithExpectedSize(changes.size());
+            final Map<ProjectId, Map<Index, Settings>> updatesByProject = Maps.newHashMapWithExpectedSize(routingTable.size());
             for (Index index : changes) {
-                var indexMetadata = metadata.getIndexSafe(index);
-                if (routingTable.index(index).allPrimaryShardsActive()) {
+                final ProjectId projectId = projectLookup.project(index);
+                var indexMetadata = metadata.getProject(projectId).getIndexSafe(index);
+                if (routingTable.routingTable(projectId).index(index).allPrimaryShardsActive()) {
                     assert indexMetadata.getResizeSourceIndex() != null : "no resize source index for " + index;
 
                     Settings.Builder builder = Settings.builder().put(indexMetadata.getSettings());
@@ -53,11 +57,40 @@ public class ResizeSourceIndexSettingsUpdater implements RoutingChangesObserver 
                         // Required by ILM after an index has been shrunk
                         builder.remove(IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY);
                     }
+
+                    final Map<Index, Settings> updates = updatesByProject.computeIfAbsent(
+                        projectId,
+                        ignore -> Maps.newMapWithExpectedSize(changes.size())
+                    );
                     updates.put(index, builder.build());
                 }
             }
-            return metadata.withIndexSettingsUpdates(updates);
+            Metadata.Builder builder = null;
+            for (Map.Entry<ProjectId, Map<Index, Settings>> entry : updatesByProject.entrySet()) {
+                ProjectId projectId = entry.getKey();
+                Map<Index, Settings> updates = entry.getValue();
+
+                final ProjectMetadata origProject = metadata.getProject(projectId);
+                final ProjectMetadata updatedProject = origProject.withIndexSettingsUpdates(updates);
+                if (updatedProject != origProject) {
+                    if (builder == null) {
+                        builder = Metadata.builder(metadata);
+                    }
+                    builder.put(updatedProject);
+                }
+            }
+            if (builder == null) {
+                return metadata;
+            } else {
+                return builder.build();
+            }
         }
         return metadata;
     }
+
+    // for testing
+    int numberOfChanges() {
+        return changes.size();
+    }
+
 }

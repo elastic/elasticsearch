@@ -192,6 +192,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
                 .get()
                 .getState()
                 .getMetadata()
+                .getProject()
                 .index("test")
                 .getLifecycleExecutionState();
             assertThat(lifecycleState.step(), equalTo("complete"));
@@ -435,6 +436,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
                 .get()
                 .getState()
                 .getMetadata()
+                .getProject()
                 .index("test")
                 .getLifecycleExecutionState();
             assertThat(lifecycleState.step(), equalTo("complete"));
@@ -595,7 +597,11 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
 
         @Override
         public Result isConditionMet(Index index, ClusterState clusterState) {
-            boolean complete = clusterState.metadata().index("test").getSettings().getAsBoolean("index.lifecycle.test.complete", false);
+            boolean complete = clusterState.metadata()
+                .getProject()
+                .index("test")
+                .getSettings()
+                .getAsBoolean("index.lifecycle.test.complete", false);
             return new Result(complete, null);
         }
     }

@@ -48,7 +48,14 @@ public class RemoveCustomsCommandIT extends ESIntegTestCase {
         indicesAdmin().prepareDelete("test").get();
         assertEquals(
             1,
-            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().indexGraveyard().getTombstones().size()
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+                .get()
+                .getState()
+                .metadata()
+                .getProject()
+                .indexGraveyard()
+                .getTombstones()
+                .size()
         );
         Settings dataPathSettings = internalCluster().dataPathSettings(node);
         ensureStableCluster(1);
@@ -69,7 +76,14 @@ public class RemoveCustomsCommandIT extends ESIntegTestCase {
         internalCluster().startNode(dataPathSettings);
         assertEquals(
             0,
-            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().indexGraveyard().getTombstones().size()
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+                .get()
+                .getState()
+                .metadata()
+                .getProject()
+                .indexGraveyard()
+                .getTombstones()
+                .size()
         );
     }
 
@@ -80,7 +94,14 @@ public class RemoveCustomsCommandIT extends ESIntegTestCase {
         indicesAdmin().prepareDelete("test").get();
         assertEquals(
             1,
-            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().indexGraveyard().getTombstones().size()
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+                .get()
+                .getState()
+                .metadata()
+                .getProject()
+                .indexGraveyard()
+                .getTombstones()
+                .size()
         );
         Settings dataPathSettings = internalCluster().dataPathSettings(node);
         ensureStableCluster(1);

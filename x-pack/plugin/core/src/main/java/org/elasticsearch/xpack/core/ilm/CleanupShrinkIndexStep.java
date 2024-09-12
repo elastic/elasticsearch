@@ -40,7 +40,7 @@ public class CleanupShrinkIndexStep extends AsyncRetryDuringSnapshotActionStep {
         final String shrunkenIndexSource = IndexMetadata.INDEX_RESIZE_SOURCE_NAME.get(indexMetadata.getSettings());
         if (Strings.isNullOrEmpty(shrunkenIndexSource) == false) {
             // the current managed index is a shrunk index
-            if (currentClusterState.metadata().index(shrunkenIndexSource) == null) {
+            if (currentClusterState.metadata().getProject().index(shrunkenIndexSource) == null) {
                 // if the source index does not exist, we'll skip deleting the
                 // (managed) shrunk index as that will cause data loss
                 String policyName = indexMetadata.getLifecyclePolicyName();

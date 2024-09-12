@@ -65,13 +65,13 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
         Metadata metadata = Metadata.builder().put(indexMetadata).build();
         RoutingTable.Builder routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         if (randomBoolean()) {
-            routingTable.addAsNew(metadata.index(index));
+            routingTable.addAsNew(metadata.getProject().index(index));
         } else if (randomBoolean()) {
-            routingTable.addAsRecovery(metadata.index(index));
+            routingTable.addAsRecovery(metadata.getProject().index(index));
         } else if (randomBoolean()) {
-            routingTable.addAsNewRestore(metadata.index(index), newSnapshotRecoverySource(), new HashSet<>());
+            routingTable.addAsNewRestore(metadata.getProject().index(index), newSnapshotRecoverySource(), new HashSet<>());
         } else {
-            routingTable.addAsRestore(metadata.index(index), newSnapshotRecoverySource());
+            routingTable.addAsRestore(metadata.getProject().index(index), newSnapshotRecoverySource());
         }
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.EMPTY_NODES)
@@ -113,7 +113,7 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
         nodes.forEach(discoveryNodes::add);
         Metadata metadata = Metadata.builder().put(indexMetadata).build();
         RoutingTable.Builder routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsRecovery(metadata.index(index));
+            .addAsRecovery(metadata.getProject().index(index));
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoveryNodes)
             .metadata(metadata)
@@ -149,7 +149,7 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(dataOnlyNode).add(dataAndRemoteNode).build();
         Metadata metadata = Metadata.builder().put(indexMetadata).build();
         RoutingTable.Builder routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNewRestore(metadata.index(index), newSnapshotRecoverySource(), new HashSet<>());
+            .addAsNewRestore(metadata.getProject().index(index), newSnapshotRecoverySource(), new HashSet<>());
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoveryNodes)
             .metadata(metadata)
@@ -184,7 +184,7 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
         final AllocationDecider decider = new CcrPrimaryFollowerAllocationDecider();
         final RoutingAllocation routingAllocation = new RoutingAllocation(
             new AllocationDeciders(List.of(decider)),
-            RoutingNodes.immutable(clusterState.routingTable(), clusterState.nodes()),
+            RoutingNodes.immutable(clusterState.globalRoutingTable(), clusterState.nodes()),
             clusterState,
             ClusterInfo.EMPTY,
             SnapshotShardSizeInfo.EMPTY,

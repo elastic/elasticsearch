@@ -88,13 +88,15 @@ public class ClusterInfoSimulator {
     public void simulateShardStarted(ShardRouting shard) {
         assert shard.initializing();
 
+        var projectId = allocation.globalRoutingTable().getProjectLookup().project(shard.index());
+        assert projectId != null : "No project for " + shard;
         var size = getExpectedShardSize(
             shard,
             UNAVAILABLE_EXPECTED_SHARD_SIZE,
             getClusterInfo(),
             allocation.snapshotShardSizeInfo(),
-            allocation.metadata(),
-            allocation.routingTable()
+            allocation.metadata().getProject(projectId),
+            allocation.routingTable(projectId)
         );
         if (size != UNAVAILABLE_EXPECTED_SHARD_SIZE) {
             if (shard.relocatingNodeId() != null) {
@@ -108,7 +110,7 @@ public class ClusterInfoSimulator {
                 }
                 shardSizes.put(
                     shardIdentifierFromRouting(shard),
-                    allocation.metadata().getIndexSafe(shard.index()).ignoreDiskWatermarks() ? 0 : size
+                    allocation.metadata().getProject().getIndexSafe(shard.index()).ignoreDiskWatermarks() ? 0 : size
                 );
             }
         }

@@ -60,7 +60,8 @@ public class FrozenShardsDeciderService implements AutoscalingDeciderService {
     }
 
     static int countFrozenShards(Metadata metadata) {
-        return metadata.stream()
+        return metadata.getProject()
+            .stream()
             .filter(imd -> FrozenUtils.isFrozenIndex(imd.getSettings()))
             .mapToInt(IndexMetadata::getTotalNumberOfShards)
             .sum();

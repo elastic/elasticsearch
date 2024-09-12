@@ -66,6 +66,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
             .get()
             .getState()
             .metadata()
+            .getProject()
             .index("test")
             .getSettingsVersion();
         logger.info("Increasing the number of replicas from 1 to 2");
@@ -88,6 +89,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
             .get()
             .getState()
             .metadata()
+            .getProject()
             .index("test")
             .getSettingsVersion();
         assertThat(afterReplicaIncreaseSettingsVersion, equalTo(1 + settingsVersion));
@@ -99,6 +101,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
             .get()
             .getState()
             .metadata()
+            .getProject()
             .index("test")
             .getSettingsVersion();
 
@@ -147,6 +150,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
             .get()
             .getState()
             .metadata()
+            .getProject()
             .index("test")
             .getSettingsVersion();
         assertThat(afterReplicaDecreaseSettingsVersion, equalTo(1 + afterStartingAnotherNodeVersion));
@@ -192,6 +196,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
             .get()
             .getState()
             .metadata()
+            .getProject()
             .index("test")
             .getSettingsVersion();
 
@@ -216,6 +221,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
             .get()
             .getState()
             .metadata()
+            .getProject()
             .index("test")
             .getSettingsVersion();
         assertThat(afterAddingOneNodeSettingsVersion, equalTo(1 + settingsVersion));
@@ -242,6 +248,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
             .get()
             .getState()
             .metadata()
+            .getProject()
             .index("test")
             .getSettingsVersion();
         assertThat(afterClosingOneNodeSettingsVersion, equalTo(1 + afterAddingOneNodeSettingsVersion));
@@ -268,6 +275,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
             .get()
             .getState()
             .metadata()
+            .getProject()
             .index("test")
             .getSettingsVersion();
         assertThat(afterClosingAnotherNodeSettingsVersion, equalTo(1 + afterClosingOneNodeSettingsVersion));
@@ -313,6 +321,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
             .get()
             .getState()
             .metadata()
+            .getProject()
             .index("test")
             .getSettingsVersion();
         logger.info("--> add another node, should increase the number of replicas");
@@ -335,6 +344,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
             .get()
             .getState()
             .metadata()
+            .getProject()
             .index("test")
             .getSettingsVersion();
         assertThat(afterAddingOneNodeSettingsVersion, equalTo(1 + settingsVersion));
@@ -361,6 +371,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
             .get()
             .getState()
             .metadata()
+            .getProject()
             .index("test")
             .getSettingsVersion();
         assertThat(afterClosingOneNodeSettingsVersion, equalTo(1 + afterAddingOneNodeSettingsVersion));
@@ -411,6 +422,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
             .get()
             .getState()
             .metadata()
+            .getProject()
             .index("test")
             .getSettingsVersion();
         logger.info("--> update the auto expand replicas to 0-3");
@@ -434,7 +446,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
          * time from the number of replicas changed by the allocation service.
          */
         assertThat(
-            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().index("test").getSettingsVersion(),
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().getProject().index("test").getSettingsVersion(),
             equalTo(1 + 1 + settingsVersion)
         );
     }
@@ -445,6 +457,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
             .get()
             .getState()
             .metadata()
+            .getProject()
             .index("test")
             .getSettingsVersion();
         final int value = randomIntBetween(-10, -1);
@@ -456,7 +469,13 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         } catch (IllegalArgumentException e) {
             assertEquals("Failed to parse value [" + value + "] for setting [index.number_of_replicas] must be >= 0", e.getMessage());
             assertThat(
-                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().index("test").getSettingsVersion(),
+                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+                    .get()
+                    .getState()
+                    .metadata()
+                    .getProject()
+                    .index("test")
+                    .getSettingsVersion(),
                 equalTo(settingsVersion)
             );
         }

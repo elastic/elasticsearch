@@ -154,6 +154,7 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
         final Map<String, EnrichPolicy> policies = EnrichStore.getPolicies(clusterState);
         logger.debug(() -> "Working enrich indices excluded from maintenance [" + String.join(", ", inflightPolicyExecutionIndices) + "]");
         String[] removeIndices = clusterState.metadata()
+            .getProject()
             .indices()
             .values()
             .stream()

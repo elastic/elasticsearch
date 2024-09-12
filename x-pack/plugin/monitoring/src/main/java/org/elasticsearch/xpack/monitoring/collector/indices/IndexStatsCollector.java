@@ -85,7 +85,7 @@ public class IndexStatsCollector extends Collector {
         // Filters the indices stats to only return the statistics for the indices known by the collector's
         // local cluster state. This way indices/index/shards stats all share a common view of indices state.
         final List<IndexStats> indicesStats = new ArrayList<>();
-        for (final String indexName : metadata.getConcreteAllIndices()) {
+        for (final String indexName : metadata.getProject().getConcreteAllIndices()) {
             final IndexStats indexStats = indicesStatsResponse.getIndex(indexName);
             if (indexStats != null) {
                 // The index appears both in the local cluster state and indices stats response
@@ -98,7 +98,7 @@ public class IndexStatsCollector extends Collector {
                         interval,
                         node,
                         indexStats,
-                        metadata.index(indexName),
+                        metadata.getProject().index(indexName),
                         routingTable.index(indexName)
                     )
                 );

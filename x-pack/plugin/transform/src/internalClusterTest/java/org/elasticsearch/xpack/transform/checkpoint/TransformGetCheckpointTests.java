@@ -19,6 +19,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -238,7 +239,7 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
             mockIndicesService = mock(IndicesService.class);
             for (int i = 0; i < numberOfIndices; ++i) {
                 IndexService mockIndexService = mock(IndexService.class);
-                IndexMetadata indexMeta = clusterStateWithIndex.metadata().index(indexNamePattern + i);
+                IndexMetadata indexMeta = clusterStateWithIndex.metadata().getProject().index(indexNamePattern + i);
 
                 IndexSettings mockIndexSettings = new IndexSettings(indexMeta, clusterService.getSettings());
                 when(mockIndexService.getIndexSettings()).thenReturn(mockIndexSettings);
@@ -274,13 +275,13 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public String[] concreteIndexNames(ClusterState state, IndicesRequest request) {
+        public String[] concreteIndexNames(ProjectMetadata project, IndicesRequest request) {
             return request.indices();
         }
 
         @Override
         public String[] concreteIndexNames(
-            ClusterState state,
+            ProjectMetadata project,
             IndicesOptions options,
             boolean includeDataStreams,
             String... indexExpressions

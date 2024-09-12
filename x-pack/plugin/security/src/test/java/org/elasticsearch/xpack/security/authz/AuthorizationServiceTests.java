@@ -1192,7 +1192,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final String indexName = "index-" + randomAlphaOfLengthBetween(1, 5);
 
         final ClusterState clusterState = mockMetadataWithIndex(indexName);
-        final IndexMetadata indexMetadata = clusterState.metadata().index(indexName);
+        final IndexMetadata indexMetadata = clusterState.metadata().getProject().index(indexName);
 
         SearchRequest searchRequest = new SearchRequest(indexName).allowPartialSearchResults(false);
         final ShardSearchRequest shardRequest = new ShardSearchRequest(
@@ -1255,7 +1255,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final String indexName = "index-" + randomAlphaOfLengthBetween(1, 5);
 
         final ClusterState clusterState = mockMetadataWithIndex(indexName);
-        final IndexMetadata indexMetadata = clusterState.metadata().index(indexName);
+        final IndexMetadata indexMetadata = clusterState.metadata().getProject().index(indexName);
 
         PointInTimeBuilder pit = new PointInTimeBuilder(createEncodedPIT(indexMetadata.getIndex()));
         SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder().pointInTimeBuilder(pit))

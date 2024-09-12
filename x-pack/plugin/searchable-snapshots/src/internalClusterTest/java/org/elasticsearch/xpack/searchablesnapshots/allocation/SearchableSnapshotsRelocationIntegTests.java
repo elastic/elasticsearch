@@ -79,6 +79,7 @@ public class SearchableSnapshotsRelocationIntegTests extends BaseSearchableSnaps
             .get()
             .getState()
             .metadata()
+            .getProject()
             .index(restoredIndex)
             .getIndex();
         final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, secondDataNode);

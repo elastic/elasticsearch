@@ -100,7 +100,7 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
         }
 
         try {
-            allocation.routingTable().shardRoutingTable(index, shardId).primaryShard();
+            allocation.globalRoutingTable().getRoutingTable().shardRoutingTable(index, shardId).primaryShard();
         } catch (IndexNotFoundException | ShardNotFoundException e) {
             return explainOrThrowRejectedCommand(explain, allocation, e);
         }

@@ -102,9 +102,9 @@ public class ModelImporter {
 
             if (ModelLoaderUtils.uriIsFile(uri) == false) {
                 var ranges = ModelLoaderUtils.split(config.getSize(), NUMBER_OF_STREAMS, DEFAULT_CHUNK_SIZE);
-                var downloaders = new ArrayList<ModelLoaderUtils.HttStreamChunker>(ranges.size());
+                var downloaders = new ArrayList<ModelLoaderUtils.HttpStreamChunker>(ranges.size());
                 for (var range : ranges) {
-                    downloaders.add(new ModelLoaderUtils.HttStreamChunker(uri, range, DEFAULT_CHUNK_SIZE));
+                    downloaders.add(new ModelLoaderUtils.HttpStreamChunker(uri, range, DEFAULT_CHUNK_SIZE));
                 }
                 downloadModelDefinition(config.getSize(), totalParts, vocabularyParts, downloaders, finalListener);
             } else {
@@ -125,7 +125,7 @@ public class ModelImporter {
         long size,
         int totalParts,
         @Nullable ModelLoaderUtils.VocabularyParts vocabularyParts,
-        List<ModelLoaderUtils.HttStreamChunker> downloaders,
+        List<ModelLoaderUtils.HttpStreamChunker> downloaders,
         ActionListener<AcknowledgedResponse> finalListener
     ) {
         try (var countingListener = new RefCountingListener(1, ActionListener.wrap(ignore -> executorService.execute(() -> {
@@ -156,7 +156,7 @@ public class ModelImporter {
     private void downloadPartInRange(
         long size,
         int totalParts,
-        ModelLoaderUtils.HttStreamChunker downloadChunker,
+        ModelLoaderUtils.HttpStreamChunker downloadChunker,
         ExecutorService executorService,
         RefCountingListener countingListener,
         ActionListener<Void> rangeFullyDownloadedListener
@@ -207,7 +207,7 @@ public class ModelImporter {
     private void downloadFinalPart(
         long size,
         int totalParts,
-        ModelLoaderUtils.HttStreamChunker downloader,
+        ModelLoaderUtils.HttpStreamChunker downloader,
         ActionListener<AcknowledgedResponse> lastPartWrittenListener
     ) {
         assert ThreadPool.assertCurrentThreadPool(MachineLearningPackageLoader.MODEL_DOWNLOAD_THREADPOOL_NAME)
@@ -284,9 +284,9 @@ public class ModelImporter {
         client.execute(PutTrainedModelDefinitionPartAction.INSTANCE, modelPartRequest, listener);
     }
 
-    private void checkDownloadComplete(List<ModelLoaderUtils.HttStreamChunker> downloaders) {
-        long totalBytesRead = downloaders.stream().mapToLong(ModelLoaderUtils.HttStreamChunker::getTotalBytesRead).sum();
-        int totalParts = downloaders.stream().mapToInt(ModelLoaderUtils.HttStreamChunker::getCurrentPart).sum();
+    private void checkDownloadComplete(List<ModelLoaderUtils.HttpStreamChunker> downloaders) {
+        long totalBytesRead = downloaders.stream().mapToLong(ModelLoaderUtils.HttpStreamChunker::getTotalBytesRead).sum();
+        int totalParts = downloaders.stream().mapToInt(ModelLoaderUtils.HttpStreamChunker::getCurrentPart).sum();
         checkSize(totalBytesRead);
         logger.debug(format("finished importing model [%s] using [%d] parts", modelId, totalParts));
     }

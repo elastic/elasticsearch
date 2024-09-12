@@ -91,7 +91,7 @@ public class MachineLearningPackageLoader extends Plugin implements ActionPlugin
     }
 
     public static FixedExecutorBuilder modelDownloadExecutor(Settings settings) {
-        // Threadpool with a fixed size of 1 thread for
+        // Threadpool with a fixed number of threads for
         // downloading the model definition files
         return new FixedExecutorBuilder(
             settings,

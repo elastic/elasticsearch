@@ -210,7 +210,7 @@ public class ModelImporterTests extends ESTestCase {
         int chunkSize = 10;
         long size = totalParts * chunkSize;
 
-        var streamer = mock(ModelLoaderUtils.HttStreamChunker.class);
+        var streamer = mock(ModelLoaderUtils.HttpStreamChunker.class);
         when(streamer.hasNext()).thenReturn(true);
         when(streamer.next()).thenThrow(new IOException("stream failed"));  // fail the read
 
@@ -258,14 +258,14 @@ public class ModelImporterTests extends ESTestCase {
         verify(client, never()).execute(eq(PutTrainedModelDefinitionPartAction.INSTANCE), any(), any());
     }
 
-    private List<ModelLoaderUtils.HttStreamChunker> mockHttpStreamChunkers(byte[] modelDef, int chunkSize, int numStreams) {
+    private List<ModelLoaderUtils.HttpStreamChunker> mockHttpStreamChunkers(byte[] modelDef, int chunkSize, int numStreams) {
         var ranges = ModelLoaderUtils.split(modelDef.length, numStreams, chunkSize);
 
-        var result = new ArrayList<ModelLoaderUtils.HttStreamChunker>(ranges.size());
+        var result = new ArrayList<ModelLoaderUtils.HttpStreamChunker>(ranges.size());
         for (var range : ranges) {
             int len = range.numParts() * chunkSize;
             var modelDefStream = new ByteArrayInputStream(modelDef, (int) range.rangeStart(), len);
-            result.add(new ModelLoaderUtils.HttStreamChunker(modelDefStream, range, chunkSize));
+            result.add(new ModelLoaderUtils.HttpStreamChunker(modelDefStream, range, chunkSize));
         }
 
         return result;

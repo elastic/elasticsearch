@@ -73,7 +73,7 @@ final class ModelLoaderUtils {
         }
     }
 
-    static class HttStreamChunker {
+    static class HttpStreamChunker {
 
         record BytesAndPartIndex(BytesArray bytes, int partIndex) {}
 
@@ -83,7 +83,7 @@ final class ModelLoaderUtils {
         private final AtomicInteger currentPart;
         private final int lastPartNumber;
 
-        HttStreamChunker(URI uri, RequestRange range, int chunkSize) {
+        HttpStreamChunker(URI uri, RequestRange range, int chunkSize) {
             var inputStream = getHttpOrHttpsInputStream(uri, range);
             this.inputStream = inputStream;
             this.chunkSize = chunkSize;
@@ -92,7 +92,7 @@ final class ModelLoaderUtils {
         }
 
         // This ctor exists for testing purposes only.
-        HttStreamChunker(InputStream inputStream, RequestRange range, int chunkSize) {
+        HttpStreamChunker(InputStream inputStream, RequestRange range, int chunkSize) {
             this.inputStream = inputStream;
             this.chunkSize = chunkSize;
             this.lastPartNumber = range.startPart() + range.numParts();

@@ -338,7 +338,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
             .put(
                 IndexMetadata.SETTING_VERSION_CREATED,
                 IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_0_0, IndexVersion.current())
-             )
+            )
             .put("path.home", createTempDir().toString())
             .put("index.analysis.filter.synonyms.type", "synonym")
             .putList("index.analysis.filter.synonyms.synonyms", "programmer, developer")

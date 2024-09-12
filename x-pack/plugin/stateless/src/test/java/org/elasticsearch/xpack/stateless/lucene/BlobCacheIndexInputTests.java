@@ -90,14 +90,14 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class SearchIndexInputTests extends ESIndexInputTestCase {
+public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
 
     private ThreadPool threadPool;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        threadPool = getThreadPool("SearchIndexInputTests");
+        threadPool = getThreadPool("BlobCacheIndexInputTests");
     }
 
     @Override
@@ -118,7 +118,7 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
                 final String fileName = randomAlphaOfLength(5) + randomFileExtension();
                 final byte[] input = randomChecksumBytes(randomIntBetween(1, 100_000)).v2();
                 final long primaryTerm = randomNonNegativeLong();
-                final SearchIndexInput indexInput = new SearchIndexInput(
+                final BlobCacheIndexInput indexInput = new BlobCacheIndexInput(
                     fileName,
                     sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, fileName), input.length),
                     randomIOContext(),
@@ -209,7 +209,7 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
                 }
             };
             assertFalse(tracker.getLatestUploadInfo(termAndGen).isUploaded());
-            final SearchIndexInput indexInput = new SearchIndexInput(
+            final BlobCacheIndexInput indexInput = new BlobCacheIndexInput(
                 fileName,
                 sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, termAndGen.primaryTerm(), fileName), input.length),
                 randomIOContext(),
@@ -239,7 +239,7 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
             final byte[] input = randomByteArrayOfLength(randomIntBetween(1, 100_000));
             final String fileName = randomAlphaOfLength(5) + randomFileExtension();
             final long primaryTerm = randomNonNegativeLong();
-            final SearchIndexInput indexInput = new SearchIndexInput(
+            final BlobCacheIndexInput indexInput = new BlobCacheIndexInput(
                 fileName,
                 sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, fileName), input.length),
                 randomIOContext(),
@@ -250,7 +250,7 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
             );
 
             indexInput.seek(randomLongBetween(0, input.length - 1));
-            SearchIndexInput clone = asInstanceOf(SearchIndexInput.class, indexInput.clone());
+            BlobCacheIndexInput clone = asInstanceOf(BlobCacheIndexInput.class, indexInput.clone());
             assertThat(clone.cacheFile(), not(equalTo(indexInput.cacheFile())));
             assertThat(clone.getFilePointer(), equalTo(indexInput.getFilePointer()));
         }
@@ -299,7 +299,7 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
                 @Override
                 public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
                     // verifies that `getRange` does not exceed remaining file length except for padding, implicitly also
-                    // verifying that the remainingFileLength calculation in SearchIndexInput is correct too.
+                    // verifying that the remainingFileLength calculation in BlobCacheIndexInput is correct too.
                     assertThat(position + length, lessThanOrEqualTo(BlobCacheUtils.toPageAlignedSize(data.length)));
                     objectStoreCacheBlobReader.getRangeInputStream(position, length, listener);
                 }
@@ -337,7 +337,7 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
             for (int pos = interval; pos < data.length; pos += interval) {
                 final String fileName = randomAlphaOfLength(5) + randomFileExtension();
                 final int fileLength = (int) randomLongBetween(1, 2048);
-                final SearchIndexInput indexInput = new SearchIndexInput(
+                final BlobCacheIndexInput indexInput = new BlobCacheIndexInput(
                     fileName,
                     sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, blobName), pos + fileLength),
                     randomIOContext(),
@@ -354,7 +354,7 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
             // Read all data from blob store to fill all gaps which exercise SharedBlobCacheService#readMultiRegions
             objectStoreRequestCount.set(0);
             uploaded.set(true);
-            final SearchIndexInput indexInput = new SearchIndexInput(
+            final BlobCacheIndexInput indexInput = new BlobCacheIndexInput(
                 "everything",
                 sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, blobName), data.length),
                 randomIOContext(),
@@ -380,7 +380,7 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
         final long rangeLength = PAGE_SIZE * between(20, 40);
         final long rangeToWriteEnd = rangeToWriteStart + rangeLength;
         final ByteRange rangeToWrite = ByteRange.of(rangeToWriteStart, rangeToWriteEnd);
-        final var sequentialRangeMissingHandler = new SearchIndexInput.SequentialRangeMissingHandler(
+        final var sequentialRangeMissingHandler = new BlobCacheIndexInput.SequentialRangeMissingHandler(
             "__test__",
             "__unknown__",
             rangeToWrite,
@@ -481,7 +481,7 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
         final long rangeLength = PAGE_SIZE * between(20, 40);
         final long rangeToWriteEnd = rangeToWriteStart + rangeLength;
         final ByteRange rangeToWrite = ByteRange.of(rangeToWriteStart, rangeToWriteEnd);
-        final var sequentialRangeMissingHandler = new SearchIndexInput.SequentialRangeMissingHandler(
+        final var sequentialRangeMissingHandler = new BlobCacheIndexInput.SequentialRangeMissingHandler(
             "__test__",
             "__unknown__",
             rangeToWrite,
@@ -549,7 +549,7 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
             @Override
             public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
                 // verifies that `getRange` does not exceed remaining file length except for padding, implicitly also
-                // verifying that the remainingFileLength calculation in SearchIndexInput is correct too.
+                // verifying that the remainingFileLength calculation in BlobCacheIndexInput is correct too.
                 assertThat(position + length, lessThanOrEqualTo(BlobCacheUtils.toPageAlignedSize(input.length)));
                 objectStore.getRangeInputStream(position, length, listener);
             }

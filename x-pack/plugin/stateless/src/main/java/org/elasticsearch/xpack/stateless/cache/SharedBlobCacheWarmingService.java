@@ -24,9 +24,9 @@ import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
+import co.elastic.elasticsearch.stateless.lucene.BlobCacheIndexInput;
 import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
 import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
-import co.elastic.elasticsearch.stateless.lucene.SearchIndexInput;
 import co.elastic.elasticsearch.stateless.recovery.metering.RecoveryMetricsCollector;
 import co.elastic.elasticsearch.stateless.utils.IndexingShardRecoveryComparator;
 
@@ -627,7 +627,7 @@ public class SharedBlobCacheWarmingService {
                         (long) (blobRegion.region + 1) * cacheService.getRegionSize(),
                         // Can be executed on different thread pool depending whether we read from
                         // the SharedBlobCacheWarmingService (PREWARM_THREAD_POOL pool) or the IndexingShardCacheBlobReader (VBCC pool)
-                        new SearchIndexInput.SequentialRangeMissingHandler(
+                        new BlobCacheIndexInput.SequentialRangeMissingHandler(
                             WarmingTask.this,
                             cacheKey.fileName(),
                             range,

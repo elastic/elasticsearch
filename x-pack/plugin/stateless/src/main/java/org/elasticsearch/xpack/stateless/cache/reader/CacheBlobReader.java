@@ -19,13 +19,15 @@
 
 package co.elastic.elasticsearch.stateless.cache.reader;
 
+import co.elastic.elasticsearch.stateless.lucene.BlobCacheIndexInput;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.common.ByteRange;
 
 import java.io.InputStream;
 
 /**
- * Used by {@link co.elastic.elasticsearch.stateless.lucene.SearchIndexInput} to read data from the blob store or from the primary shard
+ * Used by {@link BlobCacheIndexInput} to read data from the blob store or from the primary shard
  * in order to populate the cache for a specific blob.
  */
 public interface CacheBlobReader {

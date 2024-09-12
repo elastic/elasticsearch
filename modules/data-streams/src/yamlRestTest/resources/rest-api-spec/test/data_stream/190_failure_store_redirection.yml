@@ -814,3 +814,88 @@ teardown:
   - match: { items.1.create.status: 409 }
   - match: { items.1.create.error.type: version_conflict_engine_exception}
   - is_false: items.1.create.failure_store
+
+---
+"Test failure store status with bulk request":
+  - requires:
+      reason: "Failure store status was added in 8.16+"
+      test_runner_features: [ capabilities, allowed_warnings, contains ]
+      capabilities:
+        - method: POST
+          path: /_bulk
+          capabilities: [ 'failure_store_status' ]
+
+  - do:
+      allowed_warnings:
+        - "index template [generic_logs_template] has index patterns [logs-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [generic_logs_template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: generic_logs_template
+        body:
+          index_patterns: logs-*
+          data_stream:
+            failure_store: true
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+                count:
+                  type: long
+  - do:
+      allowed_warnings:
+        - "index template [no-fs] has index patterns [no-fs*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [no-fs] will take precedence during new index creation"
+      indices.put_index_template:
+        name: no-fs
+        body:
+          index_patterns: no-fs*
+          data_stream:
+            failure_store: false
+          template:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+                count:
+                  type: long
+
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "create": { "_index": "logs-foobar", "_id": "1" } }'
+          - '{ "@timestamp": "2022-01-01", "baz": "quick", "a": "brown", "b": "fox" }'
+          - '{ "create": { "_index": "logs-foobar", "_id": "1" } }'
+          - '{ "@timestamp": "2022-01-01", "baz": "lazy", "a": "dog" }'
+          - '{ "create": { "_index": "logs-foobar", "_id": "1" } }'
+          - '{ "@timestamp": "2022-01-01", "count": "invalid" }'
+          - '{ "create": { "_index": "no-fs", "_id": "1" } }'
+          - '{ "@timestamp": "2022-01-01", "count": "invalid" }'
+  - is_true: errors
+  # Successfully indexed to backing index
+  - match: { items.0.create._index: '/\.ds-logs-foobar-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { items.0.create.status: 201 }
+  - is_false: items.1.create.failure_store
+
+  # Rejected but not eligible to go to failure store
+  - match: { items.1.create._index: '/\.ds-logs-foobar-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { items.1.create.status: 409 }
+  - match: { items.1.create.error.type: version_conflict_engine_exception}
+  - is_false: items.1.create.failure_store
+
+  # Successfully indexed to failure store
+  - match: { items.2.create._index: '/\.fs-logs-foobar-(\d{4}\.\d{2}\.\d{2}-)?000002/' }
+  - match: { items.2.create.status: 201 }
+  - match: { items.2.create.failure_store: used }
+
+  # Rejected, eligible to go to failure store, but failure store not enabled
+  - match: { items.3.create._index: '/\.ds-no-fs-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { items.3.create.status: 400 }
+  - match: { items.3.create.error.type: document_parsing_exception }
+  - match: { items.3.create.failure_store: not_enabled }

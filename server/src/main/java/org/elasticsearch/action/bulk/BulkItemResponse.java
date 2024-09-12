@@ -62,6 +62,7 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
 
             builder.field(_ID, failure.getId());
             builder.field(STATUS, failure.getStatus().getStatus());
+            failure.getFailureStoreStatus().toXContent(builder, params);
             builder.startObject(ERROR);
             ElasticsearchException.generateThrowableXContent(builder, params, failure.getCause());
             builder.endObject();

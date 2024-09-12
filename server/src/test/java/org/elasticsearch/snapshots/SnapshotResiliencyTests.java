@@ -2423,7 +2423,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     threadPool,
                     shardStateAction,
                     mappingUpdatedAction,
-                    new UpdateHelper(scriptService, DocumentParsingProvider.EMPTY_INSTANCE),
+                    new UpdateHelper(scriptService, DocumentParsingProvider.EMPTY_INSTANCE, indicesService),
                     actionFilters,
                     indexingMemoryLimits,
                     EmptySystemIndices.INSTANCE,

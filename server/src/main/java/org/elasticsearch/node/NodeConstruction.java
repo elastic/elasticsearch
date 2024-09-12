@@ -273,8 +273,6 @@ class NodeConstruction {
 
             ScriptService scriptService = constructor.createScriptService(settingsModule, threadPool, serviceProvider);
 
-            constructor.createUpdateHelper(documentParsingProvider, scriptService);
-
             constructor.construct(
                 threadPool,
                 settingsModule,
@@ -620,10 +618,16 @@ class NodeConstruction {
         return dataStreamGlobalRetentionSettings;
     }
 
-    private UpdateHelper createUpdateHelper(DocumentParsingProvider documentParsingProvider, ScriptService scriptService) {
-        UpdateHelper updateHelper = new UpdateHelper(scriptService, documentParsingProvider);
+    private UpdateHelper createUpdateHelper(
+        DocumentParsingProvider documentParsingProvider,
+        ScriptService scriptService,
+        IndicesService indicesService
+    ) {
+        UpdateHelper updateHelper = new UpdateHelper(scriptService, documentParsingProvider, indicesService);
 
-        modules.add(b -> { b.bind(UpdateHelper.class).toInstance(new UpdateHelper(scriptService, documentParsingProvider)); });
+        modules.add(
+            b -> { b.bind(UpdateHelper.class).toInstance(new UpdateHelper(scriptService, documentParsingProvider, indicesService)); }
+        );
         return updateHelper;
     }
 
@@ -1177,6 +1181,8 @@ class NodeConstruction {
                 serviceProvider.newReadinessService(pluginsService, clusterService, environment)
             );
         }
+
+        createUpdateHelper(documentParsingProvider, scriptService, indicesService);
 
         injector = modules.createInjector();
 

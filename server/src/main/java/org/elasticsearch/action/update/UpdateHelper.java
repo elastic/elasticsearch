@@ -26,6 +26,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.script.Script;
@@ -50,10 +51,12 @@ public class UpdateHelper {
 
     private final ScriptService scriptService;
     private final DocumentParsingProvider documentParsingProvider;
+    private final IndicesService indicesService;
 
-    public UpdateHelper(ScriptService scriptService, DocumentParsingProvider documentParsingProvider) {
+    public UpdateHelper(ScriptService scriptService, DocumentParsingProvider documentParsingProvider, IndicesService indicesService) {
         this.scriptService = scriptService;
         this.documentParsingProvider = documentParsingProvider;
+        this.indicesService = indicesService;
     }
 
     /**

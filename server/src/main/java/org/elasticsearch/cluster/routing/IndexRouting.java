@@ -302,17 +302,15 @@ public abstract class IndexRouting {
             for (Map.Entry<String, Object> e : flat.entrySet()) {
                 if (isRoutingPath.test(e.getKey())) {
                     if (e.getValue() instanceof List<?> listValue) {
-                        listValue.forEach(v -> hashValue(b, e.getKey(), v));
+                        for (Object v : listValue) {
+                            b.addHash(e.getKey(), new BytesRef(v.toString()));
+                        }
                     } else {
-                        hashValue(b, e.getKey(), e.getValue());
+                        b.addHash(e.getKey(), new BytesRef(e.getValue().toString()));
                     }
                 }
             }
             return b.createId(suffix, IndexRouting.ExtractFromSource::defaultOnEmpty);
-        }
-
-        private static void hashValue(Builder b, String key, Object value) {
-            b.hashes.add(new NameAndHash(new BytesRef(key), hash(new BytesRef(value.toString()))));
         }
 
         private static int defaultOnEmpty() {
@@ -344,7 +342,7 @@ public abstract class IndexRouting {
 
             public void addMatching(String fieldName, BytesRef string) {
                 if (isRoutingPath.test(fieldName)) {
-                    hashes.add(new NameAndHash(new BytesRef(fieldName), hash(string)));
+                    addHash(fieldName, string);
                 }
             }
 
@@ -382,7 +380,7 @@ public abstract class IndexRouting {
                     case VALUE_STRING:
                     case VALUE_NUMBER:
                     case VALUE_BOOLEAN:
-                        hashes.add(new NameAndHash(new BytesRef(path), hash(new BytesRef(source.text()))));
+                        addHash(path, new BytesRef(source.text()));
                         source.nextToken();
                         break;
                     case START_ARRAY:
@@ -400,6 +398,10 @@ public abstract class IndexRouting {
                             source.currentToken()
                         );
                 }
+            }
+
+            private void addHash(String path, BytesRef value) {
+                hashes.add(new NameAndHash(new BytesRef(path), hash(value), hashes.size()));
             }
 
             private int buildHash(IntSupplier onEmpty) {
@@ -470,10 +472,13 @@ public abstract class IndexRouting {
         }
     }
 
-    private record NameAndHash(BytesRef name, int hash) implements Comparable<NameAndHash> {
+    private record NameAndHash(BytesRef name, int hash, int order) implements Comparable<NameAndHash> {
         @Override
         public int compareTo(NameAndHash o) {
-            return name.compareTo(o.name);
+            int i = name.compareTo(o.name);
+            if (i != 0) return i;
+            // ensures array values are in the order as they appear in the source
+            return Integer.compare(order, o.order);
         }
     }
 }

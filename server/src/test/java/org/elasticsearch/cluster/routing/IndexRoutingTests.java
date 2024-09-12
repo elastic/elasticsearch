@@ -601,7 +601,8 @@ public class IndexRoutingTests extends ESTestCase {
         IndexRouting routing = indexRoutingForPath(shards, "a,b,c,d");
         assertIndexShard(
             routing,
-            Map.of("a", List.of("foo", "bar", "foo"), "b", List.of(21, 42), "c", List.of(true), "d", List.of()),
+            Map.of("c", List.of(true), "d", List.of(), "a", List.of("foo", "bar", "foo"), "b", List.of(21, 42)),
+            // Note that the fields are sorted
             Math.floorMod(hash(List.of("a", "foo", "a", "bar", "a", "foo", "b", "21", "b", "42", "c", "true")), shards)
         );
     }

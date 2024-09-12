@@ -119,9 +119,7 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
         ClusterState previousClusterState = this.clusterState;
         ClusterState.Builder builder = ClusterState.builder(newClusterState).incrementVersion();
         if (previousClusterState.routingTable() != newClusterState.routingTable()) {
-            builder.routingTable(
-                RoutingTable.builder(newClusterState.routingTable()).version(newClusterState.routingTable().version() + 1).build()
-            );
+            builder.routingTable(RoutingTable.builder(newClusterState.routingTable()).build());
         }
         if (previousClusterState.metadata() != newClusterState.metadata()) {
             builder.metadata(Metadata.builder(newClusterState.metadata()).version(newClusterState.metadata().version() + 1));

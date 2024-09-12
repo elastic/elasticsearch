@@ -3244,14 +3244,16 @@ public class DocumentParserTests extends MapperServiceTestCase {
             }
 
             @Override
-            public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-                return new StringStoredFieldFieldLoader(fullPath(), leafName()) {
+            protected SyntheticSourceSupport syntheticSourceSupport() {
+                var loader = new StringStoredFieldFieldLoader(fullPath(), leafName()) {
                     @Override
                     protected void write(XContentBuilder b, Object value) throws IOException {
                         BytesRef ref = (BytesRef) value;
                         b.utf8Value(ref.bytes, ref.offset, ref.length);
                     }
                 };
+
+                return new SyntheticSourceSupport.Native(loader);
             }
 
             private static final TypeParser PARSER = new FixedTypeParser(c -> new MockMetadataMapper());

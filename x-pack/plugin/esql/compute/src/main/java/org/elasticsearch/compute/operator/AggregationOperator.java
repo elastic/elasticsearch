@@ -17,6 +17,7 @@ import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.Aggregator.Factory;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -93,9 +94,9 @@ public class AggregationOperator implements Operator {
         long start = System.nanoTime();
         checkState(needsInput(), "Operator is already finishing");
         requireNonNull(page, "page is null");
-        try {
+        try (BooleanVector noMasking = driverContext.blockFactory().newConstantBooleanVector(true, page.getPositionCount())) {
             for (Aggregator aggregator : aggregators) {
-                aggregator.processPage(page);
+                aggregator.processPage(page, noMasking);
             }
         } finally {
             page.releaseBlocks();

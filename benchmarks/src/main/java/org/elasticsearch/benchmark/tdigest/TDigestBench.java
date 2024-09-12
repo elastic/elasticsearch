@@ -67,7 +67,7 @@ public class TDigestBench {
         AVL_TREE {
             @Override
             TDigest create(double compression) {
-                return TDigest.createAvlTreeDigest(compression);
+                return TDigest.createAvlTreeDigest(WrapperTDigestArrays.INSTANCE, compression);
             }
         },
         HYBRID {

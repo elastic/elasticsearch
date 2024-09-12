@@ -14,6 +14,8 @@ import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
@@ -29,11 +31,16 @@ import org.elasticsearch.xpack.rollup.job.RollupJobTask;
 import java.util.List;
 import java.util.function.BooleanSupplier;
 
+import static org.elasticsearch.xpack.rollup.Rollup.DEPRECATION_KEY;
+import static org.elasticsearch.xpack.rollup.Rollup.DEPRECATION_MESSAGE;
+
 public class TransportStopRollupAction extends TransportTasksAction<
     RollupJobTask,
     StopRollupJobAction.Request,
     StopRollupJobAction.Response,
     StopRollupJobAction.Response> {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(TransportStopRollupAction.class);
 
     private final ThreadPool threadPool;
 
@@ -73,6 +80,7 @@ public class TransportStopRollupAction extends TransportTasksAction<
         RollupJobTask jobTask,
         ActionListener<StopRollupJobAction.Response> listener
     ) {
+        DEPRECATION_LOGGER.warn(DeprecationCategory.API, DEPRECATION_KEY, DEPRECATION_MESSAGE);
         if (jobTask.getConfig().getId().equals(request.getId())) {
             jobTask.stop(maybeWrapWithBlocking(request, jobTask, listener, threadPool));
         } else {

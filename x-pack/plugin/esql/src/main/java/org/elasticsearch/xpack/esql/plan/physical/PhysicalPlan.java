@@ -37,25 +37,20 @@ public abstract class PhysicalPlan extends QueryPlan<PhysicalPlan> {
             FilterExec.ENTRY,
             FragmentExec.ENTRY,
             GrokExec.ENTRY,
+            HashJoinExec.ENTRY,
             LimitExec.ENTRY,
             LocalSourceExec.ENTRY,
-            HashJoinExec.ENTRY
+            MvExpandExec.ENTRY,
+            OrderExec.ENTRY,
+            ProjectExec.ENTRY,
+            RowExec.ENTRY,
+            ShowExec.ENTRY,
+            TopNExec.ENTRY
         );
     }
 
     public PhysicalPlan(Source source, List<PhysicalPlan> children) {
         super(source, children);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        // TODO remove when all PhysicalPlans are migrated to NamedWriteable
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public String getWriteableName() {
-        throw new UnsupportedOperationException();
     }
 
     @Override

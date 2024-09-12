@@ -725,9 +725,6 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
     }
 
-    // TODO Lucene 10 upgrade, this fails because automata are not evaluated as "equal" any more, needs more investigation
-    // and potentially an issue / fix in Lucene
-    @AwaitsFix(bugUrl = "https://github.com/apache/lucene/pull/13718")
     public void testRegexp() throws IOException {
         String json = Strings.format("""
             {

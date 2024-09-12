@@ -106,7 +106,16 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                                 .sorted(Comparator.comparingLong(e -> e.v2().offset()))
                                 .map(Tuple::v1)
                                 .toList(),
-                            equalTo(internalFiles.stream().sorted(StatelessCompoundCommit.InternalFile.INTERNAL_FILES_COMPARATOR).toList())
+                            equalTo(
+                                internalFiles.stream()
+                                    .map(e -> Tuple.tuple(e, commitFiles.get(e)))
+                                    .sorted(
+                                        Comparator.comparingLong((Tuple<String, BlobLocation> e) -> e.v2().fileLength())
+                                            .thenComparing(Tuple::v1)
+                                    )
+                                    .map(Tuple::v1)
+                                    .toList()
+                            )
                         );
 
                         for (Map.Entry<String, BlobLocation> commitFileBlobLocation : compoundCommit.commitFiles().entrySet()) {

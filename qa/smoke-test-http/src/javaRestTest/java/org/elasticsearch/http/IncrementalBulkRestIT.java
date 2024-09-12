@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http;
@@ -88,9 +89,7 @@ public class IncrementalBulkRestIT extends HttpSmokeTestCase {
         final Response indexSuccessFul = getRestClient().performRequest(firstBulkRequest);
         assertThat(indexSuccessFul.getStatusLine().getStatusCode(), equalTo(OK.getStatus()));
 
-        clusterAdmin().prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put(IncrementalBulkService.INCREMENTAL_BULK.getKey(), false).build())
-            .get();
+        updateClusterSettings(Settings.builder().put(IncrementalBulkService.INCREMENTAL_BULK.getKey(), false));
 
         internalCluster().getInstances(IncrementalBulkService.class).forEach(i -> i.setForTests(false));
 
@@ -98,9 +97,7 @@ public class IncrementalBulkRestIT extends HttpSmokeTestCase {
             sendLargeBulk();
         } finally {
             internalCluster().getInstances(IncrementalBulkService.class).forEach(i -> i.setForTests(true));
-            clusterAdmin().prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put(IncrementalBulkService.INCREMENTAL_BULK.getKey(), (String) null).build())
-                .get();
+            updateClusterSettings(Settings.builder().put(IncrementalBulkService.INCREMENTAL_BULK.getKey(), (String) null));
         }
     }
 

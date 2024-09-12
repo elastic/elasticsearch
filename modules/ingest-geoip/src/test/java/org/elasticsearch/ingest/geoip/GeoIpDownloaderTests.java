@@ -584,7 +584,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
 
     public void testUpdateDatabasesWriteBlock() {
         ClusterState state = createClusterState(new PersistentTasksCustomMetadata(1L, Map.of()));
-        var geoIpIndex = state.getMetadata().getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX).getWriteIndex().getName();
+        var geoIpIndex = state.getMetadata().getProject().getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX).getWriteIndex().getName();
         state = ClusterState.builder(state)
             .blocks(new ClusterBlocks.Builder().addIndexBlock(geoIpIndex, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
             .build();
@@ -606,7 +606,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
 
     public void testUpdateDatabasesIndexNotReady() {
         ClusterState state = createClusterState(new PersistentTasksCustomMetadata(1L, Map.of()), true);
-        var geoIpIndex = state.getMetadata().getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX).getWriteIndex().getName();
+        var geoIpIndex = state.getMetadata().getProject().getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX).getWriteIndex().getName();
         state = ClusterState.builder(state)
             .blocks(new ClusterBlocks.Builder().addIndexBlock(geoIpIndex, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
             .build();

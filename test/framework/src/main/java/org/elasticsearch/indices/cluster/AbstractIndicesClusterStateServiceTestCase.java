@@ -99,7 +99,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
             // check that all shards in local routing nodes have been allocated
             for (ShardRouting shardRouting : localRoutingNode) {
                 Index index = shardRouting.index();
-                IndexMetadata indexMetadata = state.metadata().getIndexSafe(index);
+                IndexMetadata indexMetadata = state.metadata().getProject().getIndexSafe(index);
 
                 MockIndexShard shard = indicesService.getShardOrNull(shardRouting.shardId());
                 ShardRouting failedShard = failedShardsCache.get(shardRouting.shardId());
@@ -139,6 +139,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                         if (shard.routingEntry().primary() && shard.routingEntry().active()) {
                             IndexShardRoutingTable shardRoutingTable = state.routingTable().shardRoutingTable(shard.shardId());
                             Set<String> inSyncIds = state.metadata()
+                                .getProject()
                                 .index(shard.shardId().getIndex())
                                 .inSyncAllocationIds(shard.shardId().id());
                             assertThat(
@@ -164,7 +165,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                 fail("Index service " + index + " should be removed from indicesService due to disabled state persistence");
             }
 
-            assertTrue(state.metadata().getIndexSafe(index) != null);
+            assertTrue(state.metadata().getProject().getIndexSafe(index) != null);
 
             boolean shardsFound = false;
             for (Shard shard : indexService) {

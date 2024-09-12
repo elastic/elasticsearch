@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
@@ -51,7 +52,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
     }
 
     public void testGetAdditionalIndexSettings() throws Exception {
-        Metadata metadata = Metadata.EMPTY_METADATA;
+        ProjectMetadata projectMetadata = Metadata.EMPTY_METADATA.getProject();
         String dataStreamName = "logs-app1";
 
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
@@ -78,7 +79,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             true,
-            metadata,
+            projectMetadata,
             now,
             settings,
             List.of(new CompressedXContent(mapping))
@@ -94,7 +95,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
     }
 
     public void testGetAdditionalIndexSettingsIndexRoutingPathAlreadyDefined() throws Exception {
-        Metadata metadata = Metadata.EMPTY_METADATA;
+        ProjectMetadata projectMetadata = Metadata.EMPTY_METADATA.getProject();
         String dataStreamName = "logs-app1";
 
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
@@ -123,7 +124,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             true,
-            metadata,
+            projectMetadata,
             now,
             settings,
             List.of(new CompressedXContent(mapping))
@@ -138,7 +139,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
     }
 
     public void testGetAdditionalIndexSettingsMappingsMerging() throws Exception {
-        Metadata metadata = Metadata.EMPTY_METADATA;
+        ProjectMetadata projectMetadata = Metadata.EMPTY_METADATA.getProject();
         String dataStreamName = "logs-app1";
 
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
@@ -193,7 +194,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             true,
-            metadata,
+            projectMetadata,
             now,
             settings,
             List.of(new CompressedXContent(mapping1), new CompressedXContent(mapping2), new CompressedXContent(mapping3))
@@ -209,7 +210,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
     }
 
     public void testGetAdditionalIndexSettingsNoMappings() {
-        Metadata metadata = Metadata.EMPTY_METADATA;
+        ProjectMetadata projectMetadata = Metadata.EMPTY_METADATA.getProject();
         String dataStreamName = "logs-app1";
 
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
@@ -218,7 +219,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             true,
-            metadata,
+            projectMetadata,
             now,
             settings,
             List.of()
@@ -233,7 +234,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
     }
 
     public void testGetAdditionalIndexSettingsLookAheadTime() throws Exception {
-        Metadata metadata = Metadata.EMPTY_METADATA;
+        ProjectMetadata projectMetadata = Metadata.EMPTY_METADATA.getProject();
         String dataStreamName = "logs-app1";
 
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
@@ -243,7 +244,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             true,
-            metadata,
+            projectMetadata,
             now,
             settings,
             List.of(new CompressedXContent("{}"))
@@ -258,7 +259,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
     }
 
     public void testGetAdditionalIndexSettingsLookBackTime() throws Exception {
-        Metadata metadata = Metadata.EMPTY_METADATA;
+        ProjectMetadata projectMetadata = Metadata.EMPTY_METADATA.getProject();
         String dataStreamName = "logs-app1";
 
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
@@ -268,7 +269,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             true,
-            metadata,
+            projectMetadata,
             now,
             settings,
             List.of(new CompressedXContent("{}"))
@@ -288,10 +289,10 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
 
         Instant sixHoursAgo = Instant.now().minus(6, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS);
         Instant currentEnd = sixHoursAgo.plusMillis(lookAheadTime.getMillis());
-        Metadata metadata = DataStreamTestHelper.getClusterStateWithDataStream(
+        ProjectMetadata projectMetadata = DataStreamTestHelper.getClusterStateWithDataStream(
             dataStreamName,
             List.of(new Tuple<>(sixHoursAgo, currentEnd))
-        ).getMetadata();
+        ).getMetadata().getProject();
 
         Instant now = sixHoursAgo.plus(6, ChronoUnit.HOURS);
         Settings settings = Settings.EMPTY;
@@ -299,7 +300,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             true,
-            metadata,
+            projectMetadata,
             now,
             settings,
             List.of(new CompressedXContent("{}"))
@@ -326,7 +327,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         );
         DataStream ds = mb.dataStream(dataStreamName);
         mb.put(ds.copy().setIndexMode(IndexMode.TIME_SERIES).build());
-        Metadata metadata = mb.build();
+        ProjectMetadata projectMetadata = mb.build().getProject();
 
         Instant now = twoHoursAgo.plus(2, ChronoUnit.HOURS);
         Settings settings = Settings.EMPTY;
@@ -336,7 +337,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
                 DataStream.getDefaultBackingIndexName(dataStreamName, 1),
                 dataStreamName,
                 true,
-                metadata,
+                projectMetadata,
                 now,
                 settings,
                 null
@@ -354,7 +355,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
     }
 
     public void testGetAdditionalIndexSettingsNonTsdbTemplate() {
-        Metadata metadata = Metadata.EMPTY_METADATA;
+        ProjectMetadata projectMetadata = Metadata.EMPTY_METADATA.getProject();
         String dataStreamName = "logs-app1";
 
         Settings settings = Settings.EMPTY;
@@ -362,7 +363,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             false,
-            metadata,
+            projectMetadata,
             Instant.ofEpochMilli(1L),
             settings,
             null
@@ -375,14 +376,17 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         String dataStreamName = "logs-app1";
         IndexMetadata idx = createFirstBackingIndex(dataStreamName).build();
         DataStream existingDataStream = newInstance(dataStreamName, List.of(idx.getIndex()));
-        Metadata metadata = Metadata.builder().dataStreams(Map.of(dataStreamName, existingDataStream), Map.of()).build();
+        ProjectMetadata projectMetadata = Metadata.builder()
+            .dataStreams(Map.of(dataStreamName, existingDataStream), Map.of())
+            .build()
+            .getProject();
 
         Settings settings = Settings.EMPTY;
         Settings result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
             true,
-            metadata,
+            projectMetadata,
             now,
             settings,
             List.of()
@@ -408,14 +412,14 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
                 1
             ).getMetadata()
         );
-        Metadata metadata = mb.build();
+        ProjectMetadata projectMetadata = mb.build().getProject();
 
         Settings settings = Settings.EMPTY;
         Settings result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
             false,
-            metadata,
+            projectMetadata,
             Instant.ofEpochMilli(1L),
             settings,
             List.of()
@@ -686,7 +690,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
     }
 
     private Settings generateTsdbSettings(String mapping, Instant now) throws IOException {
-        Metadata metadata = Metadata.EMPTY_METADATA;
+        ProjectMetadata projectMetadata = Metadata.EMPTY_METADATA.getProject();
         String dataStreamName = "logs-app1";
         Settings settings = Settings.EMPTY;
 
@@ -694,7 +698,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             true,
-            metadata,
+            projectMetadata,
             now,
             settings,
             List.of(new CompressedXContent(mapping))

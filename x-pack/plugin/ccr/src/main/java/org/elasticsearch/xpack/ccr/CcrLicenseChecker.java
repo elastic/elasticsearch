@@ -137,9 +137,12 @@ public class CcrLicenseChecker {
             onFailure,
             remoteClusterStateResponse -> {
                 ClusterState remoteClusterState = remoteClusterStateResponse.getState();
-                final IndexMetadata leaderIndexMetadata = remoteClusterState.getMetadata().index(leaderIndex);
+                final IndexMetadata leaderIndexMetadata = remoteClusterState.getMetadata().getProject().index(leaderIndex);
                 if (leaderIndexMetadata == null) {
-                    final IndexAbstraction indexAbstraction = remoteClusterState.getMetadata().getIndicesLookup().get(leaderIndex);
+                    final IndexAbstraction indexAbstraction = remoteClusterState.getMetadata()
+                        .getProject()
+                        .getIndicesLookup()
+                        .get(leaderIndex);
                     final Exception failure;
                     if (indexAbstraction == null) {
                         failure = new IndexNotFoundException(leaderIndex);
@@ -160,7 +163,7 @@ public class CcrLicenseChecker {
                     onFailure.accept(new IndexClosedException(leaderIndexMetadata.getIndex()));
                     return;
                 }
-                IndexAbstraction indexAbstraction = remoteClusterState.getMetadata().getIndicesLookup().get(leaderIndex);
+                IndexAbstraction indexAbstraction = remoteClusterState.getMetadata().getProject().getIndicesLookup().get(leaderIndex);
                 final DataStream remoteDataStream = indexAbstraction.getParentDataStream() != null
                     ? indexAbstraction.getParentDataStream()
                     : null;

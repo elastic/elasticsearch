@@ -452,7 +452,9 @@ public abstract class TransportReplicationAction<
         void runWithPrimaryShardReference(final PrimaryShardReference primaryShardReference) {
             try {
                 final ClusterState clusterState = clusterService.state();
-                final IndexMetadata indexMetadata = clusterState.metadata().getIndexSafe(primaryShardReference.routingEntry().index());
+                final IndexMetadata indexMetadata = clusterState.metadata()
+                    .getProject()
+                    .getIndexSafe(primaryShardReference.routingEntry().index());
 
                 final ClusterBlockException blockException = blockExceptions(clusterState, indexMetadata.getIndex().getName());
                 if (blockException != null) {
@@ -831,7 +833,7 @@ public abstract class TransportReplicationAction<
                     finishAsFailed(blockException);
                 }
             } else {
-                final IndexMetadata indexMetadata = state.metadata().index(request.shardId().getIndex());
+                final IndexMetadata indexMetadata = state.metadata().getProject().index(request.shardId().getIndex());
                 if (indexMetadata == null) {
                     // ensure that the cluster state on the node is at least as high as the node that decided that the index was there
                     if (state.version() < request.routedBasedOnClusterVersion()) {

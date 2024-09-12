@@ -1529,7 +1529,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
     private Store.MetadataSnapshot getMetadataSnapshot(String nodeName, String indexName) throws IOException {
         ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeName);
-        IndexService indexService = indicesService.indexService(clusterState.metadata().index(indexName).getIndex());
+        IndexService indexService = indicesService.indexService(clusterState.metadata().getProject().index(indexName).getIndex());
         IndexShard shard = indexService.getShard(0);
         try (Engine.IndexCommitRef indexCommitRef = shard.acquireSafeIndexCommit()) {
             IndexCommit safeCommit = indexCommitRef.getIndexCommit();

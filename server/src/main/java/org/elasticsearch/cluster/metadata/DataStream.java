@@ -298,7 +298,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public Index selectTimeSeriesWriteIndex(Instant timestamp, Metadata metadata) {
         for (int i = backingIndices.indices.size() - 1; i >= 0; i--) {
             Index index = backingIndices.indices.get(i);
-            IndexMetadata im = metadata.index(index);
+            IndexMetadata im = metadata.getProject().index(index);
 
             // TODO: make index_mode, start and end time fields in IndexMetadata class.
             // (this to avoid the overhead that occurs when reading a setting)
@@ -530,7 +530,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         long currentTimeMillis = timeProvider.getAsLong();
         do {
             newWriteIndexName = dataStreamIndices.generateName(name, ++generation, currentTimeMillis);
-        } while (clusterMetadata.hasIndexAbstraction(newWriteIndexName));
+        } while (clusterMetadata.getProject().hasIndexAbstraction(newWriteIndexName));
         return Tuple.tuple(newWriteIndexName, generation);
     }
 
@@ -682,7 +682,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      */
     public DataStream addBackingIndex(Metadata clusterMetadata, Index index) {
         // validate that index is not part of another data stream
-        final var parentDataStream = clusterMetadata.getIndicesLookup().get(index.getName()).getParentDataStream();
+        final var parentDataStream = clusterMetadata.getProject().getIndicesLookup().get(index.getName()).getParentDataStream();
         if (parentDataStream != null) {
             validateDataStreamAlreadyContainsIndex(index, parentDataStream, false);
             return this;
@@ -709,7 +709,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      */
     public DataStream addFailureStoreIndex(Metadata clusterMetadata, Index index) {
         // validate that index is not part of another data stream
-        final var parentDataStream = clusterMetadata.getIndicesLookup().get(index.getName()).getParentDataStream();
+        final var parentDataStream = clusterMetadata.getProject().getIndicesLookup().get(index.getName()).getParentDataStream();
         if (parentDataStream != null) {
             validateDataStreamAlreadyContainsIndex(index, parentDataStream, true);
             return this;
@@ -750,7 +750,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     private void ensureNoAliasesOnIndex(Metadata clusterMetadata, Index index) {
-        IndexMetadata im = clusterMetadata.index(clusterMetadata.getIndicesLookup().get(index.getName()).getWriteIndex());
+        IndexMetadata im = clusterMetadata.getProject()
+            .index(clusterMetadata.getProject().getIndicesLookup().get(index.getName()).getWriteIndex());
         if (im.getAliases().size() > 0) {
             throw new IllegalArgumentException(
                 String.format(
@@ -1285,7 +1286,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (result == null) {
             String timestampAsString = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(timestamp);
             String writeableIndicesString = getIndices().stream()
-                .map(metadata::index)
+                .map(metadata.getProject()::index)
                 .map(IndexMetadata::getSettings)
                 .map(
                     settings -> "["
@@ -1392,7 +1393,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * Resolve the index abstraction to a data stream. This handles alias resolution as well as data stream resolution. This does <b>NOT</b>
      * resolve a data stream by providing a concrete backing index.
      */
-    public static DataStream resolveDataStream(IndexAbstraction indexAbstraction, Metadata metadata) {
+    public static DataStream resolveDataStream(IndexAbstraction indexAbstraction, ProjectMetadata project) {
         // We do not consider concrete indices - only data streams and data stream aliases.
         if (indexAbstraction == null || indexAbstraction.isDataStreamRelated() == false) {
             return null;
@@ -1403,7 +1404,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (writeIndex == null) {
             return null;
         }
-        IndexAbstraction writeAbstraction = metadata.getIndicesLookup().get(writeIndex.getName());
+        IndexAbstraction writeAbstraction = project.getIndicesLookup().get(writeIndex.getName());
         return writeAbstraction.getParentDataStream();
     }
 

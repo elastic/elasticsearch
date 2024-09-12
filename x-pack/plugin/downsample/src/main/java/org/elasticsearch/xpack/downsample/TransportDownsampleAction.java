@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata.DownsampleTaskStatus;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -223,8 +224,9 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 }
             }
         }
+        final ProjectMetadata projectMetadata = state.metadata().getProject();
         // Assert source index exists
-        IndexMetadata sourceIndexMetadata = state.getMetadata().index(sourceIndexName);
+        IndexMetadata sourceIndexMetadata = projectMetadata.index(sourceIndexName);
         if (sourceIndexMetadata == null) {
             recordInvalidConfigurationMetrics(startTime);
             listener.onFailure(new IndexNotFoundException(sourceIndexName));
@@ -262,12 +264,12 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         final TaskId parentTask = new TaskId(clusterService.localNode().getId(), task.getId());
         // Short circuit if target index has been downsampled:
         final String downsampleIndexName = request.getTargetIndex();
-        if (canShortCircuit(downsampleIndexName, parentTask, request.getWaitTimeout(), startTime, state.metadata(), listener)) {
+        if (canShortCircuit(downsampleIndexName, parentTask, request.getWaitTimeout(), startTime, projectMetadata, listener)) {
             logger.info("Skipping downsampling, because a previous execution already completed downsampling");
             return;
         }
         try {
-            MetadataCreateIndexService.validateIndexName(downsampleIndexName, state.metadata(), state.routingTable());
+            MetadataCreateIndexService.validateIndexName(downsampleIndexName, projectMetadata, state.routingTable());
         } catch (ResourceAlreadyExistsException e) {
             // ignore index already exists
         }
@@ -380,13 +382,12 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                     }
                 }, e -> {
                     if (e instanceof ResourceAlreadyExistsException) {
-                        var metadata = clusterService.state().metadata();
                         if (canShortCircuit(
                             request.getTargetIndex(),
                             parentTask,
                             request.getWaitTimeout(),
                             startTime,
-                            metadata,
+                            clusterService.state().metadata().getProject(),
                             listener
                         )) {
                             logger.info("Downsample tasks are not created, because a previous execution already completed downsampling");
@@ -421,10 +422,10 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         TaskId parentTask,
         TimeValue waitTimeout,
         long startTime,
-        Metadata metadata,
+        ProjectMetadata projectMetadata,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        IndexMetadata targetIndexMetadata = metadata.index(targetIndexName);
+        IndexMetadata targetIndexMetadata = projectMetadata.index(targetIndexName);
         if (targetIndexMetadata == null) {
             return false;
         }
@@ -1019,7 +1020,8 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                     @Override
                     public ClusterState execute(ClusterState currentState) {
                         final Metadata metadata = currentState.metadata();
-                        final IndexMetadata downsampleIndex = metadata.index(metadata.index(downsampleIndexName).getIndex());
+                        final IndexMetadata downsampleIndex = metadata.getProject()
+                            .index(metadata.getProject().index(downsampleIndexName).getIndex());
                         if (IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(downsampleIndex.getSettings()) == DownsampleTaskStatus.SUCCESS) {
                             return currentState;
                         }

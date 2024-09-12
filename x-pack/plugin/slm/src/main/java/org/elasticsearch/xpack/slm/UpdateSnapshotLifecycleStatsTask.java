@@ -37,7 +37,7 @@ public class UpdateSnapshotLifecycleStatsTask extends ClusterStateUpdateTask {
     @Override
     public ClusterState execute(ClusterState currentState) {
         final Metadata currentMeta = currentState.metadata();
-        final SnapshotLifecycleMetadata currentSlmMeta = currentMeta.custom(SnapshotLifecycleMetadata.TYPE);
+        final SnapshotLifecycleMetadata currentSlmMeta = currentMeta.getProject().custom(SnapshotLifecycleMetadata.TYPE);
 
         if (currentSlmMeta == null) {
             return currentState;

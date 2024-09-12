@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -235,8 +236,9 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
                 continue;
             }
             String resolvedIndexName = IndexNameExpressionResolver.resolveDateMathExpression(request.index());
-            IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(resolvedIndexName);
-            DataStream dataStream = DataStream.resolveDataStream(indexAbstraction, metadata);
+            final ProjectMetadata project = metadata.getProject();
+            IndexAbstraction indexAbstraction = project.getIndicesLookup().get(resolvedIndexName);
+            DataStream dataStream = DataStream.resolveDataStream(indexAbstraction, project);
             // We only track index requests into data streams.
             if (dataStream != null) {
                 failureStoreMetrics.incrementTotal(dataStream.getName());
@@ -311,7 +313,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             }
             // Determine which data streams and failure stores need to be rolled over.
             if (lazyRolloverFeature) {
-                DataStream dataStream = state.metadata().dataStreams().get(request.index());
+                DataStream dataStream = state.metadata().getProject().dataStreams().get(request.index());
                 if (dataStream != null) {
                     if (writeToFailureStore == false && dataStream.getBackingIndices().isRolloverOnWrite()) {
                         dataStreamsToBeRolledOver.add(request.index());
@@ -572,36 +574,36 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
      * See {@link #resolveFailureStore(String, Metadata, long)}
      */
     // Visibility for testing
-    static Boolean resolveFailureInternal(String indexName, Metadata metadata, long epochMillis) {
+    static Boolean resolveFailureInternal(String indexName, ProjectMetadata projectMetadata, long epochMillis) {
         if (DataStream.isFailureStoreFeatureFlagEnabled() == false) {
             return null;
         }
-        var resolution = resolveFailureStoreFromMetadata(indexName, metadata, epochMillis);
+        var resolution = resolveFailureStoreFromMetadata(indexName, projectMetadata, epochMillis);
         if (resolution != null) {
             return resolution;
         }
-        return resolveFailureStoreFromTemplate(indexName, metadata);
+        return resolveFailureStoreFromTemplate(indexName, projectMetadata);
     }
 
     @Override
     protected Boolean resolveFailureStore(String indexName, Metadata metadata, long time) {
-        return resolveFailureInternal(indexName, metadata, time);
+        return resolveFailureInternal(indexName, metadata.getProject(), time);
     }
 
     /**
      * Determines if an index name is associated with an existing data stream that has a failure store enabled.
      * @param indexName The index name to check.
-     * @param metadata Cluster state metadata.
+     * @param projectMetadata ProjectMetadata from the cluster state.
      * @param epochMillis A timestamp to use when resolving date math in the index name.
      * @return true if the given index name corresponds to an existing data stream with a failure store enabled.
      */
-    private static Boolean resolveFailureStoreFromMetadata(String indexName, Metadata metadata, long epochMillis) {
+    private static Boolean resolveFailureStoreFromMetadata(String indexName, ProjectMetadata projectMetadata, long epochMillis) {
         if (indexName == null) {
             return null;
         }
 
         // Get index abstraction, resolving date math if it exists
-        IndexAbstraction indexAbstraction = metadata.getIndicesLookup()
+        IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup()
             .get(IndexNameExpressionResolver.resolveDateMathExpression(indexName, epochMillis));
         if (indexAbstraction == null || indexAbstraction.isDataStreamRelated() == false) {
             return null;
@@ -609,7 +611,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
 
         // We only store failures if the failure is being written to a data stream,
         // not when directly writing to backing indices/failure stores
-        DataStream targetDataStream = DataStream.resolveDataStream(indexAbstraction, metadata);
+        DataStream targetDataStream = DataStream.resolveDataStream(indexAbstraction, projectMetadata);
 
         // We will store the failure if the write target belongs to a data stream with a failure store.
         return targetDataStream != null && targetDataStream.isFailureStoreEnabled();
@@ -618,20 +620,20 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
     /**
      * Determines if an index name is associated with an index template that has a data stream failure store enabled.
      * @param indexName The index name to check.
-     * @param metadata Cluster state metadata.
+     * @param projectMetadata ProjectMetadata from the cluster state.
      * @return true if the given index name corresponds to an index template with a data stream failure store enabled.
      */
-    private static Boolean resolveFailureStoreFromTemplate(String indexName, Metadata metadata) {
+    private static Boolean resolveFailureStoreFromTemplate(String indexName, ProjectMetadata projectMetadata) {
         if (indexName == null) {
             return null;
         }
 
         // Check to see if the index name matches any templates such that an index would have been attributed
         // We don't check v1 templates at all because failure stores can only exist on data streams via a v2 template
-        String template = MetadataIndexTemplateService.findV2Template(metadata, indexName, false);
+        String template = MetadataIndexTemplateService.findV2Template(projectMetadata, indexName, false);
         if (template != null) {
             // Check if this is a data stream template or if it is just a normal index.
-            ComposableIndexTemplate composableIndexTemplate = metadata.templatesV2().get(template);
+            ComposableIndexTemplate composableIndexTemplate = projectMetadata.templatesV2().get(template);
             if (composableIndexTemplate.getDataStreamTemplate() != null) {
                 // Check if the data stream has the failure store enabled
                 return composableIndexTemplate.getDataStreamTemplate().hasFailureStore();

@@ -1596,8 +1596,8 @@ public class DataStreamIT extends ESIntegTestCase {
         // when querying a backing index then the data stream should be included as well.
         ClusterStateRequest request = new ClusterStateRequest(TEST_REQUEST_TIMEOUT).indices(".ds-metrics-foo-*000001");
         ClusterState state = clusterAdmin().state(request).get().getState();
-        assertThat(state.metadata().dataStreams().size(), equalTo(1));
-        assertThat(state.metadata().dataStreams().get("metrics-foo").getName(), equalTo("metrics-foo"));
+        assertThat(state.metadata().getProject().dataStreams().size(), equalTo(1));
+        assertThat(state.metadata().getProject().dataStreams().get("metrics-foo").getName(), equalTo("metrics-foo"));
     }
 
     /**
@@ -1903,7 +1903,7 @@ public class DataStreamIT extends ESIntegTestCase {
         var indicesStatsResponse = indicesAdmin().stats(new IndicesStatsRequest()).actionGet();
         assertThat(indicesStatsResponse.getIndices().size(), equalTo(2));
         ClusterState before = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
-        assertThat(before.getMetadata().dataStreams().get(dataStreamName).getIndices(), hasSize(2));
+        assertThat(before.getMetadata().getProject().dataStreams().get(dataStreamName).getIndices(), hasSize(2));
 
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<DataStream> brokenDataStreamHolder = new AtomicReference<>();
@@ -1911,7 +1911,7 @@ public class DataStreamIT extends ESIntegTestCase {
             .submitUnbatchedStateUpdateTask(getTestName(), new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    DataStream original = currentState.getMetadata().dataStreams().get(dataStreamName);
+                    DataStream original = currentState.getMetadata().getProject().dataStreams().get(dataStreamName);
                     DataStream broken = original.copy()
                         .setBackingIndices(
                             original.getBackingIndices()
@@ -1957,7 +1957,7 @@ public class DataStreamIT extends ESIntegTestCase {
             )
         );
         ClusterState after = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
-        assertThat(after.getMetadata().dataStreams().get(dataStreamName).getIndices(), hasSize(1));
+        assertThat(after.getMetadata().getProject().dataStreams().get(dataStreamName).getIndices(), hasSize(1));
         // Data stream resolves now to one backing index.
         // Note, that old backing index still exists and has been unhidden.
         // The modify data stream api only fixed the data stream by removing a broken reference to a backing index.
@@ -2200,10 +2200,10 @@ public class DataStreamIT extends ESIntegTestCase {
 
         assertAcked(indicesAdmin().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet());
         final ClusterState clusterState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
-        final DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
+        final DataStream dataStream = clusterState.getMetadata().getProject().dataStreams().get(dataStreamName);
 
         for (Index index : dataStream.getIndices()) {
-            final IndexMetadata indexMetadata = clusterState.metadata().index(index);
+            final IndexMetadata indexMetadata = clusterState.metadata().getProject().index(index);
             final IndexMetadataStats metadataStats = indexMetadata.getStats();
 
             if (index.equals(dataStream.getWriteIndex()) == false) {
@@ -2248,7 +2248,7 @@ public class DataStreamIT extends ESIntegTestCase {
         indexDocsAndEnsureThereIsCapturedWriteLoad(dataStreamName);
 
         final ClusterState clusterStateBeforeRollover = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
-        final DataStream dataStreamBeforeRollover = clusterStateBeforeRollover.getMetadata().dataStreams().get(dataStreamName);
+        final DataStream dataStreamBeforeRollover = clusterStateBeforeRollover.getMetadata().getProject().dataStreams().get(dataStreamName);
         final IndexRoutingTable currentDataStreamWriteIndexRoutingTable = clusterStateBeforeRollover.routingTable()
             .index(dataStreamBeforeRollover.getWriteIndex());
 
@@ -2277,10 +2277,10 @@ public class DataStreamIT extends ESIntegTestCase {
 
         assertAcked(indicesAdmin().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet());
         final ClusterState clusterState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
-        final DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
+        final DataStream dataStream = clusterState.getMetadata().getProject().dataStreams().get(dataStreamName);
 
         for (Index index : dataStream.getIndices()) {
-            final IndexMetadata indexMetadata = clusterState.metadata().index(index);
+            final IndexMetadata indexMetadata = clusterState.metadata().getProject().index(index);
             final IndexMetadataStats metadataStats = indexMetadata.getStats();
 
             // If all the shards are co-located within the failing nodes, no stats will be stored during rollover
@@ -2320,7 +2320,7 @@ public class DataStreamIT extends ESIntegTestCase {
         }
 
         final ClusterState clusterStateBeforeRollover = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
-        final DataStream dataStreamBeforeRollover = clusterStateBeforeRollover.getMetadata().dataStreams().get(dataStreamName);
+        final DataStream dataStreamBeforeRollover = clusterStateBeforeRollover.getMetadata().getProject().dataStreams().get(dataStreamName);
         final String assignedShardNodeId = clusterStateBeforeRollover.routingTable()
             .index(dataStreamBeforeRollover.getWriteIndex())
             .shard(0)
@@ -2337,8 +2337,8 @@ public class DataStreamIT extends ESIntegTestCase {
         assertAcked(indicesAdmin().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet());
 
         final ClusterState clusterState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
-        final DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
-        final IndexMetadata currentWriteIndexMetadata = clusterState.metadata().getIndexSafe(dataStream.getWriteIndex());
+        final DataStream dataStream = clusterState.getMetadata().getProject().dataStreams().get(dataStreamName);
+        final IndexMetadata currentWriteIndexMetadata = clusterState.metadata().getProject().getIndexSafe(dataStream.getWriteIndex());
 
         // When all shard stats request fail, we cannot forecast the shard size
         assertThat(currentWriteIndexMetadata.getForecastedShardSizeInBytes().isEmpty(), is(equalTo(true)));
@@ -2368,7 +2368,7 @@ public class DataStreamIT extends ESIntegTestCase {
         }
 
         final ClusterState clusterState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
-        final DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
+        final DataStream dataStream = clusterState.getMetadata().getProject().dataStreams().get(dataStreamName);
 
         final List<String> dataStreamReadIndices = dataStream.getIndices()
             .stream()
@@ -2389,7 +2389,7 @@ public class DataStreamIT extends ESIntegTestCase {
             shardCount++;
         }
 
-        final IndexMetadata writeIndexMetadata = clusterState.metadata().index(dataStream.getWriteIndex());
+        final IndexMetadata writeIndexMetadata = clusterState.metadata().getProject().index(dataStream.getWriteIndex());
         final OptionalLong forecastedShardSizeInBytes = writeIndexMetadata.getForecastedShardSizeInBytes();
         assertThat(forecastedShardSizeInBytes.isPresent(), is(equalTo(true)));
         assertThat(forecastedShardSizeInBytes.getAsLong(), is(equalTo(expectedTotalSizeInBytes / shardCount)));
@@ -2402,7 +2402,7 @@ public class DataStreamIT extends ESIntegTestCase {
             }
 
             final ClusterState clusterState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
-            final DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
+            final DataStream dataStream = clusterState.getMetadata().getProject().dataStreams().get(dataStreamName);
             final String writeIndex = dataStream.getWriteIndex().getName();
             final IndicesStatsResponse indicesStatsResponse = indicesAdmin().prepareStats(writeIndex).get();
             for (IndexShardStats indexShardStats : indicesStatsResponse.getIndex(writeIndex).getIndexShards().values()) {

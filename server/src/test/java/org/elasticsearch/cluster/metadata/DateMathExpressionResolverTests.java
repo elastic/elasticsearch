@@ -194,7 +194,7 @@ public class DateMathExpressionResolverTests extends ESTestCase {
             now = ZonedDateTime.now(ZoneOffset.UTC).withHour(0).withMinute(0).withSecond(0);
         }
         Context context = new Context(
-            this.context.getState(),
+            this.context.getProject(),
             this.context.getOptions(),
             now.toInstant().toEpochMilli(),
             SystemIndexAccessLevel.NONE,

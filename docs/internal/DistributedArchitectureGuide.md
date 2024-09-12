@@ -280,7 +280,7 @@ policies.
 
 ### How cluster capacity is determined
 
-[AutoscalingMetadata][] implements [Metadata.Custom][] in order to persist autoscaling policies. Each
+[AutoscalingMetadata][] implements [Metadata.ClusterCustom][] in order to persist autoscaling policies. Each
 Decider is an implementation of [AutoscalingDeciderService][]. The [AutoscalingCalculateCapacityService][]
 is responsible for running the calculation.
 
@@ -296,7 +296,7 @@ calls [through the CapacityResponseCache][], into the `AutoscalingCalculateCapac
 concurrent callers.
 
 [AutoscalingMetadata]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/AutoscalingMetadata.java#L38
-[Metadata.Custom]: https://github.com/elastic/elasticsearch/blob/v8.13.2/server/src/main/java/org/elasticsearch/cluster/metadata/Metadata.java#L141-L145
+[Metadata.ClusterCustom]: https://github.com/elastic/elasticsearch/blob/v8.13.2/server/src/main/java/org/elasticsearch/cluster/metadata/Metadata.java#L141-L145
 [AutoscalingDeciderService]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/capacity/AutoscalingDeciderService.java#L16-L19
 [AutoscalingCalculateCapacityService]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/capacity/AutoscalingCalculateCapacityService.java#L43
 

@@ -114,7 +114,9 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
 
     public void testRebalancingSkippedIfDisabledIncludingOnSpecificIndices() {
         ClusterState clusterState = createClusterStateWithAllShardsAssigned();
-        final IndexMetadata indexMetadata = randomFrom(clusterState.metadata().indices().values().toArray(IndexMetadata[]::new));
+        final IndexMetadata indexMetadata = randomFrom(
+            clusterState.metadata().getProject().indices().values().toArray(IndexMetadata[]::new)
+        );
         clusterState = ClusterState.builder(clusterState)
             .metadata(
                 Metadata.builder(clusterState.metadata())
@@ -141,7 +143,7 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
 
     public void testRebalancingAttemptedIfDisabledButOverridenOnSpecificIndices() {
         ClusterState clusterState = createClusterStateWithAllShardsAssigned();
-        final IndexMetadata indexMetadata = randomFrom(clusterState.metadata().indices().values());
+        final IndexMetadata indexMetadata = randomFrom(clusterState.metadata().getProject().indices().values());
         clusterState = ClusterState.builder(clusterState)
             .metadata(
                 Metadata.builder(clusterState.metadata())
@@ -185,7 +187,7 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)

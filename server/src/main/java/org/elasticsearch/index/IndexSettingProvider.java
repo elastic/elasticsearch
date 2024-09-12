@@ -9,7 +9,7 @@
 package org.elasticsearch.index;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedFunction;
@@ -33,7 +33,7 @@ public interface IndexSettingProvider {
      * @param dataStreamName           The name of the data stream if the index being created is part of a data stream otherwise
      *                                 <code>null</code>
      * @param isTimeSeries             Whether the template is in time series mode.
-     * @param metadata                 The current metadata instance that doesn't yet contain the index to be created
+     * @param projectMetadata          The current project metadata instance that doesn't yet contain the index to be created
      * @param resolvedAt               The time the request to create this new index was accepted.
      * @param indexTemplateAndCreateRequestSettings    All the settings resolved from the template that matches and any settings
      *                                                 defined on the create index request
@@ -43,7 +43,7 @@ public interface IndexSettingProvider {
         String indexName,
         @Nullable String dataStreamName,
         boolean isTimeSeries,
-        Metadata metadata,
+        ProjectMetadata projectMetadata,
         Instant resolvedAt,
         Settings indexTemplateAndCreateRequestSettings,
         List<CompressedXContent> combinedTemplateMappings

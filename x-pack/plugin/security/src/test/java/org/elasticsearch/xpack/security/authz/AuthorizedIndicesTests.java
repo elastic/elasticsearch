@@ -52,7 +52,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             Role.EMPTY,
             getRequestInfo(""),
-            Metadata.EMPTY_METADATA.getIndicesLookup(),
+            Metadata.EMPTY_METADATA.getProject().getIndicesLookup(),
             () -> ignore -> {}
         );
         assertTrue(authorizedIndices.all().get().isEmpty());
@@ -112,7 +112,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             roles,
             getRequestInfo(TransportSearchAction.TYPE.name()),
-            metadata.getIndicesLookup(),
+            metadata.getProject().getIndicesLookup(),
             () -> ignore -> {}
         );
         assertThat(authorizedIndices.all().get(), containsInAnyOrder("a1", "a2", "aaaaaa", "b", "ab"));
@@ -131,7 +131,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             role,
             getRequestInfo(TransportSearchAction.TYPE.name()),
-            Metadata.EMPTY_METADATA.getIndicesLookup(),
+            Metadata.EMPTY_METADATA.getProject().getIndicesLookup(),
             () -> ignore -> {}
         );
         assertTrue(authorizedIndices.all().get().isEmpty());
@@ -142,7 +142,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             role,
             getRequestInfo(TransportSearchAction.TYPE.name()),
-            Metadata.EMPTY_METADATA.getIndicesLookup(),
+            Metadata.EMPTY_METADATA.getProject().getIndicesLookup(),
             () -> ignore -> {}
         );
         assertTrue(authorizedIndices.all().get().isEmpty());
@@ -174,7 +174,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             role,
             getRequestInfo(TransportSearchAction.TYPE.name()),
-            metadata.getIndicesLookup(),
+            metadata.getProject().getIndicesLookup(),
             () -> ignore -> {}
         );
         assertThat(authorizedIndices.all().get(), containsInAnyOrder("an-index", "another-index"));
@@ -212,7 +212,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             role,
             getRequestInfo(TransportSearchAction.TYPE.name()),
-            metadata.getIndicesLookup(),
+            metadata.getProject().getIndicesLookup(),
             () -> ignore -> {}
         );
         assertThat(
@@ -223,7 +223,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         AuthorizedIndices authorizedIndicesSuperUser = RBACEngine.resolveAuthorizedIndicesFromRole(
             role,
             getRequestInfo(TransportSearchAction.TYPE.name()),
-            metadata.getIndicesLookup(),
+            metadata.getProject().getIndicesLookup(),
             () -> ignore -> {}
         );
         assertThat(
@@ -294,7 +294,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             roles,
             getRequestInfo(TransportSearchAction.TYPE.name()),
-            metadata.getIndicesLookup(),
+            metadata.getProject().getIndicesLookup(),
             () -> ignore -> {}
         );
         assertThat(authorizedIndices.all().get(), containsInAnyOrder("a1", "a2", "aaaaaa", "b", "ab"));
@@ -379,7 +379,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             roles,
             requestInfo,
-            metadata.getIndicesLookup(),
+            metadata.getProject().getIndicesLookup(),
             () -> ignore -> {}
         );
         assertThat(authorizedIndices.all().get(), containsInAnyOrder("a1", "a2", "aaaaaa", "b", "ab", "adatastream1", backingIndex));

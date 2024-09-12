@@ -108,7 +108,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         final long indexingBytes = bulkRequest.ramBytesUsed();
         final boolean isOnlySystem = TransportBulkAction.isOnlySystem(
             bulkRequest,
-            clusterService.state().metadata().getIndicesLookup(),
+            clusterService.state().metadata().getProject().getIndicesLookup(),
             systemIndices
         );
         final Releasable releasable = indexingPressure.markCoordinatingOperationStarted(indexingOps, indexingBytes, isOnlySystem);
@@ -174,7 +174,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
             IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
             if (indexRequest != null) {
-                IngestService.resolvePipelinesAndUpdateIndexRequest(actionRequest, indexRequest, metadata);
+                IngestService.resolvePipelinesAndUpdateIndexRequest(actionRequest, indexRequest, metadata.getProject());
                 hasIndexRequestsWithPipelines |= IngestService.hasPipeline(indexRequest);
             }
 

@@ -251,13 +251,13 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
             return;
         }
 
-        PersistentTasksCustomMetadata persistentTasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata persistentTasks = state.metadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         if (persistentTasks == null) {
             logger.trace("Not checking databases because persistent tasks are null");
             return;
         }
 
-        IndexAbstraction databasesAbstraction = state.getMetadata().getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX);
+        IndexAbstraction databasesAbstraction = state.getMetadata().getProject().getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX);
         if (databasesAbstraction == null) {
             logger.trace("Not checking databases because geoip databases index does not exist");
             return;

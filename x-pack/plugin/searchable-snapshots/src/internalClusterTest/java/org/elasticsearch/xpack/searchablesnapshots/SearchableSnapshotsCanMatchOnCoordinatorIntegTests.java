@@ -1074,6 +1074,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
             .get()
             .getState()
             .metadata()
+            .getProject()
             .index(indexName);
     }
 

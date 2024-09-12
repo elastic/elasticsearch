@@ -26,11 +26,11 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionMultiListener;
@@ -236,7 +236,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                 );
                 final boolean isSystemDataStream = dataStreamDescriptor != null;
                 final boolean isSystemIndex = isSystemDataStream == false && systemIndices.isSystemIndex(request.index());
-                final ComposableIndexTemplate template = resolveTemplate(request, currentState.metadata());
+                final ComposableIndexTemplate template = resolveTemplate(request, currentState.metadata().getProject());
                 final boolean isDataStream = isSystemIndex == false
                     && (isSystemDataStream || (template != null && template.getDataStreamTemplate() != null));
 
@@ -265,7 +265,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         request.isInitializeFailureStore()
                     );
 
-                    final var dataStream = clusterState.metadata().dataStreams().get(request.index());
+                    final var dataStream = clusterState.metadata().getProject().dataStreams().get(request.index());
                     final var backingIndexName = dataStream.getIndices().get(0).getName();
                     final var indexNames = dataStream.getFailureIndices().getIndices().isEmpty()
                         ? List.of(backingIndexName)
@@ -397,8 +397,8 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
         }
     }
 
-    static ComposableIndexTemplate resolveTemplate(CreateIndexRequest request, Metadata metadata) {
-        String v2Template = MetadataIndexTemplateService.findV2Template(metadata, request.index(), false);
-        return v2Template != null ? metadata.templatesV2().get(v2Template) : null;
+    static ComposableIndexTemplate resolveTemplate(CreateIndexRequest request, ProjectMetadata projectMetadata) {
+        String v2Template = MetadataIndexTemplateService.findV2Template(projectMetadata, request.index(), false);
+        return v2Template != null ? projectMetadata.templatesV2().get(v2Template) : null;
     }
 }

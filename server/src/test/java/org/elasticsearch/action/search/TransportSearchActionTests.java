@@ -1622,7 +1622,7 @@ public class TransportSearchActionTests extends ESTestCase {
             numberOfShards,
             numberOfReplicas
         );
-        final IndexMetadata indexMetadata = clusterState.metadata().index("test-1");
+        final IndexMetadata indexMetadata = clusterState.metadata().getProject().index("test-1");
         Map<ShardId, SearchContextIdForNode> contexts = new HashMap<>();
         Set<ShardId> relocatedContexts = new HashSet<>();
         Map<String, AliasFilter> aliasFilterMap = new HashMap<>();

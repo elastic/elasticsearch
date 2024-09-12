@@ -271,7 +271,7 @@ public class MetadataDataStreamsService {
         try {
             MetadataMigrateToDataStreamService.prepareBackingIndex(
                 builder,
-                metadata.index(index.getWriteIndex()),
+                metadata.getProject().index(index.getWriteIndex()),
                 dataStreamName,
                 mapperSupplier,
                 false,
@@ -328,7 +328,7 @@ public class MetadataDataStreamsService {
     }
 
     private static DataStream validateDataStream(Metadata metadata, String dataStreamName) {
-        IndexAbstraction dataStream = metadata.getIndicesLookup().get(dataStreamName);
+        IndexAbstraction dataStream = metadata.getProject().getIndicesLookup().get(dataStreamName);
         if (dataStream == null || dataStream.getType() != IndexAbstraction.Type.DATA_STREAM) {
             throw new IllegalArgumentException("data stream [" + dataStreamName + "] not found");
         }
@@ -336,7 +336,7 @@ public class MetadataDataStreamsService {
     }
 
     private static IndexAbstraction validateIndex(Metadata metadata, String indexName) {
-        IndexAbstraction index = metadata.getIndicesLookup().get(indexName);
+        IndexAbstraction index = metadata.getProject().getIndicesLookup().get(indexName);
         if (index == null || index.getType() != IndexAbstraction.Type.CONCRETE_INDEX) {
             throw new IllegalArgumentException("index [" + indexName + "] not found");
         }

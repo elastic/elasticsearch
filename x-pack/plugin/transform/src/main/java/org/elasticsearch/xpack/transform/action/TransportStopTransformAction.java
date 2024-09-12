@@ -95,7 +95,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
     }
 
     static void validateTaskState(ClusterState state, List<String> transformIds, boolean isForce) {
-        PersistentTasksCustomMetadata tasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = state.metadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         if (isForce == false && tasks != null) {
             List<String> failedTasks = new ArrayList<>();
             List<String> failedReasons = new ArrayList<>();
@@ -437,6 +437,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
             if (e instanceof IllegalStateException && e.getMessage().startsWith("Timed out")) {
                 PersistentTasksCustomMetadata persistentTasksCustomMetadata = clusterService.state()
                     .metadata()
+                    .getProject()
                     .custom(PersistentTasksCustomMetadata.TYPE);
 
                 if (persistentTasksCustomMetadata == null) {

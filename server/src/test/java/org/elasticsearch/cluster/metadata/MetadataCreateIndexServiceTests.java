@@ -38,11 +38,13 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -137,7 +139,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         metaBuilder.put(indexMetadata, false);
         Metadata metadata = metaBuilder.build();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
-        routingTableBuilder.addAsNew(metadata.index(name));
+        routingTableBuilder.addAsNew(metadata.getProject().index(name));
 
         RoutingTable routingTable = routingTableBuilder.build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -511,11 +513,11 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             additionalIndexScopedSettings.stream()
         ).collect(Collectors.toSet());
         MetadataCreateIndexService.prepareResizeIndexSettings(
-            clusterState.metadata(),
+            clusterState.metadata().getProject(),
             clusterState.blocks(),
             clusterState.routingTable(),
             indexSettingsBuilder,
-            clusterState.metadata().index(indexName).getIndex(),
+            clusterState.metadata().getProject().index(indexName).getIndex(),
             "target",
             ResizeType.SHRINK,
             copySettings,
@@ -564,7 +566,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).build();
         InvalidIndexNameException e = expectThrows(
             InvalidIndexNameException.class,
-            () -> MetadataCreateIndexService.validateIndexName(indexName, state.metadata(), state.routingTable())
+            () -> MetadataCreateIndexService.validateIndexName(indexName, state.metadata().getProject(), state.routingTable())
         );
         assertThat(e.getMessage(), endsWith(errorMessage));
     }
@@ -697,7 +699,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 request.index(),
                 request.aliases(),
                 List.of(),
-                Metadata.builder().build(),
+                ProjectMetadata.builder(new ProjectId(randomUUID())).build(),
                 xContentRegistry(),
                 searchExecutionContext,
                 IndexNameExpressionResolver::resolveDateMathExpression,
@@ -715,7 +717,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             request.index(),
             request.aliases(),
             List.of(),
-            Metadata.builder().build(),
+            ProjectMetadata.builder(new ProjectId(randomUUID())).build(),
             xContentRegistry(),
             searchExecutionContext,
             IndexNameExpressionResolver::resolveDateMathExpression,
@@ -749,7 +751,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             request.index(),
             request.aliases(),
             MetadataIndexTemplateService.resolveAliases(List.of(templateMetadata)),
-            Metadata.builder().build(),
+            ProjectMetadata.builder(new ProjectId(randomUUID())).build(),
             xContentRegistry(),
             searchExecutionContext,
             IndexNameExpressionResolver::resolveDateMathExpression,
@@ -849,7 +851,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             request.index(),
             request.aliases(),
             MetadataIndexTemplateService.resolveAliases(templates),
-            Metadata.builder().build(),
+            ProjectMetadata.builder(new ProjectId(randomUUID())).build(),
             xContentRegistry(),
             searchExecutionContext,
             IndexNameExpressionResolver::resolveDateMathExpression,
@@ -890,7 +892,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             request.index(),
             request.aliases(),
             MetadataIndexTemplateService.resolveAliases(templates),
-            Metadata.builder().build(),
+            ProjectMetadata.builder(new ProjectId(randomUUID())).build(),
             xContentRegistry(),
             searchExecutionContext,
             IndexNameExpressionResolver::resolveDateMathExpression,
@@ -921,7 +923,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             request,
             templateMetadata.settings(),
             List.of(templateMetadata.getMappings()),
-            clusterState.metadata().index("sourceIndex"),
+            clusterState.metadata().getProject().index("sourceIndex"),
             Settings.EMPTY,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             randomShardLimitService(),
@@ -979,12 +981,12 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertThat(updatedClusterState.routingTable().index("test"), is(notNullValue()));
 
         Metadata metadata = updatedClusterState.metadata();
-        IndexAbstraction alias = metadata.getIndicesLookup().get("alias1");
+        IndexAbstraction alias = metadata.getProject().getIndicesLookup().get("alias1");
         assertNotNull(alias);
         assertThat(alias.getType(), equalTo(IndexAbstraction.Type.ALIAS));
-        Index index = metadata.index("test").getIndex();
+        Index index = metadata.getProject().index("test").getIndex();
         assertThat(alias.getIndices(), contains(index));
-        assertThat(metadata.aliasedIndices("alias1"), contains(index));
+        assertThat(metadata.getProject().aliasedIndices("alias1"), contains(index));
     }
 
     public void testClusterStateCreateIndexWithMetadataTransaction() {
@@ -1008,7 +1010,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             .build();
 
         // adds alias from new index to existing index
-        BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer = (builder, indexMetadata) -> {
+        BiConsumer<ProjectMetadata.Builder, IndexMetadata> metadataTransformer = (builder, indexMetadata) -> {
             AliasMetadata newAlias = indexMetadata.getAliases().values().iterator().next();
             IndexMetadata myIndex = builder.get("my-index");
             builder.put(IndexMetadata.builder(myIndex).putAlias(AliasMetadata.builder(newAlias.getAlias()).build()));
@@ -1020,10 +1022,10 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             metadataTransformer,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
-        assertTrue(updatedClusterState.metadata().findAllAliases(new String[] { "my-index" }).containsKey("my-index"));
-        assertNotNull(updatedClusterState.metadata().findAllAliases(new String[] { "my-index" }).get("my-index"));
+        assertTrue(updatedClusterState.metadata().getProject().findAllAliases(new String[] { "my-index" }).containsKey("my-index"));
+        assertNotNull(updatedClusterState.metadata().getProject().findAllAliases(new String[] { "my-index" }).get("my-index"));
         assertNotNull(
-            updatedClusterState.metadata().findAllAliases(new String[] { "my-index" }).get("my-index").get(0).alias(),
+            updatedClusterState.metadata().getProject().findAllAliases(new String[] { "my-index" }).get("my-index").get(0).alias(),
             equalTo("alias1")
         );
     }
@@ -1414,7 +1416,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
     private List<String> validateShrinkIndex(ClusterState state, String sourceIndex, String targetIndexName, Settings targetIndexSettings) {
         return MetadataCreateIndexService.validateShrinkIndex(
-            state.metadata(),
+            state.metadata().getProject(),
             state.blocks(),
             state.routingTable(),
             sourceIndex,
@@ -1424,6 +1426,39 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     }
 
     private void validateSplitIndex(ClusterState state, String sourceIndex, String targetIndexName, Settings targetIndexSettings) {
-        MetadataCreateIndexService.validateSplitIndex(state.metadata(), state.blocks(), sourceIndex, targetIndexName, targetIndexSettings);
+        MetadataCreateIndexService.validateSplitIndex(
+            state.metadata().getProject(),
+            state.blocks(),
+            sourceIndex,
+            targetIndexName,
+            targetIndexSettings
+        );
+    }
+
+    private static Settings aggregateIndexSettings(
+        ClusterState state,
+        CreateIndexClusterStateUpdateRequest request,
+        Settings combinedTemplateSettings,
+        List<CompressedXContent> combinedTemplateMappings,
+        @Nullable IndexMetadata sourceMetadata,
+        Settings settings,
+        IndexScopedSettings indexScopedSettings,
+        ShardLimitValidator shardLimitValidator,
+        Set<IndexSettingProvider> indexSettingProviders
+    ) {
+        return MetadataCreateIndexService.aggregateIndexSettings(
+            state.getMetadata().getProject(),
+            state.nodes(),
+            state.blocks(),
+            state.routingTable(),
+            request,
+            combinedTemplateSettings,
+            combinedTemplateMappings,
+            sourceMetadata,
+            settings,
+            indexScopedSettings,
+            shardLimitValidator,
+            indexSettingProviders
+        );
     }
 }

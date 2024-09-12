@@ -63,7 +63,7 @@ public class KvIndexResolver {
         // find matching index for the current time range (indices are non-overlapping)
         if (indices.length > 1) {
             List<Tuple<Index, Instant>> indicesWithTime = new ArrayList<>();
-            Map<String, IndexMetadata> indicesMetadata = clusterState.getMetadata().getIndices();
+            Map<String, IndexMetadata> indicesMetadata = clusterState.getMetadata().getProject().indices();
             for (Index i : indices) {
                 IndexMetadata indexMetadata = indicesMetadata.get(i.getName());
                 // Prefer ILM creation date over the actual creation date. This is mainly intended for testing as

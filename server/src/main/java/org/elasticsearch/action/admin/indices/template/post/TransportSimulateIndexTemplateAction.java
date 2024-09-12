@@ -137,14 +137,14 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             stateWithTemplate = removeExistingAbstractions(state, request.getIndexName());
         }
 
-        String matchingTemplate = findV2Template(stateWithTemplate.metadata(), request.getIndexName(), false);
+        String matchingTemplate = findV2Template(stateWithTemplate.metadata().getProject(), request.getIndexName(), false);
         if (matchingTemplate == null) {
             listener.onResponse(new SimulateIndexTemplateResponse(null, null));
             return;
         }
 
         final ClusterState tempClusterState = resolveTemporaryState(matchingTemplate, request.getIndexName(), stateWithTemplate);
-        ComposableIndexTemplate templateV2 = tempClusterState.metadata().templatesV2().get(matchingTemplate);
+        ComposableIndexTemplate templateV2 = tempClusterState.metadata().getProject().templatesV2().get(matchingTemplate);
         assert templateV2 != null : "the matched template must exist";
 
         final Template template = resolveTemplate(
@@ -199,7 +199,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         final String indexName,
         final ClusterState simulatedState
     ) {
-        Settings settings = resolveSettings(simulatedState.metadata(), matchingTemplate);
+        Settings settings = resolveSettings(simulatedState.metadata().getProject(), matchingTemplate);
 
         // create the index with dummy settings in the cluster state so we can parse and validate the aliases
         Settings dummySettings = Settings.builder()
@@ -234,15 +234,13 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         final SystemIndices systemIndices,
         Set<IndexSettingProvider> indexSettingProviders
     ) throws Exception {
-        var metadata = simulatedState.getMetadata();
-        Settings templateSettings = resolveSettings(simulatedState.metadata(), matchingTemplate);
+        // TODO multi-project get the right project here
+        var projectMetadata = simulatedState.getMetadata().getProject();
+        Settings templateSettings = resolveSettings(projectMetadata, matchingTemplate);
 
-        List<Map<String, AliasMetadata>> resolvedAliases = MetadataIndexTemplateService.resolveAliases(
-            simulatedState.metadata(),
-            matchingTemplate
-        );
+        List<Map<String, AliasMetadata>> resolvedAliases = MetadataIndexTemplateService.resolveAliases(projectMetadata, matchingTemplate);
 
-        ComposableIndexTemplate template = simulatedState.metadata().templatesV2().get(matchingTemplate);
+        ComposableIndexTemplate template = projectMetadata.templatesV2().get(matchingTemplate);
         // create the index with dummy settings in the cluster state so we can parse and validate the aliases
         Settings.Builder dummySettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -260,7 +258,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
                 : indexName;
         List<CompressedXContent> mappings = MetadataCreateIndexService.collectV2Mappings(
             null, // empty request mapping as the user can't specify any explicit mappings via the simulate api
-            simulatedState,
+            projectMetadata,
             matchingTemplate,
             xContentRegistry,
             simulatedIndexName
@@ -273,8 +271,8 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             Settings result = provider.getAdditionalIndexSettings(
                 indexName,
                 template.getDataStreamTemplate() != null ? indexName : null,
-                template.getDataStreamTemplate() != null && metadata.isTimeSeriesTemplate(template),
-                simulatedState.getMetadata(),
+                template.getDataStreamTemplate() != null && projectMetadata.isTimeSeriesTemplate(template),
+                projectMetadata,
                 now,
                 templateSettings,
                 mappings
@@ -301,7 +299,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
                 indexName,
                 Set.of(),
                 resolvedAliases,
-                tempClusterState.metadata(),
+                tempClusterState.metadata().getProject(),
                 xContentRegistry,
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
@@ -335,7 +333,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
     }
 
     private static IndexLongFieldRange getEventIngestedRange(String indexName, ClusterState simulatedState) {
-        final IndexMetadata indexMetadata = simulatedState.metadata().index(indexName);
+        final IndexMetadata indexMetadata = simulatedState.metadata().getProject().index(indexName);
         return indexMetadata == null ? IndexLongFieldRange.NO_SHARDS : indexMetadata.getEventIngestedRange();
     }
 }

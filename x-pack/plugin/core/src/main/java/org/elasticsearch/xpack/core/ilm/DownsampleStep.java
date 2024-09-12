@@ -66,7 +66,7 @@ public class DownsampleStep extends AsyncActionStep {
         final String policyName = indexMetadata.getLifecyclePolicyName();
         final String indexName = indexMetadata.getIndex().getName();
         final String downsampleIndexName = lifecycleState.downsampleIndexName();
-        IndexMetadata downsampleIndexMetadata = currentState.metadata().index(downsampleIndexName);
+        IndexMetadata downsampleIndexMetadata = currentState.metadata().getProject().index(downsampleIndexName);
         if (downsampleIndexMetadata != null) {
             IndexMetadata.DownsampleTaskStatus downsampleIndexStatus = IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(
                 downsampleIndexMetadata.getSettings()

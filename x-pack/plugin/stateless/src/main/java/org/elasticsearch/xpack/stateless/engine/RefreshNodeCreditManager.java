@@ -76,6 +76,7 @@ public class RefreshNodeCreditManager {
     private final AtomicLong lastWarningMillis = new AtomicLong(-1);
     private long lastCreditUpdate;
 
+    @SuppressWarnings("this-escape")
     public RefreshNodeCreditManager(LongSupplier relativeTimeSupplierInMillis, double multiplier, String indicesType) {
         this.relativeTimeSupplier = relativeTimeSupplierInMillis;
         this.lastCreditUpdate = relativeTimeSupplierInMillis.getAsLong();

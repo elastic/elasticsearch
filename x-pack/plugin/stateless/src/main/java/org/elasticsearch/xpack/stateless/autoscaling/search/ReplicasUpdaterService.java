@@ -202,6 +202,7 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
     private volatile TimeValue updateInterval;
     private volatile Integer scaledownRepetitionSetting;
 
+    @SuppressWarnings("this-escape")
     public ReplicasUpdaterService(
         ThreadPool threadPool,
         ClusterService clusterService,

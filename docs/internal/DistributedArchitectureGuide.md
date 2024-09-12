@@ -398,7 +398,7 @@ When a task is completed, it must be unregistered via [TaskManager#unregister].
 #### A note about task IDs
 The IDs given to a task are numeric, supplied by a counter that starts at zero and increments over the life of the node process. So while they are unique in the individual node process, they would collide with IDs allocated after the node restarts, or IDs allocated on other nodes.
 
-To better identify a task in the cluster scope, the string `{node-ID}:{local-task-ID}` (e.g. `oTUltX4IQMOUUVeiohTt8A:124`) is used, however for the reasons explained this tuple will only be guaranteed unique for current tasks, not historical ones. [TaskId] is the DTO used to represent this tuple.
+To better identify a task in the cluster scope, the string `{node-ID}:{local-task-ID}` (e.g. `oTUltX4IQMOUUVeiohTt8A:124`) is used, however for the reasons explained this tuple will only be guaranteed unique for current tasks, not historical ones (see [TaskId]).
 
 ### What Tasks Are Tracked
 
@@ -466,11 +466,11 @@ When a cancellable task dispatches child requests through the [TransportService]
 [ActionRequest#getShouldStoreResult]:https://github.com/elastic/elasticsearch/blob/b633fe1ccb67f7dbf460cdc087eb60ae212a472a/server/src/main/java/org/elasticsearch/action/ActionRequest.java#L32
 [TaskResultStoringActionListener]:https://github.com/elastic/elasticsearch/blob/b633fe1ccb67f7dbf460cdc087eb60ae212a472a/server/src/main/java/org/elasticsearch/action/support/TransportAction.java#L149
 
-A list of tasks currently running in a cluster can be requested via the [Task management API], or the [cat task management API]. The former returns each task represented using the [TaskResult] DTO, the latter returning a more compact [CAT] representation.
+A list of tasks currently running in a cluster can be requested via the [Task management API], or the [cat task management API]. The former returns each task represented using [TaskResult], the latter returning a more compact [CAT] representation.
 
 Some [ActionRequest]s allow the results of the actions they spawn to be stored upon completion for later retrieval. If [ActionRequest#getShouldStoreResult] returns true, a [TaskResultStoringActionListener] will be inserted into the chain of response listeners. [TaskResultStoringActionListener] serializes the [TaskResult] of the [TransportAction] and persists it in the `.tasks` index using the [TaskResultsService].
 
-The [Task management API] also exposes an endpoint where a task ID can be specified, this form of the API will return currently running tasks, or completed tasks whose results were persisted. Note that although we use the [TaskResult] DTO to return task information from all the JSON APIs, the `error` or `response` fields will only ever be populated for stored tasks that are already completed.
+The [Task management API] also exposes an endpoint where a task ID can be specified, this form of the API will return currently running tasks, or completed tasks whose results were persisted. Note that although we use [TaskResult] to return task information from all the JSON APIs, the `error` or `response` fields will only ever be populated for stored tasks that are already completed.
 
 ### Persistent Tasks
 

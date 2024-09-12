@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
@@ -45,7 +46,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.security.SecurityFeatures;
 
@@ -185,7 +186,6 @@ public class SecurityIndexManager implements ClusterStateListener {
     }
 
     public boolean indexIsCreating() {
-        // TODO this is not accurate
         return this.state.indexCreating;
     }
 
@@ -365,34 +365,44 @@ public class SecurityIndexManager implements ClusterStateListener {
         stateChangeListeners.add(stateChangeListener);
     }
 
-    public void onIndexAvailableAfterCreation(ActionListener<Void> listener) {
-        // TODO copy state?
-        if (false == state.indexCreating) {
-            if (state.indexAvailableForSearch) {
-                listener.onResponse(null);
-            } else {
-                listener.onFailure(new IllegalStateException("index is not initializing anymore and is not available"));
-            }
+    public void onIndexAvailableForSearch(ActionListener<Void> listener, TimeValue timeout) {
+        if (state.indexAvailableForSearch) {
+            listener.onResponse(null);
             return;
         }
-        final BiConsumer<SecurityIndexManager.State, SecurityIndexManager.State> indexAvailableListener = new BiConsumer<>() {
+
+        final ActionListener<Void> wrapped = ActionListener.notifyOnce(listener);
+
+        final var indexAvailableForSearchListener = new SelfRemovingConsumer() {
             @Override
             public void accept(SecurityIndexManager.State previousState, SecurityIndexManager.State nextState) {
-                if (nextState.indexAvailableForWrite && nextState.indexAvailableForSearch) {
-                    if (removeStateListener(this)) {
-                        listener.onResponse(null);
+                if (nextState.indexAvailableForSearch) {
+                    if (cancellable != null) {
+                        cancellable.cancel();
                     }
+                    removeStateListener(this);
+                    wrapped.onResponse(null);
                 }
             }
-        };
-        addStateListener(indexAvailableListener);
-        // TODO cleaner cancellation handling -- also, if we complete without cancelling, we should cancel the cancellation...
-        final ThreadPool threadPool = client.threadPool();
-        threadPool.schedule(() -> {
-            if (removeStateListener(indexAvailableListener)) {
-                listener.onFailure(new IllegalStateException("timed out waiting for index"));
+
+            @Override
+            public void run() {
+                removeStateListener(this);
+                wrapped.onFailure(new ElasticsearchTimeoutException("timed out waiting for index"));
             }
-        }, TimeValue.timeValueSeconds(5), threadPool.generic());
+        };
+
+        addStateListener(indexAvailableForSearchListener);
+
+        indexAvailableForSearchListener.cancellable = client.threadPool()
+            .schedule(indexAvailableForSearchListener, timeout, client.threadPool().generic());
+    }
+
+    private abstract static class SelfRemovingConsumer
+        implements
+            BiConsumer<SecurityIndexManager.State, SecurityIndexManager.State>,
+            Runnable {
+        volatile Scheduler.ScheduledCancellable cancellable;
     }
 
     private boolean checkIndexCreating(ClusterState state) {

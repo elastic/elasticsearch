@@ -208,11 +208,11 @@ public class NativePrivilegeStore {
         if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(Collections.emptyList());
         } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
-            if (false == waitOnUnavailable || false == frozenSecurityIndex.indexIsCreating()) {
+            if (false == waitOnUnavailable) {
                 listener.onFailure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
                 return;
             }
-            securityIndexManager.onIndexAvailableAfterCreation(new ActionListener<>() {
+            securityIndexManager.onIndexAvailableForSearch(new ActionListener<>() {
                 @Override
                 public void onResponse(Void unused) {
                     innerGetPrivileges(applications, false, listener);
@@ -224,7 +224,7 @@ public class NativePrivilegeStore {
                     // Still call get privileges to get most up-to-date failure (or result, in case of an unlucky time-out)
                     innerGetPrivileges(applications, false, listener);
                 }
-            });
+            }, TimeValue.timeValueSeconds(5));
         } else {
             securityIndexManager.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 final TermQueryBuilder typeQuery = QueryBuilders.termQuery(

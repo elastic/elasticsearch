@@ -49,6 +49,7 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
@@ -479,7 +480,14 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         }
         final BulkItemResponse response;
         if (isUpdate) {
-            response = processUpdateResponse((UpdateRequest) docWriteRequest, context.getConcreteIndex(), executionResult, updateResult);
+            final MappingLookup mappingLookup = context.getPrimary().mapperService().mappingLookup();
+            response = processUpdateResponse(
+                (UpdateRequest) docWriteRequest,
+                context.getConcreteIndex(),
+                mappingLookup,
+                executionResult,
+                updateResult
+            );
         } else {
             if (isFailed) {
                 final Exception failure = executionResult.getFailure().getCause();
@@ -517,6 +525,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     private static BulkItemResponse processUpdateResponse(
         final UpdateRequest updateRequest,
         final String concreteIndex,
+        final MappingLookup mappingLookup,
         BulkItemResponse operationResponse,
         final UpdateHelper.Result translate
     ) {
@@ -554,6 +563,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         UpdateHelper.extractGetResult(
                             updateRequest,
                             concreteIndex,
+                            mappingLookup,
                             indexResponse.getSeqNo(),
                             indexResponse.getPrimaryTerm(),
                             indexResponse.getVersion(),
@@ -578,6 +588,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 final GetResult getResult = UpdateHelper.extractGetResult(
                     updateRequest,
                     concreteIndex,
+                    mappingLookup,
                     deleteResponse.getSeqNo(),
                     deleteResponse.getPrimaryTerm(),
                     deleteResponse.getVersion(),

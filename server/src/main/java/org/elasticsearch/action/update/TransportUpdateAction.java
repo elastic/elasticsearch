@@ -186,11 +186,12 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         final ShardId shardId = request.getShardId();
         final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         final IndexShard indexShard = indexService.getShard(shardId.getId());
+        final MappingLookup mappingLookup = indexShard.mapperService().mappingLookup();
         final UpdateHelper.Result result = deleteInferenceResults(
             request,
             updateHelper.prepare(request, indexShard, threadPool::absoluteTimeInMillis),
             indexService.getMetadata(),
-            indexShard.mapperService().mappingLookup()
+            mappingLookup
         );
 
         switch (result.getResponseResult()) {
@@ -220,6 +221,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                                 UpdateHelper.extractGetResult(
                                     request,
                                     request.concreteIndex(),
+                                    mappingLookup,
                                     response.getSeqNo(),
                                     response.getPrimaryTerm(),
                                     response.getVersion(),
@@ -256,6 +258,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                             UpdateHelper.extractGetResult(
                                 request,
                                 request.concreteIndex(),
+                                mappingLookup,
                                 response.getSeqNo(),
                                 response.getPrimaryTerm(),
                                 response.getVersion(),
@@ -287,6 +290,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                             UpdateHelper.extractGetResult(
                                 request,
                                 request.concreteIndex(),
+                                mappingLookup,
                                 response.getSeqNo(),
                                 response.getPrimaryTerm(),
                                 response.getVersion(),

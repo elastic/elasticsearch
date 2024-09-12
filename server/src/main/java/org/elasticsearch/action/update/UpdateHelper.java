@@ -23,6 +23,7 @@ import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.DocumentSourceMissingException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -188,6 +189,7 @@ public class UpdateHelper {
         final Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef(), true);
         final XContentType updateSourceContentType = sourceAndContent.v1();
         final Map<String, Object> updatedSourceAsMap = sourceAndContent.v2();
+        final MappingLookup mappingLookup = indicesService.indexServiceSafe(shardId.getIndex()).mapperService().mappingLookup();
 
         final boolean noop = XContentHelper.update(
             updatedSourceAsMap,
@@ -210,6 +212,7 @@ public class UpdateHelper {
                 extractGetResult(
                     request,
                     request.index(),
+                    mappingLookup,
                     getResult.getSeqNo(),
                     getResult.getPrimaryTerm(),
                     getResult.getVersion(),
@@ -245,6 +248,7 @@ public class UpdateHelper {
         final String routing = calculateRouting(getResult, currentRequest);
         final Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef(), true);
         final XContentType updateSourceContentType = sourceAndContent.v1();
+        final MappingLookup mappingLookup = indicesService.indexServiceSafe(shardId.getIndex()).mapperService().mappingLookup();
 
         UpdateCtxMap ctxMap = executeScript(
             request.script,
@@ -301,6 +305,7 @@ public class UpdateHelper {
                     extractGetResult(
                         request,
                         request.index(),
+                        mappingLookup,
                         getResult.getSeqNo(),
                         getResult.getPrimaryTerm(),
                         getResult.getVersion(),
@@ -334,6 +339,7 @@ public class UpdateHelper {
     public static GetResult extractGetResult(
         final UpdateRequest request,
         String concreteIndex,
+        final MappingLookup mappingLookup,
         long seqNo,
         long primaryTerm,
         long version,

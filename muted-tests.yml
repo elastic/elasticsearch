@@ -211,9 +211,6 @@ tests:
 - class: org.elasticsearch.repositories.blobstore.testkit.integrity.RepositoryVerifyIntegrityIT
   method: testCorruption
   issue: https://github.com/elastic/elasticsearch/issues/112769
-- class: org.elasticsearch.repositories.blobstore.testkit.integrity.RepositoryVerifyIntegrityIT
-  method: testTransportException
-  issue: https://github.com/elastic/elasticsearch/issues/112779
 - class: org.elasticsearch.script.StatsSummaryTests
   method: testEqualsAndHashCode
   issue: https://github.com/elastic/elasticsearch/issues/112439

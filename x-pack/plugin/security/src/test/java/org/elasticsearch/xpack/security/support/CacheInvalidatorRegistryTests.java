@@ -60,6 +60,7 @@ public class CacheInvalidatorRegistryTests extends ESTestCase {
             true,
             true,
             true,
+            false,
             true,
             true,
             null,

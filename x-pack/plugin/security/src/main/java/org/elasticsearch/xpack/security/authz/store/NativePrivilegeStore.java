@@ -40,7 +40,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
@@ -66,7 +65,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collector;
@@ -210,31 +208,23 @@ public class NativePrivilegeStore {
         if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(Collections.emptyList());
         } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
-            if (false == waitOnUnavailable) {
+            if (false == waitOnUnavailable || false == frozenSecurityIndex.isCreating()) {
                 listener.onFailure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
                 return;
             }
-            // still has race conditions...
-            final BiConsumer<SecurityIndexManager.State, SecurityIndexManager.State> indexAvailableForSearchListener = new BiConsumer<>() {
+            securityIndexManager.onIndexAvailableAfterCreation(new ActionListener<>() {
                 @Override
-                public void accept(SecurityIndexManager.State previousState, SecurityIndexManager.State nextState) {
-                    if (nextState.indexAvailableForSearch) {
-                        if (securityIndexManager.removeStateListener(this)) {
-                            // Don't wait again
-                            innerGetPrivileges(applications, false, listener);
-                        }
-                    }
-                }
-            };
-            securityIndexManager.addStateListener(indexAvailableForSearchListener);
-            // Schedule timeout
-            final ThreadPool threadPool = client.threadPool();
-            threadPool.schedule(() -> {
-                if (securityIndexManager.removeStateListener(indexAvailableForSearchListener)) {
-                    // Re-run request one more time, but don't wait again -- this way, we will get an up-to-date failure cause
+                public void onResponse(Void unused) {
                     innerGetPrivileges(applications, false, listener);
                 }
-            }, TimeValue.timeValueSeconds(5), threadPool.generic());
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.info("Failure waiting on index: ", e);
+                    // Still call get privileges to get most up-to-date failure (or result, in case of an unlucky time-out)
+                    innerGetPrivileges(applications, false, listener);
+                }
+            });
         } else {
             securityIndexManager.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 final TermQueryBuilder typeQuery = QueryBuilders.termQuery(

@@ -410,6 +410,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
             isUpToDate,
             true,
             true,
+            false,
             true,
             true,
             null,

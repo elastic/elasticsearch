@@ -31,7 +31,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.core.Strings.format;
@@ -60,7 +59,6 @@ public class ModelImporter {
     private final ModelPackageConfig config;
     private final ModelDownloadTask task;
     private final ExecutorService executorService;
-    private final AtomicBoolean listenerIsClosed = new AtomicBoolean(false);
     private final AtomicInteger progressCounter = new AtomicInteger();
     private final URI uri;
 
@@ -169,9 +167,7 @@ public class ModelImporter {
             );
 
         if (countingListener.isFailing()) {
-            if (listenerIsClosed.compareAndSet(false, true)) {
-                countingListener.close();
-            }
+            rangeFullyDownloadedListener.onResponse(null); // the error has already been reported elsewhere
             return;
         }
 
@@ -182,10 +178,8 @@ public class ModelImporter {
 
             indexPart(bytesAndIndex.partIndex(), totalParts, size, bytesAndIndex.bytes(), countingListener.acquire(ack -> {}));
         } catch (Exception e) {
-            countingListener.acquire().onFailure(e);
-            if (listenerIsClosed.compareAndSet(false, true)) {
-                countingListener.close();
-            }
+            rangeFullyDownloadedListener.onFailure(e);
+            return;
         }
 
         if (downloadChunker.hasNext()) {

@@ -98,8 +98,6 @@ public class ClusterStateUpdaters {
         for (final IndexMetadata indexMetadata : state.metadata().indices().values()) {
             routingTableBuilder.addAsRecovery(indexMetadata);
         }
-        // start with 0 based versions for routing table
-        routingTableBuilder.version(0);
         return ClusterState.builder(state).routingTable(routingTableBuilder.build()).build();
     }
 

@@ -17,6 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.lucene.stats;
 
+import co.elastic.elasticsearch.stateless.api.ShardSizeStatsReader.ShardSize;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;

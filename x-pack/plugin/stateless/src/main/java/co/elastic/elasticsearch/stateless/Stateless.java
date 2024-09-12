@@ -28,6 +28,7 @@ import co.elastic.elasticsearch.stateless.allocation.StatelessExistingShardsAllo
 import co.elastic.elasticsearch.stateless.allocation.StatelessIndexSettingProvider;
 import co.elastic.elasticsearch.stateless.allocation.StatelessShardRoutingRoleStrategy;
 import co.elastic.elasticsearch.stateless.api.DocValuesFormatFactory;
+import co.elastic.elasticsearch.stateless.api.ShardSizeStatsReader;
 import co.elastic.elasticsearch.stateless.autoscaling.indexing.AverageWriteLoadSampler;
 import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe;
 import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadPublisher;
@@ -80,6 +81,7 @@ import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.lucene.stats.GetAllShardSizesAction;
 import co.elastic.elasticsearch.stateless.lucene.stats.GetShardSizeAction;
 import co.elastic.elasticsearch.stateless.lucene.stats.ShardSizeStatsClient;
+import co.elastic.elasticsearch.stateless.lucene.stats.ShardSizeStatsReaderImpl;
 import co.elastic.elasticsearch.stateless.metering.GetBlobStoreStatsRestHandler;
 import co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsNodesResponse;
 import co.elastic.elasticsearch.stateless.metering.action.TransportGetBlobStoreStatsAction;
@@ -542,6 +544,9 @@ public class Stateless extends Plugin
         clusterService.addListener(ingestMetricService);
         components.add(ingestMetricService);
 
+        components.add(
+            new PluginComponentBinding<>(ShardSizeStatsReader.class, new ShardSizeStatsReaderImpl(clusterService, indicesService))
+        );
         final ShardSizeCollector shardSizeCollector;
         if (hasSearchRole) {
             var averageSearchLoadSampler = AverageSearchLoadSampler.create(threadPool, settings, clusterService.getClusterSettings());

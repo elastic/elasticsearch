@@ -17,6 +17,9 @@
 
 package co.elastic.elasticsearch.stateless.lucene.stats;
 
+import co.elastic.elasticsearch.stateless.api.ShardSizeStatsReader;
+import co.elastic.elasticsearch.stateless.api.ShardSizeStatsReader.ShardSize;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -30,7 +33,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -50,14 +52,14 @@ public class GetShardSizeAction {
 
         @Inject
         public TransportGetShardSize(
+            ShardSizeStatsReader reader,
             ClusterService clusterService,
-            IndicesService indicesService,
             ActionFilters actionFilters,
             TransportService transportService
         ) {
             // fork to generic thread pool because computing the shard size might access files on disk and trigger cache misses
             super(NAME, actionFilters, transportService.getTaskManager(), clusterService.threadPool().generic());
-            this.reader = new ShardSizeStatsReader(clusterService, indicesService);
+            this.reader = reader;
         }
 
         @Override

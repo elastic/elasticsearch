@@ -119,7 +119,7 @@ missing dimension on routing path field:
                 type: keyword
 
 ---
-multi-value routing path field:
+multi-value routing path field succeeds:
   - requires:
       test_runner_features: close_to
       cluster_features: ["routing.multi_value_routing_path"]

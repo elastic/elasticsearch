@@ -14,15 +14,12 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.ingest.IngestTestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -31,7 +28,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -39,7 +35,6 @@ import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
 import static org.elasticsearch.action.DocWriteResponse.Result.UPDATED;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -134,17 +129,11 @@ public class BulkIntegrationIT extends ESIntegTestCase {
         }
     }
 
-    private void createSamplePipeline(String pipelineId) throws IOException, ExecutionException, InterruptedException {
-        XContentBuilder pipeline = jsonBuilder().startObject()
-            .startArray("processors")
-            .startObject()
-            .startObject("test")
-            .endObject()
-            .endObject()
-            .endArray()
-            .endObject();
-
-        assertAcked(clusterAdmin().putPipeline(new PutPipelineRequest(pipelineId, BytesReference.bytes(pipeline), XContentType.JSON)));
+    private void createSamplePipeline(String pipelineId) throws IOException {
+        putJsonPipeline(
+            pipelineId,
+            (builder, params) -> builder.startArray("processors").startObject().startObject("test").endObject().endObject().endArray()
+        );
     }
 
     /** This test ensures that index deletion makes indexing fail quickly, not wait on the index that has disappeared */

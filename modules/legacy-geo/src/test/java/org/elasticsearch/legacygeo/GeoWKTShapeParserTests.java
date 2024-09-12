@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeometryNormalizer;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.MultiLine;
@@ -299,6 +300,8 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         assertThat(e, hasToString(containsString("coordinate dimensions do not match")));
     }
 
+    @UpdateForV9
+    @AwaitsFix(bugUrl = "this test is using pre 8.0.0 index versions so needs to be removed or updated")
     public void testParseMixedDimensionPolyWithHoleStoredZ() throws IOException {
         List<Coordinate> shellCoordinates = new ArrayList<>();
         shellCoordinates.add(new Coordinate(100, 0));
@@ -323,6 +326,8 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         parser.nextToken();
     }
 
+    @UpdateForV9
+    @AwaitsFix(bugUrl = "this test is using pre 8.0.0 index versions so needs to be removed or updated")
     public void testParsePolyWithStoredZ() throws IOException {
         List<Coordinate> shellCoordinates = new ArrayList<>();
         shellCoordinates.add(new Coordinate(100, 0, 0));
@@ -338,6 +343,8 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         parser.nextToken();
     }
 
+    @UpdateForV9
+    @AwaitsFix(bugUrl = "this test is using pre 8.0.0 index versions so needs to be removed or updated")
     public void testParseOpenPolygon() throws IOException {
         String openPolygon = "POLYGON ((100 5, 100 10, 90 10, 90 5))";
 

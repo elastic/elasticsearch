@@ -244,7 +244,6 @@ public class DateFieldMapperTests extends MapperTestCase {
                     + "failed to parse date field [foo] with format [strict_date_optional_time||epoch_millis]"
             )
         );
-
     }
 
     public void testNullConfigValuesFail() {

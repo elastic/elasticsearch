@@ -10,6 +10,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
@@ -278,6 +279,8 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
         );
     }
 
+    @UpdateForV9
+    @AwaitsFix(bugUrl = "this is testing legacy functionality so can likely be removed in 9.0")
     public void testGeoShapeLegacyMerge() throws Exception {
         IndexVersion version = IndexVersions.V_8_0_0;
         MapperService m = createMapperService(version, fieldMapping(b -> b.field("type", getFieldName())));

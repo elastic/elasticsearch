@@ -45,13 +45,10 @@ public class EdgeNGramTokenizerTests extends ESTokenStreamTestCase {
     }
 
     public void testPreConfiguredTokenizer() throws IOException {
-        // we return ngrams of length 1 and 2, to match the default factory settings
-        {
-            try (IndexAnalyzers indexAnalyzers = buildAnalyzers(IndexVersion.current(), "edge_ngram")) {
-                NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
-                assertNotNull(analyzer);
-                assertAnalyzesTo(analyzer, "test", new String[] { "t", "te" });
-            }
+        try (IndexAnalyzers indexAnalyzers = buildAnalyzers(IndexVersion.current(), "edge_ngram")) {
+            NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
+            assertNotNull(analyzer);
+            assertAnalyzesTo(analyzer, "test", new String[] { "t", "te" });
         }
     }
 

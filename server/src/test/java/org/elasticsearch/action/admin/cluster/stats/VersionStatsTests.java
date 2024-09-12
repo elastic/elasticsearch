@@ -54,7 +54,7 @@ public class VersionStatsTests extends AbstractWireSerializingTestCase<VersionSt
         return new VersionStats(instance.versionStats().stream().map(svs -> {
             return switch (randomIntBetween(1, 4)) {
                 case 1 -> new VersionStats.SingleVersionStats(
-                    IndexVersions.V_8_0_0,
+                    IndexVersions.V_8_3_0,
                     svs.indexCount,
                     svs.primaryShardCount,
                     svs.totalPrimaryByteCount
@@ -144,7 +144,7 @@ public class VersionStatsTests extends AbstractWireSerializingTestCase<VersionSt
     }
 
     public static VersionStats randomInstance() {
-        List<IndexVersion> versions = List.of(IndexVersion.current(), IndexVersions.V_8_1_0, IndexVersions.V_8_2_0, IndexVersions.V_8_3_0);
+        List<IndexVersion> versions = List.of(IndexVersion.current(), IndexVersions.V_8_0_0, IndexVersions.V_8_1_0, IndexVersions.V_8_2_0);
         List<VersionStats.SingleVersionStats> stats = new ArrayList<>();
         for (IndexVersion v : versions) {
             VersionStats.SingleVersionStats s = new VersionStats.SingleVersionStats(

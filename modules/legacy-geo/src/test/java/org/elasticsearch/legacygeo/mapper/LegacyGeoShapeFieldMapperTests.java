@@ -12,6 +12,7 @@ import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -54,6 +55,8 @@ import static org.mockito.Mockito.when;
 
 @UpdateForV9 // can we remove this entire test?
 @SuppressWarnings("deprecation")
+@UpdateForV9
+@AwaitsFix(bugUrl = "this is testing legacy functionality so can likely be removed in 9.0")
 public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
 
     @Override

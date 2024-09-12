@@ -106,7 +106,6 @@ public class WildcardFieldMapperTests extends MapperTestCase {
 
     static final int MAX_FIELD_LENGTH = 30;
     static WildcardFieldMapper wildcardFieldType;
-    static WildcardFieldMapper wildcardFieldType79;
     static KeywordFieldMapper keywordFieldType;
     private DirectoryReader rewriteReader;
     private BaseDirectoryWrapper rewriteDir;

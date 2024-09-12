@@ -9,6 +9,7 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.vectors.BinaryDenseVectorScriptDocValuesTests;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.mapper.vectors.KnnDenseVectorScriptDocValuesTests;
@@ -43,6 +44,17 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
         List<Number> invalidQueryVector = Arrays.asList(0.5, 111.3);
 
         List<DenseVectorDocValuesField> fields = List.of(
+            new BinaryDenseVectorDocValuesField(
+                BinaryDenseVectorScriptDocValuesTests.wrap(
+                    new float[][] { docVector },
+                    ElementType.FLOAT,
+                    IndexVersions.MINIMUM_COMPATIBLE
+                ),
+                "test",
+                ElementType.FLOAT,
+                dims,
+                IndexVersions.MINIMUM_COMPATIBLE
+            ),
             new BinaryDenseVectorDocValuesField(
                 BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.FLOAT, IndexVersion.current()),
                 "test",
@@ -229,6 +241,17 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
         byte[] byteVector = new byte[] { (byte) 1, (byte) 125, (byte) -12, (byte) 2, (byte) 4 };
 
         List<DenseVectorDocValuesField> fields = List.of(
+            new BinaryDenseVectorDocValuesField(
+                BinaryDenseVectorScriptDocValuesTests.wrap(
+                    new float[][] { docVector },
+                    ElementType.FLOAT,
+                    IndexVersions.MINIMUM_COMPATIBLE
+                ),
+                "field0",
+                ElementType.FLOAT,
+                dims,
+                IndexVersions.MINIMUM_COMPATIBLE
+            ),
             new BinaryDenseVectorDocValuesField(
                 BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.FLOAT, IndexVersion.current()),
                 "field1",

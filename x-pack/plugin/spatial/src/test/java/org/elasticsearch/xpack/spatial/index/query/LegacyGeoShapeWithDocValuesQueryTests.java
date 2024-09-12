@@ -11,6 +11,7 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.MultiPoint;
@@ -40,7 +41,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "TODO lucene 10 upgrade")
+@UpdateForV9
+@LuceneTestCase.AwaitsFix(bugUrl = "this is testing legacy functionality so can likely be removed in 9.0")
 public class LegacyGeoShapeWithDocValuesQueryTests extends GeoShapeQueryTestCase {
 
     @SuppressWarnings("deprecation")

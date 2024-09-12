@@ -219,6 +219,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
     }
 
     public void testDynamicMapperWithBadMapping() throws IOException {
+        // in 8.x it will error out
         Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(topMapping(b -> {
             b.startArray("dynamic_templates");
             {

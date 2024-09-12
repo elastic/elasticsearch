@@ -70,9 +70,6 @@ public class TypeParsersTests extends ESTestCase {
 
         Mapper.TypeParser typeParser = KeywordFieldMapper.PARSER;
 
-        // For indices created prior to 8.0, we should only emit a warning and not fail parsing.
-        Map<String, Object> fieldNode = XContentHelper.convertToMap(BytesReference.bytes(mapping), true, mapping.contentType()).v2();
-
         MapperService mapperService = mock(MapperService.class);
         IndexAnalyzers indexAnalyzers = IndexAnalyzers.of(defaultAnalyzers());
         when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);

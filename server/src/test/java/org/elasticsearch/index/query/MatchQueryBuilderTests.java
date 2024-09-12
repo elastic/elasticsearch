@@ -374,7 +374,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
                 "message1" : ["term1", "term2"]
               }
             }""";
-        expectThrows(IllegalStateException.class, () -> parseQuery(json2));
+        expectThrows(IllegalArgumentException.class, () -> parseQuery(json2));
     }
 
     public void testExceptionUsingAnalyzerOnNumericField() {

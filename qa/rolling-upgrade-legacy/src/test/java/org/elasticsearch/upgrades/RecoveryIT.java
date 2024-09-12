@@ -419,10 +419,14 @@ public class RecoveryIT extends AbstractRollingTestCase {
         }
 
         final IndexVersion indexVersionCreated = indexVersionCreated(indexName);
-        // index was created on a version that supports the replication of closed indices,
-        // so we expect the index to be closed and replicated
-        ensureGreen(indexName);
-        assertClosedIndex(indexName, true);
+        if (indexVersionCreated.onOrAfter(IndexVersions.V_8_0_0)) {
+            // index was created on a version that supports the replication of closed indices,
+            // so we expect the index to be closed and replicated
+            ensureGreen(indexName);
+            assertClosedIndex(indexName, true);
+        } else {
+            assertClosedIndex(indexName, false);
+        }
     }
 
     /**
@@ -443,8 +447,14 @@ public class RecoveryIT extends AbstractRollingTestCase {
             ensureGreen(indexName);
             closeIndex(indexName);
         }
-        ensureGreen(indexName);
-        assertClosedIndex(indexName, true);
+        if (minimumIndexVersion().onOrAfter(IndexVersions.V_8_0_0)) {
+            // index is created on a version that supports the replication of closed indices,
+            // so we expect the index to be closed and replicated
+            ensureGreen(indexName);
+            assertClosedIndex(indexName, true);
+        } else {
+            assertClosedIndex(indexName, false);
+        }
     }
 
     /**
@@ -472,10 +482,16 @@ public class RecoveryIT extends AbstractRollingTestCase {
             closeIndex(indexName);
         }
 
-        ensureGreen(indexName);
-        assertClosedIndex(indexName, true);
-        if (CLUSTER_TYPE != ClusterType.OLD) {
-            assertNoopRecoveries(indexName, s -> CLUSTER_TYPE == ClusterType.UPGRADED || s.startsWith(CLUSTER_NAME + "-0"));
+        if (indexVersionCreated(indexName).onOrAfter(IndexVersions.V_8_0_0)) {
+            // index was created on a version that supports the replication of closed indices, so we expect it to be closed and replicated
+            assertTrue(minimumIndexVersion().onOrAfter(IndexVersions.V_8_0_0));
+            ensureGreen(indexName);
+            assertClosedIndex(indexName, true);
+            if (CLUSTER_TYPE != ClusterType.OLD) {
+                assertNoopRecoveries(indexName, s -> CLUSTER_TYPE == ClusterType.UPGRADED || s.startsWith(CLUSTER_NAME + "-0"));
+            }
+        } else {
+            assertClosedIndex(indexName, false);
         }
     }
 

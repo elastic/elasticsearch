@@ -1162,13 +1162,15 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testQueryStringFunctionOperands() throws Exception {
+    public void testQueryStringFunctionArgNotNullOrConstant() throws Exception {
         assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
-        assertEquals("1:19: argument of [qstr(10)] must be [string], found value [10] type [integer]", error("from test | where qstr(10)"));
+
         assertEquals(
-            "1:19: Query in QSTR function needs to be statically resolved. References to fields are not allowed.",
+            "1:19: argument of [QSTR] must be a constant, received [first_name]",
             error("from test | where qstr(first_name)")
         );
+        assertEquals("1:19: argument of [QSTR] cannot be null, received [null]", error("from test | where qstr(null)"));
+        // Other value types are tested in QueryStringFunctionTests
     }
 
     public void testCoalesceWithMixedNumericTypes() {

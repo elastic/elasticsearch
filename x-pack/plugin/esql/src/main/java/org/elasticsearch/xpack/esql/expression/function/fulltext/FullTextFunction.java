@@ -24,6 +24,7 @@ import java.util.List;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
 /**
@@ -62,13 +63,7 @@ public abstract class FullTextFunction extends Function {
             return new TypeResolution("Unresolved children");
         }
 
-        if (query().foldable() == false) {
-            return new TypeResolution(
-                "Query in " + functionName() + " function needs to be statically resolved. References to fields are not allowed."
-            );
-        }
-
-        return isString(query(), sourceText(), DEFAULT);
+        return isString(query(), sourceText(), DEFAULT).and(isNotNullAndFoldable(query(), functionName(), DEFAULT));
     }
 
     public Expression query() {

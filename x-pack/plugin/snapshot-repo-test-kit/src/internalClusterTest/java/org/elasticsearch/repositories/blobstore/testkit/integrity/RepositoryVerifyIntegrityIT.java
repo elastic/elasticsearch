@@ -344,16 +344,21 @@ public class RepositoryVerifyIntegrityIT extends AbstractSnapshotIntegTestCase {
                 ? equalTo(testContext.indexNames().size())
                 : lessThan(testContext.indexNames().size())
         );
-        assertThat(anomalies, not(empty()));
+        // Missing shard generation file is automatically repaired based on the shard snapshot files.
+        // See also BlobStoreRepository#buildBlobStoreIndexShardSnapshots
+        assertThat(anomalies, corruptedFileType == RepositoryFileType.SHARD_GENERATION ? empty() : not(empty()));
         assertThat(responseObjectPath.evaluate("results.total_anomalies"), greaterThanOrEqualTo(anomalies.size()));
-        assertEquals("fail", responseObjectPath.evaluate("results.result"));
+        assertEquals(
+            corruptedFileType == RepositoryFileType.SHARD_GENERATION ? "pass" : "fail",
+            responseObjectPath.evaluate("results.result")
+        );
 
         // remove permitted/expected anomalies to verify that no unexpected ones were seen
         switch (corruptedFileType) {
             case SNAPSHOT_INFO -> anomalies.remove("failed to load snapshot info");
             case GLOBAL_METADATA -> anomalies.remove("failed to load global metadata");
             case INDEX_METADATA -> anomalies.remove("failed to load index metadata");
-            case SHARD_GENERATION -> anomalies.remove("failed to load shard generation");
+            case SHARD_GENERATION -> {}
             case SHARD_SNAPSHOT_INFO -> anomalies.remove("failed to load shard snapshot");
             case SHARD_DATA -> {
                 anomalies.remove("missing blob");

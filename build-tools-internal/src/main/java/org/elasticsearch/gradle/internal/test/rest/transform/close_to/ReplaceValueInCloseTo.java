@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.internal.test.rest.transform.closeto;
+package org.elasticsearch.gradle.internal.test.rest.transform.close_to;
 
 import com.fasterxml.jackson.databind.node.NumericNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -38,7 +38,7 @@ public class ReplaceValueInCloseTo extends ReplaceByKey {
     @Override
     public void transformTest(ObjectNode matchParent) {
         ObjectNode closeToNode = (ObjectNode) matchParent.get(getKeyToFind());
-        ObjectNode subNode = (ObjectNode)closeToNode.get(requiredChildKey());
+        ObjectNode subNode = (ObjectNode) closeToNode.get(requiredChildKey());
         subNode.remove("value");
         subNode.set("value", getReplacementNode());
     }

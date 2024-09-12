@@ -208,7 +208,7 @@ public class NativePrivilegeStore {
         if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(Collections.emptyList());
         } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
-            if (false == waitOnUnavailable || false == frozenSecurityIndex.isCreating()) {
+            if (false == waitOnUnavailable || false == frozenSecurityIndex.indexIsCreating()) {
                 listener.onFailure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
                 return;
             }

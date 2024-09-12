@@ -184,9 +184,9 @@ public class SecurityIndexManager implements ClusterStateListener {
         throw new IllegalStateException("Unexpected availability enumeration. This is bug, please contact support.");
     }
 
-    public boolean isCreating() {
+    public boolean indexIsCreating() {
         // TODO this is not accurate
-        return this.state.indexAvailableForWrite && this.state.indexAvailableForSearch == false;
+        return this.state.indexCreating;
     }
 
     public boolean isMappingUpToDate() {
@@ -375,21 +375,21 @@ public class SecurityIndexManager implements ClusterStateListener {
             }
             return;
         }
-        final BiConsumer<SecurityIndexManager.State, SecurityIndexManager.State> indexAvailableForSearchListener = new BiConsumer<>() {
+        final BiConsumer<SecurityIndexManager.State, SecurityIndexManager.State> indexAvailableListener = new BiConsumer<>() {
             @Override
             public void accept(SecurityIndexManager.State previousState, SecurityIndexManager.State nextState) {
-                if (nextState.indexAvailableForSearch) {
+                if (nextState.indexAvailableForWrite && nextState.indexAvailableForSearch) {
                     if (removeStateListener(this)) {
                         listener.onResponse(null);
                     }
                 }
             }
         };
-        addStateListener(indexAvailableForSearchListener);
+        addStateListener(indexAvailableListener);
         // TODO cleaner cancellation handling -- also, if we complete without cancelling, we should cancel the cancellation...
         final ThreadPool threadPool = client.threadPool();
         threadPool.schedule(() -> {
-            if (removeStateListener(indexAvailableForSearchListener)) {
+            if (removeStateListener(indexAvailableListener)) {
                 listener.onFailure(new IllegalStateException("timed out waiting for index"));
             }
         }, TimeValue.timeValueSeconds(5), threadPool.generic());

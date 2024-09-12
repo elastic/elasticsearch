@@ -10,19 +10,16 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Locale;
-import java.util.Set;
 
 /**
  * Captures the role of the failure store in this document response. For example,
@@ -31,17 +28,29 @@ import java.util.Set;
  * the failure store has it been enabled.
  * - FAILED, means that this failed document was eligible to be stored in the failure store and the failure store
  * was enabled but something went wrong.
- * - NOT_APPLICABLE_OR_UNKNOWN, means either that we have no information about this response, for example, in a mixed state
- * cluster or the document wasn't eligible for the failure store, either because it was successfully stored in the data stream
- * or it failed to be indexed in an index (failure store is only supported in data streams).
  */
 public enum IndexDocFailureStoreStatus implements ToXContentFragment, Writeable {
+    /**
+     * This status represents that we have no information about this response or that the failure store is not applicable.
+     * For example:
+     * - when the doc was successfully indexed in a backing index of a data stream,
+     * - when we are running in a mixed version cluster and the information is not available,
+     * - when the doc was rejected by elasticsearch but failure store was not applicable (i.e. the target was an index).
+     */
     NOT_APPLICABLE_OR_UNKNOWN(0),
+    /**
+     * This status represents that this document was stored in the failure store successfully.
+     */
     USED(1),
+    /**
+     * This status represents that this document was rejected, but it could have ended up in the failure store if it was enabled.
+     */
     NOT_ENABLED(2),
+    /**
+     * This status represents that this document was rejected from the failure store.
+     */
     FAILED(3);
 
-    private static final Set<IndexDocFailureStoreStatus> forDisplay = Set.of(USED, NOT_ENABLED, FAILED);
     private final byte id;
     private final String label;
 
@@ -88,24 +97,10 @@ public enum IndexDocFailureStoreStatus implements ToXContentFragment, Writeable 
         };
     }
 
-    /**
-     * This helper function tried to determine if the failure store was used or not from the index name. This
-     * should only be used in mixed cluster where the failure store status information is missing.
-     *
-     * @param response the response part of the BulkItemResponse.
-     * @return <code>USED</code> if the doc was indexed in an index with the failure store prefix, <code>NOT_APPLICABLE_OR_UNKNOWN</code>
-     * otherwise.
-     */
-    static IndexDocFailureStoreStatus inferFromResponse(@Nullable DocWriteResponse response) {
-        if (response != null && response.getIndex().startsWith(DataStream.FAILURE_STORE_PREFIX)) {
-            return USED;
-        }
-        return NOT_APPLICABLE_OR_UNKNOWN;
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (forDisplay.contains(this)) {
+        // We avoid adding the not_applicable status in the response to not increase the size of bulk responses.
+        if (DataStream.isFailureStoreFeatureFlagEnabled() && this.equals(NOT_APPLICABLE_OR_UNKNOWN) == false) {
             builder.field("failure_store", label);
         }
         return builder;

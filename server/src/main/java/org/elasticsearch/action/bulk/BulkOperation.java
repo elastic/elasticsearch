@@ -752,8 +752,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     }
 
     /**
-     * Like {@link BulkOperation#addFailure(DocWriteRequest, int, String, Exception, IndexDocFailureStoreStatus)} but this method will remove
-     * the corresponding entry from the working bulk request so that it never gets processed again during this operation.
+     * Like {@link BulkOperation#addFailure(DocWriteRequest, int, String, Exception, IndexDocFailureStoreStatus)} but this method will
+     * remove the corresponding entry from the working bulk request so that it never gets processed again during this operation.
      */
     private void addFailureAndDiscardRequest(
         DocWriteRequest<?> request,

@@ -393,7 +393,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
             );
         }
         assertDataStreamBackingIndexMode("logsdb", 0, "logs-apache-kafka");
-        assertThat(entityAsMap(client.performRequest(new Request("POST", "/logs-apache-kafka/_count"))).get("count"), Matchers.equalTo(10));
+        assertDocCount(client, "logs-apache-kafka", 10);
 
         // Reindex a LogsDB data stream into a standard data stream
         final Request reindexRequest = new Request("POST", "/_reindex?refresh=true");
@@ -463,6 +463,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
         wipeDataStreams();
         wipeAllIndices();
         wipeSnapshots();
+
         final String repository = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         registerRepository(repository, FsRepository.TYPE, Settings.builder().put("location", randomAlphaOfLength(6)));
 
@@ -495,10 +496,9 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
         final Request mountRequest = new Request("POST", "/_snapshot/" + repository + '/' + snapshot + "/_mount");
         mountRequest.addParameter("wait_for_completion", "true");
         mountRequest.setJsonEntity("{\"index\": \"" + index + "\",\"renamed_index\": \"" + restoreIndex + "\"}");
+
         assertOK(client.performRequest(mountRequest));
-
         assertDocCount(client, restoreIndex, 10);
-
         assertThat(getSettings(client, restoreIndex).get("index.mode"), Matchers.equalTo(IndexMode.LOGSDB.getName()));
     }
 
@@ -508,6 +508,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
         wipeDataStreams();
         wipeAllIndices();
         wipeSnapshots();
+
         final String repository = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         registerRepository(repository, FsRepository.TYPE, Settings.builder().put("location", randomAlphaOfLength(6)));
         // A source-only repository delegates storage to another repository

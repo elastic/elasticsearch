@@ -2327,11 +2327,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             if (rescores() != null && rescores().isEmpty() == false) {
                 validationException = addValidationError("[rank] cannot be used with [rescore]", validationException);
             }
-            if (sorts() != null && sorts().isEmpty() == false) {
-                if (false == rankBuilder.acceptsSorts()) {
-                    validationException = addValidationError("[rank] cannot be used with [sort]", validationException);
-                }
-            }
+
             if (suggest() != null && suggest().getSuggestions().isEmpty() == false) {
                 validationException = addValidationError("[rank] cannot be used with [suggest]", validationException);
             }

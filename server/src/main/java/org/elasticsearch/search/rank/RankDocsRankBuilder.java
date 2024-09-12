@@ -56,11 +56,6 @@ public class RankDocsRankBuilder extends RankBuilder {
     }
 
     @Override
-    public boolean acceptsSorts() {
-        return true;
-    }
-
-    @Override
     public boolean isCompoundBuilder() {
         return false;
     }

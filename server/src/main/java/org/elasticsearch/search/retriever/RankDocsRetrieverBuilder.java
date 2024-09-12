@@ -12,7 +12,6 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankDocsRankBuilder;
 import org.elasticsearch.search.retriever.rankdoc.RankDocsAndScoreSortBuilder;
@@ -112,15 +111,8 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
             // compute a disjunction of all the query sources that were executed to compute the top rank docs
             QueryBuilder disjunctionOfSources = topDocsQuery();
             if (disjunctionOfSources != null) {
-                // if have an explain or profile request, we'd need to compute scores for all documents and retrieve detailed info for
-                // query execution times
-                if (isExplainRequest(searchSourceBuilder) || isProfileRequest(searchSourceBuilder)) {
-                    boolQuery.must(disjunctionOfSources);
-                    searchSourceBuilder.trackScores(true);
-                } else {
-                    // otherwise we apply all the parent queries as filters
-                    boolQuery.filter(disjunctionOfSources);
-                }
+                boolQuery.must(disjunctionOfSources);
+                searchSourceBuilder.trackScores(true);
             }
         } else {
             boolQuery.must(rankQuery);
@@ -148,8 +140,7 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
     }
 
     private boolean shouldTrackTotalHits(SearchSourceBuilder searchSourceBuilder) {
-        return searchSourceBuilder.trackTotalHitsUpTo() != null
-            && searchSourceBuilder.trackTotalHitsUpTo() == SearchContext.TRACK_TOTAL_HITS_ACCURATE;
+        return searchSourceBuilder.trackTotalHitsUpTo() != null && searchSourceBuilder.trackTotalHitsUpTo() > rankDocs.get().length;
     }
 
     @Override

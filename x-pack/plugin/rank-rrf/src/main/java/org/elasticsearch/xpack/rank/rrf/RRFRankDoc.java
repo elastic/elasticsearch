@@ -46,7 +46,7 @@ public class RRFRankDoc extends RankDoc {
      */
     public final float[] scores;
 
-    public int rankConstant;
+    public final int rankConstant;
 
     public RRFRankDoc(int doc, int shardIndex, int queryCount, int rankConstant) {
         super(doc, 0f, shardIndex);

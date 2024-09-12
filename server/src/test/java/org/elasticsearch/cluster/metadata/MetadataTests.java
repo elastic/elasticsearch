@@ -2019,7 +2019,6 @@ public class MetadataTests extends ESTestCase {
         );
     }
 
-
     public void testSystemAliasValidationAll8x() {
         final IndexMetadata currentVersionSystem = buildIndexWithAlias(".system1", SYSTEM_ALIAS_NAME, null, IndexVersion.current(), true);
         final IndexMetadata currentVersionSystem2 = buildIndexWithAlias(".system2", SYSTEM_ALIAS_NAME, null, IndexVersion.current(), true);

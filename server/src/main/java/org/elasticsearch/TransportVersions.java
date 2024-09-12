@@ -208,7 +208,8 @@ public class TransportVersions {
     public static final TransportVersion ESQL_AGGREGATE_EXEC_TRACKS_INTERMEDIATE_ATTRS = def(8_738_00_0);
     public static final TransportVersion CCS_TELEMETRY_STATS = def(8_739_00_0);
     public static final TransportVersion GLOBAL_RETENTION_TELEMETRY = def(8_740_00_0);
-    public static final TransportVersion RRF_QUERY_REWRITE = def(8_741_00_0);
+    public static final TransportVersion ROUTING_TABLE_VERSION_REMOVED = def(8_741_00_0);
+    public static final TransportVersion RRF_QUERY_REWRITE = def(8_742_00_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _
@@ -266,6 +267,8 @@ public class TransportVersions {
      * Reference to the earliest compatible transport version to this version of the codebase.
      * This should be the transport version used by the highest minor version of the previous major.
      */
+    @UpdateForV9
+    // This needs to be bumped to the 8.last
     public static final TransportVersion MINIMUM_COMPATIBLE = V_7_17_0;
 
     /**

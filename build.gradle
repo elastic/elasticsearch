@@ -135,7 +135,7 @@ tasks.register("updateCIBwcVersions") {
   }
 
   doLast {
-    writeVersions(file(".ci/bwcVersions"), filterIntermediatePatches(BuildParams.bwcVersions.allIndexCompatible))
+    writeVersions(file(".ci/bwcVersions"), filterIntermediatePatches(BuildParams.bwcVersions.indexCompatible))
     writeVersions(file(".ci/snapshotBwcVersions"), filterIntermediatePatches(BuildParams.bwcVersions.unreleasedIndexCompatible))
     expandBwcList(
       ".buildkite/pipelines/intake.yml",
@@ -149,7 +149,7 @@ tasks.register("updateCIBwcVersions") {
         new ListExpansion(versions: filterIntermediatePatches(BuildParams.bwcVersions.unreleasedIndexCompatible), variable: "BWC_LIST"),
       ],
       [
-        new StepExpansion(templatePath: ".buildkite/pipelines/periodic.bwc.template.yml", versions: filterIntermediatePatches(BuildParams.bwcVersions.allIndexCompatible), variable: "BWC_STEPS"),
+        new StepExpansion(templatePath: ".buildkite/pipelines/periodic.bwc.template.yml", versions: filterIntermediatePatches(BuildParams.bwcVersions.indexCompatible), variable: "BWC_STEPS"),
       ]
     )
 
@@ -157,7 +157,7 @@ tasks.register("updateCIBwcVersions") {
       ".buildkite/pipelines/periodic-packaging.yml",
       ".buildkite/pipelines/periodic-packaging.template.yml",
       ".buildkite/pipelines/periodic-packaging.bwc.template.yml",
-      filterIntermediatePatches(BuildParams.bwcVersions.allIndexCompatible)
+      filterIntermediatePatches(BuildParams.bwcVersions.indexCompatible)
     )
   }
 }
@@ -186,7 +186,7 @@ tasks.register("verifyVersions") {
           .collect { Version.fromString(it) }
       )
     }
-    verifyCiYaml(file(".ci/bwcVersions"), filterIntermediatePatches(BuildParams.bwcVersions.allIndexCompatible))
+    verifyCiYaml(file(".ci/bwcVersions"), filterIntermediatePatches(BuildParams.bwcVersions.indexCompatible))
     verifyCiYaml(file(".ci/snapshotBwcVersions"), BuildParams.bwcVersions.unreleasedIndexCompatible)
 
     // Make sure backport bot config file is up to date

@@ -45,11 +45,15 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
 
         List<DenseVectorDocValuesField> fields = List.of(
             new BinaryDenseVectorDocValuesField(
-                BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.FLOAT, IndexVersions.V_7_4_0),
+                BinaryDenseVectorScriptDocValuesTests.wrap(
+                    new float[][] { docVector },
+                    ElementType.FLOAT,
+                    IndexVersions.MINIMUM_COMPATIBLE
+                ),
                 "test",
                 ElementType.FLOAT,
                 dims,
-                IndexVersions.V_7_4_0
+                IndexVersions.MINIMUM_COMPATIBLE
             ),
             new BinaryDenseVectorDocValuesField(
                 BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.FLOAT, IndexVersion.current()),
@@ -238,11 +242,15 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
 
         List<DenseVectorDocValuesField> fields = List.of(
             new BinaryDenseVectorDocValuesField(
-                BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.FLOAT, IndexVersions.V_7_4_0),
+                BinaryDenseVectorScriptDocValuesTests.wrap(
+                    new float[][] { docVector },
+                    ElementType.FLOAT,
+                    IndexVersions.MINIMUM_COMPATIBLE
+                ),
                 "field0",
                 ElementType.FLOAT,
                 dims,
-                IndexVersions.V_7_4_0
+                IndexVersions.MINIMUM_COMPATIBLE
             ),
             new BinaryDenseVectorDocValuesField(
                 BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.FLOAT, IndexVersion.current()),

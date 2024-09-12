@@ -27,7 +27,7 @@ At query time, {es} can use the same NLP model to convert a query into embedding
 === Choose a semantic search workflow
 
 [discrete]
-==== The `semantic_text` workflow
+==== `semantic_text` workflow
 
 The simplest way to use NLP models in the {stack} is through the <<semantic-search-semantic-text, `semantic_text` workflow>>.
 We recommend using this approach because it abstracts away a lot of manual work.
@@ -38,7 +38,7 @@ Refer to the <<put-inference-api, Create an {infer} endpoint API>> documentation
 The <<semantic-search-semantic-text, Semantic search with `semantic_text`>> tutorial shows you the process end-to-end.
 
 [discrete]
-==== The {infer} API workflow
+==== {infer} API workflow
 
 The <<semantic-search-inference, {infer} API workflow>> is more complex but offers greater control over the {infer} endpoint configuration.
 You need to create an {infer} endpoint, provide various model-related settings and parameters, define an index mapping, and set up an {infer} ingest pipeline with the appropriate settings.
@@ -68,12 +68,12 @@ If not, it depends on which type of embeddings you're working with.
 |=======================================================================================================================================================================================================
 | Field type to query                    | Query to use                                      | Notes                                                                                                                                                             
 | <<semantic-text,`semantic_text`>>      | <<query-dsl-semantic-query,`semantic`>>           | The `semantic_text` field handles generating embeddings for you at index time and query time.                                                               
-| <<sparse-vector,`sparse_vector`>>      | <<query-dsl-sparse-vector-query,`sparse_vector`>> | The `sparse_vector` query can generate query embeddings for you, but you can also provide your own. Provide embeddings at index time.
-| <<dense-vector,`dense_vector`>>        | <<query-dsl-knn-query,`knn`>>                     | The `knn` query can generate query embeddings for you, but you can also provide your own. Provide embeddings at index time.
+| <<sparse-vector,`sparse_vector`>>      | <<query-dsl-sparse-vector-query,`sparse_vector`>> | The `sparse_vector` query can generate query embeddings for you, but you can also provide your own. You must provide embeddings at index time.
+| <<dense-vector,`dense_vector`>>        | <<query-dsl-knn-query,`knn`>>                     | The `knn` query can generate query embeddings for you, but you can also provide your own. You must provide embeddings at index time.
 |=======================================================================================================================================================================================================
 
 If you want {es} to generate embeddings at both index and query time, use the `semantic_text` field and the `semantic` query.
-If you want to bring your own embeddings, store them in {es} and use the `sparse_vector` or `dense_vector` field type and the associated query depending on the NLP model you used for generating the embeddings.
+If you want to bring your own embeddings, use the `sparse_vector` or `dense_vector` field type and the associated query depending on the NLP model you used to generate the embeddings.
 
 IMPORTANT: For the easiest way to perform semantic search in the {stack}, refer to the <<semantic-search-semantic-text, `semantic_text`>> end-to-end tutorial.
 
@@ -85,7 +85,7 @@ IMPORTANT: For the easiest way to perform semantic search in the {stack}, refer 
 * Tutorials:
 ** <<semantic-search-semantic-text, Semantic search with `semantic_text`>>
 ** <<semantic-search-inference, Semantic search with the {infer} API>>
-** <<semantic-search-elser,Semantic search with ELSER>> using the {infer} workflow
+** <<semantic-search-elser,Semantic search with ELSER>> using the model deployment workflow
 ** <<semantic-search-deployed-nlp-model, Semantic search with a model deployed in {es}>>
 ** {ml-docs}/ml-nlp-text-emb-vector-search-example.html[Semantic search with the msmarco-MiniLM-L-12-v3 sentence-transformer model]
 * Interactive examples:

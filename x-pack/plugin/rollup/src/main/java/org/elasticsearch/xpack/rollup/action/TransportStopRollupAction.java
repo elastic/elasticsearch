@@ -70,6 +70,7 @@ public class TransportStopRollupAction extends TransportTasksAction<
 
     @Override
     protected void doExecute(Task task, StopRollupJobAction.Request request, ActionListener<StopRollupJobAction.Response> listener) {
+        DEPRECATION_LOGGER.warn(DeprecationCategory.API, DEPRECATION_KEY, DEPRECATION_MESSAGE);
         super.doExecute(task, request, listener);
     }
 
@@ -80,7 +81,6 @@ public class TransportStopRollupAction extends TransportTasksAction<
         RollupJobTask jobTask,
         ActionListener<StopRollupJobAction.Response> listener
     ) {
-        DEPRECATION_LOGGER.warn(DeprecationCategory.API, DEPRECATION_KEY, DEPRECATION_MESSAGE);
         if (jobTask.getConfig().getId().equals(request.getId())) {
             jobTask.stop(maybeWrapWithBlocking(request, jobTask, listener, threadPool));
         } else {

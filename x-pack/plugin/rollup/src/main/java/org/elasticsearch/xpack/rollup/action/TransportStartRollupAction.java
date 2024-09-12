@@ -18,6 +18,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.rollup.action.StartRollupJobAction;
 import org.elasticsearch.xpack.rollup.job.RollupJobTask;
@@ -54,13 +55,18 @@ public class TransportStartRollupAction extends TransportTasksAction<
     }
 
     @Override
+    protected void doExecute(Task task, StartRollupJobAction.Request request, ActionListener<StartRollupJobAction.Response> listener) {
+        DEPRECATION_LOGGER.warn(DeprecationCategory.API, DEPRECATION_KEY, DEPRECATION_MESSAGE);
+        super.doExecute(task, request, listener);
+    }
+
+    @Override
     protected void taskOperation(
         CancellableTask actionTask,
         StartRollupJobAction.Request request,
         RollupJobTask jobTask,
         ActionListener<StartRollupJobAction.Response> listener
     ) {
-        DEPRECATION_LOGGER.warn(DeprecationCategory.API, DEPRECATION_KEY, DEPRECATION_MESSAGE);
         if (jobTask.getConfig().getId().equals(request.getId())) {
             jobTask.start(listener);
         } else {

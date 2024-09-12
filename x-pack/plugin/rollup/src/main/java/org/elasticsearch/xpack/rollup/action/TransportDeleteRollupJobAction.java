@@ -59,6 +59,7 @@ public class TransportDeleteRollupJobAction extends TransportTasksAction<
 
     @Override
     protected void doExecute(Task task, DeleteRollupJobAction.Request request, ActionListener<DeleteRollupJobAction.Response> listener) {
+        DEPRECATION_LOGGER.warn(DeprecationCategory.API, DEPRECATION_KEY, DEPRECATION_MESSAGE);
         final ClusterState state = clusterService.state();
         final DiscoveryNodes nodes = state.nodes();
 
@@ -100,7 +101,6 @@ public class TransportDeleteRollupJobAction extends TransportTasksAction<
         RollupJobTask jobTask,
         ActionListener<DeleteRollupJobAction.Response> listener
     ) {
-        DEPRECATION_LOGGER.warn(DeprecationCategory.API, DEPRECATION_KEY, DEPRECATION_MESSAGE);
         assert jobTask.getConfig().getId().equals(request.getId());
         IndexerState state = ((RollupJobStatus) jobTask.getStatus()).getIndexerState();
         if (state.equals(IndexerState.STOPPED)) {

@@ -424,12 +424,7 @@ public class UpdateRequestTests extends ESTestCase {
 
     private void runTimeoutTest(final GetResult getResult, final UpdateRequest updateRequest) {
         final IndexShard indexShard = createMockIndexShard(new ShardId("test", "", 0));
-        final UpdateHelper.Result result = updateHelper.prepare(
-            indexShard,
-            updateRequest,
-            getResult,
-            ESTestCase::randomNonNegativeLong
-        );
+        final UpdateHelper.Result result = updateHelper.prepare(indexShard, updateRequest, getResult, ESTestCase::randomNonNegativeLong);
         final Writeable action = result.action();
         assertThat(action, instanceOf(ReplicationRequest.class));
         final ReplicationRequest<?> request = (ReplicationRequest<?>) action;

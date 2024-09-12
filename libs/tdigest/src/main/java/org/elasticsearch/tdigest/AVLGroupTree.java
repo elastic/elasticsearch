@@ -258,8 +258,9 @@ final class AVLGroupTree extends AbstractCollection<Centroid> {
     }
 
     private void checkAggregates(int node) {
-        assert aggregatedCounts.get(node) ==
-            counts.get(node) + aggregatedCounts.get(tree.left(node)) + aggregatedCounts.get(tree.right(node));
+        assert aggregatedCounts.get(node) == counts.get(node) + aggregatedCounts.get(tree.left(node)) + aggregatedCounts.get(
+            tree.right(node)
+        );
         if (node != IntAVLTree.NIL) {
             checkAggregates(tree.left(node));
             checkAggregates(tree.right(node));

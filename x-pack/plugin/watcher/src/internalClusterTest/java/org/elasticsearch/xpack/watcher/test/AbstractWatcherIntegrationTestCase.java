@@ -377,7 +377,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                         lastResponse.set(searchResponse);
                         assertThat(
                             "could not find executed watch record for watch " + watchName,
-                            searchResponse.getHits().getTotalHits().value,
+                            searchResponse.getHits().getTotalHits().value(),
                             greaterThanOrEqualTo(minimumExpectedWatchActionsWithActionPerformed)
                         );
                         if (assertConditionMet) {
@@ -396,7 +396,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         } catch (AssertionError error) {
             SearchResponse searchResponse = lastResponse.get();
             try {
-                logger.info("Found [{}] records for watch [{}]", searchResponse.getHits().getTotalHits().value, watchName);
+                logger.info("Found [{}] records for watch [{}]", searchResponse.getHits().getTotalHits().value(), watchName);
                 int counter = 1;
                 for (SearchHit hit : searchResponse.getHits().getHits()) {
                     logger.info("hit [{}]=\n {}", counter++, XContentHelper.convertToJson(hit.getSourceRef(), true, true));
@@ -452,7 +452,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                     searchResponse -> {
                         lastResponse.set(searchResponse);
                         assertThat(
-                            searchResponse.getHits().getTotalHits().value,
+                            searchResponse.getHits().getTotalHits().value(),
                             greaterThanOrEqualTo(expectedWatchActionsWithNoActionNeeded)
                         );
                     }
@@ -461,7 +461,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         } catch (AssertionError error) {
             SearchResponse searchResponse = lastResponse.get();
             try {
-                logger.info("Found [{}] records for watch [{}]", searchResponse.getHits().getTotalHits().value, watchName);
+                logger.info("Found [{}] records for watch [{}]", searchResponse.getHits().getTotalHits().value(), watchName);
                 int counter = 1;
                 for (SearchHit hit : searchResponse.getHits().getHits()) {
                     logger.info("hit [{}]=\n {}", counter++, XContentHelper.convertToJson(hit.getSourceRef(), true, true));
@@ -497,7 +497,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 searchResponse -> {
                     assertThat(
                         "could not find executed watch record",
-                        searchResponse.getHits().getTotalHits().value,
+                        searchResponse.getHits().getTotalHits().value(),
                         greaterThanOrEqualTo(recordCount)
                     );
                 }

@@ -381,7 +381,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         try {
             logger.info(searchResponse);
             // check hit count
-            assertEquals(numDocs, searchResponse.getHits().getTotalHits().value);
+            assertEquals(numDocs, searchResponse.getHits().getTotalHits().value());
             // check that _index is properly set
             assertTrue(Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getIndex).allMatch(index::equals));
             // check that all _ids are there
@@ -408,7 +408,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         );
         try {
             logger.info(searchResponse);
-            assertEquals(1, searchResponse.getHits().getTotalHits().value);
+            assertEquals(1, searchResponse.getHits().getTotalHits().value());
             assertEquals(id, searchResponse.getHits().getHits()[0].getId());
             assertEquals(sourceForDoc(num), searchResponse.getHits().getHits()[0].getSourceAsString());
         } finally {
@@ -460,7 +460,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                 );
                 try {
                     logger.info(searchResponse);
-                    assertEquals(typeCount, searchResponse.getHits().getTotalHits().value);
+                    assertEquals(typeCount, searchResponse.getHits().getTotalHits().value());
                     for (SearchHit hit : searchResponse.getHits().getHits()) {
                         DocumentField typeField = hit.field("_type");
                         assertNotNull(typeField);
@@ -486,7 +486,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
             );
             try {
                 logger.info(searchResponse);
-                assertEquals(0, searchResponse.getHits().getTotalHits().value);
+                assertEquals(0, searchResponse.getHits().getTotalHits().value());
                 assertEquals(numberOfShards, searchResponse.getSuccessfulShards());
                 // When all shards are skipped, at least one of them is queried in order to provide a proper search response.
                 assertEquals(numberOfShards - 1, searchResponse.getSkippedShards());

@@ -401,14 +401,14 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         try (Engine.Searcher searcher = restoredShard.acquireSearcher("test")) {
             assertEquals(searcher.getIndexReader().maxDoc(), seqNoStats.getLocalCheckpoint());
             TopDocs search = searcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE);
-            assertEquals(searcher.getIndexReader().numDocs(), search.totalHits.value);
+            assertEquals(searcher.getIndexReader().numDocs(), search.totalHits.value());
             search = searcher.search(
                 new MatchAllDocsQuery(),
                 Integer.MAX_VALUE,
                 new Sort(new SortField(SeqNoFieldMapper.NAME, SortField.Type.LONG)),
                 false
             );
-            assertEquals(searcher.getIndexReader().numDocs(), search.totalHits.value);
+            assertEquals(searcher.getIndexReader().numDocs(), search.totalHits.value());
             long previous = -1;
             for (ScoreDoc doc : search.scoreDocs) {
                 FieldDoc fieldDoc = (FieldDoc) doc;

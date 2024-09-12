@@ -67,7 +67,7 @@ public class DatelinePointShapeQueryTestCase {
         GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery(defaultFieldName, rectangle);
         assertResponse(tests.client().prepareSearch(defaultIndexName).setQuery(geoShapeQueryBuilder), response -> {
             SearchHits searchHits = response.getHits();
-            assertEquals(2, searchHits.getTotalHits().value);
+            assertEquals(2, searchHits.getTotalHits().value());
             assertNotEquals("1", searchHits.getAt(0).getId());
             assertNotEquals("1", searchHits.getAt(1).getId());
         });
@@ -111,7 +111,7 @@ public class DatelinePointShapeQueryTestCase {
         geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
         assertResponse(tests.client().prepareSearch(defaultIndexName).setQuery(geoShapeQueryBuilder), response -> {
             SearchHits searchHits = response.getHits();
-            assertEquals(2, searchHits.getTotalHits().value);
+            assertEquals(2, searchHits.getTotalHits().value());
             assertNotEquals("1", searchHits.getAt(0).getId());
             assertNotEquals("4", searchHits.getAt(0).getId());
             assertNotEquals("1", searchHits.getAt(1).getId());
@@ -154,7 +154,7 @@ public class DatelinePointShapeQueryTestCase {
         geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
         assertResponse(tests.client().prepareSearch(defaultIndexName).setQuery(geoShapeQueryBuilder), response -> {
             SearchHits searchHits = response.getHits();
-            assertEquals(2, searchHits.getTotalHits().value);
+            assertEquals(2, searchHits.getTotalHits().value());
             assertNotEquals("3", searchHits.getAt(0).getId());
             assertNotEquals("3", searchHits.getAt(1).getId());
         });

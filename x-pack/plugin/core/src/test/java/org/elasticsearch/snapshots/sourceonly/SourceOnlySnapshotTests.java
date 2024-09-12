@@ -198,7 +198,7 @@ public class SourceOnlySnapshotTests extends ESTestCase {
                 }
                 IndexSearcher searcher = newSearcher(snapReader);
                 TopDocs id = searcher.search(new TermQuery(new Term("id", "1")), 10);
-                assertEquals(0, id.totalHits.value);
+                assertEquals(0, id.totalHits.value());
             }
 
             targetDir = newDirectory(targetDir);

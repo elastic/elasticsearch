@@ -130,7 +130,7 @@ public class BlendedTermQueryTests extends ESTestCase {
                     assertThat(termStates.totalTermFreq(), greaterThan(0L));
                 }
             }
-            assertThat(searcher.search(query, 10).totalHits.value, equalTo((long) iters + username.length));
+            assertThat(searcher.search(query, 10).totalHits.value(), equalTo((long) iters + username.length));
         }
         {
             // test with an unknown field and an unknown term
@@ -145,7 +145,7 @@ public class BlendedTermQueryTests extends ESTestCase {
                 assertThat(termStates.docFreq(), equalTo(0));
                 assertThat(termStates.totalTermFreq(), equalTo(0L));
             }
-            assertThat(searcher.search(query, 10).totalHits.value, equalTo(0L));
+            assertThat(searcher.search(query, 10).totalHits.value(), equalTo(0L));
         }
         {
             // test with an unknown field and a term that is present in only one field
@@ -165,7 +165,7 @@ public class BlendedTermQueryTests extends ESTestCase {
                     assertThat(termStates.totalTermFreq(), equalTo(0L));
                 }
             }
-            assertThat(searcher.search(query, 10).totalHits.value, equalTo(1L));
+            assertThat(searcher.search(query, 10).totalHits.value(), equalTo(1L));
         }
         reader.close();
         w.close();
@@ -297,7 +297,7 @@ public class BlendedTermQueryTests extends ESTestCase {
             String[] fieldNames = fields.keySet().toArray(new String[0]);
             Query query = BlendedTermQuery.dismaxBlendedQuery(toTerms(fieldNames, "foo"), 0.1f);
             TopDocs search = searcher.search(query, 10);
-            assertTrue(search.totalHits.value > 0);
+            assertTrue(search.totalHits.value() > 0);
             assertTrue(search.scoreDocs.length > 0);
         }
         reader.close();

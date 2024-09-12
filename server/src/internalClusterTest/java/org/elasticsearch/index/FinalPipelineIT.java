@@ -124,7 +124,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
             .get();
         assertEquals(RestStatus.CREATED, indexResponse.status());
         assertResponse(prepareSearch("target"), response -> {
-            assertEquals(1, response.getHits().getTotalHits().value);
+            assertEquals(1, response.getHits().getTotalHits().value());
             assertFalse(response.getHits().getAt(0).getSourceAsMap().containsKey("final"));
         });
     }
@@ -150,7 +150,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
             .get();
         assertEquals(RestStatus.CREATED, indexResponse.status());
         assertResponse(prepareSearch("target"), response -> {
-            assertEquals(1, response.getHits().getTotalHits().value);
+            assertEquals(1, response.getHits().getTotalHits().value());
             assertEquals(true, response.getHits().getAt(0).getSourceAsMap().get("final"));
         });
     }
@@ -176,7 +176,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
             .get();
         assertEquals(RestStatus.CREATED, indexResponse.status());
         assertResponse(prepareSearch("target"), response -> {
-            assertEquals(1, response.getHits().getTotalHits().value);
+            assertEquals(1, response.getHits().getTotalHits().value());
             assertFalse(response.getHits().getAt(0).getSourceAsMap().containsKey("final"));
         });
     }
@@ -202,7 +202,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
             .get();
         assertEquals(RestStatus.CREATED, indexResponse.status());
         assertResponse(prepareSearch("target"), response -> {
-            assertEquals(1, response.getHits().getTotalHits().value);
+            assertEquals(1, response.getHits().getTotalHits().value());
             assertTrue(response.getHits().getAt(0).getSourceAsMap().containsKey("final"));
         });
     }

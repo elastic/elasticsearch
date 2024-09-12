@@ -771,7 +771,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 ),
             (response) -> {
                 SearchHits hits = response.getHits();
-                assertEquals(hits.getTotalHits().value, numDocs);
+                assertEquals(hits.getTotalHits().value(), numDocs);
                 assertEquals(hits.getHits().length, 2);
                 int index = 0;
                 for (SearchHit hit : hits.getHits()) {
@@ -2504,7 +2504,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         );
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         service.executeQueryPhase(request, task, future.delegateFailure((l, r) -> {
-            assertEquals(1, r.queryResult().getTotalHits().value);
+            assertEquals(1, r.queryResult().getTotalHits().value());
             l.onResponse(null);
         }));
         future.get();

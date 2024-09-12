@@ -150,7 +150,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                 assertSearchHit(response, 1, hasId("1"));
                 assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
                 SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
-                assertThat(innerHits.getTotalHits().value, equalTo(2L));
+                assertThat(innerHits.getTotalHits().value(), equalTo(2L));
                 assertThat(innerHits.getHits().length, equalTo(2));
                 assertThat(innerHits.getAt(0).getId(), equalTo("1"));
                 assertThat(innerHits.getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
@@ -170,7 +170,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                 assertThat(response.getHits().getAt(0).getShard(), notNullValue());
                 assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
                 SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
-                assertThat(innerHits.getTotalHits().value, equalTo(3L));
+                assertThat(innerHits.getTotalHits().value(), equalTo(3L));
                 assertThat(innerHits.getHits().length, equalTo(3));
                 assertThat(innerHits.getAt(0).getId(), equalTo("2"));
                 assertThat(innerHits.getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
@@ -195,7 +195,7 @@ public class InnerHitsIT extends ESIntegTestCase {
             ),
             response -> {
                 SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("comments");
-                assertThat(innerHits.getTotalHits().value, equalTo(2L));
+                assertThat(innerHits.getTotalHits().value(), equalTo(2L));
                 assertThat(innerHits.getHits().length, equalTo(1));
                 HighlightField highlightField = innerHits.getAt(0).getHighlightFields().get("comments.message");
                 assertThat(highlightField.fragments()[0].string(), equalTo("<em>fox</em> eat quick"));
@@ -263,7 +263,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                 SearchHit searchHit = response.getHits().getAt(i);
                 assertThat(searchHit.getShard(), notNullValue());
                 SearchHits inner = searchHit.getInnerHits().get("a");
-                assertThat(inner.getTotalHits().value, equalTo((long) field1InnerObjects[i]));
+                assertThat(inner.getTotalHits().value(), equalTo((long) field1InnerObjects[i]));
                 for (int j = 0; j < field1InnerObjects[i] && j < size; j++) {
                     SearchHit innerHit = inner.getAt(j);
                     assertThat(innerHit.getNestedIdentity().getField().string(), equalTo("field1"));
@@ -272,7 +272,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                 }
 
                 inner = searchHit.getInnerHits().get("b");
-                assertThat(inner.getTotalHits().value, equalTo((long) field2InnerObjects[i]));
+                assertThat(inner.getTotalHits().value(), equalTo((long) field2InnerObjects[i]));
                 for (int j = 0; j < field2InnerObjects[i] && j < size; j++) {
                     SearchHit innerHit = inner.getAt(j);
                     assertThat(innerHit.getNestedIdentity().getField().string(), equalTo("field2"));
@@ -377,13 +377,13 @@ public class InnerHitsIT extends ESIntegTestCase {
                 assertSearchHit(response, 1, hasId("1"));
                 assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
                 SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("comments");
-                assertThat(innerHits.getTotalHits().value, equalTo(1L));
+                assertThat(innerHits.getTotalHits().value(), equalTo(1L));
                 assertThat(innerHits.getHits().length, equalTo(1));
                 assertThat(innerHits.getAt(0).getId(), equalTo("1"));
                 assertThat(innerHits.getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
                 assertThat(innerHits.getAt(0).getNestedIdentity().getOffset(), equalTo(0));
                 innerHits = innerHits.getAt(0).getInnerHits().get("remark");
-                assertThat(innerHits.getTotalHits().value, equalTo(1L));
+                assertThat(innerHits.getTotalHits().value(), equalTo(1L));
                 assertThat(innerHits.getHits().length, equalTo(1));
                 assertThat(innerHits.getAt(0).getId(), equalTo("1"));
                 assertThat(innerHits.getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
@@ -408,13 +408,13 @@ public class InnerHitsIT extends ESIntegTestCase {
                 assertSearchHit(response, 1, hasId("1"));
                 assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
                 SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("comments");
-                assertThat(innerHits.getTotalHits().value, equalTo(1L));
+                assertThat(innerHits.getTotalHits().value(), equalTo(1L));
                 assertThat(innerHits.getHits().length, equalTo(1));
                 assertThat(innerHits.getAt(0).getId(), equalTo("1"));
                 assertThat(innerHits.getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
                 assertThat(innerHits.getAt(0).getNestedIdentity().getOffset(), equalTo(1));
                 innerHits = innerHits.getAt(0).getInnerHits().get("remark");
-                assertThat(innerHits.getTotalHits().value, equalTo(1L));
+                assertThat(innerHits.getTotalHits().value(), equalTo(1L));
                 assertThat(innerHits.getHits().length, equalTo(1));
                 assertThat(innerHits.getAt(0).getId(), equalTo("1"));
                 assertThat(innerHits.getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
@@ -435,7 +435,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                 assertSearchHit(response, 1, hasId("2"));
                 assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
                 SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("comments.remarks");
-                assertThat(innerHits.getTotalHits().value, equalTo(1L));
+                assertThat(innerHits.getTotalHits().value(), equalTo(1L));
                 assertThat(innerHits.getHits().length, equalTo(1));
                 assertThat(innerHits.getAt(0).getId(), equalTo("2"));
                 assertThat(innerHits.getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
@@ -459,13 +459,13 @@ public class InnerHitsIT extends ESIntegTestCase {
                 assertSearchHit(response, 1, hasId("2"));
                 assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
                 SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("comments");
-                assertThat(innerHits.getTotalHits().value, equalTo(1L));
+                assertThat(innerHits.getTotalHits().value(), equalTo(1L));
                 assertThat(innerHits.getHits().length, equalTo(1));
                 assertThat(innerHits.getAt(0).getId(), equalTo("2"));
                 assertThat(innerHits.getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
                 assertThat(innerHits.getAt(0).getNestedIdentity().getOffset(), equalTo(0));
                 innerHits = innerHits.getAt(0).getInnerHits().get("remark");
-                assertThat(innerHits.getTotalHits().value, equalTo(1L));
+                assertThat(innerHits.getTotalHits().value(), equalTo(1L));
                 assertThat(innerHits.getHits().length, equalTo(1));
                 assertThat(innerHits.getAt(0).getId(), equalTo("2"));
                 assertThat(innerHits.getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
@@ -537,7 +537,7 @@ public class InnerHitsIT extends ESIntegTestCase {
             response -> {
                 assertHitCount(response, 1);
                 assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-                assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getId(), equalTo("1"));
                 assertThat(
                     response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getNestedIdentity().getField().string(),
@@ -612,7 +612,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                 SearchHit parent = response.getHits().getAt(0);
                 assertThat(parent.getId(), equalTo("1"));
                 SearchHits inner = parent.getInnerHits().get("comments.messages");
-                assertThat(inner.getTotalHits().value, equalTo(2L));
+                assertThat(inner.getTotalHits().value(), equalTo(2L));
                 assertThat(inner.getAt(0).getSourceAsString(), equalTo("{\"message\":\"no fox\"}"));
                 assertThat(inner.getAt(1).getSourceAsString(), equalTo("{\"message\":\"fox eat quick\"}"));
             }
@@ -628,7 +628,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                 SearchHit hit = response.getHits().getAt(0);
                 assertThat(hit.getId(), equalTo("1"));
                 SearchHits messages = hit.getInnerHits().get("comments.messages");
-                assertThat(messages.getTotalHits().value, equalTo(2L));
+                assertThat(messages.getTotalHits().value(), equalTo(2L));
                 assertThat(messages.getAt(0).getId(), equalTo("1"));
                 assertThat(messages.getAt(0).getNestedIdentity().getField().string(), equalTo("comments.messages"));
                 assertThat(messages.getAt(0).getNestedIdentity().getOffset(), equalTo(2));
@@ -650,7 +650,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                 SearchHit hit = response.getHits().getAt(0);
                 assertThat(hit.getId(), equalTo("1"));
                 SearchHits messages = hit.getInnerHits().get("comments.messages");
-                assertThat(messages.getTotalHits().value, equalTo(1L));
+                assertThat(messages.getTotalHits().value(), equalTo(1L));
                 assertThat(messages.getAt(0).getId(), equalTo("1"));
                 assertThat(messages.getAt(0).getNestedIdentity().getField().string(), equalTo("comments.messages"));
                 assertThat(messages.getAt(0).getNestedIdentity().getOffset(), equalTo(1));
@@ -684,7 +684,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                 SearchHit hit = response.getHits().getAt(0);
                 assertThat(hit.getId(), equalTo("1"));
                 SearchHits messages = hit.getInnerHits().get("comments.messages");
-                assertThat(messages.getTotalHits().value, equalTo(1L));
+                assertThat(messages.getTotalHits().value(), equalTo(1L));
                 assertThat(messages.getAt(0).getId(), equalTo("1"));
                 assertThat(messages.getAt(0).getNestedIdentity().getField().string(), equalTo("comments.messages"));
                 assertThat(messages.getAt(0).getNestedIdentity().getOffset(), equalTo(0));
@@ -785,22 +785,22 @@ public class InnerHitsIT extends ESIntegTestCase {
         );
         assertNoFailuresAndResponse(prepareSearch("test").setQuery(query).setSize(numDocs).addSort("field1", SortOrder.ASC), response -> {
             assertAllSuccessful(response);
-            assertThat(response.getHits().getTotalHits().value, equalTo((long) numDocs));
+            assertThat(response.getHits().getTotalHits().value(), equalTo((long) numDocs));
             assertThat(response.getHits().getAt(0).getId(), equalTo("0"));
-            assertThat(response.getHits().getAt(0).getInnerHits().get("nested1").getTotalHits().value, equalTo(2L));
+            assertThat(response.getHits().getAt(0).getInnerHits().get("nested1").getTotalHits().value(), equalTo(2L));
             assertThat(response.getHits().getAt(0).getInnerHits().get("nested1").getAt(0).getMatchedQueries().length, equalTo(1));
             assertThat(response.getHits().getAt(0).getInnerHits().get("nested1").getAt(0).getMatchedQueries()[0], equalTo("test1"));
             assertThat(response.getHits().getAt(0).getInnerHits().get("nested1").getAt(1).getMatchedQueries().length, equalTo(1));
             assertThat(response.getHits().getAt(0).getInnerHits().get("nested1").getAt(1).getMatchedQueries()[0], equalTo("test3"));
 
             assertThat(response.getHits().getAt(1).getId(), equalTo("1"));
-            assertThat(response.getHits().getAt(1).getInnerHits().get("nested1").getTotalHits().value, equalTo(1L));
+            assertThat(response.getHits().getAt(1).getInnerHits().get("nested1").getTotalHits().value(), equalTo(1L));
             assertThat(response.getHits().getAt(1).getInnerHits().get("nested1").getAt(0).getMatchedQueries().length, equalTo(1));
             assertThat(response.getHits().getAt(1).getInnerHits().get("nested1").getAt(0).getMatchedQueries()[0], equalTo("test2"));
 
             for (int i = 2; i < numDocs; i++) {
                 assertThat(response.getHits().getAt(i).getId(), equalTo(String.valueOf(i)));
-                assertThat(response.getHits().getAt(i).getInnerHits().get("nested1").getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getAt(i).getInnerHits().get("nested1").getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getAt(i).getInnerHits().get("nested1").getAt(0).getMatchedQueries().length, equalTo(1));
                 assertThat(response.getHits().getAt(i).getInnerHits().get("nested1").getAt(0).getMatchedQueries()[0], equalTo("test3"));
             }
@@ -843,7 +843,7 @@ public class InnerHitsIT extends ESIntegTestCase {
             response -> {
                 assertHitCount(response, 1);
 
-                assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getTotalHits().value, equalTo(2L));
+                assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getTotalHits().value(), equalTo(2L));
                 assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getSourceAsMap().size(), equalTo(1));
                 assertThat(
                     response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getSourceAsMap().get("message"),
@@ -864,7 +864,7 @@ public class InnerHitsIT extends ESIntegTestCase {
             response -> {
                 assertHitCount(response, 1);
 
-                assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getTotalHits().value, equalTo(2L));
+                assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getTotalHits().value(), equalTo(2L));
                 assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getSourceAsMap().size(), equalTo(2));
                 assertThat(
                     response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getSourceAsMap().get("message"),
@@ -890,7 +890,7 @@ public class InnerHitsIT extends ESIntegTestCase {
             ),
             response -> {
                 assertHitCount(response, 1);
-                assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getSourceAsMap().size(), equalTo(0));
             }
         );
@@ -900,7 +900,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                 .setQuery(nestedQuery("comments", matchQuery("comments.message", "fox"), ScoreMode.None).innerHit(new InnerHitBuilder())),
             response -> {
                 assertHitCount(response, 1);
-                assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getTotalHits().value, equalTo(2L));
+                assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getTotalHits().value(), equalTo(2L));
                 assertFalse(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getSourceAsMap().isEmpty());
             }
         );

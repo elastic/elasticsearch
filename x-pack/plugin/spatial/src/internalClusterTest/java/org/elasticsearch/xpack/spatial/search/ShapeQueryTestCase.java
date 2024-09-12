@@ -112,7 +112,7 @@ public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
             client().prepareSearch(defaultIndexName)
                 .setQuery(new ShapeQueryBuilder(defaultFieldName, rectangle).relation(ShapeRelation.INTERSECTS)),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
                 assertThat(response.getHits().getHits().length, equalTo(2));
                 assertThat(response.getHits().getAt(0).getId(), anyOf(equalTo("1"), equalTo("4")));
                 assertThat(response.getHits().getAt(1).getId(), anyOf(equalTo("1"), equalTo("4")));
@@ -123,7 +123,7 @@ public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
         assertNoFailuresAndResponse(
             client().prepareSearch(defaultIndexName).setQuery(new ShapeQueryBuilder(defaultFieldName, rectangle)),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
                 assertThat(response.getHits().getHits().length, equalTo(2));
                 assertThat(response.getHits().getAt(0).getId(), anyOf(equalTo("1"), equalTo("4")));
                 assertThat(response.getHits().getAt(1).getId(), anyOf(equalTo("1"), equalTo("4")));
@@ -138,7 +138,7 @@ public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
             client().prepareSearch(defaultIndexName)
                 .setQuery(new ShapeQueryBuilder(defaultFieldName, circle).relation(ShapeRelation.INTERSECTS)),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
                 assertThat(response.getHits().getHits().length, equalTo(2));
                 assertThat(response.getHits().getAt(0).getId(), anyOf(equalTo("1"), equalTo("4")));
                 assertThat(response.getHits().getAt(1).getId(), anyOf(equalTo("1"), equalTo("4")));
@@ -154,7 +154,7 @@ public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
                 .setQuery(new ShapeQueryBuilder(defaultFieldName, polygon).relation(ShapeRelation.INTERSECTS)),
             response -> {
                 SearchHits searchHits = response.getHits();
-                assertThat(searchHits.getTotalHits().value, equalTo(2L));
+                assertThat(searchHits.getTotalHits().value(), equalTo(2L));
                 assertThat(searchHits.getAt(0).getId(), anyOf(equalTo("1"), equalTo("4")));
                 assertThat(searchHits.getAt(1).getId(), anyOf(equalTo("1"), equalTo("4")));
             }
@@ -175,7 +175,7 @@ public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
             client().prepareSearch(defaultIndexName)
                 .setQuery(new ShapeQueryBuilder(defaultFieldName, mp).relation(ShapeRelation.INTERSECTS)),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(3L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(3L));
                 assertThat(response.getHits().getHits().length, equalTo(3));
                 assertThat(response.getHits().getAt(0).getId(), not(equalTo("3")));
                 assertThat(response.getHits().getAt(1).getId(), not(equalTo("3")));
@@ -191,7 +191,7 @@ public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
             client().prepareSearch(defaultIndexName)
                 .setQuery(new ShapeQueryBuilder(defaultFieldName, rectangle).relation(ShapeRelation.INTERSECTS)),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getHits().length, equalTo(1));
                 assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
             }
@@ -232,7 +232,7 @@ public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
                         .indexedShapePath(indexedShapePath)
                 ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getHits().length, equalTo(1));
                 assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
             }

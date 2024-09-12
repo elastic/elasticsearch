@@ -106,7 +106,7 @@ public class MaxDocsLimitIT extends ESIntegTestCase {
         indicesAdmin().prepareRefresh("test").get();
         assertNoFailuresAndResponse(
             prepareSearch("test").setQuery(new MatchAllQueryBuilder()).setTrackTotalHitsUpTo(Integer.MAX_VALUE).setSize(0),
-            response -> assertThat(response.getHits().getTotalHits().value, equalTo((long) maxDocs.get()))
+            response -> assertThat(response.getHits().getTotalHits().value(), equalTo((long) maxDocs.get()))
         );
         if (randomBoolean()) {
             indicesAdmin().prepareFlush("test").get();
@@ -116,7 +116,7 @@ public class MaxDocsLimitIT extends ESIntegTestCase {
         ensureGreen("test");
         assertNoFailuresAndResponse(
             prepareSearch("test").setQuery(new MatchAllQueryBuilder()).setTrackTotalHitsUpTo(Integer.MAX_VALUE).setSize(0),
-            response -> assertThat(response.getHits().getTotalHits().value, equalTo((long) maxDocs.get()))
+            response -> assertThat(response.getHits().getTotalHits().value(), equalTo((long) maxDocs.get()))
         );
     }
 

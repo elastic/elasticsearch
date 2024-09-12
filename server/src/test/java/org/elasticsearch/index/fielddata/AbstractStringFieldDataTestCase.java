@@ -261,7 +261,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
             randomBoolean() ? numDocs : randomIntBetween(10, numDocs),
             new Sort(sortField)
         );
-        assertEquals(numDocs, topDocs.totalHits.value);
+        assertEquals(numDocs, topDocs.totalHits.value());
         BytesRef previousValue = reverse ? UnicodeUtil.BIG_TERM : new BytesRef();
         for (int i = 0; i < topDocs.scoreDocs.length; ++i) {
             final String docValue = searcher.storedFields().document(topDocs.scoreDocs[i].doc).get("value");
@@ -320,7 +320,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
             new Sort(sortField)
         );
 
-        assertThat(topDocs.totalHits.value, lessThanOrEqualTo((long) numDocs));
+        assertThat(topDocs.totalHits.value(), lessThanOrEqualTo((long) numDocs));
         BytesRef previousValue = first ? null : reverse ? UnicodeUtil.BIG_TERM : new BytesRef();
         for (int i = 0; i < topDocs.scoreDocs.length; ++i) {
             final String docValue = searcher.storedFields().document(topDocs.scoreDocs[i].doc).get("value");

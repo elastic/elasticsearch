@@ -263,7 +263,7 @@ public class SearchQueryIT extends ESIntegTestCase {
             MatchQueryBuilder matchQuery = matchQuery("f", English.intToEnglish(between(0, num)));
             final long[] constantScoreTotalHits = new long[1];
             assertResponse(prepareSearch("test_1").setQuery(constantScoreQuery(matchQuery)).setSize(num), response -> {
-                constantScoreTotalHits[0] = response.getHits().getTotalHits().value;
+                constantScoreTotalHits[0] = response.getHits().getTotalHits().value();
                 SearchHits hits = response.getHits();
                 for (SearchHit searchHit : hits) {
                     assertThat(searchHit, hasScore(1.0f));
@@ -276,7 +276,7 @@ public class SearchQueryIT extends ESIntegTestCase {
                 ).setSize(num),
                 response -> {
                     SearchHits hits = response.getHits();
-                    assertThat(hits.getTotalHits().value, equalTo(constantScoreTotalHits[0]));
+                    assertThat(hits.getTotalHits().value(), equalTo(constantScoreTotalHits[0]));
                     if (constantScoreTotalHits[0] > 1) {
                         float expected = hits.getAt(0).getScore();
                         for (SearchHit searchHit : hits) {
@@ -1692,7 +1692,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertResponse(
             prepareSearch("test").setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setQuery(QueryBuilders.queryStringQuery("xyz").boost(100)),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
                 first[0] = response.getHits().getAt(0).getScore();
             }
@@ -1703,7 +1703,7 @@ public class SearchQueryIT extends ESIntegTestCase {
                 prepareSearch("test").setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
                     .setQuery(QueryBuilders.queryStringQuery("xyz").boost(100)),
                 response -> {
-                    assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                    assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                     assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
                     float actual = response.getHits().getAt(0).getScore();
                     assertThat(finalI + " expected: " + first[0] + " actual: " + actual, Float.compare(first[0], actual), equalTo(0));

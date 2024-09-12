@@ -42,7 +42,7 @@ public class RankFeaturesMapperIntegrationIT extends ESIntegTestCase {
         assertNoFailuresAndResponse(
             prepareSearch(INDEX_NAME).setQuery(QueryBuilders.termQuery(FIELD_NAME, HIGHER_RANKED_FEATURE)),
             searchResponse -> {
-                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(2L));
                 for (SearchHit hit : searchResponse.getHits().getHits()) {
                     assertThat(hit.getScore(), equalTo(20f));
                 }
@@ -51,7 +51,7 @@ public class RankFeaturesMapperIntegrationIT extends ESIntegTestCase {
         assertNoFailuresAndResponse(
             prepareSearch(INDEX_NAME).setQuery(QueryBuilders.termQuery(FIELD_NAME, HIGHER_RANKED_FEATURE).boost(100f)),
             searchResponse -> {
-                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(2L));
                 for (SearchHit hit : searchResponse.getHits().getHits()) {
                     assertThat(hit.getScore(), equalTo(2000f));
                 }
@@ -66,7 +66,7 @@ public class RankFeaturesMapperIntegrationIT extends ESIntegTestCase {
                     .minimumShouldMatch(1)
             ),
             searchResponse -> {
-                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
                 for (SearchHit hit : searchResponse.getHits().getHits()) {
                     if (hit.getId().equals("all")) {
                         assertThat(hit.getScore(), equalTo(50f));
@@ -82,7 +82,7 @@ public class RankFeaturesMapperIntegrationIT extends ESIntegTestCase {
         );
         assertNoFailuresAndResponse(
             prepareSearch(INDEX_NAME).setQuery(QueryBuilders.termQuery(FIELD_NAME, "missing_feature")),
-            response -> assertThat(response.getHits().getTotalHits().value, equalTo(0L))
+            response -> assertThat(response.getHits().getTotalHits().value(), equalTo(0L))
         );
     }
 

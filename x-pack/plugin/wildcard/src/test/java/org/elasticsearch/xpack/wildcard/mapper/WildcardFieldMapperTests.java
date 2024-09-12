@@ -184,7 +184,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
 
         Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery("*a*", null, null);
         TopDocs wildcardFieldTopDocs = searcher.search(wildcardFieldQuery, 10, Sort.INDEXORDER);
-        assertThat(wildcardFieldTopDocs.totalHits.value, equalTo(1L));
+        assertThat(wildcardFieldTopDocs.totalHits.value(), equalTo(1L));
 
         reader.close();
         dir.close();
@@ -231,12 +231,12 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         String queryString = randomABString((IndexSearcher.getMaxClauseCount() * 2) + 1);
         Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(queryString, null, null);
         TopDocs wildcardFieldTopDocs = searcher.search(wildcardFieldQuery, 10, Sort.INDEXORDER);
-        assertThat(wildcardFieldTopDocs.totalHits.value, equalTo(0L));
+        assertThat(wildcardFieldTopDocs.totalHits.value(), equalTo(0L));
 
         // Test regexp query
         wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(queryString, RegExp.ALL, 0, 20000, null, MOCK_CONTEXT);
         wildcardFieldTopDocs = searcher.search(wildcardFieldQuery, 10, Sort.INDEXORDER);
-        assertThat(wildcardFieldTopDocs.totalHits.value, equalTo(0L));
+        assertThat(wildcardFieldTopDocs.totalHits.value(), equalTo(0L));
 
         reader.close();
         dir.close();
@@ -273,13 +273,13 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     private void expectTermMatch(IndexSearcher searcher, String term, long count) throws IOException {
         Query q = wildcardFieldType.fieldType().termQuery(term, MOCK_CONTEXT);
         TopDocs td = searcher.search(q, 10, Sort.RELEVANCE);
-        assertThat(td.totalHits.value, equalTo(count));
+        assertThat(td.totalHits.value(), equalTo(count));
     }
 
     private void expectPrefixMatch(IndexSearcher searcher, String term, long count) throws IOException {
         Query q = wildcardFieldType.fieldType().prefixQuery(term, null, MOCK_CONTEXT);
         TopDocs td = searcher.search(q, 10, Sort.RELEVANCE);
-        assertThat(td.totalHits.value, equalTo(count));
+        assertThat(td.totalHits.value(), equalTo(count));
     }
 
     public void testSearchResultsVersusKeywordField() throws IOException {
@@ -392,8 +392,8 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             TopDocs wildcardFieldTopDocs = searcher.search(wildcardFieldQuery, values.size() + 1, Sort.RELEVANCE);
             assertThat(
                 keywordFieldQuery + "\n" + wildcardFieldQuery,
-                wildcardFieldTopDocs.totalHits.value,
-                equalTo(kwTopDocs.totalHits.value)
+                wildcardFieldTopDocs.totalHits.value(),
+                equalTo(kwTopDocs.totalHits.value())
             );
 
             HashSet<Integer> expectedDocs = new HashSet<>();
@@ -499,7 +499,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
 
             TopDocs kwTopDocs = searcher.search(keywordFieldQuery, 10, Sort.RELEVANCE);
             TopDocs wildcardFieldTopDocs = searcher.search(wildcardFieldQuery, 10, Sort.RELEVANCE);
-            assertThat(wildcardFieldTopDocs.totalHits.value, equalTo(kwTopDocs.totalHits.value));
+            assertThat(wildcardFieldTopDocs.totalHits.value(), equalTo(kwTopDocs.totalHits.value()));
 
             HashSet<Integer> expectedDocs = new HashSet<>();
             for (ScoreDoc topDoc : kwTopDocs.scoreDocs) {

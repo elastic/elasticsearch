@@ -151,7 +151,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
         for (int i = 0; i < 5; i++) {
             // test successful
             assertNoFailuresAndResponse(prepareSearch("test").setSize(0).setQuery(matchAllQuery()), countResponse -> {
-                assertThat(countResponse.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(countResponse.getHits().getTotalHits().value(), equalTo(2L));
                 assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
                 assertThat(countResponse.getFailedShards(), equalTo(0));
             });
@@ -163,7 +163,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
                     countResponse.getShardFailures() == null ? 0 : countResponse.getShardFailures().length,
                     equalTo(0)
                 );
-                assertThat(countResponse.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(countResponse.getHits().getTotalHits().value(), equalTo(2L));
                 assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
                 assertThat(countResponse.getFailedShards(), equalTo(0));
             });

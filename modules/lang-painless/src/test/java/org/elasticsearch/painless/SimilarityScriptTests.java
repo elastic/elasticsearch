@@ -84,7 +84,7 @@ public class SimilarityScriptTests extends ScriptTestCase {
                     3.2f
                 );
                 TopDocs topDocs = searcher.search(query, 1);
-                assertEquals(1, topDocs.totalHits.value);
+                assertEquals(1, topDocs.totalHits.value());
                 assertEquals((float) (3.2 * 2 / 3), topDocs.scoreDocs[0].score, 0);
             }
         }
@@ -133,7 +133,7 @@ public class SimilarityScriptTests extends ScriptTestCase {
                     3.2f
                 );
                 TopDocs topDocs = searcher.search(query, 1);
-                assertEquals(1, topDocs.totalHits.value);
+                assertEquals(1, topDocs.totalHits.value());
                 assertEquals((float) (3.2 * 2 / 3), topDocs.scoreDocs[0].score, 0);
             }
         }

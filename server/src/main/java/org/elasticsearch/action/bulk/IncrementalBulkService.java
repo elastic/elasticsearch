@@ -101,6 +101,7 @@ public class IncrementalBulkService {
 
         private final ArrayList<Releasable> releasables = new ArrayList<>(4);
         private final ArrayList<BulkResponse> responses = new ArrayList<>(2);
+        private boolean closed = false;
         private boolean globalFailure = false;
         private boolean incrementalRequestSubmitted = false;
         private ThreadContext.StoredContext requestContext;
@@ -126,6 +127,7 @@ public class IncrementalBulkService {
         }
 
         public void addItems(List<DocWriteRequest<?>> items, Releasable releasable, Runnable nextItems) {
+            assert closed == false;
             if (bulkActionLevelFailure != null) {
                 shortCircuitDueToTopLevelFailure(items, releasable);
                 nextItems.run();
@@ -137,12 +139,13 @@ public class IncrementalBulkService {
                         incrementalRequestSubmitted = true;
                         try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
                             requestContext.restore();
+                            final ArrayList<Releasable> toRelease = new ArrayList<>(releasables);
+                            releasables.clear();
                             client.bulk(bulkRequest, ActionListener.runAfter(new ActionListener<>() {
 
                                 @Override
                                 public void onResponse(BulkResponse bulkResponse) {
-                                    responses.add(bulkResponse);
-                                    releaseCurrentReferences();
+                                    handleBulkSuccess(bulkResponse);
                                     createNewBulkRequest(
                                         new BulkRequest.IncrementalState(bulkResponse.getIncrementalState().shardLevelFailures(), true)
                                     );
@@ -154,6 +157,7 @@ public class IncrementalBulkService {
                                 }
                             }, () -> {
                                 requestContext = threadContext.newStoredContext();
+                                toRelease.forEach(Releasable::close);
                                 nextItems.run();
                             }));
                         }
@@ -179,14 +183,15 @@ public class IncrementalBulkService {
                 if (internalAddItems(items, releasable)) {
                     try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
                         requestContext.restore();
-                        client.bulk(bulkRequest, new ActionListener<>() {
+                        final ArrayList<Releasable> toRelease = new ArrayList<>(releasables);
+                        releasables.clear();
+                        client.bulk(bulkRequest, ActionListener.runBefore(new ActionListener<>() {
 
                             private final boolean isFirstRequest = incrementalRequestSubmitted == false;
 
                             @Override
                             public void onResponse(BulkResponse bulkResponse) {
-                                responses.add(bulkResponse);
-                                releaseCurrentReferences();
+                                handleBulkSuccess(bulkResponse);
                                 listener.onResponse(combineResponses());
                             }
 
@@ -195,12 +200,19 @@ public class IncrementalBulkService {
                                 handleBulkFailure(isFirstRequest, e);
                                 errorResponse(listener);
                             }
-                        });
+                        }, () -> toRelease.forEach(Releasable::close)));
                     }
                 } else {
                     errorResponse(listener);
                 }
             }
+        }
+
+        @Override
+        public void close() {
+            closed = true;
+            releasables.forEach(Releasable::close);
+            releasables.clear();
         }
 
         private void shortCircuitDueToTopLevelFailure(List<DocWriteRequest<?>> items, Releasable releasable) {
@@ -220,12 +232,17 @@ public class IncrementalBulkService {
             }
         }
 
+        private void handleBulkSuccess(BulkResponse bulkResponse) {
+            responses.add(bulkResponse);
+            bulkRequest = null;
+        }
+
         private void handleBulkFailure(boolean isFirstRequest, Exception e) {
             assert bulkActionLevelFailure == null;
             globalFailure = isFirstRequest;
             bulkActionLevelFailure = e;
             addItemLevelFailures(bulkRequest.requests());
-            releaseCurrentReferences();
+            bulkRequest = null;
         }
 
         private void addItemLevelFailures(List<DocWriteRequest<?>> items) {
@@ -253,6 +270,8 @@ public class IncrementalBulkService {
                 return true;
             } catch (EsRejectedExecutionException e) {
                 handleBulkFailure(incrementalRequestSubmitted == false, e);
+                releasables.forEach(Releasable::close);
+                releasables.clear();
                 return false;
             }
         }
@@ -296,11 +315,6 @@ public class IncrementalBulkService {
             }
 
             return new BulkResponse(bulkItemResponses, tookInMillis, ingestTookInMillis);
-        }
-
-        @Override
-        public void close() {
-            // TODO: Implement
         }
     }
 }

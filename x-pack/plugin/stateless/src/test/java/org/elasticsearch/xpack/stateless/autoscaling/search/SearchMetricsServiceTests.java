@@ -1225,8 +1225,7 @@ public class SearchMetricsServiceTests extends ESTestCase {
             SearchMetricsService.ACCURATE_METRICS_WINDOW_SETTING,
             SearchMetricsService.STALE_METRICS_CHECK_INTERVAL_SETTING,
             ServerlessSharedSettings.SEARCH_POWER_MIN_SETTING,
-            ServerlessSharedSettings.SEARCH_POWER_MAX_SETTING,
-            ServerlessSharedSettings.SEARCH_POWER_SETTING
+            ServerlessSharedSettings.SEARCH_POWER_MAX_SETTING
         );
     }
 

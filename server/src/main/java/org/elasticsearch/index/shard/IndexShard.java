@@ -83,6 +83,7 @@ import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.codec.FieldInfosWithUsages;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Engine.GetResult;
@@ -4093,11 +4094,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 try (var searcher = getEngine().acquireSearcher("shard_field_stats", Engine.SearcherScope.INTERNAL)) {
                     int numSegments = 0;
                     int totalFields = 0;
+                    long usages = 0;
                     for (LeafReaderContext leaf : searcher.getLeafContexts()) {
                         numSegments++;
-                        totalFields += leaf.reader().getFieldInfos().size();
+                        var fieldInfos = leaf.reader().getFieldInfos();
+                        totalFields += fieldInfos.size();
+                        if (fieldInfos instanceof FieldInfosWithUsages ft) {
+                            if (usages != -1) {
+                                usages += ft.getTotalUsages();
+                            }
+                        } else {
+                            usages = -1;
+                        }
                     }
-                    shardFieldStats = new ShardFieldStats(numSegments, totalFields);
+                    shardFieldStats = new ShardFieldStats(numSegments, totalFields, usages);
                 } catch (AlreadyClosedException ignored) {
 
                 }

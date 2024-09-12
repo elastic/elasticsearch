@@ -47,7 +47,7 @@ public class LocalSupplierTests extends AbstractWireTestCase<LocalSupplier> {
         return randomBoolean() ? LocalSupplier.EMPTY : randomNonEmpty();
     }
 
-    private LocalSupplier randomNonEmpty() {
+    public static LocalSupplier randomNonEmpty() {
         return LocalSupplier.of(randomList(1, 10, LocalSupplierTests::randomBlock).toArray(Block[]::new));
     }
 

@@ -1078,15 +1078,15 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchCommand() {
-        assertMatchCommand("1:24:", "LIMIT","from test | limit 10 | match \"Anna\"");
+        assertMatchCommand("1:24:", "LIMIT", "from test | limit 10 | match \"Anna\"");
         assertMatchCommand("1:13:", "SHOW", "show info | match \"8.16.0\"");
-        assertMatchCommand("1:17:", "ROW","row a= \"Anna\" | match \"Anna\"");
-        assertMatchCommand("1:26:", "EVAL","from test | eval z = 2 | match \"Anna\"");
-        assertMatchCommand("1:43:","DISSECT","from test | dissect first_name \"%{foo}\" | match \"Connection\"");
-        assertMatchCommand("1:27:", "DROP","from test | drop emp_no | match \"Anna\"");
+        assertMatchCommand("1:17:", "ROW", "row a= \"Anna\" | match \"Anna\"");
+        assertMatchCommand("1:26:", "EVAL", "from test | eval z = 2 | match \"Anna\"");
+        assertMatchCommand("1:43:", "DISSECT", "from test | dissect first_name \"%{foo}\" | match \"Connection\"");
+        assertMatchCommand("1:27:", "DROP", "from test | drop emp_no | match \"Anna\"");
         assertMatchCommand("1:35:", "EVAL", "from test | eval n = emp_no * 3 | match \"Anna\"");
-        assertMatchCommand("1:44:", "GROK","from test | grok last_name \"%{WORD:foo}\" | match \"Anna\"");
-        assertMatchCommand("1:27:", "KEEP","from test | keep emp_no | match \"Anna\"");
+        assertMatchCommand("1:44:", "GROK", "from test | grok last_name \"%{WORD:foo}\" | match \"Anna\"");
+        assertMatchCommand("1:27:", "KEEP", "from test | keep emp_no | match \"Anna\"");
 
         // TODO Keep adding tests for all unsupported commands
     }

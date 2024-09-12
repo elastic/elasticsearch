@@ -263,8 +263,12 @@ class BulkPrimaryExecutionContext {
                 if (result.getOperationType() == Engine.Operation.TYPE.INDEX) {
                     Engine.IndexResult indexResult = (Engine.IndexResult) result;
                     List<String> executedPipelines;
+                    IndexDocFailureStoreStatus indexDocFailureStoreStatus = IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN;
                     if (docWriteRequest instanceof IndexRequest indexRequest) {
                         executedPipelines = indexRequest.getExecutedPipelines();
+                        if (indexRequest.isWriteToFailureStore()) {
+                            indexDocFailureStoreStatus = IndexDocFailureStoreStatus.USED;
+                        }
                     } else {
                         executedPipelines = null;
                     }
@@ -275,7 +279,8 @@ class BulkPrimaryExecutionContext {
                         result.getTerm(),
                         indexResult.getVersion(),
                         indexResult.isCreated(),
-                        executedPipelines
+                        executedPipelines,
+                        indexDocFailureStoreStatus
                     );
                 } else if (result.getOperationType() == Engine.Operation.TYPE.DELETE) {
                     Engine.DeleteResult deleteResult = (Engine.DeleteResult) result;

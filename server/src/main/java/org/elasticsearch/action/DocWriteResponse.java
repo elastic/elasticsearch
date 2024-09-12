@@ -8,6 +8,7 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.WriteResponse;
@@ -246,6 +247,10 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         }
 
         return location.toString();
+    }
+
+    public IndexDocFailureStoreStatus getFailureStoreStatus() {
+        return IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN;
     }
 
     public void writeThin(StreamOutput out) throws IOException {

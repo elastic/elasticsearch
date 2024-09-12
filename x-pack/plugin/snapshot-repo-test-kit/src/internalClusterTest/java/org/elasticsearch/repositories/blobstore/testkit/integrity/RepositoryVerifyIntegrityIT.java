@@ -358,8 +358,6 @@ public class RepositoryVerifyIntegrityIT extends AbstractSnapshotIntegTestCase {
             case SNAPSHOT_INFO -> anomalies.remove("failed to load snapshot info");
             case GLOBAL_METADATA -> anomalies.remove("failed to load global metadata");
             case INDEX_METADATA -> anomalies.remove("failed to load index metadata");
-            case SHARD_GENERATION -> {
-            }
             case SHARD_SNAPSHOT_INFO -> anomalies.remove("failed to load shard snapshot");
             case SHARD_DATA -> {
                 anomalies.remove("missing blob");

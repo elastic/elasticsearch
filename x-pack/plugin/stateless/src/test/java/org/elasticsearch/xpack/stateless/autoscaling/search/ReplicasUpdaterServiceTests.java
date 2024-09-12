@@ -18,12 +18,11 @@
 package co.elastic.elasticsearch.stateless.autoscaling.search;
 
 import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
+import co.elastic.elasticsearch.stateless.api.ShardSizeStatsReader.ShardSize;
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetrics;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService;
 import co.elastic.elasticsearch.stateless.autoscaling.search.SearchMetricsService.ShardMetrics;
-import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
-import co.elastic.elasticsearch.stateless.lucene.stats.ShardSize;
 
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.Version;
@@ -191,7 +190,7 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
         Metadata.Builder clusterMetadata = Metadata.builder();
         Index index = new Index("index", "uuid");
         ShardMetrics shardMetrics = new ShardMetrics();
-        shardMetrics.shardSize = new ShardSize(1000, 0, null);
+        shardMetrics.shardSize = new ShardSize(1000, 0, 0, 0);
         when(searchMetricsServiceMock.createRankingContext()).thenReturn(
             new ReplicaRankingContext(
                 Map.of(index, new SearchMetricsService.IndexProperties("index", 1, 1, true, false, 0)),
@@ -390,7 +389,7 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
         searchMetricsService.processShardSizesRequest(
             new PublishShardSizesRequest(
                 "search_node_1",
-                Map.of(new ShardId(outsideBoostWindowMetadata.getIndex(), 0), new ShardSize(0, 1024, PrimaryTermAndGeneration.ZERO))
+                Map.of(new ShardId(outsideBoostWindowMetadata.getIndex(), 0), new ShardSize(0, 1024, 0, 0))
             )
         );
         assertEquals(0, getRecommendedReplicaChanges(replicasUpdaterService, SEARCH_POWER_MIN_NO_REPLICATION).size());
@@ -401,11 +400,11 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
                 "search_node_1",
                 Map.of(
                     new ShardId(withinBoostWindowMetadata.getIndex(), 0),
-                    new ShardSize(1024, randomBoolean() ? 1024 : 0, PrimaryTermAndGeneration.ZERO),
+                    new ShardSize(1024, randomBoolean() ? 1024 : 0, 0, 0),
                     new ShardId(withinBoostWindowMetadata.getIndex(), 1),
-                    new ShardSize(numShardsWithinBoostWindow > 1 ? 1024 : 0, randomBoolean() ? 1024 : 0, PrimaryTermAndGeneration.ZERO),
+                    new ShardSize(numShardsWithinBoostWindow > 1 ? 1024 : 0, randomBoolean() ? 1024 : 0, 0, 0),
                     new ShardId(withinBoostWindowMetadata.getIndex(), 2),
-                    new ShardSize(numShardsWithinBoostWindow > 2 ? 1024 : 0, randomBoolean() ? 1024 : 0, PrimaryTermAndGeneration.ZERO)
+                    new ShardSize(numShardsWithinBoostWindow > 2 ? 1024 : 0, randomBoolean() ? 1024 : 0, 0, 0)
                 )
             )
         );
@@ -435,7 +434,7 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
         for (int i = 0; i < 100; i++) {
             IndexMetadata index = createIndex(1);
             metadataBuilder.put(index, false);
-            shardSizeMap.put(new ShardId(index.getIndex(), 0), new ShardSize(0, 1024, PrimaryTermAndGeneration.ZERO));
+            shardSizeMap.put(new ShardId(index.getIndex(), 0), new ShardSize(0, 1024, 0, 0));
         }
 
         var state = ClusterState.builder(ClusterState.EMPTY_STATE).nodes(createNodes()).metadata(metadataBuilder).build();
@@ -489,7 +488,7 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
         searchMetricsService.processShardSizesRequest(
             new PublishShardSizesRequest(
                 "search_node_1",
-                Map.of(new ShardId(outsideBoostWindowMetadata.getIndex(), 0), new ShardSize(0, 1024, PrimaryTermAndGeneration.ZERO))
+                Map.of(new ShardId(outsideBoostWindowMetadata.getIndex(), 0), new ShardSize(0, 1024, 0, 0))
             )
         );
         assertEquals(0, getRecommendedReplicaChanges(replicasUpdaterService, SEARCH_POWER_MIN_FULL_REPLICATION).size());
@@ -500,13 +499,13 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
                 "search_node_1",
                 Map.of(
                     new ShardId(withinBoostWindowMetadata.getIndex(), 0),
-                    new ShardSize(1024, randomBoolean() ? 1024 : 0, PrimaryTermAndGeneration.ZERO),
+                    new ShardSize(1024, randomBoolean() ? 1024 : 0, 0, 0),
                     new ShardId(withinBoostWindowMetadata.getIndex(), 1),
-                    new ShardSize(numShardsWithinBoostWindow > 1 ? 1024 : 0, randomBoolean() ? 1024 : 0, PrimaryTermAndGeneration.ZERO),
+                    new ShardSize(numShardsWithinBoostWindow > 1 ? 1024 : 0, randomBoolean() ? 1024 : 0, 0, 0),
                     new ShardId(withinBoostWindowMetadata.getIndex(), 2),
-                    new ShardSize(numShardsWithinBoostWindow > 2 ? 1024 : 0, randomBoolean() ? 1024 : 0, PrimaryTermAndGeneration.ZERO),
+                    new ShardSize(numShardsWithinBoostWindow > 2 ? 1024 : 0, randomBoolean() ? 1024 : 0, 0, 0),
                     new ShardId(systemIndexInteractive.getIndex(), 0),
-                    new ShardSize(1024, randomBoolean() ? 1024 : 0, PrimaryTermAndGeneration.ZERO)
+                    new ShardSize(1024, randomBoolean() ? 1024 : 0, 0, 0)
                 )
             )
         );
@@ -532,11 +531,11 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
                 "search_node_1",
                 Map.of(
                     new ShardId(withinBoostWindowMetadata.getIndex(), 0),
-                    new ShardSize(0, 1024, PrimaryTermAndGeneration.ZERO),
+                    new ShardSize(0, 1024, 0, 0),
                     new ShardId(withinBoostWindowMetadata.getIndex(), 1),
-                    new ShardSize(0, 1024, PrimaryTermAndGeneration.ZERO),
+                    new ShardSize(0, 1024, 0, 0),
                     new ShardId(withinBoostWindowMetadata.getIndex(), 2),
-                    new ShardSize(0, 1024, PrimaryTermAndGeneration.ZERO)
+                    new ShardSize(0, 1024, 0, 0)
                 )
             )
         );
@@ -555,7 +554,7 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
         searchMetricsService.processShardSizesRequest(
             new PublishShardSizesRequest(
                 "search_node_1",
-                Map.of(new ShardId(systemIndexInteractive.getIndex(), 0), new ShardSize(0, 1024, PrimaryTermAndGeneration.ZERO))
+                Map.of(new ShardId(systemIndexInteractive.getIndex(), 0), new ShardSize(0, 1024, 0, 0))
             )
         );
         {
@@ -777,7 +776,7 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
 
     private static ShardMetrics shardMetricOf(long interactiveSize, long nonInteractiveSize) {
         ShardMetrics sm = new ShardMetrics();
-        sm.shardSize = new ShardSize(interactiveSize, nonInteractiveSize, null);
+        sm.shardSize = new ShardSize(interactiveSize, nonInteractiveSize, 0, 0);
         return sm;
     }
 
@@ -833,10 +832,7 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
         long interactiveSize,
         long nonInteractiveSize
     ) {
-        shardSizes.put(
-            new ShardId(index.getIndex(), shardId),
-            new ShardSize(interactiveSize, nonInteractiveSize, new PrimaryTermAndGeneration(1, 1))
-        );
+        shardSizes.put(new ShardId(index.getIndex(), shardId), new ShardSize(interactiveSize, nonInteractiveSize, 1, 1));
     }
 
     private static ClusterSettings createClusterSettings() {

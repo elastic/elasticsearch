@@ -18,7 +18,7 @@
 package co.elastic.elasticsearch.stateless.autoscaling.search;
 
 import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
-import co.elastic.elasticsearch.stateless.lucene.stats.ShardSize;
+import co.elastic.elasticsearch.stateless.api.ShardSizeStatsReader.ShardSize;
 import co.elastic.elasticsearch.stateless.lucene.stats.ShardSizeStatsClient;
 
 import org.elasticsearch.action.ActionListener;

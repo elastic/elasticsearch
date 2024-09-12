@@ -17,12 +17,11 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.search;
 
+import co.elastic.elasticsearch.stateless.api.ShardSizeStatsReader.ShardSize;
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService;
 import co.elastic.elasticsearch.stateless.autoscaling.search.load.NodeSearchLoadSnapshot;
 import co.elastic.elasticsearch.stateless.autoscaling.search.load.PublishNodeSearchLoadRequest;
-import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
-import co.elastic.elasticsearch.stateless.lucene.stats.ShardSize;
 
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -83,7 +82,7 @@ public class SearchMetricsService implements ClusterStateListener {
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
-    private static final ShardSize ZERO_SHARD_SIZE = new ShardSize(0, 0, PrimaryTermAndGeneration.ZERO);
+    private static final ShardSize ZERO_SHARD_SIZE = ShardSize.EMPTY;
 
     private final LongSupplier relativeTimeInNanosSupplier;
     private final MemoryMetricsService memoryMetricsService;
@@ -407,7 +406,7 @@ public class SearchMetricsService implements ClusterStateListener {
         ShardSize shardSize = ZERO_SHARD_SIZE;
 
         private synchronized void update(NodeTimingForShardMetrics sourceNode, ShardSize shardSize) {
-            if (this.shardSize.primaryTermGeneration().compareTo(shardSize.primaryTermGeneration()) <= 0) {
+            if (this.shardSize.onOrBefore(shardSize)) {
                 this.sourceNode = sourceNode;
                 this.shardSize = shardSize;
             }

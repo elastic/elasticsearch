@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.lucene.stats;
 
-import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
+import co.elastic.elasticsearch.stateless.api.ShardSizeStatsReader.ShardSize;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -41,28 +41,26 @@ public class ShardSizeTests extends AbstractWireSerializingTestCase<ShardSize> {
             case 0 -> new ShardSize(
                 randomValueOtherThan(instance.interactiveSizeInBytes(), ESTestCase::randomNonNegativeLong),
                 instance.nonInteractiveSizeInBytes(),
-                instance.primaryTermGeneration()
+                instance.primaryTerm(),
+                instance.generation()
             );
             case 1 -> new ShardSize(
                 instance.interactiveSizeInBytes(),
                 randomValueOtherThan(instance.nonInteractiveSizeInBytes(), ESTestCase::randomNonNegativeLong),
-                instance.primaryTermGeneration()
+                instance.primaryTerm(),
+                instance.generation()
             );
             case 2 -> new ShardSize(
                 instance.interactiveSizeInBytes(),
                 instance.nonInteractiveSizeInBytes(),
-                randomValueOtherThan(instance.primaryTermGeneration(), ShardSizeTests::randomPrimaryTermGeneration)
+                randomValueOtherThan(instance.primaryTerm(), ESTestCase::randomNonNegativeLong),
+                randomValueOtherThan(instance.primaryTerm(), ESTestCase::randomNonNegativeLong)
             );
             default -> randomValueOtherThan(instance, ShardSizeTests::randomShardSize);
         };
     }
 
     public static ShardSize randomShardSize() {
-        return new ShardSize(randomNonNegativeLong(), randomNonNegativeLong(), randomPrimaryTermGeneration());
+        return new ShardSize(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
     }
-
-    private static PrimaryTermAndGeneration randomPrimaryTermGeneration() {
-        return new PrimaryTermAndGeneration(randomNonNegativeLong(), randomNonNegativeLong());
-    }
-
 }

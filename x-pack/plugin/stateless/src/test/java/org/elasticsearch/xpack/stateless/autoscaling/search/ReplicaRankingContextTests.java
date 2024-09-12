@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.search;
 
-import co.elastic.elasticsearch.stateless.lucene.stats.ShardSize;
+import co.elastic.elasticsearch.stateless.api.ShardSizeStatsReader.ShardSize;
 
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -93,7 +93,7 @@ public class ReplicaRankingContextTests extends ESTestCase {
 
     private static SearchMetricsService.ShardMetrics shardMetricOf(long interactiveSize, long nonInteractiveSize) {
         SearchMetricsService.ShardMetrics sm = new SearchMetricsService.ShardMetrics();
-        sm.shardSize = new ShardSize(interactiveSize, nonInteractiveSize, null);
+        sm.shardSize = new ShardSize(interactiveSize, nonInteractiveSize, 0, 0);
         return sm;
     }
 }

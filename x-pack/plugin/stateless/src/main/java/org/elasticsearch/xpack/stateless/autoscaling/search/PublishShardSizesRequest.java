@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.search;
 
-import co.elastic.elasticsearch.stateless.lucene.stats.ShardSize;
+import co.elastic.elasticsearch.stateless.api.ShardSizeStatsReader.ShardSize;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;

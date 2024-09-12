@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.lucene.stats;
 
-import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
+import co.elastic.elasticsearch.stateless.api.ShardSizeStatsReader;
 
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -46,7 +46,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.LongSupplier;
 
-public class ShardSizeStatsReader {
+public class ShardSizeStatsReaderImpl implements ShardSizeStatsReader {
 
     private static final Logger logger = LogManager.getLogger(ShardSizeStatsReader.class);
 
@@ -54,13 +54,13 @@ public class ShardSizeStatsReader {
     private final IndicesService indicesService;
     private final LongSupplier currentTimeMillisSupplier;
 
-    public ShardSizeStatsReader(ClusterService clusterService, IndicesService indicesService, LongSupplier currentTimeMillisSupplier) {
+    public ShardSizeStatsReaderImpl(ClusterService clusterService, IndicesService indicesService, LongSupplier currentTimeMillisSupplier) {
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.currentTimeMillisSupplier = currentTimeMillisSupplier;
     }
 
-    public ShardSizeStatsReader(ClusterService clusterService, IndicesService indicesService) {
+    public ShardSizeStatsReaderImpl(ClusterService clusterService, IndicesService indicesService) {
         this(clusterService, indicesService, () -> clusterService.threadPool().absoluteTimeInMillis());
     }
 
@@ -134,7 +134,7 @@ public class ShardSizeStatsReader {
                 long primaryTerm = indexShard.getOperationPrimaryTerm();
                 final var engine = indexShard.getEngineOrNull();
                 long generation = engine != null ? engine.getLastCommittedSegmentInfos().getGeneration() : 0L;
-                return new ShardSize(interactiveSize, nonInteractiveSize, new PrimaryTermAndGeneration(primaryTerm, generation));
+                return new ShardSize(interactiveSize, nonInteractiveSize, primaryTerm, generation);
             } catch (IOException e) {
                 logger.warn("Failed to read shard size stats for {}", indexShard.shardId(), e);
                 return null;

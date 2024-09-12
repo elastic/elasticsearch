@@ -13,7 +13,7 @@ import org.elasticsearch.tdigest.arrays.WrapperTDigestArrays;
 public final class EmptyTDigestState extends TDigestState {
     public EmptyTDigestState() {
         // Use the sorting implementation to minimize memory allocation.
-        super(Type.SORTING, WrapperTDigestArrays.INSTANCE, 1.0D);
+        super(WrapperTDigestArrays.INSTANCE, Type.SORTING, 1.0D);
     }
 
     @Override

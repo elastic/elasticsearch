@@ -61,7 +61,7 @@ public class TDigestState {
      * @return a TDigestState object that's optimized for performance
      */
     public static TDigestState create(TDigestArrays arrays, double compression) {
-        return new TDigestState(Type.defaultValue(), arrays, compression);
+        return new TDigestState(arrays, Type.defaultValue(), compression);
     }
 
     /**
@@ -70,7 +70,7 @@ public class TDigestState {
      * @return a TDigestState object that's optimized for performance
      */
     public static TDigestState createOptimizedForAccuracy(TDigestArrays arrays, double compression) {
-        return new TDigestState(Type.valueForHighAccuracy(), arrays, compression);
+        return new TDigestState(arrays, Type.valueForHighAccuracy(), compression);
     }
 
     // TODO: DELETE ME
@@ -101,10 +101,10 @@ public class TDigestState {
      * @return a TDigestState object
      */
     public static TDigestState createUsingParamsFrom(TDigestState state) {
-        return new TDigestState(state.type, WrapperTDigestArrays.INSTANCE, state.compression);
+        return new TDigestState(WrapperTDigestArrays.INSTANCE, state.type, state.compression);
     }
 
-    protected TDigestState(Type type, TDigestArrays bigArrays, double compression) {
+    protected TDigestState(TDigestArrays bigArrays, Type type, double compression) {
         tdigest = switch (type) {
             case HYBRID -> TDigest.createHybridDigest(bigArrays, compression);
             case AVL_TREE -> TDigest.createAvlTreeDigest(compression);
@@ -144,10 +144,10 @@ public class TDigestState {
         TDigestState state;
         long size = 0;
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            state = new TDigestState(Type.valueOf(in.readString()), arrays, compression);
+            state = new TDigestState(arrays, Type.valueOf(in.readString()), compression);
             size = in.readVLong();
         } else {
-            state = new TDigestState(Type.valueForHighAccuracy(), arrays, compression);
+            state = new TDigestState(arrays, Type.valueForHighAccuracy(), compression);
         }
         int n = in.readVInt();
         if (size > 0) {

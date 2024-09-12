@@ -45,7 +45,7 @@ public class RestClusterStatsAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedQueryParameters() {
-        return Set.of("include_remotes", "nodeId");
+        return Set.of("include_remotes");
     }
 
     @Override

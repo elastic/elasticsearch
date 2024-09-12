@@ -20,6 +20,7 @@ import java.io.IOException;
  */
 public class RemoteClusterStatsRequest extends ActionRequest {
     private final String[] nodesIds;
+
     /**
      * Get stats from nodes based on the nodes ids specified. If none are passed, stats
      * based on all nodes will be returned.

@@ -23,9 +23,7 @@ import org.elasticsearch.transport.TransportService;
  * Handler action for incoming {@link RemoteClusterStatsRequest}.
  * Will pass the work to {@link TransportClusterStatsAction} and return the response.
  */
-public class TransportRemoteClusterStatsAction extends HandledTransportAction<
-    RemoteClusterStatsRequest,
-    RemoteClusterStatsResponse> {
+public class TransportRemoteClusterStatsAction extends HandledTransportAction<RemoteClusterStatsRequest, RemoteClusterStatsResponse> {
 
     public static final ActionType<RemoteClusterStatsResponse> TYPE = new ActionType<>("cluster:monitor/stats/remote");
     public static final RemoteClusterActionType<RemoteClusterStatsResponse> REMOTE_TYPE = new RemoteClusterActionType<>(

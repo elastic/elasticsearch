@@ -48,6 +48,12 @@ import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateReque
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.ingest.DeletePipelineRequest;
+import org.elasticsearch.action.ingest.DeletePipelineTransportAction;
+import org.elasticsearch.action.ingest.GetPipelineAction;
+import org.elasticsearch.action.ingest.GetPipelineRequest;
+import org.elasticsearch.action.ingest.GetPipelineResponse;
+import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -126,6 +132,7 @@ import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.store.IndicesStore;
+import org.elasticsearch.ingest.IngestPipelineTestUtils;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.node.NodeMocksPlugin;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -150,6 +157,7 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -2612,5 +2620,49 @@ public abstract class ESIntegTestCase extends ESTestCase {
             assert 0 <= allocationSize;
         }
         return totalAllocated;
+    }
+
+    /**
+     * Create an ingest pipeline with the given ID and body, using the default {@link ESIntegTestCase#client()}.
+     *
+     * @param id         The pipeline id.
+     * @param source     The body of the {@link PutPipelineRequest} as a JSON-formatted {@link BytesReference}.
+     */
+    protected static void putJsonPipeline(String id, BytesReference source) {
+        IngestPipelineTestUtils.putJsonPipeline(client(), id, source);
+    }
+
+    /**
+     * Create an ingest pipeline with the given ID and body, using the default {@link ESIntegTestCase#client()}.
+     *
+     * @param id         The pipeline id.
+     * @param jsonString The body of the {@link PutPipelineRequest} as a JSON-formatted {@link String}.
+     */
+    protected static void putJsonPipeline(String id, String jsonString) {
+        IngestPipelineTestUtils.putJsonPipeline(client(), id, jsonString);
+    }
+
+    /**
+     * Create an ingest pipeline with the given ID and body, using the default {@link ESIntegTestCase#client()}.
+     *
+     * @param id         The pipeline id.
+     * @param toXContent The body of the {@link PutPipelineRequest} as a {@link ToXContentFragment}.
+     */
+    protected static void putJsonPipeline(String id, ToXContentFragment toXContent) throws IOException {
+        IngestPipelineTestUtils.putJsonPipeline(client(), id, toXContent);
+    }
+
+    /**
+     * @return the result of running the {@link GetPipelineAction} on the given IDs, using the default {@link ESIntegTestCase#client()}.
+     */
+    protected static GetPipelineResponse getPipelines(String... ids) {
+        return safeGet(client().execute(GetPipelineAction.INSTANCE, new GetPipelineRequest(ids)));
+    }
+
+    /**
+     * Delete the ingest pipeline with the given {@code id}, the default {@link ESIntegTestCase#client()}.
+     */
+    protected static void deletePipeline(String id) {
+        assertAcked(safeGet(client().execute(DeletePipelineTransportAction.TYPE, new DeletePipelineRequest(id))));
     }
 }

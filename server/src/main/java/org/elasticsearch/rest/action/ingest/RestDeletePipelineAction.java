@@ -9,6 +9,7 @@
 package org.elasticsearch.rest.action.ingest;
 
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
+import org.elasticsearch.action.ingest.DeletePipelineTransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -40,6 +41,6 @@ public class RestDeletePipelineAction extends BaseRestHandler {
         DeletePipelineRequest request = new DeletePipelineRequest(restRequest.param("id"));
         request.masterNodeTimeout(getMasterNodeTimeout(restRequest));
         request.ackTimeout(getAckTimeout(restRequest));
-        return channel -> client.admin().cluster().deletePipeline(request, new RestToXContentListener<>(channel));
+        return channel -> client.execute(DeletePipelineTransportAction.TYPE, request, new RestToXContentListener<>(channel));
     }
 }

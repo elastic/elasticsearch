@@ -402,7 +402,7 @@ To better identify a task in the cluster scope, a tuple of persistent node ID an
 
 ### What Tasks Are Tracked
 
-The purpose of tasks is to provide management and visibility of cluster workload. There is some overhead involved in tracking a task, so they are best suited to tracking non-trivial and/or long-running operations. For smaller, more trivial operations visibility is probably better implemented using telemetry APIs.
+The purpose of tasks is to provide management and visibility of the cluster workload. There is some overhead involved in tracking a task, so they are best suited to tracking non-trivial and/or long-running operations. For smaller, more trivial operations, visibility is probably better implemented using telemetry APIs.
 
 Some examples of operations that are tracked using tasks include:
 - Execution of [TransportAction]s

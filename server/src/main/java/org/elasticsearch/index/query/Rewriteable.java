@@ -8,7 +8,6 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.ParsingException;
 
 import java.io.IOException;
 import java.util.ArrayList;

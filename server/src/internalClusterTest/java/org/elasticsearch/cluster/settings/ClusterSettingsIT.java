@@ -43,7 +43,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
     @After
     public void cleanup() throws Exception {
         assertAcked(
-            clusterAdmin().prepareUpdateSettings()
+            clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                 .setPersistentSettings(Settings.builder().putNull("*"))
                 .setTransientSettings(Settings.builder().putNull("*"))
         );
@@ -64,7 +64,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         String key1 = "no_idea_what_you_are_talking_about";
         int value1 = 10;
         try {
-            ClusterUpdateSettingsRequestBuilder builder = clusterAdmin().prepareUpdateSettings();
+            ClusterUpdateSettingsRequestBuilder builder = clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
             consumer.accept(Settings.builder().put(key1, value1), builder);
 
             builder.get();
@@ -95,7 +95,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         final Setting<Integer> INITIAL_RECOVERIES = CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING;
         final Setting<TimeValue> REROUTE_INTERVAL = CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING;
 
-        ClusterUpdateSettingsRequestBuilder builder = clusterAdmin().prepareUpdateSettings();
+        ClusterUpdateSettingsRequestBuilder builder = clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         consumer.accept(Settings.builder().put(INITIAL_RECOVERIES.getKey(), 7).put(REROUTE_INTERVAL.getKey(), "42s"), builder);
 
         ClusterUpdateSettingsResponse response = builder.get();
@@ -106,7 +106,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         assertThat(REROUTE_INTERVAL.get(settingsFunction.apply(response)), equalTo(TimeValue.timeValueSeconds(42)));
         assertThat(clusterService().getClusterSettings().get(REROUTE_INTERVAL), equalTo(TimeValue.timeValueSeconds(42)));
 
-        ClusterUpdateSettingsRequestBuilder undoBuilder = clusterAdmin().prepareUpdateSettings();
+        ClusterUpdateSettingsRequestBuilder undoBuilder = clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         consumer.accept(
             Settings.builder().putNull((randomBoolean() ? "cluster.routing.*" : "*")).put(REROUTE_INTERVAL.getKey(), "43s"),
             undoBuilder
@@ -124,7 +124,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         final Setting<Integer> INITIAL_RECOVERIES = CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING;
         final Setting<TimeValue> REROUTE_INTERVAL = CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING;
 
-        ClusterUpdateSettingsResponse response = clusterAdmin().prepareUpdateSettings()
+        ClusterUpdateSettingsResponse response = clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .setTransientSettings(Settings.builder().put(INITIAL_RECOVERIES.getKey(), 7).build())
             .get();
 
@@ -132,7 +132,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         assertThat(INITIAL_RECOVERIES.get(response.getTransientSettings()), equalTo(7));
         assertThat(clusterService().getClusterSettings().get(INITIAL_RECOVERIES), equalTo(7));
 
-        response = clusterAdmin().prepareUpdateSettings()
+        response = clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .setTransientSettings(Settings.builder().putNull(INITIAL_RECOVERIES.getKey()))
             .get();
 
@@ -140,7 +140,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         assertNull(response.getTransientSettings().get(INITIAL_RECOVERIES.getKey()));
         assertThat(clusterService().getClusterSettings().get(INITIAL_RECOVERIES), equalTo(INITIAL_RECOVERIES.get(Settings.EMPTY)));
 
-        response = clusterAdmin().prepareUpdateSettings()
+        response = clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .setTransientSettings(Settings.builder().put(INITIAL_RECOVERIES.getKey(), 8).put(REROUTE_INTERVAL.getKey(), "43s").build())
             .get();
 
@@ -149,7 +149,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         assertThat(clusterService().getClusterSettings().get(INITIAL_RECOVERIES), equalTo(8));
         assertThat(REROUTE_INTERVAL.get(response.getTransientSettings()), equalTo(TimeValue.timeValueSeconds(43)));
         assertThat(clusterService().getClusterSettings().get(REROUTE_INTERVAL), equalTo(TimeValue.timeValueSeconds(43)));
-        response = clusterAdmin().prepareUpdateSettings()
+        response = clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .setTransientSettings(Settings.builder().putNull((randomBoolean() ? "cluster.routing.*" : "*")))
             .get();
 
@@ -164,7 +164,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         final Setting<Integer> INITIAL_RECOVERIES = CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING;
         final Setting<TimeValue> REROUTE_INTERVAL = CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING;
 
-        ClusterUpdateSettingsResponse response = clusterAdmin().prepareUpdateSettings()
+        ClusterUpdateSettingsResponse response = clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .setPersistentSettings(Settings.builder().put(INITIAL_RECOVERIES.getKey(), 9).build())
             .get();
 
@@ -172,7 +172,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         assertThat(INITIAL_RECOVERIES.get(response.getPersistentSettings()), equalTo(9));
         assertThat(clusterService().getClusterSettings().get(INITIAL_RECOVERIES), equalTo(9));
 
-        response = clusterAdmin().prepareUpdateSettings()
+        response = clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .setPersistentSettings(Settings.builder().putNull(INITIAL_RECOVERIES.getKey()))
             .get();
 
@@ -180,7 +180,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         assertThat(INITIAL_RECOVERIES.get(response.getPersistentSettings()), equalTo(INITIAL_RECOVERIES.get(Settings.EMPTY)));
         assertThat(clusterService().getClusterSettings().get(INITIAL_RECOVERIES), equalTo(INITIAL_RECOVERIES.get(Settings.EMPTY)));
 
-        response = clusterAdmin().prepareUpdateSettings()
+        response = clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .setPersistentSettings(Settings.builder().put(INITIAL_RECOVERIES.getKey(), 10).put(REROUTE_INTERVAL.getKey(), "44s").build())
             .get();
 
@@ -189,7 +189,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         assertThat(clusterService().getClusterSettings().get(INITIAL_RECOVERIES), equalTo(10));
         assertThat(REROUTE_INTERVAL.get(response.getPersistentSettings()), equalTo(TimeValue.timeValueSeconds(44)));
         assertThat(clusterService().getClusterSettings().get(REROUTE_INTERVAL), equalTo(TimeValue.timeValueSeconds(44)));
-        response = clusterAdmin().prepareUpdateSettings()
+        response = clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .setPersistentSettings(Settings.builder().putNull((randomBoolean() ? "cluster.routing.*" : "*")))
             .get();
 
@@ -209,7 +209,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         Settings transientSettings1 = Settings.builder().put(key1, value1, ByteSizeUnit.BYTES).build();
         Settings persistentSettings1 = Settings.builder().put(key2, value2).build();
 
-        ClusterUpdateSettingsResponse response1 = clusterAdmin().prepareUpdateSettings()
+        ClusterUpdateSettingsResponse response1 = clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .setTransientSettings(transientSettings1)
             .setPersistentSettings(persistentSettings1)
             .get();
@@ -223,7 +223,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         Settings transientSettings2 = Settings.builder().put(key1, value1, ByteSizeUnit.BYTES).put(key2, value2).build();
         Settings persistentSettings2 = Settings.EMPTY;
 
-        ClusterUpdateSettingsResponse response2 = clusterAdmin().prepareUpdateSettings()
+        ClusterUpdateSettingsResponse response2 = clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .setTransientSettings(transientSettings2)
             .setPersistentSettings(persistentSettings2)
             .get();
@@ -237,7 +237,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         Settings transientSettings3 = Settings.EMPTY;
         Settings persistentSettings3 = Settings.builder().put(key1, value1, ByteSizeUnit.BYTES).put(key2, value2).build();
 
-        ClusterUpdateSettingsResponse response3 = clusterAdmin().prepareUpdateSettings()
+        ClusterUpdateSettingsResponse response3 = clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .setTransientSettings(transientSettings3)
             .setPersistentSettings(persistentSettings3)
             .get();
@@ -267,7 +267,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         final BiConsumer<Settings.Builder, ClusterUpdateSettingsRequestBuilder> consumer,
         final Function<ClusterUpdateSettingsResponse, Settings> settingsFunction
     ) {
-        ClusterUpdateSettingsRequestBuilder builder = clusterAdmin().prepareUpdateSettings();
+        ClusterUpdateSettingsRequestBuilder builder = clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         consumer.accept(
             Settings.builder().putList("transport.tracer.include", "internal:index/shard/recovery/*", "internal:gateway/local*"),
             builder
@@ -300,7 +300,10 @@ public class ClusterSettingsIT extends ESIntegTestCase {
     ) {
         final Setting<Integer> INITIAL_RECOVERIES = CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING;
 
-        ClusterUpdateSettingsRequestBuilder initialBuilder = clusterAdmin().prepareUpdateSettings();
+        ClusterUpdateSettingsRequestBuilder initialBuilder = clusterAdmin().prepareUpdateSettings(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT
+        );
         consumer.accept(Settings.builder().put(INITIAL_RECOVERIES.getKey(), 42), initialBuilder);
 
         ClusterUpdateSettingsResponse response = initialBuilder.get();
@@ -310,7 +313,10 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         assertThat(clusterService().getClusterSettings().get(INITIAL_RECOVERIES), equalTo(42));
 
         try {
-            ClusterUpdateSettingsRequestBuilder badBuilder = clusterAdmin().prepareUpdateSettings();
+            ClusterUpdateSettingsRequestBuilder badBuilder = clusterAdmin().prepareUpdateSettings(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT
+            );
             consumer.accept(Settings.builder().put(INITIAL_RECOVERIES.getKey(), "whatever"), badBuilder);
             badBuilder.get();
             fail("bogus value");
@@ -321,7 +327,10 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         assertThat(clusterService().getClusterSettings().get(INITIAL_RECOVERIES), equalTo(42));
 
         try {
-            ClusterUpdateSettingsRequestBuilder badBuilder = clusterAdmin().prepareUpdateSettings();
+            ClusterUpdateSettingsRequestBuilder badBuilder = clusterAdmin().prepareUpdateSettings(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT
+            );
             consumer.accept(Settings.builder().put(INITIAL_RECOVERIES.getKey(), -1), badBuilder);
             badBuilder.get();
             fail("bogus value");
@@ -346,9 +355,13 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         if (readOnlyAllowDelete) {
             settingsBuilder.put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), "true");
         }
-        assertAcked(clusterAdmin().prepareUpdateSettings().setPersistentSettings(settingsBuilder).setTransientSettings(settingsBuilder));
+        assertAcked(
+            clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .setPersistentSettings(settingsBuilder)
+                .setTransientSettings(settingsBuilder)
+        );
 
-        ClusterState state = clusterAdmin().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         if (readOnly) {
             assertTrue(Metadata.SETTING_READ_ONLY_SETTING.get(state.getMetadata().transientSettings()));
             assertTrue(Metadata.SETTING_READ_ONLY_SETTING.get(state.getMetadata().persistentSettings()));
@@ -365,7 +378,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
             .build();
         restartNodesOnBrokenClusterState(ClusterState.builder(state).metadata(brokenMeta));
         ensureGreen(); // wait for state recovery
-        state = clusterAdmin().prepareState().get().getState();
+        state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         assertTrue(state.getMetadata().persistentSettings().getAsBoolean("archived.this.is.unknown", false));
 
         // cannot remove read only block due to archived settings
@@ -375,7 +388,9 @@ public class ClusterSettingsIT extends ESIntegTestCase {
             clearOrSetFalse(builder, readOnlyAllowDelete, Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING);
             final IllegalArgumentException e1 = expectThrows(
                 IllegalArgumentException.class,
-                clusterAdmin().prepareUpdateSettings().setPersistentSettings(builder).setTransientSettings(builder)
+                clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                    .setPersistentSettings(builder)
+                    .setTransientSettings(builder)
             );
             assertTrue(e1.getMessage().contains("unknown setting [archived.this.is.unknown]"));
         }
@@ -383,7 +398,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         // fail to clear archived settings with non-archived settings
         final ClusterBlockException e2 = expectThrows(
             ClusterBlockException.class,
-            clusterAdmin().prepareUpdateSettings()
+            clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                 .setPersistentSettings(Settings.builder().putNull("cluster.routing.allocation.enable"))
                 .setTransientSettings(Settings.builder().putNull("archived.*"))
         );
@@ -397,7 +412,8 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         // fail to clear archived settings due to cluster read only block
         final ClusterBlockException e3 = expectThrows(
             ClusterBlockException.class,
-            clusterAdmin().prepareUpdateSettings().setPersistentSettings(Settings.builder().putNull("archived.*"))
+            clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .setPersistentSettings(Settings.builder().putNull("archived.*"))
         );
         if (readOnly) {
             assertTrue(e3.getMessage().contains("cluster read-only (api)"));
@@ -419,7 +435,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
             }
             final ClusterBlockException e4 = expectThrows(
                 ClusterBlockException.class,
-                clusterAdmin().prepareUpdateSettings().setPersistentSettings(builder)
+                clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).setPersistentSettings(builder)
             );
             if (readOnly) {
                 assertTrue(e4.getMessage().contains("cluster read-only (api)"));
@@ -436,7 +452,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
             clearOrSetFalse(builder, readOnlyAllowDelete, Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING);
             final ClusterBlockException e5 = expectThrows(
                 ClusterBlockException.class,
-                clusterAdmin().prepareUpdateSettings().setPersistentSettings(builder)
+                clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).setPersistentSettings(builder)
             );
             if (readOnly) {
                 assertTrue(e5.getMessage().contains("cluster read-only (api)"));
@@ -450,9 +466,14 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         Settings.Builder builder = Settings.builder().putNull("archived.*");
         clearOrSetFalse(builder, readOnly, Metadata.SETTING_READ_ONLY_SETTING);
         clearOrSetFalse(builder, readOnlyAllowDelete, Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING);
-        assertAcked(clusterAdmin().prepareUpdateSettings().setPersistentSettings(builder).setTransientSettings(builder).get());
+        assertAcked(
+            clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .setPersistentSettings(builder)
+                .setTransientSettings(builder)
+                .get()
+        );
 
-        state = clusterAdmin().prepareState().get().getState();
+        state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         assertFalse(Metadata.SETTING_READ_ONLY_SETTING.get(state.getMetadata().transientSettings()));
         assertFalse(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.get(state.getMetadata().transientSettings()));
         assertFalse(Metadata.SETTING_READ_ONLY_SETTING.get(state.getMetadata().persistentSettings()));
@@ -477,7 +498,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         String key2 = "cluster.routing.allocation.node_concurrent_recoveries";
         Settings persistentSettings = Settings.builder().put(key2, "5").build();
 
-        ClusterUpdateSettingsRequestBuilder request = clusterAdmin().prepareUpdateSettings()
+        ClusterUpdateSettingsRequestBuilder request = clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .setTransientSettings(transientSettings)
             .setPersistentSettings(persistentSettings);
 
@@ -488,7 +509,9 @@ public class ClusterSettingsIT extends ESIntegTestCase {
 
             // But it's possible to update the settings to update the "cluster.blocks.read_only" setting
             Settings settings = Settings.builder().putNull(Metadata.SETTING_READ_ONLY_SETTING.getKey()).build();
-            assertAcked(clusterAdmin().prepareUpdateSettings().setTransientSettings(settings).get());
+            assertAcked(
+                clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).setTransientSettings(settings).get()
+            );
 
         } finally {
             setClusterReadOnly(false);
@@ -498,12 +521,14 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         try {
             // But it's possible to update the settings to update the "cluster.blocks.read_only" setting
             Settings settings = Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true).build();
-            assertAcked(clusterAdmin().prepareUpdateSettings().setTransientSettings(settings).get());
+            assertAcked(
+                clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).setTransientSettings(settings).get()
+            );
             assertBlocked(request, Metadata.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
         } finally {
             // But it's possible to update the settings to update the "cluster.blocks.read_only" setting
             Settings s = Settings.builder().putNull(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey()).build();
-            assertAcked(clusterAdmin().prepareUpdateSettings().setTransientSettings(s).get());
+            assertAcked(clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).setTransientSettings(s).get());
         }
 
         // It should work now
@@ -541,7 +566,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
 
         final Level level = LogManager.getRootLogger().getLevel();
 
-        ClusterUpdateSettingsRequestBuilder throwBuilder = clusterAdmin().prepareUpdateSettings();
+        ClusterUpdateSettingsRequestBuilder throwBuilder = clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         consumer.accept(Settings.builder().put("logger._root", "BOOM"), throwBuilder);
 
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, throwBuilder);
@@ -549,14 +574,20 @@ public class ClusterSettingsIT extends ESIntegTestCase {
 
         try {
             final Settings.Builder testSettings = Settings.builder().put("logger.test", "TRACE").put("logger._root", "trace");
-            ClusterUpdateSettingsRequestBuilder updateBuilder = clusterAdmin().prepareUpdateSettings();
+            ClusterUpdateSettingsRequestBuilder updateBuilder = clusterAdmin().prepareUpdateSettings(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT
+            );
             consumer.accept(testSettings, updateBuilder);
 
             updateBuilder.get();
             assertEquals(Level.TRACE, LogManager.getLogger("test").getLevel());
             assertEquals(Level.TRACE, LogManager.getRootLogger().getLevel());
         } finally {
-            ClusterUpdateSettingsRequestBuilder undoBuilder = clusterAdmin().prepareUpdateSettings();
+            ClusterUpdateSettingsRequestBuilder undoBuilder = clusterAdmin().prepareUpdateSettings(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT
+            );
 
             if (randomBoolean()) {
                 final Settings.Builder defaultSettings = Settings.builder().putNull("logger.test").putNull("logger._root");
@@ -592,18 +623,21 @@ public class ClusterSettingsIT extends ESIntegTestCase {
 
         logger.info("Using " + ((persistent) ? "persistent" : "transient") + " settings");
 
-        ClusterUpdateSettingsRequestBuilder builder = clusterAdmin().prepareUpdateSettings();
+        ClusterUpdateSettingsRequestBuilder builder = clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         consumer.accept(settings, builder);
 
         builder.get();
-        ClusterStateResponse state = clusterAdmin().prepareState().get();
+        ClusterStateResponse state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
         assertEquals(value, getter.apply(state.getState().getMetadata()).get(key));
 
-        ClusterUpdateSettingsRequestBuilder updateBuilder = clusterAdmin().prepareUpdateSettings();
+        ClusterUpdateSettingsRequestBuilder updateBuilder = clusterAdmin().prepareUpdateSettings(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT
+        );
         consumer.accept(updatedSettings, updateBuilder);
         updateBuilder.get();
 
-        ClusterStateResponse updatedState = clusterAdmin().prepareState().get();
+        ClusterStateResponse updatedState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
         assertEquals(updatedValue, getter.apply(updatedState.getState().getMetadata()).get(key));
     }
 }

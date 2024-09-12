@@ -57,9 +57,8 @@ public class RestSegmentsAction extends AbstractCatAction {
     protected RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
 
-        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest(getMasterNodeTimeout(request));
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
-        clusterStateRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         clusterStateRequest.clear().nodes(true).routingTable(true).indices(indices);
 
         final RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());

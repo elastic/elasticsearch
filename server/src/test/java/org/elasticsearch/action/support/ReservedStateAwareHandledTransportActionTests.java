@@ -56,9 +56,9 @@ public class ReservedStateAwareHandledTransportActionTests extends ESTestCase {
         handler.doExecute(mock(Task.class), new DummyRequest(), future);
         assertNotNull(future.actionGet());
 
-        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest().persistentSettings(
-            Settings.builder().put("a", "a value").build()
-        ).transientSettings(Settings.builder().put("e", "e value").build());
+        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .persistentSettings(Settings.builder().put("a", "a value").build())
+            .transientSettings(Settings.builder().put("e", "e value").build());
 
         FakeReservedStateAwareAction action = new FakeReservedStateAwareAction(
             "internal:testClusterSettings",
@@ -80,9 +80,9 @@ public class ReservedStateAwareHandledTransportActionTests extends ESTestCase {
             }
         })).getMessage().contains("with errors: [[a] set as read-only by [namespace_one], " + "[e] set as read-only by [namespace_two]"));
 
-        ClusterUpdateSettingsRequest okRequest = new ClusterUpdateSettingsRequest().persistentSettings(
-            Settings.builder().put("m", "m value").build()
-        ).transientSettings(Settings.builder().put("n", "n value").build());
+        ClusterUpdateSettingsRequest okRequest = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .persistentSettings(Settings.builder().put("m", "m value").build())
+            .transientSettings(Settings.builder().put("n", "n value").build());
 
         // this should just work, no conflicts
         action.doExecute(mock(Task.class), okRequest, new ActionListener<>() {

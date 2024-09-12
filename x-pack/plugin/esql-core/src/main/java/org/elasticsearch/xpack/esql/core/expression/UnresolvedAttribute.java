@@ -22,22 +22,20 @@ import java.util.Objects;
 public class UnresolvedAttribute extends Attribute implements Unresolvable {
     private final String unresolvedMsg;
     private final boolean customMessage;
-    private final Object resolutionMetadata;
 
     public UnresolvedAttribute(Source source, String name) {
         this(source, name, null);
     }
 
     public UnresolvedAttribute(Source source, String name, String unresolvedMessage) {
-        this(source, name, null, unresolvedMessage, null);
+        this(source, name, null, unresolvedMessage);
     }
 
     @SuppressWarnings("this-escape")
-    public UnresolvedAttribute(Source source, String name, NameId id, String unresolvedMessage, Object resolutionMetadata) {
+    public UnresolvedAttribute(Source source, String name, NameId id, String unresolvedMessage) {
         super(source, name, id);
         this.customMessage = unresolvedMessage != null;
         this.unresolvedMsg = unresolvedMessage == null ? errorMessage(name(), null) : unresolvedMessage;
-        this.resolutionMetadata = resolutionMetadata;
     }
 
     @Override
@@ -52,11 +50,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
 
     @Override
     protected NodeInfo<UnresolvedAttribute> info() {
-        return NodeInfo.create(this, UnresolvedAttribute::new, name(), id(), unresolvedMsg, resolutionMetadata);
-    }
-
-    public Object resolutionMetadata() {
-        return resolutionMetadata;
+        return NodeInfo.create(this, UnresolvedAttribute::new, name(), id(), unresolvedMsg);
     }
 
     public boolean customMessage() {
@@ -74,7 +68,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     }
 
     public UnresolvedAttribute withUnresolvedMessage(String unresolvedMessage) {
-        return new UnresolvedAttribute(source(), name(), id(), unresolvedMessage, resolutionMetadata());
+        return new UnresolvedAttribute(source(), name(), id(), unresolvedMessage);
     }
 
     @Override
@@ -119,14 +113,14 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), resolutionMetadata, unresolvedMsg);
+        return Objects.hash(super.hashCode(), unresolvedMsg);
     }
 
     @Override
     public boolean equals(Object obj) {
         if (super.equals(obj)) {
             UnresolvedAttribute ua = (UnresolvedAttribute) obj;
-            return Objects.equals(resolutionMetadata, ua.resolutionMetadata) && Objects.equals(unresolvedMsg, ua.unresolvedMsg);
+            return Objects.equals(unresolvedMsg, ua.unresolvedMsg);
         }
         return false;
     }

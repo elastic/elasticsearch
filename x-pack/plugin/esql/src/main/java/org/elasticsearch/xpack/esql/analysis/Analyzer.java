@@ -575,8 +575,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                                         + joinedAttribute.dataType().typeName()
                                         + "] and original column was ["
                                         + attr.dataType().typeName()
-                                        + "]",
-                                    null
+                                        + "]"
                                 );
                             }
                         }

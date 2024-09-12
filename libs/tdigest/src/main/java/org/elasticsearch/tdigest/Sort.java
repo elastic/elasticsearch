@@ -181,7 +181,7 @@ public class Sort {
     }
 
     /**
-     * Reverses part of an array. See {@link #reverse(int[])}
+     * Reverses part of an array.
      *
      * @param order  The array containing the data to reverse.
      * @param offset Where to start reversing.
@@ -196,7 +196,7 @@ public class Sort {
     }
 
     /**
-     * Reverses part of an array. See {@link #reverse(int[])}
+     * Reverses part of an array.
      *
      * @param order  The array containing the data to reverse.
      * @param offset Where to start reversing.

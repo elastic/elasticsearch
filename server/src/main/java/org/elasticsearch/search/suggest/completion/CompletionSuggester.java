@@ -10,6 +10,7 @@ package org.elasticsearch.search.suggest.completion;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionTerminatedException;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Weight;
@@ -78,13 +79,12 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
         query = (CompletionQuery) query.rewrite(searcher);
         Weight weight = query.createWeight(searcher, collector.scoreMode(), 1f);
         for (LeafReaderContext context : searcher.getIndexReader().leaves()) {
-            IndexSearcher.LeafReaderContextPartition partition = IndexSearcher.LeafReaderContextPartition.createForEntireSegment(context);
             BulkScorer scorer = weight.bulkScorer(context);
             if (scorer != null) {
                 LeafCollector leafCollector = null;
                 try {
                     leafCollector = collector.getLeafCollector(context);
-                    scorer.score(leafCollector, context.reader().getLiveDocs(), partition.minDocId, partition.maxDocId);
+                    scorer.score(leafCollector, context.reader().getLiveDocs(), 0, DocIdSetIterator.NO_MORE_DOCS);
                 } catch (CollectionTerminatedException e) {
                     // collection was terminated prematurely
                     // continue with the following leaf

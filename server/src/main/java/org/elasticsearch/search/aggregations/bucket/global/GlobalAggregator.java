@@ -7,9 +7,8 @@
  */
 package org.elasticsearch.search.aggregations.bucket.global;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BulkScorer;
-import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Scorable;
@@ -41,15 +40,11 @@ public final class GlobalAggregator extends BucketsAggregator implements SingleB
     @Override
     public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         // Run sub-aggregations on child documents
-        LeafReaderContext leafReaderContext = aggCtx.getLeafReaderContext();
-        BulkScorer scorer = weight.bulkScorer(leafReaderContext);
+        BulkScorer scorer = weight.bulkScorer(aggCtx.getLeafReaderContext());
         if (scorer == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         grow(1);
-        IndexSearcher.LeafReaderContextPartition partition = IndexSearcher.LeafReaderContextPartition.createForEntireSegment(
-            leafReaderContext
-        );
 
         scorer.score(new LeafCollector() {
             @Override
@@ -61,7 +56,7 @@ public final class GlobalAggregator extends BucketsAggregator implements SingleB
             public void setScorer(Scorable scorer) throws IOException {
                 sub.setScorer(scorer);
             }
-        }, aggCtx.getLeafReaderContext().reader().getLiveDocs(), partition.minDocId, partition.maxDocId);
+        }, aggCtx.getLeafReaderContext().reader().getLiveDocs(), 0, DocIdSetIterator.NO_MORE_DOCS);
         return LeafBucketCollector.NO_OP_COLLECTOR;
     }
 

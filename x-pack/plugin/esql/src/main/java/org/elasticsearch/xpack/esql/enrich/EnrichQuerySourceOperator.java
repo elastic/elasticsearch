@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.enrich;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
@@ -89,10 +90,7 @@ final class EnrichQuerySourceOperator extends SourceOperator {
                         continue;
                     }
                     final DocCollector collector = new DocCollector(docsBuilder);
-                    IndexSearcher.LeafReaderContextPartition partition = IndexSearcher.LeafReaderContextPartition.createForEntireSegment(
-                        leaf
-                    );
-                    scorer.score(collector, leaf.reader().getLiveDocs(), partition.minDocId, partition.maxDocId);
+                    scorer.score(collector, leaf.reader().getLiveDocs(), 0, DocIdSetIterator.NO_MORE_DOCS);
                     int matches = collector.matches;
 
                     if (segmentsBuilder != null) {

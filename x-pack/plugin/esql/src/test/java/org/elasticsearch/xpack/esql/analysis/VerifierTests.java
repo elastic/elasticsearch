@@ -1165,10 +1165,7 @@ public class VerifierTests extends ESTestCase {
     public void testQueryStringFunctionArgNotNullOrConstant() throws Exception {
         assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
 
-        assertEquals(
-            "1:19: argument of [QSTR] must be a constant, received [first_name]",
-            error("from test | where qstr(first_name)")
-        );
+        assertEquals("1:19: argument of [QSTR] must be a constant, received [first_name]", error("from test | where qstr(first_name)"));
         assertEquals("1:19: argument of [QSTR] cannot be null, received [null]", error("from test | where qstr(null)"));
         // Other value types are tested in QueryStringFunctionTests
     }

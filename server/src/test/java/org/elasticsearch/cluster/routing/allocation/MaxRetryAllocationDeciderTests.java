@@ -320,7 +320,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         if (allocation.routingNodesChanged() == false) {
             return state;
         }
-        final RoutingTable newRoutingTable = RoutingTable.of(state.routingTable().version(), allocation.routingNodes());
+        final RoutingTable newRoutingTable = RoutingTable.of(allocation.routingNodes());
         final Metadata newMetadata = allocation.updateMetadataWithRoutingChanges(newRoutingTable);
         assert newRoutingTable.validate(newMetadata);
 

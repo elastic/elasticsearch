@@ -199,6 +199,11 @@ public class EsqlCapabilities {
         UNION_TYPES_MISSING_FIELD,
 
         /**
+         * Fix for widening of short numeric types in union-types. Done in #112610
+         */
+        UNION_TYPES_NUMERIC_WIDENING,
+
+        /**
          * Fix a parsing issue where numbers below Long.MIN_VALUE threw an exception instead of parsing as doubles.
          * see <a href="https://github.com/elastic/elasticsearch/issues/104323"> Parsing large numbers is inconsistent #104323 </a>
          */

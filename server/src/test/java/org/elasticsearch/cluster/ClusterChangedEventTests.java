@@ -343,7 +343,7 @@ public class ClusterChangedEventTests extends ESTestCase {
         return ClusterState.builder(TEST_CLUSTER_NAME)
             .nodes(createDiscoveryNodes(numNodes, isLocalMaster))
             .metadata(metadata)
-            .routingTable(createRoutingTable(1, metadata))
+            .routingTable(createRoutingTable(metadata))
             .build();
     }
 
@@ -498,8 +498,8 @@ public class ClusterChangedEventTests extends ESTestCase {
     }
 
     // Create the routing table for a cluster state.
-    private static RoutingTable createRoutingTable(final long version, final Metadata metadata) {
-        final RoutingTable.Builder builder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).version(version);
+    private static RoutingTable createRoutingTable(final Metadata metadata) {
+        final RoutingTable.Builder builder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         for (IndexMetadata indexMetadata : metadata.indices().values()) {
             builder.addAsNew(indexMetadata);
         }

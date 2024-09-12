@@ -1276,6 +1276,7 @@ multi value dimensions:
           - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
           - '{ "@timestamp": "2023-09-01T13:03:08.138Z","data": "20", "attributes": { "dim1": ["b" , "a"], "dim2": [1, 2] } }'
           - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z","data": "20", "attributes": { "dim1": ["c" , "b"], "dim2": [1, 2] } }'
   - is_false: errors
 
   - do:
@@ -1288,7 +1289,7 @@ multi value dimensions:
               terms:
                 field: _tsid
 
-  - length: { aggregations.tsids.buckets: 2 } # only the order of the dim1 attribute is different, yet we expect to have two distinct time series
+  - length: { aggregations.tsids.buckets: 3 } # only the order of the dim1 attribute is different, yet we expect to have two distinct time series
 
   - do:
       search:
@@ -1299,9 +1300,13 @@ multi value dimensions:
             dims:
               terms:
                 field: dim1
+                order:
+                  _key: asc
 
-  - length: { aggregations.dims.buckets: 2 }
+  - length: { aggregations.dims.buckets: 3 }
   - match: { aggregations.dims.buckets.0.key: a }
   - match: { aggregations.dims.buckets.0.doc_count: 2 }
   - match: { aggregations.dims.buckets.1.key: b }
-  - match: { aggregations.dims.buckets.1.doc_count: 2 }
+  - match: { aggregations.dims.buckets.1.doc_count: 3 }
+  - match: { aggregations.dims.buckets.2.key: c }
+  - match: { aggregations.dims.buckets.2.doc_count: 1 }

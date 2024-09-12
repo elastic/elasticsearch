@@ -98,7 +98,7 @@ public class SpatialContains extends SpatialRelatesFunction {
             return geometryRelatesGeometries(left, rightComponent2Ds);
         }
 
-        private boolean geometryRelatesGeometries(MultiValuesBytesRef left, MultiValuesBytesRef right) throws IOException {
+        private boolean geometryRelatesGeometries(MultiValuesCombiner left, MultiValuesCombiner right) throws IOException {
             Component2D[] rightComponent2Ds = asLuceneComponent2Ds(crsType, right.combined());
             return geometryRelatesGeometries(left, rightComponent2Ds);
         }
@@ -109,26 +109,19 @@ public class SpatialContains extends SpatialRelatesFunction {
             return geometryRelatesGeometries(leftDocValueReader, rightComponent2Ds);
         }
 
-        private boolean geometryRelatesGeometries(MultiValuesBytesRef left, Component2D[] rightComponent2Ds) throws IOException {
+        private boolean geometryRelatesGeometries(MultiValuesCombiner left, Component2D[] rightComponent2Ds) throws IOException {
             GeometryDocValueReader leftDocValueReader = asGeometryDocValueReader(coordinateEncoder, shapeIndexer, left.combined());
             return geometryRelatesGeometries(leftDocValueReader, rightComponent2Ds);
         }
 
         private boolean geometryRelatesGeometries(GeometryDocValueReader leftDocValueReader, Component2D[] rightComponent2Ds)
             throws IOException {
-            boolean contains = true;
-            boolean intersectsButNotContains = false;
             for (Component2D rightComponent2D : rightComponent2Ds) {
-                boolean containsComp = geometryRelatesGeometry(leftDocValueReader, rightComponent2D);
-                boolean intersectsButNotContainsComp = containsComp == false
-                    && intersects.geometryRelatesGeometry(leftDocValueReader, rightComponent2D);
-                // Every component of the right geometry must be contained within the left geometry for this to pass
-                contains &= containsComp;
-                // But if any geometry intersects, but is not contained, then the overall result is false
-                intersectsButNotContains |= intersectsButNotContainsComp;
-                // Note, we cannot exit early, since we need all the results for combining in multi-valued cases
+                if (geometryRelatesGeometry(leftDocValueReader, rightComponent2D) == false) {
+                    return false;
+                }
             }
-            return contains && intersectsButNotContains == false;
+            return true;
         }
 
         private boolean pointRelatesGeometries(long encoded, Component2D[] rightComponent2Ds) {

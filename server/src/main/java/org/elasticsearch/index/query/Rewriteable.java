@@ -107,7 +107,7 @@ public interface Rewriteable<T> {
                 }
             }
             rewriteResponse.onResponse(builder);
-        } catch (IOException | IllegalArgumentException | ParsingException ex) {
+        } catch (Exception ex) {
             rewriteResponse.onFailure(ex);
         }
     }

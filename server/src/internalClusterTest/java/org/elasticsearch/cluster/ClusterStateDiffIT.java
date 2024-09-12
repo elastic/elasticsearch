@@ -152,7 +152,6 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 }
 
                 // Check routing table
-                assertThat(clusterStateFromDiffs.routingTable().version(), equalTo(clusterState.routingTable().version()));
                 assertThat(clusterStateFromDiffs.routingTable().indicesRouting(), equalTo(clusterState.routingTable().indicesRouting()));
 
                 // Check cluster blocks

@@ -42,7 +42,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -545,8 +544,9 @@ public class IpFieldMapper extends FieldMapper {
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         InetAddress address;
+        String value = context.parser().textOrNull();
         try {
-            address = value(context.parser(), nullValue);
+            address = value == null ? nullValue : InetAddresses.forString(value);
         } catch (IllegalArgumentException e) {
             if (ignoreMalformed) {
                 context.addIgnoredField(fieldType().name());
@@ -562,14 +562,6 @@ public class IpFieldMapper extends FieldMapper {
         if (address != null) {
             indexValue(context, address);
         }
-    }
-
-    private static InetAddress value(XContentParser parser, InetAddress nullValue) throws IOException {
-        String value = parser.textOrNull();
-        if (value == null) {
-            return nullValue;
-        }
-        return InetAddresses.forString(value);
     }
 
     private void indexValue(DocumentParserContext context, InetAddress address) {
@@ -615,49 +607,30 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected SyntheticSourceMode syntheticSourceMode() {
-        return SyntheticSourceMode.NATIVE;
-    }
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        if (hasDocValues) {
+            var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
+            layers.add(new SortedSetDocValuesSyntheticFieldLoaderLayer(fullPath()) {
+                @Override
+                protected BytesRef convert(BytesRef value) {
+                    byte[] bytes = Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length);
+                    return new BytesRef(NetworkAddress.format(InetAddressPoint.decode(bytes)));
+                }
 
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        if (hasScript()) {
-            return SourceLoader.SyntheticFieldLoader.NOTHING;
-        }
-        if (hasDocValues == false) {
-            throw new IllegalArgumentException(
-                "field ["
-                    + fullPath()
-                    + "] of type ["
-                    + typeName()
-                    + "] doesn't support synthetic source because it doesn't have doc values"
-            );
-        }
-        if (copyTo().copyToFields().isEmpty() != true) {
-            throw new IllegalArgumentException(
-                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
-            );
-        }
+                @Override
+                protected BytesRef preserve(BytesRef value) {
+                    // No need to copy because convert has made a deep copy
+                    return value;
+                }
+            });
 
-        var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
-        layers.add(new SortedSetDocValuesSyntheticFieldLoaderLayer(fullPath()) {
-            @Override
-            protected BytesRef convert(BytesRef value) {
-                byte[] bytes = Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length);
-                return new BytesRef(NetworkAddress.format(InetAddressPoint.decode(bytes)));
+            if (ignoreMalformed) {
+                layers.add(new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath()));
             }
 
-            @Override
-            protected BytesRef preserve(BytesRef value) {
-                // No need to copy because convert has made a deep copy
-                return value;
-            }
-        });
-
-        if (ignoreMalformed) {
-            layers.add(new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath()));
+            return new SyntheticSourceSupport.Native(new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers));
         }
 
-        return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
+        return super.syntheticSourceSupport();
     }
 }

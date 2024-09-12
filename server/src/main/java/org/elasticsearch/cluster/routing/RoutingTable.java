@@ -317,7 +317,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
     public static RoutingTable readFrom(StreamInput in) throws IOException {
         Builder builder = new Builder();
         if (in.getTransportVersion().before(TransportVersions.ROUTING_TABLE_VERSION_REMOVED)) {
-            in.readLong();
+            in.readLong(); // previously 'version', unused in all applicable versions so any number will do
         }
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
@@ -331,7 +331,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().before(TransportVersions.ROUTING_TABLE_VERSION_REMOVED)) {
-            out.writeLong(0);
+            out.writeLong(0); // previously 'version', unused in all applicable versions so any number will do
         }
         out.writeCollection(indicesRouting.values());
     }
@@ -349,7 +349,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
 
         RoutingTableDiff(StreamInput in) throws IOException {
             if (in.getTransportVersion().before(TransportVersions.ROUTING_TABLE_VERSION_REMOVED)) {
-                in.readLong();
+                in.readLong(); // previously 'version', unused in all applicable versions so any number will do
             }
             indicesRouting = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), DIFF_VALUE_READER);
         }
@@ -366,7 +366,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             if (out.getTransportVersion().before(TransportVersions.ROUTING_TABLE_VERSION_REMOVED)) {
-                out.writeLong(0);
+                out.writeLong(0); // previously 'version', unused in all applicable versions so any number will do
             }
             indicesRouting.writeTo(out);
         }

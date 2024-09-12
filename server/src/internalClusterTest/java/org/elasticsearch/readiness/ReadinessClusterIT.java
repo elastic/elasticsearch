@@ -111,13 +111,16 @@ public class ReadinessClusterIT extends ESIntegTestCase {
     }
 
     private void assertMasterNode(Client client, String node) {
-        assertThat(client.admin().cluster().prepareState().get().getState().nodes().getMasterNode().getName(), equalTo(node));
+        assertThat(
+            client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getMasterNode().getName(),
+            equalTo(node)
+        );
     }
 
     private void expectMasterNotFound() {
         expectThrows(
             MasterNotDiscoveredException.class,
-            clusterAdmin().prepareState().setMasterNodeTimeout(TimeValue.timeValueMillis(100))
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setMasterNodeTimeout(TimeValue.timeValueMillis(100))
         );
     }
 

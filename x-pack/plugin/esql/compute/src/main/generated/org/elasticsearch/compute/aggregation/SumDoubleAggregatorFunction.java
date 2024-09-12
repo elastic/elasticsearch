@@ -56,13 +56,29 @@ public final class SumDoubleAggregatorFunction implements AggregatorFunction {
   }
 
   @Override
-  public void addRawInput(Page page) {
+  public void addRawInput(Page page, BooleanVector mask) {
+    if (mask.isConstant()) {
+      if (mask.getBoolean(0) == false) {
+        // Entire page masked away
+        return;
+      }
+      // No masking
+      DoubleBlock block = page.getBlock(channels.get(0));
+      DoubleVector vector = block.asVector();
+      if (vector != null) {
+        addRawVector(vector);
+      } else {
+        addRawBlock(block);
+      }
+      return;
+    }
+    // Some positions masked away, others kept
     DoubleBlock block = page.getBlock(channels.get(0));
     DoubleVector vector = block.asVector();
     if (vector != null) {
-      addRawVector(vector);
+      addRawVector(vector, mask);
     } else {
-      addRawBlock(block);
+      addRawBlock(block, mask);
     }
   }
 
@@ -73,8 +89,35 @@ public final class SumDoubleAggregatorFunction implements AggregatorFunction {
     }
   }
 
+  private void addRawVector(DoubleVector vector, BooleanVector mask) {
+    state.seen(true);
+    for (int i = 0; i < vector.getPositionCount(); i++) {
+      if (mask.getBoolean(i) == false) {
+        continue;
+      }
+      SumDoubleAggregator.combine(state, vector.getDouble(i));
+    }
+  }
+
   private void addRawBlock(DoubleBlock block) {
     for (int p = 0; p < block.getPositionCount(); p++) {
+      if (block.isNull(p)) {
+        continue;
+      }
+      state.seen(true);
+      int start = block.getFirstValueIndex(p);
+      int end = start + block.getValueCount(p);
+      for (int i = start; i < end; i++) {
+        SumDoubleAggregator.combine(state, block.getDouble(i));
+      }
+    }
+  }
+
+  private void addRawBlock(DoubleBlock block, BooleanVector mask) {
+    for (int p = 0; p < block.getPositionCount(); p++) {
+      if (mask.getBoolean(p) == false) {
+        continue;
+      }
       if (block.isNull(p)) {
         continue;
       }

@@ -429,11 +429,7 @@ public class RoutingAllocation {
     public RoutingAllocation immutableClone() {
         return new RoutingAllocation(
             deciders,
-            routingNodesChanged()
-                ? ClusterState.builder(clusterState)
-                    .routingTable(RoutingTable.of(clusterState.routingTable().version(), routingNodes))
-                    .build()
-                : clusterState,
+            routingNodesChanged() ? ClusterState.builder(clusterState).routingTable(RoutingTable.of(routingNodes)).build() : clusterState,
             clusterInfo,
             shardSizeInfo,
             currentNanoTime

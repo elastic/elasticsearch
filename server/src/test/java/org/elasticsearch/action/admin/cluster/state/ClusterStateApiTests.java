@@ -31,20 +31,20 @@ public class ClusterStateApiTests extends ESSingleNodeTestCase {
     }
 
     public void testWaitForMetadataVersion() throws Exception {
-        ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+        ClusterStateRequest clusterStateRequest = new ClusterStateRequest(TEST_REQUEST_TIMEOUT);
         clusterStateRequest.waitForTimeout(TimeValue.timeValueHours(1));
         ClusterStateResponse response = clusterAdmin().state(clusterStateRequest).get(10L, TimeUnit.SECONDS);
         assertThat(response.isWaitForTimedOut(), is(false));
         long metadataVersion = response.getState().getMetadata().version();
 
         // Verify that cluster state api returns after the cluster settings have been updated:
-        clusterStateRequest = new ClusterStateRequest();
+        clusterStateRequest = new ClusterStateRequest(TEST_REQUEST_TIMEOUT);
         clusterStateRequest.waitForMetadataVersion(metadataVersion + 1);
 
         ActionFuture<ClusterStateResponse> future2 = clusterAdmin().state(clusterStateRequest);
         assertThat(future2.isDone(), is(false));
 
-        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         // Pick an arbitrary dynamic cluster setting and change it. Just to get metadata version incremented:
         updateSettingsRequest.transientSettings(Settings.builder().put("cluster.max_shards_per_node", 999));
         assertAcked(clusterAdmin().updateSettings(updateSettingsRequest).actionGet());
@@ -63,7 +63,7 @@ public class ClusterStateApiTests extends ESSingleNodeTestCase {
         assertThat(response.getState(), nullValue());
 
         // Remove transient setting, otherwise test fails with the reason that this test leaves state behind:
-        updateSettingsRequest = new ClusterUpdateSettingsRequest();
+        updateSettingsRequest = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         updateSettingsRequest.transientSettings(Settings.builder().put("cluster.max_shards_per_node", (String) null));
         assertAcked(clusterAdmin().updateSettings(updateSettingsRequest).actionGet());
     }

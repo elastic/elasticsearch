@@ -21,7 +21,6 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsFeatureFlag;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.inference.results.InferenceTextEmbeddingByteResultsTests;
 import org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests;
@@ -290,8 +289,6 @@ public class ServiceUtilsTests extends ESTestCase {
     }
 
     public void testRemoveAsAdaptiveAllocationsSettings() {
-        assumeTrue("Should only run if adaptive allocations feature flag is enabled", AdaptiveAllocationsFeatureFlag.isEnabled());
-
         Map<String, Object> map = new HashMap<>(
             Map.of("settings", new HashMap<>(Map.of("enabled", true, "min_number_of_allocations", 7, "max_number_of_allocations", 42)))
         );
@@ -314,8 +311,6 @@ public class ServiceUtilsTests extends ESTestCase {
     }
 
     public void testRemoveAsAdaptiveAllocationsSettings_exceptions() {
-        assumeTrue("Should only run if adaptive allocations feature flag is enabled", AdaptiveAllocationsFeatureFlag.isEnabled());
-
         Map<String, Object> map = new HashMap<>(
             Map.of("settings", new HashMap<>(Map.of("enabled", "YES!", "blah", 42, "max_number_of_allocations", -7)))
         );

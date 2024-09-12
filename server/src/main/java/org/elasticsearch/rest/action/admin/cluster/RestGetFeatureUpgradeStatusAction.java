@@ -41,10 +41,7 @@ public class RestGetFeatureUpgradeStatusAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-
-        final GetFeatureUpgradeStatusRequest req = new GetFeatureUpgradeStatusRequest();
-        req.masterNodeTimeout(getMasterNodeTimeout(request));
-
-        return restChannel -> { client.execute(GetFeatureUpgradeStatusAction.INSTANCE, req, new RestToXContentListener<>(restChannel)); };
+        final GetFeatureUpgradeStatusRequest req = new GetFeatureUpgradeStatusRequest(getMasterNodeTimeout(request));
+        return restChannel -> client.execute(GetFeatureUpgradeStatusAction.INSTANCE, req, new RestToXContentListener<>(restChannel));
     }
 }

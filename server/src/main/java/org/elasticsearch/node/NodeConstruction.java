@@ -856,7 +856,8 @@ class NodeConstruction {
             featureService,
             systemIndices,
             dataStreamGlobalRetentionSettings,
-            documentParsingProvider
+            documentParsingProvider,
+            taskManager
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(plugin -> {

@@ -24,7 +24,7 @@ package org.elasticsearch.tdigest.arrays;
 /**
  * Minimal interface for ByteArray-like classes used within TDigest.
  */
-public interface TDigestByteArray extends AutoCloseable {
+public interface TDigestByteArray {
     int size();
 
     byte get(int index);
@@ -35,10 +35,4 @@ public interface TDigestByteArray extends AutoCloseable {
      * Resizes the array. If the new size is bigger than the current size, the new elements are set to 0.
      */
     void resize(int newSize);
-
-    /**
-     * Overriding close to remove the exception from the signature.
-     */
-    @Override
-    void close();
 }

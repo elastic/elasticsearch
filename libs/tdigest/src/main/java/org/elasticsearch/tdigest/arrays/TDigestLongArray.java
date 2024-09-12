@@ -24,7 +24,7 @@ package org.elasticsearch.tdigest.arrays;
 /**
  * Minimal interface for LongArray-like classes used within TDigest.
  */
-public interface TDigestLongArray extends AutoCloseable {
+public interface TDigestLongArray {
     int size();
 
     long get(int index);
@@ -35,10 +35,4 @@ public interface TDigestLongArray extends AutoCloseable {
      * Resizes the array. If the new size is bigger than the current size, the new elements are set to 0.
      */
     void resize(int newSize);
-
-    /**
-     * Overriding close to remove the exception from the signature.
-     */
-    @Override
-    void close();
 }

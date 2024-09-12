@@ -126,11 +126,6 @@ public class WrapperTDigestArrays implements TDigestArrays {
             }
             size = newSize;
         }
-
-        @Override
-        public void close() {
-            // No-op
-        }
     }
 
     public static class WrapperTDigestIntArray implements TDigestIntArray {
@@ -172,11 +167,6 @@ public class WrapperTDigestArrays implements TDigestArrays {
                 Arrays.fill(array, size, newSize, 0);
             }
             size = newSize;
-        }
-
-        @Override
-        public void close() {
-            // No-op
         }
     }
 
@@ -220,11 +210,6 @@ public class WrapperTDigestArrays implements TDigestArrays {
             }
             size = newSize;
         }
-
-        @Override
-        public void close() {
-            // No-op
-        }
     }
 
     public static class WrapperTDigestByteArray implements TDigestByteArray {
@@ -266,11 +251,6 @@ public class WrapperTDigestArrays implements TDigestArrays {
                 Arrays.fill(array, size, newSize, (byte) 0);
             }
             size = newSize;
-        }
-
-        @Override
-        public void close() {
-            // No-op
         }
     }
 }

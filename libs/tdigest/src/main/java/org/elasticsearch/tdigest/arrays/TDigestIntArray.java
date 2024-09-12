@@ -24,7 +24,7 @@ package org.elasticsearch.tdigest.arrays;
 /**
  * Minimal interface for IntArray-like classes used within TDigest.
  */
-public interface TDigestIntArray extends AutoCloseable {
+public interface TDigestIntArray {
     int size();
 
     int get(int index);
@@ -49,10 +49,4 @@ public interface TDigestIntArray extends AutoCloseable {
             this.set(index + i, buf.get(offset + i));
         }
     }
-
-    /**
-     * Overriding close to remove the exception from the signature.
-     */
-    @Override
-    void close();
 }

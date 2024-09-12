@@ -247,7 +247,7 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
      * @return an {@link IndexInput}
      */
     protected final IndexInput doOpenInput(String name, IOContext context, BlobLocation blobLocation, @Nullable Releasable releasable) {
-        return new SearchIndexInput(
+        return new BlobCacheIndexInput(
             name,
             cacheService.getCacheFile(
                 new FileCacheKey(shardId, blobLocation.primaryTerm(), blobLocation.blobName()),

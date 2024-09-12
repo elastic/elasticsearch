@@ -76,7 +76,7 @@ public class SearchDirectoryTests extends ESTestCase {
     }
 
     /**
-     * Test that SearchIndexInput can be read from the cache while the blob in object store keeps growing in size.
+     * Test that BlobCacheIndexInput can be read from the cache while the blob in object store keeps growing in size.
      *
      * In production, the batched compound commits are expanded in cache by appending compound commits. For simplicity, this test appends
      * Lucene files instead.
@@ -246,14 +246,14 @@ public class SearchDirectoryTests extends ESTestCase {
 
                 logger.debug("--> open file [{}] from cache", fileName);
                 var input = searchDirectory.openInput(file.fileName(), IOContext.DEFAULT);
-                assertThat(input, instanceOf(SearchIndexInput.class));
+                assertThat(input, instanceOf(BlobCacheIndexInput.class));
 
                 logger.debug("--> now fully read file [{}] from cache and verify its checksum", file.fileName());
                 CodecUtil.checksumEntireFile(input);
                 assertThat(CodecUtil.retrieveChecksum(input), equalTo(file.fileChecksum()));
 
                 logger.debug("--> verify cache file");
-                var cacheFile = BlobStoreCacheDirectoryTestUtils.getCacheFile((SearchIndexInput) input);
+                var cacheFile = BlobStoreCacheDirectoryTestUtils.getCacheFile((BlobCacheIndexInput) input);
                 assertBusyCacheFile(cacheFile, file, blobName, blobLength);
 
                 if (previousFile != null) {

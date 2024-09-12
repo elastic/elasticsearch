@@ -27,9 +27,9 @@ import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommitTestUtils;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
+import co.elastic.elasticsearch.stateless.lucene.BlobCacheIndexInput;
 import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectoryTestUtils;
 import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
-import co.elastic.elasticsearch.stateless.lucene.SearchIndexInput;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
 
@@ -302,7 +302,7 @@ public class CacheBlobReaderTests extends ESTestCase {
 
         public void readVirtualBatchedCompoundCommitByte(long offset) {
             try (
-                var searchIndexInput = new SearchIndexInput(
+                var blobCacheIndexInput = new BlobCacheIndexInput(
                     "fileName",
                     sharedCacheService.getCacheFile(
                         new FileCacheKey(shardId, getPrimaryTerm(), virtualBatchedCompoundCommit.getBlobName()),
@@ -349,7 +349,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                     offset
                 )
             ) {
-                searchIndexInput.readByte();
+                blobCacheIndexInput.readByte();
             } catch (IOException e) {
                 throw new AssertionError(e);
             }
@@ -392,7 +392,7 @@ public class CacheBlobReaderTests extends ESTestCase {
 
     private long assertFileChecksum(Directory directory, String filename) {
         try (var input = directory.openInput(filename, IOContext.DEFAULT)) {
-            assertThat(input, instanceOf(SearchIndexInput.class));
+            assertThat(input, instanceOf(BlobCacheIndexInput.class));
             return CodecUtil.checksumEntireFile(input);
         } catch (IOException e) {
             logger.error("Unexpected exception while reading from BCC", e);
@@ -682,7 +682,7 @@ public class CacheBlobReaderTests extends ESTestCase {
             final var cacheFile = node.sharedCacheService.getCacheFile(fileCacheKey, regionSize);
             final var cacheBlobReader = node.searchDirectory.getCacheBlobReader(internalLocation.getValue());
             final long availableDataLength = BlobCacheUtils.toPageAlignedSize(vbccSize);
-            try (var searchInput = new SearchIndexInput("region", cacheFile, IOContext.DEFAULT, cacheBlobReader, null, regionSize, 0)) {
+            try (var searchInput = new BlobCacheIndexInput("region", cacheFile, IOContext.DEFAULT, cacheBlobReader, null, regionSize, 0)) {
                 // Read a byte beyond the available data length will trigger the last gap to be filled
                 searchInput.readByte(randomLongBetween(availableDataLength, regionSize - 1L));
                 assertBusy(() -> {

@@ -394,7 +394,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
 
                 @Override
                 public IndexInput slice(String sliceDescription, long offset, long length) {
-                    var searchInput = asInstanceOf(SearchIndexInput.class, getDelegate());
+                    var searchInput = asInstanceOf(BlobCacheIndexInput.class, getDelegate());
                     // avoid BlobCacheBufferedIndexInput.trySliceBuffer which would read bytes from the heap instead of using the cache
                     return searchInput.doSlice(sliceDescription, offset, length);
                 }

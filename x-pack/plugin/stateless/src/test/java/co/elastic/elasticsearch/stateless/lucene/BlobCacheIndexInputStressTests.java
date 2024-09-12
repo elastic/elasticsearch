@@ -59,11 +59,11 @@ import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnap
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class SearchIndexInputStressTests extends ESIndexInputTestCase {
+public class BlobCacheIndexInputStressTests extends ESIndexInputTestCase {
 
     public void testConcurrentReadsUnderHighContention() throws InterruptedException, IOException {
         final TestThreadPool threadPool = new TestThreadPool(
-            "testConcurrentReadsWithMultipleSearchIndexInput",
+            "testConcurrentReadsUnderHighContention",
             Stateless.statelessExecutorBuilders(Settings.EMPTY, true)
         );
 
@@ -84,18 +84,20 @@ public class SearchIndexInputStressTests extends ESIndexInputTestCase {
             NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
             StatelessSharedBlobCacheService sharedBlobCacheService = newCacheService(nodeEnvironment, settings, threadPool)
         ) {
-            final Map<SearchIndexInput, String> searchIndexInputs = new HashMap<>();
+            final Map<BlobCacheIndexInput, String> blobCacheIndexInputs = new HashMap<>();
             final int numberOfCompoundFiles = between(10, 15);
             for (int i = 0; i < numberOfCompoundFiles; i++) {
-                searchIndexInputs.putAll(generateSearchIndexInputsForOneCompoundFile(sharedBlobCacheService, regionSize));
+                blobCacheIndexInputs.putAll(generateBlobCacheIndexInputsForOneCompoundFile(sharedBlobCacheService, regionSize));
             }
 
             final int numberOfReaders = between(10, 15);
             final int readsPerReader = between(30, 50);
 
-            // Prepare the queue of searchIndexInput in the main thread to increase randomisation
-            final Queue<Map.Entry<SearchIndexInput, String>> queue = new ConcurrentLinkedQueue<>(
-                IntStream.range(0, numberOfReaders * readsPerReader).mapToObj(ignore -> randomFrom(searchIndexInputs.entrySet())).toList()
+            // Prepare the queue of blobCacheIndexInput in the main thread to increase randomisation
+            final Queue<Map.Entry<BlobCacheIndexInput, String>> queue = new ConcurrentLinkedQueue<>(
+                IntStream.range(0, numberOfReaders * readsPerReader)
+                    .mapToObj(ignore -> randomFrom(blobCacheIndexInputs.entrySet()))
+                    .toList()
             );
 
             final CyclicBarrier cyclicBarrier = new CyclicBarrier(numberOfReaders + 1);
@@ -103,17 +105,17 @@ public class SearchIndexInputStressTests extends ESIndexInputTestCase {
                 final Thread thread = new Thread(() -> {
                     safeAwait(cyclicBarrier);
                     for (int i = 0; i < readsPerReader; i++) {
-                        final Map.Entry<SearchIndexInput, String> entry = queue.poll();
+                        final Map.Entry<BlobCacheIndexInput, String> entry = queue.poll();
                         assertThat(entry, notNullValue());
-                        final SearchIndexInput searchIndexInput = entry.getKey();
+                        final BlobCacheIndexInput blobCacheIndexInput = entry.getKey();
 
                         final String calculatedChecksum;
                         try {
-                            calculatedChecksum = Store.digestToString(CodecUtil.checksumEntireFile(searchIndexInput));
+                            calculatedChecksum = Store.digestToString(CodecUtil.checksumEntireFile(blobCacheIndexInput));
                         } catch (IOException e) {
                             throw new AssertionError(e);
                         }
-                        assertThat("checksum mismatch for " + searchIndexInput, calculatedChecksum, equalTo(entry.getValue()));
+                        assertThat("checksum mismatch for " + blobCacheIndexInput, calculatedChecksum, equalTo(entry.getValue()));
                     }
                 });
                 thread.setName("TEST-stress-T#" + threadNumber);
@@ -130,7 +132,7 @@ public class SearchIndexInputStressTests extends ESIndexInputTestCase {
         }
     }
 
-    private Map<SearchIndexInput, String> generateSearchIndexInputsForOneCompoundFile(
+    private Map<BlobCacheIndexInput, String> generateBlobCacheIndexInputsForOneCompoundFile(
         StatelessSharedBlobCacheService sharedBlobCacheService,
         int regionSize
     ) throws IOException {
@@ -157,12 +159,12 @@ public class SearchIndexInputStressTests extends ESIndexInputTestCase {
         final long primaryTerm = randomNonNegativeLong();
         final String compoundFileName = StatelessCompoundCommit.blobNameFromGeneration(primaryTerm);
         long offset = 0;
-        final Map<SearchIndexInput, String> searchIndexInputs = new HashMap<>();
+        final Map<BlobCacheIndexInput, String> blobCacheIndexInputs = new HashMap<>();
         for (ChecksumAndLength checksumAndLength : checksumAndLengthList) {
             final String fileName = randomIdentifier() + randomFileExtension();
             final ShardId shardId = new ShardId(new Index(randomIdentifier(), randomUUID()), between(0, 3));
-            searchIndexInputs.put(
-                new SearchIndexInput(
+            blobCacheIndexInputs.put(
+                new BlobCacheIndexInput(
                     fileName,
                     sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, compoundFileName), allBytes.length),
                     randomIOContext(),
@@ -181,7 +183,7 @@ public class SearchIndexInputStressTests extends ESIndexInputTestCase {
             offset += checksumAndLength.length;
         }
 
-        return searchIndexInputs;
+        return blobCacheIndexInputs;
     }
 
     record ChecksumAndLength(String checksum, int length) {}

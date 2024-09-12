@@ -106,7 +106,7 @@ public class CustomMetadataContextIT extends AbstractSnapshotIntegTestCase {
             .setWaitForCompletion(true)
             .get();
 
-        var metadata = clusterAdmin().prepareState().get().getState().getMetadata();
+        var metadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().getMetadata();
         logger.info("check that custom persistent metadata [{}] is correctly restored", metadata);
         if (isSnapshotMetadataSet) {
             assertThat(metadata.<SnapshotMetadata>custom(SnapshotMetadata.TYPE).getData(), equalTo("before_snapshot_s"));
@@ -127,7 +127,7 @@ public class CustomMetadataContextIT extends AbstractSnapshotIntegTestCase {
         internalCluster().fullRestart();
         ensureYellow();
 
-        var metadata = clusterAdmin().prepareState().get().getState().getMetadata();
+        var metadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().getMetadata();
         logger.info("check that gateway custom metadata [{}] survived full cluster restart", metadata);
         assertThat(metadata.<GatewayMetadata>custom(GatewayMetadata.TYPE).getData(), equalTo("before_restart_s_gw"));
         assertThat(metadata.<ApiMetadata>custom(ApiMetadata.TYPE), nullValue());
@@ -140,7 +140,7 @@ public class CustomMetadataContextIT extends AbstractSnapshotIntegTestCase {
             metadataBuilder.putCustom(NonApiMetadata.TYPE, new NonApiMetadata("before_restart_ns"));
         }));
 
-        var metadata = clusterAdmin().prepareState().get().getState().getMetadata();
+        var metadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().getMetadata();
         logger.info("check that api custom metadata [{}] is visible via api", metadata);
         assertThat(metadata.<ApiMetadata>custom(ApiMetadata.TYPE).getData(), equalTo("before_restart_s_gw"));
         assertThat(metadata.<NonApiMetadata>custom(NonApiMetadata.TYPE), nullValue());

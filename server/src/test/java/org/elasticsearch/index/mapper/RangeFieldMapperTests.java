@@ -25,7 +25,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.index.query.RangeQueryBuilder.GTE_FIELD;
@@ -34,7 +33,6 @@ import static org.elasticsearch.index.query.RangeQueryBuilder.LTE_FIELD;
 import static org.elasticsearch.index.query.RangeQueryBuilder.LT_FIELD;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
 public abstract class RangeFieldMapperTests extends MapperTestCase {
@@ -291,18 +289,7 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
 
             @Override
             public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
-                return List.of(
-                    new SyntheticSourceInvalidExample(
-                        equalTo(
-                            String.format(
-                                Locale.ROOT,
-                                "field [field] of type [%s] doesn't support synthetic source because it doesn't have doc values",
-                                rangeType().name
-                            )
-                        ),
-                        b -> b.field("type", rangeType().name).field("doc_values", false)
-                    )
-                );
+                return List.of();
             }
         };
     }

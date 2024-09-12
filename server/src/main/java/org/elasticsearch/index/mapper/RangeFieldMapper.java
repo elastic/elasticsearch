@@ -462,47 +462,34 @@ public class RangeFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected SyntheticSourceMode syntheticSourceMode() {
-        return SyntheticSourceMode.NATIVE;
-    }
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        if (hasDocValues) {
+            var loader = new BinaryDocValuesSyntheticFieldLoader(fullPath()) {
+                @Override
+                protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
+                    List<Range> ranges = type.decodeRanges(value);
 
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        if (hasDocValues == false) {
-            throw new IllegalArgumentException(
-                "field ["
-                    + fullPath()
-                    + "] of type ["
-                    + typeName()
-                    + "] doesn't support synthetic source because it doesn't have doc values"
-            );
-        }
-        if (copyTo().copyToFields().isEmpty() != true) {
-            throw new IllegalArgumentException(
-                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
-            );
-        }
-        return new BinaryDocValuesSyntheticFieldLoader(fullPath()) {
-            @Override
-            protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
-                List<Range> ranges = type.decodeRanges(value);
-
-                switch (ranges.size()) {
-                    case 0:
-                        return;
-                    case 1:
-                        b.field(leafName());
-                        ranges.get(0).toXContent(b, fieldType().dateTimeFormatter);
-                        break;
-                    default:
-                        b.startArray(leafName());
-                        for (var range : ranges) {
-                            range.toXContent(b, fieldType().dateTimeFormatter);
-                        }
-                        b.endArray();
+                    switch (ranges.size()) {
+                        case 0:
+                            return;
+                        case 1:
+                            b.field(leafName());
+                            ranges.get(0).toXContent(b, fieldType().dateTimeFormatter);
+                            break;
+                        default:
+                            b.startArray(leafName());
+                            for (var range : ranges) {
+                                range.toXContent(b, fieldType().dateTimeFormatter);
+                            }
+                            b.endArray();
+                    }
                 }
-            }
-        };
+            };
+
+            return new SyntheticSourceSupport.Native(loader);
+        }
+
+        return super.syntheticSourceSupport();
     }
 
     /** Class defining a range */

@@ -42,12 +42,12 @@ public class ClusterHealthRequestTests extends ESTestCase {
     }
 
     public void testRequestReturnsHiddenIndicesByDefault() {
-        final ClusterHealthRequest defaultRequest = new ClusterHealthRequest();
+        final ClusterHealthRequest defaultRequest = new ClusterHealthRequest(TEST_REQUEST_TIMEOUT);
         assertTrue(defaultRequest.indicesOptions().expandWildcardsHidden());
     }
 
     private ClusterHealthRequest randomRequest() {
-        ClusterHealthRequest request = new ClusterHealthRequest();
+        ClusterHealthRequest request = new ClusterHealthRequest(TEST_REQUEST_TIMEOUT);
         request.waitForStatus(randomFrom(ClusterHealthStatus.values()));
         request.waitForNodes(randomFrom("", "<", "<=", ">", ">=") + between(0, 1000));
         request.waitForNoInitializingShards(randomBoolean());

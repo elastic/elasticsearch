@@ -10,9 +10,6 @@ package org.elasticsearch.plugins.internal;
 
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
@@ -21,7 +18,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -44,7 +40,7 @@ public class XContentMeteringParserDecoratorWithPipelinesIT extends ESIntegTestC
     public void testDocumentIsReportedWithPipelines() throws Exception {
         hasWrappedParser = false;
         // pipeline adding fields, changing destination is not affecting reporting
-        final BytesReference pipelineBody = new BytesArray("""
+        putJsonPipeline("pipeline", """
             {
               "processors": [
                 {
@@ -62,7 +58,6 @@ public class XContentMeteringParserDecoratorWithPipelinesIT extends ESIntegTestC
               ]
             }
             """);
-        clusterAdmin().putPipeline(new PutPipelineRequest("pipeline", pipelineBody, XContentType.JSON)).actionGet();
 
         client().index(
             new IndexRequest(TEST_INDEX_NAME).setPipeline("pipeline")

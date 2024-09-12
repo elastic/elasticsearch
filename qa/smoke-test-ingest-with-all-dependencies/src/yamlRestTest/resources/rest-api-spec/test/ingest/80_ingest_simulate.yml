@@ -217,7 +217,9 @@ setup:
 "Test ingest simulate with reroute and mapping validation from templates":
 
   - skip:
-      features: headers
+      features:
+        - headers
+        - allowed_warnings
 
   - requires:
       cluster_features: ["simulate.mapping.validation.templates"]
@@ -241,6 +243,8 @@ setup:
   - match: { acknowledged: true }
 
   - do:
+      allowed_warnings:
+        - "index template [first-index-template] has index patterns [first-index*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [first-index-template] will take precedence during new index creation"
       indices.put_index_template:
         name: first-index-template
         body:
@@ -255,6 +259,8 @@ setup:
                   type: text
 
   - do:
+      allowed_warnings:
+        - "index template [second-index-template] has index patterns [second-index*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [second-index-template] will take precedence during new index creation"
       indices.put_index_template:
         name: second-index-template
         body:

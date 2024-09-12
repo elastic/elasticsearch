@@ -163,7 +163,6 @@ public class EsqlCapabilities {
          */
         SHORT_ERROR_MESSAGES_FOR_UNSUPPORTED_FIELDS;
 
-
         private final boolean snapshotOnly;
 
         Cap() {

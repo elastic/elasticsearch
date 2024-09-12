@@ -182,7 +182,7 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
         return mapping.parentMappingParameters().stream().anyMatch(m -> m.getOrDefault("enabled", "true").equals("false"))
             || mapping.mappingParameters().getOrDefault("synthetic_source_keep", "none").equals("all")
             || expectedValues.size() > 1
-                && mapping.mappingParameters().getOrDefault("syntetic_source_keep", "none").equals("none") == false;
+                && mapping.mappingParameters().getOrDefault("synthetic_source_keep", "none").equals("arrays");
     }
 
     private MatchResult matchWithGenericMatcher(List<Object> actualValues, List<Object> expectedValues) {

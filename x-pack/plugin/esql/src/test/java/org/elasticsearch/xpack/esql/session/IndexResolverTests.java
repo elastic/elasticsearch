@@ -247,5 +247,34 @@ public class IndexResolverTests extends ESTestCase {
             assertNull(remote1Cluster.getSkippedShards());
             assertNull(remote1Cluster.getFailedShards());
         }
+
+        // TODO this test will be removed (or changed to expect an error) when we add skip_unavailable=false handling to ES|QL
+        // one remote cluster, with failures, having skip_unavailable=false
+        {
+            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo();
+            executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*", false));
+
+            Map<String, StringBuilder> clusterAndResolvedIndices = new HashMap<>();
+            clusterAndResolvedIndices.put(remote1Alias, new StringBuilder("remote1:logs-a"));
+
+            List<FieldCapabilitiesFailure> failures = new ArrayList<>();
+            failures.add(
+                new FieldCapabilitiesFailure(new String[] { "remote1:foo", "remote1:bar" }, new NoSeedNodeLeftException("no seed node"))
+            );
+
+            IndexResolver.updateExecutionInfoWithFieldCapsResults(executionInfo, clusterAndResolvedIndices, failures);
+
+            assertThat(executionInfo.getClusterAliases(), equalTo(Set.of(remote1Alias)));
+            assertNull(executionInfo.getOverallTook());
+
+            EsqlExecutionInfo.Cluster remote1Cluster = executionInfo.getCluster(remote1Alias);
+            assertThat(remote1Cluster.getIndexExpression(), equalTo("remote1:logs-a"));
+            assertThat(remote1Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+            assertNull(remote1Cluster.getTook());
+            assertNull(remote1Cluster.getTotalShards());
+            assertNull(remote1Cluster.getSuccessfulShards());
+            assertNull(remote1Cluster.getSkippedShards());
+            assertNull(remote1Cluster.getFailedShards());
+        }
     }
 }

@@ -230,24 +230,22 @@ public class IndexResolver {
         }
 
         if (failures != null) {
-            Set<String> clusterAliasesWithErrors = new HashSet<>();
+            Set<String> unavailableClusters = new HashSet<>();
             for (FieldCapabilitiesFailure failure : failures) {
                 if (isRemoteUnavailableException(failure.getException())) {
                     for (String indexExpression : failure.getIndices()) {
                         if (indexExpression.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR) > 0) {
-                            clusterAliasesWithErrors.add(parseClusterAlias(indexExpression));
+                            unavailableClusters.add(parseClusterAlias(indexExpression));
                         }
                     }
                 }
             }
-            for (String clusterAlias : clusterAliasesWithErrors) {
-                if (executionInfo.getCluster(clusterAlias).isSkipUnavailable()) {
-                    executionInfo.swapCluster(
-                        clusterAlias,
-                        (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED).build()
-                    );
-                }
-                // TODO: follow-on ticket will thrown an exception for skip_unavailable=false, so ES|QL respects this setting like _search
+            for (String clusterAlias : unavailableClusters) {
+                executionInfo.swapCluster(
+                    clusterAlias,
+                    (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED).build()
+                );
+                // TODO: follow-on PR will set SKIPPED status when skip_unavailable=true and throw an exception when skip_unavailable=false
             }
         }
     }

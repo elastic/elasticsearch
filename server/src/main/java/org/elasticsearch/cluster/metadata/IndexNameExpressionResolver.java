@@ -1889,7 +1889,7 @@ public class IndexNameExpressionResolver {
         }
     }
 
-    private static final class SelectorResolver {
+    public static final class SelectorResolver {
         private SelectorResolver() {
             // Utility class
         }

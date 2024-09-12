@@ -73,6 +73,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -1656,6 +1657,10 @@ public class StatelessCommitServiceTests extends ESTestCase {
         }
     }
 
+    @TestIssueLogging(
+        value = "co.elastic.elasticsearch.stateless.commits.StatelessCommitService:TRACE",
+        issueUrl = "https://github.com/elastic/elasticsearch-serverless/issues/2175"
+    )
     public void testConcurrentIndexingSearchAndRecoveries() throws Exception {
         Set<PrimaryTermAndGeneration> uploadedCommits = Collections.newSetFromMap(new ConcurrentHashMap<>());
         Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();

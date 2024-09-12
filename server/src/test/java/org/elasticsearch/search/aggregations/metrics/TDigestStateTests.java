@@ -15,9 +15,8 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.tdigest.arrays.TDigestArrays;
+import org.elasticsearch.tdigest.arrays.WrapperTDigestArrays;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
@@ -205,9 +204,7 @@ public class TDigestStateTests extends ESTestCase {
         assertEquals(serializedBackwardsCompatible, backwardsCompatible);
     }
 
-    private static TDigestBigArrays arrays() {
-        return new TDigestBigArrays(
-            new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(100)).withCircuitBreaking()
-        );
+    protected TDigestArrays arrays() {
+        return WrapperTDigestArrays.INSTANCE;
     }
 }

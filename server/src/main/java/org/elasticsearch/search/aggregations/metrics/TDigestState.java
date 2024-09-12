@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.tdigest.TDigest;
 import org.elasticsearch.tdigest.arrays.TDigestArrays;
+import org.elasticsearch.tdigest.arrays.WrapperTDigestArrays;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -137,7 +138,6 @@ public class TDigestState {
     public static TDigestState read(StreamInput in) throws IOException {
         return read(WrapperTDigestArrays.INSTANCE, in);
     }
-
 
     public static TDigestState read(TDigestArrays arrays, StreamInput in) throws IOException {
         double compression = in.readDouble();

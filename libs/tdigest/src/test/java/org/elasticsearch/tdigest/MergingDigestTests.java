@@ -21,7 +21,6 @@
 
 package org.elasticsearch.tdigest;
 
-import org.elasticsearch.search.aggregations.metrics.TDigestBigArrays;
 import org.junit.Assert;
 
 import java.util.ArrayList;

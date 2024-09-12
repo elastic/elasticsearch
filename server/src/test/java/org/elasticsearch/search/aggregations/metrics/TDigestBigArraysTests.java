@@ -8,11 +8,10 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.tdigest.arrays.TDigestArrays;
 import org.elasticsearch.tdigest.arrays.TDigestDoubleArray;
 import org.elasticsearch.tdigest.arrays.TDigestIntArray;
+import org.elasticsearch.tdigest.arrays.WrapperTDigestArrays;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -150,9 +149,7 @@ public class TDigestBigArraysTests extends ESTestCase {
         return arrays().newDoubleArray(initialSize);
     }
 
-    private TDigestBigArrays arrays() {
-        return new TDigestBigArrays(
-            new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(100)).withCircuitBreaking()
-        );
+    protected TDigestArrays arrays() {
+        return WrapperTDigestArrays.INSTANCE;
     }
 }

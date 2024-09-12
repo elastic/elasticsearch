@@ -21,7 +21,6 @@
 
 package org.elasticsearch.tdigest;
 
-import org.elasticsearch.search.aggregations.metrics.TDigestBigArrays;
 import org.elasticsearch.tdigest.arrays.WrapperTDigestArrays;
 
 public class BigCountTestsMergingDigestTests extends BigCountTests {

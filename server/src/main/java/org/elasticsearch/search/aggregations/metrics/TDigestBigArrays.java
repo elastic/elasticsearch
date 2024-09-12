@@ -20,8 +20,6 @@ import org.elasticsearch.tdigest.arrays.TDigestIntArray;
  * {@link TDigestArrays} implementation using {@link BigArrays}.
  */
 public class TDigestBigArrays implements TDigestArrays {
-    public static final TDigestBigArrays NON_RECYCLING_INSTANCE = new TDigestBigArrays(BigArrays.NON_RECYCLING_INSTANCE);
-
     private final BigArrays bigArrays;
 
     public TDigestBigArrays(BigArrays bigArrays) {

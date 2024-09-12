@@ -22,6 +22,7 @@
 package org.elasticsearch.tdigest;
 
 import org.elasticsearch.search.aggregations.metrics.TDigestBigArrays;
+import org.elasticsearch.tdigest.arrays.WrapperTDigestArrays;
 import org.elasticsearch.test.ESTestCase;
 
 public class MedianTests extends ESTestCase {
@@ -39,7 +40,7 @@ public class MedianTests extends ESTestCase {
 
     public void testMergingDigest() {
         double[] data = new double[] { 7, 15, 36, 39, 40, 41 };
-        TDigest digest = new MergingDigest(TDigestBigArrays.NON_RECYCLING_INSTANCE, 100);
+        TDigest digest = new MergingDigest(WrapperTDigestArrays.INSTANCE, 100);
         for (double value : data) {
             digest.add(value);
         }
@@ -50,7 +51,7 @@ public class MedianTests extends ESTestCase {
 
     public void testSortingDigest() {
         double[] data = new double[] { 7, 15, 36, 39, 40, 41 };
-        TDigest digest = new SortingDigest(TDigestBigArrays.NON_RECYCLING_INSTANCE);
+        TDigest digest = new SortingDigest(WrapperTDigestArrays.INSTANCE);
         for (double value : data) {
             digest.add(value);
         }
@@ -61,7 +62,7 @@ public class MedianTests extends ESTestCase {
 
     public void testHybridDigest() {
         double[] data = new double[] { 7, 15, 36, 39, 40, 41 };
-        TDigest digest = new HybridDigest(TDigestBigArrays.NON_RECYCLING_INSTANCE, 100);
+        TDigest digest = new HybridDigest(WrapperTDigestArrays.INSTANCE, 100);
         for (double value : data) {
             digest.add(value);
         }

@@ -143,16 +143,16 @@ public class TDigestBigArraysTests extends ESTestCase {
     }
 
     private TDigestIntArray intArray(int initialSize) {
-        return bigArrays().newIntArray(initialSize);
+        return arrays().newIntArray(initialSize);
     }
 
     private TDigestDoubleArray doubleArray(int initialSize) {
-        return bigArrays().newDoubleArray(initialSize);
+        return arrays().newDoubleArray(initialSize);
     }
 
-    private TDigestBigArrays bigArrays() {
+    private TDigestBigArrays arrays() {
         return new TDigestBigArrays(
-            new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1)).withCircuitBreaking()
+            new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(100)).withCircuitBreaking()
         );
     }
 }

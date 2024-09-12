@@ -24,6 +24,7 @@ package org.elasticsearch.benchmark.tdigest;
 import org.elasticsearch.search.aggregations.metrics.TDigestBigArrays;
 import org.elasticsearch.tdigest.MergingDigest;
 import org.elasticsearch.tdigest.TDigest;
+import org.elasticsearch.tdigest.arrays.WrapperTDigestArrays;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -61,7 +62,7 @@ public class TDigestBench {
         MERGE {
             @Override
             TDigest create(double compression) {
-                return new MergingDigest(TDigestBigArrays.NON_RECYCLING_INSTANCE, compression, (int) (10 * compression));
+                return new MergingDigest(WrapperTDigestArrays.INSTANCE, compression, (int) (10 * compression));
             }
         },
         AVL_TREE {
@@ -73,7 +74,7 @@ public class TDigestBench {
         HYBRID {
             @Override
             TDigest create(double compression) {
-                return TDigest.createHybridDigest(TDigestBigArrays.NON_RECYCLING_INSTANCE, compression);
+                return TDigest.createHybridDigest(WrapperTDigestArrays.INSTANCE, compression);
             }
         };
 

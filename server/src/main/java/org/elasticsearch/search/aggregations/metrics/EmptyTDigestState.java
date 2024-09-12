@@ -8,10 +8,12 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.tdigest.arrays.WrapperTDigestArrays;
+
 public final class EmptyTDigestState extends TDigestState {
     public EmptyTDigestState() {
         // Use the sorting implementation to minimize memory allocation.
-        super(Type.SORTING, TDigestBigArrays.NON_RECYCLING_INSTANCE, 1.0D);
+        super(Type.SORTING, WrapperTDigestArrays.INSTANCE, 1.0D);
     }
 
     @Override

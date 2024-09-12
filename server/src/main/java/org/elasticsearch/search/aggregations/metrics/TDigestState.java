@@ -47,14 +47,20 @@ public class TDigestState {
 
     private final Type type;
 
+    // TODO: DELETE ME
+    @Deprecated
+    public static TDigestState create(double compression) {
+        return create(WrapperTDigestArrays.INSTANCE, compression);
+    }
+
     /**
      * Default factory for TDigestState. The underlying {@link org.elasticsearch.tdigest.TDigest} implementation is optimized for
      * performance, potentially providing slightly inaccurate results compared to other, substantially slower implementations.
      * @param compression the compression factor for the underlying {@link org.elasticsearch.tdigest.TDigest} object
      * @return a TDigestState object that's optimized for performance
      */
-    public static TDigestState create(double compression) {
-        return new TDigestState(Type.defaultValue(), TDigestBigArrays.NON_RECYCLING_INSTANCE, compression);
+    public static TDigestState create(TDigestArrays arrays, double compression) {
+        return new TDigestState(Type.defaultValue(), arrays, compression);
     }
 
     /**
@@ -62,8 +68,14 @@ public class TDigestState {
      * @param compression the compression factor for the underlying {@link org.elasticsearch.tdigest.TDigest} object
      * @return a TDigestState object that's optimized for performance
      */
-    public static TDigestState createOptimizedForAccuracy(double compression) {
-        return new TDigestState(Type.valueForHighAccuracy(), TDigestBigArrays.NON_RECYCLING_INSTANCE, compression);
+    public static TDigestState createOptimizedForAccuracy(TDigestArrays arrays, double compression) {
+        return new TDigestState(Type.valueForHighAccuracy(), arrays, compression);
+    }
+
+    // TODO: DELETE ME
+    @Deprecated
+    public static TDigestState create(double compression, TDigestExecutionHint executionHint) {
+        return create(WrapperTDigestArrays.INSTANCE, compression, executionHint);
     }
 
     /**
@@ -74,10 +86,10 @@ public class TDigestState {
      * @param executionHint controls which implementation is used; accepted values are 'high_accuracy' and '' (default)
      * @return a TDigestState object
      */
-    public static TDigestState create(double compression, TDigestExecutionHint executionHint) {
+    public static TDigestState create(TDigestArrays arrays, double compression, TDigestExecutionHint executionHint) {
         return switch (executionHint) {
-            case HIGH_ACCURACY -> createOptimizedForAccuracy(compression);
-            case DEFAULT -> create(compression);
+            case HIGH_ACCURACY -> createOptimizedForAccuracy(arrays, compression);
+            case DEFAULT -> create(arrays, compression);
         };
     }
 
@@ -88,7 +100,7 @@ public class TDigestState {
      * @return a TDigestState object
      */
     public static TDigestState createUsingParamsFrom(TDigestState state) {
-        return new TDigestState(state.type, TDigestBigArrays.NON_RECYCLING_INSTANCE, state.compression);
+        return new TDigestState(state.type, WrapperTDigestArrays.INSTANCE, state.compression);
     }
 
     protected TDigestState(Type type, TDigestArrays bigArrays, double compression) {
@@ -120,15 +132,22 @@ public class TDigestState {
         }
     }
 
+    // TODO: DELETE ME
+    @Deprecated
     public static TDigestState read(StreamInput in) throws IOException {
+        return read(WrapperTDigestArrays.INSTANCE, in);
+    }
+
+
+    public static TDigestState read(TDigestArrays arrays, StreamInput in) throws IOException {
         double compression = in.readDouble();
         TDigestState state;
         long size = 0;
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            state = new TDigestState(Type.valueOf(in.readString()), TDigestBigArrays.NON_RECYCLING_INSTANCE, compression);
+            state = new TDigestState(Type.valueOf(in.readString()), arrays, compression);
             size = in.readVLong();
         } else {
-            state = new TDigestState(Type.valueForHighAccuracy(), TDigestBigArrays.NON_RECYCLING_INSTANCE, compression);
+            state = new TDigestState(Type.valueForHighAccuracy(), arrays, compression);
         }
         int n = in.readVInt();
         if (size > 0) {

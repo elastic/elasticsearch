@@ -53,7 +53,7 @@ import java.util.Map;
  *       ]
  *     }
  *   },
- *   "template_substitutions": {
+ *   "component_template_substitutions": {
  *     "my-template-1": {
  *       "settings": {
  *         "number_of_shards": 1

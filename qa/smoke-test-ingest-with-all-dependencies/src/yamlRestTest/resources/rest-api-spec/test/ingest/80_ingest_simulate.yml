@@ -401,7 +401,7 @@ setup:
                 }
               }
             ],
-            "template_substitutions": {
+            "component_template_substitutions": {
               "mappings_template": {
                 "mappings": {
                   "dynamic": "true",
@@ -450,7 +450,7 @@ setup:
                 }
               }
             ],
-            "template_substitutions": {
+            "component_template_substitutions": {
               "mappings_template": {
                 "mappings": {
                   "dynamic": "true",

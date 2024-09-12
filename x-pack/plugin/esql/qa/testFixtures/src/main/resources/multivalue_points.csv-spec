@@ -355,6 +355,18 @@ c:l
 12
 ;
 
+whereContainsMultiValuePointsStatsFieldsCentroid
+required_capability: st_contains_within
+required_capability: spatial_predicates_support_multivalues
+
+FROM multivalue_points
+| WHERE ST_CONTAINS(location, subset) | STATS c=COUNT(*), centroid=ST_CENTROID_AGG(location)
+;
+
+c:l | centroid:geo_point
+12  | "POINT (4.391304308386601 3.086956503558094)"
+;
+
 whereWithinMultiValuePointsFields
 required_capability: st_contains_within
 required_capability: spatial_predicates_support_multivalues
@@ -390,4 +402,16 @@ FROM multivalue_points
 
 c:l
 12
+;
+
+whereWithinMultiValuePointsStatsFieldsCentroid
+required_capability: st_contains_within
+required_capability: spatial_predicates_support_multivalues
+
+FROM multivalue_points
+| WHERE ST_WITHIN(subset, location) | STATS c=COUNT(*), centroid=ST_CENTROID_AGG(subset)
+;
+
+c:l | centroid:geo_point
+12  | "POINT (5.461538432595821 4.846153828100516)"
 ;

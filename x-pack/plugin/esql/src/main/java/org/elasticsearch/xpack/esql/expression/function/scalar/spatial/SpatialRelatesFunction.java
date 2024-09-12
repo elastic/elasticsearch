@@ -13,9 +13,11 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
+import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.ShapeIndexer;
 import org.elasticsearch.lucene.spatial.Component2DVisitor;
@@ -193,33 +195,93 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
         }
     }
 
-    protected static class MultiValuesBytesRef {
+    /**
+     * When dealing with ST_CONTAINS and ST_WITHIN we need to pre-combine the field geometries for multi-values in order
+     * to perform the relationship check. This means instead of relying on the generated evaluators to iterate over all
+     * values in a multi-value field, the entire block is passed into the spatial function, and we combine the values into
+     * a geometry collection or multipoint.
+     */
+    protected interface MultiValuesCombiner {
+        Geometry combined();
+    }
+
+    /**
+     * Values read from source will be encoded as WKB in BytesRefBlock. The block contains multiple rows, and within
+     * each row multiple values, so we need to efficiently iterate over only the values required for the requested row.
+     * This class works for point and shape fields, because both are extracted into the same block encoding.
+     * However, we do detect if all values in the field are actually points and create a MultiPoint instead of a GeometryCollection.
+     */
+    protected static class MultiValuesBytesRef implements MultiValuesCombiner {
         private final BytesRefBlock valueBlock;
         private final int valueCount;
         private final BytesRef scratch = new BytesRef();
         private final int firstValue;
-        private int valueIndex;
 
         MultiValuesBytesRef(BytesRefBlock valueBlock, int position) {
             this.valueBlock = valueBlock;
             this.firstValue = valueBlock.getFirstValueIndex(position);
             this.valueCount = valueBlock.getValueCount(position);
-            this.valueIndex = valueBlock.getFirstValueIndex(position);
         }
 
-        protected Geometry combined() {
+        @Override
+        public Geometry combined() {
+            int valueIndex = firstValue;
+            boolean allPoints = true;
             if (valueCount == 1) {
                 return fromBytesRef(valueBlock.getBytesRef(valueIndex, scratch));
             }
             List<Geometry> geometries = new ArrayList<>();
             while (valueIndex < firstValue + valueCount) {
                 geometries.add(fromBytesRef(valueBlock.getBytesRef(valueIndex++, scratch)));
+                if (geometries.get(geometries.size() - 1) instanceof Point == false) {
+                    allPoints = false;
+                }
             }
-            return new GeometryCollection<>(geometries);
+            return allPoints ? new MultiPoint(asPointList(geometries)) : new GeometryCollection<>(geometries);
+        }
+
+        private List<Point> asPointList(List<Geometry> geometries) {
+            List<Point> points = new ArrayList<>(geometries.size());
+            for (Geometry geometry : geometries) {
+                points.add((Point) geometry);
+            }
+            return points;
         }
 
         protected Geometry fromBytesRef(BytesRef bytesRef) {
             return SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(bytesRef);
+        }
+    }
+
+    /**
+     * Point values read from doc-values will be encoded as in LogBlock. The block contains multiple rows, and within
+     * each row multiple values, so we need to efficiently iterate over only the values required for the requested row.
+     * Since the encoding differs for GEO and CARTESIAN, we need the decoder function to be passed in the constructor.
+     */
+    protected static class MultiValuesLong implements MultiValuesCombiner {
+        private final LongBlock valueBlock;
+        private final Function<Long, Point> decoder;
+        private final int valueCount;
+        private final int firstValue;
+
+        MultiValuesLong(LongBlock valueBlock, int position, Function<Long, Point> decoder) {
+            this.valueBlock = valueBlock;
+            this.decoder = decoder;
+            this.firstValue = valueBlock.getFirstValueIndex(position);
+            this.valueCount = valueBlock.getValueCount(position);
+        }
+
+        @Override
+        public Geometry combined() {
+            int valueIndex = firstValue;
+            if (valueCount == 1) {
+                return decoder.apply(valueBlock.getLong(valueIndex));
+            }
+            List<Point> points = new ArrayList<>();
+            while (valueIndex < firstValue + valueCount) {
+                points.add(decoder.apply(valueBlock.getLong(valueIndex++)));
+            }
+            return new MultiPoint(points);
         }
     }
 }

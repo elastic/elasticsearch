@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
 import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.geo.Component2D;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -18,7 +17,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.ShapeIndexer;
 import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
@@ -84,12 +83,12 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
             super(ShapeField.QueryRelation.WITHIN, spatialCoordinateType, encoder, shapeIndexer);
         }
 
-        private boolean geometryRelatesGeometries(MultiValuesBytesRef left, MultiValuesBytesRef right) throws IOException {
+        private boolean geometryRelatesGeometries(MultiValuesCombiner left, MultiValuesCombiner right) throws IOException {
             Component2D rightComponent2D = asLuceneComponent2D(crsType, right.combined());
             return geometryRelatesGeometry(left, rightComponent2D);
         }
 
-        private boolean geometryRelatesGeometry(MultiValuesBytesRef left, Component2D rightComponent2D) throws IOException {
+        private boolean geometryRelatesGeometry(MultiValuesCombiner left, Component2D rightComponent2D) throws IOException {
             GeometryDocValueReader leftDocValueReader = asGeometryDocValueReader(coordinateEncoder, shapeIndexer, left.combined());
             return geometryRelatesGeometry(leftDocValueReader, rightComponent2D);
         }
@@ -273,23 +272,31 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
         }
     }
 
-    @Evaluator(
-        extraName = "GeoPointDocValuesAndConstant",
-        warnExceptions = { IllegalArgumentException.class },
-        mvCombiner = AllCombiner.class
-    )
-    static boolean processGeoPointDocValuesAndConstant(long leftValue, @Fixed Component2D rightValue) {
-        return GEO.pointRelatesGeometry(leftValue, rightValue);
+    @Evaluator(extraName = "GeoPointDocValuesAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })
+    static void processGeoPointDocValuesAndConstant(
+        BooleanBlock.Builder builder,
+        int position,
+        LongBlock leftValue,
+        @Fixed Component2D rightValue
+    ) throws IOException {
+        if (leftValue.getValueCount(position) < 1) {
+            builder.appendNull();
+        } else {
+            MultiValuesLong leftValues = new MultiValuesLong(leftValue, position, SpatialCoordinateTypes.GEO::longAsPoint);
+            builder.appendBoolean(GEO.geometryRelatesGeometry(leftValues, rightValue));
+        }
     }
 
-    @Evaluator(
-        extraName = "GeoPointDocValuesAndSource",
-        warnExceptions = { IllegalArgumentException.class },
-        mvCombiner = AllCombiner.class
-    )
-    static boolean processGeoPointDocValuesAndSource(long leftValue, BytesRef rightValue) {
-        Geometry geometry = SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(rightValue);
-        return GEO.pointRelatesGeometry(leftValue, geometry);
+    @Evaluator(extraName = "GeoPointDocValuesAndSource", warnExceptions = { IllegalArgumentException.class, IOException.class })
+    static void processGeoPointDocValuesAndSource(BooleanBlock.Builder builder, int position, LongBlock leftValue, BytesRefBlock rightValue)
+        throws IOException {
+        if (leftValue.getValueCount(position) < 1) {
+            builder.appendNull();
+        } else {
+            MultiValuesLong leftValues = new MultiValuesLong(leftValue, position, SpatialCoordinateTypes.GEO::longAsPoint);
+            MultiValuesBytesRef rightValues = new MultiValuesBytesRef(rightValue, position);
+            builder.appendBoolean(GEO.geometryRelatesGeometries(leftValues, rightValues));
+        }
     }
 
     @Evaluator(extraName = "CartesianSourceAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })
@@ -323,18 +330,34 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
         }
     }
 
-    @Evaluator(
-        extraName = "CartesianPointDocValuesAndConstant",
-        warnExceptions = { IllegalArgumentException.class },
-        mvCombiner = AllCombiner.class
-    )
-    static boolean processCartesianPointDocValuesAndConstant(long leftValue, @Fixed Component2D rightValue) {
-        return CARTESIAN.pointRelatesGeometry(leftValue, rightValue);
+    @Evaluator(extraName = "CartesianPointDocValuesAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })
+    static void processCartesianPointDocValuesAndConstant(
+        BooleanBlock.Builder builder,
+        int position,
+        LongBlock leftValue,
+        @Fixed Component2D rightValue
+    ) throws IOException {
+        if (leftValue.getValueCount(position) < 1) {
+            builder.appendNull();
+        } else {
+            MultiValuesLong leftValues = new MultiValuesLong(leftValue, position, SpatialCoordinateTypes.CARTESIAN::longAsPoint);
+            builder.appendBoolean(CARTESIAN.geometryRelatesGeometry(leftValues, rightValue));
+        }
     }
 
-    @Evaluator(extraName = "CartesianPointDocValuesAndSource", mvCombiner = AllCombiner.class)
-    static boolean processCartesianPointDocValuesAndSource(long leftValue, BytesRef rightValue) {
-        Geometry geometry = SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(rightValue);
-        return CARTESIAN.pointRelatesGeometry(leftValue, geometry);
+    @Evaluator(extraName = "CartesianPointDocValuesAndSource", warnExceptions = { IllegalArgumentException.class, IOException.class })
+    static void processCartesianPointDocValuesAndSource(
+        BooleanBlock.Builder builder,
+        int position,
+        LongBlock leftValue,
+        BytesRefBlock rightValue
+    ) throws IOException {
+        if (leftValue.getValueCount(position) < 1) {
+            builder.appendNull();
+        } else {
+            MultiValuesLong leftValues = new MultiValuesLong(leftValue, position, SpatialCoordinateTypes.CARTESIAN::longAsPoint);
+            MultiValuesBytesRef rightValues = new MultiValuesBytesRef(rightValue, position);
+            builder.appendBoolean(CARTESIAN.geometryRelatesGeometries(leftValues, rightValues));
+        }
     }
 }

@@ -224,7 +224,7 @@ public class MetadataMigrateToDataStreamService {
         Settings nodeSettings
     ) throws IOException {
         MappingMetadata mm = im.mapping();
-        if (mm == null) {
+        if (mm == null || mm.equals(MappingMetadata.EMPTY_MAPPINGS)) {
             throw new IllegalArgumentException("backing index [" + im.getIndex().getName() + "] must have mappings for a timestamp field");
         }
 

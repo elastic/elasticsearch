@@ -70,9 +70,9 @@ import java.util.function.Supplier;
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
 import static org.elasticsearch.common.io.Streams.limitStream;
 
-public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
+public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput {
 
-    private static final Logger logger = LogManager.getLogger(SearchIndexInput.class);
+    private static final Logger logger = LogManager.getLogger(BlobCacheIndexInput.class);
 
     private final StatelessSharedBlobCacheService.CacheFile cacheFile;
     private final CacheBlobReader cacheBlobReader;
@@ -81,7 +81,7 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
     private final IOContext context;
     private final long offset;
 
-    public SearchIndexInput(
+    public BlobCacheIndexInput(
         String name,
         StatelessSharedBlobCacheService.CacheFile cacheFile,
         IOContext context,
@@ -122,7 +122,7 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
     }
 
     IndexInput doSlice(String sliceDescription, long offset, long length) {
-        return new SearchIndexInput(
+        return new BlobCacheIndexInput(
             "(" + sliceDescription + ") " + super.toString(),
             cacheFile,
             context,
@@ -139,7 +139,7 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
         if (bufferClone != null) {
             return bufferClone;
         }
-        var clone = new SearchIndexInput(super.toString(), cacheFile, context, cacheBlobReader, null, length(), offset);
+        var clone = new BlobCacheIndexInput(super.toString(), cacheFile, context, cacheBlobReader, null, length(), offset);
         try {
             clone.seek(getFilePointer());
         } catch (IOException e) {
@@ -159,7 +159,7 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
             doReadInternal(b);
         } catch (IOException | RuntimeException e) {
             if (ExceptionsHelper.unwrap(e, FileNotFoundException.class, NoSuchFileException.class) != null) {
-                logger.warn(() -> this + " did not find file", e); // includes the file name of the SearchIndexInput
+                logger.warn(() -> this + " did not find file", e); // includes the file name of the BlobCacheIndexInput
             }
             throw e;
         } catch (Exception e) {
@@ -203,7 +203,7 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
             // Compute the range of bytes of the blob to fetch and to write to the cache.
             //
             // The range represents one or more full regions to fetch. It can also be larger (in both directions) than the file opened by
-            // the current SearchIndexInput instance. The range can also be larger than the real length of the blob in the object store.
+            // the current BlobCacheIndexInput instance. The range can also be larger than the real length of the blob in the object store.
             // This is OK, we rely on the object store to return as many bytes as possible without failing.
 
             // we use the length from `cacheFile` since this allows reading beyond the slice'd portion of the file, important for
@@ -224,7 +224,7 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
                 bytesRead = cacheFile.populateAndRead(rangeToWrite, rangeToRead, (channel, channelPos, relativePos, len) -> {
                     logger.trace(
                         "{}: reading cached [{}][{}-{}]",
-                        SearchIndexInput.this.toString(),
+                        BlobCacheIndexInput.this.toString(),
                         cacheFile.getCacheKey().fileName(),
                         rangeToRead.start(),
                         rangeToRead.start() + len
@@ -234,7 +234,7 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
                     // Can be executed on different thread pool depending on whether we read from
                     // the ObjectStoreCacheBlobReader (SHARD_READ pool) or the IndexingShardCacheBlobReader (VBCC pool)
                     new SequentialRangeMissingHandler(
-                        SearchIndexInput.this,
+                        BlobCacheIndexInput.this,
                         cacheFile.getCacheKey().fileName(),
                         rangeToWrite,
                         cacheBlobReader,
@@ -490,7 +490,7 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
 
     @Override
     public String toString() {
-        return "SearchIndexInput{["
+        return "BlobCacheIndexInput{["
             + super.toString()
             + "], context="
             + context

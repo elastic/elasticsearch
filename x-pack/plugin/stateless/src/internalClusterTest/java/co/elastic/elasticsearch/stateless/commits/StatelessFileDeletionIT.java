@@ -28,9 +28,9 @@ import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterC
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
+import co.elastic.elasticsearch.stateless.lucene.BlobCacheIndexInput;
 import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
 import co.elastic.elasticsearch.stateless.lucene.IndexBlobStoreCacheDirectory;
-import co.elastic.elasticsearch.stateless.lucene.SearchIndexInput;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
 import co.elastic.elasticsearch.stateless.recovery.TransportRegisterCommitForRecoveryAction;
@@ -127,7 +127,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
 
     /**
-     * A plugin that can block snapshot threads from opening {@link SearchIndexInput} instances
+     * A plugin that can block snapshot threads from opening {@link BlobCacheIndexInput} instances
      */
     public static class SnapshotBlockerStatelessPlugin extends Stateless {
 

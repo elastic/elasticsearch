@@ -768,7 +768,7 @@ public class IndexDirectory extends ByteSizeDirectory {
 
             private CachedDelegate(String name, IndexInput input, boolean clone) {
                 super("cached(" + name + ')', true, input);
-                assert FilterIndexInput.unwrap(input) instanceof SearchIndexInput : input;
+                assert FilterIndexInput.unwrap(input) instanceof BlobCacheIndexInput : input;
                 this.clone = clone;
             }
 
@@ -870,7 +870,7 @@ public class IndexDirectory extends ByteSizeDirectory {
                     if (current.isCached()) {
                         // We clone the actual delegate input. No need to clone our Delegate wrapper with the "cached" flag.
                         IndexInput inputToClone = current.getDelegate();
-                        assert FilterIndexInput.unwrap(inputToClone) instanceof SearchIndexInput : toString();
+                        assert FilterIndexInput.unwrap(inputToClone) instanceof BlobCacheIndexInput : toString();
                         return seekOnClone(inputToClone.clone());
                     } else {
                         final var clone = (ReopeningIndexInput) super.clone();
@@ -907,7 +907,7 @@ public class IndexDirectory extends ByteSizeDirectory {
             assert sliceDescription != null;
             return executeLocallyOrReopen(current -> {
                 if (current.isCached()) {
-                    assert FilterIndexInput.unwrap(current.getDelegate()) instanceof SearchIndexInput : toString();
+                    assert FilterIndexInput.unwrap(current.getDelegate()) instanceof BlobCacheIndexInput : toString();
                     return current.slice(sliceDescription, sliceOffset, sliceLength);
                 } else {
                     ensureSlice(sliceDescription, sliceOffset, sliceLength, current);
@@ -945,7 +945,7 @@ public class IndexDirectory extends ByteSizeDirectory {
                 try {
                     if (closed == false) {
                         var next = cacheDirectory.openInput(name, context);
-                        assert FilterIndexInput.unwrap(next) instanceof SearchIndexInput : next;
+                        assert FilterIndexInput.unwrap(next) instanceof BlobCacheIndexInput : next;
                         if (this.sliceDescription != null) {
                             next = next.slice(this.sliceDescription, this.sliceOffset, this.sliceLength);
                         }

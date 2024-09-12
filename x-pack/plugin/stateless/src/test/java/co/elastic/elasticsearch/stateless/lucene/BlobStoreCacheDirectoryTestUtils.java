@@ -29,7 +29,7 @@ public class BlobStoreCacheDirectoryTestUtils {
         return target.getBlobLocation(fileName);
     }
 
-    public static StatelessSharedBlobCacheService.CacheFile getCacheFile(SearchIndexInput target) {
+    public static StatelessSharedBlobCacheService.CacheFile getCacheFile(BlobCacheIndexInput target) {
         return target.cacheFile();
     }
 

@@ -90,7 +90,10 @@ IMPORTANT: For the easiest way to perform semantic search in the {stack}, refer 
 ** {ml-docs}/ml-nlp-text-emb-vector-search-example.html[Semantic search with the msmarco-MiniLM-L-12-v3 sentence-transformer model]
 * Interactive examples:
 ** The https://github.com/elastic/elasticsearch-labs[`elasticsearch-labs`] repo contains a number of interactive semantic search examples in the form of executable Python notebooks, using the {es} Python client
+** https://github.com/elastic/elasticsearch-labs/blob/main/notebooks/search/03-ELSER.ipynb[Semantic search with ELSER using the model deployment workflow]
+** https://github.com/elastic/elasticsearch-labs/blob/main/notebooks/search/09-semantic-text.ipynb[Semantic search with `semantic_text`]
 * Blogs:
+** https://www.elastic.co/search-labs/blog/semantic-search-simplified-semantic-text[{es} new semantic_text mapping: Simplifying semantic search]
 ** {blog-ref}may-2023-launch-sparse-encoder-ai-model[Introducing Elastic Learned Sparse Encoder: Elastic's AI model for semantic search]
 ** {blog-ref}lexical-ai-powered-search-elastic-vector-database[How to get the best of lexical and AI-powered search with Elastic's vector database]
 ** Information retrieval blog series:

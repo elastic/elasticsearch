@@ -379,7 +379,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * 2) handles the ES TimeExceededException
      */
     @Override
-    public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
+    public void search(LeafReaderContextPartition[] leaves, Weight weight, Collector collector) throws IOException {
         boolean success = false;
         try {
             super.search(leaves, weight, collector);

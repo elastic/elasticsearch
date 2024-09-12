@@ -184,7 +184,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         private final Murmur3Hasher tsidHasher = new Murmur3Hasher(0);
 
         /**
-         * A sorted set of the serialized values of dimension fields that will be used
+         * A map of the serialized values of dimension fields that will be used
          * for generating the _tsid field. The map will be used by {@link TimeSeriesIdFieldMapper}
          * to build the _tsid field for the document.
          */
@@ -210,6 +210,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
                     out.writeBytesRef(entry.getKey());
                     List<BytesReference> value = entry.getValue();
                     if (value.size() > 1) {
+                        // multi-value dimensions are only supported for newer indices that use buildTsidHash
                         throw new IllegalArgumentException(
                             "Dimension field [" + entry.getKey().utf8ToString() + "] cannot be a multi-valued field."
                         );
@@ -276,7 +277,9 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             // NOTE: hash all dimension field allValues
             tsidHasher.reset();
             for (final List<BytesReference> values : dimensions.values()) {
-                values.forEach(v -> tsidHasher.update(v.toBytesRef().bytes));
+                for (BytesReference v : values) {
+                    tsidHasher.update(v.toBytesRef().bytes);
+                }
             }
             tsidHashIndex = writeHash128(tsidHasher.digestHash(), tsidHash, tsidHashIndex);
 
@@ -383,10 +386,15 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             List<BytesReference> values = dimensions.get(name);
             if (values == null) {
                 // optimize for the common case where dimensions are not multi-valued
-                values = new ArrayList<>(1);
-                values.add(encoded);
-                dimensions.put(name, values);
+                dimensions.put(name, List.of(encoded));
             } else {
+                if (values.size() == 1) {
+                    // converts the immutable list that's optimized for the common case of having only one value to a mutable list
+                    BytesReference previousValue = values.get(0);
+                    values = new ArrayList<>(4);
+                    values.add(previousValue);
+                    dimensions.put(name, values);
+                }
                 values.add(encoded);
             }
         }

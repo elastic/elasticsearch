@@ -398,7 +398,7 @@ When a task is completed, it must be unregistered via [TaskManager#unregister].
 #### A note about task IDs
 The IDs given to a task are numeric, supplied by a counter that starts at zero and increments over the life of the node process. So while they are unique in the individual node process, they would collide with IDs allocated after the node restarts, or IDs allocated on other nodes.
 
-To better identify a task in the cluster scope, the string `{node-ID}:{local-task-ID}` (e.g. `oTUltX4IQMOUUVeiohTt8A:124`) is used, however for the reasons explained this tuple will only be guaranteed unique for current tasks, not historical ones (see [TaskId]).
+To better identify a task in the cluster scope, a tuple of persistent node ID and task ID is used. This is represented in code using the [TaskId] class and serialized as the string `{node-ID}:{local-task-ID}` (e.g. `oTUltX4IQMOUUVeiohTt8A:124`). While [TaskId] is safe to use to uniquely identify tasks _currently_ running in a cluster, it should be used with caution as it can collide with tasks that have run in the cluster in the past (i.e. tasks that ran prior to a cluster node restart).
 
 ### What Tasks Are Tracked
 

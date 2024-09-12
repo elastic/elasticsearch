@@ -304,10 +304,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
         Pipelines pipelines;
         if (templateSubstitutions.isEmpty() == false) {
-            logger.info("There were template substitutions");
             pipelines = pipelinesFromTemplates.or(() -> pipelinesFromMetadata).orElse(Pipelines.NO_PIPELINES_DEFINED);
         } else {
-            logger.info("There were no template substitutions");
             pipelines = pipelinesFromMetadata.or(() -> pipelinesFromTemplates).orElse(Pipelines.NO_PIPELINES_DEFINED);
         }
 

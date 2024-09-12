@@ -255,6 +255,26 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             }
         }
 
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Cluster cluster = (Cluster) o;
+            return Objects.equals(clusterAlias, cluster.clusterAlias)
+                && Objects.equals(indexExpression, cluster.indexExpression)
+                && status == cluster.status
+                && Objects.equals(totalShards, cluster.totalShards)
+                && Objects.equals(successfulShards, cluster.successfulShards)
+                && Objects.equals(skippedShards, cluster.skippedShards)
+                && Objects.equals(failedShards, cluster.failedShards)
+                && Objects.equals(took, cluster.took);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(clusterAlias, indexExpression, status, totalShards, successfulShards, skippedShards, failedShards, took);
+        }
+
         public Cluster(String clusterAlias, String indexExpression) {
             this(clusterAlias, indexExpression, true, Cluster.Status.RUNNING, null, null, null, null, null);
         }

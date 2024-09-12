@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -40,6 +39,7 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -252,7 +252,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     instance.profile(),
                     instance.columnar(),
                     instance.isAsync(),
-                    null
+                    instance.getExecutionInfo()
                 );
             }
             case 1 -> new EsqlQueryResponse(
@@ -261,7 +261,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 instance.profile(),
                 false == instance.columnar(),
                 instance.isAsync(),
-                null
+                instance.getExecutionInfo()
             );
             case 2 -> new EsqlQueryResponse(
                 instance.columns(),
@@ -269,7 +269,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 randomValueOtherThan(instance.profile(), this::randomProfile),
                 instance.columnar(),
                 instance.isAsync(),
-                null
+                instance.getExecutionInfo()
             );
             case 3 -> {
                 int noPages = instance.pages().size();
@@ -284,7 +284,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     instance.profile(),
                     instance.columnar(),
                     instance.isAsync(),
-                    null
+                    instance.getExecutionInfo()
                 );
             }
             default -> throw new IllegalArgumentException();
@@ -407,6 +407,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             if (token == XContentParser.Token.FIELD_NAME) {
                                 currentDetailsFieldName = parser.currentName();  // cluster alias
+                                if (currentDetailsFieldName.equals(EsqlExecutionInfo.LOCAL_CLUSTER_NAME_REPRESENTATION)) {
+                                    currentDetailsFieldName = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+                                }
                             } else if (token == XContentParser.Token.START_OBJECT) {
                                 EsqlExecutionInfo.Cluster c = parseCluster(currentDetailsFieldName, parser);
                                 clusterInfoMap.put(currentDetailsFieldName, c);
@@ -432,10 +435,6 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             XContentParser.Token token = parser.currentToken();
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
 
-            String clusterName = clusterAlias;
-            if (clusterAlias.equals(SearchResponse.LOCAL_CLUSTER_NAME_REPRESENTATION)) {
-                clusterName = "";
-            }
             String indexExpression = null;
             String status = "running";
             long took = -1L;
@@ -490,7 +489,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             Integer failedShardsFinal = failedShards == -1 ? null : failedShards;
             TimeValue tookTimeValue = took == -1L ? null : new TimeValue(took);
             return new EsqlExecutionInfo.Cluster(
-                clusterName,
+                clusterAlias,
                 indexExpression,
                 true,
                 EsqlExecutionInfo.Cluster.Status.valueOf(status.toUpperCase(Locale.ROOT)),

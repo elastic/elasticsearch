@@ -119,7 +119,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         boolean columnar = in.readBoolean();
         EsqlExecutionInfo executionInfo = null;
         if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_CCS_COMPUTE_RESPONSE)) {
-            in.readOptionalWriteable(EsqlExecutionInfo::new);
+            executionInfo = in.readOptionalWriteable(EsqlExecutionInfo::new);
         }
         return new EsqlQueryResponse(columns, pages, profile, columnar, asyncExecutionId, isRunning, isAsync, executionInfo);
     }
@@ -275,7 +275,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             && Objects.equals(isRunning, that.isRunning)
             && columnar == that.columnar
             && Iterators.equals(values(), that.values(), (row1, row2) -> Iterators.equals(row1, row2, Objects::equals))
-            && Objects.equals(profile, that.profile);
+            && Objects.equals(profile, that.profile)
+            && Objects.equals(executionInfo, that.executionInfo);
     }
 
     @Override
@@ -285,7 +286,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             isRunning,
             columns,
             Iterators.hashCode(values(), row -> Iterators.hashCode(row, Objects::hashCode)),
-            columnar
+            columnar,
+            executionInfo
         );
     }
 

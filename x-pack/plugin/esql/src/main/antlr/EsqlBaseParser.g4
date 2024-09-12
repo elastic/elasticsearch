@@ -295,14 +295,28 @@ metaCommand
     ;
 
 enrichCommand
-    // TODO: statement parser tests for e.g. `ENRICH policy on ON ...` resp. just `ENRICH policy on` and the same with
+    // TODO: statement parser tests
+    // - `ENRICH policy on ON ...` resp. just `ENRICH policy on` and the same with
     // `with`, and `ENRICH policy with ON ...` etc.
-    // TODO: Should we use a qualifiedNamePattern here? We *could* also go with just an identifier (no dot-separated names).
-    : ENRICH policyName=ENRICH_POLICY_NAME (qualifier=qualifiedNamePattern)? (ON matchField=qualifiedNamePattern)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
+    // - `ENRICH policy * ...` and `ENRICH policy a*b`
+    // - `ENRICH policy x` where we put all kinds of quoting mechanisms around `x`.
+    // TODO: Should we use a qualifiedName here?
+    // A simple identifier (without quoting) is the safest to start with; if we allow qualifiedName, we need to
+    // invalidate patterns like *.
+    // And we encounter weirdnesses from multi-part qualifiers like e.g.
+    // | ENRICH policy `qua`.`li`.`fier`
+    // This leads to weirdness like
+    // | ENRICH policy qua.li.fier | KEEP `qua.li.fier`.`some.nested.field`
+    // and
+    // | ENRICH policy qua.li.fier | KEEP `qua.li.fier`.`some`.`nested`.`field`
+    // being okay but
+    // | ENRICH policy qua.li.fier | KEEP `qua`.`li`.`fier`.`some`.`nested`.`field`
+    // being invalid.
+    : ENRICH policyName=ENRICH_POLICY_NAME (qualifier=identifier)? (ON matchField=qualifiedName)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
     ;
 
 enrichWithClause
-    : (newName=qualifiedNamePattern ASSIGN)? enrichField=qualifiedNamePattern
+    : (newName=qualifiedName ASSIGN)? enrichField=qualifiedName
     ;
 
 //

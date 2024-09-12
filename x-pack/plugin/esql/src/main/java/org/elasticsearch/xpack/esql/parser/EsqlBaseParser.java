@@ -4924,8 +4924,8 @@ public class EsqlBaseParser extends ParserConfig {
   @SuppressWarnings("CheckReturnValue")
   public static class EnrichCommandContext extends ParserRuleContext {
     public Token policyName;
-    public QualifiedNamePatternContext qualifier;
-    public QualifiedNamePatternContext matchField;
+    public IdentifierContext qualifier;
+    public QualifiedNameContext matchField;
     public TerminalNode ENRICH() { return getToken(EsqlBaseParser.ENRICH, 0); }
     public TerminalNode ENRICH_POLICY_NAME() { return getToken(EsqlBaseParser.ENRICH_POLICY_NAME, 0); }
     public TerminalNode ON() { return getToken(EsqlBaseParser.ON, 0); }
@@ -4936,11 +4936,11 @@ public class EsqlBaseParser extends ParserConfig {
     public EnrichWithClauseContext enrichWithClause(int i) {
       return getRuleContext(EnrichWithClauseContext.class,i);
     }
-    public List<QualifiedNamePatternContext> qualifiedNamePattern() {
-      return getRuleContexts(QualifiedNamePatternContext.class);
+    public IdentifierContext identifier() {
+      return getRuleContext(IdentifierContext.class,0);
     }
-    public QualifiedNamePatternContext qualifiedNamePattern(int i) {
-      return getRuleContext(QualifiedNamePatternContext.class,i);
+    public QualifiedNameContext qualifiedName() {
+      return getRuleContext(QualifiedNameContext.class,0);
     }
     public List<TerminalNode> COMMA() { return getTokens(EsqlBaseParser.COMMA); }
     public TerminalNode COMMA(int i) {
@@ -4983,7 +4983,7 @@ public class EsqlBaseParser extends ParserConfig {
       case 1:
         {
         setState(550);
-        ((EnrichCommandContext)_localctx).qualifier = qualifiedNamePattern();
+        ((EnrichCommandContext)_localctx).qualifier = identifier();
         }
         break;
       }
@@ -4995,7 +4995,7 @@ public class EsqlBaseParser extends ParserConfig {
         setState(553);
         match(ON);
         setState(554);
-        ((EnrichCommandContext)_localctx).matchField = qualifiedNamePattern();
+        ((EnrichCommandContext)_localctx).matchField = qualifiedName();
         }
         break;
       }
@@ -5044,13 +5044,13 @@ public class EsqlBaseParser extends ParserConfig {
 
   @SuppressWarnings("CheckReturnValue")
   public static class EnrichWithClauseContext extends ParserRuleContext {
-    public QualifiedNamePatternContext newName;
-    public QualifiedNamePatternContext enrichField;
-    public List<QualifiedNamePatternContext> qualifiedNamePattern() {
-      return getRuleContexts(QualifiedNamePatternContext.class);
+    public QualifiedNameContext newName;
+    public QualifiedNameContext enrichField;
+    public List<QualifiedNameContext> qualifiedName() {
+      return getRuleContexts(QualifiedNameContext.class);
     }
-    public QualifiedNamePatternContext qualifiedNamePattern(int i) {
-      return getRuleContext(QualifiedNamePatternContext.class,i);
+    public QualifiedNameContext qualifiedName(int i) {
+      return getRuleContext(QualifiedNameContext.class,i);
     }
     public TerminalNode ASSIGN() { return getToken(EsqlBaseParser.ASSIGN, 0); }
     @SuppressWarnings("this-escape")
@@ -5085,14 +5085,14 @@ public class EsqlBaseParser extends ParserConfig {
       case 1:
         {
         setState(568);
-        ((EnrichWithClauseContext)_localctx).newName = qualifiedNamePattern();
+        ((EnrichWithClauseContext)_localctx).newName = qualifiedName();
         setState(569);
         match(ASSIGN);
         }
         break;
       }
       setState(573);
-      ((EnrichWithClauseContext)_localctx).enrichField = qualifiedNamePattern();
+      ((EnrichWithClauseContext)_localctx).enrichField = qualifiedName();
       }
     }
     catch (RecognitionException re) {
@@ -5745,9 +5745,9 @@ public class EsqlBaseParser extends ParserConfig {
     "\u0000\u021f\u0220\u0005e\u0000\u0000\u0220k\u0001\u0000\u0000\u0000\u0221"+
     "\u0222\u0005\n\u0000\u0000\u0222\u0223\u0005i\u0000\u0000\u0223m\u0001"+
     "\u0000\u0000\u0000\u0224\u0225\u0005\u0003\u0000\u0000\u0225\u0227\u0005"+
-    "Y\u0000\u0000\u0226\u0228\u00036\u001b\u0000\u0227\u0226\u0001\u0000\u0000"+
+    "Y\u0000\u0000\u0226\u0228\u0003:\u001d\u0000\u0227\u0226\u0001\u0000\u0000"+
     "\u0000\u0227\u0228\u0001\u0000\u0000\u0000\u0228\u022b\u0001\u0000\u0000"+
-    "\u0000\u0229\u022a\u0005]\u0000\u0000\u022a\u022c\u00036\u001b\u0000\u022b"+
+    "\u0000\u0229\u022a\u0005]\u0000\u0000\u022a\u022c\u00034\u001a\u0000\u022b"+
     "\u0229\u0001\u0000\u0000\u0000\u022b\u022c\u0001\u0000\u0000\u0000\u022c"+
     "\u0236\u0001\u0000\u0000\u0000\u022d\u022e\u0005^\u0000\u0000\u022e\u0233"+
     "\u0003p8\u0000\u022f\u0230\u0005#\u0000\u0000\u0230\u0232\u0003p8\u0000"+
@@ -5755,10 +5755,10 @@ public class EsqlBaseParser extends ParserConfig {
     "\u0233\u0231\u0001\u0000\u0000\u0000\u0233\u0234\u0001\u0000\u0000\u0000"+
     "\u0234\u0237\u0001\u0000\u0000\u0000\u0235\u0233\u0001\u0000\u0000\u0000"+
     "\u0236\u022d\u0001\u0000\u0000\u0000\u0236\u0237\u0001\u0000\u0000\u0000"+
-    "\u0237o\u0001\u0000\u0000\u0000\u0238\u0239\u00036\u001b\u0000\u0239\u023a"+
+    "\u0237o\u0001\u0000\u0000\u0000\u0238\u0239\u00034\u001a\u0000\u0239\u023a"+
     "\u0005!\u0000\u0000\u023a\u023c\u0001\u0000\u0000\u0000\u023b\u0238\u0001"+
     "\u0000\u0000\u0000\u023b\u023c\u0001\u0000\u0000\u0000\u023c\u023d\u0001"+
-    "\u0000\u0000\u0000\u023d\u023e\u00036\u001b\u0000\u023eq\u0001\u0000\u0000"+
+    "\u0000\u0000\u0000\u023d\u023e\u00034\u001a\u0000\u023eq\u0001\u0000\u0000"+
     "\u0000\u023f\u0240\u0005\u0013\u0000\u0000\u0240\u0241\u0003\"\u0011\u0000"+
     "\u0241\u0242\u0005]\u0000\u0000\u0242\u0243\u00038\u001c\u0000\u0243s"+
     "\u0001\u0000\u0000\u0000\u0244\u0245\u0005\u0012\u0000\u0000\u0245\u0248"+

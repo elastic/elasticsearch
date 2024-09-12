@@ -644,18 +644,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public NamedExpression visitEnrichWithClause(EsqlBaseParser.EnrichWithClauseContext ctx) {
         Source src = source(ctx);
-        NamedExpression enrichField = enrichFieldName(ctx.enrichField);
-        NamedExpression newName = enrichFieldName(ctx.newName);
+        NamedExpression enrichField = visitQualifiedName(ctx.enrichField);
+        NamedExpression newName = visitQualifiedName(ctx.newName);
         return newName == null ? enrichField : new Alias(src, newName.name(), enrichField);
-    }
-
-    private NamedExpression enrichFieldName(EsqlBaseParser.QualifiedNamePatternContext ctx) {
-        return visitQualifiedNamePattern(ctx, ne -> {
-            if (ne instanceof UnresolvedNamePattern up) {
-                var src = ne.source();
-                throw new ParsingException(src, "Using wildcards [*] in ENRICH WITH projections is not allowed [{}]", up.pattern());
-            }
-        });
     }
 
     @Override

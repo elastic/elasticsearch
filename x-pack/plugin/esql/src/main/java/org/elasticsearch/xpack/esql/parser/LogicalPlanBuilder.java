@@ -443,13 +443,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             Mode mode = tuple.v1();
             String policyNameString = tuple.v2();
             // TODO: tests with lots of different quotings around the qualifier, also weird things like pattern `*`.
-            var qualifier = visitQualifiedNamePattern(ctx.qualifier);
-            String qualifierString = qualifier == null ? null : qualifier.name();
+            String qualifier = visitIdentifier(ctx.qualifier);
 
-            NamedExpression matchField = ctx.ON() != null ? visitQualifiedNamePattern(ctx.matchField) : new EmptyAttribute(source);
-            if (matchField instanceof UnresolvedNamePattern up) {
-                throw new ParsingException(source, "Using wildcards [*] in ENRICH WITH projections is not allowed [{}]", up.pattern());
-            }
+            NamedExpression matchField = ctx.ON() != null ? visitQualifiedName(ctx.matchField) : new EmptyAttribute(source);
 
             List<NamedExpression> keepClauses = visitList(this, ctx.enrichWithClause(), NamedExpression.class);
             // TODO: parser/validation error if there's both a qualifier AND a WITH clause with explicit aliases
@@ -461,7 +457,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 matchField,
                 null,
                 Map.of(),
-                qualifierString,
+                qualifier,
                 keepClauses.isEmpty() ? List.of() : keepClauses
             );
         };

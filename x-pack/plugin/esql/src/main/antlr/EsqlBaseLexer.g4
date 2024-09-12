@@ -361,8 +361,6 @@ RENAME_WS
 
 // | ENRICH policy qualifier ON key WITH fields
 mode ENRICH_MODE;
-ENRICH_PIPE : PIPE -> type(PIPE), popMode;
-ENRICH_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET), pushMode(SETTING_MODE);
 
 // similar to that of an index
 // see https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html#indices-create-api-path-params
@@ -391,13 +389,14 @@ ENRICH_WS
 mode ENRICH_FIELD_MODE;
 ON : 'on';
 WITH : 'with';
+
 ENRICH_FIELD_PIPE : PIPE -> type(PIPE), popMode, popMode;
 ENRICH_FIELD_ASSIGN : ASSIGN -> type(ASSIGN);
 ENRICH_FIELD_COMMA : COMMA -> type(COMMA);
 ENRICH_FIELD_DOT: DOT -> type(DOT);
 
-ENRICH_FIELD_ID_PATTERN
-    : ID_PATTERN -> type(ID_PATTERN)
+ENRICH_FIELD_UNQUOTED_IDENTIFIER
+    : UNQUOTED_IDENTIFIER -> type(UNQUOTED_IDENTIFIER)
     ;
 
 ENRICH_FIELD_QUOTED_IDENTIFIER

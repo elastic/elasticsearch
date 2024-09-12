@@ -465,6 +465,103 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         }
     }
 
+    public void testRequestDisabledShardSorting() throws InterruptedException {
+        // this is similar to testSortShards, but should be disabled by the request level `allowShardReordering` param
+        final TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(
+            0,
+            System.nanoTime(),
+            System::nanoTime
+        );
+
+        Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
+        DiscoveryNode primaryNode = DiscoveryNodeUtils.create("node_1");
+        DiscoveryNode replicaNode = DiscoveryNodeUtils.create("node_2");
+        lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
+        lookup.put("node2", new SearchAsyncActionTests.MockConnection(replicaNode));
+
+        for (SortOrder order : SortOrder.values()) {
+            List<ShardId> shardIds = new ArrayList<>();
+            List<MinAndMax<?>> minAndMaxes = new ArrayList<>();
+            Set<ShardId> shardToSkip = new HashSet<>();
+
+            SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
+                @Override
+                public void sendCanMatch(
+                    Transport.Connection connection,
+                    CanMatchNodeRequest request,
+                    SearchTask task,
+                    ActionListener<CanMatchNodeResponse> listener
+                ) {
+                    final List<ResponseOrFailure> responses = new ArrayList<>();
+                    for (CanMatchNodeRequest.Shard shard : request.getShardLevelRequests()) {
+                        Long min = rarely() ? null : randomLong();
+                        Long max = min == null ? null : randomLongBetween(min, Long.MAX_VALUE);
+                        MinAndMax<?> minMax = min == null ? null : new MinAndMax<>(min, max);
+                        boolean canMatch = frequently();
+                        synchronized (shardIds) {
+                            shardIds.add(shard.shardId());
+                            minAndMaxes.add(minMax);
+                            if (canMatch == false) {
+                                shardToSkip.add(shard.shardId());
+                            }
+                        }
+
+                        responses.add(new ResponseOrFailure(new CanMatchShardResponse(canMatch, minMax)));
+                    }
+
+                    new Thread(() -> listener.onResponse(new CanMatchNodeResponse(responses))).start();
+                }
+            };
+
+            AtomicReference<GroupShardsIterator<SearchShardIterator>> result = new AtomicReference<>();
+            CountDownLatch latch = new CountDownLatch(1);
+            GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter(
+                "logs",
+                new OriginalIndices(new String[] { "logs" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
+                randomIntBetween(2, 20),
+                randomBoolean(),
+                primaryNode,
+                replicaNode
+            );
+            final SearchRequest searchRequest = new SearchRequest();
+            searchRequest.source(new SearchSourceBuilder().sort(SortBuilders.fieldSort("timestamp").order(order)));
+            searchRequest.allowPartialSearchResults(true);
+            searchRequest.allowShardReordering(false);
+
+            CanMatchPreFilterSearchPhase canMatchPhase = new CanMatchPreFilterSearchPhase(
+                logger,
+                searchTransportService,
+                (clusterAlias, node) -> lookup.get(node),
+                Collections.singletonMap("_na_", AliasFilter.EMPTY),
+                Collections.emptyMap(),
+                threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
+                searchRequest,
+                shardsIter,
+                timeProvider,
+                null,
+                true,
+                EMPTY_CONTEXT_PROVIDER,
+                ActionTestUtils.assertNoFailureListener(iter -> {
+                    result.set(iter);
+                    latch.countDown();
+                })
+            );
+
+            canMatchPhase.start();
+            latch.await();
+            ShardId[] expected = IntStream.range(0, shardIds.size()).boxed().map(shardIds::get).toArray(ShardId[]::new);
+            if (shardToSkip.size() == expected.length) {
+                // we need at least one shard to produce the empty result for aggs
+                shardToSkip.remove(new ShardId("logs", "_na_", 0));
+            }
+            int shardId = 0;
+            for (SearchShardIterator i : result.get()) {
+                assertThat(i.shardId().id(), equalTo(shardId++));
+                assertEquals(shardToSkip.contains(i.shardId()), i.skip());
+            }
+        }
+    }
+
     // test using @timestamp
     public void testCanMatchFilteringOnCoordinatorThatCanBeSkippedUsingTimestamp() throws Exception {
         doCanMatchFilteringOnCoordinatorThatCanBeSkipped(DataStream.TIMESTAMP_FIELD_NAME);

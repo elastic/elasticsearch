@@ -110,6 +110,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      */
     private boolean forceSyntheticSource = false;
 
+    private boolean allowShardReordering = true;
+
     public SearchRequest() {
         this((Version) null);
     }
@@ -222,6 +224,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         this.waitForCheckpoints = searchRequest.waitForCheckpoints;
         this.waitForCheckpointsTimeout = searchRequest.waitForCheckpointsTimeout;
         this.forceSyntheticSource = searchRequest.forceSyntheticSource;
+        this.allowShardReordering = searchRequest.allowShardReordering;
     }
 
     /**
@@ -274,6 +277,11 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         } else {
             forceSyntheticSource = false;
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.RRF_QUERY_REWRITE)) {
+            allowShardReordering = in.readBoolean();
+        } else {
+            allowShardReordering = true;
+        }
     }
 
     @Override
@@ -313,6 +321,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             if (forceSyntheticSource) {
                 throw new IllegalArgumentException("force_synthetic_source is not supported before 8.4.0");
             }
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.RRF_QUERY_REWRITE)) {
+            out.writeBoolean(allowShardReordering);
         }
     }
 
@@ -728,6 +739,15 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         this.forceSyntheticSource = forceSyntheticSource;
     }
 
+    public boolean allowShardReordering() {
+        return allowShardReordering;
+    }
+
+    public SearchRequest allowShardReordering(boolean allowShardReordering) {
+        this.allowShardReordering = allowShardReordering;
+        return this;
+    }
+
     @Override
     public SearchRequest rewrite(QueryRewriteContext ctx) throws IOException {
         if (source == null) {
@@ -818,7 +838,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             && absoluteStartMillis == that.absoluteStartMillis
             && ccsMinimizeRoundtrips == that.ccsMinimizeRoundtrips
             && Objects.equals(minCompatibleShardNode, that.minCompatibleShardNode)
-            && forceSyntheticSource == that.forceSyntheticSource;
+            && forceSyntheticSource == that.forceSyntheticSource
+            && allowShardReordering == that.allowShardReordering;
     }
 
     @Override
@@ -840,7 +861,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             absoluteStartMillis,
             ccsMinimizeRoundtrips,
             minCompatibleShardNode,
-            forceSyntheticSource
+            forceSyntheticSource,
+            allowShardReordering
         );
     }
 
@@ -877,6 +899,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             + absoluteStartMillis
             + ", ccsMinimizeRoundtrips="
             + ccsMinimizeRoundtrips
+            + ", allowShardReordering="
+            + allowShardReordering
             + ", source="
             + source
             + '}';

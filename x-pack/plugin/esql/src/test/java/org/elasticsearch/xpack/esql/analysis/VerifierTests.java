@@ -1090,63 +1090,75 @@ public class VerifierTests extends ESTestCase {
         // TODO Keep adding tests for all unsupported commands
     }
 
-    public void testQueryStringFunctionsNotAllowed() throws Exception {
+    public void testQueryStringFunctionsNotAllowedAfterCommands() throws Exception {
         assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
 
         // Source commands
-        assertEquals("1:13: Full text functions cannot be used after SHOW", error("show info | where qstr( \"8.16.0\")"));
-        assertEquals("1:17: Full text functions cannot be used after ROW", error("row a= \"Anna\" | where qstr( \"Anna\")"));
+        assertEquals("1:13: Full text functions cannot be used after SHOW", error("show info | where qstr(\"8.16.0\")"));
+        assertEquals("1:17: Full text functions cannot be used after ROW", error("row a= \"Anna\" | where qstr(\"Anna\")"));
 
         // Processing commands
         assertEquals(
             "1:43: Full text functions cannot be used after DISSECT",
-            error("from test | dissect first_name \"%{foo}\" | where qstr( \"Connection\")")
+            error("from test | dissect first_name \"%{foo}\" | where qstr(\"Connection\")")
         );
-        assertEquals("1:27: Full text functions cannot be used after DROP", error("from test | drop emp_no | where qstr( \"Anna\")"));
+        assertEquals("1:27: Full text functions cannot be used after DROP", error("from test | drop emp_no | where qstr(\"Anna\")"));
         assertEquals(
             "1:71: Full text functions cannot be used after ENRICH",
-            error("from test | enrich languages on languages with lang = language_name | where qstr( \"Anna\")")
+            error("from test | enrich languages on languages with lang = language_name | where qstr(\"Anna\")")
         );
-        assertEquals("1:26: Full text functions cannot be used after EVAL", error("from test | eval z = 2 | where qstr( \"Anna\")"));
+        assertEquals("1:26: Full text functions cannot be used after EVAL", error("from test | eval z = 2 | where qstr(\"Anna\")"));
         assertEquals(
             "1:44: Full text functions cannot be used after GROK",
-            error("from test | grok last_name \"%{WORD:foo}\" | where qstr( \"Anna\")")
+            error("from test | grok last_name \"%{WORD:foo}\" | where qstr(\"Anna\")")
         );
-        assertEquals("1:27: Full text functions cannot be used after KEEP", error("from test | keep emp_no | where qstr( \"Anna\")"));
-        assertEquals("1:24: Full text functions cannot be used after LIMIT", error("from test | limit 10 | where qstr( \"Anna\")"));
+        assertEquals("1:27: Full text functions cannot be used after KEEP", error("from test | keep emp_no | where qstr(\"Anna\")"));
+        assertEquals("1:24: Full text functions cannot be used after LIMIT", error("from test | limit 10 | where qstr(\"Anna\")"));
         assertEquals(
             "1:35: Full text functions cannot be used after MV_EXPAND",
-            error("from test | mv_expand last_name | where qstr( \"Anna\")")
+            error("from test | mv_expand last_name | where qstr(\"Anna\")")
         );
         assertEquals(
             "1:45: Full text functions cannot be used after RENAME",
-            error("from test | rename last_name as full_name | where qstr( \"Anna\")")
+            error("from test | rename last_name as full_name | where qstr(\"Anna\")")
         );
         assertEquals(
             "1:52: Full text functions cannot be used after STATS",
-            error("from test | STATS c = COUNT(emp_no) BY languages | where qstr( \"Anna\")")
+            error("from test | STATS c = COUNT(emp_no) BY languages | where qstr(\"Anna\")")
         );
 
         // Some combination of processing commands
         assertEquals(
             "1:38: Full text functions cannot be used after LIMIT",
-            error("from test | keep emp_no | limit 10 | where qstr( \"Anna\")")
+            error("from test | keep emp_no | limit 10 | where qstr(\"Anna\")")
         );
         assertEquals(
             "1:46: Full text functions cannot be used after MV_EXPAND",
-            error("from test | limit 10 | mv_expand last_name | where qstr( \"Anna\")")
+            error("from test | limit 10 | mv_expand last_name | where qstr(\"Anna\")")
         );
         assertEquals(
             "1:52: Full text functions cannot be used after KEEP",
-            error("from test | mv_expand last_name | keep last_name | where qstr( \"Anna\")")
+            error("from test | mv_expand last_name | keep last_name | where qstr(\"Anna\")")
         );
         assertEquals(
             "1:77: Full text functions cannot be used after RENAME",
-            error("from test | STATS c = COUNT(emp_no) BY languages | rename c as total_emps | where qstr( \"Anna\")")
+            error("from test | STATS c = COUNT(emp_no) BY languages | rename c as total_emps | where qstr(\"Anna\")")
         );
         assertEquals(
             "1:54: Full text functions cannot be used after KEEP",
-            error("from test | rename last_name as name | keep emp_no | where qstr( \"Anna\")")
+            error("from test | rename last_name as name | keep emp_no | where qstr(\"Anna\")")
+        );
+    }
+
+    public void testQueryStringFunctionsOnlyAllowedInWhere() throws Exception {
+        assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
+
+        assertEquals("1:22: Full text functions are only supported in WHERE commands", error("from test | eval y = qstr(\"Anna\")"));
+        assertEquals("1:18: Full text functions are only supported in WHERE commands", error("from test | sort qstr(\"Connection\") asc"));
+        assertEquals("1:5: Full text functions are only supported in WHERE commands", error("row qstr(\"Connection\")"));
+        assertEquals(
+            "1:23: Full text functions are only supported in WHERE commands",
+            error("from test | STATS c = qstr(\"foo\") BY languages")
         );
     }
 

@@ -679,13 +679,9 @@ public class Verifier {
                     }
                 });
             }
-        } else if (plan instanceof Eval eval) {
-            eval.fields().forEach(field -> {
-                // check no full text search functions are used
-                field.forEachDown(
-                    FullTextFunction.class,
-                    mqp -> { failures.add(fail(mqp, "EVAL does not support full text search expressions")); }
-                );
+        } else {
+            plan.forEachExpression(FullTextFunction.class, ftf -> {
+                failures.add(fail(ftf, "Full text functions are only supported in WHERE commands"));
             });
         }
     }

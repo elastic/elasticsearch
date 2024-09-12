@@ -112,6 +112,11 @@ public class RestTestBasePlugin implements Plugin<Project> {
         extractedPluginsConfiguration.extendsFrom(pluginsConfiguration);
         configureArtifactTransforms(project);
 
+        // Add test-features plugin as a test cluster dependency by default
+        if (project.findProject(":plugins:test-features") != null) {
+            pluginsConfiguration.getDependencies().add(project.getDependencies().create(":plugins-test-features"));
+        }
+
         // Create configuration for aggregating historical feature metadata
         FileCollection featureMetadataConfig = project.getConfigurations().create(FEATURES_METADATA_CONFIGURATION, c -> {
             c.setCanBeConsumed(false);

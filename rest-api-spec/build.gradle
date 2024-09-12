@@ -47,6 +47,7 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.skipTestsByFilePattern("**/indices.upgrade/*.yml", "upgrade api will only get a dummy endpoint returning an exception suggesting to use _reindex")
   task.skipTestsByFilePattern("**/indices.stats/60_field_usage/*/*.yml", "field usage results will be different between lucene versions")
   task.skipTestsByFilePattern("**/search.aggregation/*.yml", "run by the aggregation module")
+  task.skipTestsByFilePattern("**/indices.get_mapping/11_basic_with_types.yml", "Empty mapping creation has changed")
 
   task.skipTest("bulk/11_dynamic_templates/Dynamic templates", "Error message has changed")
   task.skipTest("index/80_date_nanos/date_nanos requires dates after 1970 and before 2262", "Error message has changed")

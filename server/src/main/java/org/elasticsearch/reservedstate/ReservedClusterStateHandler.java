@@ -126,5 +126,5 @@ public interface ReservedClusterStateHandler<T> {
     /**
      * Reserved-state handlers create master-node requests but never actually send them to the master node so the timeouts are not relevant.
      */
-    TimeValue DUMMY_TIMEOUT = TimeValue.THIRTY_SECONDS;
+    TimeValue RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT = TimeValue.THIRTY_SECONDS;
 }

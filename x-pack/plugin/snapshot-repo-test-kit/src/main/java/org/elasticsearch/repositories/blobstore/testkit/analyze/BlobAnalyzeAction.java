@@ -329,22 +329,12 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
                     };
                     if (atomic) {
                         try {
-                            if (random.nextBoolean()) {
-                                blobContainer.writeBlobAtomic(
-                                    OperationPurpose.REPOSITORY_ANALYSIS,
-                                    request.blobName,
-                                    bytesReference,
-                                    failIfExists
-                                );
-                            } else {
-                                blobContainer.writeBlobAtomic(
-                                    OperationPurpose.REPOSITORY_ANALYSIS,
-                                    request.blobName,
-                                    bytesReference.streamInput(),
-                                    bytesReference.length(),
-                                    failIfExists
-                                );
-                            }
+                            blobContainer.writeBlobAtomic(
+                                OperationPurpose.REPOSITORY_ANALYSIS,
+                                request.blobName,
+                                bytesReference,
+                                failIfExists
+                            );
                         } catch (BlobWriteAbortedException e) {
                             assert request.getAbortWrite() : "write unexpectedly aborted";
                         }

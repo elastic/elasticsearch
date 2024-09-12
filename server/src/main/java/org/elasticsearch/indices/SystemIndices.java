@@ -562,11 +562,10 @@ public class SystemIndices {
         // This method intentionally cannot return BACKWARDS_COMPATIBLE_ONLY - that access level should only be used manually
         // in known special cases.
         final String headerValue = threadContext.getHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY);
-        final String productHeaderValue = threadContext.getHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY);
 
         final boolean allowed = Booleans.parseBoolean(headerValue, true);
         if (allowed) {
-            if (productHeaderValue != null) {
+            if (threadContext.getHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY) != null) {
                 return SystemIndexAccessLevel.RESTRICTED;
             } else {
                 return SystemIndexAccessLevel.ALL;

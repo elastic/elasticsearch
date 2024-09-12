@@ -14,6 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
@@ -57,19 +58,23 @@ public class DelayableWriteableTests extends ESTestCase {
     }
 
     private static class NamedHolder implements Writeable {
-        private final Example e;
+        private final Example e1;
+        private final Example e2;
 
         NamedHolder(Example e) {
-            this.e = e;
+            this.e1 = e;
+            this.e2 = e;
         }
 
         NamedHolder(StreamInput in) throws IOException {
-            e = in.readNamedWriteable(Example.class);
+            e1 = ((DelayableWriteable.Deduplicator) in).deduplicate(in.readNamedWriteable(Example.class));
+            e2 = ((DelayableWriteable.Deduplicator) in).deduplicate(in.readNamedWriteable(Example.class));
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeNamedWriteable(e);
+            out.writeNamedWriteable(e1);
+            out.writeNamedWriteable(e2);
         }
 
         @Override
@@ -78,12 +83,12 @@ public class DelayableWriteableTests extends ESTestCase {
                 return false;
             }
             NamedHolder other = (NamedHolder) obj;
-            return e.equals(other.e);
+            return e1.equals(other.e1) && e2.equals(other.e2);
         }
 
         @Override
         public int hashCode() {
-            return e.hashCode();
+            return Objects.hash(e1, e2);
         }
     }
 
@@ -130,6 +135,9 @@ public class DelayableWriteableTests extends ESTestCase {
         DelayableWriteable<NamedHolder> original = DelayableWriteable.referencing(n).asSerialized(NamedHolder::new, writableRegistry());
         assertTrue(original.isSerialized());
         roundTripTestCase(original, NamedHolder::new);
+        NamedHolder copy = original.expand();
+        // objects have been deduplicated
+        assertSame(copy.e1, copy.e2);
     }
 
     public void testRoundTripFromDelayedFromOldVersion() throws IOException {

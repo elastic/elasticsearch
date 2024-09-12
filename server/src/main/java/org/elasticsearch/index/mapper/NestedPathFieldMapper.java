@@ -83,9 +83,4 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
     protected String contentType() {
         return NAME;
     }
-
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return SourceLoader.SyntheticFieldLoader.NOTHING;
-    }
 }

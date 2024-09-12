@@ -62,6 +62,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.getRepositoryDataBlobName;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -153,7 +154,10 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         Settings repoSettings = getRepositoryMetadata(repoName).settings();
 
         Path repo = PathUtils.get(repoSettings.get("location"));
-        Files.move(repo.resolve("index-" + repositoryData.getGenId()), repo.resolve("index-" + (repositoryData.getGenId() + 1)));
+        Files.move(
+            repo.resolve(getRepositoryDataBlobName(repositoryData.getGenId())),
+            repo.resolve(getRepositoryDataBlobName(repositoryData.getGenId() + 1))
+        );
 
         logger.info("--> trying to create another snapshot in order for repository to be marked as corrupt");
         final SnapshotException snapshotException = expectThrows(
@@ -967,7 +971,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> wait for relocations to start");
         assertBusy(
-            () -> assertThat(clusterAdmin().prepareHealth(testIndex).get().getRelocatingShards(), greaterThan(0)),
+            () -> assertThat(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, testIndex).get().getRelocatingShards(), greaterThan(0)),
             1L,
             TimeUnit.MINUTES
         );
@@ -2309,7 +2313,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
     private void corruptIndexN(Path repoPath, long generation) throws IOException {
         logger.info("--> corrupting [index-{}] in [{}]", generation, repoPath);
-        Path indexNBlob = repoPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + generation);
+        Path indexNBlob = repoPath.resolve(getRepositoryDataBlobName(generation));
         assertFileExists(indexNBlob);
         Files.write(indexNBlob, randomByteArrayOfLength(1), StandardOpenOption.TRUNCATE_EXISTING);
     }

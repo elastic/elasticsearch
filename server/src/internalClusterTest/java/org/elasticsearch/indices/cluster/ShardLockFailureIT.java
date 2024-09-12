@@ -106,7 +106,7 @@ public class ShardLockFailureIT extends ESIntegTestCase {
             updateIndexSettings(Settings.builder().putNull(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name"), indexName);
             ensureYellow(indexName);
             assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-            assertEquals(ClusterHealthStatus.YELLOW, clusterAdmin().prepareHealth(indexName).get().getStatus());
+            assertEquals(ClusterHealthStatus.YELLOW, clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, indexName).get().getStatus());
             mockLog.assertAllExpectationsMatched();
         }
 
@@ -153,7 +153,7 @@ public class ShardLockFailureIT extends ESIntegTestCase {
 
             updateIndexSettings(Settings.builder().putNull(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name"), indexName);
             assertBusy(mockLog::assertAllExpectationsMatched);
-            final var clusterHealthResponse = clusterAdmin().prepareHealth(indexName)
+            final var clusterHealthResponse = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, indexName)
                 .setWaitForEvents(Priority.LANGUID)
                 .setTimeout(TimeValue.timeValueSeconds(10))
                 .setWaitForNoInitializingShards(true)

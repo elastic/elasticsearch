@@ -16,7 +16,10 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -39,6 +42,9 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         }
 
         static SourceKeepMode from(String input) {
+            if (input == null) {
+                input = "null";
+            }
             if (input.equals(NONE.name)) {
                 return NONE;
             }
@@ -48,12 +54,24 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
             if (input.equals(ARRAYS.name)) {
                 return ARRAYS;
             }
-            throw new IllegalArgumentException("Unknown " + SYNTHETIC_SOURCE_KEEP_PARAM + " value [" + input + "]");
+            throw new IllegalArgumentException(
+                "Unknown "
+                    + SYNTHETIC_SOURCE_KEEP_PARAM
+                    + " value ["
+                    + input
+                    + "], accepted values are ["
+                    + String.join(",", Arrays.stream(SourceKeepMode.values()).map(SourceKeepMode::toString).toList())
+                    + "]"
+            );
         }
 
         @Override
         public String toString() {
             return name;
+        }
+
+        public void toXContent(XContentBuilder builder) throws IOException {
+            builder.field(SYNTHETIC_SOURCE_KEEP_PARAM, name);
         }
 
         private final String name;

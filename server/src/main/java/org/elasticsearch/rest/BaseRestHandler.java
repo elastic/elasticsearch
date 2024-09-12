@@ -20,6 +20,7 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesUsageAction;
 
@@ -127,7 +128,17 @@ public abstract class BaseRestHandler implements RestHandler {
             if (request.isStreamedContent()) {
                 assert action instanceof RequestBodyChunkConsumer;
                 var chunkConsumer = (RequestBodyChunkConsumer) action;
-                request.contentStream().setHandler((chunk, isLast) -> chunkConsumer.handleChunk(channel, chunk, isLast));
+                request.contentStream().setHandler(new HttpBody.ChunkHandler() {
+                    @Override
+                    public void onNext(ReleasableBytesReference chunk, boolean isLast) {
+                        chunkConsumer.handleChunk(channel, chunk, isLast);
+                    }
+
+                    @Override
+                    public void close() {
+                        chunkConsumer.streamClose();
+                    }
+                });
             }
 
             usageCount.increment();
@@ -189,6 +200,13 @@ public abstract class BaseRestHandler implements RestHandler {
 
     public interface RequestBodyChunkConsumer extends RestChannelConsumer {
         void handleChunk(RestChannel channel, ReleasableBytesReference chunk, boolean isLast);
+
+        /**
+         * Called when the stream closes. This could happen prior to the completion of the request if the underlying channel was closed.
+         * Implementors should do their best to clean up resources and early terminate request processing if it is triggered before a
+         * response is generated.
+         */
+        default void streamClose() {}
     }
 
     /**

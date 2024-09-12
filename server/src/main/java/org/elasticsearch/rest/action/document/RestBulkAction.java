@@ -32,6 +32,7 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -148,7 +149,7 @@ public class RestBulkAction extends BaseRestHandler {
         private IncrementalBulkService.Handler handler;
 
         private volatile RestChannel restChannel;
-        private boolean isException;
+        private boolean shortCircuited;
         private final ArrayDeque<ReleasableBytesReference> unParsedChunks = new ArrayDeque<>(4);
         private final ArrayList<DocWriteRequest<?>> items = new ArrayList<>(4);
 
@@ -178,7 +179,7 @@ public class RestBulkAction extends BaseRestHandler {
         public void handleChunk(RestChannel channel, ReleasableBytesReference chunk, boolean isLast) {
             assert handler != null;
             assert channel == restChannel;
-            if (isException) {
+            if (shortCircuited) {
                 chunk.close();
                 return;
             }
@@ -215,12 +216,8 @@ public class RestBulkAction extends BaseRestHandler {
                 );
 
             } catch (Exception e) {
-                // TODO: This needs to be better
-                Releasables.close(handler);
-                Releasables.close(unParsedChunks);
-                unParsedChunks.clear();
+                shortCircuit();
                 new RestToXContentListener<>(channel).onFailure(e);
-                isException = true;
                 return;
             }
 
@@ -242,8 +239,16 @@ public class RestBulkAction extends BaseRestHandler {
         }
 
         @Override
-        public void close() {
-            RequestBodyChunkConsumer.super.close();
+        public void streamClose() {
+            assert Transports.assertTransportThread();
+            shortCircuit();
+        }
+
+        private void shortCircuit() {
+            shortCircuited = true;
+            Releasables.close(handler);
+            Releasables.close(unParsedChunks);
+            unParsedChunks.clear();
         }
 
         private ArrayList<Releasable> accountParsing(int bytesConsumed) {

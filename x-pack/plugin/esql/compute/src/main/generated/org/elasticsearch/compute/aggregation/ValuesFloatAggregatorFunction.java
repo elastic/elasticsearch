@@ -10,6 +10,7 @@ import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.FloatVector;
@@ -52,13 +53,29 @@ public final class ValuesFloatAggregatorFunction implements AggregatorFunction {
   }
 
   @Override
-  public void addRawInput(Page page) {
+  public void addRawInput(Page page, BooleanVector mask) {
+    if (mask.isConstant()) {
+      if (mask.getBoolean(0) == false) {
+        // Entire page masked away
+        return;
+      }
+      // No masking
+      FloatBlock block = page.getBlock(channels.get(0));
+      FloatVector vector = block.asVector();
+      if (vector != null) {
+        addRawVector(vector);
+      } else {
+        addRawBlock(block);
+      }
+      return;
+    }
+    // Some positions masked away, others kept
     FloatBlock block = page.getBlock(channels.get(0));
     FloatVector vector = block.asVector();
     if (vector != null) {
-      addRawVector(vector);
+      addRawVector(vector, mask);
     } else {
-      addRawBlock(block);
+      addRawBlock(block, mask);
     }
   }
 
@@ -68,8 +85,33 @@ public final class ValuesFloatAggregatorFunction implements AggregatorFunction {
     }
   }
 
+  private void addRawVector(FloatVector vector, BooleanVector mask) {
+    for (int i = 0; i < vector.getPositionCount(); i++) {
+      if (mask.getBoolean(i) == false) {
+        continue;
+      }
+      ValuesFloatAggregator.combine(state, vector.getFloat(i));
+    }
+  }
+
   private void addRawBlock(FloatBlock block) {
     for (int p = 0; p < block.getPositionCount(); p++) {
+      if (block.isNull(p)) {
+        continue;
+      }
+      int start = block.getFirstValueIndex(p);
+      int end = start + block.getValueCount(p);
+      for (int i = start; i < end; i++) {
+        ValuesFloatAggregator.combine(state, block.getFloat(i));
+      }
+    }
+  }
+
+  private void addRawBlock(FloatBlock block, BooleanVector mask) {
+    for (int p = 0; p < block.getPositionCount(); p++) {
+      if (mask.getBoolean(p) == false) {
+        continue;
+      }
       if (block.isNull(p)) {
         continue;
       }

@@ -36,6 +36,7 @@ import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
+import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
 
@@ -91,7 +92,7 @@ public abstract class TestCluster {
                             l.delegateResponse((ll, e) -> {
                                 // Ignore if action isn't registered, because data streams is a module and
                                 // if the delete action isn't registered then there no data streams to delete.
-                                if (e.getMessage().startsWith("failed to find action") == false) {
+                                if (Objects.requireNonNullElse(e.getMessage(), "").startsWith("failed to find action") == false) {
                                     ll.onFailure(e);
                                 } else {
                                     ll.onResponse(AcknowledgedResponse.TRUE);

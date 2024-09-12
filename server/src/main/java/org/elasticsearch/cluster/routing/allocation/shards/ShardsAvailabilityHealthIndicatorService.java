@@ -120,7 +120,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
      */
     public static final Setting<TimeValue> REPLICA_UNASSIGNED_BUFFER_TIME = Setting.timeSetting(
         "health.shards_availability.replica_unassigned_buffer_time",
-        TimeValue.timeValueSeconds(3),
+        TimeValue.timeValueSeconds(5),
         TimeValue.timeValueSeconds(0),
         TimeValue.timeValueSeconds(20),
         Setting.Property.NodeScope,

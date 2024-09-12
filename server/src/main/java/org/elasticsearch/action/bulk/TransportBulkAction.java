@@ -191,7 +191,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
                 final Response response = (Response) bulkItemResponse.getResponse();
                 l.onResponse(response);
             } else {
-                l.onFailure(bulkItemResponse.getFailure().getCause());
+                l.onFailure(new IndexDocFailureStoreStatus.ExceptionWrapper(bulkItemResponse.getFailure()));
             }
         });
     }

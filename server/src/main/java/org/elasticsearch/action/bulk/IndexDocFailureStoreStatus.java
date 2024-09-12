@@ -120,9 +120,9 @@ public enum IndexDocFailureStoreStatus implements ToXContentFragment, Writeable 
 
         private final IndexDocFailureStoreStatus failureStoreStatus;
 
-        public ExceptionWrapper(Throwable cause, IndexDocFailureStoreStatus failureStoreStatus) {
-            super(cause);
-            this.failureStoreStatus = failureStoreStatus;
+        public ExceptionWrapper(BulkItemResponse.Failure failure) {
+            super(failure.getCause());
+            this.failureStoreStatus = failure.getFailureStoreStatus();
         }
 
         public ExceptionWrapper(StreamInput in) throws IOException {

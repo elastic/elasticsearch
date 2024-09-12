@@ -31,6 +31,27 @@ FROM sample_data
 median_duration:double | env:keyword
 ;
 
+withQualifierNoConflict
+required_capability: enrich_load
+required_capability: enrich_with_qualifier
+ROW client_ip = "172.21.0.5"
+| ENRICH clientip_policy c ON client_ip
+;
+
+client_ip:keyword | c.env:keyword
+172.21.0.5        | Development
+;
+
+withQualifierNoConflictLimit0
+required_capability: enrich_with_qualifier
+ROW client_ip = "172.21.0.5"
+| ENRICH clientip_policy c ON client_ip
+| LIMIT 0
+;
+
+client_ip:keyword | c.env:keyword
+;
+
 withQualifierConflict
 required_capability: enrich_load
 required_capability: enrich_with_qualifier
@@ -87,6 +108,42 @@ ROW client_ip = "172.21.0.5", env = 1
 
 env:integer | c.env:keyword
           1 |   Development
+;
+
+withQualifierNoConflictKeep
+required_capability: enrich_load
+required_capability: enrich_with_qualifier
+ROW client_ip = "172.21.0.5"
+| ENRICH clientip_policy c ON client_ip
+| KEEP c.env
+;
+
+c.env:keyword
+Development
+;
+
+withQualifierNoConflictKeepQuoted
+required_capability: enrich_load
+required_capability: enrich_with_qualifier
+ROW client_ip = "172.21.0.5"
+| ENRICH clientip_policy c ON client_ip
+| KEEP `c`.`env`
+;
+
+c.env:keyword
+Development
+;
+
+withQualifierNoConflictKeepQuotedLimit0
+required_capability: enrich_load
+required_capability: enrich_with_qualifier
+ROW client_ip = "172.21.0.5"
+| ENRICH clientip_policy c ON client_ip
+| KEEP `c`.`env`
+| LIMIT 0
+;
+
+c.env:keyword
 ;
 
 withQualifierNoConflictKeepWildcard

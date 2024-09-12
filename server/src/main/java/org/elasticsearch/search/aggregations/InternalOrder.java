@@ -8,6 +8,7 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -36,6 +37,7 @@ import java.util.function.ToLongFunction;
  */
 public abstract class InternalOrder extends BucketOrder {
     // TODO merge the contents of this file into BucketOrder. The way it is now is relic.
+
     /**
      * {@link Bucket} ordering strategy to sort by a sub-aggregation.
      */
@@ -476,6 +478,10 @@ public abstract class InternalOrder extends BucketOrder {
          * @throws IOException on error reading from the stream.
          */
         public static BucketOrder readOrder(StreamInput in) throws IOException {
+            return readOrder(in, true);
+        }
+
+        private static BucketOrder readOrder(StreamInput in, boolean dedupe) throws IOException {
             byte id = in.readByte();
             switch (id) {
                 case COUNT_DESC_ID:
@@ -489,12 +495,18 @@ public abstract class InternalOrder extends BucketOrder {
                 case Aggregation.ID:
                     boolean asc = in.readBoolean();
                     String key = in.readString();
+                    if (dedupe && in instanceof DelayableWriteable.Deduplicator bo) {
+                        return bo.deduplicate(new Aggregation(key, asc));
+                    }
                     return new Aggregation(key, asc);
                 case CompoundOrder.ID:
                     int size = in.readVInt();
                     List<BucketOrder> compoundOrder = new ArrayList<>(size);
                     for (int i = 0; i < size; i++) {
-                        compoundOrder.add(Streams.readOrder(in));
+                        compoundOrder.add(Streams.readOrder(in, false));
+                    }
+                    if (dedupe && in instanceof DelayableWriteable.Deduplicator bo) {
+                        return bo.deduplicate(new CompoundOrder(compoundOrder, false));
                     }
                     return new CompoundOrder(compoundOrder, false);
                 default:

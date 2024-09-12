@@ -74,6 +74,13 @@ public sealed interface HttpBody extends Releasable permits HttpBody.Full, HttpB
         ChunkHandler handler();
 
         /**
+         * Adds tracing chunk handler. Tracing handler will be invoked before main handler, and
+         * should never release or call for next chunk. It should be used for monitoring and
+         * logging purposes.
+         */
+        void addTracingHandler(ChunkHandler chunkHandler);
+
+        /**
          * Sets handler that can handle next chunk
          */
         void setHandler(ChunkHandler chunkHandler);

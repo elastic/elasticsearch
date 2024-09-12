@@ -241,8 +241,8 @@ public class SecurityIndexManager implements ClusterStateListener {
      * Remove a listener from notifications on state changes to the configured index.
      *
      */
-    public void removeStateListener(BiConsumer<State, State> listener) {
-        stateChangeListeners.remove(listener);
+    public boolean removeStateListener(BiConsumer<State, State> listener) {
+        return stateChangeListeners.remove(listener);
     }
 
     /**

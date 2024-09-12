@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -39,6 +40,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
@@ -193,27 +195,48 @@ public class NativePrivilegeStore {
     }
 
     private void innerGetPrivileges(Collection<String> applications, ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener) {
+        // TODO control with system prop instead
+        innerGetPrivileges(applications, DiscoveryNode.isStateless(settings), listener);
+    }
+
+    private void innerGetPrivileges(
+        Collection<String> applications,
+        boolean waitOnUnavailable,
+        ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener
+    ) {
         assert applications != null && applications.size() > 0 : "Application names are required (found " + applications + ")";
 
         final SecurityIndexManager frozenSecurityIndex = securityIndexManager.defensiveCopy();
         if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(Collections.emptyList());
         } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
-            logger.info("Will wait for security index to come online...");
+            if (false == waitOnUnavailable) {
+                listener.onFailure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
+                return;
+            }
+            // still has race conditions...
             final BiConsumer<SecurityIndexManager.State, SecurityIndexManager.State> indexAvailableForSearchListener = new BiConsumer<>() {
                 @Override
                 public void accept(SecurityIndexManager.State previousState, SecurityIndexManager.State nextState) {
-                    if (false == previousState.indexAvailableForSearch && nextState.indexAvailableForSearch) {
-                        logger.info("Security index is online...");
-                        securityIndexManager.removeStateListener(this);
-                        innerGetPrivileges(applications, listener);
+                    if (nextState.indexAvailableForSearch) {
+                        if (securityIndexManager.removeStateListener(this)) {
+                            // Don't wait again
+                            innerGetPrivileges(applications, false, listener);
+                        }
                     }
                 }
             };
             securityIndexManager.addStateListener(indexAvailableForSearchListener);
+            // Schedule timeout
+            final ThreadPool threadPool = client.threadPool();
+            threadPool.schedule(() -> {
+                if (securityIndexManager.removeStateListener(indexAvailableForSearchListener)) {
+                    // Re-run request one more time, but don't wait again -- this way, we will get an up-to-date failure cause
+                    innerGetPrivileges(applications, false, listener);
+                }
+            }, TimeValue.timeValueSeconds(5), threadPool.generic());
         } else {
             securityIndexManager.checkIndexVersionThenExecute(listener::onFailure, () -> {
-
                 final TermQueryBuilder typeQuery = QueryBuilders.termQuery(
                     ApplicationPrivilegeDescriptor.Fields.TYPE.getPreferredName(),
                     DOC_TYPE_VALUE

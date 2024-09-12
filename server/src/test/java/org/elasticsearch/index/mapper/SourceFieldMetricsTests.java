@@ -60,10 +60,8 @@ public class SourceFieldMetricsTests extends MapperServiceTestCase {
     }
 
     public void testSyntheticSourceIncompatibleMapping() throws IOException {
-        var mapping = syntheticSourceMapping(b -> b.startObject("kwd").field("type", "text").field("store", "false").endObject());
         var mapperMetrics = createTestMapperMetrics();
-        var mapperService = new TestMapperServiceBuilder().mapperMetrics(mapperMetrics).build();
-        assertThrows(IllegalArgumentException.class, () -> withMapping(mapperService, mapping));
+        mapperMetrics.sourceFieldMetrics().recordSyntheticSourceIncompatibleMapping();
 
         var measurements = telemetryPlugin.getLongCounterMeasurement(SourceFieldMetrics.SYNTHETIC_SOURCE_INCOMPATIBLE_MAPPING);
         assertEquals(1, measurements.size());

@@ -44,4 +44,9 @@ public class Keep extends Project {
     public boolean equals(Object obj) {
         return super.equals(obj);
     }
+
+    @Override
+    public String commandName() {
+        return "KEEP";
+    }
 }

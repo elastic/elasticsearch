@@ -120,7 +120,7 @@ public record CompatibilityVersions(
         TransportVersion.writeVersion(this.transportVersion(), out);
 
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-            out.writeMap(this.systemIndexMappingsVersion(), (o, v) -> v.writeTo(o));
+            out.writeMap(this.systemIndexMappingsVersion(), StreamOutput::writeWriteable);
         }
     }
 

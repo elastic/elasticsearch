@@ -419,7 +419,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
         }
 
         final IndexVersion indexVersionCreated = indexVersionCreated(indexName);
-        if (indexVersionCreated.onOrAfter(IndexVersions.V_7_2_0)) {
+        if (indexVersionCreated.onOrAfter(IndexVersions.V_8_0_0)) {
             // index was created on a version that supports the replication of closed indices,
             // so we expect the index to be closed and replicated
             ensureGreen(indexName);
@@ -448,7 +448,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
             closeIndex(indexName);
         }
 
-        if (minimumIndexVersion().onOrAfter(IndexVersions.V_7_2_0)) {
+        if (minimumIndexVersion().onOrAfter(IndexVersions.V_8_0_0)) {
             // index is created on a version that supports the replication of closed indices,
             // so we expect the index to be closed and replicated
             ensureGreen(indexName);
@@ -483,9 +483,9 @@ public class RecoveryIT extends AbstractRollingTestCase {
             closeIndex(indexName);
         }
 
-        if (indexVersionCreated(indexName).onOrAfter(IndexVersions.V_7_2_0)) {
+        if (indexVersionCreated(indexName).onOrAfter(IndexVersions.V_8_0_0)) {
             // index was created on a version that supports the replication of closed indices, so we expect it to be closed and replicated
-            assertTrue(minimumIndexVersion().onOrAfter(IndexVersions.V_7_2_0));
+            assertTrue(minimumIndexVersion().onOrAfter(IndexVersions.V_8_0_0));
             ensureGreen(indexName);
             assertClosedIndex(indexName, true);
             if (CLUSTER_TYPE != ClusterType.OLD) {

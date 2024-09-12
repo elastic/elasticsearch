@@ -41,6 +41,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.NodeService;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -78,7 +79,9 @@ public class TransportClusterStatsAction extends TransportNodesAction<
 
     private final NodeService nodeService;
     private final IndicesService indicesService;
+    private final RepositoriesService repositoriesService;
     private final SearchUsageHolder searchUsageHolder;
+    private final CCSUsageTelemetry ccsUsageHolder;
 
     private final MetadataStatsCache<MappingStats> mappingStatsCache;
     private final MetadataStatsCache<AnalysisStats> analysisStatsCache;
@@ -90,6 +93,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         TransportService transportService,
         NodeService nodeService,
         IndicesService indicesService,
+        RepositoriesService repositoriesService,
         UsageService usageService,
         ActionFilters actionFilters
     ) {
@@ -103,7 +107,9 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         );
         this.nodeService = nodeService;
         this.indicesService = indicesService;
+        this.repositoriesService = repositoriesService;
         this.searchUsageHolder = usageService.getSearchUsageHolder();
+        this.ccsUsageHolder = usageService.getCcsUsageHolder();
         this.mappingStatsCache = new MetadataStatsCache<>(threadPool.getThreadContext(), MappingStats::of);
         this.analysisStatsCache = new MetadataStatsCache<>(threadPool.getThreadContext(), AnalysisStats::of);
     }
@@ -237,12 +243,15 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             }
         }
 
-        ClusterHealthStatus clusterStatus = null;
-        if (clusterService.state().nodes().isLocalNodeElectedMaster()) {
-            clusterStatus = new ClusterStateHealth(clusterService.state()).getStatus();
-        }
+        final ClusterState clusterState = clusterService.state();
+        final ClusterHealthStatus clusterStatus = clusterState.nodes().isLocalNodeElectedMaster()
+            ? new ClusterStateHealth(clusterState).getStatus()
+            : null;
 
-        SearchUsageStats searchUsageStats = searchUsageHolder.getSearchUsageStats();
+        final SearchUsageStats searchUsageStats = searchUsageHolder.getSearchUsageStats();
+
+        final RepositoryUsageStats repositoryUsageStats = repositoriesService.getUsageStats();
+        final CCSTelemetrySnapshot ccsTelemetry = ccsUsageHolder.getCCSTelemetrySnapshot();
 
         return new ClusterStatsNodeResponse(
             nodeInfo.getNode(),
@@ -250,7 +259,9 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             nodeInfo,
             nodeStats,
             shardsStats.toArray(new ShardStats[shardsStats.size()]),
-            searchUsageStats
+            searchUsageStats,
+            repositoryUsageStats,
+            ccsTelemetry
         );
     }
 

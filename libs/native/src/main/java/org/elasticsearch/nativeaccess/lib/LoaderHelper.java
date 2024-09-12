@@ -16,7 +16,7 @@ import java.nio.file.Paths;
  * A utility for loading libraries from Elasticsearch's platform specific lib dir.
  */
 public class LoaderHelper {
-    private static final Path platformLibDir = findPlatformLibDir();
+    public static final Path platformLibDir = findPlatformLibDir();
 
     private static Path findPlatformLibDir() {
         // tests don't have an ES install, so the platform dir must be passed in explicitly

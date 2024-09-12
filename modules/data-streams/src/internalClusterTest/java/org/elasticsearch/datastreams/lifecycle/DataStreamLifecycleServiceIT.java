@@ -917,7 +917,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         String firstGenerationIndex = getBackingIndices(dataStreamName).get(0);
         ClusterGetSettingsAction.Response response = client().execute(
             ClusterGetSettingsAction.INSTANCE,
-            new ClusterGetSettingsAction.Request()
+            new ClusterGetSettingsAction.Request(TEST_REQUEST_TIMEOUT)
         ).get();
         Settings clusterSettings = response.persistentSettings();
 
@@ -1093,7 +1093,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         // Let's verify the merge settings
         ClusterGetSettingsAction.Response response = client().execute(
             ClusterGetSettingsAction.INSTANCE,
-            new ClusterGetSettingsAction.Request()
+            new ClusterGetSettingsAction.Request(TEST_REQUEST_TIMEOUT)
         ).get();
         Settings clusterSettings = response.persistentSettings();
 

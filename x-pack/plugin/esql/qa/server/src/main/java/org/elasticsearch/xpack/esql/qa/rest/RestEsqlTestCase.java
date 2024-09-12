@@ -576,16 +576,18 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             () -> runEsqlSync(
                 requestObjectBuilder().query("row a = 1 | eval x = ?, y = ?")
                     .params(
-                        "[{\"1\": \"v1\"}, {\"1-\": \"v1\"}, {\"_a\": \"v1\"}, {\"@-#\": \"v1\"}, true, 123, "
-                            + "{\"type\": \"byte\", \"value\": 5}]"
+                        "[{\"1\": \"v1\"}, {\"1-\": \"v1\"}, {\"-a\": \"v1\"}, {\"@-#\": \"v1\"}, true, 123, "
+                            + "{\"type\": \"byte\", \"value\": 5}, {\"_1\": \"v1\"}, {\"_a\": \"v1\"}]"
                     )
             )
         );
         String error = EntityUtils.toString(re.getResponse().getEntity()).replaceAll("\\\\\n\s+\\\\", "");
         assertThat(error, containsString("[1] is not a valid parameter name"));
         assertThat(error, containsString("[1-] is not a valid parameter name"));
-        assertThat(error, containsString("[_a] is not a valid parameter name"));
+        assertThat(error, containsString("[-a] is not a valid parameter name"));
         assertThat(error, containsString("[@-#] is not a valid parameter name"));
+        assertThat(error, not(containsString("[_a] is not a valid parameter name")));
+        assertThat(error, not(containsString("[_1] is not a valid parameter name")));
         assertThat(error, containsString("Params cannot contain both named and unnamed parameters"));
         assertThat(error, containsString("Cannot parse more than one key:value pair as parameter"));
         re = expectThrows(
@@ -600,12 +602,46 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             EntityUtils.toString(re.getResponse().getEntity()),
             containsString("No parameter is defined for position 2, did you mean position 1")
         );
-
         re = expectThrows(
             ResponseException.class,
             () -> runEsqlSync(requestObjectBuilder().query("row a = ?n0").params("[{\"n1\": \"v1\"}]"))
         );
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("Unknown query parameter [n0], did you mean [n1]"));
+    }
+
+    public void testErrorMessageForInvalidIntervalParams() throws IOException {
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(
+                requestObjectBuilder().query("row x = ?n1::datetime | eval y = x + ?n2::time_duration")
+                    .params("[{\"n1\": \"2024-01-01\"}, {\"n2\": \"3 days\"}]")
+            )
+        );
+
+        String error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
+        assertThat(
+            error,
+            containsString(
+                "Invalid interval value in [?n2::time_duration], expected integer followed by one of "
+                    + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [3 days]"
+            )
+        );
+
+        re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(
+                requestObjectBuilder().query("row x = ?n1::datetime | eval y = x - ?n2::date_period")
+                    .params("[{\"n1\": \"2024-01-01\"}, {\"n2\": \"3 hours\"}]")
+            )
+        );
+        error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
+        assertThat(
+            error,
+            containsString(
+                "Invalid interval value in [?n2::date_period], expected integer followed by one of "
+                    + "[DAY, DAYS, D, WEEK, WEEKS, W, MONTH, MONTHS, MO, QUARTER, QUARTERS, Q, YEAR, YEARS, YR, Y] but got [3 hours]"
+            )
+        );
     }
 
     public void testErrorMessageForLiteralDateMathOverflow() throws IOException {

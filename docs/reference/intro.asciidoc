@@ -1,95 +1,163 @@
 [[elasticsearch-intro]]
 == What is {es}?
-_**You know, for search (and analysis)**_
 
-{es} is the distributed search and analytics engine at the heart of
-the {stack}. {ls} and {beats} facilitate collecting, aggregating, and
-enriching your data and storing it in {es}. {kib} enables you to
-interactively explore, visualize, and share insights into your data and manage
-and monitor the stack. {es} is where the indexing, search, and analysis
-magic happens.
+{es-repo}[{es}] is a distributed search and analytics engine, scalable data store, and vector database built on Apache Lucene.
+It's optimized for speed and relevance on production-scale workloads.
+Use {es} to search, index, store, and analyze data of all shapes and sizes in near real time.
 
-{es} provides near real-time search and analytics for all types of data. Whether you
-have structured or unstructured text, numerical data, or geospatial data,
-{es} can efficiently store and index it in a way that supports fast searches.
-You can go far beyond simple data retrieval and aggregate information to discover
-trends and patterns in your data. And as your data and query volume grows, the
-distributed nature of {es} enables your deployment to grow seamlessly right
-along with it.
+[TIP]
+====
+{es} has a lot of features. Explore the full list on the https://www.elastic.co/elasticsearch/features[product webpage^].
+====
 
-While not _every_ problem is a search problem, {es} offers speed and flexibility
-to handle data in a wide variety of use cases:
+{es} is the heart of the {estc-welcome-current}/stack-components.html[Elastic Stack] and powers the Elastic https://www.elastic.co/enterprise-search[Search], https://www.elastic.co/observability[Observability] and https://www.elastic.co/security[Security] solutions.
 
-* Add a search box to an app or website
-* Store and analyze logs, metrics, and security event data
-* Use machine learning to automatically model the behavior of your data in real
-  time
-* Use {es} as a vector database to create, store, and search vector embeddings
-* Automate business workflows using {es} as a storage engine
-* Manage, integrate, and analyze spatial information using {es} as a geographic
-  information system (GIS)
-* Store and process genetic data using {es} as a bioinformatics research tool
+{es} is used for a wide and growing range of use cases. Here are a few examples:
 
-We’re continually amazed by the novel ways people use search. But whether
-your use case is similar to one of these, or you're using {es} to tackle a new
-problem, the way you work with your data, documents, and indices in {es} is
-the same.
+* *Monitor log and event data*: Store logs, metrics, and event data for observability and security information and event management (SIEM).
+* *Build search applications*: Add search capabilities to apps or websites, or build search engines over internal data.
+* *Vector database*: Store and search vectorized data, and create vector embeddings with built-in and third-party natural language processing (NLP) models.
+* *Retrieval augmented generation (RAG)*: Use {es} as a retrieval engine to augment generative AI models.
+* *Application and security monitoring*: Monitor and analyze application performance and security data.
+* *Machine learning*: Use {ml} to automatically model the behavior of your data in real-time.
 
+This is just a sample of search, observability, and security use cases enabled by {es}. 
+Refer to our https://www.elastic.co/customers/success-stories[customer success stories] for concrete examples across a range of industries.
+// Link to demos, search labs chatbots
+
+[discrete]
+[[elasticsearch-intro-elastic-stack]]
+.What is the Elastic Stack?
+*******************************
+{es} is the core component of the Elastic Stack, a suite of products for collecting, storing, searching, and visualizing data.
+https://www.elastic.co/guide/en/starting-with-the-elasticsearch-platform-and-its-solutions/current/stack-components.html[Learn more about the Elastic Stack].
+*******************************
+// TODO: Remove once we've moved Stack Overview to a subpage?
+
+[discrete]
+[[elasticsearch-intro-deploy]]
+=== Deployment options
+
+To use {es}, you need a running instance of the {es} service.
+You can deploy {es} in various ways:
+
+* <<run-elasticsearch-locally,*Local dev*>>: Get started quickly with a minimal local Docker setup. 
+* {cloud}/ec-getting-started-trial.html[*Elastic Cloud*]: {es} is available as part of our hosted Elastic Stack offering, deployed in the cloud with your provider of choice. Sign up for a https://cloud.elastic.co/registration[14-day free trial].
+* {serverless-docs}/general/sign-up-trial[*Elastic Cloud Serverless* (technical preview)]: Create serverless projects for autoscaled and fully managed {es} deployments. Sign up for a https://cloud.elastic.co/serverless-registration[14-day free trial].
+
+**Advanced deployment options**
+
+* <<elasticsearch-deployment-options,*Self-managed*>>: Install, configure, and run {es} on your own premises.
+* {ece-ref}/Elastic-Cloud-Enterprise-overview.html[*Elastic Cloud Enterprise*]: Deploy Elastic Cloud on public or private clouds, virtual machines, or your own premises.
+* {eck-ref}/k8s-overview.html[*Elastic Cloud on Kubernetes*]: Deploy Elastic Cloud on Kubernetes.
+
+[discrete]
+[[elasticsearch-next-steps]]
+=== Learn more
+
+Here are some resources to help you get started:
+
+* <<getting-started, Quickstart>>: A beginner's guide to deploying your first {es} instance, indexing data, and running queries.
+* https://elastic.co/webinars/getting-started-elasticsearch[Webinar: Introduction to {es}]: Register for our live webinars to learn directly from {es} experts.
+* https://www.elastic.co/search-labs[Elastic Search Labs]: Tutorials and blogs that explore AI-powered search using the latest {es} features.
+** Follow our tutorial https://www.elastic.co/search-labs/tutorials/search-tutorial/welcome[to build a hybrid search solution in Python].
+** Check out the https://github.com/elastic/elasticsearch-labs?tab=readme-ov-file#elasticsearch-examples--apps[`elasticsearch-labs` repository] for a range of Python notebooks and apps for various use cases.
+
+// new html page 
 [[documents-indices]]
-=== Data in: documents and indices
+=== Indices, documents, and fields
+++++
+<titleabbrev>Indices and documents</titleabbrev>
+++++
 
-{es} is a distributed document store. Instead of storing information as rows of
-columnar data, {es} stores complex data structures that have been serialized
-as JSON documents. When you have multiple {es} nodes in a cluster, stored
-documents are distributed across the cluster and can be accessed immediately
-from any node.
+The index is the fundamental unit of storage in {es}, a logical namespace for storing data that share similar characteristics.
+After you have {es} <<elasticsearch-intro-deploy,deployed>>, you'll get started by creating an index to store your data.
 
-When a document is stored, it is indexed and fully searchable in <<near-real-time,near real-time>>--within 1 second. {es} uses a data structure called an
-inverted index that supports very fast full-text searches. An inverted index
-lists every unique word that appears in any document and identifies all of the
-documents each word occurs in.
+[TIP]
+====
+A closely related concept is a <<data-streams,data stream>>.
+This index abstraction is optimized for append-only time-series data, and is made up of hidden, auto-generated backing indices.
+If you're working with time-series data, we recommend the {observability-guide}[Elastic Observability] solution.
+====
 
-An index can be thought of as an optimized collection of documents and each
-document is a collection of fields, which are the key-value pairs that contain
-your data. By default, {es} indexes all data in every field and each indexed
-field has a dedicated, optimized data structure. For example, text fields are
-stored in inverted indices, and numeric and geo fields are stored in BKD trees.
-The ability to use the per-field data structures to assemble and return search
-results is what makes {es} so fast.
+Some key facts about indices:
 
-{es} also has the ability to be schema-less, which means that documents can be
-indexed without explicitly specifying how to handle each of the different fields
-that might occur in a document. When dynamic mapping is enabled, {es}
-automatically detects and adds new fields to the index. This default
-behavior makes it easy to index and explore your data--just start
-indexing documents and {es} will detect and map booleans, floating point and
-integer values, dates, and strings to the appropriate {es} data types.
+* An index is a collection of documents
+* An index has a unique name
+* An index can also be referred to by an alias
+* An index has a mapping that defines the schema of its documents
 
-Ultimately, however, you know more about your data and how you want to use it
-than {es} can. You can define rules to control dynamic mapping and explicitly
-define mappings to take full control of how fields are stored and indexed.
+[discrete]
+[[elasticsearch-intro-documents-fields]]
+==== Documents and fields
 
-Defining your own mappings enables you to:
+{es} serializes and stores data in the form of JSON documents.
+A document is a set of fields, which are key-value pairs that contain your data.
+Each document has a unique ID, which you can create or have {es} auto-generate.
 
-* Distinguish between full-text string fields and exact value string fields
-* Perform language-specific text analysis
-* Optimize fields for partial matching
-* Use custom date formats
-* Use data types such as `geo_point` and `geo_shape` that cannot be automatically
-detected
+A simple {es} document might look like this:
 
-It’s often useful to index the same field in different ways for different
-purposes. For example, you might want to index a string field as both a text
-field for full-text search and as a keyword field for sorting or aggregating
-your data. Or, you might choose to use more than one language analyzer to
-process the contents of a string field that contains user input.
+[source,js]
+----
+{
+  "_index": "my-first-elasticsearch-index",
+  "_id": "DyFpo5EBxE8fzbb95DOa",
+  "_version": 1,
+  "_seq_no": 0,
+  "_primary_term": 1,
+  "found": true,
+  "_source": {
+    "email": "john@smith.com",
+    "first_name": "John",
+    "last_name": "Smith",
+    "info": {
+      "bio": "Eco-warrior and defender of the weak",
+      "age": 25,
+      "interests": [
+        "dolphins",
+        "whales"
+      ]
+    },
+    "join_date": "2024/05/01"
+  }
+}
+----
+// NOTCONSOLE
 
-The analysis chain that is applied to a full-text field during indexing is also
-used at search time. When you query a full-text field, the query text undergoes
-the same analysis before the terms are looked up in the index.
+[discrete]
+[[elasticsearch-intro-documents-fields-data-metadata]]
+==== Data and metadata
 
+An indexed document contains data and metadata.
+In {es}, metadata fields are prefixed with an underscore.
+
+The most important metadata fields are:
+
+* `_source`: Contains the original JSON document.
+* `_index`: The name of the index where the document is stored.
+* `_id`: The document's ID. IDs must be unique per index.
+
+[discrete]
+[[elasticsearch-intro-documents-fields-mappings]]
+==== Mappings and data types
+
+Each index has a <<mapping,mapping>> or schema for how the fields in your documents are indexed.
+A mapping defines the <<mapping-types,data type>> for each field, how the field should be indexed,
+and how it should be stored.
+When adding documents to {es}, you have two options for mappings:
+
+* <<mapping-dynamic, Dynamic mapping>>: Let {es} automatically detect the data types and create the mappings for you. This is great for getting started quickly, but can lead to unexpected results for complex data.
+* <<mapping-explicit, Explicit mapping>>: Define the mappings up front by specifying data types for each field. Recommended for production use cases, because you have much more control over how your data is indexed.
+
+[TIP]
+====
+You can use a combination of dynamic and explicit mapping on the same index.
+This is useful when you have a mix of known and unknown fields in your data.
+====
+
+// New html page
 [[search-analyze]]
-=== Information out: search and analyze
+=== Search and analyze
 
 While you can use {es} as a document store and retrieve documents and their
 metadata, the real power comes from being able to easily access the full suite
@@ -160,27 +228,8 @@ size 70 needles, you’re displaying a count of the size 70 needles
 that match your users' search criteria--for example, all size 70 _non-stick
 embroidery_ needles.
 
-[discrete]
-[[more-features]]
-===== But wait, there’s more
-
-Want to automate the analysis of your time series data? You can use
-{ml-docs}/ml-ad-overview.html[machine learning] features to create accurate
-baselines of normal behavior in your data and identify anomalous patterns. With
-machine learning, you can detect:
-
-* Anomalies related to temporal deviations in values, counts, or frequencies
-* Statistical rarity
-* Unusual behaviors for a member of a population
-
-And the best part? You can do this without having to specify algorithms, models,
-or other data science-related configurations.
-
 [[scalability]]
-=== Scalability and resilience: clusters, nodes, and shards
-++++
-<titleabbrev>Scalability and resilience</titleabbrev>
-++++
+=== Scalability and resilience
 
 {es} is built to be always available and to scale with your needs. It does this
 by being distributed by nature. You can add servers (nodes) to a cluster to
@@ -209,7 +258,7 @@ interrupting indexing or query operations.
 
 [discrete]
 [[it-depends]]
-==== It depends...
+==== Shard size and number of shards
 
 There are a number of performance considerations and trade offs with respect
 to shard size and the number of primary shards configured for an index. The more
@@ -237,7 +286,7 @@ testing with your own data and queries].
 
 [discrete]
 [[disaster-ccr]]
-==== In case of disaster
+==== Disaster recovery
 
 A cluster's nodes need good, reliable connections to each other. To provide
 better connections, you typically co-locate the nodes in the same data center or
@@ -257,7 +306,7 @@ secondary clusters are read-only followers.
 
 [discrete]
 [[admin]]
-==== Care and feeding
+==== Security, management, and monitoring
 
 As with any enterprise system, you need tools to secure, manage, and
 monitor your {es} clusters. Security, monitoring, and administrative features
@@ -265,3 +314,5 @@ that are integrated into {es} enable you to use {kibana-ref}/introduction.html[{
 as a control center for managing a cluster. Features like <<downsampling,
 downsampling>> and <<index-lifecycle-management, index lifecycle management>>
 help you intelligently manage your data over time.
+
+Refer to <<monitor-elasticsearch-cluster>> for more information.

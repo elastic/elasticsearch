@@ -23,6 +23,10 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
      * Should the remote cluster stats be included in the response.
      */
     private final boolean doRemotes;
+    /**
+     * Return stripped down stats for remote clusters.
+     */
+    private boolean remoteStats;
 
     /**
      * Get stats from nodes based on the nodes ids specified. If none are passed, stats
@@ -35,6 +39,7 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
     public ClusterStatsRequest(boolean doRemotes, String... nodesIds) {
         super(nodesIds);
         this.doRemotes = doRemotes;
+        this.remoteStats = false;
     }
 
     @Override
@@ -42,10 +47,22 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
         return new CancellableTask(id, type, action, "", parentTaskId, headers);
     }
 
+    public ClusterStatsRequest asRemoteStats() {
+        this.remoteStats = true;
+        return this;
+    }
+
     /**
      * Should the remote cluster stats be included in the response.
      */
     public boolean doRemotes() {
         return doRemotes;
+    }
+
+    /**
+     * Should the response be a stripped down version of the stats for remote clusters.
+     */
+    public boolean isRemoteStats() {
+        return remoteStats;
     }
 }

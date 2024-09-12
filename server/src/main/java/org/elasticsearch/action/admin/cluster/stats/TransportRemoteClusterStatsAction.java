@@ -10,96 +10,56 @@ package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.node.NodeService;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.usage.UsageService;
-
-import java.util.HashSet;
-import java.util.List;
 
 /**
- * Transport action for remote cluster stats. It returs a reduced answer since most of the stats from the remote
- * cluster are not needed.
+ * Handler action for incoming {@link RemoteClusterStatsRequest}.
+ * Will pass the work to {@link TransportClusterStatsAction} and return the response.
  */
-public class TransportRemoteClusterStatsAction extends TransportClusterStatsBaseAction<RemoteClusterStatsResponse> {
+public class TransportRemoteClusterStatsAction extends HandledTransportAction<
+    RemoteClusterStatsRequest,
+    RemoteClusterStatsResponse> {
+
     public static final ActionType<RemoteClusterStatsResponse> TYPE = new ActionType<>("cluster:monitor/stats/remote");
+    public static final RemoteClusterActionType<RemoteClusterStatsResponse> REMOTE_TYPE = new RemoteClusterActionType<>(
+        TYPE.name(),
+        RemoteClusterStatsResponse::new
+    );
+    private final NodeClient client;
 
     @Inject
-    public TransportRemoteClusterStatsAction(
-        ThreadPool threadPool,
-        ClusterService clusterService,
-        TransportService transportService,
-        NodeService nodeService,
-        IndicesService indicesService,
-        RepositoriesService repositoriesService,
-        UsageService usageService,
-        ActionFilters actionFilters
-    ) {
-        super(
-            TYPE.name(),
-            threadPool,
-            clusterService,
-            transportService,
-            nodeService,
-            indicesService,
-            repositoriesService,
-            usageService,
-            actionFilters
-        );
+    public TransportRemoteClusterStatsAction(NodeClient client, TransportService transportService, ActionFilters actionFilters) {
+        super(TYPE.name(), transportService, actionFilters, RemoteClusterStatsRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        this.client = client;
     }
 
     @Override
-    protected void newResponseAsync(
-        final Task task,
-        final ClusterStatsRequest request,
-        final List<ClusterStatsNodeResponse> responses,
-        final List<FailedNodeException> failures,
-        final ActionListener<RemoteClusterStatsResponse> listener
-    ) {
-        final ClusterState state = clusterService.state();
-        final Metadata metadata = state.metadata();
-        ClusterHealthStatus status = null;
-        long totalShards = 0;
-        long indicesBytes = 0;
-        var indexSet = new HashSet<String>();
-
-        for (ClusterStatsNodeResponse r : responses) {
-            totalShards += r.shardsStats().length;
-            for (var shard : r.shardsStats()) {
-                indexSet.add(shard.getShardRouting().getIndexName());
-                if (shard.getStats().getStore() != null) {
-                    indicesBytes += shard.getStats().getStore().totalDataSetSizeInBytes();
-                }
-            }
-            if (status == null && r.clusterStatus() != null) {
-                status = r.clusterStatus();
-            }
-        }
-
-        ClusterStatsNodes nodesStats = new ClusterStatsNodes(responses);
-        RemoteClusterStatsResponse response = new RemoteClusterStatsResponse(
-            clusterService.getClusterName(),
-            metadata.clusterUUID(),
-            status,
-            nodesStats.getVersions(),
-            nodesStats.getCounts().getTotal(),
-            totalShards,
-            indexSet.size(),
-            indicesBytes,
-            nodesStats.getJvm().getHeapMax().getBytes(),
-            nodesStats.getOs().getMem().getTotal().getBytes()
+    protected void doExecute(Task task, RemoteClusterStatsRequest request, ActionListener<RemoteClusterStatsResponse> listener) {
+        ClusterStatsRequest subRequest = new ClusterStatsRequest(request.nodesIds()).asRemoteStats();
+        client.execute(
+            TransportClusterStatsAction.TYPE,
+            subRequest,
+            listener.map(
+                clusterStatsResponse -> new RemoteClusterStatsResponse(
+                    clusterStatsResponse.getClusterName(),
+                    clusterStatsResponse.getClusterUUID(),
+                    clusterStatsResponse.getStatus(),
+                    clusterStatsResponse.getNodesStats().getVersions(),
+                    clusterStatsResponse.getNodesStats().getCounts().getTotal(),
+                    clusterStatsResponse.getIndicesStats().getShards().getTotal(),
+                    clusterStatsResponse.getIndicesStats().getIndexCount(),
+                    clusterStatsResponse.getIndicesStats().getStore().sizeInBytes(),
+                    clusterStatsResponse.getNodesStats().getJvm().getHeapMax().getBytes(),
+                    clusterStatsResponse.getNodesStats().getOs().getMem().getTotal().getBytes()
+                )
+            )
         );
-        listener.onResponse(response);
     }
 }

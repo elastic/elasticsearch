@@ -43,6 +43,7 @@ public class TDigestBigArraysTests extends ESTestCase {
             }
         }
     }
+
     public void testDoubleEmpty() {
         try (TDigestDoubleArray array = doubleArray(0)) {
             assertThat(array.size(), equalTo(0));
@@ -97,21 +98,20 @@ public class TDigestBigArraysTests extends ESTestCase {
         int initialSize = randomIntBetween(10, 1000);
         int sourceArraySize = randomIntBetween(0, initialSize);
 
-        try (TDigestDoubleArray array = doubleArray(initialSize);
-             TDigestDoubleArray bulkSet = doubleArray(sourceArraySize)) {
+        try (TDigestDoubleArray array = doubleArray(initialSize); TDigestDoubleArray source = doubleArray(sourceArraySize)) {
             assertThat(array.size(), equalTo(initialSize));
-            assertThat(bulkSet.size(), equalTo(sourceArraySize));
+            assertThat(source.size(), equalTo(sourceArraySize));
 
             double value = randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true);
             for (int i = 0; i < sourceArraySize; i++) {
-                bulkSet.set(i, value);
+                source.set(i, value);
             }
 
             int initialOffset = randomIntBetween(0, initialSize - sourceArraySize);
             int sourceOffset = randomIntBetween(0, sourceArraySize - 1);
             int elementsToCopy = randomIntBetween(1, sourceArraySize - sourceOffset);
 
-            array.set(initialOffset, bulkSet, sourceOffset, elementsToCopy);
+            array.set(initialOffset, source, sourceOffset, elementsToCopy);
 
             for (int i = 0; i < initialSize; i++) {
                 if (i < initialOffset || i >= initialOffset + elementsToCopy) {

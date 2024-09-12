@@ -460,10 +460,6 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
     }
 
     public void testLogsDBSnapshotCreateRestoreMount() throws IOException {
-        wipeDataStreams();
-        wipeAllIndices();
-        wipeSnapshots();
-
         final String repository = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         registerRepository(repository, FsRepository.TYPE, Settings.builder().put("location", randomAlphaOfLength(6)));
 
@@ -489,7 +485,8 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
         final String snapshot = randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
         deleteSnapshot(repository, snapshot, true);
         createSnapshot(client, repository, snapshot, true, index);
-        deleteIndex(index);
+        wipeDataStreams();
+        wipeAllIndices();
         restoreSnapshot(client, repository, snapshot, true, index);
 
         final String restoreIndex = randomAlphaOfLength(7).toLowerCase(Locale.ROOT);
@@ -505,10 +502,6 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
     // NOTE: this test will fail on snapshot creation after fixing
     // https://github.com/elastic/elasticsearch/issues/112735
     public void testLogsDBSourceOnlySnapshotCreation() throws IOException {
-        wipeDataStreams();
-        wipeAllIndices();
-        wipeSnapshots();
-
         final String repository = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         registerRepository(repository, FsRepository.TYPE, Settings.builder().put("location", randomAlphaOfLength(6)));
         // A source-only repository delegates storage to another repository
@@ -541,7 +534,8 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
         final String snapshot = randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
         deleteSnapshot(sourceOnlyRepository, snapshot, true);
         createSnapshot(client, sourceOnlyRepository, snapshot, true, index);
-        deleteIndex(index);
+        wipeDataStreams();
+        wipeAllIndices();
         // Can't snapshot _source only on an index that has incomplete source ie. has _source disabled or filters the source
         final ResponseException responseException = expectThrows(
             ResponseException.class,

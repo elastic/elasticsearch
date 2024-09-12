@@ -112,7 +112,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.bulk.stats.BulkOperationListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
@@ -1581,7 +1580,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         TransportShardBulkAction.performOnPrimary(
             request,
             indexShard,
-            new UpdateHelper(mock(ScriptService.class), DocumentParsingProvider.EMPTY_INSTANCE, mock(IndicesService.class)),
+            new UpdateHelper(mock(ScriptService.class), DocumentParsingProvider.EMPTY_INSTANCE),
             System::currentTimeMillis,
             mappingUpdater,
             waitForMappingUpdate,

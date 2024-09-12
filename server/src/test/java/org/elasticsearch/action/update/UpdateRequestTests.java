@@ -25,7 +25,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
@@ -70,7 +69,6 @@ import static org.mockito.Mockito.when;
 public class UpdateRequestTests extends ESTestCase {
 
     private UpdateHelper updateHelper;
-    private IndicesService indicesService;
 
     @Override
     @Before
@@ -122,8 +120,7 @@ public class UpdateRequestTests extends ESTestCase {
         final MockScriptEngine engine = new MockScriptEngine("mock", scripts, Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(engine.getType(), engine);
         ScriptService scriptService = new ScriptService(baseSettings, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
-        indicesService = mock(IndicesService.class);
-        updateHelper = new UpdateHelper(scriptService, DocumentParsingProvider.EMPTY_INSTANCE, indicesService);
+        updateHelper = new UpdateHelper(scriptService, DocumentParsingProvider.EMPTY_INSTANCE);
     }
 
     @SuppressWarnings("unchecked")
@@ -601,7 +598,7 @@ public class UpdateRequestTests extends ESTestCase {
         try (var parser = createParser(JsonXContent.jsonXContent, new BytesArray("{\"doc\": {\"body\": \"foo\"}}"))) {
             request = new UpdateRequest("test", "1").fromXContent(parser);
         }
-        UpdateHelper updateHelper = new UpdateHelper(mock(ScriptService.class), DocumentParsingProvider.EMPTY_INSTANCE, indicesService);
+        UpdateHelper updateHelper = new UpdateHelper(mock(ScriptService.class), DocumentParsingProvider.EMPTY_INSTANCE);
         UpdateHelper.Result result = updateHelper.prepareUpdateIndexRequest(indexShard, request, getResult, true);
 
         assertThat(result.action(), instanceOf(UpdateResponse.class));

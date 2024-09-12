@@ -672,7 +672,7 @@ public class Verifier {
                         failures.add(
                             fail(
                                 plan,
-                                "Full text functions cannot be used after {}",
+                                "full text functions cannot be used after {}",
                                 lp.sourceText().split(" ")[0].toUpperCase(Locale.ROOT)
                             )
                         );
@@ -681,7 +681,7 @@ public class Verifier {
             }
         } else {
             plan.forEachExpression(FullTextFunction.class, ftf -> {
-                failures.add(fail(ftf, "Full text functions are only supported in WHERE commands"));
+                failures.add(fail(ftf, "full text functions are only supported in WHERE commands"));
             });
         }
     }

@@ -18,15 +18,12 @@ import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptReque
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.elasticsearch.action.admin.cluster.storedscripts.TransportDeleteStoredScriptAction;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
-import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.GetPipelineResponse;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.ingest.IngestTestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.StoredScriptsIT;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -36,7 +33,6 @@ import static org.elasticsearch.action.admin.cluster.storedscripts.StoredScriptI
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertIndexTemplateExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertIndexTemplateMissing;
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -84,18 +80,16 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
 
         if (testPipeline) {
             logger.info("-->  creating test pipeline");
-            BytesReference pipelineSource = BytesReference.bytes(
-                jsonBuilder().startObject()
-                    .field("description", "my_pipeline")
+            putJsonPipeline(
+                "barbaz",
+                (builder, params) -> builder.field("description", "my_pipeline")
                     .startArray("processors")
                     .startObject()
                     .startObject("test")
                     .endObject()
                     .endObject()
                     .endArray()
-                    .endObject()
             );
-            assertAcked(clusterAdmin().preparePutPipeline("barbaz", pipelineSource, XContentType.JSON).get());
         }
 
         if (testScript) {
@@ -144,7 +138,7 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
 
         if (testPipeline) {
             logger.info("-->  delete test pipeline");
-            assertAcked(clusterAdmin().deletePipeline(new DeletePipelineRequest("barbaz")).get());
+            deletePipeline("barbaz");
         }
 
         if (testScript) {
@@ -184,7 +178,7 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
 
         if (testPipeline) {
             logger.info("--> check that pipeline is restored");
-            GetPipelineResponse getPipelineResponse = clusterAdmin().prepareGetPipeline("barbaz").get();
+            GetPipelineResponse getPipelineResponse = getPipelines("barbaz");
             assertTrue(getPipelineResponse.isFound());
         }
 
@@ -218,7 +212,7 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
             cluster().wipeTemplates("test-template");
         }
         if (testPipeline) {
-            assertAcked(clusterAdmin().deletePipeline(new DeletePipelineRequest("barbaz")).get());
+            deletePipeline("barbaz");
         }
 
         if (testScript) {
@@ -245,7 +239,7 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> check that global state wasn't restored but index was");
         getIndexTemplatesResponse = indicesAdmin().prepareGetTemplates().get();
         assertIndexTemplateMissing(getIndexTemplatesResponse, "test-template");
-        assertFalse(clusterAdmin().prepareGetPipeline("barbaz").get().isFound());
+        assertFalse(getPipelines("barbaz").isFound());
         assertNull(safeExecute(GetStoredScriptAction.INSTANCE, new GetStoredScriptRequest(TEST_REQUEST_TIMEOUT, "foobar")).getSource());
         assertDocCount("test-idx", 100L);
     }

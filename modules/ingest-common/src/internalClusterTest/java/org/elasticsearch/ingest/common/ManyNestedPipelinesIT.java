@@ -15,7 +15,6 @@ import org.elasticsearch.action.ingest.SimulateDocumentResult;
 import org.elasticsearch.action.ingest.SimulateDocumentVerboseResult;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.ingest.SimulateProcessorResult;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.ingest.GraphStructureException;
@@ -166,7 +165,7 @@ public class ManyNestedPipelinesIT extends ESIntegTestCase {
     private void createChainedPipeline(String prefix, int number) {
         String pipelineId = prefix + "pipeline_" + number;
         String nextPipelineId = prefix + "pipeline_" + (number + 1);
-        String pipelineTemplate = """
+        putJsonPipeline(pipelineId, Strings.format("""
             {
                 "processors": [
                     {
@@ -176,9 +175,7 @@ public class ManyNestedPipelinesIT extends ESIntegTestCase {
                     }
                 ]
             }
-            """;
-        String pipeline = Strings.format(pipelineTemplate, nextPipelineId);
-        clusterAdmin().preparePutPipeline(pipelineId, new BytesArray(pipeline), XContentType.JSON).get();
+            """, nextPipelineId));
     }
 
     private void createLastPipeline(String prefix, int number) {
@@ -195,6 +192,6 @@ public class ManyNestedPipelinesIT extends ESIntegTestCase {
                 ]
             }
             """;
-        clusterAdmin().preparePutPipeline(pipelineId, new BytesArray(pipeline), XContentType.JSON).get();
+        putJsonPipeline(pipelineId, pipeline);
     }
 }

@@ -33,10 +33,12 @@ teardown:
 ---
 "Redirect ingest failure in data stream to failure store":
   - requires:
-      cluster_features: ["gte_v8.15.0"]
-      reason: "data stream failure stores REST structure changed in 8.15+"
-      test_runner_features: [allowed_warnings, contains]
-
+      reason: "Failure store status was added in 8.16+"
+      test_runner_features: [capabilities, allowed_warnings, contains]
+      capabilities:
+        - method: POST
+          path: /{index}/_doc
+          capabilities: [ 'failure_store_status' ]
   - do:
       ingest.put_pipeline:
         id: "failing_pipeline"
@@ -92,6 +94,8 @@ teardown:
         body:
           '@timestamp': '2020-12-12'
           foo: bar
+  - match: { failure_store: used}
+  - match: { _index: '/\.fs-logs-foobar-(\d{4}\.\d{2}\.\d{2}-)?000001/'}
 
   - do:
       indices.get_data_stream:
@@ -144,9 +148,12 @@ teardown:
 ---
 "Redirect shard failure in data stream to failure store":
   - requires:
-      cluster_features: ["gte_v8.14.0"]
-      reason: "data stream failure stores only redirect shard failures in 8.14+"
-      test_runner_features: [allowed_warnings, contains]
+      reason: "Failure store status was added in 8.16+"
+      test_runner_features: [ capabilities, allowed_warnings, contains ]
+      capabilities:
+        - method: POST
+          path: /{index}/_doc
+          capabilities: [ 'failure_store_status' ]
 
   - do:
       allowed_warnings:
@@ -176,6 +183,8 @@ teardown:
         body:
           '@timestamp': '2020-12-12'
           count: 'invalid value'
+  - match: { _index: '/\.fs-logs-foobar-(\d{4}\.\d{2}\.\d{2}-)?000002/'}
+  - match: { failure_store: used}
 
   - do:
       indices.get_data_stream:
@@ -422,9 +431,12 @@ teardown:
 ---
 "Failure redirects to original failure store during index change if final pipeline changes target":
   - requires:
-      cluster_features: [ "gte_v8.15.0" ]
-      reason: "data stream failure stores REST structure changed in 8.15+"
-      test_runner_features: [ allowed_warnings, contains ]
+      reason: "Failure store status was added in 8.16+"
+      test_runner_features: [ capabilities, allowed_warnings, contains ]
+      capabilities:
+        - method: POST
+          path: /{index}/_doc
+          capabilities: [ 'failure_store_status' ]
 
   - do:
       ingest.put_pipeline:
@@ -466,6 +478,7 @@ teardown:
         body:
           '@timestamp': '2020-12-12'
           foo: bar
+  - match: { failure_store: used}
 
   - do:
       indices.get_data_stream:
@@ -514,9 +527,12 @@ teardown:
 ---
 "Failure redirects to correct failure store when index loop is detected":
   - requires:
-      cluster_features: [ "gte_v8.15.0" ]
-      reason: "data stream failure stores REST structure changed in 8.15+"
-      test_runner_features: [ allowed_warnings, contains ]
+      reason: "Failure store status was added in 8.16+"
+      test_runner_features: [ capabilities, allowed_warnings, contains ]
+      capabilities:
+        - method: POST
+          path: /{index}/_doc
+          capabilities: [ 'failure_store_status' ]
 
   - do:
       ingest.put_pipeline:
@@ -591,6 +607,8 @@ teardown:
         body:
           '@timestamp': '2020-12-12'
           foo: bar
+  - match: { _index: '/\.fs-destination-data-stream-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { failure_store: used}
 
 
   - do:
@@ -640,9 +658,12 @@ teardown:
 ---
 "Failure redirects to correct failure store when pipeline loop is detected":
   - requires:
-      cluster_features: [ "gte_v8.15.0" ]
-      reason: "data stream failure stores REST structure changed in 8.15+"
-      test_runner_features: [ allowed_warnings, contains ]
+      reason: "Failure store status was added in 8.16+"
+      test_runner_features: [ capabilities, allowed_warnings, contains ]
+      capabilities:
+        - method: POST
+          path: /{index}/_doc
+          capabilities: [ 'failure_store_status' ]
 
   - do:
       ingest.put_pipeline:
@@ -701,6 +722,7 @@ teardown:
         body:
           '@timestamp': '2020-12-12'
           foo: bar
+  - match: { failure_store: used}
 
   - do:
       indices.get_data_stream:
@@ -752,9 +774,12 @@ teardown:
 ---
 "Version conflicts are not redirected to failure store":
   - requires:
-      cluster_features: ["gte_v8.16.0"]
-      reason: "Redirecting version conflicts to the failure store is considered a bug fixed in 8.16"
-      test_runner_features: [allowed_warnings, contains]
+      reason: "Failure store status was added in 8.16+"
+      test_runner_features: [ capabilities, allowed_warnings, contains ]
+      capabilities:
+        - method: POST
+          path: /_bulk
+          capabilities: [ 'failure_store_status' ]
 
   - do:
       allowed_warnings:
@@ -788,3 +813,4 @@ teardown:
   - match: { items.1.create._index: '/\.ds-logs-foobar-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
   - match: { items.1.create.status: 409 }
   - match: { items.1.create.error.type: version_conflict_engine_exception}
+  - is_false: items.1.create.failure_store

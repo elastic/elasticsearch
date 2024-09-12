@@ -211,6 +211,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         } else {
             originatesFromUpdateByDoc = false;
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_STATUS_IN_INDEX_RESPONSE)) {
+            writeToFailureStore = in.readBoolean();
+        }
     }
 
     public IndexRequest() {
@@ -778,6 +781,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
         if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_REQUEST_UPDATE_BY_DOC_ORIGIN)) {
             out.writeBoolean(originatesFromUpdateByDoc);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_STATUS_IN_INDEX_RESPONSE)) {
+            out.writeBoolean(writeToFailureStore);
         }
     }
 

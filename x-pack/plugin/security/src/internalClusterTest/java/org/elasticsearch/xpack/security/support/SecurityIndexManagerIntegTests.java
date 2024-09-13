@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.support;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
@@ -14,13 +15,19 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
@@ -45,6 +52,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
 
     public void testConcurrentOperationsTryingToCreateSecurityIndexAndAlias() throws Exception {
+        createSecurityIndex();
         assertSecurityIndexActive();
         final int processors = Runtime.getRuntime().availableProcessors();
         final int numThreads = Math.min(50, scaledRandomIntBetween((processors + 1) / 2, 4 * processors));  // up to 50 threads
@@ -101,7 +109,26 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testWhenIndexAvailableForSearch() throws Exception {
+    public void testWhenIndexAvailableForSearchIndexCompletesWithinTimeout() throws Exception {
+        final SecurityIndexManager securityIndexManager = internalCluster().getInstances(NativePrivilegeStore.class)
+            .iterator()
+            .next()
+            .getSecurityIndexManager();
+        final ActionFuture<Void> future = new PlainActionFuture<>();
+        // pick longer wait than in assertSecurityIndexActive()
+        securityIndexManager.whenIndexAvailableForSearch((ActionListener<Void>) future, TimeValue.timeValueSeconds(40));
+
+        createSecurityIndex();
+
+        assertSecurityIndexActive();
+
+        future.actionGet();
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testWhenIndexAvailableForSearchIndexAlreadyAvailable() throws Exception {
+        createSecurityIndex();
+
         assertSecurityIndexActive();
 
         final SecurityIndexManager securityIndexManager = internalCluster().getInstances(NativePrivilegeStore.class)
@@ -109,9 +136,33 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
             .next()
             .getSecurityIndexManager();
 
+        // With 0 timeout
+        {
+            final ActionFuture<Void> future = new PlainActionFuture<>();
+            securityIndexManager.whenIndexAvailableForSearch((ActionListener<Void>) future, TimeValue.timeValueSeconds(0));
+            future.actionGet();
+        }
+
+        // With non-0 timeout
+        {
+            final ActionFuture<Void> future = new PlainActionFuture<>();
+            securityIndexManager.whenIndexAvailableForSearch((ActionListener<Void>) future, TimeValue.timeValueSeconds(10));
+            future.actionGet();
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testWhenIndexAvailableForSearchIndexWaitTimeOut() {
+        // security index does not exist and nothing is triggering creation, so whenIndexAvailableForSearch will time out
+
+        final SecurityIndexManager securityIndexManager = internalCluster().getInstances(NativePrivilegeStore.class)
+            .iterator()
+            .next()
+            .getSecurityIndexManager();
+
         final ActionFuture<Void> future = new PlainActionFuture<>();
-        securityIndexManager.whenIndexAvailableForSearch((ActionListener<Void>) future, TimeValue.ONE_MINUTE);
-        future.actionGet();
+        securityIndexManager.whenIndexAvailableForSearch((ActionListener<Void>) future, TimeValue.timeValueMillis(100));
+        expectThrows(ElasticsearchTimeoutException.class, future::actionGet);
     }
 
     public void testSecurityIndexSettingsCannotBeChanged() throws Exception {
@@ -200,5 +251,20 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
     @Before
     public void cleanupSecurityIndex() {
         super.deleteSecurityIndex();
+    }
+
+    @Override
+    public void assertSecurityIndexActive(TestCluster testCluster) throws Exception {
+        for (Client client : testCluster.getClients()) {
+            assertBusy(() -> {
+                ClusterState clusterState = client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).setLocal(true).get().getState();
+                assertFalse(clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK));
+                Index securityIndex = resolveSecurityIndex(clusterState.metadata());
+                assertNotNull(securityIndex);
+                IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(securityIndex);
+                assertNotNull(indexRoutingTable);
+                assertTrue(indexRoutingTable.allPrimaryShardsActive());
+            }, 30L, TimeUnit.SECONDS);
+        }
     }
 }

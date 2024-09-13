@@ -65,14 +65,10 @@ class DatabaseReaderLazyLoader implements GeoIpDatabase, Closeable {
     private final AtomicInteger currentUsages = new AtomicInteger(0);
 
     DatabaseReaderLazyLoader(GeoIpCache cache, Path databasePath, String md5) {
-        this(cache, databasePath, md5, createDatabaseLoader(databasePath));
-    }
-
-    DatabaseReaderLazyLoader(GeoIpCache cache, Path databasePath, String md5, CheckedSupplier<DatabaseReader, IOException> loader) {
         this.cache = cache;
         this.databasePath = Objects.requireNonNull(databasePath);
         this.md5 = md5;
-        this.loader = Objects.requireNonNull(loader);
+        this.loader = createDatabaseLoader(databasePath);
         this.databaseReader = new SetOnce<>();
         this.databaseType = new SetOnce<>();
     }

@@ -116,6 +116,9 @@ public final class FlattenedFieldMapper extends FieldMapper {
         return ((FlattenedFieldMapper) in).builder;
     }
 
+    private final int ignoreAboveDefault;
+    private final int ignoreAbove;
+
     public static class Builder extends FieldMapper.Builder {
 
         final Parameter<Integer> depthLimit = Parameter.intParam(
@@ -141,12 +144,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
             m -> builder(m).eagerGlobalOrdinals.get(),
             false
         );
-        private final Parameter<Integer> ignoreAbove = Parameter.intParam(
-            "ignore_above",
-            true,
-            m -> builder(m).ignoreAbove.get(),
-            Integer.MAX_VALUE
-        );
+        private final int ignoreAboveDefault;
+        private Parameter<Integer> ignoreAbove;
 
         private final Parameter<String> indexOptions = TextParams.keywordIndexOptions(m -> builder(m).indexOptions.get());
         private final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> builder(m).similarity.get());
@@ -177,8 +176,10 @@ public final class FlattenedFieldMapper extends FieldMapper {
             return FieldMapper.Parameter.stringArrayParam(TIME_SERIES_DIMENSIONS_ARRAY_PARAM, false, initializer);
         }
 
-        public Builder(String name) {
+        public Builder(String name, int ignoreAboveDefault) {
             super(name);
+            this.ignoreAboveDefault = ignoreAboveDefault;
+            this.ignoreAbove = Parameter.intParam("ignore_above", true, m -> builder(m).ignoreAbove.get(), ignoreAboveDefault);
         }
 
         @Override
@@ -215,11 +216,14 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 eagerGlobalOrdinals.get(),
                 dimensions.get()
             );
-            return new FlattenedFieldMapper(leafName(), ft, builderParams(this, context), this);
+            return new FlattenedFieldMapper(leafName(), ft, builderParams(this, context), ignoreAboveDefault, this);
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> {
+        int ignoreAboveDefault = IGNORE_ABOVE_SETTING.get(c.getSettings());
+        return new Builder(n, ignoreAboveDefault);
+    });
 
     /**
      * A field type that represents the values under a particular JSON key, used
@@ -736,9 +740,17 @@ public final class FlattenedFieldMapper extends FieldMapper {
     private final FlattenedFieldParser fieldParser;
     private final Builder builder;
 
-    private FlattenedFieldMapper(String leafName, MappedFieldType mappedFieldType, BuilderParams builderParams, Builder builder) {
+    private FlattenedFieldMapper(
+        String leafName,
+        MappedFieldType mappedFieldType,
+        BuilderParams builderParams,
+        int ignoreAboveDefault,
+        Builder builder
+    ) {
         super(leafName, mappedFieldType, builderParams);
+        this.ignoreAboveDefault = ignoreAboveDefault;
         this.builder = builder;
+        this.ignoreAbove = builder.ignoreAbove.get();
         this.fieldParser = new FlattenedFieldParser(
             mappedFieldType.name(),
             mappedFieldType.name() + KEYED_FIELD_SUFFIX,
@@ -763,8 +775,9 @@ public final class FlattenedFieldMapper extends FieldMapper {
         return builder.depthLimit.get();
     }
 
-    int ignoreAbove() {
-        return builder.ignoreAbove.get();
+    @Override
+    public int ignoreAbove() {
+        return ignoreAbove;
     }
 
     @Override
@@ -804,7 +817,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName()).init(this);
+        return new Builder(leafName(), ignoreAboveDefault).init(this);
     }
 
     @Override

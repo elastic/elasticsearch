@@ -109,26 +109,25 @@ public enum IndexDocFailureStoreStatus implements ToXContentFragment, Writeable 
 
     /**
      * Exception wrapper class that adds the failure store status in the XContent response.
-     * Note: We are not using {@link ExceptionWrapper} because then it unwraps it directly in the {@link ElasticsearchException}
+     * Note: We are not using {@link ExceptionWithFailureStoreStatus} because then it unwraps it directly in the {@link ElasticsearchException}
      * and we cannot add the field.
      */
-    public static class ExceptionWrapper extends ElasticsearchException {
+    public static class ExceptionWithFailureStoreStatus extends ElasticsearchException {
 
         private final IndexDocFailureStoreStatus failureStoreStatus;
 
-        public ExceptionWrapper(BulkItemResponse.Failure failure) {
+        public ExceptionWithFailureStoreStatus(BulkItemResponse.Failure failure) {
             super(failure.getCause());
             this.failureStoreStatus = failure.getFailureStoreStatus();
         }
 
-        public ExceptionWrapper(StreamInput in) throws IOException {
+        public ExceptionWithFailureStoreStatus(StreamInput in) throws IOException {
             super(in);
             if (in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_STATUS_IN_INDEX_RESPONSE)) {
                 failureStoreStatus = IndexDocFailureStoreStatus.fromId(in.readByte());
             } else {
                 failureStoreStatus = NOT_APPLICABLE_OR_UNKNOWN;
             }
-
         }
 
         @Override

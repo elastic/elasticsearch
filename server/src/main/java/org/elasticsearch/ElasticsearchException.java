@@ -1931,8 +1931,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             TransportVersions.INGEST_PIPELINE_EXCEPTION_ADDED
         ),
         INDEX_RESPONSE_WRAPPER_EXCEPTION(
-            IndexDocFailureStoreStatus.ExceptionWrapper.class,
-            IndexDocFailureStoreStatus.ExceptionWrapper::new,
+            IndexDocFailureStoreStatus.ExceptionWithFailureStoreStatus.class,
+            IndexDocFailureStoreStatus.ExceptionWithFailureStoreStatus::new,
             183,
             TransportVersions.FAILURE_STORE_STATUS_IN_INDEX_RESPONSE
         );

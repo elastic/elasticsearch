@@ -191,7 +191,11 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
                 final Response response = (Response) bulkItemResponse.getResponse();
                 l.onResponse(response);
             } else {
-                l.onFailure(new IndexDocFailureStoreStatus.ExceptionWrapper(bulkItemResponse.getFailure()));
+                if (bulkItemResponse.getFailure().getFailureStoreStatus().equals(IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN)) {
+                    l.onFailure(bulkItemResponse.getFailure().getCause());
+                } else {
+                    l.onFailure(new IndexDocFailureStoreStatus.ExceptionWithFailureStoreStatus(bulkItemResponse.getFailure()));
+                }
             }
         });
     }

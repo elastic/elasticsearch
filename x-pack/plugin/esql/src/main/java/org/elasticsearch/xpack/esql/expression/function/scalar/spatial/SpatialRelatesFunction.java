@@ -179,27 +179,23 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
             return geometryRelatesGeometry(leftDocValueReader, rightComponent2D);
         }
 
-        protected void processSourceAndConstant(
-            BooleanBlock.Builder builder,
-            int position,
-            BytesRefBlock leftValue,
-            @Fixed Component2D rightValue
-        ) throws IOException {
-            if (leftValue.getValueCount(position) < 1) {
+        protected void processSourceAndConstant(BooleanBlock.Builder builder, int position, BytesRefBlock left, @Fixed Component2D right)
+            throws IOException {
+            if (left.getValueCount(position) < 1) {
                 builder.appendNull();
             } else {
-                MultiValuesBytesRef leftValues = new MultiValuesBytesRef(leftValue, position);
-                builder.appendBoolean(geometryRelatesGeometry(leftValues, rightValue));
+                MultiValuesBytesRef leftValues = new MultiValuesBytesRef(left, position);
+                builder.appendBoolean(geometryRelatesGeometry(leftValues, right));
             }
         }
 
-        protected void processSourceAndSource(BooleanBlock.Builder builder, int position, BytesRefBlock leftValue, BytesRefBlock rightValue)
+        protected void processSourceAndSource(BooleanBlock.Builder builder, int position, BytesRefBlock left, BytesRefBlock right)
             throws IOException {
-            if (leftValue.getValueCount(position) < 1 || rightValue.getValueCount(position) < 1) {
+            if (left.getValueCount(position) < 1 || right.getValueCount(position) < 1) {
                 builder.appendNull();
             } else {
-                MultiValuesBytesRef leftValues = new MultiValuesBytesRef(leftValue, position);
-                MultiValuesBytesRef rightValues = new MultiValuesBytesRef(rightValue, position);
+                MultiValuesBytesRef leftValues = new MultiValuesBytesRef(left, position);
+                MultiValuesBytesRef rightValues = new MultiValuesBytesRef(right, position);
                 builder.appendBoolean(geometryRelatesGeometries(leftValues, rightValues));
             }
         }
@@ -224,7 +220,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
             LongBlock leftValue,
             BytesRefBlock rightValue
         ) throws IOException {
-            if (leftValue.getValueCount(position) < 1) {
+            if (leftValue.getValueCount(position) < 1 || rightValue.getValueCount(position) < 1) {
                 builder.appendNull();
             } else {
                 MultiValuesLong leftValues = new MultiValuesLong(leftValue, position, spatialCoordinateType::longAsPoint);
@@ -272,7 +268,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
             List<Geometry> geometries = new ArrayList<>();
             while (valueIndex < firstValue + valueCount) {
                 geometries.add(fromBytesRef(valueBlock.getBytesRef(valueIndex++, scratch)));
-                if (geometries.get(geometries.size() - 1) instanceof Point == false) {
+                if (geometries.getLast() instanceof Point == false) {
                     allPoints = false;
                 }
             }

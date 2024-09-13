@@ -21,8 +21,6 @@
 
 package org.elasticsearch.tdigest.arrays;
 
-import org.apache.lucene.util.ArrayUtil;
-
 import java.util.Arrays;
 
 /**
@@ -110,7 +108,11 @@ public class WrapperTDigestArrays implements TDigestArrays {
         @Override
         public void ensureCapacity(int requiredCapacity) {
             if (requiredCapacity > array.length) {
-                double[] newArray = new double[ArrayUtil.oversize(requiredCapacity, Double.BYTES)];
+                int newSize = array.length + (array.length >> 1);
+                if (newSize < requiredCapacity) {
+                    newSize = requiredCapacity;
+                }
+                double[] newArray = new double[newSize];
                 System.arraycopy(array, 0, newArray, 0, size);
                 array = newArray;
             }

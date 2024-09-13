@@ -64,7 +64,7 @@ public abstract class NativeLibraryProvider {
     private static NativeLibraryProvider loadProvider() {
         final int runtimeVersion = Runtime.version().feature();
         if (runtimeVersion >= 21) {
-            // return loadJdkImpl(runtimeVersion);
+            return loadJdkImpl(runtimeVersion);
         }
         return loadJnaImpl();
     }

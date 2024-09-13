@@ -594,7 +594,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         };
         client().execute(
             DownsampleAction.INSTANCE,
-            new DownsampleAction.Request(sourceIndex, downsampleIndex, TIMEOUT, config),
+            new DownsampleAction.Request(TEST_REQUEST_TIMEOUT, sourceIndex, downsampleIndex, TIMEOUT, config),
             downsampleListener
         );
         assertBusy(() -> {
@@ -607,7 +607,10 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
         assertBusy(() -> {
             try {
-                client().execute(DownsampleAction.INSTANCE, new DownsampleAction.Request(sourceIndex, downsampleIndex, TIMEOUT, config));
+                client().execute(
+                    DownsampleAction.INSTANCE,
+                    new DownsampleAction.Request(TEST_REQUEST_TIMEOUT, sourceIndex, downsampleIndex, TIMEOUT, config)
+                );
             } catch (ElasticsearchException e) {
                 fail("transient failure due to overlapping downsample operations");
             }
@@ -1145,7 +1148,10 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
     private void downsample(String sourceIndex, String downsampleIndex, DownsampleConfig config) {
         assertAcked(
-            client().execute(DownsampleAction.INSTANCE, new DownsampleAction.Request(sourceIndex, downsampleIndex, TIMEOUT, config))
+            client().execute(
+                DownsampleAction.INSTANCE,
+                new DownsampleAction.Request(TEST_REQUEST_TIMEOUT, sourceIndex, downsampleIndex, TIMEOUT, config)
+            )
         );
     }
 

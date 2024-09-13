@@ -53,7 +53,6 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -107,7 +106,7 @@ public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<Glo
         }
 
         static boolean equals(RoutingTable left, RoutingTable right) {
-            return left.version() == right.version() && Objects.equals(left.indicesRouting(), right.indicesRouting());
+            return Objects.equals(left.indicesRouting(), right.indicesRouting());
         }
 
         @Override
@@ -118,7 +117,7 @@ public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<Glo
             final var iterator = routingTables().entrySet().stream().sorted(Comparator.comparing(e -> e.getKey().id())).iterator();
             while (iterator.hasNext()) {
                 final Map.Entry<ProjectId, RoutingTable> entry = iterator.next();
-                result = 31 * result + Objects.hash(entry.getKey(), entry.getValue().version(), entry.getValue().indicesRouting());
+                result = 31 * result + Objects.hash(entry.getKey(), entry.getValue().indicesRouting());
             }
             return result;
         }
@@ -179,8 +178,7 @@ public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<Glo
             PRE_MULTI_PROJECT_TRANSPORT_VERSION,
             (original, reconstructed) -> {
                 // The round-trip will lose the version of the global table and replace it with the version from the inner routing table
-                return GlobalRoutingTableWithEquals.equals(original.getRoutingTable(), reconstructed.getRoutingTable())
-                    && reconstructed.version() == reconstructed.getRoutingTable().version();
+                return GlobalRoutingTableWithEquals.equals(original.getRoutingTable(), reconstructed.getRoutingTable());
             }
         );
     }
@@ -199,15 +197,14 @@ public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<Glo
         // Updated projects but with same routing => same routing
         updated = new GlobalRoutingTable(
             randomLong(),
-            ImmutableOpenMap.builder(transformValues(original.routingTables(), rt -> RoutingTable.builder(rt).incrementVersion().build()))
-                .build()
+            ImmutableOpenMap.builder(transformValues(original.routingTables(), rt -> RoutingTable.builder(rt).build())).build()
         );
         assertTrue(original.hasSameIndexRouting(updated));
         assertTrue(updated.hasSameIndexRouting(original));
 
         // Reconstructed index map (with same elements) => different routing
         updated = new GlobalRoutingTable(randomLong(), ImmutableOpenMap.builder(transformValues(original.routingTables(), rt -> {
-            final RoutingTable.Builder builder = RoutingTable.builder().version(rt.version());
+            final RoutingTable.Builder builder = RoutingTable.builder();
             rt.indicesRouting().values().forEach(builder::add);
             return builder.build();
         })).build());
@@ -245,13 +242,12 @@ public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<Glo
         final long version = randomLong();
         final int numberOfProjects = randomIntBetween(1, 10);
         final ProjectId[] projectIds = randomArray(numberOfProjects, numberOfProjects, ProjectId[]::new, () -> new ProjectId(randomUUID()));
-        final Long[] projectVersions = randomArray(numberOfProjects, numberOfProjects, Long[]::new, ESTestCase::randomLong);
         final Integer[] projectIndexCount = randomArray(numberOfProjects, numberOfProjects, Integer[]::new, () -> randomIntBetween(0, 12));
 
         final GlobalRoutingTable.Builder builder = GlobalRoutingTable.builder();
         builder.version(version);
         for (int i = 0; i < numberOfProjects; i++) {
-            builder.put(projectIds[i], addIndices(projectIndexCount[i], RoutingTable.builder().version(projectVersions[i])));
+            builder.put(projectIds[i], addIndices(projectIndexCount[i], RoutingTable.builder()));
         }
         final GlobalRoutingTable builtRoutingTable = builder.build();
 
@@ -262,7 +258,6 @@ public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<Glo
             final ProjectId projectId = projectIds[i];
             assertThat(builtRoutingTable.routingTables(), hasKey(projectId));
             final RoutingTable projectRoutingTable = builtRoutingTable.routingTable(projectId);
-            assertThat(projectRoutingTable.version(), equalTo(projectVersions[i]));
             assertThat(projectRoutingTable.indicesRouting().size(), equalTo(projectIndexCount[i]));
         }
 
@@ -549,7 +544,7 @@ public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<Glo
     }
 
     private RoutingTable randomRoutingTable() {
-        return addIndices(randomIntBetween(0, 10), new RoutingTable.Builder().version(randomLong()));
+        return addIndices(randomIntBetween(0, 10), new RoutingTable.Builder());
     }
 
     private static RoutingTable addIndices(int indexCount, RoutingTable.Builder builder) {

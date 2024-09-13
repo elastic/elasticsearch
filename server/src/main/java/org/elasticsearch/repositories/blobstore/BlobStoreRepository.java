@@ -3606,6 +3606,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                     ensureNotClosing(store);
                                     return container.readBlob(OperationPurpose.SNAPSHOT_DATA, fileInfo.partName(slice));
                                 }
+
+                                @Override
+                                public boolean markSupported() {
+                                    return false;
+                                }
                             })) {
                                 final byte[] buffer = new byte[Math.toIntExact(Math.min(bufferSize, fileInfo.length()))];
                                 int length;

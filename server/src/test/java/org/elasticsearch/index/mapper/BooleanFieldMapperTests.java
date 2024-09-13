@@ -344,12 +344,7 @@ public class BooleanFieldMapperTests extends MapperTestCase {
 
             @Override
             public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
-                return List.of(
-                    new SyntheticSourceInvalidExample(
-                        equalTo("field [field] of type [boolean] doesn't support synthetic source because it doesn't have doc values"),
-                        b -> b.field("type", "boolean").field("doc_values", false)
-                    )
-                );
+                return List.of();
             }
         };
     }

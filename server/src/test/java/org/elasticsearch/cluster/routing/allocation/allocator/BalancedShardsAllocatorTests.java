@@ -230,7 +230,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         );
 
         var clusterState = applyStartedShardsUntilNoChange(
-            stateWithStartedIndices(
+            createStateWithIndices(
                 anIndex("heavy-index").indexWriteLoadForecast(8.0),
                 anIndex("light-index-1").indexWriteLoadForecast(1.0),
                 anIndex("light-index-2").indexWriteLoadForecast(2.0),
@@ -266,7 +266,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         var allocationService = createAllocationService(WITH_DISK_BALANCING);
 
         var clusterState = applyStartedShardsUntilNoChange(
-            stateWithStartedIndices(
+            createStateWithIndices(
                 anIndex("heavy-index").shardSizeInBytesForecast(ByteSizeValue.ofGb(8).getBytes()),
                 anIndex("light-index-1").shardSizeInBytesForecast(ByteSizeValue.ofGb(1).getBytes()),
                 anIndex("light-index-2").shardSizeInBytesForecast(ByteSizeValue.ofGb(2).getBytes()),
@@ -311,7 +311,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         );
 
         var clusterState = applyStartedShardsUntilNoChange(
-            stateWithStartedIndices(
+            createStateWithIndices(
                 anIndex("heavy-index"),
                 anIndex("light-index-1"),
                 anIndex("light-index-2"),
@@ -347,7 +347,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         );
 
         var clusterState = applyStartedShardsUntilNoChange(
-            stateWithStartedIndices(
+            createStateWithIndices(
                 anIndex("heavy-index"),// size is set in cluster info
                 anIndex("light-index-1").shardSizeInBytesForecast(ByteSizeValue.ofGb(1).getBytes()),
                 anIndex("light-index-2").shardSizeInBytesForecast(ByteSizeValue.ofGb(2).getBytes()),
@@ -383,7 +383,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             .put(SETTING_IGNORE_DISK_WATERMARKS.getKey(), true);
 
         var clusterState = applyStartedShardsUntilNoChange(
-            stateWithStartedIndices(
+            createStateWithIndices(
                 anIndex("frozen-index-1", partialSearchableSnapshotSettings).shardSizeInBytesForecast(ByteSizeValue.ofGb(1).getBytes()),
                 anIndex("frozen-index-2", partialSearchableSnapshotSettings).shardSizeInBytesForecast(ByteSizeValue.ofGb(1).getBytes()),
                 anIndex("frozen-index-3", partialSearchableSnapshotSettings).shardSizeInBytesForecast(ByteSizeValue.ofGb(1).getBytes()),
@@ -651,13 +651,32 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         return IndexMetadata.builder(name).settings(settings);
     }
 
-    private static ClusterState stateWithStartedIndices(IndexMetadata.Builder... indices) {
+    private static ClusterState createStateWithIndices(IndexMetadata.Builder... indexMetadataBuilders) {
         var metadataBuilder = Metadata.builder();
         var routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
-        for (var index : indices) {
-            var build = index.build();
-            metadataBuilder.put(build, false);
-            routingTableBuilder.addAsNew(build);
+        if (randomBoolean()) {
+            // allocate all shards from scratch
+            for (var index : indexMetadataBuilders) {
+                var indexMetadata = index.build();
+                metadataBuilder.put(indexMetadata, false);
+                routingTableBuilder.addAsNew(indexMetadata);
+            }
+        } else {
+            // ensure unbalanced cluster cloud be properly balanced
+            // simulates a case when we add a second node and ensure shards could be evenly spread across all available nodes
+            for (var index : indexMetadataBuilders) {
+                var inSyncId = UUIDs.randomBase64UUID();
+                var indexMetadata = index.putInSyncAllocationIds(0, Set.of(inSyncId)).build();
+                metadataBuilder.put(indexMetadata, false);
+                routingTableBuilder.add(
+                    IndexRoutingTable.builder(indexMetadata.getIndex())
+                        .addShard(
+                            shardRoutingBuilder(new ShardId(indexMetadata.getIndex(), 0), "node-1", true, ShardRoutingState.STARTED)
+                                .withAllocationId(AllocationId.newInitializing(inSyncId))
+                                .build()
+                        )
+                );
+            }
         }
 
         return ClusterState.builder(ClusterName.DEFAULT)

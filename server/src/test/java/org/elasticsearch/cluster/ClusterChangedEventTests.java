@@ -750,7 +750,7 @@ public class ClusterChangedEventTests extends ESTestCase {
 
     // Create the routing table for a cluster state.
     private static RoutingTable createRoutingTable(Collection<IndexMetadata> values) {
-        final RoutingTable.Builder builder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).version(1);
+        final RoutingTable.Builder builder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         for (IndexMetadata indexMetadata : values) {
             builder.addAsNew(indexMetadata);
         }

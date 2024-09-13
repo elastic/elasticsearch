@@ -202,13 +202,15 @@ public class NativePrivilegeStore {
         }
     }
 
-    private void innerGetPrivileges(Collection<String> applications, ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener) {
+    // pck-private for testing
+    void innerGetPrivileges(Collection<String> applications, ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener) {
         // timeout of 0 means skip wait attempt entirely
         final boolean waitForAvailableSecurityIndex = false == SECURITY_INDEX_WAIT_TIMEOUT.equals(TimeValue.ZERO);
         innerGetPrivileges(applications, waitForAvailableSecurityIndex, listener);
     }
 
-    private void innerGetPrivileges(
+    // pck-private for testing
+    void innerGetPrivileges(
         Collection<String> applications,
         boolean waitForAvailableSecurityIndex,
         ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener
@@ -232,7 +234,7 @@ public class NativePrivilegeStore {
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.info("Failure waiting for security index [" + frozenSecurityIndex.getConcreteIndexName() + "]", e);
+                    logger.info("failure while waiting for security index [" + frozenSecurityIndex.getConcreteIndexName() + "]", e);
                     // Call get privileges once more to get most up-to-date failure (or result, in case of an unlucky time-out)
                     innerGetPrivileges(applications, false, listener);
                 }

@@ -12,7 +12,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.logsdb.datageneration.DataGenerator;
 import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
@@ -147,9 +146,6 @@ public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends Standa
     @Override
     public void contenderSettings(Settings.Builder builder) {
         super.contenderSettings(builder);
-        if (keepArraySource) {
-            builder.put(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING.getKey(), "arrays");
-        }
     }
 
     @Override

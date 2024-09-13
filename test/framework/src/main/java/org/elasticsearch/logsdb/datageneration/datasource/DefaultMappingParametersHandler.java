@@ -22,9 +22,6 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         map.put("store", ESTestCase.randomBoolean());
         map.put("index", ESTestCase.randomBoolean());
         map.put("doc_values", ESTestCase.randomBoolean());
-        if (ESTestCase.randomBoolean()) {
-            map.put("synthetic_source_keep", ESTestCase.randomFrom("none", "arrays", "all"));
-        }
 
         return new DataSourceResponse.LeafMappingParametersGenerator(switch (request.fieldType()) {
             case KEYWORD -> keywordMapping(request, map);

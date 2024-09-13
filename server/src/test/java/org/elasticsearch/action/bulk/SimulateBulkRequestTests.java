@@ -8,13 +8,19 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class SimulateBulkRequestTests extends ESTestCase {
 
@@ -37,6 +43,74 @@ public class SimulateBulkRequestTests extends ESTestCase {
          */
         SimulateBulkRequest copy = copyWriteable(simulateBulkRequest, null, SimulateBulkRequest::new);
         assertThat(copy.getPipelineSubstitutions(), equalTo(simulateBulkRequest.getPipelineSubstitutions()));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetComponentTemplateSubstitutions() throws IOException {
+        SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(Map.of(), Map.of());
+        assertThat(simulateBulkRequest.getComponentTemplateSubstitutions(), equalTo(Map.of()));
+        String substituteComponentTemplatesString = """
+              {
+                  "mappings_template": {
+                    "mappings": {
+                      "dynamic": "true",
+                      "properties": {
+                        "foo": {
+                          "type": "keyword"
+                        }
+                      }
+                    }
+                  },
+                  "settings_template": {
+                    "settings": {
+                      "index": {
+                        "default_pipeline": "bar-pipeline"
+                      }
+                    }
+                  }
+              }
+            """;
+
+        Map tempMap = XContentHelper.convertToMap(
+            new BytesArray(substituteComponentTemplatesString.getBytes(StandardCharsets.UTF_8)),
+            randomBoolean(),
+            XContentType.JSON
+        ).v2();
+        Map<String, Map<String, Object>> substituteComponentTemplates = (Map<String, Map<String, Object>>) tempMap;
+        simulateBulkRequest = new SimulateBulkRequest(Map.of(), substituteComponentTemplates);
+        Map<String, ComponentTemplate> componentTemplateSubstitutions = simulateBulkRequest.getComponentTemplateSubstitutions();
+        assertThat(componentTemplateSubstitutions.size(), equalTo(2));
+        assertThat(
+            XContentHelper.convertToMap(
+                componentTemplateSubstitutions.get("mappings_template").template().mappings().uncompressed(),
+                randomBoolean(),
+                XContentType.JSON
+            ).v2(),
+            equalTo(substituteComponentTemplates.get("mappings_template").get("mappings"))
+        );
+        assertNull(componentTemplateSubstitutions.get("mappings_template").template().settings());
+        assertNull(componentTemplateSubstitutions.get("settings_template").template().mappings());
+        assertThat(componentTemplateSubstitutions.get("settings_template").template().settings().size(), equalTo(1));
+        assertThat(
+            componentTemplateSubstitutions.get("settings_template").template().settings().get("index.default_pipeline"),
+            equalTo("bar-pipeline")
+        );
+    }
+
+    public void testShallowClone() throws IOException {
+        SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(getTestPipelineSubstitutions(), getTestTemplateSubstitutions());
+        BulkRequest shallowCopy = simulateBulkRequest.shallowClone();
+        assertThat(shallowCopy, instanceOf(SimulateBulkRequest.class));
+        SimulateBulkRequest simulateBulkRequestCopy = (SimulateBulkRequest) shallowCopy;
+        assertThat(simulateBulkRequestCopy.requests, equalTo(List.of()));
+        assertThat(
+            simulateBulkRequestCopy.getComponentTemplateSubstitutions(),
+            equalTo(simulateBulkRequest.getComponentTemplateSubstitutions())
+        );
+        assertThat(simulateBulkRequestCopy.getPipelineSubstitutions(), equalTo(simulateBulkRequest.getPipelineSubstitutions()));
+        assertThat(simulateBulkRequestCopy.getRefreshPolicy(), equalTo(simulateBulkRequest.getRefreshPolicy()));
+        assertThat(simulateBulkRequestCopy.waitForActiveShards(), equalTo(simulateBulkRequest.waitForActiveShards()));
+        assertThat(simulateBulkRequestCopy.timeout(), equalTo(simulateBulkRequest.timeout()));
     }
 
     private static Map<String, Map<String, Object>> getTestPipelineSubstitutions() {

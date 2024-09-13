@@ -86,7 +86,7 @@ public final class MMDBUtil {
                 size = 29 + fromBytes(tail[metadataOffset + 1]);
                 metadataOffset += 1;
             } else if (size >= 30) {
-                // we'd need to two or more three bytes to get the size, but this means the type length is >=285
+                // we'd need to read two or three more bytes to get the size, but this means the type length is >=285
                 throw new IOException("database type marker not found [size == " + size + "]");
             }
 

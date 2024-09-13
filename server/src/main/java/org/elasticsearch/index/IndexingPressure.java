@@ -16,8 +16,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.stats.IndexingPressureStats;
 
+import java.time.Clock;
+import java.time.InstantSource;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -56,11 +59,31 @@ public class IndexingPressure {
     private final AtomicLong primaryDocumentRejections = new AtomicLong(0);
 
     private final long primaryAndCoordinatingLimits;
+
+    protected record WarningThreshold(long bytes, TimeValue period, InstantSource clock) {
+        public WarningThreshold(long absoluteLimit) {
+            this(absoluteLimit * 9 / 10, TimeValue.timeValueMinutes(5), Clock.systemUTC());
+        }
+    }
+
+    private final WarningThreshold primaryAndCoordinatingWarnThreshold;
+    private final AtomicLong primaryAndCoordinatingThresholdCrossed;
+
     private final long replicaLimits;
 
     public IndexingPressure(Settings settings) {
-        this.primaryAndCoordinatingLimits = MAX_INDEXING_BYTES.get(settings).getBytes();
-        this.replicaLimits = (long) (this.primaryAndCoordinatingLimits * 1.5);
+        this(MAX_INDEXING_BYTES.get(settings).getBytes());
+    }
+
+    private IndexingPressure(long primaryAndCoordinatingLimits) {
+        this(primaryAndCoordinatingLimits, (long) (primaryAndCoordinatingLimits * 1.5), new WarningThreshold(primaryAndCoordinatingLimits));
+    }
+
+    IndexingPressure(long primaryAndCoordinatingLimits, long replicaLimits, WarningThreshold primaryAndCoordinatingWarnThreshold) {
+        this.primaryAndCoordinatingLimits = primaryAndCoordinatingLimits;
+        this.replicaLimits = replicaLimits;
+        this.primaryAndCoordinatingWarnThreshold = primaryAndCoordinatingWarnThreshold;
+        this.primaryAndCoordinatingThresholdCrossed = new AtomicLong(0);
     }
 
     private static Releasable wrapReleasable(Releasable releasable) {
@@ -79,6 +102,7 @@ public class IndexingPressure {
         long combinedBytes = this.currentCombinedCoordinatingAndPrimaryBytes.addAndGet(bytes);
         long replicaWriteBytes = this.currentReplicaBytes.get();
         long totalBytes = combinedBytes + replicaWriteBytes;
+        checkWarningThreshold(totalBytes);
         if (forceExecution == false && totalBytes > primaryAndCoordinatingLimits) {
             long bytesWithoutOperation = combinedBytes - bytes;
             long totalBytesWithoutOperation = totalBytes - bytes;
@@ -113,10 +137,43 @@ public class IndexingPressure {
         totalCoordinatingRequests.getAndIncrement();
         return wrapReleasable(() -> {
             logger.trace(() -> Strings.format("removing [%d] coordinating operations and [%d] bytes", operations, bytes));
-            this.currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
+            final long finalCombinedBytes = this.currentCombinedCoordinatingAndPrimaryBytes.addAndGet(-bytes);
             this.currentCoordinatingBytes.getAndAdd(-bytes);
             this.currentCoordinatingOps.getAndAdd(-operations);
+            checkWarningThreshold(finalCombinedBytes + currentReplicaBytes.get());
         });
+    }
+
+    private void checkWarningThreshold(long totalBytes) {
+        if (totalBytes > primaryAndCoordinatingWarnThreshold.bytes()) {
+            final long now = primaryAndCoordinatingWarnThreshold.clock().millis();
+            // over threshold, set the time-threshold-was-crossed if-only-if it was not set
+            if (primaryAndCoordinatingThresholdCrossed.compareAndSet(0, now) == false) {
+                // if we didn't set it, then it must have already been set - check how long that's been
+                final long timeCrossed = primaryAndCoordinatingThresholdCrossed.get();
+                final long durationOverThreshold = now - timeCrossed;
+                if (durationOverThreshold > primaryAndCoordinatingWarnThreshold.period().getMillis()) {
+                    // If we've been over the threshold for too long, try to update the time to now then log a warning
+                    if (primaryAndCoordinatingThresholdCrossed.compareAndSet(timeCrossed, now)) {
+                        logThresholdWarning();
+                    }
+                }
+            }
+        } else {
+            // not (no longer?) over threshold, reset the time-threshold-was-crossed to 0
+            primaryAndCoordinatingThresholdCrossed.set(0);
+        }
+    }
+
+    // override in tests
+    protected void logThresholdWarning() {
+        logger.warn(
+            "indexing_pressure has been higher than ["
+                + primaryAndCoordinatingWarnThreshold.bytes()
+                + "] bytes for over ["
+                + primaryAndCoordinatingWarnThreshold.period()
+                + "]"
+        );
     }
 
     public Releasable markPrimaryOperationLocalToCoordinatingNodeStarted(int operations, long bytes) {

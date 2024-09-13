@@ -28,7 +28,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
@@ -38,7 +41,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
 
     private static final List<DataType> TYPES;
     static {
-        List<DataType> t = List.of(
+        List<DataType> t = Stream.of(
             DataType.KEYWORD,
             DataType.TEXT,
             DataType.BOOLEAN,
@@ -54,11 +57,11 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
             DataType.CARTESIAN_SHAPE,
             DataType.GEO_SHAPE,
             DataType.NULL
-        );
+        ).collect(Collectors.toList());
         if (Build.current().isSnapshot()) {
-            t.add(DataType.DATE_NANOS);
+            t.addAll(DataType.UNDER_CONSTRUCTION.keySet());
         }
-        TYPES = new ArrayList<>(t);
+        TYPES = unmodifiableList(t);
     }
 
     public CaseTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {

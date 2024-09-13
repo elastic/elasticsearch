@@ -8,20 +8,18 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.elasticsearch.action.support.nodes.BaseNodesResponse;
-import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Set;
 
 /**
  * Trimmed down cluster stats response for reporting to a remote cluster.
  */
-public class RemoteClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResponse> {
+public class RemoteClusterStatsResponse extends ActionResponse {
     final String clusterUUID;
     final ClusterHealthStatus status;
     private final Set<String> versions;
@@ -61,7 +59,6 @@ public class RemoteClusterStatsResponse extends BaseNodesResponse<ClusterStatsNo
     }
 
     public RemoteClusterStatsResponse(
-        ClusterName clusterName,
         String clusterUUID,
         ClusterHealthStatus status,
         Set<String> versions,
@@ -72,7 +69,6 @@ public class RemoteClusterStatsResponse extends BaseNodesResponse<ClusterStatsNo
         long heapBytes,
         long memBytes
     ) {
-        super(clusterName, List.of(), List.of());
         this.clusterUUID = clusterUUID;
         this.status = status;
         this.versions = versions;
@@ -94,7 +90,6 @@ public class RemoteClusterStatsResponse extends BaseNodesResponse<ClusterStatsNo
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeString(clusterUUID);
         status.writeTo(out);
         out.writeStringCollection(versions);
@@ -118,12 +113,4 @@ public class RemoteClusterStatsResponse extends BaseNodesResponse<ClusterStatsNo
         this.heapBytes = in.readLong();
         this.memBytes = in.readLong();
     }
-
-    @Override
-    protected List<ClusterStatsNodeResponse> readNodesFrom(StreamInput in) throws IOException {
-        return List.of();
-    }
-
-    @Override
-    protected void writeNodesTo(StreamOutput out, List<ClusterStatsNodeResponse> nodes) throws IOException {}
 }

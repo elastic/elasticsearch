@@ -76,7 +76,7 @@ public class ClusterStatsRemoteIT extends AbstractMultiClustersTestCase {
         assertThat(remotesUsage.size(), equalTo(3));
         assertNull(response.getRemoteClustersStats());
         // collect stats with remotes
-        response = client.admin().cluster().prepareClusterStatsWithRemotes().get();
+        response = client.admin().cluster().execute(TransportClusterStatsAction.TYPE, new ClusterStatsRequest(true)).get();
         assertNotNull(response.getCcsMetrics());
         remotesUsage = response.getCcsMetrics().getByRemoteCluster();
         assertThat(remotesUsage.size(), equalTo(3));
@@ -86,19 +86,19 @@ public class ClusterStatsRemoteIT extends AbstractMultiClustersTestCase {
         for (String clusterAlias : remoteClusterAlias()) {
             assertThat(remoteStats, hasKey(clusterAlias));
             assertThat(remotesUsage, hasKey(clusterAlias));
-            assertThat(remoteStats.get(clusterAlias).getStatus(), equalToIgnoringCase(ClusterHealthStatus.GREEN.name()));
-            assertThat(remoteStats.get(clusterAlias).getIndicesCount(), greaterThan(0L));
-            assertThat(remoteStats.get(clusterAlias).getNodesCount(), greaterThan(0L));
-            assertThat(remoteStats.get(clusterAlias).getShardsCount(), greaterThan(0L));
-            assertThat(remoteStats.get(clusterAlias).getHeapBytes(), greaterThan(0L));
-            assertThat(remoteStats.get(clusterAlias).getMemBytes(), greaterThan(0L));
-            assertThat(remoteStats.get(clusterAlias).getIndicesBytes(), greaterThan(0L));
-            assertThat(remoteStats.get(clusterAlias).getVersions(), hasItem(Version.CURRENT.toString()));
-            assertThat(remoteStats.get(clusterAlias).getClusterUUID(), not(equalTo("")));
-            assertThat(remoteStats.get(clusterAlias).getMode(), oneOf("sniff", "proxy"));
+            assertThat(remoteStats.get(clusterAlias).status(), equalToIgnoringCase(ClusterHealthStatus.GREEN.name()));
+            assertThat(remoteStats.get(clusterAlias).indicesCount(), greaterThan(0L));
+            assertThat(remoteStats.get(clusterAlias).nodesCount(), greaterThan(0L));
+            assertThat(remoteStats.get(clusterAlias).shardsCount(), greaterThan(0L));
+            assertThat(remoteStats.get(clusterAlias).heapBytes(), greaterThan(0L));
+            assertThat(remoteStats.get(clusterAlias).memBytes(), greaterThan(0L));
+            assertThat(remoteStats.get(clusterAlias).indicesBytes(), greaterThan(0L));
+            assertThat(remoteStats.get(clusterAlias).versions(), hasItem(Version.CURRENT.toString()));
+            assertThat(remoteStats.get(clusterAlias).clusterUUID(), not(equalTo("")));
+            assertThat(remoteStats.get(clusterAlias).mode(), oneOf("sniff", "proxy"));
         }
-        assertFalse(remoteStats.get(REMOTE1).isSkipUnavailable());
-        assertTrue(remoteStats.get(REMOTE2).isSkipUnavailable());
+        assertFalse(remoteStats.get(REMOTE1).skipUnavailable());
+        assertTrue(remoteStats.get(REMOTE2).skipUnavailable());
     }
 
     private void setupClusters() {

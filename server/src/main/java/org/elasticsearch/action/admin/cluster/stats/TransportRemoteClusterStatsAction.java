@@ -25,16 +25,17 @@ import org.elasticsearch.transport.TransportService;
  */
 public class TransportRemoteClusterStatsAction extends HandledTransportAction<RemoteClusterStatsRequest, RemoteClusterStatsResponse> {
 
-    public static final ActionType<RemoteClusterStatsResponse> TYPE = new ActionType<>("cluster:monitor/stats/remote");
+    public static final String NAME = "cluster:monitor/stats/remote";
+    public static final ActionType<RemoteClusterStatsResponse> TYPE = new ActionType<>(NAME);
     public static final RemoteClusterActionType<RemoteClusterStatsResponse> REMOTE_TYPE = new RemoteClusterActionType<>(
-        TYPE.name(),
+        NAME,
         RemoteClusterStatsResponse::new
     );
     private final NodeClient client;
 
     @Inject
     public TransportRemoteClusterStatsAction(NodeClient client, TransportService transportService, ActionFilters actionFilters) {
-        super(TYPE.name(), transportService, actionFilters, RemoteClusterStatsRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(NAME, transportService, actionFilters, RemoteClusterStatsRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = client;
     }
 
@@ -46,7 +47,6 @@ public class TransportRemoteClusterStatsAction extends HandledTransportAction<Re
             subRequest,
             listener.map(
                 clusterStatsResponse -> new RemoteClusterStatsResponse(
-                    clusterStatsResponse.getClusterName(),
                     clusterStatsResponse.getClusterUUID(),
                     clusterStatsResponse.getStatus(),
                     clusterStatsResponse.getNodesStats().getVersions(),

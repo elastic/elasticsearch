@@ -145,7 +145,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
 
         if (CCS_TELEMETRY_FEATURE_FLAG.isEnabled()) {
             builder.startObject("ccs");
-            if (remoteClustersStats != null && remoteClustersStats.isEmpty() == false) {
+            if (remoteClustersStats != null) {
                 builder.field("clusters", remoteClustersStats);
             }
             ccsMetrics.toXContent(builder, params);
@@ -160,98 +160,40 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         return Strings.toString(this, true, true);
     }
 
-    public static class RemoteClusterStats implements ToXContentFragment {
-        private final String clusterUUID;
-        private final String mode;
-        private final boolean skipUnavailable;
-        private final String transportCompress;
-        private final Set<String> versions;
-        private final String status;
-        private final long nodesCount;
-        private final long shardsCount;
-        private final long indicesCount;
-        private final long indicesBytes;
-        private final long heapBytes;
-        private final long memBytes;
-
+    public record RemoteClusterStats(
+        String clusterUUID,
+        String mode,
+        boolean skipUnavailable,
+        String transportCompress,
+        Set<String> versions,
+        String status,
+        long nodesCount,
+        long shardsCount,
+        long indicesCount,
+        long indicesBytes,
+        long heapBytes,
+        long memBytes
+    ) implements ToXContentFragment {
         public RemoteClusterStats(
             RemoteClusterStatsResponse remoteResponse,
             String mode,
             boolean skipUnavailable,
             String transportCompress
         ) {
-            this.mode = mode;
-            this.skipUnavailable = skipUnavailable;
-            this.transportCompress = transportCompress.toLowerCase(Locale.ROOT);
-            if (remoteResponse != null) {
-                this.clusterUUID = remoteResponse.getClusterUUID();
-                this.versions = remoteResponse.getVersions();
-                this.status = remoteResponse.getStatus().name().toLowerCase(Locale.ROOT);
-                this.nodesCount = remoteResponse.getNodesCount();
-                this.shardsCount = remoteResponse.getShardsCount();
-                this.indicesCount = remoteResponse.getIndicesCount();
-                this.indicesBytes = remoteResponse.getIndicesBytes();
-                this.heapBytes = remoteResponse.getHeapBytes();
-                this.memBytes = remoteResponse.getMemBytes();
-            } else {
-                this.status = "unavailable";
-                this.clusterUUID = "unavailable";
-                this.versions = Set.of();
-                this.nodesCount = 0;
-                this.shardsCount = 0;
-                this.indicesCount = 0;
-                this.indicesBytes = 0;
-                this.heapBytes = 0;
-                this.memBytes = 0;
-            }
-        }
-
-        public String getClusterUUID() {
-            return clusterUUID;
-        }
-
-        public String getMode() {
-            return mode;
-        }
-
-        public boolean isSkipUnavailable() {
-            return skipUnavailable;
-        }
-
-        public String getTransportCompress() {
-            return transportCompress;
-        }
-
-        public Set<String> getVersions() {
-            return versions;
-        }
-
-        public String getStatus() {
-            return status;
-        }
-
-        public long getNodesCount() {
-            return nodesCount;
-        }
-
-        public long getShardsCount() {
-            return shardsCount;
-        }
-
-        public long getIndicesCount() {
-            return indicesCount;
-        }
-
-        public long getIndicesBytes() {
-            return indicesBytes;
-        }
-
-        public long getHeapBytes() {
-            return heapBytes;
-        }
-
-        public long getMemBytes() {
-            return memBytes;
+            this(
+                remoteResponse == null ? "unavailable" : remoteResponse.getClusterUUID(),
+                mode,
+                skipUnavailable,
+                transportCompress.toLowerCase(Locale.ROOT),
+                remoteResponse == null ? Set.of() : remoteResponse.getVersions(),
+                remoteResponse == null ? "unavailable" : remoteResponse.getStatus().name().toLowerCase(Locale.ROOT),
+                remoteResponse == null ? 0 : remoteResponse.getNodesCount(),
+                remoteResponse == null ? 0 : remoteResponse.getShardsCount(),
+                remoteResponse == null ? 0 : remoteResponse.getIndicesCount(),
+                remoteResponse == null ? 0 : remoteResponse.getIndicesBytes(),
+                remoteResponse == null ? 0 : remoteResponse.getHeapBytes(),
+                remoteResponse == null ? 0 : remoteResponse.getMemBytes()
+            );
         }
 
         @Override

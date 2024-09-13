@@ -11,9 +11,7 @@ package org.elasticsearch.action.admin.cluster.stats;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
@@ -23,7 +21,7 @@ import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterSnapshotStats;
 import org.elasticsearch.cluster.ClusterState;
@@ -170,10 +168,10 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             clusterService.threadPool().absoluteTimeInMillis()
         );
 
-        final Map<String, ClusterStatsResponse.RemoteClusterStats> remoteClusterStats =
+        SubscribableListener<Map<String, ClusterStatsResponse.RemoteClusterStats>> remoteClusterStatsListener =
             (listener instanceof ActionListenerWithRemotes listenerWithRemotes)
-                ? listenerWithRemotes.getRemoteClusterStats(request)
-                : Map.of();
+                ? listenerWithRemotes.getRemoteClusterStats()
+                : SubscribableListener.newSucceeded(null);
 
         final ListenableFuture<MappingStats> mappingStatsStep = new ListenableFuture<>();
         final ListenableFuture<AnalysisStats> analysisStatsStep = new ListenableFuture<>();
@@ -184,21 +182,22 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             listener.delegateFailureAndWrap(
                 (l, mappingStats) -> analysisStatsStep.addListener(
                     l.delegateFailureAndWrap(
-                        (ll, analysisStats) -> ActionListener.completeWith(
-                            ll,
-                            () -> new ClusterStatsResponse(
-                                System.currentTimeMillis(),
-                                metadata.clusterUUID(),
-                                clusterService.getClusterName(),
-                                responses,
-                                failures,
-                                mappingStats,
-                                analysisStats,
-                                VersionStats.of(metadata, responses),
-                                clusterSnapshotStats,
-                                remoteClusterStats
+                        (ll, analysisStats) -> remoteClusterStatsListener.<ClusterStatsResponse>andThen(
+                            (delegate, remoteClusterStats) -> delegate.onResponse(
+                                new ClusterStatsResponse(
+                                    System.currentTimeMillis(),
+                                    metadata.clusterUUID(),
+                                    clusterService.getClusterName(),
+                                    responses,
+                                    failures,
+                                    mappingStats,
+                                    analysisStats,
+                                    VersionStats.of(metadata, responses),
+                                    clusterSnapshotStats,
+                                    remoteClusterStats
+                                )
                             )
-                        )
+                        ).addListener(ll)
                     )
                 )
             )
@@ -385,55 +384,52 @@ public class TransportClusterStatsAction extends TransportNodesAction<
 
     private class ActionListenerWithRemotes implements ActionListener<ClusterStatsResponse> {
         private final ActionListener<ClusterStatsResponse> listener;
-        private final ActionFuture<Map<String, RemoteClusterStatsResponse>> remoteFuture;
+        private final SubscribableListener<Map<String, RemoteClusterStatsResponse>> remoteListener;
 
         ActionListenerWithRemotes(ActionListener<ClusterStatsResponse> listener, ClusterStatsRequest request) {
             this.listener = listener;
-            remoteFuture = getStatsFromRemotes(request);
+            remoteListener = getStatsFromRemotes(request);
         }
 
-        private Map<String, RemoteClusterStatsResponse> resolveRemoteClusterStats() {
-            try {
-                return remoteFuture.actionGet();
-            } catch (ElasticsearchException e) {
-                logger.warn("Failed to get remote cluster stats", e);
-                return Map.of();
+        SubscribableListener<Map<String, ClusterStatsResponse.RemoteClusterStats>> getRemoteClusterStats() {
+            if (remoteListener == null) {
+                return SubscribableListener.newSucceeded(null);
             }
+
+            return remoteListener.andThen((l, remoteData) -> {
+                Map<String, ClusterStatsResponse.RemoteClusterStats> remoteClustersStats = new HashMap<>();
+
+                for (String clusterAlias : remoteClusterService.getRegisteredRemoteClusterNames()) {
+                    RemoteClusterConnection remoteConnection = remoteClusterService.getRemoteClusterConnection(clusterAlias);
+                    RemoteConnectionInfo remoteConnectionInfo = remoteConnection.getConnectionInfo();
+                    RemoteClusterStatsResponse response = remoteData.get(clusterAlias);
+                    var compression = RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterAlias)
+                        .get(settings);
+                    var remoteClusterStats = new ClusterStatsResponse.RemoteClusterStats(
+                        response,
+                        remoteConnectionInfo.getModeInfo().modeName(),
+                        remoteConnection.isSkipUnavailable(),
+                        compression.toString()
+                    );
+                    remoteClustersStats.put(clusterAlias, remoteClusterStats);
+                }
+                l.onResponse(remoteClustersStats);
+            });
         }
 
-        Map<String, ClusterStatsResponse.RemoteClusterStats> getRemoteClusterStats(ClusterStatsRequest request) {
-            if (remoteFuture == null) {
-                return Map.of();
-            }
-            Map<String, ClusterStatsResponse.RemoteClusterStats> remoteClustersStats = new HashMap<>();
-            Map<String, RemoteClusterStatsResponse> remoteData = resolveRemoteClusterStats();
-
-            for (String clusterAlias : remoteClusterService.getRegisteredRemoteClusterNames()) {
-                RemoteClusterConnection remoteConnection = remoteClusterService.getRemoteClusterConnection(clusterAlias);
-                RemoteConnectionInfo remoteConnectionInfo = remoteConnection.getConnectionInfo();
-                RemoteClusterStatsResponse response = remoteData.get(clusterAlias);
-                var compression = RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterAlias).get(settings);
-                var remoteClusterStats = new ClusterStatsResponse.RemoteClusterStats(
-                    response,
-                    remoteConnectionInfo.getModeInfo().modeName(),
-                    remoteConnection.isSkipUnavailable(),
-                    compression.toString()
-                );
-                remoteClustersStats.put(clusterAlias, remoteClusterStats);
-            }
-            return remoteClustersStats;
-        }
-
-        private ActionFuture<Map<String, RemoteClusterStatsResponse>> getStatsFromRemotes(ClusterStatsRequest request) {
+        /**
+         * Initiates the requests to the remote clusters
+         */
+        private SubscribableListener<Map<String, RemoteClusterStatsResponse>> getStatsFromRemotes(ClusterStatsRequest request) {
             if (doRemotes(request) == false) {
-                // this will never be used since getRemoteClusterStats has the same check
+                // We will check it before use, null means we didn't actually run any code for the remotes
                 return null;
             }
 
             // TODO: make correct pool
             final var remoteClientResponseExecutor = transportService.getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION);
             var remotes = remoteClusterService.getRegisteredRemoteClusterNames();
-            var remotesFuture = new PlainActionFuture<Map<String, RemoteClusterStatsResponse>>();
+            var remotesFuture = new ListenableFuture<Map<String, RemoteClusterStatsResponse>>();
 
             if (remotes.isEmpty()) {
                 remotesFuture.onResponse(Map.of());

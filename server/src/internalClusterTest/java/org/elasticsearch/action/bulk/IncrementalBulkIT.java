@@ -28,7 +28,6 @@ import org.elasticsearch.ingest.IngestClientIT;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -398,7 +397,8 @@ public class IncrementalBulkIT extends ESIntegTestCase {
                 .endArray()
                 .endObject()
         );
-        clusterAdmin().preparePutPipeline(pipelineId, pipelineSource, XContentType.JSON).get();
+
+        putJsonPipeline(pipelineId, pipelineSource);
 
         // By adding an ingest pipeline and sending the request to a coordinating node without the ingest role, we ensure that we are
         // testing the serialization of shard level requests over the wire. This is because the transport bulk action will be dispatched to

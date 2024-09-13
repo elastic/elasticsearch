@@ -187,20 +187,20 @@ public class ScheduledEventTests extends AbstractXContentSerializingTestCase<Sch
         assertThat(e.getMessage(), containsString("must come before end time"));
     }
 
-    public void testBuild_SucceedsWithDefaultSkipResultsAndSkipModelUpdatesValues() {
+    public void testBuild_SucceedsWithDefaultSkipResultAndSkipModelUpdatesValues() {
         validateScheduledEventSuccessfulBuild(Optional.empty(), Optional.empty(), Optional.empty());
     }
 
-    public void testBuild_SucceedsWithProvidedSkipResultsAndSkipModelUpdatesValues() {
-        Boolean skipResults = randomBoolean();
+    public void testBuild_SucceedsWithProvidedSkipResultAndSkipModelUpdatesValues() {
+        Boolean skipResult = randomBoolean();
         Boolean skipModelUpdate = randomBoolean();
         Integer forceTimeShift = randomBoolean() ? null : randomInt();
 
-        validateScheduledEventSuccessfulBuild(Optional.of(skipResults), Optional.of(skipModelUpdate), Optional.ofNullable(forceTimeShift));
+        validateScheduledEventSuccessfulBuild(Optional.of(skipResult), Optional.of(skipModelUpdate), Optional.ofNullable(forceTimeShift));
     }
 
     private void validateScheduledEventSuccessfulBuild(
-        Optional<Boolean> skipResults,
+        Optional<Boolean> skipResult,
         Optional<Boolean> skipModelUpdate,
         Optional<Integer> forceTimeShift
     ) {
@@ -213,7 +213,7 @@ public class ScheduledEventTests extends AbstractXContentSerializingTestCase<Sch
             .calendarId(calendarId)
             .startTime(startTime)
             .endTime(endTime);
-        skipResults.ifPresent(builder::skipResults);
+        skipResult.ifPresent(builder::skipResult);
         skipModelUpdate.ifPresent(builder::skipModelUpdate);
         forceTimeShift.ifPresent(builder::forceTimeShift);
 
@@ -222,7 +222,7 @@ public class ScheduledEventTests extends AbstractXContentSerializingTestCase<Sch
         assertEquals(calendarId, event.getCalendarId());
         assertEquals(startTime, event.getStartTime());
         assertEquals(endTime, event.getEndTime());
-        assertEquals(skipResults.orElse(true), event.getSkipResults());
+        assertEquals(skipResult.orElse(true), event.getSkipResult());
         assertEquals(skipModelUpdate.orElse(true), event.getSkipModelUpdate());
         assertEquals(forceTimeShift.orElse(null), event.getForceTimeShift());
     }

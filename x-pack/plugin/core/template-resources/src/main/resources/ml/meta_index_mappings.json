@@ -36,7 +36,7 @@
       "end_time": {
         "type": "date"
       },
-      "skip_results": {
+      "skip_result": {
         "type": "keyword"
       },
       "skip_model_update": {

@@ -39,7 +39,7 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
     public static final ParseField DESCRIPTION = new ParseField("description");
     public static final ParseField START_TIME = new ParseField("start_time");
     public static final ParseField END_TIME = new ParseField("end_time");
-    public static final ParseField SKIP_RESULTS = new ParseField("skip_results");
+    public static final ParseField SKIP_RESULT = new ParseField("skip_result");
     public static final ParseField SKIP_MODEL_UPDATE = new ParseField("skip_model_update");
     public static final ParseField FORCE_TIME_SHIFT = new ParseField("force_time_shift");
     public static final ParseField TYPE = new ParseField("type");
@@ -69,7 +69,7 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
             END_TIME,
             ObjectParser.ValueType.VALUE
         );
-        parser.declareBoolean(ScheduledEvent.Builder::skipResults, SKIP_RESULTS);
+        parser.declareBoolean(ScheduledEvent.Builder::skipResult, SKIP_RESULT);
         parser.declareBoolean(ScheduledEvent.Builder::skipModelUpdate, SKIP_MODEL_UPDATE);
         parser.declareInt(ScheduledEvent.Builder::forceTimeShift, FORCE_TIME_SHIFT);
         parser.declareString(ScheduledEvent.Builder::calendarId, Calendar.ID);
@@ -85,7 +85,7 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
     private final String description;
     private final Instant startTime;
     private final Instant endTime;
-    private final Boolean skipResults;
+    private final Boolean skipResult;
     private final Boolean skipModelUpdate;
     private final Integer forceTimeShift;
     private final String calendarId;
@@ -95,7 +95,7 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
         String description,
         Instant startTime,
         Instant endTime,
-        Boolean skipResults,
+        Boolean skipResult,
         Boolean skipModelUpdate,
         @Nullable Integer forceTimeShift,
         String calendarId,
@@ -104,7 +104,7 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
         this.description = Objects.requireNonNull(description);
         this.startTime = Instant.ofEpochMilli(Objects.requireNonNull(startTime).toEpochMilli());
         this.endTime = Instant.ofEpochMilli(Objects.requireNonNull(endTime).toEpochMilli());
-        this.skipResults = Objects.requireNonNull(skipResults);
+        this.skipResult = Objects.requireNonNull(skipResult);
         this.skipModelUpdate = Objects.requireNonNull(skipModelUpdate);
         this.forceTimeShift = forceTimeShift;
         this.calendarId = Objects.requireNonNull(calendarId);
@@ -116,11 +116,11 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
         startTime = in.readInstant();
         endTime = in.readInstant();
         if (in.getTransportVersion().onOrAfter(TransportVersions.ML_SCHEDULED_EVENT_TIME_SHIFT_CONFIGURATION)) {
-            skipResults = in.readBoolean();
+            skipResult = in.readBoolean();
             skipModelUpdate = in.readBoolean();
             forceTimeShift = in.readOptionalInt();
         } else {
-            skipResults = true;
+            skipResult = true;
             skipModelUpdate = true;
             forceTimeShift = null;
         }
@@ -144,8 +144,8 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
         return calendarId;
     }
 
-    public Boolean getSkipResults() {
-        return skipResults;
+    public Boolean getSkipResult() {
+        return skipResult;
     }
 
     public Boolean getSkipModelUpdate() {
@@ -184,7 +184,7 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
 
         DetectionRule.Builder builder = new DetectionRule.Builder(conditions);
         List<String> ruleActions = new ArrayList<>();
-        if (skipResults) {
+        if (skipResult) {
             ruleActions.add(RuleAction.SKIP_RESULT.toString());
             builder.setActions(RuleAction.SKIP_RESULT);
         }
@@ -205,7 +205,7 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
         out.writeInstant(startTime);
         out.writeInstant(endTime);
         if (out.getTransportVersion().onOrAfter(TransportVersions.ML_SCHEDULED_EVENT_TIME_SHIFT_CONFIGURATION)) {
-            out.writeBoolean(skipResults);
+            out.writeBoolean(skipResult);
             out.writeBoolean(skipModelUpdate);
             out.writeOptionalInt(forceTimeShift);
         }
@@ -220,7 +220,7 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
         builder.timeField(START_TIME.getPreferredName(), START_TIME.getPreferredName() + "_string", startTime.toEpochMilli());
         builder.timeField(END_TIME.getPreferredName(), END_TIME.getPreferredName() + "_string", endTime.toEpochMilli());
         // TODO: Check if this needs to be behind a feature flag?
-        builder.field(SKIP_RESULTS.getPreferredName(), skipResults);
+        builder.field(SKIP_RESULT.getPreferredName(), skipResult);
         builder.field(SKIP_MODEL_UPDATE.getPreferredName(), skipModelUpdate);
         if (forceTimeShift != null) {
             builder.field(FORCE_TIME_SHIFT.getPreferredName(), forceTimeShift);
@@ -250,7 +250,7 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
         return description.equals(other.description)
             && Objects.equals(startTime, other.startTime)
             && Objects.equals(endTime, other.endTime)
-            && Objects.equals(skipResults, other.skipResults)
+            && Objects.equals(skipResult, other.skipResult)
             && Objects.equals(skipModelUpdate, other.skipModelUpdate)
             && Objects.equals(forceTimeShift, other.forceTimeShift)
             && calendarId.equals(other.calendarId);
@@ -258,14 +258,14 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(description, startTime, endTime, skipResults, skipModelUpdate, forceTimeShift, calendarId);
+        return Objects.hash(description, startTime, endTime, skipResult, skipModelUpdate, forceTimeShift, calendarId);
     }
 
     public static class Builder {
         private String description;
         private Instant startTime;
         private Instant endTime;
-        private Boolean skipResults;
+        private Boolean skipResult;
         private Boolean skipModelUpdate;
         private Integer forceTimeShift;
         private String calendarId;
@@ -286,8 +286,8 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
             return this;
         }
 
-        public Builder skipResults(Boolean skipResults) {
-            this.skipResults = skipResults;
+        public Builder skipResult(Boolean skipResult) {
+            this.skipResult = skipResult;
             return this;
         }
 
@@ -344,14 +344,14 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
                 );
             }
 
-            skipResults = skipResults == null || skipResults;
+            skipResult = skipResult == null || skipResult;
             skipModelUpdate = skipModelUpdate == null || skipModelUpdate;
 
             ScheduledEvent event = new ScheduledEvent(
                 description,
                 startTime,
                 endTime,
-                skipResults,
+                skipResult,
                 skipModelUpdate,
                 forceTimeShift,
                 calendarId,

@@ -88,9 +88,7 @@ public class IncrementalBulkRestIT extends HttpSmokeTestCase {
         final Response indexSuccessFul = getRestClient().performRequest(firstBulkRequest);
         assertThat(indexSuccessFul.getStatusLine().getStatusCode(), equalTo(OK.getStatus()));
 
-        clusterAdmin().prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put(IncrementalBulkService.INCREMENTAL_BULK.getKey(), false).build())
-            .get();
+        updateClusterSettings(Settings.builder().put(IncrementalBulkService.INCREMENTAL_BULK.getKey(), false));
 
         internalCluster().getInstances(IncrementalBulkService.class).forEach(i -> i.setForTests(false));
 
@@ -98,9 +96,7 @@ public class IncrementalBulkRestIT extends HttpSmokeTestCase {
             sendLargeBulk();
         } finally {
             internalCluster().getInstances(IncrementalBulkService.class).forEach(i -> i.setForTests(true));
-            clusterAdmin().prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put(IncrementalBulkService.INCREMENTAL_BULK.getKey(), (String) null).build())
-                .get();
+            updateClusterSettings(Settings.builder().put(IncrementalBulkService.INCREMENTAL_BULK.getKey(), (String) null));
         }
     }
 

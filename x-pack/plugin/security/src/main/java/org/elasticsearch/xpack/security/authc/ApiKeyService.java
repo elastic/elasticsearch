@@ -541,7 +541,9 @@ public class ApiKeyService implements Closeable {
     ) {
         final Instant created = clock.instant();
         final Instant expiration = getApiKeyExpiration(created, request.getExpiration());
-        final SecureString apiKey = getBase64SecureRandomString();
+        // the difference between 16 and 18 effectively results in the same "encoded" API Key that's sent in HTTP request headers,
+        // dues to base64 padding
+        final SecureString apiKey = getBase64SecureRandomString(request.getType() == ApiKey.Type.CROSS_CLUSTER ? 16 : 18);
         assert ApiKey.Type.CROSS_CLUSTER != request.getType() || API_KEY_SECRET_LENGTH == apiKey.length()
             : "Invalid API key (name=[" + request.getName() + "], type=[" + request.getType() + "], length=[" + apiKey.length() + "])";
 
@@ -2726,11 +2728,11 @@ public class ApiKeyService implements Closeable {
         }
     }
 
-    private static SecureString getBase64SecureRandomString() {
+    private static SecureString getBase64SecureRandomString(int randomBytesCount) {
         byte[] randomBytes = null;
         byte[] encodedBytes = null;
         try {
-            randomBytes = new byte[16];
+            randomBytes = new byte[randomBytesCount];
             SecureRandomHolder.INSTANCE.nextBytes(randomBytes);
             encodedBytes = Base64.getUrlEncoder().withoutPadding().encode(randomBytes);
             return new SecureString(CharArrays.utf8BytesToChars(encodedBytes));

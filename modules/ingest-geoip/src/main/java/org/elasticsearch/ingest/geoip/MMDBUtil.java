@@ -80,6 +80,13 @@ public final class MMDBUtil {
                 throw new IOException("type must be UTF-8 string");
             }
             int size = offsetByte & 0x1f;
+            if (size == 29) {
+                // then we need to read in yet another byte and add it onto this size
+                // this can actually occur in practice, a 29+ character type description isn't that hard to imagine
+                size = 29 + (tail[metadataOffset + 1] & 0xFF);
+                metadataOffset += 1;
+            }
+
             return new String(tail, metadataOffset + 1, size, StandardCharsets.UTF_8);
         }
     }

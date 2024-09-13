@@ -27,7 +27,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -99,21 +98,12 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                         // Make sure that all internal files are on the same blob
                         Set<String> internalFiles = compoundCommit.getInternalFiles();
                         internalFiles.forEach(f -> assertEquals(virtualBatchedCompoundCommit.getBlobName(), commitFiles.get(f).blobName()));
-                        // Check that internalFiles in the ascending order by offset are sorted according to the FILE_NAME_COMPARATOR
+                        // Check that internalFiles are sorted according to the file size and name
                         assertThat(
-                            internalFiles.stream()
-                                .map(e -> Tuple.tuple(e, commitFiles.get(e)))
-                                .sorted(Comparator.comparingLong(e -> e.v2().offset()))
-                                .map(Tuple::v1)
-                                .toList(),
+                            internalFiles.stream().sorted(Comparator.comparingLong(e -> commitFiles.get(e).offset())).toList(),
                             equalTo(
                                 internalFiles.stream()
-                                    .map(e -> Tuple.tuple(e, commitFiles.get(e)))
-                                    .sorted(
-                                        Comparator.comparingLong((Tuple<String, BlobLocation> e) -> e.v2().fileLength())
-                                            .thenComparing(Tuple::v1)
-                                    )
-                                    .map(Tuple::v1)
+                                    .sorted(Comparator.<String>comparingLong(e -> commitFiles.get(e).fileLength()).thenComparing(it -> it))
                                     .toList()
                             )
                         );

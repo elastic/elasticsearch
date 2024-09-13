@@ -133,7 +133,16 @@ public class IndexRequestTests extends ESTestCase {
         long version = randomLong();
         boolean created = randomBoolean();
         var failureStatus = randomFrom(Set.of(IndexDocFailureStoreStatus.USED, IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN));
-        IndexResponse indexResponse = new IndexResponse(shardId, id, SequenceNumbers.UNASSIGNED_SEQ_NO, 0, version, created, null, failureStatus);
+        IndexResponse indexResponse = new IndexResponse(
+            shardId,
+            id,
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            0,
+            version,
+            created,
+            null,
+            failureStatus
+        );
         int total = randomIntBetween(1, 10);
         int successful = randomIntBetween(1, 10);
         ReplicationResponse.ShardInfo shardInfo = ReplicationResponse.ShardInfo.of(total, successful);
@@ -160,8 +169,7 @@ public class IndexRequestTests extends ESTestCase {
             0,
             total,
             successful,
-            failureStatus.getLabel()
-        };
+            failureStatus.getLabel() };
         assertEquals(Strings.format("""
             IndexResponse[index=%s,id=%s,version=%s,result=%s,seqNo=%s,primaryTerm=%s,shards=\
             {"total":%s,"successful":%s,"failed":0},failure_store=%s]\

@@ -35,14 +35,14 @@ public final class MMDBUtil {
      * @return the database type
      * @throws IOException if an I/O exception occurs reading the database type
      */
-    public static String getDatabaseType(Path databasePath) throws IOException {
-        final long fileSize = Files.size(databasePath);
-        try (InputStream in = Files.newInputStream(databasePath)) {
+    public static String getDatabaseType(final Path database) throws IOException {
+        final long fileSize = Files.size(database);
+        try (InputStream in = Files.newInputStream(database)) {
             // read the last BUFFER_SIZE bytes (or the fileSize, whichever is smaller)
             final long skip = fileSize > BUFFER_SIZE ? fileSize - BUFFER_SIZE : 0;
             final long skipped = in.skip(skip);
             if (skipped != skip) {
-                throw new IOException("failed to skip [" + skip + "] bytes while reading [" + databasePath + "]");
+                throw new IOException("failed to skip [" + skip + "] bytes while reading [" + database + "]");
             }
             final byte[] tail = new byte[BUFFER_SIZE];
             int read = 0;

@@ -1,7 +1,7 @@
 ---
 version: ${xpack.apmdata.template.version}
 _meta:
-  description: Fallback to ILM policy for metrics-apm.service_transaction.10m if DSL not defined
+  description: Fallback to ILM policy for metrics-apm.service_transaction.10m if data stream lifecycle not defined
   managed: true
 template:
   settings:

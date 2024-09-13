@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 public class DefaultMappingParametersHandler implements DataSourceHandler {
     @Override

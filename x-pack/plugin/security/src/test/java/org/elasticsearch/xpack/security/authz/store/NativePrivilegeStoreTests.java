@@ -314,7 +314,6 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         verify(securityIndex, never()).whenIndexAvailableForSearch(anyActionListener(), any());
     }
 
-    @SuppressWarnings("unchecked")
     public void testGetPrivilegesSucceedsWithWaitOnAvailableSecurityIndex() throws Exception {
         final List<ApplicationPrivilegeDescriptor> sourcePrivileges = Arrays.asList(
             new ApplicationPrivilegeDescriptor("myapp", "admin", newHashSet("action:admin/*", "action:login", "data:read/*"), emptyMap()),
@@ -326,6 +325,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(false).thenReturn(true);
         when(securityIndex.getUnavailableReason(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(unavailableShardsException());
         doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
             final var listener = (ActionListener<Void>) invocation.getArguments()[0];
             listener.onResponse(null);
             return null;
@@ -340,41 +340,14 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         verify(securityIndex, times(1)).whenIndexAvailableForSearch(anyActionListener(), any());
     }
 
-    @SuppressWarnings("unchecked")
-    public void testGetPrivilegesSucceedsWithWaitOnAvailableSecurityIndexAfterWaitFailure() throws Exception {
-        final List<ApplicationPrivilegeDescriptor> sourcePrivileges = Arrays.asList(
-            new ApplicationPrivilegeDescriptor("myapp", "admin", newHashSet("action:admin/*", "action:login", "data:read/*"), emptyMap()),
-            new ApplicationPrivilegeDescriptor("myapp", "user", newHashSet("action:login", "data:read/*"), emptyMap()),
-            new ApplicationPrivilegeDescriptor("myapp", "author", newHashSet("action:login", "data:read/*", "data:write/*"), emptyMap())
-        );
-
-        // first call fails, second (after "wait" fail) succeeds
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(false).thenReturn(true);
-        when(securityIndex.getUnavailableReason(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(unavailableShardsException());
-        doAnswer(invocation -> {
-            final var listener = (ActionListener<Void>) invocation.getArguments()[0];
-            // we fail here, but since the final check for availability succeeds, the overall request will succeed
-            listener.onFailure(new ElasticsearchTimeoutException("slow potato"));
-            return null;
-        }).when(securityIndex).whenIndexAvailableForSearch(anyActionListener(), any());
-
-        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
-        store.innerGetPrivileges(Arrays.asList("myapp", "yourapp"), true, future);
-
-        ActionListener.respondAndRelease(listener.get(), buildSearchResponse(buildHits(sourcePrivileges)));
-
-        assertResult(sourcePrivileges, future);
-        verify(securityIndex, times(1)).whenIndexAvailableForSearch(anyActionListener(), any());
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testGetPrivilegesSucceedsWillOnlyWaitOnUnavailableShardException() {
+    public void testGetPrivilegesWillOnlyWaitOnUnavailableShardException() {
         when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(false).thenReturn(true);
 
         when(securityIndex.getUnavailableReason(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(
             new IndexClosedException(new Index("potato", randomUUID()))
         );
         doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
             final var listener = (ActionListener<Void>) invocation.getArguments()[0];
             listener.onResponse(null);
             return null;
@@ -387,7 +360,6 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         verify(securityIndex, never()).whenIndexAvailableForSearch(anyActionListener(), any());
     }
 
-    @SuppressWarnings("unchecked")
     public void testGetPrivilegesFailsAfterWaitOnUnavailableShardException() {
         when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(false).thenReturn(false);
 
@@ -395,6 +367,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             unavailableShardsException()
         );
         doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
             final var listener = (ActionListener<Void>) invocation.getArguments()[0];
             listener.onFailure(new ElasticsearchTimeoutException("slow potato"));
             return null;
@@ -404,6 +377,34 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         store.innerGetPrivileges(Arrays.asList("myapp", "yourapp"), true, future);
         expectThrows(UnavailableShardsException.class, future::actionGet);
 
+        verify(securityIndex, times(1)).whenIndexAvailableForSearch(anyActionListener(), any());
+    }
+
+    public void testGetPrivilegesSucceedsWithWaitOnAvailableSecurityIndexAfterWaitFailure() throws Exception {
+        final List<ApplicationPrivilegeDescriptor> sourcePrivileges = Arrays.asList(
+            new ApplicationPrivilegeDescriptor("myapp", "admin", newHashSet("action:admin/*", "action:login", "data:read/*"), emptyMap()),
+            new ApplicationPrivilegeDescriptor("myapp", "user", newHashSet("action:login", "data:read/*"), emptyMap()),
+            new ApplicationPrivilegeDescriptor("myapp", "author", newHashSet("action:login", "data:read/*", "data:write/*"), emptyMap())
+        );
+
+        // first call fails, second (after "wait" fail) succeeds
+        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(false).thenReturn(true);
+        when(securityIndex.getUnavailableReason(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(unavailableShardsException());
+
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final var listener = (ActionListener<Void>) invocation.getArguments()[0];
+            // we fail here, but since the final check for availability succeeds, the overall request will succeed
+            listener.onFailure(new ElasticsearchTimeoutException("slow potato"));
+            return null;
+        }).when(securityIndex).whenIndexAvailableForSearch(anyActionListener(), any());
+
+        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
+        store.innerGetPrivileges(Arrays.asList("myapp", "yourapp"), true, future);
+
+        ActionListener.respondAndRelease(listener.get(), buildSearchResponse(buildHits(sourcePrivileges)));
+
+        assertResult(sourcePrivileges, future);
         verify(securityIndex, times(1)).whenIndexAvailableForSearch(anyActionListener(), any());
     }
 

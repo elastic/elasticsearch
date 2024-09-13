@@ -39,8 +39,6 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
-import static org.apache.lucene.document.ShapeField.QueryRelation.CONTAINS;
-import static org.apache.lucene.document.ShapeField.QueryRelation.DISJOINT;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asGeometryDocValueReader;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asLuceneComponent2D;
 
@@ -174,24 +172,14 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
             return visitor.matches();
         }
 
-        protected boolean pointRelatesGeometry(long encoded, Geometry geometry) {
-            Component2D component2D = asLuceneComponent2D(crsType, geometry);
-            return pointRelatesGeometry(encoded, component2D);
+        protected boolean geometryRelatesGeometries(MultiValuesCombiner left, MultiValuesCombiner right) throws IOException {
+            Component2D rightComponent2D = asLuceneComponent2D(crsType, right.combined());
+            return geometryRelatesGeometry(left, rightComponent2D);
         }
 
-        protected boolean pointRelatesGeometry(long encoded, Component2D component2D) {
-            // This code path exists for doc-values points, and we could consider re-using the point class to reduce garbage creation
-            Point point = spatialCoordinateType.longAsPoint(encoded);
-            return pointRelatesGeometry(point, component2D);
-        }
-
-        protected boolean pointRelatesGeometry(Point point, Component2D component2D) {
-            if (queryRelation == CONTAINS) {
-                return component2D.withinPoint(point.getX(), point.getY()) == Component2D.WithinRelation.CANDIDATE;
-            } else {
-                boolean contains = component2D.contains(point.getX(), point.getY());
-                return queryRelation == DISJOINT ? contains == false : contains;
-            }
+        protected boolean geometryRelatesGeometry(MultiValuesCombiner left, Component2D rightComponent2D) throws IOException {
+            GeometryDocValueReader leftDocValueReader = asGeometryDocValueReader(coordinateEncoder, shapeIndexer, left.combined());
+            return geometryRelatesGeometry(leftDocValueReader, rightComponent2D);
         }
     }
 

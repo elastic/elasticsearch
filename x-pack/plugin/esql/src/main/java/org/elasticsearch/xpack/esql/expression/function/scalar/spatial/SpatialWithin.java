@@ -19,7 +19,6 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
-import org.elasticsearch.index.mapper.ShapeIndexer;
 import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
@@ -60,39 +59,19 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
     );
 
     // public for test access with reflection
-    public static final SpatialRelationsWithin GEO = new SpatialRelationsWithin(
+    public static final SpatialRelations GEO = new SpatialRelations(
+        ShapeField.QueryRelation.WITHIN,
         SpatialCoordinateTypes.GEO,
         CoordinateEncoder.GEO,
         new GeoShapeIndexer(Orientation.CCW, "ST_Within")
     );
     // public for test access with reflection
-    public static final SpatialRelationsWithin CARTESIAN = new SpatialRelationsWithin(
+    public static final SpatialRelations CARTESIAN = new SpatialRelations(
+        ShapeField.QueryRelation.WITHIN,
         SpatialCoordinateTypes.CARTESIAN,
         CoordinateEncoder.CARTESIAN,
         new CartesianShapeIndexer("ST_Within")
     );
-
-    /**
-     * We override the normal behaviour for WITHIN because we need to merge multi-value components into a single geometry
-     * before determining if the combined geometry is within another potentially compound geometry. This requirement is
-     * also true for CONTAINS, but not for INTERSECTS and DISJOINT which can use simple ANY/ALL multi-value combiners.
-     */
-    static final class SpatialRelationsWithin extends SpatialRelations {
-
-        SpatialRelationsWithin(SpatialCoordinateTypes spatialCoordinateType, CoordinateEncoder encoder, ShapeIndexer shapeIndexer) {
-            super(ShapeField.QueryRelation.WITHIN, spatialCoordinateType, encoder, shapeIndexer);
-        }
-
-        private boolean geometryRelatesGeometries(MultiValuesCombiner left, MultiValuesCombiner right) throws IOException {
-            Component2D rightComponent2D = asLuceneComponent2D(crsType, right.combined());
-            return geometryRelatesGeometry(left, rightComponent2D);
-        }
-
-        private boolean geometryRelatesGeometry(MultiValuesCombiner left, Component2D rightComponent2D) throws IOException {
-            GeometryDocValueReader leftDocValueReader = asGeometryDocValueReader(coordinateEncoder, shapeIndexer, left.combined());
-            return geometryRelatesGeometry(leftDocValueReader, rightComponent2D);
-        }
-    }
 
     @FunctionInfo(
         returnType = { "boolean" },

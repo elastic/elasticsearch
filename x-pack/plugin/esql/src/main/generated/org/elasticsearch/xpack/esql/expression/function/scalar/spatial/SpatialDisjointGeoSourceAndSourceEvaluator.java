@@ -8,11 +8,9 @@ import java.io.IOException;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -33,8 +31,6 @@ public final class SpatialDisjointGeoSourceAndSourceEvaluator implements EvalOpe
 
   private final DriverContext driverContext;
 
-  private final org.elasticsearch.xpack.esql.expression.function.scalar.spatial.AllCombiner multiValuesCombiner = new AllCombiner();
-
   public SpatialDisjointGeoSourceAndSourceEvaluator(Source source,
       EvalOperator.ExpressionEvaluator leftValue, EvalOperator.ExpressionEvaluator rightValue,
       DriverContext driverContext) {
@@ -48,15 +44,7 @@ public final class SpatialDisjointGeoSourceAndSourceEvaluator implements EvalOpe
   public Block eval(Page page) {
     try (BytesRefBlock leftValueBlock = (BytesRefBlock) leftValue.eval(page)) {
       try (BytesRefBlock rightValueBlock = (BytesRefBlock) rightValue.eval(page)) {
-        BytesRefVector leftValueVector = leftValueBlock.asVector();
-        if (leftValueVector == null) {
-          return eval(page.getPositionCount(), leftValueBlock, rightValueBlock);
-        }
-        BytesRefVector rightValueVector = rightValueBlock.asVector();
-        if (rightValueVector == null) {
-          return eval(page.getPositionCount(), leftValueBlock, rightValueBlock);
-        }
-        return eval(page.getPositionCount(), leftValueVector, rightValueVector);
+        return eval(page.getPositionCount(), leftValueBlock, rightValueBlock);
       }
     }
   }
@@ -64,54 +52,20 @@ public final class SpatialDisjointGeoSourceAndSourceEvaluator implements EvalOpe
   public BooleanBlock eval(int positionCount, BytesRefBlock leftValueBlock,
       BytesRefBlock rightValueBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
-      BytesRef leftValueScratch = new BytesRef();
-      BytesRef rightValueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (leftValueBlock.isNull(p)) {
+        boolean allBlocksAreNulls = true;
+        if (!leftValueBlock.isNull(p)) {
+          allBlocksAreNulls = false;
+        }
+        if (!rightValueBlock.isNull(p)) {
+          allBlocksAreNulls = false;
+        }
+        if (allBlocksAreNulls) {
           result.appendNull();
           continue position;
         }
-        int leftValueBlockCount = leftValueBlock.getValueCount(p);
-        if (leftValueBlockCount < 1) {
-          result.appendNull();
-          continue position;
-        }
-        int leftValueBlockFirst = leftValueBlock.getFirstValueIndex(p);
-        if (rightValueBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        int rightValueBlockCount = rightValueBlock.getValueCount(p);
-        if (rightValueBlockCount < 1) {
-          result.appendNull();
-          continue position;
-        }
-        int rightValueBlockFirst = rightValueBlock.getFirstValueIndex(p);
         try {
-          multiValuesCombiner.initialize();
-          for (int leftValueBlockIndex = leftValueBlockFirst; leftValueBlockIndex < leftValueBlockFirst + leftValueBlockCount; leftValueBlockIndex++) {
-            for (int rightValueBlockIndex = rightValueBlockFirst; rightValueBlockIndex < rightValueBlockFirst + rightValueBlockCount; rightValueBlockIndex++) {
-              multiValuesCombiner.add(SpatialDisjoint.processGeoSourceAndSource(leftValueBlock.getBytesRef(leftValueBlockIndex, leftValueScratch), rightValueBlock.getBytesRef(rightValueBlockIndex, rightValueScratch)));
-            }
-          }
-          result.appendBoolean(multiValuesCombiner.result());
-        } catch (IllegalArgumentException | IOException e) {
-          warnings.registerException(e);
-          result.appendNull();
-        }
-      }
-      return result.build();
-    }
-  }
-
-  public BooleanBlock eval(int positionCount, BytesRefVector leftValueVector,
-      BytesRefVector rightValueVector) {
-    try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
-      BytesRef leftValueScratch = new BytesRef();
-      BytesRef rightValueScratch = new BytesRef();
-      position: for (int p = 0; p < positionCount; p++) {
-        try {
-          result.appendBoolean(SpatialDisjoint.processGeoSourceAndSource(leftValueVector.getBytesRef(p, leftValueScratch), rightValueVector.getBytesRef(p, rightValueScratch)));
+          SpatialDisjoint.processGeoSourceAndSource(result, p, leftValueBlock, rightValueBlock);
         } catch (IllegalArgumentException | IOException e) {
           warnings.registerException(e);
           result.appendNull();

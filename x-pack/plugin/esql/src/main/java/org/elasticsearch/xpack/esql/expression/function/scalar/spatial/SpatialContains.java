@@ -20,7 +20,6 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.ShapeIndexer;
 import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
@@ -86,11 +85,9 @@ public class SpatialContains extends SpatialRelatesFunction {
      * but we need to expand that behaviour to collections and multi-value fields as well.
      */
     static final class SpatialRelationsContains extends SpatialRelations {
-        private final SpatialRelations intersects;
 
         SpatialRelationsContains(SpatialCoordinateTypes spatialCoordinateType, CoordinateEncoder encoder, ShapeIndexer shapeIndexer) {
             super(ShapeField.QueryRelation.CONTAINS, spatialCoordinateType, encoder, shapeIndexer);
-            this.intersects = new SpatialRelations(ShapeField.QueryRelation.INTERSECTS, spatialCoordinateType, encoder, shapeIndexer);
         }
 
         @Override
@@ -99,7 +96,8 @@ public class SpatialContains extends SpatialRelatesFunction {
             return geometryRelatesGeometries(left, rightComponent2Ds);
         }
 
-        private boolean geometryRelatesGeometries(MultiValuesCombiner left, MultiValuesCombiner right) throws IOException {
+        @Override
+        protected boolean geometryRelatesGeometries(MultiValuesCombiner left, MultiValuesCombiner right) throws IOException {
             Component2D[] rightComponent2Ds = asLuceneComponent2Ds(crsType, right.combined());
             return geometryRelatesGeometries(left, rightComponent2Ds);
         }
@@ -119,18 +117,6 @@ public class SpatialContains extends SpatialRelatesFunction {
             throws IOException {
             for (Component2D rightComponent2D : rightComponent2Ds) {
                 if (geometryRelatesGeometry(leftDocValueReader, rightComponent2D) == false) {
-                    return false;
-                }
-            }
-            return true;
-        }
-
-        private boolean pointRelatesGeometries(long encoded, Component2D[] rightComponent2Ds) {
-            // This code path exists for doc-values points, and we could consider re-using the point class to reduce garbage creation
-            Point point = spatialCoordinateType.longAsPoint(encoded);
-            for (Component2D rightComponent2D : rightComponent2Ds) {
-                // Every component of the right geometry must be contained within the left geometry for this to pass
-                if (pointRelatesGeometry(point, rightComponent2D) == false) {
                     return false;
                 }
             }

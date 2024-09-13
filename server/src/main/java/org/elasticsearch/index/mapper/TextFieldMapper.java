@@ -1462,7 +1462,7 @@ public final class TextFieldMapper extends FieldMapper {
 
         var kwd = SyntheticSourceHelper.getKeywordFieldMapperForSyntheticSource(this);
         if (kwd != null) {
-            return new SyntheticSourceSupport.Native(kwd.syntheticFieldLoader(leafName()));
+            return new SyntheticSourceSupport.Native(kwd.syntheticFieldLoader(fullPath(), leafName()));
         }
 
         return super.syntheticSourceSupport();

@@ -19,19 +19,25 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptyList;
 
 public abstract class StringStoredFieldFieldLoader implements SourceLoader.SyntheticFieldLoader {
-    private final String name;
+    private final String storedFieldLoaderName;
+    private final String fullName;
     private final String simpleName;
 
     private List<Object> values = emptyList();
 
-    public StringStoredFieldFieldLoader(String name, String simpleName) {
-        this.name = name;
+    public StringStoredFieldFieldLoader(String fullName, String simpleName) {
+        this(fullName, fullName, simpleName);
+    }
+
+    public StringStoredFieldFieldLoader(String storedFieldLoaderName, String fullName, String simpleName) {
+        this.storedFieldLoaderName = storedFieldLoaderName;
+        this.fullName = fullName;
         this.simpleName = simpleName;
     }
 
     @Override
     public final Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-        return Stream.of(Map.entry(name, newValues -> values = newValues));
+        return Stream.of(Map.entry(storedFieldLoaderName, newValues -> values = newValues));
     }
 
     @Override
@@ -72,6 +78,6 @@ public abstract class StringStoredFieldFieldLoader implements SourceLoader.Synth
 
     @Override
     public String fieldName() {
-        return name;
+        return fullName;
     }
 }

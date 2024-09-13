@@ -527,6 +527,9 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
      * Returns the changes comparing this nodes to the provided nodes.
      */
     public Delta delta(DiscoveryNodes other) {
+        if (this == other) {
+            return new Delta(this.masterNode, this.masterNode, localNodeId, List.of(), List.of());
+        }
         final List<DiscoveryNode> removed = new ArrayList<>();
         final List<DiscoveryNode> added = new ArrayList<>();
         for (DiscoveryNode node : other) {

@@ -53,15 +53,11 @@ public class CodecService implements CodecProvider {
         }
         codecs.put(LEGACY_DEFAULT_CODEC, legacyBestSpeedCodec);
 
+        codecs.put(
+            BEST_COMPRESSION_CODEC,
+            new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION, mapperService, bigArrays)
+        );
         Codec legacyBestCompressionCodec = new LegacyPerFieldMapperCodec(Lucene99Codec.Mode.BEST_COMPRESSION, mapperService, bigArrays);
-        if (ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled()) {
-            codecs.put(
-                BEST_COMPRESSION_CODEC,
-                new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION, mapperService, bigArrays)
-            );
-        } else {
-            codecs.put(BEST_COMPRESSION_CODEC, legacyBestCompressionCodec);
-        }
         codecs.put(LEGACY_BEST_COMPRESSION_CODEC, legacyBestCompressionCodec);
 
         codecs.put(LUCENE_DEFAULT_CODEC, Codec.getDefault());

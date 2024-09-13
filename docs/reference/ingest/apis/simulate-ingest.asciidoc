@@ -438,13 +438,9 @@ The API returns the following response:
             "_index": "my-index",
             "_version": -3,
             "_source": {
-               "field2": "value2",
-               "foo": "BAR"
+               "foo": "foo"
             },
-            "executed_pipelines": [
-               "my-pipeline",
-               "my-final-pipeline"
-            ]
+            "executed_pipelines": []
          }
       },
       {
@@ -453,7 +449,6 @@ The API returns the following response:
             "_index": "my-index",
             "_version": -3,
             "_source": {
-               "foo": "foo",
                "bar": "rab"
             },
             "executed_pipelines": []

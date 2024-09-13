@@ -393,6 +393,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         private final Map<String, RemoteClusterStatsResponse> responses = new ConcurrentHashMap<>();
         private final Executor requestExecutor;
         private final Task task;
+        private final TaskId taskId;
 
         RemoteStatsFanout(Task task, ClusterStatsRequest request, Executor requestExecutor) {
             this.task = task;
@@ -401,6 +402,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             if (task instanceof CancellableTask cancellableTask) {
                 cancellableTask.addListener(responses::clear);
             }
+            this.taskId = new TaskId(clusterService.getNodeName(), task.getId());
         }
 
         @Override
@@ -411,6 +413,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
                 requestExecutor,
                 RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
             );
+            remoteRequest.setParentTask(taskId);
             remoteClusterClient.execute(TransportRemoteClusterStatsAction.REMOTE_TYPE, remoteRequest, listener);
         }
 

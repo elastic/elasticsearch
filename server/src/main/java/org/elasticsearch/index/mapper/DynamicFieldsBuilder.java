@@ -325,9 +325,10 @@ final class DynamicFieldsBuilder {
         @Override
         public boolean newDynamicStringField(DocumentParserContext context, String name) throws IOException {
             MapperBuilderContext mapperBuilderContext = context.createDynamicMapperBuilderContext();
+            int ignoreAboveDefault = FieldMapper.IGNORE_ABOVE_SETTING.get(context.indexSettings().getSettings());
             if (mapperBuilderContext.parentObjectContainsDimensions()) {
                 return createDynamicField(
-                    new KeywordFieldMapper.Builder(name, context.indexSettings().getIndexVersionCreated()),
+                    new KeywordFieldMapper.Builder(name, ignoreAboveDefault, context.indexSettings().getIndexVersionCreated()),
                     context,
                     mapperBuilderContext
                 );
@@ -338,7 +339,8 @@ final class DynamicFieldsBuilder {
                         context.indexAnalyzers(),
                         context.indexSettings().getMode().isSyntheticSourceEnabled()
                     ).addMultiField(
-                        new KeywordFieldMapper.Builder("keyword", context.indexSettings().getIndexVersionCreated()).ignoreAbove(256)
+                        new KeywordFieldMapper.Builder("keyword", ignoreAboveDefault, context.indexSettings().getIndexVersionCreated())
+                            .ignoreAbove(256)
                     ),
                     context
                 );

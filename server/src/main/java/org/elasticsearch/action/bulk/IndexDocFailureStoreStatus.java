@@ -10,6 +10,7 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -122,13 +123,20 @@ public enum IndexDocFailureStoreStatus implements ToXContentFragment, Writeable 
 
         public ExceptionWrapper(StreamInput in) throws IOException {
             super(in);
-            failureStoreStatus = IndexDocFailureStoreStatus.fromId(in.readByte());
+            if (in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_STATUS_IN_INDEX_RESPONSE)) {
+                failureStoreStatus = IndexDocFailureStoreStatus.fromId(in.readByte());
+            } else {
+                failureStoreStatus = NOT_APPLICABLE_OR_UNKNOWN;
+            }
+
         }
 
         @Override
         protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
             super.writeTo(out, nestedExceptionsWriter);
-            out.writeByte(failureStoreStatus.getId());
+            if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_STATUS_IN_INDEX_RESPONSE)) {
+                out.writeByte(failureStoreStatus.getId());
+            }
         }
 
         @Override

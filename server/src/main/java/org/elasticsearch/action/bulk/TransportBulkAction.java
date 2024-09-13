@@ -205,7 +205,6 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         long relativeStartTimeNanos
     ) {
         trackIndexRequests(bulkRequest);
-        logger.info("Goind to index to {}", bulkRequest.requests.get(0).index());
         Map<String, CreateIndexRequest> indicesToAutoCreate = new HashMap<>();
         Set<String> dataStreamsToBeRolledOver = new HashSet<>();
         Set<String> failureStoresToBeRolledOver = new HashSet<>();

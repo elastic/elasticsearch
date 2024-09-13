@@ -1037,13 +1037,13 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         if (fieldType.stored() || hasDocValues) {
-            return new SyntheticSourceSupport.Native(syntheticFieldLoader(leafName()));
+            return new SyntheticSourceSupport.Native(syntheticFieldLoader(fullPath(), leafName()));
         }
 
         return super.syntheticSourceSupport();
     }
 
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String simpleName) {
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fullFieldName, String leafFieldName) {
         assert fieldType.stored() || hasDocValues;
 
         var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
@@ -1081,6 +1081,6 @@ public final class KeywordFieldMapper extends FieldMapper {
             });
         }
 
-        return new CompositeSyntheticFieldLoader(simpleName, fullPath(), layers);
+        return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, layers);
     }
 }

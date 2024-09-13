@@ -366,7 +366,8 @@ public class SecurityIndexManager implements ClusterStateListener {
     }
 
     /**
-     * Notifies listener once when the security index becomes available for search, or calls on failure on timeout.
+     * Waits up to {@code timeout} for the security index to become available for search, based on cluster state updates.
+     * Notifies {@code listener} once the security index is available for search, or calls {@code onFailure} on {@code timeout}.
      */
     public void whenIndexAvailableForSearch(ActionListener<Void> listener, TimeValue timeout) {
         if (state.indexAvailableForSearch) {
@@ -388,7 +389,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             }
         };
 
-        // schedule cancellation on timeout -- keep reference to cancellable so a successful completion can cancel the timeout
+        // schedule failure handling on timeout -- keep reference to cancellable so a successful completion can cancel the timeout
         indexAvailableForSearchListener.cancellable = client.threadPool().schedule(() -> {
             removeStateListener(indexAvailableForSearchListener);
             notifyOnceListener.onFailure(

@@ -18,10 +18,16 @@
 package co.elastic.elasticsearch.stateless.lucene.stats;
 
 import co.elastic.elasticsearch.stateless.api.ShardSizeStatsReader.ShardSize;
+import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+
+import java.io.IOException;
+
+import static org.hamcrest.Matchers.is;
 
 public class ShardSizeTests extends AbstractWireSerializingTestCase<ShardSize> {
 
@@ -62,5 +68,51 @@ public class ShardSizeTests extends AbstractWireSerializingTestCase<ShardSize> {
 
     public static ShardSize randomShardSize() {
         return new ShardSize(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
+    }
+
+    public final void testBackwardsCompatibleSerialization() throws IOException {
+        // reader prior to unnesting PrimaryTermAndGeneration into ShardSize
+        Writeable.Reader<ShardSize> oldInstanceReader = in -> {
+            var interactiveSizeInBytes = in.readLong();
+            var nonInteractiveSizeInBytes = in.readLong();
+            var primaryTermAndGeneration = new PrimaryTermAndGeneration(in);
+            return new ShardSize(
+                interactiveSizeInBytes,
+                nonInteractiveSizeInBytes,
+                primaryTermAndGeneration.primaryTerm(),
+                primaryTermAndGeneration.generation()
+            );
+        };
+
+        // writer prior to unnesting PrimaryTermAndGeneration into ShardSize
+        Writeable.Writer<ShardSize> oldInstanceWriter = (out, v) -> {
+            out.writeLong(v.interactiveSizeInBytes());
+            out.writeLong(v.nonInteractiveSizeInBytes());
+            new PrimaryTermAndGeneration(v.primaryTerm(), v.generation()).writeTo(out);
+        };
+
+        for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
+            var instance = createTestInstance();
+            assertEqualInstances(instance, copyInstance(instance, instanceWriter(), oldInstanceReader));
+            assertEqualInstances(instance, copyInstance(instance, oldInstanceWriter, instanceReader()));
+        }
+    }
+
+    public final void testOnOrBefore() {
+        for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
+            var instance1 = createTestInstance();
+            var primaryTermAndGeneration1 = new PrimaryTermAndGeneration(instance1.primaryTerm(), instance1.generation());
+
+            var instance2 = createTestInstance();
+            var primaryTermAndGeneration2 = new PrimaryTermAndGeneration(instance2.primaryTerm(), instance2.generation());
+
+            assertThat(instance1.onOrBefore(instance2), is(primaryTermAndGeneration1.compareTo(primaryTermAndGeneration2) <= 0));
+            assertThat(instance1.onOrBefore(instance2), is(primaryTermAndGeneration1.onOrBefore(primaryTermAndGeneration2)));
+        }
+    }
+
+    private ShardSize copyInstance(ShardSize original, Writeable.Writer<ShardSize> writer, Writeable.Reader<ShardSize> reader)
+        throws IOException {
+        return copyInstance(original, getNamedWriteableRegistry(), writer, reader, TransportVersion.current());
     }
 }

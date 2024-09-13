@@ -59,10 +59,8 @@ If using the Python client, you can set the `timeout` parameter to a higher valu
 [[semantic-text-index-mapping]]
 ==== Create the index mapping
 
-The mapping of the destination index - the index that contains the embeddings
-that the inference endpoint will generate based on your input text - must be created. The
-destination index must have a field with the <<semantic-text,`semantic_text`>>
-field type to index the output of the used inference endpoint.
+The mapping of the destination index - the index that contains the embeddings that the inference endpoint will generate based on your input text - must be created.
+The destination index must have a field with the <<semantic-text,`semantic_text`>> field type to index the output of the used inference endpoint.
 
 [source,console]
 ------------------------------------------------------------
@@ -91,6 +89,9 @@ Every time you ingest data into the related `semantic_text` field, this endpoint
 <4> The field to store the text reindexed from a source index in the  <<semantic-text-reindex-data,Reindex the data>> step.
 <5> The textual data stored in the `content` field will be copied to `semantic_text` and processed by the {infer} endpoint.
 The `semantic_text` field will store the embeddings generated based on the input data.
+Copying the `content` field content to the `semantic_text` field is not required for using `semantic_text`.
+However, it is recommended because it makes it possible to perform hybrid search during which you perform lexical search on the text field and semantic search on the semantic_text field.
+
 
 
 [discrete]
@@ -123,6 +124,11 @@ The `content` field data will be copied to the `semantic_text` field as a result
 parameter set in the index mapping creation step. The copied data will be
 processed by the {infer} endpoint associated with the `semantic_text` semantic text
 field.
+
+IMPORTANT: Using `copy_to` fields is not required for performing semantic search.
+You can target the `semantic_text` field directly during ingestion.
+Using the `copy_to` field, however, makes it possible to perform hybrid search, hence it is recommended.
+To learn more about using the `copy_to` field, refer to <<copy-to-support,this section>> on the `semantic_text` documentation page.
 
 [source,console]
 ------------------------------------------------------------

@@ -154,6 +154,10 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
                 );
             }
             long tookNanos = stopWatch.stop().getNanos();
+
+            // TODO: question for reviewers - should we instead grab took time from the EsqlQueryResponse now and remove this StopWatch?
+            // TODO: that would solve the issue https://github.com/elastic/elasticsearch/issues/110935
+            // TimeValue tookMillis = esqlResponse.getExecutionInfo().getOverallTook();
             restResponse.addHeader(HEADER_NAME_TOOK_NANOS, Long.toString(tookNanos));
             success = true;
             return restResponse;

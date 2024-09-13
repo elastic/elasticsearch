@@ -59,6 +59,13 @@ import static org.elasticsearch.core.Strings.format;
 public abstract class FieldMapper extends Mapper {
     private static final Logger logger = LogManager.getLogger(FieldMapper.class);
 
+    public static final Setting<Integer> IGNORE_ABOVE_SETTING = Setting.intSetting(
+        "index.mapping.ignore_above",
+        Integer.MAX_VALUE,
+        Property.IndexScope,
+        Property.ServerlessPublic
+    );
+
     public static final Setting<Boolean> IGNORE_MALFORMED_SETTING = Setting.boolSetting(
         "index.mapping.ignore_malformed",
         false,
@@ -151,6 +158,14 @@ public abstract class FieldMapper extends Mapper {
      */
     public boolean ignoreMalformed() {
         return false;
+    }
+
+    /**
+     * Character counts above which terms will be rejected while indexing a document.
+     * Non-text fields don't have a character count concept and will return {@code Integer.MAX_VALUE} here.
+     */
+    public int ignoreAbove() {
+        return Integer.MAX_VALUE;
     }
 
     /**

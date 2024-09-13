@@ -78,7 +78,6 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -355,24 +354,23 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         }
     }
 
+    private static long transportStatsRequestBytesSize(Ctx ctx) {
+        var httpTransport = internalCluster().getInstance(HttpServerTransport.class, ctx.nodeName);
+        var stats = httpTransport.stats().clientStats();
+        var bytes = 0L;
+        for (var s : stats) {
+            bytes += s.requestSizeBytes();
+        }
+        return bytes;
+    }
+
     /**
      * ensures that {@link org.elasticsearch.http.HttpClientStatsTracker} counts streamed content bytes
      */
     public void testHttpClientStats() throws Exception {
         try (var ctx = setupClientCtx()) {
-            Function<HttpServerTransport, Long> totalRecvBytes = (HttpServerTransport httpTransport) -> {
-                var stats = httpTransport.stats().clientStats();
-                var bytes = 0L;
-                for (var s : stats) {
-                    bytes += s.requestSizeBytes();
-                }
-                return bytes;
-            };
-
-            var httpTransport = internalCluster().getInstance(HttpServerTransport.class, ctx.nodeName);
-
             // need to offset starting point, since we reuse cluster and other tests already sent some data
-            var totalBytesSent = totalRecvBytes.apply(httpTransport);
+            var totalBytesSent = transportStatsRequestBytesSize(ctx);
 
             for (var reqNo = 0; reqNo < randomIntBetween(2, 10); reqNo++) {
                 var id = opaqueId(reqNo);
@@ -383,7 +381,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
                 var handler = ctx.awaitRestChannelAccepted(id);
                 handler.readAllBytes();
                 handler.sendResponse(new RestResponse(RestStatus.OK, ""));
-                assertEquals(totalBytesSent, totalRecvBytes.apply(httpTransport));
+                assertEquals(totalBytesSent, transportStatsRequestBytesSize(ctx));
             }
         }
     }

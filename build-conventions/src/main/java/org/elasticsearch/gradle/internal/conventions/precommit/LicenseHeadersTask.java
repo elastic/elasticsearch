@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.conventions.precommit;
@@ -142,6 +143,7 @@ public abstract class LicenseHeadersTask extends DefaultTask {
     public ListProperty<License> getAdditionalLicenses() {
         return additionalLicenses;
     }
+
     /**
      * Add a new license type.
      * <p>
@@ -178,9 +180,8 @@ public abstract class LicenseHeadersTask extends DefaultTask {
         // Vendored Code
         matchers.add(subStringMatcher("VEN  ", "Vendored", "@notice"));
 
-        additionalLicenses.get().forEach(l ->
-            matchers.add(subStringMatcher(l.licenseFamilyCategory, l.licenseFamilyName, l.substringPattern))
-        );
+        additionalLicenses.get()
+            .forEach(l -> matchers.add(subStringMatcher(l.licenseFamilyCategory, l.licenseFamilyName, l.substringPattern)));
 
         reportConfiguration.setHeaderMatcher(new HeaderMatcherMultiplexer(matchers.toArray(IHeaderMatcher[]::new)));
         reportConfiguration.setApprovedLicenseNames(approvedLicenses.stream().map(license -> {
@@ -238,8 +239,7 @@ public abstract class LicenseHeadersTask extends DefaultTask {
 
     private static List<String> unapprovedFiles(File xmlReportFile) {
         try {
-            NodeList resourcesNodes = createXmlDocumentBuilderFactory()
-                .newDocumentBuilder()
+            NodeList resourcesNodes = createXmlDocumentBuilderFactory().newDocumentBuilder()
                 .parse(xmlReportFile)
                 .getElementsByTagName("resource");
             return elementList(resourcesNodes).stream()

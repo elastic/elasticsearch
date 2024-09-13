@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.gen;
 
-import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.TypeName;
 
 import java.util.Arrays;
@@ -127,21 +126,6 @@ public class Methods {
             return "appendDouble";
         }
         throw new IllegalArgumentException("unknown append method for [" + t + "]");
-    }
-
-    /**
-     * Returns the type of the initial value used in combining multivalued fields.
-     * This type should be possible to pass to the method returned by {@link #appendMethod(TypeName)}.
-     */
-    static String mvInitTypeString(TypeName t) {
-        return appendMethod(t).replace("append", "");
-    }
-
-    /**
-     * Returns the type of the MvCombiner used to support multi-values.
-     */
-    static ClassName mvInitType(TypeName t) {
-        return ClassName.get("java.lang", mvInitTypeString(t));
     }
 
     /**

@@ -42,26 +42,4 @@ public class Annotations {
         }
         return result;
     }
-
-    /**
-     * Returns the value of the requested Class attribute value, from all the matching annotations on the given element.
-     *
-     * @param element the element to inspect
-     * @param annotations the annotations to look for
-     * @param attributeName the attribute to extract
-     */
-    public static TypeMirror getClassAttributeValue(Element element, Set<Class<?>> annotations, String attributeName) {
-        for (var mirror : element.getAnnotationMirrors()) {
-            String annotationType = mirror.getAnnotationType().toString();
-            if (annotations.stream().anyMatch(a -> a.getName().equals(annotationType))) {
-                for (var e : mirror.getElementValues().entrySet()) {
-                    if (false == e.getKey().getSimpleName().toString().equals(attributeName)) {
-                        continue;
-                    }
-                    return (TypeMirror) e.getValue().getValue();
-                }
-            }
-        }
-        return null;
-    }
 }

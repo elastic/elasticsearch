@@ -74,14 +74,6 @@ public class EvaluatorProcessor implements Processor {
                 Evaluator evaluatorAnn = evaluatorMethod.getAnnotation(Evaluator.class);
                 if (evaluatorAnn != null) {
                     try {
-                        // For multi-value support we can specify a combiner to merge results
-                        var mvCombinerType = Annotations.getClassAttributeValue(evaluatorMethod, Set.of(Evaluator.class), "mvCombiner");
-                        // For more complex multi-value combiners, we maintain non-primitive state and need to extract a final result
-                        var mvCombinerResultType = Annotations.getClassAttributeValue(
-                            evaluatorMethod,
-                            Set.of(Evaluator.class),
-                            "mvCombinerResultType"
-                        );
                         AggregatorProcessor.write(
                             evaluatorMethod,
                             "evaluator",
@@ -90,9 +82,7 @@ public class EvaluatorProcessor implements Processor {
                                 env.getTypeUtils(),
                                 (ExecutableElement) evaluatorMethod,
                                 evaluatorAnn.extraName(),
-                                warnExceptionsTypes,
-                                mvCombinerType,
-                                mvCombinerResultType
+                                warnExceptionsTypes
                             ).sourceFile(),
                             env
                         );

@@ -9,7 +9,6 @@ package org.elasticsearch.compute.gen;
 
 import com.squareup.javapoet.ArrayTypeName;
 import com.squareup.javapoet.ClassName;
-import com.squareup.javapoet.FieldSpec;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.ParameterizedTypeName;
@@ -59,9 +58,6 @@ import static org.elasticsearch.compute.gen.Types.vectorType;
 
 public class EvaluatorImplementer {
     private final TypeElement declarationType;
-    private final TypeMirror multiValuesCombiner;
-    private final boolean multiValuesSupported;
-    private final TypeMirror mvCombinerResultType;
     private final ProcessFunction processFunction;
     private final ClassName implementation;
     private final boolean processOutputsMultivalued;
@@ -71,16 +67,10 @@ public class EvaluatorImplementer {
         javax.lang.model.util.Types types,
         ExecutableElement processFunction,
         String extraName,
-        List<TypeMirror> warnExceptions,
-        TypeMirror multiValuesCombiner,
-        TypeMirror mvCombinerResultType
+        List<TypeMirror> warnExceptions
     ) {
         this.declarationType = (TypeElement) processFunction.getEnclosingElement();
-        this.multiValuesCombiner = multiValuesCombiner;
-        this.multiValuesSupported = multiValuesCombiner != null && (multiValuesCombiner.toString().contains("MvUnsupported") == false);
-        this.mvCombinerResultType = mvCombinerResultType;
-        TypeName returnType = returnType(processFunction, mvCombinerResultType);
-        this.processFunction = new ProcessFunction(elements, types, processFunction, warnExceptions, returnType);
+        this.processFunction = new ProcessFunction(elements, types, processFunction, warnExceptions);
 
         this.implementation = ClassName.get(
             elements.getPackageOf(declarationType).toString(),
@@ -110,13 +100,7 @@ public class EvaluatorImplementer {
         builder.addField(WARNINGS, "warnings", Modifier.PRIVATE, Modifier.FINAL);
         processFunction.args.stream().forEach(a -> a.declareField(builder));
         builder.addField(DRIVER_CONTEXT, "driverContext", Modifier.PRIVATE, Modifier.FINAL);
-        if (multiValuesSupported) {
-            ClassName mvCombinerClassName = ClassName.get(implementation.packageName(), multiValuesCombiner.toString());
-            FieldSpec fieldSpec = FieldSpec.builder(mvCombinerClassName, "multiValuesCombiner", Modifier.PRIVATE, Modifier.FINAL)
-                .initializer("new $T()", multiValuesCombiner)
-                .build();
-            builder.addField(fieldSpec);
-        }
+
         builder.addMethod(ctor());
         builder.addMethod(eval());
 
@@ -208,16 +192,15 @@ public class EvaluatorImplementer {
 
             builder.beginControlFlow("position: for (int p = 0; p < positionCount; p++)");
             {
-                boolean supportMultiValued = multiValuesSupported && blockStyle;
                 if (blockStyle) {
                     if (processOutputsMultivalued == false) {
-                        processFunction.args.stream().forEach(a -> a.skipNull(builder, supportMultiValued == false));
+                        processFunction.args.stream().forEach(a -> a.skipNull(builder));
                     } else {
                         builder.addStatement("boolean allBlocksAreNulls = true");
                         // allow block type inputs to be null
                         processFunction.args.stream().forEach(a -> {
                             if (a instanceof StandardProcessFunctionArg as) {
-                                as.skipNull(builder, supportMultiValued == false);
+                                as.skipNull(builder);
                             } else if (a instanceof BlockProcessFunctionArg ab) {
                                 builder.beginControlFlow("if (!$N.isNull(p))", ab.paramName(blockStyle));
                                 {
@@ -246,53 +229,21 @@ public class EvaluatorImplementer {
                     if (args.size() > 2) {
                         pattern.append(", ");
                     }
-                    a.buildInvocation(pattern, args, blockStyle, supportMultiValued);
+                    a.buildInvocation(pattern, args, blockStyle);
                 });
                 pattern.append(")");
                 String builtPattern;
-                if (processFunction.builderArg != null) {
-                    builtPattern = pattern.toString();
-                } else if (supportMultiValued) {
-                    // When we support proper multi-values within blocks
-                    builtPattern = "multiValuesCombiner.add(" + pattern + ")";
-                } else if (mvCombinerResultType != null) {
-                    // When the annotations specify and overriding result type, we need to extract the final result
-                    builtPattern = "multiValuesCombiner.add(" + pattern + ")";
-                } else {
+                if (processFunction.builderArg == null) {
                     builtPattern = vectorize ? "result.$L(p, " + pattern + ")" : "result.$L(" + pattern + ")";
                     args.add(0, appendMethod(resultDataType));
+                } else {
+                    builtPattern = pattern.toString();
                 }
                 if (processFunction.warnExceptions.isEmpty() == false) {
                     builder.beginControlFlow("try");
                 }
-                if (supportMultiValued) {
-                    // When we support proper multi-values within blocks, we need to initialize the accumulator and iterate over values
-                    builder.addStatement("multiValuesCombiner.initialize()");
-                    List<ProcessFunctionArg> mvParams = processFunction.args.stream().filter(a -> a.paramName(blockStyle) != null).toList();
-                    mvParams.forEach(a -> {
-                        String paramName = a.paramName(blockStyle);
-                        String index = paramName + "Index";
-                        String first = paramName + "First";
-                        String count = paramName + "Count";
-                        builder.beginControlFlow("for (int $L = $L; $L < $L + $L; $L++)", index, first, index, first, count, index);
-                    });
-                    builder.addStatement(builtPattern, args.toArray());
-                    mvParams.forEach(a -> builder.endControlFlow());
-                    builder.addStatement(
-                        vectorize ? "result.$L(p, multiValuesCombiner.result())" : "result.$L(multiValuesCombiner.result())",
-                        appendMethod(resultDataType)
-                    );
-                } else if (mvCombinerResultType != null) {
-                    // When the annotations specify and overriding result type, we need to use the accumulator, even for a single result
-                    builder.addStatement("multiValuesCombiner.initialize()");
-                    builder.addStatement(builtPattern, args.toArray());
-                    builder.addStatement(
-                        vectorize ? "result.$L(p, multiValuesCombiner.result())" : "result.$L(multiValuesCombiner.result())",
-                        appendMethod(resultDataType)
-                    );
-                } else {
-                    builder.addStatement(builtPattern, args.toArray());
-                }
+
+                builder.addStatement(builtPattern, args.toArray());
 
                 if (processFunction.warnExceptions.isEmpty() == false) {
                     String catchPattern = "catch ("
@@ -319,9 +270,6 @@ public class EvaluatorImplementer {
             builder.addStatement("continue position");
         }
         builder.endControlFlow();
-    }
-
-    private static void skipMultiValued(MethodSpec.Builder builder, String value) {
         builder.beginControlFlow("if ($N.getValueCount(p) != 1)", value);
         {
             builder.beginControlFlow("if ($N.getValueCount(p) > 1)", value);
@@ -337,32 +285,6 @@ public class EvaluatorImplementer {
             builder.addStatement("continue position");
         }
         builder.endControlFlow();
-    }
-
-    private static void initMultiValued(MethodSpec.Builder builder, String value) {
-        builder.addStatement("int $NCount = $N.getValueCount(p)", value, value);
-        builder.beginControlFlow("if ($NCount < 1)", value);
-        {
-            builder.addStatement("result.appendNull()");
-            builder.addStatement("continue position");
-        }
-        builder.endControlFlow();
-        builder.addStatement("int $NFirst = $N.getFirstValueIndex(p)", value, value);
-    }
-
-    private static void skipOrInitMultiValued(MethodSpec.Builder builder, String value, boolean skipMultiValued) {
-        if (skipMultiValued) {
-            skipMultiValued(builder, value);
-        } else {
-            initMultiValued(builder, value);
-        }
-    }
-
-    private static TypeName returnType(ExecutableElement processFunction, TypeMirror mvCombinerResultType) {
-        if (mvCombinerResultType == null || mvCombinerResultType.toString().contains("Object")) {
-            return TypeName.get(processFunction.getReturnType());
-        }
-        return TypeName.get(mvCombinerResultType);
     }
 
     private MethodSpec toStringMethod() {
@@ -505,7 +427,7 @@ public class EvaluatorImplementer {
         /**
          * Skip any null values in blocks containing this field.
          */
-        void skipNull(MethodSpec.Builder builder, boolean skipMultiValued);
+        void skipNull(MethodSpec.Builder builder);
 
         /**
          * Unpacks values from blocks and repacks them into an appropriate local. Noop
@@ -516,7 +438,7 @@ public class EvaluatorImplementer {
         /**
          * Build the invocation of the process method for this parameter.
          */
-        void buildInvocation(StringBuilder pattern, List<Object> args, boolean blockStyle, boolean multiValued);
+        void buildInvocation(StringBuilder pattern, List<Object> args, boolean blockStyle);
 
         /**
          * Accumulate invocation pattern and arguments to implement {@link Object#toString()}.
@@ -595,9 +517,8 @@ public class EvaluatorImplementer {
         }
 
         @Override
-        public void skipNull(MethodSpec.Builder builder, boolean skipMultiValued) {
+        public void skipNull(MethodSpec.Builder builder) {
             EvaluatorImplementer.skipNull(builder, paramName(true));
-            EvaluatorImplementer.skipOrInitMultiValued(builder, paramName(true), skipMultiValued);
         }
 
         @Override
@@ -610,14 +531,10 @@ public class EvaluatorImplementer {
         }
 
         @Override
-        public void buildInvocation(StringBuilder pattern, List<Object> args, boolean blockStyle, boolean multiValued) {
+        public void buildInvocation(StringBuilder pattern, List<Object> args, boolean blockStyle) {
             if (type.equals(BYTES_REF)) {
                 if (blockStyle) {
-                    if (multiValued) {
-                        pattern.append("$L.getBytesRef($LIndex, $LScratch)");
-                    } else {
-                        pattern.append("$L.getBytesRef($L.getFirstValueIndex(p), $LScratch)");
-                    }
+                    pattern.append("$L.getBytesRef($L.getFirstValueIndex(p), $LScratch)");
                     args.add(paramName(true));
                 } else {
                     pattern.append("$L.getBytesRef(p, $LScratch)");
@@ -630,11 +547,7 @@ public class EvaluatorImplementer {
                 if (isBlockType()) {
                     pattern.append("$L");
                 } else {
-                    if (multiValued) {
-                        pattern.append("$L.$L($LIndex)");
-                    } else {
-                        pattern.append("$L.$L($L.getFirstValueIndex(p))");
-                    }
+                    pattern.append("$L.$L($L.getFirstValueIndex(p))");
                 }
             } else {
                 pattern.append("$L.$L(p)");
@@ -749,10 +662,9 @@ public class EvaluatorImplementer {
         }
 
         @Override
-        public void skipNull(MethodSpec.Builder builder, boolean skipMultiValued) {
+        public void skipNull(MethodSpec.Builder builder) {
             builder.beginControlFlow("for (int i = 0; i < $L.length; i++)", paramName(true));
             EvaluatorImplementer.skipNull(builder, paramName(true) + "[i]");
-            EvaluatorImplementer.skipOrInitMultiValued(builder, paramName(true) + "[i]", skipMultiValued);
             builder.endControlFlow();
         }
 
@@ -776,7 +688,7 @@ public class EvaluatorImplementer {
         }
 
         @Override
-        public void buildInvocation(StringBuilder pattern, List<Object> args, boolean blockStyle, boolean multiValued) {
+        public void buildInvocation(StringBuilder pattern, List<Object> args, boolean blockStyle) {
             pattern.append("$LValues");
             args.add(name);
         }
@@ -861,7 +773,7 @@ public class EvaluatorImplementer {
         }
 
         @Override
-        public void skipNull(MethodSpec.Builder builder, boolean skipMultiValued) {
+        public void skipNull(MethodSpec.Builder builder) {
             // nothing to do
         }
 
@@ -871,7 +783,7 @@ public class EvaluatorImplementer {
         }
 
         @Override
-        public void buildInvocation(StringBuilder pattern, List<Object> args, boolean blockStyle, boolean multiValued) {
+        public void buildInvocation(StringBuilder pattern, List<Object> args, boolean blockStyle) {
             pattern.append("this.$L");
             args.add(name);
         }
@@ -949,7 +861,7 @@ public class EvaluatorImplementer {
         }
 
         @Override
-        public void skipNull(MethodSpec.Builder builder, boolean skipMultiValued) {
+        public void skipNull(MethodSpec.Builder builder) {
             // nothing to do
         }
 
@@ -959,7 +871,7 @@ public class EvaluatorImplementer {
         }
 
         @Override
-        public void buildInvocation(StringBuilder pattern, List<Object> args, boolean blockStyle, boolean multiValued) {
+        public void buildInvocation(StringBuilder pattern, List<Object> args, boolean blockStyle) {
             pattern.append("$L");
             args.add("result");
         }
@@ -1034,9 +946,8 @@ public class EvaluatorImplementer {
         }
 
         @Override
-        public void skipNull(MethodSpec.Builder builder, boolean skipMultiValued) {
+        public void skipNull(MethodSpec.Builder builder) {
             EvaluatorImplementer.skipNull(builder, paramName(true));
-            EvaluatorImplementer.skipOrInitMultiValued(builder, paramName(true), skipMultiValued);
         }
 
         @Override
@@ -1045,7 +956,7 @@ public class EvaluatorImplementer {
         }
 
         @Override
-        public void buildInvocation(StringBuilder pattern, List<Object> args, boolean blockStyle, boolean multiValued) {
+        public void buildInvocation(StringBuilder pattern, List<Object> args, boolean blockStyle) {
             pattern.append("$L");
             args.add(paramName(blockStyle));
         }
@@ -1068,7 +979,6 @@ public class EvaluatorImplementer {
         private final List<ProcessFunctionArg> args;
         private final BuilderProcessFunctionArg builderArg;
         private final List<TypeMirror> warnExceptions;
-        private final TypeName returnType;
 
         private boolean hasBlockType;
 
@@ -1076,8 +986,7 @@ public class EvaluatorImplementer {
             Elements elements,
             javax.lang.model.util.Types types,
             ExecutableElement function,
-            List<TypeMirror> warnExceptions,
-            TypeName returnType
+            List<TypeMirror> warnExceptions
         ) {
             this.function = function;
             args = new ArrayList<>();
@@ -1127,7 +1036,6 @@ public class EvaluatorImplementer {
             }
             this.builderArg = builderArg;
             this.warnExceptions = warnExceptions;
-            this.returnType = returnType;
         }
 
         private ClassName resultDataType(boolean blockStyle) {
@@ -1135,7 +1043,7 @@ public class EvaluatorImplementer {
                 return builderArg.type.enclosingClassName();
             }
             boolean useBlockStyle = blockStyle || warnExceptions.isEmpty() == false;
-            return useBlockStyle ? blockType(returnType) : vectorType(returnType);
+            return useBlockStyle ? blockType(TypeName.get(function.getReturnType())) : vectorType(TypeName.get(function.getReturnType()));
         }
     }
 

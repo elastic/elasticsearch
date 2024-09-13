@@ -12,6 +12,8 @@ import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -157,13 +159,8 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
 
         protected boolean geometryRelatesGeometry(BytesRef left, BytesRef right) throws IOException {
             Component2D rightComponent2D = asLuceneComponent2D(crsType, fromBytesRef(right));
-            return geometryRelatesGeometry(left, rightComponent2D);
-        }
-
-        protected boolean geometryRelatesGeometry(BytesRef left, Component2D rightComponent2D) throws IOException {
-            Geometry leftGeom = fromBytesRef(left);
             // We already have a Component2D for the right geometry, so we need to convert the left geometry to a doc-values byte array
-            return geometryRelatesGeometry(asGeometryDocValueReader(coordinateEncoder, shapeIndexer, leftGeom), rightComponent2D);
+            return geometryRelatesGeometry(asGeometryDocValueReader(coordinateEncoder, shapeIndexer, fromBytesRef(left)), rightComponent2D);
         }
 
         protected boolean geometryRelatesGeometry(GeometryDocValueReader reader, Component2D rightComponent2D) throws IOException {
@@ -177,9 +174,63 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
             return geometryRelatesGeometry(left, rightComponent2D);
         }
 
-        protected boolean geometryRelatesGeometry(MultiValuesCombiner left, Component2D rightComponent2D) throws IOException {
+        private boolean geometryRelatesGeometry(MultiValuesCombiner left, Component2D rightComponent2D) throws IOException {
             GeometryDocValueReader leftDocValueReader = asGeometryDocValueReader(coordinateEncoder, shapeIndexer, left.combined());
             return geometryRelatesGeometry(leftDocValueReader, rightComponent2D);
+        }
+
+        protected void processSourceAndConstant(
+            BooleanBlock.Builder builder,
+            int position,
+            BytesRefBlock leftValue,
+            @Fixed Component2D rightValue
+        ) throws IOException {
+            if (leftValue.getValueCount(position) < 1) {
+                builder.appendNull();
+            } else {
+                MultiValuesBytesRef leftValues = new MultiValuesBytesRef(leftValue, position);
+                builder.appendBoolean(geometryRelatesGeometry(leftValues, rightValue));
+            }
+        }
+
+        protected void processSourceAndSource(BooleanBlock.Builder builder, int position, BytesRefBlock leftValue, BytesRefBlock rightValue)
+            throws IOException {
+            if (leftValue.getValueCount(position) < 1 || rightValue.getValueCount(position) < 1) {
+                builder.appendNull();
+            } else {
+                MultiValuesBytesRef leftValues = new MultiValuesBytesRef(leftValue, position);
+                MultiValuesBytesRef rightValues = new MultiValuesBytesRef(rightValue, position);
+                builder.appendBoolean(geometryRelatesGeometries(leftValues, rightValues));
+            }
+        }
+
+        protected void processPointDocValuesAndConstant(
+            BooleanBlock.Builder builder,
+            int position,
+            LongBlock leftValue,
+            @Fixed Component2D rightValue
+        ) throws IOException {
+            if (leftValue.getValueCount(position) < 1) {
+                builder.appendNull();
+            } else {
+                MultiValuesLong leftValues = new MultiValuesLong(leftValue, position, spatialCoordinateType::longAsPoint);
+                builder.appendBoolean(geometryRelatesGeometry(leftValues, rightValue));
+            }
+        }
+
+        protected void processPointDocValuesAndSource(
+            BooleanBlock.Builder builder,
+            int position,
+            LongBlock leftValue,
+            BytesRefBlock rightValue
+        ) throws IOException {
+            if (leftValue.getValueCount(position) < 1) {
+                builder.appendNull();
+            } else {
+                MultiValuesLong leftValues = new MultiValuesLong(leftValue, position, spatialCoordinateType::longAsPoint);
+                MultiValuesBytesRef rightValues = new MultiValuesBytesRef(rightValue, position);
+                builder.appendBoolean(geometryRelatesGeometries(leftValues, rightValues));
+            }
         }
     }
 

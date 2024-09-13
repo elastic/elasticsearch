@@ -219,24 +219,13 @@ public class SpatialIntersects extends SpatialRelatesFunction {
         BytesRefBlock leftValue,
         @Fixed Component2D rightValue
     ) throws IOException {
-        if (leftValue.getValueCount(position) < 1) {
-            builder.appendNull();
-        } else {
-            MultiValuesBytesRef leftValues = new MultiValuesBytesRef(leftValue, position);
-            builder.appendBoolean(GEO.geometryRelatesGeometry(leftValues, rightValue));
-        }
+        GEO.processSourceAndConstant(builder, position, leftValue, rightValue);
     }
 
     @Evaluator(extraName = "GeoSourceAndSource", warnExceptions = { IllegalArgumentException.class, IOException.class })
     static void processGeoSourceAndSource(BooleanBlock.Builder builder, int position, BytesRefBlock leftValue, BytesRefBlock rightValue)
         throws IOException {
-        if (leftValue.getValueCount(position) < 1 || rightValue.getValueCount(position) < 1) {
-            builder.appendNull();
-        } else {
-            MultiValuesBytesRef leftValues = new MultiValuesBytesRef(leftValue, position);
-            MultiValuesBytesRef rightValues = new MultiValuesBytesRef(rightValue, position);
-            builder.appendBoolean(GEO.geometryRelatesGeometries(leftValues, rightValues));
-        }
+        GEO.processSourceAndSource(builder, position, leftValue, rightValue);
     }
 
     @Evaluator(extraName = "GeoPointDocValuesAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })
@@ -246,24 +235,13 @@ public class SpatialIntersects extends SpatialRelatesFunction {
         LongBlock leftValue,
         @Fixed Component2D rightValue
     ) throws IOException {
-        if (leftValue.getValueCount(position) < 1) {
-            builder.appendNull();
-        } else {
-            MultiValuesLong leftValues = new MultiValuesLong(leftValue, position, SpatialCoordinateTypes.GEO::longAsPoint);
-            builder.appendBoolean(GEO.geometryRelatesGeometry(leftValues, rightValue));
-        }
+        GEO.processPointDocValuesAndConstant(builder, position, leftValue, rightValue);
     }
 
     @Evaluator(extraName = "GeoPointDocValuesAndSource", warnExceptions = { IllegalArgumentException.class, IOException.class })
     static void processGeoPointDocValuesAndSource(BooleanBlock.Builder builder, int position, LongBlock leftValue, BytesRefBlock rightValue)
         throws IOException {
-        if (leftValue.getValueCount(position) < 1) {
-            builder.appendNull();
-        } else {
-            MultiValuesLong leftValues = new MultiValuesLong(leftValue, position, SpatialCoordinateTypes.GEO::longAsPoint);
-            MultiValuesBytesRef rightValues = new MultiValuesBytesRef(rightValue, position);
-            builder.appendBoolean(GEO.geometryRelatesGeometries(leftValues, rightValues));
-        }
+        GEO.processPointDocValuesAndSource(builder, position, leftValue, rightValue);
     }
 
     @Evaluator(extraName = "CartesianSourceAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })
@@ -273,12 +251,7 @@ public class SpatialIntersects extends SpatialRelatesFunction {
         BytesRefBlock leftValue,
         @Fixed Component2D rightValue
     ) throws IOException {
-        if (leftValue.getValueCount(position) < 1) {
-            builder.appendNull();
-        } else {
-            MultiValuesBytesRef leftValues = new MultiValuesBytesRef(leftValue, position);
-            builder.appendBoolean(CARTESIAN.geometryRelatesGeometry(leftValues, rightValue));
-        }
+        CARTESIAN.processSourceAndConstant(builder, position, leftValue, rightValue);
     }
 
     @Evaluator(extraName = "CartesianSourceAndSource", warnExceptions = { IllegalArgumentException.class, IOException.class })
@@ -288,13 +261,7 @@ public class SpatialIntersects extends SpatialRelatesFunction {
         BytesRefBlock leftValue,
         BytesRefBlock rightValue
     ) throws IOException {
-        if (leftValue.getValueCount(position) < 1 || rightValue.getValueCount(position) < 1) {
-            builder.appendNull();
-        } else {
-            MultiValuesBytesRef leftValues = new MultiValuesBytesRef(leftValue, position);
-            MultiValuesBytesRef rightValues = new MultiValuesBytesRef(rightValue, position);
-            builder.appendBoolean(CARTESIAN.geometryRelatesGeometries(leftValues, rightValues));
-        }
+        CARTESIAN.processSourceAndSource(builder, position, leftValue, rightValue);
     }
 
     @Evaluator(extraName = "CartesianPointDocValuesAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })
@@ -304,12 +271,7 @@ public class SpatialIntersects extends SpatialRelatesFunction {
         LongBlock leftValue,
         @Fixed Component2D rightValue
     ) throws IOException {
-        if (leftValue.getValueCount(position) < 1) {
-            builder.appendNull();
-        } else {
-            MultiValuesLong leftValues = new MultiValuesLong(leftValue, position, SpatialCoordinateTypes.CARTESIAN::longAsPoint);
-            builder.appendBoolean(CARTESIAN.geometryRelatesGeometry(leftValues, rightValue));
-        }
+        CARTESIAN.processPointDocValuesAndConstant(builder, position, leftValue, rightValue);
     }
 
     @Evaluator(extraName = "CartesianPointDocValuesAndSource", warnExceptions = { IllegalArgumentException.class, IOException.class })
@@ -319,12 +281,6 @@ public class SpatialIntersects extends SpatialRelatesFunction {
         LongBlock leftValue,
         BytesRefBlock rightValue
     ) throws IOException {
-        if (leftValue.getValueCount(position) < 1) {
-            builder.appendNull();
-        } else {
-            MultiValuesLong leftValues = new MultiValuesLong(leftValue, position, SpatialCoordinateTypes.CARTESIAN::longAsPoint);
-            MultiValuesBytesRef rightValues = new MultiValuesBytesRef(rightValue, position);
-            builder.appendBoolean(CARTESIAN.geometryRelatesGeometries(leftValues, rightValues));
-        }
+        CARTESIAN.processPointDocValuesAndSource(builder, position, leftValue, rightValue);
     }
 }

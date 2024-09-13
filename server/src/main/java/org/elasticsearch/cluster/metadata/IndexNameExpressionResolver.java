@@ -1449,6 +1449,7 @@ public class IndexNameExpressionResolver {
                 assert expression.expression().selector() != null
                     : "Earlier logic should have parsed selectors or added the default selectors already";
                 IndicesOptions.Selectors selector = IndicesOptions.Selectors.getByKey(expression.expression().selector());
+                assert selector != null : "Could not resolve selector [" + expression.expression().selector() + "]";
                 // Filter out any incompatibilities between the wildcard matches and the selectors for the expression.
                 return resources
                     .filter(ia -> ia.isDataStreamRelated() != false || IndicesOptions.Selectors.FAILURES.equals(selector) != true)

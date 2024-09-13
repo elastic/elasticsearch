@@ -19,13 +19,20 @@ import java.util.Map;
  */
 public final class AggregatorsReducer implements Releasable {
 
-    private final Map<String, AggregatorReducer> aggByName = new HashMap<>();
-    private final AggregationReduceContext context;
-    private final int size;
+    private final Map<String, AggregatorReducer> aggByName;
 
-    public AggregatorsReducer(AggregationReduceContext context, int size) {
-        this.context = context;
-        this.size = size;
+    /**
+     * Solo constructor
+     *
+     * @param proto The prototype {@link InternalAggregations} we are aggregating.
+     * @param context The aggregation context
+     * @param size The number of {@link InternalAggregations} we are aggregating.
+     */
+    public AggregatorsReducer(InternalAggregations proto, AggregationReduceContext context, int size) {
+        aggByName = new HashMap<>(proto.asList().size());
+        for (InternalAggregation aggregation : proto) {
+            aggByName.put(aggregation.getName(), aggregation.getReducer(context.forAgg(aggregation.getName()), size));
+        }
     }
 
     /**
@@ -33,10 +40,7 @@ public final class AggregatorsReducer implements Releasable {
      */
     public void accept(InternalAggregations aggregations) {
         for (InternalAggregation aggregation : aggregations) {
-            AggregatorReducer reducer = aggByName.computeIfAbsent(
-                aggregation.getName(),
-                k -> aggregation.getReducer(context.forAgg(aggregation.getName()), size)
-            );
+            final AggregatorReducer reducer = aggByName.get(aggregation.getName());
             reducer.accept(aggregation);
         }
     }

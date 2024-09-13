@@ -188,3 +188,74 @@ setup:
   - lt: { hits.hits.0.fields.d.0: 3.141 }
   - gte: { hits.hits.0.fields.d.0: 3.14 }
 
+---
+"Exclude sparse embeddings from _source by default":
+  - requires:
+      cluster_features: "gte_v8.16.0"
+      reason: _source filtering for Semantic text added in 8.16.0
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+              ml.tokens:
+                type: sparse_vector
+              embeddings:
+                type: sparse_vector
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          text: "running is good for you"
+          ml:
+            tokens:
+              - running: 2.4097164
+                good: 2.170997
+                run: 2.052153
+                race: 0.1
+                for: 1.1908325
+                runner: 1.1803857
+                exercise: 0.1
+                you: 0.9654308
+                training: 0.94999343
+                sports: 0.93650943
+                fitness: 0.83129317
+                best: 0.820365
+                bad: 0.1
+                health: 0.1
+                marathon: 0.61555296
+                gym: 0.5652374
+              - running: 0.1
+                good: 0.1
+                run: 0.1
+                race: 1.4575411
+                for: 0.1
+                runner: 0.1
+                exercise: 1.1652642
+                you: 0.1
+                training: 0.1
+                sports: 0.1
+                fitness: 0.1
+                best: 0.1
+                bad: 0.7385934
+                health: 0.7098149
+                marathon: 0.1
+                gym: 0.1
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            bool:
+              should:
+                - term:
+                    ml.tokens:
+                      value: "exercise"
+
+  - exists: { hits.hits.0._source.text.predicted_value }

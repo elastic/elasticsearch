@@ -61,8 +61,7 @@ public final class FetchSourcePhase implements FetchSubPhase {
                 final boolean nestedHit = hitContext.hit().getNestedIdentity() != null;
                 Source source = hitContext.source();
 
-                // If this is a parent document and there are no source filters and include_vector is set as true, then add the source
-                // as-is.
+                // If this is a parent document and there are no source filters, then add the source as-is.
                 if (nestedHit == false && sourceFilter.isEmpty()) {
                     hitContext.hit().sourceRef(source.internalSourceRef());
                     fastPath++;

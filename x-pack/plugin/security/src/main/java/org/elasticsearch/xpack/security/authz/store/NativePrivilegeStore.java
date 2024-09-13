@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -20,7 +21,6 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -98,6 +98,12 @@ public class NativePrivilegeStore {
         "xpack.security.authz.store.privileges.cache.ttl",
         TimeValue.timeValueHours(24L),
         Setting.Property.NodeScope
+    );
+
+    private static final TimeValue securityIndexWaitTimeout = TimeValue.parseTimeValue(
+        System.getProperty("es.security.security_index.wait_timeout", null),
+        TimeValue.ZERO,
+        "system property <es.security.security_index.wait_timeout>"
     );
 
     private static final Collector<Tuple<String, String>, ?, Map<String, List<String>>> TUPLES_TO_MAP = Collectors.toMap(
@@ -193,13 +199,14 @@ public class NativePrivilegeStore {
     }
 
     private void innerGetPrivileges(Collection<String> applications, ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener) {
-        // TODO control with system prop instead
-        innerGetPrivileges(applications, DiscoveryNode.isStateless(settings), listener);
+        // timeout of 0 means skip wait attempt entirely
+        final boolean waitForAvailableSecurityIndex = false == securityIndexWaitTimeout.equals(TimeValue.ZERO);
+        innerGetPrivileges(applications, waitForAvailableSecurityIndex, listener);
     }
 
     private void innerGetPrivileges(
         Collection<String> applications,
-        boolean waitOnUnavailable,
+        boolean waitForAvailableSecurityIndex,
         ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener
     ) {
         assert applications != null && applications.size() > 0 : "Application names are required (found " + applications + ")";
@@ -208,11 +215,12 @@ public class NativePrivilegeStore {
         if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(Collections.emptyList());
         } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
-            if (false == waitOnUnavailable) {
-                listener.onFailure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
+            final ElasticsearchException unavailableReason = frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS);
+            if (false == waitForAvailableSecurityIndex || false == unavailableReason instanceof UnavailableShardsException) {
+                listener.onFailure(unavailableReason);
                 return;
             }
-            securityIndexManager.onIndexAvailableForSearch(new ActionListener<>() {
+            securityIndexManager.whenIndexAvailableForSearch(new ActionListener<>() {
                 @Override
                 public void onResponse(Void unused) {
                     innerGetPrivileges(applications, false, listener);
@@ -220,11 +228,11 @@ public class NativePrivilegeStore {
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.info("Failure waiting on index: ", e);
-                    // Still call get privileges to get most up-to-date failure (or result, in case of an unlucky time-out)
+                    logger.info("Failure waiting on security index [" + frozenSecurityIndex.getConcreteIndexName() + "]", e);
+                    // Call get privileges to get most up-to-date failure (or result, in case of an unlucky time-out)
                     innerGetPrivileges(applications, false, listener);
                 }
-            }, TimeValue.timeValueSeconds(5));
+            }, securityIndexWaitTimeout);
         } else {
             securityIndexManager.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 final TermQueryBuilder typeQuery = QueryBuilders.termQuery(

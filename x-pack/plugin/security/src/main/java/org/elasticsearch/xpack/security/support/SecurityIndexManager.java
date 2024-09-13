@@ -251,8 +251,8 @@ public class SecurityIndexManager implements ClusterStateListener {
      * Remove a listener from notifications on state changes to the configured index.
      *
      */
-    public boolean removeStateListener(BiConsumer<State, State> listener) {
-        return stateChangeListeners.remove(listener);
+    public void removeStateListener(BiConsumer<State, State> listener) {
+        stateChangeListeners.remove(listener);
     }
 
     /**
@@ -365,43 +365,45 @@ public class SecurityIndexManager implements ClusterStateListener {
         stateChangeListeners.add(stateChangeListener);
     }
 
-    public void onIndexAvailableForSearch(ActionListener<Void> listener, TimeValue timeout) {
+    /**
+     * Notifies listener once when the security index becomes available for search, or calls on failure on timeout.
+     */
+    public void whenIndexAvailableForSearch(ActionListener<Void> listener, TimeValue timeout) {
         if (state.indexAvailableForSearch) {
             listener.onResponse(null);
             return;
         }
 
-        final ActionListener<Void> wrapped = ActionListener.notifyOnce(listener);
+        final ActionListener<Void> notifyOnceListener = ActionListener.notifyOnce(listener);
 
-        final var indexAvailableForSearchListener = new SelfRemovingConsumer() {
+        final var indexAvailableForSearchListener = new StateConsumerWithCancellable() {
             @Override
             public void accept(SecurityIndexManager.State previousState, SecurityIndexManager.State nextState) {
                 if (nextState.indexAvailableForSearch) {
-                    if (cancellable != null) {
-                        cancellable.cancel();
-                    }
+                    assert cancellable != null;
+                    cancellable.cancel();
                     removeStateListener(this);
-                    wrapped.onResponse(null);
+                    notifyOnceListener.onResponse(null);
                 }
-            }
-
-            @Override
-            public void run() {
-                removeStateListener(this);
-                wrapped.onFailure(new ElasticsearchTimeoutException("timed out waiting for index"));
             }
         };
 
-        addStateListener(indexAvailableForSearchListener);
+        // schedule timeout cancellation -- keep reference to cancellable so a successful completion can cancel the timeout
+        indexAvailableForSearchListener.cancellable = client.threadPool().schedule(() -> {
+            removeStateListener(indexAvailableForSearchListener);
+            notifyOnceListener.onFailure(
+                new ElasticsearchTimeoutException(
+                    "timed out waiting for security index [" + getConcreteIndexName() + "] to become available for search"
+                )
+            );
+        }, timeout, client.threadPool().generic());
 
-        indexAvailableForSearchListener.cancellable = client.threadPool()
-            .schedule(indexAvailableForSearchListener, timeout, client.threadPool().generic());
+        addStateListener(indexAvailableForSearchListener);
     }
 
-    private abstract static class SelfRemovingConsumer
+    private abstract static class StateConsumerWithCancellable
         implements
-            BiConsumer<SecurityIndexManager.State, SecurityIndexManager.State>,
-            Runnable {
+            BiConsumer<SecurityIndexManager.State, SecurityIndexManager.State> {
         volatile Scheduler.ScheduledCancellable cancellable;
     }
 

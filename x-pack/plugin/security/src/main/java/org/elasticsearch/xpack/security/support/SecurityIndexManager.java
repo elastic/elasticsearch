@@ -382,6 +382,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             public void accept(SecurityIndexManager.State previousState, SecurityIndexManager.State nextState) {
                 if (nextState.indexAvailableForSearch) {
                     assert cancellable != null;
+                    // cancel and removeStateListener are idempotent
                     cancellable.cancel();
                     removeStateListener(this);
                     notifyOnceListener.onResponse(null);

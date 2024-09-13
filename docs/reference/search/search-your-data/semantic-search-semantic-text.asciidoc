@@ -89,8 +89,8 @@ Every time you ingest data into the related `semantic_text` field, this endpoint
 <4> The field to store the text reindexed from a source index in the  <<semantic-text-reindex-data,Reindex the data>> step.
 <5> The textual data stored in the `content` field will be copied to `semantic_text` and processed by the {infer} endpoint.
 The `semantic_text` field will store the embeddings generated based on the input data.
-Copying the `content` field content to the `semantic_text` field is not required for using `semantic_text`.
-However, it is recommended because it makes it possible to perform hybrid search during which you perform lexical search on the text field and semantic search on the semantic_text field.
+Copying the `content` field to the `semantic_text` field is not required to use `semantic_text`.
+However, it is recommended, as it enables hybrid search, allowing for lexical search on the `content` field and semantic search on the `semantic_text` field.
 
 
 
@@ -125,10 +125,9 @@ parameter set in the index mapping creation step. The copied data will be
 processed by the {infer} endpoint associated with the `semantic_text` semantic text
 field.
 
-IMPORTANT: Using `copy_to` fields is not required for performing semantic search.
-You can target the `semantic_text` field directly during ingestion.
-Using the `copy_to` field, however, makes it possible to perform hybrid search, hence it is recommended.
-To learn more about using the `copy_to` field, refer to <<copy-to-support,this section>> on the `semantic_text` documentation page.
+IMPORTANT: Using `copy_to` fields is not required for semantic search; you can target the `semantic_text` field directly during ingestion.
+However, using the `copy_to` field enables hybrid search, which is recommended. 
+For more information, refer to <<copy-to-support,this section>> on the `semantic_text` documentation page.
 
 [source,console]
 ------------------------------------------------------------

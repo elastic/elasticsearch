@@ -510,7 +510,7 @@ subprojects {
 
     String licenseText
     if (isTestDistro) {
-      licenseText = rootProject.file('licenses/SSPL-1.0+ELASTIC-LICENSE-2.0.txt').getText('UTF-8')
+      licenseText = rootProject.file('licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt').getText('UTF-8')
     } else {
       licenseText = rootProject.file('licenses/ELASTIC-LICENSE-2.0.txt').getText('UTF-8')
     }

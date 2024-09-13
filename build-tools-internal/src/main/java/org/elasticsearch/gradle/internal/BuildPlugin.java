@@ -32,7 +32,7 @@ import javax.inject.Inject;
  */
 public class BuildPlugin implements Plugin<Project> {
 
-    public static final String SSPL_LICENSE_PATH = "licenses/SSPL-1.0+ELASTIC-LICENSE-2.0.txt";
+    public static final String LICENSE_PATH = "licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt";
 
     private final BuildLayout buildLayout;
     private final ObjectFactory objectFactory;
@@ -101,7 +101,7 @@ public class BuildPlugin implements Plugin<Project> {
     }
 
     private void configureLicenseDefaultConvention(RegularFileProperty licenseFileProperty) {
-        File licenseFileDefault = new File(buildLayout.getRootDirectory(), SSPL_LICENSE_PATH);
+        File licenseFileDefault = new File(buildLayout.getRootDirectory(), LICENSE_PATH);
         licenseFileProperty.convention(projectLayout.file(providerFactory.provider(() -> licenseFileDefault)));
     }
 

@@ -154,7 +154,7 @@ public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
                 public void execute(Task task) {
                     String licenseFilename = null;
                     if (project.getName().contains("oss-") || project.getName().equals("integ-test-zip")) {
-                        licenseFilename = "SSPL-1.0+ELASTIC-LICENSE-2.0.txt";
+                        licenseFilename = "AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt";
                     } else {
                         licenseFilename = "ELASTIC-LICENSE-2.0.txt";
                     }

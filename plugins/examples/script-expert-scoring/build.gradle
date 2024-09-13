@@ -12,7 +12,7 @@ esplugin {
   name 'script-expert-scoring'
   description 'An example script engine to use low level Lucene internals for expert scoring'
   classname 'org.elasticsearch.example.expertscript.ExpertScriptPlugin'
-  licenseFile rootProject.file('SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
+  licenseFile rootProject.file('AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
   noticeFile rootProject.file('NOTICE.txt')
 }
 

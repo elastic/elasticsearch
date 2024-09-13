@@ -168,7 +168,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
                         + "] are true"
                 );
             }
-        }).precludesParameters(ignoreAbove);
+        });
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -185,6 +185,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
                         throw new IllegalArgumentException("[ignore_above] must be positive, got [" + v + "]");
                     }
                 });
+            this.dimensions.precludesParameters(ignoreAbove);
         }
 
         @Override

@@ -223,7 +223,10 @@ public class BwcVersions {
     }
 
     private List<Version> getReleased() {
-        return versions.stream().filter(v -> unreleased.containsKey(v) == false).toList();
+        return versions.stream()
+            .filter(v -> v.getMajor() >= currentVersion.getMajor() - 1)
+            .filter(v -> unreleased.containsKey(v) == false)
+            .toList();
     }
 
     /**

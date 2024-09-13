@@ -12,6 +12,8 @@ import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
 import org.elasticsearch.logsdb.datageneration.FieldType;
 import org.elasticsearch.logsdb.datageneration.fields.DynamicMapping;
 
+import java.util.Set;
+
 public interface DataSourceRequest<TResponse extends DataSourceResponse> {
     TResponse accept(DataSourceHandler handler);
 
@@ -101,7 +103,7 @@ public interface DataSourceRequest<TResponse extends DataSourceResponse> {
         }
     }
 
-    record LeafMappingParametersGenerator(String fieldName, FieldType fieldType)
+    record LeafMappingParametersGenerator(String fieldName, FieldType fieldType, Set<String> eligibleCopyToFields)
         implements
             DataSourceRequest<DataSourceResponse.LeafMappingParametersGenerator> {
         public DataSourceResponse.LeafMappingParametersGenerator accept(DataSourceHandler handler) {

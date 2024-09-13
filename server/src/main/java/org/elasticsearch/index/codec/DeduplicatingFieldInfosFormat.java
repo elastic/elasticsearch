@@ -65,7 +65,7 @@ public final class DeduplicatingFieldInfosFormat extends FieldInfosFormat {
                 fi.isParentField()
             );
         }
-        return new FieldInfos(deduplicated);
+        return new FieldInfosWithUsages(deduplicated);
     }
 
     private static Map<String, String> internStringStringMap(Map<String, String> m) {

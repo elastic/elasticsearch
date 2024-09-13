@@ -12,7 +12,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.core.Releasable;
 
-class CategorizationBytesRefHash implements Releasable {
+public class CategorizationBytesRefHash implements Releasable {
 
     private final BytesRefHash bytesRefHash;
 

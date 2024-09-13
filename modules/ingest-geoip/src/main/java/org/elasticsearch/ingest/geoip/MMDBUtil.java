@@ -24,7 +24,7 @@ public final class MMDBUtil {
 
     // note: technically the metadata can be up to 128k long, but we only handle it correctly as long as it's less than
     // or equal to this buffer size.
-    private static final int BUFFER_SIZE = 512;
+    private static final int BUFFER_SIZE = 2048;
 
     /**
      * Read the database type from the database. We do this manually instead of relying on the built-in mechanism to avoid reading the

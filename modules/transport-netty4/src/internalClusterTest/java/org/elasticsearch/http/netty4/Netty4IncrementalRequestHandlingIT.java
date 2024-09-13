@@ -94,7 +94,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
-        builder.put(HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH.getKey(), new ByteSizeValue(20, ByteSizeUnit.MB));
+        builder.put(HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH.getKey(), new ByteSizeValue(50, ByteSizeUnit.MB));
         return builder.build();
     }
 
@@ -228,8 +228,8 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
 
             var handler = ctx.awaitRestChannelAccepted(opaqueId);
 
-            // some data flushes from channel into OS buffer and won't be visible here
-            var osBufferOffset = MBytes(8);
+            // some data flushes from channel into OS buffer and won't be visible here, usually 4-8Mb
+            var osBufferOffset = MBytes(10);
 
             // incrementally read data on server side and ensure client side buffer drains accordingly
             for (int readBytes = 0; readBytes <= payloadSize; readBytes += partSize) {

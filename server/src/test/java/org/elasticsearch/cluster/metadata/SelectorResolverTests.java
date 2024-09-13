@@ -32,26 +32,26 @@ public class SelectorResolverTests extends ESTestCase {
         // Allow selectors TRUE and default selector of $data (example, a search API)
         Context dataSelector = getContext(getOptionsForSelectors(DATA));
 
-        assertThat(resolve(dataSelector, "testXXX"), equalTo(List.of(new ResolvedExpression("testXXX", "data"))));
-        assertThat(resolve(dataSelector, "testXXX$data"), equalTo(List.of(new ResolvedExpression("testXXX", "data"))));
-        assertThat(resolve(dataSelector, "testXXX$failures"), equalTo(List.of(new ResolvedExpression("testXXX", "failures"))));
+        assertThat(resolve(dataSelector, "testXXX"), equalTo(List.of(new ResolvedExpression("testXXX", DATA))));
+        assertThat(resolve(dataSelector, "testXXX$data"), equalTo(List.of(new ResolvedExpression("testXXX", DATA))));
+        assertThat(resolve(dataSelector, "testXXX$failures"), equalTo(List.of(new ResolvedExpression("testXXX", FAILURES))));
 
         // Allow selectors TRUE and default selector of $failures
         Context failuresSelector = getContext(getOptionsForSelectors(IndicesOptions.Selectors.FAILURES));
 
-        assertThat(resolve(failuresSelector, "testXXX"), equalTo(List.of(new ResolvedExpression("testXXX", "failures"))));
-        assertThat(resolve(failuresSelector, "testXXX$data"), equalTo(List.of(new ResolvedExpression("testXXX", "data"))));
-        assertThat(resolve(failuresSelector, "testXXX$failures"), equalTo(List.of(new ResolvedExpression("testXXX", "failures"))));
+        assertThat(resolve(failuresSelector, "testXXX"), equalTo(List.of(new ResolvedExpression("testXXX", FAILURES))));
+        assertThat(resolve(failuresSelector, "testXXX$data"), equalTo(List.of(new ResolvedExpression("testXXX", DATA))));
+        assertThat(resolve(failuresSelector, "testXXX$failures"), equalTo(List.of(new ResolvedExpression("testXXX", FAILURES))));
 
         // Allow selectors TRUE and default selectors of both $data and $failures (example, a management/monitoring API)
         Context bothSelectors = getContext(getOptionsForSelectors(DATA, IndicesOptions.Selectors.FAILURES));
 
         assertThat(
             resolve(bothSelectors, "testXXX"),
-            equalTo(List.of(new ResolvedExpression("testXXX", "data"), new ResolvedExpression("testXXX", "failures")))
+            equalTo(List.of(new ResolvedExpression("testXXX", DATA), new ResolvedExpression("testXXX", FAILURES)))
         );
-        assertThat(resolve(bothSelectors, "testXXX$data"), equalTo(List.of(new ResolvedExpression("testXXX", "data"))));
-        assertThat(resolve(bothSelectors, "testXXX$failures"), equalTo(List.of(new ResolvedExpression("testXXX", "failures"))));
+        assertThat(resolve(bothSelectors, "testXXX$data"), equalTo(List.of(new ResolvedExpression("testXXX", DATA))));
+        assertThat(resolve(bothSelectors, "testXXX$failures"), equalTo(List.of(new ResolvedExpression("testXXX", FAILURES))));
 
         // Disallow selectors (example: creating, modifying, or deleting indices/data streams/aliases).
         // Results in expressions with no selector values.
@@ -63,43 +63,43 @@ public class SelectorResolverTests extends ESTestCase {
 
         // Wildcards, Date Math, and edge cases
         // Wildcards are left as-is (handled in wildcard resolver)
-        assertThat(resolve(dataSelector, "*"), equalTo(List.of(new ResolvedExpression("*", "data"))));
+        assertThat(resolve(dataSelector, "*"), equalTo(List.of(new ResolvedExpression("*", DATA))));
         // Exclusions are left as-is (handled in wildcard resolver)
-        assertThat(resolve(dataSelector, "-testXXX"), equalTo(List.of(new ResolvedExpression("-testXXX", "data"))));
+        assertThat(resolve(dataSelector, "-testXXX"), equalTo(List.of(new ResolvedExpression("-testXXX", DATA))));
         // Exclusions with selectors will have the selectors parsed
-        assertThat(resolve(dataSelector, "-testXXX$failures"), equalTo(List.of(new ResolvedExpression("-testXXX", "failures"))));
+        assertThat(resolve(dataSelector, "-testXXX$failures"), equalTo(List.of(new ResolvedExpression("-testXXX", FAILURES))));
         // Date math is left unprocessed (handled in date math resolver)
-        assertThat(resolve(dataSelector, "<test-{now/d}>"), equalTo(List.of(new ResolvedExpression("<test-{now/d}>", "data"))));
+        assertThat(resolve(dataSelector, "<test-{now/d}>"), equalTo(List.of(new ResolvedExpression("<test-{now/d}>", DATA))));
         // Providing a selector requires adding after the date math brackets
         assertThat(
             resolve(dataSelector, "<test-{now/d}>$failures"),
-            equalTo(List.of(new ResolvedExpression("<test-{now/d}>", "failures")))
+            equalTo(List.of(new ResolvedExpression("<test-{now/d}>", FAILURES)))
         );
         // Selectors inside of date math expressions are left in as part of the index name and are not parsed
         assertThat(
             resolve(dataSelector, "<test-{now/d}$failures>"),
-            equalTo(List.of(new ResolvedExpression("<test-{now/d}$failures>", "data")))
+            equalTo(List.of(new ResolvedExpression("<test-{now/d}$failures>", DATA)))
         );
         // Misspelling the suffix on a date math expression will result in it not being parsed off. This will break the date math detection
         // logic because it no longer ends in a > character.
         assertThat(
             resolve(dataSelector, "<test-{now/d}>$failrues"), // misspelled
-            equalTo(List.of(new ResolvedExpression("<test-{now/d}>$failrues", "data")))
+            equalTo(List.of(new ResolvedExpression("<test-{now/d}>$failrues", DATA)))
         );
         // custom is not a recognized selector
-        assertThat(resolve(dataSelector, "testXXX$custom"), equalTo(List.of(new ResolvedExpression("testXXX$custom", "data"))));
+        assertThat(resolve(dataSelector, "testXXX$custom"), equalTo(List.of(new ResolvedExpression("testXXX$custom", DATA))));
         // d* is not a recognized selector
-        assertThat(resolve(dataSelector, "testXXX$d*"), equalTo(List.of(new ResolvedExpression("testXXX$d*", "data"))));
+        assertThat(resolve(dataSelector, "testXXX$d*"), equalTo(List.of(new ResolvedExpression("testXXX$d*", DATA))));
         // The last $data is parsed, leaving the first $data as part of the remaining expression
-        assertThat(resolve(dataSelector, "testXXX$data$data"), equalTo(List.of(new ResolvedExpression("testXXX$data", "data"))));
+        assertThat(resolve(dataSelector, "testXXX$data$data"), equalTo(List.of(new ResolvedExpression("testXXX$data", DATA))));
         // The last $data is parsed, leaving the first $failures as part of the remaining expression
-        assertThat(resolve(dataSelector, "testXXX$failures$data"), equalTo(List.of(new ResolvedExpression("testXXX$failures", "data"))));
+        assertThat(resolve(dataSelector, "testXXX$failures$data"), equalTo(List.of(new ResolvedExpression("testXXX$failures", DATA))));
         // the last $failures is parsed, leaving the first $data as part of the remaining expression
-        assertThat(resolve(dataSelector, "testXXX$data$failures"), equalTo(List.of(new ResolvedExpression("testXXX$data", "failures"))));
+        assertThat(resolve(dataSelector, "testXXX$data$failures"), equalTo(List.of(new ResolvedExpression("testXXX$data", FAILURES))));
         // the last $failures is parsed, leaving the first $failures as part of the remaining expression
         assertThat(
             resolve(dataSelector, "testXXX$failures$failures"),
-            equalTo(List.of(new ResolvedExpression("testXXX$failures", "failures")))
+            equalTo(List.of(new ResolvedExpression("testXXX$failures", FAILURES)))
         );
     }
 
@@ -109,9 +109,9 @@ public class SelectorResolverTests extends ESTestCase {
             resolveAll(dataSelector, "testXXX", "testYYY", "testZZZ"),
             is(
                 List.of(
-                    new ResolvedExpression("testXXX", "data"),
-                    new ResolvedExpression("testYYY", "data"),
-                    new ResolvedExpression("testZZZ", "data")
+                    new ResolvedExpression("testXXX", DATA),
+                    new ResolvedExpression("testYYY", DATA),
+                    new ResolvedExpression("testZZZ", DATA)
                 )
             )
         );
@@ -119,11 +119,11 @@ public class SelectorResolverTests extends ESTestCase {
             resolveAll(dataSelector, "testXXX$data", "testYYY$failures", "testZZZ$data$data", "<test-{now}>$failures", "test$custom"),
             is(
                 List.of(
-                    new ResolvedExpression("testXXX", "data"),
-                    new ResolvedExpression("testYYY", "failures"),
-                    new ResolvedExpression("testZZZ$data", "data"),
-                    new ResolvedExpression("<test-{now}>", "failures"),
-                    new ResolvedExpression("test$custom", "data")
+                    new ResolvedExpression("testXXX", DATA),
+                    new ResolvedExpression("testYYY", FAILURES),
+                    new ResolvedExpression("testZZZ$data", DATA),
+                    new ResolvedExpression("<test-{now}>", FAILURES),
+                    new ResolvedExpression("test$custom", DATA)
                 )
             )
         );
@@ -132,13 +132,13 @@ public class SelectorResolverTests extends ESTestCase {
             resolveAll(bothSelectors, "*", "testYYY$failures", "testZZZ$data$data", "<test-{now}>$failures", "test$custom"),
             is(
                 List.of(
-                    new ResolvedExpression("*", "data"),
-                    new ResolvedExpression("*", "failures"),
-                    new ResolvedExpression("testYYY", "failures"),
-                    new ResolvedExpression("testZZZ$data", "data"),
-                    new ResolvedExpression("<test-{now}>", "failures"),
-                    new ResolvedExpression("test$custom", "data"),
-                    new ResolvedExpression("test$custom", "failures")
+                    new ResolvedExpression("*", DATA),
+                    new ResolvedExpression("*", FAILURES),
+                    new ResolvedExpression("testYYY", FAILURES),
+                    new ResolvedExpression("testZZZ$data", DATA),
+                    new ResolvedExpression("<test-{now}>", FAILURES),
+                    new ResolvedExpression("test$custom", DATA),
+                    new ResolvedExpression("test$custom", FAILURES)
                 )
             )
         );

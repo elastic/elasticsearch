@@ -248,13 +248,13 @@ public class IndexNameExpressionResolver {
         }
     }
 
-    public record ResolvedExpression(String indexAbstraction, @Nullable String selector) {
+    public record ResolvedExpression(String indexAbstraction, @Nullable IndicesOptions.Selectors selector) {
         public ResolvedExpression(String indexAbstraction) {
             this(indexAbstraction, null);
         }
 
         public String combined() {
-            return indexAbstraction + (selector == null ? "" : ("$" + selector));
+            return indexAbstraction + (selector == null ? "" : ("$" + selector.getKey()));
         }
     }
 
@@ -1448,8 +1448,7 @@ public class IndexNameExpressionResolver {
             if (context.options.allowSelectors()) {
                 assert expression.expression().selector() != null
                     : "Earlier logic should have parsed selectors or added the default selectors already";
-                IndicesOptions.Selectors selector = IndicesOptions.Selectors.getByKey(expression.expression().selector());
-                assert selector != null : "Could not resolve selector [" + expression.expression().selector() + "]";
+                IndicesOptions.Selectors selector = expression.expression().selector();
                 // Filter out any incompatibilities between the wildcard matches and the selectors for the expression.
                 return resources
                     .filter(ia -> ia.isDataStreamRelated() != false || IndicesOptions.Selectors.FAILURES.equals(selector) != true)
@@ -1471,17 +1470,17 @@ public class IndexNameExpressionResolver {
             final IndexMetadata.State excludeState = excludeState(context.getOptions());
             return resources.flatMap(tuple -> {
                 IndexAbstraction indexAbstraction = tuple.v1();
-                String selectorKey = tuple.v2() != null ? tuple.v2().getKey() : null;
+                IndicesOptions.Selectors selector = tuple.v2();
                 if (context.isPreserveAliases() && indexAbstraction.getType() == Type.ALIAS) {
-                    return Stream.of(new ResolvedExpression(indexAbstraction.getName(), selectorKey));
+                    return Stream.of(new ResolvedExpression(indexAbstraction.getName(), selector));
                 } else if (context.isPreserveDataStreams() && indexAbstraction.getType() == Type.DATA_STREAM) {
-                    return Stream.of(new ResolvedExpression(indexAbstraction.getName(), selectorKey));
+                    return Stream.of(new ResolvedExpression(indexAbstraction.getName(), selector));
                 } else {
                     Stream<IndexMetadata> indicesStateStream = Stream.of();
-                    if (shouldIncludeRegularIndices(context.getOptions(), tuple.v2())) {
+                    if (shouldIncludeRegularIndices(context.getOptions(), selector)) {
                         indicesStateStream = indexAbstraction.getIndices().stream().map(context.state.metadata()::index);
                     }
-                    if (shouldIncludeFailureIndices(context.getOptions(), tuple.v2())) {
+                    if (shouldIncludeFailureIndices(context.getOptions(), selector)) {
                         if (indexAbstraction.getType() == Type.ALIAS && indexAbstraction.isDataStreamRelated()) {
                             Set<DataStream> aliasDataStreams = new HashSet<>();
                             for (Index index : indexAbstraction.getIndices()) {
@@ -1512,7 +1511,7 @@ public class IndexNameExpressionResolver {
                     return indicesStateStream.map(
                         indexMeta -> new ResolvedExpression(
                             indexMeta.getIndex().getName(),
-                            context.options.allowSelectors() ? IndicesOptions.Selectors.DATA.getKey() : null
+                            context.options.allowSelectors() ? IndicesOptions.Selectors.DATA : null
                         )
                     );
                 }
@@ -1536,7 +1535,7 @@ public class IndexNameExpressionResolver {
             }
             if (context.options.allowSelectors()) {
                 // These only have values if the $data selector was in the enum set, and they only support the $data selector
-                return indicesStream.map(idx -> new ResolvedExpression(idx, IndicesOptions.Selectors.DATA.getKey())).toList();
+                return indicesStream.map(idx -> new ResolvedExpression(idx, IndicesOptions.Selectors.DATA)).toList();
             } else {
                 return indicesStream.map(ResolvedExpression::new).toList();
             }
@@ -1836,9 +1835,9 @@ public class IndexNameExpressionResolver {
             }
             if (context.options.allowSelectors()) {
                 // Ensure that the selectors are present and that they are compatible with the abstractions they are used with
-                String selector = expression.expression().selector();
+                IndicesOptions.Selectors selector = expression.expression().selector();
                 assert selector != null : "Earlier logic should have parsed selectors or added the default selectors already";
-                if (indexAbstraction.isDataStreamRelated() == false && IndicesOptions.Selectors.FAILURES.getKey().equals(selector)) {
+                if (indexAbstraction.isDataStreamRelated() == false && IndicesOptions.Selectors.FAILURES.equals(selector)) {
                     // If you aren't data stream related you cannot use $failures
                     if (ignoreUnavailable) {
                         return false;
@@ -1926,7 +1925,6 @@ public class IndexNameExpressionResolver {
                 return SelectorResolver.resolve(context, matchAllExpression)
                     .map(ResolvedExpression::selector)
                     .filter(Objects::nonNull)
-                    .map(IndicesOptions.Selectors::getByKey)
                     .collect(() -> EnumSet.noneOf(IndicesOptions.Selectors.class), EnumSet::add, EnumSet::addAll);
             } else {
                 return EnumSet.noneOf(IndicesOptions.Selectors.class);
@@ -1949,7 +1947,7 @@ public class IndexNameExpressionResolver {
                         .map(Stream::of)
                         .orElseGet(
                             // if selector was not present in the expression, use the defaults for the API
-                            () -> context.options.selectorOptions().defaultSelectors().stream().map(IndicesOptions.Selectors::getKey)
+                            () -> context.options.selectorOptions().defaultSelectors().stream()
                         )
                         .map(selector -> new ResolvedExpression(baseExpression, selector))
                 );
@@ -1981,13 +1979,14 @@ public class IndexNameExpressionResolver {
             return false;
         }
 
-        private static <V> V parseAndConsumeSelector(String expression, BiFunction<String, String, V> resultFunction) {
+        private static <V> V parseAndConsumeSelector(String expression, BiFunction<String, IndicesOptions.Selectors, V> resultFunction) {
             int lastDollarSign = expression.lastIndexOf("$");
             if (lastDollarSign >= 0) {
                 String suffix = expression.substring(lastDollarSign + 1);
-                if (IndicesOptions.Selectors.getByKey(suffix) != null) {
+                IndicesOptions.Selectors selector = IndicesOptions.Selectors.getByKey(suffix);
+                if (selector != null) {
                     String expressionBase = expression.substring(0, lastDollarSign);
-                    return resultFunction.apply(expressionBase, suffix);
+                    return resultFunction.apply(expressionBase, selector);
                 }
             }
             // Otherwise accept the default
@@ -2013,7 +2012,7 @@ public class IndexNameExpressionResolver {
             }
 
             public String getWithSelector() {
-                return get() + (expression().selector() == null ? "" : ("$" + expression().selector()));
+                return get() + (expression().selector() == null ? "" : ("$" + expression().selector().getKey()));
             }
         }
 

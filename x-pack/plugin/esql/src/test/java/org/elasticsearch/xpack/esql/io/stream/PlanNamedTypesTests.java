@@ -130,7 +130,7 @@ public class PlanNamedTypesTests extends ESTestCase {
     static FieldAttribute randomFieldAttribute() {
         return newFieldAttributeWithType(
             Source.EMPTY,
-            randomFieldAttributeOrNull(), // parent
+            randomAlphaOfLength(randomIntBetween(1, 20)), // parent
             randomAlphaOfLength(randomIntBetween(1, 25)), // name
             randomDataType(),
             randomEsField(),

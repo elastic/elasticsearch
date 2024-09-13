@@ -621,8 +621,10 @@ public final class TextFieldMapper extends FieldMapper {
                 return Intervals.fixField(name(), Intervals.term(term));
             }
             String wildcardTerm = term.utf8ToString() + "?".repeat(Math.max(0, minChars - term.length));
-            return Intervals.or(Intervals.fixField(name(),
-                Intervals.wildcard(new BytesRef(wildcardTerm), IndexSearcher.getMaxClauseCount())), Intervals.term(term));
+            return Intervals.or(
+                Intervals.fixField(name(), Intervals.wildcard(new BytesRef(wildcardTerm), IndexSearcher.getMaxClauseCount())),
+                Intervals.term(term)
+            );
         }
 
         @Override
@@ -839,7 +841,12 @@ public final class TextFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
             }
             FuzzyQuery fq = new FuzzyQuery(
-                new Term(name(), term), maxDistance, prefixLength, IndexSearcher.getMaxClauseCount(), transpositions);
+                new Term(name(), term),
+                maxDistance,
+                prefixLength,
+                IndexSearcher.getMaxClauseCount(),
+                transpositions
+            );
             return Intervals.multiterm(fq.getAutomata(), IndexSearcher.getMaxClauseCount(), term);
         }
 

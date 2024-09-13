@@ -220,7 +220,12 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
             }).precludesParameters(normalizer);
             this.ignoreAboveDefault = ignoreAboveDefault;
-            this.ignoreAbove = Parameter.intParam("ignore_above", true, m -> toType(m).fieldType().ignoreAbove(), ignoreAboveDefault);
+            this.ignoreAbove = Parameter.intParam("ignore_above", true, m -> toType(m).fieldType().ignoreAbove(), ignoreAboveDefault)
+                .addValidator(v -> {
+                    if (v < 0) {
+                        throw new IllegalArgumentException("[ignore_above] must be positive, got [" + v + "]");
+                    }
+                });
         }
 
         public Builder(String name, int ignoreAboveDefault, IndexVersion indexCreatedVersion) {

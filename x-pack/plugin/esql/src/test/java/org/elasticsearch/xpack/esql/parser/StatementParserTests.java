@@ -36,18 +36,21 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.plan.TableIdentifier;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
+import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
@@ -1414,75 +1417,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
-    public void testParamInFieldName() {
-        LogicalPlan plan = statement(
-            "from test | eval  x = f(?f1) | sort ?f2 | limit 1",
-            new QueryParams(List.of(new QueryParam("f1", "f1", KEYWORD, true), new QueryParam("f2", "f2", NULL, true)))
-        );
-        assertThat(plan, instanceOf(Limit.class));
-        Limit limit = (Limit) plan;
-        assertThat(limit.child(), instanceOf(OrderBy.class));
-        OrderBy ob = (OrderBy) limit.child();
-        assertEquals(ob.order().size(), 1);
-        assertThat(ob.order().get(0), instanceOf(Order.class));
-        Order o = ob.order().get(0);
-        assertThat(o.child(), instanceOf(UnresolvedAttribute.class));
-        UnresolvedAttribute ua = (UnresolvedAttribute) o.child();
-        assertEquals(ua.name(), "f2");
-        assertThat(ob.child(), instanceOf(Eval.class));
-        Eval eval = (Eval) ob.child();
-        assertEquals(1, eval.fields().size());
-        Alias alias = eval.fields().get(0);
-        assertThat(alias.child(), instanceOf(UnresolvedFunction.class));
-        UnresolvedFunction uf = (UnresolvedFunction) alias.child();
-        assertEquals(uf.name(), "f");
-        assertEquals(uf.children().size(), 1);
-        assertThat(uf.children().get(0), instanceOf(UnresolvedAttribute.class));
-        ua = (UnresolvedAttribute) uf.children().get(0);
-        assertEquals(ua.name(), "f1");
-
-        plan = statement(
-            "from test | stats x = f(?f1) by ?f2 | limit 1",
-            new QueryParams(List.of(new QueryParam("f1", "f1", NULL, true), new QueryParam("f2", "f2", NULL, true)))
-        );
-        assertThat(plan, instanceOf(Limit.class));
-        limit = (Limit) plan;
-        assertThat(limit.child(), instanceOf(Aggregate.class));
-        Aggregate agg = (Aggregate) limit.child();
-        assertEquals(2, agg.aggregates().size());
-        assertEquals(1, agg.groupings().size());
-        assertThat(agg.groupings().get(0), instanceOf(UnresolvedAttribute.class));
-        ua = (UnresolvedAttribute) agg.groupings().get(0);
-        assertEquals(ua.name(), "f2");
-        assertThat(agg.aggregates().get(1), instanceOf(UnresolvedAttribute.class));
-        ua = (UnresolvedAttribute) agg.aggregates().get(1);
-        assertEquals(ua.name(), "f2");
-        assertThat(agg.aggregates().get(0), instanceOf(Alias.class));
-        alias = (Alias) agg.aggregates().get(0);
-        assertThat(alias.child(), instanceOf(UnresolvedFunction.class));
-        uf = (UnresolvedFunction) alias.child();
-        assertEquals(uf.name(), "f");
-        assertEquals(uf.children().size(), 1);
-        assertThat(uf.children().get(0), instanceOf(UnresolvedAttribute.class));
-        ua = (UnresolvedAttribute) uf.children().get(0);
-        assertEquals(ua.name(), "f1");
-
-        plan = statement(
-            "from test | where ?f1 == ?f2 |  limit 1",
-            new QueryParams(List.of(new QueryParam("f1", "f1", NULL, true), new QueryParam("f2", "f2", NULL, true)))
-        );
-        assertThat(plan, instanceOf(Limit.class));
-        limit = (Limit) plan;
-        assertThat(limit.child(), instanceOf(Filter.class));
-        Filter filter = (Filter) limit.child();
-        assertThat(filter.condition(), instanceOf(Equals.class));
-        Equals equals = (Equals) filter.condition();
-        ua = (UnresolvedAttribute) equals.left();
-        assertEquals(ua.name(), "f1");
-        ua = (UnresolvedAttribute) equals.right();
-        assertEquals(ua.name(), "f2");
-    }
-
     public void testIntervalParam() {
         LogicalPlan stm = statement(
             "row x = ?1::datetime | eval y = ?1::datetime + ?2::date_period",
@@ -1497,6 +1431,153 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(field, instanceOf(Alias.class));
         assertThat(((Literal) ((Add) eval.fields().get(0).child()).left().children().get(0)).value(), equalTo("2024-01-01"));
         assertThat(((Literal) ((Add) eval.fields().get(0).child()).right().children().get(0)).value(), equalTo("3 days"));
+    }
+
+    public void testParamForPattern() {
+        // TODO name patterns can appear in keep and drop
+        // This test need to be modified when named parameter supports patterns
+        assertEquals(
+            new Drop(
+                EMPTY,
+                new Keep(EMPTY, relation("test"), List.of(attribute("f1."), attribute("f.2*"))),
+                List.of(attribute("f3.*"), attribute("f.4.*"))
+            ),
+            statement(
+                "from test | keep ?f1, ?f2 | drop ?f3, ?f4",
+                new QueryParams(
+                    List.of(
+                        new QueryParam("f1", "f1.", NULL, true),
+                        new QueryParam("f2", "f.2*", NULL, true),
+                        new QueryParam("f3", "f3.*", NULL, true),
+                        new QueryParam("f4", "f.4.*", NULL, true)
+                    )
+                )
+            )
+        );
+    }
+
+    public void testParamForFieldName() {
+        // field names can appear in eval/where/stats/sort/keep/drop/rename/dissect/grok/enrich/mvexpand
+        // eval, where, stats, sort, mv_expand
+        assertEquals(
+            new Limit(
+                EMPTY,
+                new Literal(EMPTY, 1, INTEGER),
+                new MvExpand(
+                    EMPTY,
+                    new OrderBy(
+                        EMPTY,
+                        new Aggregate(
+                            EMPTY,
+                            new Filter(
+                                EMPTY,
+                                new Eval(
+                                    EMPTY,
+                                    relation("test"),
+                                    List.of(new Alias(EMPTY, "x", function("fn1", List.of(attribute("f1.")))))
+                                ),
+                                new Equals(EMPTY, attribute("f1."), attribute("f.2"))
+                            ),
+                            Aggregate.AggregateType.STANDARD,
+                            List.of(attribute("f.4.")),
+                            List.of(new Alias(EMPTY, "y", function("fn2", List.of(attribute("f3.*")))), attribute("f.4."))
+                        ),
+                        List.of(
+                            new Order(EMPTY, attribute("f.5.*"), Order.OrderDirection.ASC, Order.NullsPosition.LAST),
+                            new Order(EMPTY, attribute("f.*.6"), Order.OrderDirection.ASC, Order.NullsPosition.LAST)
+                        )
+                    ),
+                    attribute("f.7*"),
+                    attribute("f.7*")
+                )
+            ),
+            statement(
+                """
+                    from test
+                    | eval x = fn1(?f1)
+                    | where ?f1 == ?f2
+                    | stats y = fn2(?f3) by ?f4
+                    | sort ?f5, ?f6
+                    | mv_expand ?f7
+                    | limit 1""",
+                new QueryParams(
+                    List.of(
+                        new QueryParam("f1", "f1.", NULL, true),
+                        new QueryParam("f2", "f.2", NULL, true),
+                        new QueryParam("f3", "f3.*", NULL, true),
+                        new QueryParam("f4", "f.4.", NULL, true),
+                        new QueryParam("f5", "f.5.*", NULL, true),
+                        new QueryParam("f6", "f.*.6", NULL, true),
+                        new QueryParam("f7", "f.7*", NULL, true)
+
+                    )
+                )
+            )
+        );
+
+        // keep, drop, rename, grok, dissect
+        LogicalPlan plan = statement(
+            """
+                from test | keep ?f1, ?f2 | drop ?f3, ?f4 | dissect ?f5 "%{bar}" | grok ?f6 "%{WORD:foo}" | rename ?f7 as ?f8 | limit 1""",
+            new QueryParams(
+                List.of(
+                    new QueryParam("f1", "f.1.*", NULL, true),
+                    new QueryParam("f2", "f.2", NULL, true),
+                    new QueryParam("f3", "f3.", NULL, true),
+                    new QueryParam("f4", "f4.*", NULL, true),
+                    new QueryParam("f5", "f.5*", NULL, true),
+                    new QueryParam("f6", "f.6.", NULL, true),
+                    new QueryParam("f7", "f7*.", NULL, true),
+                    new QueryParam("f8", "f.8", NULL, true)
+                )
+            )
+        );
+        assertThat(plan, instanceOf(Limit.class));
+        Limit limit = (Limit) plan;
+        assertThat(limit.child(), instanceOf(Rename.class));
+        Rename rename = (Rename) limit.child();
+        assertEquals(rename.renamings(), List.of(new Alias(EMPTY, "f.8", attribute("f7*."))));
+        assertThat(rename.child(), instanceOf(Grok.class));
+        Grok grok = (Grok) rename.child();
+        assertEquals(grok.input(), attribute("f.6."));
+        assertEquals("%{WORD:foo}", grok.parser().pattern());
+        assertEquals(List.of(referenceAttribute("foo", KEYWORD)), grok.extractedFields());
+        assertThat(grok.child(), instanceOf(Dissect.class));
+        Dissect dissect = (Dissect) grok.child();
+        assertEquals(dissect.input(), attribute("f.5*"));
+        assertEquals("%{bar}", dissect.parser().pattern());
+        assertEquals("", dissect.parser().appendSeparator());
+        assertEquals(List.of(referenceAttribute("bar", KEYWORD)), dissect.extractedFields());
+        Drop drop = (Drop) dissect.child();
+        List<? extends NamedExpression> removals = drop.removals();
+        assertEquals(removals, List.of(attribute("f3."), attribute("f4.*")));
+        assertThat(drop.child(), instanceOf(Keep.class));
+        Keep keep = (Keep) drop.child();
+        assertEquals(keep.projections(), List.of(attribute("f.1.*"), attribute("f.2")));
+
+        // enrich
+        assertEquals(
+            new Enrich(
+                EMPTY,
+                relation("idx1"),
+                null,
+                new Literal(EMPTY, "idx2", KEYWORD),
+                attribute("f.1.*"),
+                null,
+                Map.of(),
+                List.of(new Alias(EMPTY, "f.2", attribute("f.3*")))
+            ),
+            statement(
+                "from idx1 | ENRICH idx2 ON ?f1 WITH ?f2 = ?f3",
+                new QueryParams(
+                    List.of(
+                        new QueryParam("f1", "f.1.*", NULL, true),
+                        new QueryParam("f2", "f.2", NULL, true),
+                        new QueryParam("f3", "f.3*", NULL, true)
+                    )
+                )
+            )
+        );
     }
 
     public void testFieldContainingDotsAndNumbers() {
@@ -1553,11 +1634,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testIdPatternQuoted() throws Exception {
         var string = "`escaped string`";
+        List<String> temp = breakIntoFragments(string);
         assertThat(breakIntoFragments(string), contains(string));
     }
 
     public void testIdPatternQuotedWithDoubleBackticks() throws Exception {
         var string = "`escaped``string`";
+        List<String> temp = breakIntoFragments(string);
         assertThat(breakIntoFragments(string), contains(string));
     }
 
@@ -1577,7 +1660,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testSpaceNotAllowedInIdPattern() throws Exception {
-        expectError("ROW a = 1| RENAME a AS this is `not okay`", "mismatched input 'is' expecting {'.', 'as'}");
+        expectError("ROW a = 1| RENAME a AS this is `not okay`", "mismatched input 'is' expecting {<EOF>, '|', ',', '.'}");
     }
 
     public void testSpaceNotAllowedInIdPatternKeep() throws Exception {

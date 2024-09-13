@@ -226,9 +226,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitMvExpandCommand(EsqlBaseParser.MvExpandCommandContext ctx) {
-        UnresolvedAttribute field = visitQualifiedName(ctx.qualifiedName());
+        Expression field = expression(ctx.qualifiedNameOrParam());
         Source src = source(ctx);
-        return child -> new MvExpand(src, child, field, new UnresolvedAttribute(src, field.name()));
+        if (field instanceof UnresolvedAttribute ua) {
+            return child -> new MvExpand(src, child, ua, new UnresolvedAttribute(src, ua.name()));
+        }
+        throw new ParsingException(src, "Unsupported mv_expand field [{}]", field);
 
     }
 
@@ -443,7 +446,18 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             Mode mode = tuple.v1();
             String policyNameString = tuple.v2();
 
-            NamedExpression matchField = ctx.ON() != null ? visitQualifiedNamePattern(ctx.matchField) : new EmptyAttribute(source);
+            NamedExpression matchField;
+            if (ctx.ON() != null) {
+                Expression field = expression(ctx.matchField);
+                if (field instanceof NamedExpression ne) {
+                    matchField = ne;
+                } else {
+                    throw new ParsingException(source, "Unsupported ENRICH field [{}]", field);
+                }
+            } else {
+                matchField = new EmptyAttribute(source);
+            }
+
             if (matchField instanceof UnresolvedNamePattern up) {
                 throw new ParsingException(source, "Using wildcards [*] in ENRICH WITH projections is not allowed [{}]", up.pattern());
             }

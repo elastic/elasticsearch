@@ -269,32 +269,25 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         List<EsqlBaseParser.QualifiedNamePatternOrParamContext> identifiers = ctx.qualifiedNamePatternOrParam();
         List<NamedExpression> names = new ArrayList<>(identifiers.size());
 
-        for (EsqlBaseParser.QualifiedNamePatternOrParamContext patternContext : identifiers) {
-            names.add(visitQualifiedNamePatternOrParam(patternContext, checker));
+        for (EsqlBaseParser.QualifiedNamePatternOrParamContext patternOrParamContext : identifiers) {
+            Expression exp = expression(patternOrParamContext);
+            NamedExpression ne;
+            if (exp instanceof Literal lit) {
+                // convert a * to an UnresolvedStar
+                if (lit.value().equals(WILDCARD)) {
+                    ne = new UnresolvedStar(source(ctx), null);
+                } else {
+                    // TODO convert a literal to an UnresolvedNamePatter or UnresolvedAttribute
+                    throw new ParsingException(source(ctx), "Unsupported field name pattern [{}]", lit);
+                }
+            } else {
+                ne = (NamedExpression) exp;
+            }
+            checker.accept(ne);
+            names.add(ne);
         }
 
         return names;
-    }
-
-    protected NamedExpression visitQualifiedNamePatternOrParam(
-        EsqlBaseParser.QualifiedNamePatternOrParamContext ctx,
-        Consumer<NamedExpression> checker
-    ) {
-        NamedExpression ne;
-        if (ctx.qualifiedNamePattern() != null) {
-            ne = visitQualifiedNamePattern(ctx.qualifiedNamePattern());
-        } else {
-            ne = visitParams(ctx.params());
-        }
-        checker.accept(ne);
-        return ne;
-    }
-
-    public NamedExpression visitParams(EsqlBaseParser.ParamsContext ctx) {
-        // TODO
-        // How to call visitInputParam for ? or visitInputNamedOrPositionalParam for ?n
-        // How to relate ParamsContext to InputParamsContext?
-        return null;
     }
 
     @Override
@@ -675,12 +668,11 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Alias visitRenameClause(EsqlBaseParser.RenameClauseContext ctx) {
         Source src = source(ctx);
-        NamedExpression newName = visitQualifiedNamePattern(ctx.newName);
-        NamedExpression oldName = visitQualifiedNamePattern(ctx.oldName);
+        NamedExpression newName = (NamedExpression) expression(ctx.newName);
+        NamedExpression oldName = (NamedExpression) expression(ctx.oldName);
         if (newName instanceof UnresolvedNamePattern || oldName instanceof UnresolvedNamePattern) {
             throw new ParsingException(src, "Using wildcards [*] in RENAME is not allowed [{}]", src.text());
         }
-
         return new Alias(src, newName.name(), oldName);
     }
 
@@ -692,13 +684,19 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         return newName == null ? enrichField : new Alias(src, newName.name(), enrichField);
     }
 
-    private NamedExpression enrichFieldName(EsqlBaseParser.QualifiedNamePatternContext ctx) {
-        return visitQualifiedNamePattern(ctx, ne -> {
-            if (ne instanceof UnresolvedNamePattern up) {
-                var src = ne.source();
-                throw new ParsingException(src, "Using wildcards [*] in ENRICH WITH projections is not allowed [{}]", up.pattern());
-            }
-        });
+    private NamedExpression enrichFieldName(EsqlBaseParser.QualifiedNamePatternOrParamContext ctx) {
+        if (ctx == null) {
+            return null;
+        }
+        Expression field = expression(ctx);
+        Source src = source(ctx);
+        if (field instanceof UnresolvedAttribute ua) {
+            return ua;
+        } else if (field instanceof UnresolvedNamePattern up) {
+            throw new ParsingException(src, "Using wildcards [*] in ENRICH WITH projections is not allowed [{}]", up.pattern());
+        } else {
+            throw new ParsingException(src, "Invalid ENRICH field [{}]", field);
+        }
     }
 
     @Override

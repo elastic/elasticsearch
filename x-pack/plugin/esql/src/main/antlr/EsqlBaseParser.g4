@@ -170,6 +170,11 @@ qualifiedName
     : identifier (DOT identifier)*
     ;
 
+qualifiedNameOrParam
+    : qualifiedName
+    | params
+    ;
+
 qualifiedNamePattern
     : identifierPattern (DOT identifierPattern)*
     ;
@@ -239,7 +244,7 @@ renameCommand
     ;
 
 renameClause:
-    oldName=qualifiedNamePattern AS newName=qualifiedNamePattern
+    oldName=qualifiedNamePatternOrParam AS newName=qualifiedNamePatternOrParam
     ;
 
 dissectCommand
@@ -251,7 +256,7 @@ grokCommand
     ;
 
 mvExpandCommand
-    : MV_EXPAND qualifiedName
+    : MV_EXPAND qualifiedNameOrParam
     ;
 
 commandOptions
@@ -304,11 +309,11 @@ metaCommand
     ;
 
 enrichCommand
-    : ENRICH policyName=ENRICH_POLICY_NAME (ON matchField=qualifiedNamePattern)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
+    : ENRICH policyName=ENRICH_POLICY_NAME (ON matchField=qualifiedNamePatternOrParam)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
     ;
 
 enrichWithClause
-    : (newName=qualifiedNamePattern ASSIGN)? enrichField=qualifiedNamePattern
+    : (newName=qualifiedNamePatternOrParam ASSIGN)? enrichField=qualifiedNamePatternOrParam
     ;
 
 //

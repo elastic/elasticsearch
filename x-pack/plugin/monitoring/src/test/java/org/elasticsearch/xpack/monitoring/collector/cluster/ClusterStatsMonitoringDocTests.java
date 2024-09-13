@@ -41,6 +41,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.index.IndexVersion;
@@ -846,7 +847,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
               }
             }""";
         assertEquals(
-            stripWhitespace(String.format(expectedJson + (CCS_TELEMETRY_FEATURE_FLAG.isEnabled() ? ccsOutput : "") + suffixJson, args)),
+            stripWhitespace(Strings.format(expectedJson + (CCS_TELEMETRY_FEATURE_FLAG.isEnabled() ? ccsOutput : "") + suffixJson, args)),
             xContent.utf8ToString()
         );
     }

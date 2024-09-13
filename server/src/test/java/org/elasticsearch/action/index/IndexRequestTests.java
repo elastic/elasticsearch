@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
@@ -131,7 +132,8 @@ public class IndexRequestTests extends ESTestCase {
         String id = randomAlphaOfLengthBetween(3, 10);
         long version = randomLong();
         boolean created = randomBoolean();
-        IndexResponse indexResponse = new IndexResponse(shardId, id, SequenceNumbers.UNASSIGNED_SEQ_NO, 0, version, created);
+        var failureStatus = randomFrom(Set.of(IndexDocFailureStoreStatus.USED, IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN));
+        IndexResponse indexResponse = new IndexResponse(shardId, id, SequenceNumbers.UNASSIGNED_SEQ_NO, 0, version, created, null, failureStatus);
         int total = randomIntBetween(1, 10);
         int successful = randomIntBetween(1, 10);
         ReplicationResponse.ShardInfo shardInfo = ReplicationResponse.ShardInfo.of(total, successful);
@@ -148,6 +150,7 @@ public class IndexRequestTests extends ESTestCase {
         assertEquals(total, indexResponse.getShardInfo().getTotal());
         assertEquals(successful, indexResponse.getShardInfo().getSuccessful());
         assertEquals(forcedRefresh, indexResponse.forcedRefresh());
+        assertEquals(failureStatus, indexResponse.getFailureStoreStatus());
         Object[] args = new Object[] {
             shardId.getIndexName(),
             id,
@@ -156,10 +159,12 @@ public class IndexRequestTests extends ESTestCase {
             SequenceNumbers.UNASSIGNED_SEQ_NO,
             0,
             total,
-            successful };
+            successful,
+            failureStatus.getLabel()
+        };
         assertEquals(Strings.format("""
             IndexResponse[index=%s,id=%s,version=%s,result=%s,seqNo=%s,primaryTerm=%s,shards=\
-            {"total":%s,"successful":%s,"failed":0}]\
+            {"total":%s,"successful":%s,"failed":0},failure_store=%s]\
             """, args), indexResponse.toString());
     }
 

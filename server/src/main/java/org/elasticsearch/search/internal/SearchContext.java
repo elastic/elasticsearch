@@ -364,7 +364,8 @@ public abstract class SearchContext implements Releasable {
      * @return true if the request contains only suggest
      */
     public final boolean hasOnlySuggest() {
-        return request().source() != null && request().source().isSuggestOnly();
+        var source = request().source();
+        return source != null && source.isSuggestOnly();
     }
 
     /**

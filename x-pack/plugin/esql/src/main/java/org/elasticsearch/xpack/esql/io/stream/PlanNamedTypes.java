@@ -7,16 +7,12 @@
 
 package org.elasticsearch.xpack.esql.io.stream;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.plan.logical.Grok;
-import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
@@ -88,12 +84,12 @@ public final class PlanNamedTypes {
             of(PhysicalPlan.class, ExchangeSinkExec.ENTRY),
             of(PhysicalPlan.class, ExchangeSourceExec.ENTRY),
             of(PhysicalPlan.class, FieldExtractExec.ENTRY),
-            of(PhysicalPlan.class, FilterExec.class, PlanNamedTypes::writeFilterExec, PlanNamedTypes::readFilterExec),
-            of(PhysicalPlan.class, FragmentExec.class, PlanNamedTypes::writeFragmentExec, PlanNamedTypes::readFragmentExec),
-            of(PhysicalPlan.class, GrokExec.class, PlanNamedTypes::writeGrokExec, PlanNamedTypes::readGrokExec),
-            of(PhysicalPlan.class, LimitExec.class, PlanNamedTypes::writeLimitExec, PlanNamedTypes::readLimitExec),
-            of(PhysicalPlan.class, LocalSourceExec.class, (out, v) -> v.writeTo(out), LocalSourceExec::new),
-            of(PhysicalPlan.class, HashJoinExec.class, (out, v) -> v.writeTo(out), HashJoinExec::new),
+            of(PhysicalPlan.class, FilterExec.ENTRY),
+            of(PhysicalPlan.class, FragmentExec.ENTRY),
+            of(PhysicalPlan.class, GrokExec.ENTRY),
+            of(PhysicalPlan.class, LimitExec.ENTRY),
+            of(PhysicalPlan.class, LocalSourceExec.ENTRY),
+            of(PhysicalPlan.class, HashJoinExec.ENTRY),
             of(PhysicalPlan.class, MvExpandExec.class, PlanNamedTypes::writeMvExpandExec, PlanNamedTypes::readMvExpandExec),
             of(PhysicalPlan.class, OrderExec.class, PlanNamedTypes::writeOrderExec, PlanNamedTypes::readOrderExec),
             of(PhysicalPlan.class, ProjectExec.class, PlanNamedTypes::writeProjectExec, PlanNamedTypes::readProjectExec),
@@ -105,65 +101,6 @@ public final class PlanNamedTypes {
     }
 
     // -- physical plan nodes
-    static FilterExec readFilterExec(PlanStreamInput in) throws IOException {
-        return new FilterExec(Source.readFrom(in), in.readPhysicalPlanNode(), in.readNamedWriteable(Expression.class));
-    }
-
-    static void writeFilterExec(PlanStreamOutput out, FilterExec filterExec) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writePhysicalPlanNode(filterExec.child());
-        out.writeNamedWriteable(filterExec.condition());
-    }
-
-    static FragmentExec readFragmentExec(PlanStreamInput in) throws IOException {
-        return new FragmentExec(
-            Source.readFrom(in),
-            in.readNamedWriteable(LogicalPlan.class),
-            in.readOptionalNamedWriteable(QueryBuilder.class),
-            in.readOptionalVInt(),
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readOptionalPhysicalPlanNode() : null
-        );
-    }
-
-    static void writeFragmentExec(PlanStreamOutput out, FragmentExec fragmentExec) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeNamedWriteable(fragmentExec.fragment());
-        out.writeOptionalNamedWriteable(fragmentExec.esFilter());
-        out.writeOptionalVInt(fragmentExec.estimatedRowSize());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            out.writeOptionalPhysicalPlanNode(fragmentExec.reducer());
-        }
-    }
-
-    static GrokExec readGrokExec(PlanStreamInput in) throws IOException {
-        Source source;
-        return new GrokExec(
-            source = Source.readFrom(in),
-            in.readPhysicalPlanNode(),
-            in.readNamedWriteable(Expression.class),
-            Grok.pattern(source, in.readString()),
-            in.readNamedWriteableCollectionAsList(Attribute.class)
-        );
-    }
-
-    static void writeGrokExec(PlanStreamOutput out, GrokExec grokExec) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writePhysicalPlanNode(grokExec.child());
-        out.writeNamedWriteable(grokExec.inputExpression());
-        out.writeString(grokExec.pattern().pattern());
-        out.writeNamedWriteableCollection(grokExec.extractedFields());
-    }
-
-    static LimitExec readLimitExec(PlanStreamInput in) throws IOException {
-        return new LimitExec(Source.readFrom(in), in.readPhysicalPlanNode(), in.readNamedWriteable(Expression.class));
-    }
-
-    static void writeLimitExec(PlanStreamOutput out, LimitExec limitExec) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writePhysicalPlanNode(limitExec.child());
-        out.writeNamedWriteable(limitExec.limit());
-    }
-
     static MvExpandExec readMvExpandExec(PlanStreamInput in) throws IOException {
         return new MvExpandExec(
             Source.readFrom(in),

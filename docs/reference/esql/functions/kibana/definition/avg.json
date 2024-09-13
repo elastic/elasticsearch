@@ -44,5 +44,6 @@
   "examples" : [
     "FROM employees\n| STATS AVG(height)",
     "FROM employees\n| STATS avg_salary_change = ROUND(AVG(MV_AVG(salary_change)), 10)"
-  ]
+  ],
+  "preview" : false
 }

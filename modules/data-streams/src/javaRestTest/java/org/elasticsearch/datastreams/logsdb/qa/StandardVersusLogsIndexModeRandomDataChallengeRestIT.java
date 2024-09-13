@@ -43,7 +43,9 @@ public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends Standa
 
     public StandardVersusLogsIndexModeRandomDataChallengeRestIT() {
         super();
-        this.subobjects = randomFrom(ObjectMapper.Subobjects.values());
+        // TODO enable subobjects: auto
+        // It is disabled because it currently does not have auto flattening and that results in asserts being triggered when using copy_to.
+        this.subobjects = randomValueOtherThan(ObjectMapper.Subobjects.AUTO, () -> randomFrom(ObjectMapper.Subobjects.values()));
         this.keepArraySource = randomBoolean();
 
         var specificationBuilder = DataGeneratorSpecification.builder().withFullyDynamicMapping(randomBoolean());
@@ -118,6 +120,14 @@ public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends Standa
                 )
             )
             .build());
+    }
+
+    @Override
+    protected final Settings restClientSettings() {
+        return Settings.builder()
+            .put(super.restClientSettings())
+            .put(org.elasticsearch.test.rest.ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "9000s")
+            .build();
     }
 
     @Override

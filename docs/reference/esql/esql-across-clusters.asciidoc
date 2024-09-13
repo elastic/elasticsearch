@@ -178,9 +178,9 @@ FROM *:my-index-000001
 [[ccq-cluster-details]]
 ==== Cross-cluster metadata
 
-As with cross-cluster search using query DSL (link here), ES|QL {ccs} responses include metadata
-about the search on each cluster when the response format is JSON. Here we use the async search
-endpoint, but {ccs} metadata is also present in the synchronous search endpoint.
+ES|QL {ccs} responses include metadata about the search on each cluster when the response format is JSON.
+Here we show an example using the async search endpoint. {ccs-cap} metadata is also present in the synchronous
+search endpoint.
 
 [source,esql]
 ----
@@ -202,20 +202,6 @@ Which returns:
 {
   "is_running": false,
   "took": 42,  <1>
-  "all_columns": [
-    {
-      "name": "authors",
-      "type": "text"
-    },
-    {
-      "name": "name",
-      "type": "text"
-    },
-    {
-      "name": "page_count",
-      "type": "integer"
-    }
-  ],
   "columns": [
      ... // not shown
   ],
@@ -267,7 +253,7 @@ Which returns:
   }
 }
 ----
-// TEST[skip: cross-cluster env not set up]
+// TEST[skip: cross-cluster testing env not set up]
 
 <1> How the long the entire search (across all clusters) took, in milliseconds.
 <2> This section of counters shows all possible cluster search states and how many cluster
@@ -316,20 +302,6 @@ Which returns:
 {
   "is_running": false,
   "took": 55,
-  "all_columns": [
-    {
-      "name": "authors",
-      "type": "text"
-    },
-    {
-      "name": "name",
-      "type": "text"
-    },
-    {
-      "name": "page_count",
-      "type": "integer"
-    }
-  ],
   "columns": [
      ... // not shown
   ],
@@ -370,7 +342,7 @@ Which returns:
   }
 }
 ----
-// TEST[skip: cross-cluster env not set up]
+// TEST[skip: cross-cluster testing env not set up]
 
 <1> This search is still marked as successful, even though no data was searched.
 <2> Since there were no matching indices for the wildcard pattern provided, the original

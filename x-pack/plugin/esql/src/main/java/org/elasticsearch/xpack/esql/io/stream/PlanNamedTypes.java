@@ -785,14 +785,14 @@ public final class PlanNamedTypes {
     static EsIndex readEsIndex(PlanStreamInput in) throws IOException {
         return new EsIndex(
             in.readString(),
-            in.readImmutableMap(StreamInput::readString, i -> i.readNamedWriteable(EsField.class)),
+            in.readImmutableMap(StreamInput::readString, EsField::readFrom),
             (Set<String>) in.readGenericValue()
         );
     }
 
     static void writeEsIndex(PlanStreamOutput out, EsIndex esIndex) throws IOException {
         out.writeString(esIndex.name());
-        out.writeMap(esIndex.mapping(), StreamOutput::writeNamedWriteable);
+        out.writeMap(esIndex.mapping(), (o, x) -> x.writeTo(out));
         out.writeGenericValue(esIndex.concreteIndices());
     }
 

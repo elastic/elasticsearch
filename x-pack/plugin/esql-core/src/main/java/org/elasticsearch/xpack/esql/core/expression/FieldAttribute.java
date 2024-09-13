@@ -96,7 +96,7 @@ public class FieldAttribute extends TypedAttribute {
             in.readOptionalWriteable(FieldAttribute::readFrom),
             in.readString(),
             DataType.readFrom(in),
-            in.readNamedWriteable(EsField.class),
+            EsField.readFrom(in),
             in.readOptionalString(),
             in.readEnum(Nullability.class),
             NameId.readFrom((StreamInput & PlanStreamInput) in),
@@ -111,7 +111,7 @@ public class FieldAttribute extends TypedAttribute {
             out.writeOptionalWriteable(parent);
             out.writeString(name());
             dataType().writeTo(out);
-            out.writeNamedWriteable(field);
+            field.writeTo(out);
             out.writeOptionalString(qualifier());
             out.writeEnum(nullable());
             id().writeTo(out);

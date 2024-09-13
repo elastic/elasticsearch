@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -63,6 +64,11 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
      * This cache allows to send each attribute only once; from the second occurrence, only an id will be sent
      */
     protected final Map<Attribute, Integer> cachedAttributes = new IdentityHashMap<>();
+
+    /**
+     * Cache for EsFields.
+     */
+    protected final Map<EsField, Integer> cachedEsFields = new IdentityHashMap<>();
 
     private final StreamOutput delegate;
     private final PlanNameRegistry registry;
@@ -210,6 +216,38 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
             throw new InvalidArgumentException("Limit of the number of serialized attributes exceeded [{}]", maxSerializedAttributes);
         }
         cachedAttributes.put(attr, id);
+        return id;
+    }
+
+    @Override
+    public boolean writeEsFieldCacheHeader(EsField field) throws IOException {
+        if (getTransportVersion().onOrAfter(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION_8_15)) {
+            Integer cacheId = esFieldIdFromCache(field);
+            if (cacheId != null) {
+                writeZLong(cacheId);
+                return false;
+            }
+
+            cacheId = cacheEsField(field);
+            writeZLong(-1 - cacheId);
+        }
+        writeString(field.getWriteableName());
+        return true;
+    }
+
+    private Integer esFieldIdFromCache(EsField field) {
+        return cachedEsFields.get(field);
+    }
+
+    private int cacheEsField(EsField attr) {
+        if (cachedEsFields.containsKey(attr)) {
+            throw new IllegalArgumentException("EsField already present in the serialization cache [" + attr + "]");
+        }
+        int id = cachedEsFields.size();
+        if (id >= maxSerializedAttributes) {
+            throw new InvalidArgumentException("Limit of the number of serialized EsFields exceeded [{}]", maxSerializedAttributes);
+        }
+        cachedEsFields.put(attr, id);
         return id;
     }
 

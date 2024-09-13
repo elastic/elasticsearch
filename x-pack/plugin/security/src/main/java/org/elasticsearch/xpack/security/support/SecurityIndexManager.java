@@ -388,7 +388,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             }
         };
 
-        // schedule timeout cancellation -- keep reference to cancellable so a successful completion can cancel the timeout
+        // schedule cancellation on timeout -- keep reference to cancellable so a successful completion can cancel the timeout
         indexAvailableForSearchListener.cancellable = client.threadPool().schedule(() -> {
             removeStateListener(indexAvailableForSearchListener);
             notifyOnceListener.onFailure(

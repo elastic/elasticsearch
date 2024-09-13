@@ -100,7 +100,11 @@ public class NativePrivilegeStore {
         Setting.Property.NodeScope
     );
 
-    private static final TimeValue securityIndexWaitTimeout = TimeValue.parseTimeValue(
+    /**
+     * Determines how long get privileges calls will wait for an available security index.
+     * The default value of 0 bypasses all waiting-related logic entirely.
+     */
+    private static final TimeValue SECURITY_INDEX_WAIT_TIMEOUT = TimeValue.parseTimeValue(
         System.getProperty("es.security.security_index.wait_timeout", null),
         TimeValue.ZERO,
         "system property <es.security.security_index.wait_timeout>"
@@ -200,7 +204,7 @@ public class NativePrivilegeStore {
 
     private void innerGetPrivileges(Collection<String> applications, ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener) {
         // timeout of 0 means skip wait attempt entirely
-        final boolean waitForAvailableSecurityIndex = false == securityIndexWaitTimeout.equals(TimeValue.ZERO);
+        final boolean waitForAvailableSecurityIndex = false == SECURITY_INDEX_WAIT_TIMEOUT.equals(TimeValue.ZERO);
         innerGetPrivileges(applications, waitForAvailableSecurityIndex, listener);
     }
 
@@ -232,7 +236,7 @@ public class NativePrivilegeStore {
                     // Call get privileges to get most up-to-date failure (or result, in case of an unlucky time-out)
                     innerGetPrivileges(applications, false, listener);
                 }
-            }, securityIndexWaitTimeout);
+            }, SECURITY_INDEX_WAIT_TIMEOUT);
         } else {
             securityIndexManager.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 final TermQueryBuilder typeQuery = QueryBuilders.termQuery(

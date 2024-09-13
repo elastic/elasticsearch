@@ -268,7 +268,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
             List<Geometry> geometries = new ArrayList<>();
             while (valueIndex < firstValue + valueCount) {
                 geometries.add(fromBytesRef(valueBlock.getBytesRef(valueIndex++, scratch)));
-                if (geometries.getLast() instanceof Point == false) {
+                if (geometries.get(geometries.size() - 1) instanceof Point == false) {
                     allPoints = false;
                 }
             }

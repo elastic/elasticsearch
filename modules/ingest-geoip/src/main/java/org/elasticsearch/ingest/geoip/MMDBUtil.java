@@ -76,7 +76,7 @@ public final class MMDBUtil {
             // read the database type
             final int offsetByte = tail[metadataOffset] & 0xFF;
             final int type = offsetByte >>> 5;
-            if (type != 2) {
+            if (type != 2) { // 2 is the type indicator in the mmdb format for a UTF-8 string
                 throw new IOException("type must be UTF-8 string");
             }
             int size = offsetByte & 0x1f;

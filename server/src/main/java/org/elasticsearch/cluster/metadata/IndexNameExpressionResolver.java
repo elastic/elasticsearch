@@ -248,18 +248,18 @@ public class IndexNameExpressionResolver {
         }
     }
 
-    public record ResolvedExpression(String indexAbstraction, @Nullable IndicesOptions.Selectors selector) {
+    public record ResolvedExpression(String resource, @Nullable IndicesOptions.Selectors selector) {
         public ResolvedExpression(String indexAbstraction) {
             this(indexAbstraction, null);
         }
 
         public String combined() {
-            return indexAbstraction + (selector == null ? "" : ("$" + selector.getKey()));
+            return resource + (selector == null ? "" : ("$" + selector.getKey()));
         }
     }
 
     protected static Collection<String> resolveExpressions(Context context, String... expressions) {
-        return resolveExpressionsNew(context, expressions).stream().map(ResolvedExpression::indexAbstraction).collect(Collectors.toSet());
+        return resolveExpressionsNew(context, expressions).stream().map(ResolvedExpression::resource).collect(Collectors.toSet());
     }
 
     protected static Collection<ResolvedExpression> resolveExpressionsNew(Context context, String... expressions) {
@@ -1851,14 +1851,14 @@ public class IndexNameExpressionResolver {
         }
 
         private static void validateAliasOrIndex(ExpressionList.Expression expression) {
-            if (Strings.isEmpty(expression.expression().indexAbstraction())) {
+            if (Strings.isEmpty(expression.expression().resource())) {
                 throw notFoundException(expression.get());
             }
             // Expressions can not start with an underscore. This is reserved for APIs. If the check gets here, the API
             // does not exist and the path is interpreted as an expression. If the expression begins with an underscore,
             // throw a specific error that is different from the [[IndexNotFoundException]], which is typically thrown
             // if the expression can't be found.
-            if (expression.expression().indexAbstraction().charAt(0) == '_') {
+            if (expression.expression().resource().charAt(0) == '_') {
                 throw new InvalidIndexNameException(expression.get(), "must not start with '_'.");
             }
         }
@@ -1868,7 +1868,7 @@ public class IndexNameExpressionResolver {
                 return;
             }
             for (ResolvedExpression expression : indexExpressions) {
-                String index = expression.indexAbstraction();
+                String index = expression.resource();
                 if (index.contains(":")) {
                     failOnRemoteIndicesNotIgnoringUnavailable(indexExpressions);
                 }
@@ -1878,7 +1878,7 @@ public class IndexNameExpressionResolver {
         private static void failOnRemoteIndicesNotIgnoringUnavailable(List<ResolvedExpression> indexExpressions) {
             List<String> crossClusterIndices = new ArrayList<>();
             for (ResolvedExpression expression : indexExpressions) {
-                String index = expression.indexAbstraction();
+                String index = expression.resource();
                 if (index.contains(":")) {
                     crossClusterIndices.add(expression.combined());
                 }
@@ -2005,9 +2005,9 @@ public class IndexNameExpressionResolver {
             public String get() {
                 if (isExclusion()) {
                     // drop the leading "-" if exclusion because it is easier for callers to handle it like this
-                    return expression().indexAbstraction().substring(1);
+                    return expression().resource().substring(1);
                 } else {
-                    return expression().indexAbstraction();
+                    return expression().resource();
                 }
             }
 
@@ -2024,7 +2024,7 @@ public class IndexNameExpressionResolver {
             List<Expression> expressionsList = new ArrayList<>(expressionStrings.size());
             boolean wildcardSeen = false;
             for (ResolvedExpression resolvedExpression : expressionStrings) {
-                String expressionString = resolvedExpression.indexAbstraction;
+                String expressionString = resolvedExpression.resource;
                 boolean isExclusion = expressionString.startsWith("-") && wildcardSeen;
                 if (context.getOptions().expandWildcardExpressions() && isWildcard(expressionString)) {
                     wildcardSeen = true;

@@ -117,7 +117,7 @@ public class ExpressionListTests extends ESTestCase {
             } else {
                 assertThat(expression.isWildcard(), is(true));
             }
-            assertThat(expression.get(), is(expressionList.get(i++).indexAbstraction()));
+            assertThat(expression.get(), is(expressionList.get(i++).resource()));
         }
     }
 
@@ -141,12 +141,12 @@ public class ExpressionListTests extends ESTestCase {
             int i = 0;
             for (Expression expression : expressionList) {
                 assertThat(expression.isExclusion(), is(false));
-                if (wildcardExpression.get(i).indexAbstraction().contains("*")) {
+                if (wildcardExpression.get(i).resource().contains("*")) {
                     assertThat(expression.isWildcard(), is(true));
                 } else {
                     assertThat(expression.isWildcard(), is(false));
                 }
-                assertThat(expression.get(), is(wildcardExpression.get(i++).indexAbstraction()));
+                assertThat(expression.get(), is(wildcardExpression.get(i++).resource()));
             }
         }
     }
@@ -173,7 +173,7 @@ public class ExpressionListTests extends ESTestCase {
             for (Expression expression : expressionList) {
                 assertThat(expression.isWildcard(), is(false));
                 assertThat(expression.isExclusion(), is(false));
-                assertThat(expression.get(), is(wildcardExpression.get(i++).indexAbstraction()));
+                assertThat(expression.get(), is(wildcardExpression.get(i++).resource()));
             }
         }
     }
@@ -204,15 +204,15 @@ public class ExpressionListTests extends ESTestCase {
             if (i == wildcardPos) {
                 assertThat(expression.isWildcard(), is(true));
                 assertThat(expression.isExclusion(), is(false));
-                assertThat(expression.get(), is(exclusionExpression.get(i++).indexAbstraction()));
+                assertThat(expression.get(), is(exclusionExpression.get(i++).resource()));
             } else if (i == exclusionPos) {
                 assertThat(expression.isExclusion(), is(true));
-                assertThat(expression.isWildcard(), is(exclusionExpression.get(i).indexAbstraction().contains("*")));
-                assertThat(expression.get(), is(exclusionExpression.get(i++).indexAbstraction().substring(1)));
+                assertThat(expression.isWildcard(), is(exclusionExpression.get(i).resource().contains("*")));
+                assertThat(expression.get(), is(exclusionExpression.get(i++).resource().substring(1)));
             } else {
                 assertThat(expression.isWildcard(), is(false));
                 assertThat(expression.isExclusion(), is(false));
-                assertThat(expression.get(), is(exclusionExpression.get(i++).indexAbstraction()));
+                assertThat(expression.get(), is(exclusionExpression.get(i++).resource()));
             }
         }
     }
@@ -284,11 +284,11 @@ public class ExpressionListTests extends ESTestCase {
             for (Expression expression : expressionList) {
                 boolean isExclusion = exclusionExpression.v2().get(i);
                 assertThat(expression.isExclusion(), is(isExclusion));
-                assertThat(expression.isWildcard(), is(exclusionExpression.v1().get(i).indexAbstraction().contains("*")));
+                assertThat(expression.isWildcard(), is(exclusionExpression.v1().get(i).resource().contains("*")));
                 if (isExclusion) {
-                    assertThat(expression.get(), is(exclusionExpression.v1().get(i++).indexAbstraction().substring(1)));
+                    assertThat(expression.get(), is(exclusionExpression.v1().get(i++).resource().substring(1)));
                 } else {
-                    assertThat(expression.get(), is(exclusionExpression.v1().get(i++).indexAbstraction()));
+                    assertThat(expression.get(), is(exclusionExpression.v1().get(i++).resource()));
                 }
             }
         }

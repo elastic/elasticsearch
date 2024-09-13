@@ -15,6 +15,7 @@ import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.util.concurrent.FutureListener;
 
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
@@ -145,7 +146,7 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
     private void doClose() {
         closing = true;
         for (var tracer : tracingHandlers) {
-            tracer.close();
+            Releasables.closeExpectNoException(tracer);
         }
         if (handler != null) {
             handler.close();

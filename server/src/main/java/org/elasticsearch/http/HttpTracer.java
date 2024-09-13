@@ -100,30 +100,42 @@ class HttpTracer {
     }
 
     private void logStreamContent(RestRequest restRequest) {
-        var stream = HttpBodyTracer.getBodyOutputStream(restRequest.getRequestId(), HttpBodyTracer.Type.REQUEST);
-        restRequest.contentStream().addTracingHandler(new HttpBody.ChunkHandler() {
-            @Override
-            public void onNext(ReleasableBytesReference chunk, boolean isLast) {
-                try {
-                    chunk.writeTo(stream);
-                } catch (IOException e) {
-                    assert false : e; // no real IO
-                } finally {
-                    if (isLast) {
-                        this.close();
-                    }
-                }
-            }
+        restRequest.contentStream().addTracingHandler(new LoggingChunkHandler(restRequest));
+    }
 
-            @Override
-            public void close() {
-                try {
-                    stream.close();
-                } catch (IOException e) {
-                    assert false : e; // no real IO
+    private static class LoggingChunkHandler implements HttpBody.ChunkHandler {
+        private final OutputStream stream;
+        private volatile boolean closed = false;
+
+        LoggingChunkHandler(RestRequest request) {
+            stream = HttpBodyTracer.getBodyOutputStream(request.getRequestId(), HttpBodyTracer.Type.REQUEST);
+        }
+
+        @Override
+        public void onNext(ReleasableBytesReference chunk, boolean isLast) {
+            try {
+                chunk.writeTo(stream);
+            } catch (IOException e) {
+                assert false : e; // no real IO
+            } finally {
+                if (isLast) {
+                    this.close();
                 }
             }
-        });
+        }
+
+        @Override
+        public void close() {
+            if (closed) {
+                return;
+            }
+            try {
+                closed = true;
+                stream.close();
+            } catch (IOException e) {
+                assert false : e; // no real IO
+            }
+        }
     }
 
     boolean isBodyTracerEnabled() {

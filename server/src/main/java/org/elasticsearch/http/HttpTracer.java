@@ -11,6 +11,7 @@ package org.elasticsearch.http;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
@@ -100,18 +101,26 @@ class HttpTracer {
 
     private void logStreamContent(RestRequest restRequest) {
         var stream = HttpBodyTracer.getBodyOutputStream(restRequest.getRequestId(), HttpBodyTracer.Type.REQUEST);
-        restRequest.contentStream().addTracingHandler((chunk, isLast) -> {
-            try {
-                chunk.writeTo(stream);
-            } catch (IOException e) {
-                assert false : e; // no real IO
-            } finally {
-                if (isLast) {
-                    try {
-                        stream.close();
-                    } catch (IOException e) {
-                        assert false : e;
+        restRequest.contentStream().addTracingHandler(new HttpBody.ChunkHandler() {
+            @Override
+            public void onNext(ReleasableBytesReference chunk, boolean isLast) {
+                try {
+                    chunk.writeTo(stream);
+                } catch (IOException e) {
+                    assert false : e; // no real IO
+                } finally {
+                    if (isLast) {
+                        this.close();
                     }
+                }
+            }
+
+            @Override
+            public void close() {
+                try {
+                    stream.close();
+                } catch (IOException e) {
+                    assert false : e; // no real IO
                 }
             }
         });

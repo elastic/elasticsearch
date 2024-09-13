@@ -127,8 +127,8 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
         var bytesRef = Netty4Utils.toReleasableBytesReference(buf);
         requested = false;
         buf = null;
-        for (var tracing : tracingHandlers) {
-            tracing.onNext(bytesRef, hasLast);
+        for (var tracer : tracingHandlers) {
+            tracer.onNext(bytesRef, hasLast);
         }
         handler.onNext(bytesRef, hasLast);
     }
@@ -144,6 +144,9 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
 
     private void doClose() {
         closing = true;
+        for (var tracer : tracingHandlers) {
+            tracer.close();
+        }
         if (handler != null) {
             handler.close();
         }

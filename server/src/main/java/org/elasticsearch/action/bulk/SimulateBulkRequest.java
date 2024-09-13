@@ -24,8 +24,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * This extends BulkRequest with support for providing substitute pipeline definitions and template definitions. In a user request, the
- * substitutions will look something like this:
+ * This extends BulkRequest with support for providing substitute pipeline definitions and component template definitions. In a user
+ * request, the substitutions will look something like this:
  *
  *   "pipeline_substitutions": {
  *     "my-pipeline-1": {

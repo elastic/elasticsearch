@@ -45,7 +45,7 @@ public class SimulateBulkRequestTests extends ESTestCase {
         assertThat(copy.getPipelineSubstitutions(), equalTo(simulateBulkRequest.getPipelineSubstitutions()));
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings("unchecked,rawtypes")
     public void testGetComponentTemplateSubstitutions() throws IOException {
         SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(Map.of(), Map.of());
         assertThat(simulateBulkRequest.getComponentTemplateSubstitutions(), equalTo(Map.of()));

@@ -139,11 +139,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
 
     @Override
     protected void doExecute(Task task, ClusterStatsRequest request, ActionListener<ClusterStatsResponse> listener) {
-        if (doRemotes(request)) {
-            super.doExecute(task, request, new ActionListenerWithRemotes(task, request, listener));
-        } else {
-            super.doExecute(task, request, listener);
-        }
+        super.doExecute(task, request, new ActionListenerWithRemotes(task, request, listener));
     }
 
     @Override
@@ -160,6 +156,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         );
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.MANAGEMENT);
         assert task instanceof CancellableTask;
+        assert listener instanceof ActionListenerWithRemotes;
 
         if (request.isRemoteStats()) {
             newRemoteResponseAsync(responses, listener);
@@ -174,10 +171,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             clusterService.threadPool().absoluteTimeInMillis()
         );
 
-        SubscribableListener<Map<String, RemoteClusterStats>> remoteClusterStatsListener =
-            (listener instanceof ActionListenerWithRemotes listenerWithRemotes)
-                ? listenerWithRemotes.getRemoteClusterStats()
-                : SubscribableListener.newSucceeded(null);
+        var remoteClusterStatsListener = ((ActionListenerWithRemotes) listener).getRemoteClusterStats();
 
         final ListenableFuture<MappingStats> mappingStatsStep = new ListenableFuture<>();
         final ListenableFuture<AnalysisStats> analysisStatsStep = new ListenableFuture<>();
@@ -426,7 +420,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
 
         @Override
         protected void onItemFailure(String clusterAlias, Exception e) {
-            logger.warn("Failed to get remote cluster stats for [{}]", clusterAlias, e);
+            logger.warn("Failed to get remote cluster stats for [{}]: {}", clusterAlias, e);
         }
 
         private boolean isCancelled() {

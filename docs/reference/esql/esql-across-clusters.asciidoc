@@ -537,8 +537,7 @@ setting. As a result, if a remote cluster specified in the request is
 unavailable or failed, {ccs} for {esql} queries will fail regardless of the setting.
 
 We are actively working to align the behavior of {ccs} for {esql} with other
-{ccs} APIs. This includes providing detailed execution information for each cluster
-in the response, such as execution time, selected target indices, and shards.
+{ccs} APIs.
 
 [discrete]
 [[ccq-during-upgrade]]

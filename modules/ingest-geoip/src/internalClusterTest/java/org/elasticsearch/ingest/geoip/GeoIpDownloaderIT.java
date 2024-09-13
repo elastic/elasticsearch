@@ -530,91 +530,84 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
      * @throws IOException
      */
     private void putGeoIpPipeline(String pipelineId, boolean downloadDatabaseOnPipelineCreation) throws IOException {
-        BytesReference bytes;
-        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            builder.startObject();
+        putJsonPipeline(pipelineId, ((builder, params) -> {
+            builder.startArray("processors");
             {
-                builder.startArray("processors");
+                /*
+                 * First we add a non-geo pipeline with a random field value. This is purely here so that each call to this method
+                 * creates a pipeline that is unique. Creating the a pipeline twice with the same ID and exact same bytes
+                 * results in a no-op, meaning that the pipeline won't actually be updated and won't actually trigger all of the
+                 * things we expect it to.
+                 */
+                builder.startObject();
                 {
-                    /*
-                     * First we add a non-geo pipeline with a random field value. This is purely here so that each call to this method
-                     * creates a pipeline that is unique. Creating the a pipeline twice with the same ID and exact same bytes
-                     * results in a no-op, meaning that the pipeline won't actually be updated and won't actually trigger all of the
-                     * things we expect it to.
-                     */
-                    builder.startObject();
+                    builder.startObject(NonGeoProcessorsPlugin.NON_GEO_PROCESSOR_TYPE);
                     {
-                        builder.startObject(NonGeoProcessorsPlugin.NON_GEO_PROCESSOR_TYPE);
-                        {
-                            builder.field("randomField", randomAlphaOfLength(20));
-                        }
-                        builder.endObject();
-                    }
-                    builder.endObject();
-
-                    builder.startObject();
-                    {
-                        builder.startObject("geoip");
-                        {
-                            builder.field("field", "ip");
-                            builder.field("target_field", "ip-city");
-                            builder.field("database_file", "GeoLite2-City.mmdb");
-                            if (downloadDatabaseOnPipelineCreation == false || randomBoolean()) {
-                                builder.field("download_database_on_pipeline_creation", downloadDatabaseOnPipelineCreation);
-                            }
-                        }
-                        builder.endObject();
-                    }
-                    builder.endObject();
-                    builder.startObject();
-                    {
-                        builder.startObject("geoip");
-                        {
-                            builder.field("field", "ip");
-                            builder.field("target_field", "ip-country");
-                            builder.field("database_file", "GeoLite2-Country.mmdb");
-                            if (downloadDatabaseOnPipelineCreation == false || randomBoolean()) {
-                                builder.field("download_database_on_pipeline_creation", downloadDatabaseOnPipelineCreation);
-                            }
-                        }
-                        builder.endObject();
-                    }
-                    builder.endObject();
-                    builder.startObject();
-                    {
-                        builder.startObject("geoip");
-                        {
-                            builder.field("field", "ip");
-                            builder.field("target_field", "ip-asn");
-                            builder.field("database_file", "GeoLite2-ASN.mmdb");
-                            if (downloadDatabaseOnPipelineCreation == false || randomBoolean()) {
-                                builder.field("download_database_on_pipeline_creation", downloadDatabaseOnPipelineCreation);
-                            }
-                        }
-                        builder.endObject();
-                    }
-                    builder.endObject();
-                    builder.startObject();
-                    {
-                        builder.startObject("geoip");
-                        {
-                            builder.field("field", "ip");
-                            builder.field("target_field", "ip-city");
-                            builder.field("database_file", "MyCustomGeoLite2-City.mmdb");
-                            if (downloadDatabaseOnPipelineCreation == false || randomBoolean()) {
-                                builder.field("download_database_on_pipeline_creation", downloadDatabaseOnPipelineCreation);
-                            }
-                        }
-                        builder.endObject();
+                        builder.field("randomField", randomAlphaOfLength(20));
                     }
                     builder.endObject();
                 }
-                builder.endArray();
+                builder.endObject();
+
+                builder.startObject();
+                {
+                    builder.startObject("geoip");
+                    {
+                        builder.field("field", "ip");
+                        builder.field("target_field", "ip-city");
+                        builder.field("database_file", "GeoLite2-City.mmdb");
+                        if (downloadDatabaseOnPipelineCreation == false || randomBoolean()) {
+                            builder.field("download_database_on_pipeline_creation", downloadDatabaseOnPipelineCreation);
+                        }
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+                builder.startObject();
+                {
+                    builder.startObject("geoip");
+                    {
+                        builder.field("field", "ip");
+                        builder.field("target_field", "ip-country");
+                        builder.field("database_file", "GeoLite2-Country.mmdb");
+                        if (downloadDatabaseOnPipelineCreation == false || randomBoolean()) {
+                            builder.field("download_database_on_pipeline_creation", downloadDatabaseOnPipelineCreation);
+                        }
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+                builder.startObject();
+                {
+                    builder.startObject("geoip");
+                    {
+                        builder.field("field", "ip");
+                        builder.field("target_field", "ip-asn");
+                        builder.field("database_file", "GeoLite2-ASN.mmdb");
+                        if (downloadDatabaseOnPipelineCreation == false || randomBoolean()) {
+                            builder.field("download_database_on_pipeline_creation", downloadDatabaseOnPipelineCreation);
+                        }
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+                builder.startObject();
+                {
+                    builder.startObject("geoip");
+                    {
+                        builder.field("field", "ip");
+                        builder.field("target_field", "ip-city");
+                        builder.field("database_file", "MyCustomGeoLite2-City.mmdb");
+                        if (downloadDatabaseOnPipelineCreation == false || randomBoolean()) {
+                            builder.field("download_database_on_pipeline_creation", downloadDatabaseOnPipelineCreation);
+                        }
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
             }
-            builder.endObject();
-            bytes = BytesReference.bytes(builder);
-        }
-        assertAcked(clusterAdmin().preparePutPipeline(pipelineId, bytes, XContentType.JSON).get());
+            return builder.endArray();
+        }));
     }
 
     /**
@@ -626,40 +619,33 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
          * Adding the exact same pipeline twice is treated as a no-op. The random values that go into randomField make each pipeline
          * created by this method is unique to avoid this.
          */
-        BytesReference bytes;
-        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            builder.startObject();
+        putJsonPipeline(pipelineId, ((builder, params) -> {
+            builder.startArray("processors");
             {
-                builder.startArray("processors");
+                builder.startObject();
                 {
-                    builder.startObject();
-                    {
-                        builder.startObject(NonGeoProcessorsPlugin.NON_GEO_PROCESSOR_TYPE);
-                        builder.field("randomField", randomAlphaOfLength(20));
-                        builder.endObject();
-                    }
-                    builder.endObject();
-                    builder.startObject();
-                    {
-                        builder.startObject(NonGeoProcessorsPlugin.NON_GEO_PROCESSOR_TYPE);
-                        builder.field("randomField", randomAlphaOfLength(20));
-                        builder.endObject();
-                    }
-                    builder.endObject();
-                    builder.startObject();
-                    {
-                        builder.startObject(NonGeoProcessorsPlugin.NON_GEO_PROCESSOR_TYPE);
-                        builder.field("randomField", randomAlphaOfLength(20));
-                        builder.endObject();
-                    }
+                    builder.startObject(NonGeoProcessorsPlugin.NON_GEO_PROCESSOR_TYPE);
+                    builder.field("randomField", randomAlphaOfLength(20));
                     builder.endObject();
                 }
-                builder.endArray();
+                builder.endObject();
+                builder.startObject();
+                {
+                    builder.startObject(NonGeoProcessorsPlugin.NON_GEO_PROCESSOR_TYPE);
+                    builder.field("randomField", randomAlphaOfLength(20));
+                    builder.endObject();
+                }
+                builder.endObject();
+                builder.startObject();
+                {
+                    builder.startObject(NonGeoProcessorsPlugin.NON_GEO_PROCESSOR_TYPE);
+                    builder.field("randomField", randomAlphaOfLength(20));
+                    builder.endObject();
+                }
+                builder.endObject();
             }
-            builder.endObject();
-            bytes = BytesReference.bytes(builder);
-        }
-        assertAcked(clusterAdmin().preparePutPipeline(pipelineId, bytes, XContentType.JSON).get());
+            return builder.endArray();
+        }));
     }
 
     private List<Path> getGeoIpTmpDirs() throws IOException {

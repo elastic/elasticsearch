@@ -14,10 +14,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptPlugin;
@@ -92,8 +89,7 @@ public class IngestStatsNamesAndTypesIT extends ESIntegTestCase {
               ]
             }
             """, MockScriptEngine.NAME, MockScriptEngine.NAME);
-        BytesReference pipeline1Reference = new BytesArray(pipeline1);
-        clusterAdmin().putPipeline(new PutPipelineRequest("pipeline1", pipeline1Reference, XContentType.JSON)).actionGet();
+        putJsonPipeline("pipeline1", pipeline1);
 
         // index a single document through the pipeline
         BulkRequest bulkRequest = new BulkRequest();

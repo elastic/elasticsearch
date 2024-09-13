@@ -45,20 +45,21 @@ public class DownsampleAction extends ActionType<AcknowledgedResponse> {
         private DownsampleConfig downsampleConfig;
 
         public Request(
+            TimeValue masterNodeTimeout,
             final String sourceIndex,
             final String targetIndex,
             final TimeValue waitTimeout,
             final DownsampleConfig downsampleConfig
         ) {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+            super(masterNodeTimeout);
             this.sourceIndex = sourceIndex;
             this.targetIndex = targetIndex;
             this.waitTimeout = waitTimeout == null ? DEFAULT_WAIT_TIMEOUT : waitTimeout;
             this.downsampleConfig = downsampleConfig;
         }
 
-        public Request() {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        public Request(TimeValue masterNodeTimeout) {
+            super(masterNodeTimeout);
         }
 
         public Request(StreamInput in) throws IOException {

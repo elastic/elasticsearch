@@ -74,7 +74,7 @@ public final class MMDBUtil {
             }
 
             // read the database type
-            final int offsetByte = tail[metadataOffset] & 0xFF;
+            final int offsetByte = fromBytes(tail[metadataOffset]);
             final int type = offsetByte >>> 5;
             if (type != 2) { // 2 is the type indicator in the mmdb format for a UTF-8 string
                 throw new IOException("type must be UTF-8 string");
@@ -83,11 +83,15 @@ public final class MMDBUtil {
             if (size == 29) {
                 // then we need to read in yet another byte and add it onto this size
                 // this can actually occur in practice, a 29+ character type description isn't that hard to imagine
-                size = 29 + (tail[metadataOffset + 1] & 0xFF);
+                size = 29 + fromBytes(tail[metadataOffset + 1]);
                 metadataOffset += 1;
             }
 
             return new String(tail, metadataOffset + 1, size, StandardCharsets.UTF_8);
         }
+    }
+
+    static int fromBytes(byte b1) {
+        return b1 & 0xFF;
     }
 }

@@ -68,13 +68,9 @@ PUT semantic-embeddings
 {
   "mappings": {
     "properties": {
-      "semantic_text": { <1>
+      "content": { <1>
         "type": "semantic_text", <2>
         "inference_id": "my-elser-endpoint" <3>
-      },
-      "content": { <4>
-        "type": "text",
-        "copy_to": "semantic_text" <5>
       }
     }
   }
@@ -86,12 +82,6 @@ PUT semantic-embeddings
 <3> The `inference_id` is the inference endpoint you created in the previous step.
 It will be used to generate the embeddings based on the input text.
 Every time you ingest data into the related `semantic_text` field, this endpoint will be used for creating the vector representation of the text.
-<4> The field to store the text reindexed from a source index in the  <<semantic-text-reindex-data,Reindex the data>> step.
-<5> The textual data stored in the `content` field will be copied to `semantic_text` and processed by the {infer} endpoint.
-The `semantic_text` field will store the embeddings generated based on the input data.
-Copying the `content` field to the `semantic_text` field is not required to use `semantic_text`.
-However, it is recommended because it enables hybrid search. Hybrid search combines lexical search on the `text` field with semantic search on the `semantic_text` field.
-
 
 
 [discrete]
@@ -117,17 +107,9 @@ you can see an index named `test-data` with 182469 documents.
 [[semantic-text-reindex-data]]
 ==== Reindex the data
 
-Create the embeddings from the text by reindexing the data from the `test-data`
-index to the `semantic-embeddings` index. The data in the `content` field will
-be reindexed into the `content` field of the destination index. 
-The `content` field data will be copied to the `semantic_text` field as a result of the `copy_to`
-parameter set in the index mapping creation step. The copied data will be
-processed by the {infer} endpoint associated with the `semantic_text` semantic text
-field.
-
-IMPORTANT: Using `copy_to` fields is not required for semantic search; you can target the `semantic_text` field directly during ingestion.
-However, using the `copy_to` field enables hybrid search, which is recommended. 
-For more information, refer to <<copy-to-support,this section>> on the `semantic_text` documentation page.
+Create the embeddings from the text by reindexing the data from the `test-data` index to the `semantic-embeddings` index.
+The data in the `content` field will be reindexed into the `content` semantic text field of the destination index.
+The reindexed data will be processed by the {infer} endpoint associated with the `content` semantic text field.
 
 [source,console]
 ------------------------------------------------------------
@@ -169,10 +151,9 @@ POST _tasks/<task_id>/_cancel
 [[semantic-text-semantic-search]]
 ==== Semantic search
 
-After the data set has been enriched with the embeddings, you can query the data
-using semantic search. Provide the `semantic_text` field name and the query text
-in a `semantic` query type. The {infer} endpoint used to generate the embeddings
-for the `semantic_text` field will be used to process the query text.
+After the data set has been enriched with the embeddings, you can query the data using semantic search.
+Provide the `semantic_text` field name and the query text in a `semantic` query type.
+The {infer} endpoint used to generate the embeddings for the `semantic_text` field will be used to process the query text.
 
 [source,console]
 ------------------------------------------------------------
@@ -180,7 +161,7 @@ GET semantic-embeddings/_search
 {
   "query": {
     "semantic": { 
-      "field": "semantic_text", <1>
+      "field": "content", <1>
       "query": "How to avoid muscle soreness while running?" <2>
     }
   }
@@ -201,7 +182,7 @@ query from the `semantic-embedding` index:
     "_id": "6DdEuo8B0vYIvzmhoEtt",
     "_score": 24.972616,
     "_source": {
-      "semantic_text": {
+      "content": {
         "inference": {
           "inference_id": "my-elser-endpoint",
           "model_settings": {
@@ -226,7 +207,7 @@ query from the `semantic-embedding` index:
     "_id": "-zdEuo8B0vYIvzmhplLX",
     "_score": 22.143118,
     "_source": {
-      "semantic_text": {
+      "content": {
         "inference": {
           "inference_id": "my-elser-endpoint",
           "model_settings": {
@@ -251,7 +232,7 @@ query from the `semantic-embedding` index:
     "_id": "77JEuo8BdmhTuQdXtQWt",
     "_score": 21.506052,
     "_source": {
-      "semantic_text": {
+      "content": {
         "inference": {
           "inference_id": "my-elser-endpoint",
           "model_settings": {

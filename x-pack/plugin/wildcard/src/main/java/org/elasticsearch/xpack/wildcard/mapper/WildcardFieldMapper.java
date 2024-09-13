@@ -990,7 +990,7 @@ public class WildcardFieldMapper extends FieldMapper {
     protected SyntheticSourceSupport syntheticSourceSupport() {
         var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
         layers.add(new WildcardSyntheticFieldLoader());
-        if (ignoreAbove != ignoreAbove()) {
+        if (ignoreAbove != ignoreAboveDefault) {
             layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(originalName()) {
                 @Override
                 protected void writeValue(Object value, XContentBuilder b) throws IOException {

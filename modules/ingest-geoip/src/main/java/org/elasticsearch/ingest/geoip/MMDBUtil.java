@@ -37,24 +37,20 @@ public final class MMDBUtil {
      */
     public static String getDatabaseType(Path databasePath) throws IOException {
         final long fileSize = Files.size(databasePath);
-        if (fileSize <= BUFFER_SIZE) {
-            throw new IOException("unexpected file length [" + fileSize + "] for [" + databasePath + "]");
-        }
         try (InputStream in = Files.newInputStream(databasePath)) {
-            // read the last BUFFER_SIZE bytes
-            final long skipped = in.skip(fileSize - BUFFER_SIZE);
-            if (skipped != fileSize - BUFFER_SIZE) {
-                throw new IOException("failed to skip [" + (fileSize - BUFFER_SIZE) + "] bytes while reading [" + databasePath + "]");
+            // read the last BUFFER_SIZE bytes (or the fileSize, whichever is smaller)
+            final long skip = fileSize > BUFFER_SIZE ? fileSize - BUFFER_SIZE : 0;
+            final long skipped = in.skip(skip);
+            if (skipped != skip) {
+                throw new IOException("failed to skip [" + skip + "] bytes while reading [" + databasePath + "]");
             }
             final byte[] tail = new byte[BUFFER_SIZE];
             int read = 0;
+            int actualBytesRead;
             do {
-                final int actualBytesRead = in.read(tail, read, BUFFER_SIZE - read);
-                if (actualBytesRead == -1) {
-                    throw new IOException("unexpected end of stream [" + databasePath + "] after reading [" + read + "] bytes");
-                }
+                actualBytesRead = in.read(tail, read, BUFFER_SIZE - read);
                 read += actualBytesRead;
-            } while (read != BUFFER_SIZE);
+            } while (actualBytesRead > 0);
 
             // find the database_type header
             int metadataOffset = -1;

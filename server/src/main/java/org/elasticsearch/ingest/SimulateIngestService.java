@@ -10,7 +10,6 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.SimulateBulkRequest;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -62,10 +61,6 @@ public class SimulateIngestService extends IngestService {
             }
         }
         return parsedPipelineSubstitutions;
-    }
-
-    private Map<String, IndexTemplateMetadata> getTemplateSubstitutions() {
-        return Map.of();
     }
 
     /**

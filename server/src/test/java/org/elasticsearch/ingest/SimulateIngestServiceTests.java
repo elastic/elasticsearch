@@ -64,10 +64,7 @@ public class SimulateIngestServiceTests extends ESTestCase {
         ingestService.innerUpdatePipelines(ingestMetadata);
         {
             // First we make sure that if there are no substitutions that we get our original pipeline back:
-            SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(
-                (Map<String, Map<String, Object>>) null,
-                (Map<String, Map<String, Object>>) null
-            );
+            SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(null, null);
             SimulateIngestService simulateIngestService = new SimulateIngestService(ingestService, simulateBulkRequest);
             Pipeline pipeline = simulateIngestService.getPipeline("pipeline1");
             assertThat(pipeline.getProcessors(), contains(transformedMatch(Processor::getType, equalTo("processor1"))));
@@ -85,7 +82,6 @@ public class SimulateIngestServiceTests extends ESTestCase {
             );
             pipelineSubstitutions.put("pipeline2", newHashMap("processors", List.of(newHashMap("processor3", Collections.emptyMap()))));
 
-            // TODO
             SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(pipelineSubstitutions, null);
             SimulateIngestService simulateIngestService = new SimulateIngestService(ingestService, simulateBulkRequest);
             Pipeline pipeline1 = simulateIngestService.getPipeline("pipeline1");

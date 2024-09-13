@@ -23,7 +23,7 @@ public final class MMDBUtil {
     private static final byte[] DATABASE_TYPE_MARKER = "database_type".getBytes(StandardCharsets.UTF_8);
 
     // note: technically the metadata can be up to 128k long, but we only handle it correctly as long as it's less than
-    // or equal to this buffer size.
+    // or equal to this buffer size. in practice, that seems to be plenty for ordinary files.
     private static final int BUFFER_SIZE = 2048;
 
     /**
@@ -85,6 +85,9 @@ public final class MMDBUtil {
                 // this can actually occur in practice, a 29+ character type description isn't that hard to imagine
                 size = 29 + fromBytes(tail[metadataOffset + 1]);
                 metadataOffset += 1;
+            } else if (size >= 30) {
+                // we'd need to two or more three bytes to get the size, but this means the type length is >=285
+                throw new IOException("database type marker not found [size == " + size + "]");
             }
 
             return new String(tail, metadataOffset + 1, size, StandardCharsets.UTF_8);

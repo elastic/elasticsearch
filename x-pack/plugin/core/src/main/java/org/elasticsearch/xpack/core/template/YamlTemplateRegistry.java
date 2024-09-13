@@ -37,8 +37,6 @@ import static org.elasticsearch.xpack.core.template.ResourceUtils.loadVersionedR
 
 /**
  * Creates index templates and ingest pipelines based on YAML files defined in resources.yaml.
- * It also allows ILM files to be managed separately as per the DSL only mode for the cluster.
- * The ILM names MUST end with `@ilm` for this class to mark the resource as ILM resource.
  */
 public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
     private static final Logger logger = LogManager.getLogger(YamlTemplateRegistry.class);
@@ -113,7 +111,7 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
 
     /***
      *
-     * @return A friendly, human readable name of the index template regisry
+     * @return A friendly, human-readable name of the index template registry
      */
     public abstract String getName();
 
@@ -171,10 +169,16 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
 
     protected abstract String getVersionProperty();
 
-    private boolean shouldLoadTemplate(String name, boolean dslOnlyMode) {
-        if (dslOnlyMode && name.endsWith("@ilm")) {
-            return false;
-        }
+    /**
+     * shouldLoadTemplate provides a way to filter out templates conditionally as required by the plugin.
+     * One common use of this method could be to filter out ILM based templates when data stream only mode
+     * is enabled which is passed as a parameter to the shouldLoadTemplate function.
+     *
+     * @param name of the resource currently being processed
+     * @param dslOnlyMode represents if server is running in data stream lifecycle only mode
+     * @return boolean indicating if the resource should be loaded by the plugin or not.
+     */
+    protected boolean shouldLoadTemplate(String name, boolean dslOnlyMode) {
         return true;
     }
 

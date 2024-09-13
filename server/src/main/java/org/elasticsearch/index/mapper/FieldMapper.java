@@ -62,6 +62,7 @@ public abstract class FieldMapper extends Mapper {
     public static final Setting<Integer> IGNORE_ABOVE_SETTING = Setting.intSetting(
         "index.mapping.ignore_above",
         Integer.MAX_VALUE,
+        0,
         Property.IndexScope,
         Property.ServerlessPublic
     );

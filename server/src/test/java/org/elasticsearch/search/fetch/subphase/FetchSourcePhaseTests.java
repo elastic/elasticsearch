@@ -192,8 +192,7 @@ public class FetchSourcePhaseTests extends ESTestCase {
         SearchExecutionContext sec = mock(SearchExecutionContext.class);
         when(sec.isSourceEnabled()).thenReturn(sourceBuilder != null);
         when(fetchContext.getSearchExecutionContext()).thenReturn(sec);
-        MappingLookup mappingLookup = MappingLookup.EMPTY;
-        when(fetchContext.getSearchExecutionContext().getMappingLookup()).thenReturn(mappingLookup);
+        when(fetchContext.getSearchExecutionContext().getMappingLookup()).thenReturn(MappingLookup.EMPTY);
 
         final SearchHit searchHit = SearchHit.unpooled(1, null, nestedIdentity);
 

@@ -178,7 +178,7 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
     }
 
     private MappedFieldType dimensionField(String name) {
-        return new KeywordFieldMapper.Builder(name, IndexVersion.current()).dimension(true)
+        return new KeywordFieldMapper.Builder(name, Integer.MAX_VALUE, IndexVersion.current()).dimension(true)
             .docValues(true)
             .build(MapperBuilderContext.root(true, true))
             .fieldType();

@@ -424,7 +424,7 @@ public class FieldTypeLookupTests extends ESTestCase {
     }
 
     private static FlattenedFieldMapper createFlattenedMapper(String fieldName) {
-        return new FlattenedFieldMapper.Builder(fieldName).build(MapperBuilderContext.root(false, false));
+        return new FlattenedFieldMapper.Builder(fieldName, Integer.MAX_VALUE).build(MapperBuilderContext.root(false, false));
     }
 
     private PassThroughObjectMapper createPassThroughMapper(String name, Map<String, Mapper> mappers, int priority) {

@@ -56,7 +56,9 @@ public class DocumentParserContextTests extends ESTestCase {
                 .put("index.mapping.total_fields.ignore_dynamic_beyond_limit", true)
                 .build()
         );
-        assertTrue(context.addDynamicMapper(new KeywordFieldMapper.Builder("keyword_field", IndexVersion.current()).build(root)));
+        assertTrue(
+            context.addDynamicMapper(new KeywordFieldMapper.Builder("keyword_field", Integer.MAX_VALUE, IndexVersion.current()).build(root))
+        );
         assertFalse(context.addDynamicRuntimeField(new TestRuntimeField("runtime_field", "keyword")));
         assertThat(context.getIgnoredFields(), contains("runtime_field"));
     }
@@ -69,7 +71,9 @@ public class DocumentParserContextTests extends ESTestCase {
                 .build()
         );
         assertTrue(context.addDynamicRuntimeField(new TestRuntimeField("runtime_field", "keyword")));
-        assertFalse(context.addDynamicMapper(new KeywordFieldMapper.Builder("keyword_field", IndexVersion.current()).build(root)));
+        assertFalse(
+            context.addDynamicMapper(new KeywordFieldMapper.Builder("keyword_field", Integer.MAX_VALUE, IndexVersion.current()).build(root))
+        );
         assertThat(context.getIgnoredFields(), contains("keyword_field"));
     }
 

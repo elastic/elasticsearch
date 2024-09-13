@@ -77,7 +77,9 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             indicesService.getCircuitBreakerService()
         );
         MapperBuilderContext context = MapperBuilderContext.root(false, false);
-        final MappedFieldType stringMapper = new KeywordFieldMapper.Builder("string", IndexVersion.current()).build(context).fieldType();
+        final MappedFieldType stringMapper = new KeywordFieldMapper.Builder("string", Integer.MAX_VALUE, IndexVersion.current()).build(
+            context
+        ).fieldType();
         ifdService.clear();
         IndexFieldData<?> fd = ifdService.getForField(stringMapper, FieldDataContext.noRuntimeFields("test"));
         assertTrue(fd instanceof SortedSetOrdinalsIndexFieldData);

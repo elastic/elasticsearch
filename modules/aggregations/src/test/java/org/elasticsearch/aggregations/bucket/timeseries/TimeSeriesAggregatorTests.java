@@ -78,10 +78,10 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
             assertThat(((Sum) ts.getBucketByKey("{dim1=bbb, dim2=zzz}").getAggregations().get("sum")).value(), equalTo(22.0));
 
         },
-            new KeywordFieldMapper.Builder("dim1", IndexVersion.current()).dimension(true)
+            new KeywordFieldMapper.Builder("dim1", Integer.MAX_VALUE, IndexVersion.current()).dimension(true)
                 .build(MapperBuilderContext.root(true, true))
                 .fieldType(),
-            new KeywordFieldMapper.Builder("dim2", IndexVersion.current()).dimension(true)
+            new KeywordFieldMapper.Builder("dim2", Integer.MAX_VALUE, IndexVersion.current()).dimension(true)
                 .build(MapperBuilderContext.root(true, true))
                 .fieldType(),
             new NumberFieldMapper.NumberFieldType("val1", NumberFieldMapper.NumberType.INTEGER)
@@ -146,7 +146,7 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
                 aggregationBuilder,
                 TimeSeriesIdFieldMapper.FIELD_TYPE,
                 new DateFieldMapper.DateFieldType("@timestamp"),
-                new KeywordFieldMapper.Builder("dim1", IndexVersion.current()).dimension(true)
+                new KeywordFieldMapper.Builder("dim1", Integer.MAX_VALUE, IndexVersion.current()).dimension(true)
                     .build(MapperBuilderContext.root(true, true))
                     .fieldType(),
                 new NumberFieldMapper.NumberFieldType("val1", NumberFieldMapper.NumberType.INTEGER)
@@ -199,10 +199,10 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
             new MatchAllDocsQuery(),
             buildIndex,
             verifier,
-            new KeywordFieldMapper.Builder("dim1", IndexVersion.current()).dimension(true)
+            new KeywordFieldMapper.Builder("dim1", Integer.MAX_VALUE, IndexVersion.current()).dimension(true)
                 .build(MapperBuilderContext.root(true, true))
                 .fieldType(),
-            new KeywordFieldMapper.Builder("dim2", IndexVersion.current()).dimension(true)
+            new KeywordFieldMapper.Builder("dim2", Integer.MAX_VALUE, IndexVersion.current()).dimension(true)
                 .build(MapperBuilderContext.root(true, true))
                 .fieldType()
         );
@@ -234,10 +234,10 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
                 new MatchAllDocsQuery(),
                 buildIndex,
                 limitedVerifier,
-                new KeywordFieldMapper.Builder("dim1", IndexVersion.current()).dimension(true)
+                new KeywordFieldMapper.Builder("dim1", Integer.MAX_VALUE, IndexVersion.current()).dimension(true)
                     .build(MapperBuilderContext.root(true, true))
                     .fieldType(),
-                new KeywordFieldMapper.Builder("dim2", IndexVersion.current()).dimension(true)
+                new KeywordFieldMapper.Builder("dim2", Integer.MAX_VALUE, IndexVersion.current()).dimension(true)
                     .build(MapperBuilderContext.root(true, true))
                     .fieldType()
             );

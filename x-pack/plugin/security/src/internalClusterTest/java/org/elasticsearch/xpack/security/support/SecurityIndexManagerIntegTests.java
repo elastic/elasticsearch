@@ -122,6 +122,7 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
 
         assertSecurityIndexActive();
 
+        // security index creation is complete and index is active; therefore whenIndexAvailableForSearch should report success
         future.actionGet();
     }
 

@@ -206,6 +206,7 @@ public record StatelessCompoundCommit(
     ) throws IOException {
         assert version == CURRENT_VERSION
             : "writing to object store must use the current version [" + CURRENT_VERSION + "], got [" + version + "]";
+        assert assertSortedBySize(internalFiles) : "internal files must be sorted by size, got " + internalFiles;
         BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(positionTracking);
         CodecUtil.writeHeader(new OutputStreamDataOutput(out), SHARD_COMMIT_CODEC, version);
         long codecSize = positionTracking.position();
@@ -502,6 +503,17 @@ public record StatelessCompoundCommit(
     public static long parseGenerationFromBlobName(String name) {
         assert startsWithBlobPrefix(name) : name;
         return Long.parseLong(name.substring(name.lastIndexOf('_') + 1));
+    }
+
+    private static boolean assertSortedBySize(Iterable<InternalFile> files) {
+        InternalFile previous = null;
+        for (InternalFile file : files) {
+            if (previous != null && previous.compareTo(file) >= 0) {
+                return false;
+            }
+            previous = file;
+        }
+        return true;
     }
 
     record InternalFile(String name, long length) implements Writeable, ToXContentObject, Comparable<InternalFile> {

@@ -241,6 +241,12 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testEnrichQualifier() {
+        // TODO: Do this with all kinds of commands that could refer to l.language_name in various ways
+        // TODO: Tests with wildcard patterns
+        assertEquals("TODO", error("row x = 1 | enrich languages l on x | keep `l.language_name`"));
+    }
+
     public void testRoundFunctionInvalidInputs() {
         assertEquals(
             "1:31: first argument of [round(b, 3)] must be [numeric], found value [b] type [keyword]",

@@ -109,8 +109,8 @@ public enum IndexDocFailureStoreStatus implements ToXContentFragment, Writeable 
 
     /**
      * Exception wrapper class that adds the failure store status in the XContent response.
-     * Note: We are not using {@link ExceptionWithFailureStoreStatus} because then it unwraps it directly in the {@link ElasticsearchException}
-     * and we cannot add the field.
+     * Note: We are not using {@link ExceptionWithFailureStoreStatus} because then it unwraps it directly
+     * in the {@link ElasticsearchException} and we cannot add the field.
      */
     public static class ExceptionWithFailureStoreStatus extends ElasticsearchException {
 

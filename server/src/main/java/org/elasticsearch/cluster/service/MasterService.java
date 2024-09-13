@@ -505,9 +505,6 @@ public class MasterService extends AbstractLifecycleComponent {
         if (previousClusterState != newClusterState) {
             // only the master controls the version numbers
             Builder builder = incrementVersion(newClusterState);
-            if (previousClusterState.routingTable() != newClusterState.routingTable()) {
-                builder.routingTable(newClusterState.routingTable().withIncrementedVersion());
-            }
             if (previousClusterState.metadata() != newClusterState.metadata()) {
                 builder.metadata(newClusterState.metadata().withIncrementedVersion());
             }
@@ -534,10 +531,6 @@ public class MasterService extends AbstractLifecycleComponent {
         }
         if (oldState.metadata().version() != newState.metadata().version()) {
             return false;
-        }
-        if (oldState.routingTable().version() != newState.routingTable().version()) {
-            // GatewayService is special and for odd legacy reasons gets to do this:
-            return oldState.clusterRecovered() == false && newState.clusterRecovered() && newState.routingTable().version() == 0;
         }
         return true;
     }

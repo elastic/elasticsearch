@@ -16,6 +16,8 @@ import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -152,6 +154,20 @@ public class CreateIndexIT extends ESIntegTestCase {
         MappingMetadata mappings = response.mappings().get("test");
         assertNotNull(mappings);
         assertTrue(mappings.sourceAsMap().isEmpty());
+    }
+
+    public void testTwoEmptyEqualMappings() throws Exception {
+        assertAcked(prepareCreate("test1"));
+        assertAcked(prepareCreate("test2").setMapping(XContentFactory.jsonBuilder().startObject().endObject()));
+        FieldCapabilitiesRequest fieldCapsReq1 = new FieldCapabilitiesRequest();
+        fieldCapsReq1.indices("test1");
+        fieldCapsReq1.fields("*");
+        FieldCapabilitiesResponse fieldCapsResp1 = internalCluster().coordOnlyNodeClient().fieldCaps(fieldCapsReq1).actionGet();
+        FieldCapabilitiesRequest fieldCapsReq2 = new FieldCapabilitiesRequest();
+        fieldCapsReq2.indices("test2");
+        fieldCapsReq2.fields("*");
+        FieldCapabilitiesResponse fieldCapsResp2 = internalCluster().coordOnlyNodeClient().fieldCaps(fieldCapsReq2).actionGet();
+        assertEquals(fieldCapsResp1.get(), fieldCapsResp2.get());
     }
 
     public void testInvalidShardCountSettings() throws Exception {

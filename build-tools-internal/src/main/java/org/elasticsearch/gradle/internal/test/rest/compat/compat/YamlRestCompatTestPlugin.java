@@ -32,7 +32,7 @@ public class YamlRestCompatTestPlugin extends AbstractYamlRestCompatTestPlugin {
 
     @Override
     public TaskProvider<? extends Test> registerTestTask(Project project, SourceSet sourceSet) {
-        return RestTestUtil.registerTestTask(project, sourceSet, sourceSet.getTaskName(null, "test"), StandaloneRestIntegTestTask.class);
+        return RestTestUtil.registerTestTask(project, sourceSet, sourceSet.getName(), StandaloneRestIntegTestTask.class);
     }
 
     @Override

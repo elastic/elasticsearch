@@ -79,7 +79,7 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
         for (var entry : byProject.entrySet()) {
             var project = entry.getKey();
             final RoutingTable oldTable = this.routingTables.get(project);
-            final RoutingTable rebuiltTable = RoutingTable.of(oldTable.version(), entry.getValue());
+            final RoutingTable rebuiltTable = RoutingTable.of(entry.getValue());
             if (oldTable.indicesRouting().equals(rebuiltTable.indicesRouting()) == false) {
                 // Only use the replacement routing table if it is different - this causes diffs to be smaller. This is necessary because
                 // RoutingTable instances with the same state are not considered "equal" (unless they are the same instance).
@@ -374,10 +374,7 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
                 }
                 final Map.Entry<ProjectId, RoutingTable> entry = part.routingTables.entrySet().iterator().next();
                 final RoutingTable updatedTable = singleProjectForBwc.apply(entry.getValue());
-                return new GlobalRoutingTable(
-                    updatedTable.version(),
-                    ImmutableOpenMap.builder(Map.of(entry.getKey(), updatedTable)).build()
-                );
+                return new GlobalRoutingTable(0, ImmutableOpenMap.builder(Map.of(entry.getKey(), updatedTable)).build());
             } else {
                 final ImmutableOpenMap<ProjectId, RoutingTable> updatedTable = routingTable.apply(part.routingTables);
                 if (part.version == version && updatedTable == part.routingTables) {

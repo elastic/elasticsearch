@@ -197,9 +197,9 @@ public class ClusterStateTests extends ESTestCase {
 
         // routing table
         assertThat(toString, containsString("global_routing_table{v0,[ProjectId[id="));
-        assertThat(toString, containsString("ProjectId[id=tb5W0bx765nDVIwqJPw92G]=>routing_table (version 0):\n"));
-        assertThat(toString, containsString("ProjectId[id=3LftaL7hgfXAsF60Gm6jcD]=>routing_table (version 0):\n"));
-        assertThat(toString, containsString("ProjectId[id=WHyuJ0uqBYOPgHX9kYUXlZ]=>routing_table (version 0):\n"));
+        assertThat(toString, containsString("ProjectId[id=tb5W0bx765nDVIwqJPw92G]=>routing_table:\n"));
+        assertThat(toString, containsString("ProjectId[id=3LftaL7hgfXAsF60Gm6jcD]=>routing_table:\n"));
+        assertThat(toString, containsString("ProjectId[id=WHyuJ0uqBYOPgHX9kYUXlZ]=>routing_table:\n"));
         assertThat(toString, containsString("-- index [[another-index/3BgcDKea85VWlp4Tr514s6]]\n----shard_id [another-index][0]\n"));
         assertThat(toString, containsString("-- index [[common-index/tE62Ga40yvlmOSujUvruVw]]\n----shard_id [common-index][0]\n"));
         assertThat(toString, containsString("\n----shard_id [common-index][1]\n"));

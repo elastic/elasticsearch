@@ -561,7 +561,13 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      * Issues a request downsample the source index to the downsample index for the specified round.
      */
     private void downsampleIndexOnce(DataStreamLifecycle.Downsampling.Round round, String sourceIndex, String downsampleIndexName) {
-        DownsampleAction.Request request = new DownsampleAction.Request(sourceIndex, downsampleIndexName, null, round.config());
+        DownsampleAction.Request request = new DownsampleAction.Request(
+            TimeValue.THIRTY_SECONDS /* TODO should this be longer/configurable? */,
+            sourceIndex,
+            downsampleIndexName,
+            null,
+            round.config()
+        );
         transportActionsDeduplicator.executeOnce(
             request,
             new ErrorRecordingActionListener(

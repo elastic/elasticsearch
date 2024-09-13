@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.component.Lifecycle;
@@ -2606,16 +2605,6 @@ public class MasterServiceTests extends ESTestCase {
             currentState -> currentState.copyAndUpdateMetadata(
                 b -> b.version(randomFrom(currentState.metadata().version() - 1, currentState.metadata().version() + 1))
             )
-        );
-
-        runVersionNumberProtectionTest(
-            currentState -> ClusterState.builder(currentState)
-                .routingTable(
-                    RoutingTable.builder(currentState.routingTable())
-                        .version(randomFrom(currentState.routingTable().version() - 1, currentState.routingTable().version() + 1))
-                        .build()
-                )
-                .build()
         );
     }
 

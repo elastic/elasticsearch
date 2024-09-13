@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.upgrade;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -27,6 +29,8 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
+@UpdateForV9
+@LuceneTestCase.AwaitsFix(bugUrl = "this testing a number of pre 8.0 upgrade scenarios so needs updating or removal for 9.0")
 public class SearchableSnapshotIndexMetadataUpgraderTests extends ESTestCase {
 
     public void testNoUpgradeNeeded() {

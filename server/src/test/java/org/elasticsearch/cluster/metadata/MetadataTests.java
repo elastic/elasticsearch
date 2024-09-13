@@ -36,6 +36,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -983,20 +984,23 @@ public class MetadataTests extends ESTestCase {
 
     public void testOldestIndexComputation() {
         Metadata metadata = buildIndicesWithVersions(
-            IndexVersions.V_7_0_0,
+            IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersion.current(),
             IndexVersion.fromId(IndexVersion.current().id() + 1)
         ).build();
 
-        assertEquals(IndexVersions.V_7_0_0, metadata.getProject().oldestIndexVersion());
+        assertEquals(IndexVersions.MINIMUM_COMPATIBLE, metadata.getProject().oldestIndexVersion());
 
         Metadata.Builder b = Metadata.builder();
         assertEquals(IndexVersion.current(), b.build().getProject().oldestIndexVersion());
 
         Throwable ex = expectThrows(
             IllegalArgumentException.class,
-            () -> buildIndicesWithVersions(IndexVersions.V_7_0_0, IndexVersions.ZERO, IndexVersion.fromId(IndexVersion.current().id() + 1))
-                .build()
+            () -> buildIndicesWithVersions(
+                IndexVersions.MINIMUM_COMPATIBLE,
+                IndexVersions.ZERO,
+                IndexVersion.fromId(IndexVersion.current().id() + 1)
+            ).build()
         );
 
         assertEquals("[index.version.created] is not present in the index settings for index with UUID [null]", ex.getMessage());
@@ -2207,6 +2211,8 @@ public class MetadataTests extends ESTestCase {
         }
     }
 
+    @UpdateForV9
+    @AwaitsFix(bugUrl = "this test needs to be updated or removed after the version 9.0 bump")
     public void testSystemAliasValidationMixedVersionSystemAndRegularFails() {
         final IndexVersion random7xVersion = IndexVersionUtils.randomVersionBetween(
             random(),
@@ -2257,6 +2263,8 @@ public class MetadataTests extends ESTestCase {
         );
     }
 
+    @UpdateForV9
+    @AwaitsFix(bugUrl = "this test needs to be updated or removed after the version 9.0 bump")
     public void testSystemAliasOldSystemAndNewRegular() {
         final IndexVersion random7xVersion = IndexVersionUtils.randomVersionBetween(
             random(),
@@ -2270,6 +2278,8 @@ public class MetadataTests extends ESTestCase {
         metadataWithIndices(oldVersionSystem, regularIndex);
     }
 
+    @UpdateForV9
+    @AwaitsFix(bugUrl = "this test needs to be updated or removed after the version 9.0 bump")
     public void testSystemIndexValidationAllRegular() {
         final IndexVersion random7xVersion = IndexVersionUtils.randomVersionBetween(
             random(),
@@ -2284,6 +2294,8 @@ public class MetadataTests extends ESTestCase {
         metadataWithIndices(currentVersionSystem, currentVersionSystem2, oldVersionSystem);
     }
 
+    @UpdateForV9
+    @AwaitsFix(bugUrl = "this test needs to be updated or removed after the version 9.0 bump")
     public void testSystemAliasValidationAllSystemSomeOld() {
         final IndexVersion random7xVersion = IndexVersionUtils.randomVersionBetween(
             random(),

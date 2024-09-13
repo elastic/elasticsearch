@@ -100,7 +100,7 @@ public class ReservedPipelineAction implements ReservedClusterStateHandler<List<
         toDelete.removeAll(entities);
 
         for (var pipelineToDelete : toDelete) {
-            var task = new IngestService.DeletePipelineClusterStateUpdateTask(pipelineToDelete);
+            var task = new IngestService.DeletePipelineClusterStateUpdateTask(null, new DeletePipelineRequest(pipelineToDelete));
             state = wrapIngestTaskExecute(task, state);
         }
 

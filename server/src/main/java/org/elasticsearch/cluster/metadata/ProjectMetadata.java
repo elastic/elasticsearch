@@ -99,6 +99,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
 
     private final IndexVersion oldestIndexVersion;
 
+    @SuppressWarnings("this-escape")
     public ProjectMetadata(
         ProjectId id,
         ImmutableOpenMap<String, IndexMetadata> indices,
@@ -136,6 +137,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         assert assertConsistent();
     }
 
+    @SuppressWarnings("this-escape")
     private boolean assertConsistent() {
         final var lookup = indicesLookup;
         final var dsMetadata = custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY);

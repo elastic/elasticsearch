@@ -960,9 +960,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
         @Deprecated
         public Builder routingTable(RoutingTable routingTable) {
-            return routingTable(
-                new GlobalRoutingTable(routingTable.version(), ImmutableOpenMap.builder(Metadata.DEFAULT_PROJECT_ID, routingTable).build())
-            );
+            return routingTable(new GlobalRoutingTable(0, ImmutableOpenMap.builder(Metadata.DEFAULT_PROJECT_ID, routingTable).build()));
         }
 
         public Builder routingTable(GlobalRoutingTable routingTable) {
@@ -1114,10 +1112,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             builder.routingTable = GlobalRoutingTable.readFrom(in);
         } else {
             final RoutingTable rt = RoutingTable.readFrom(in);
-            builder.routingTable = new GlobalRoutingTable(
-                rt.version(),
-                ImmutableOpenMap.builder(Map.of(Metadata.DEFAULT_PROJECT_ID, rt)).build()
-            );
+            builder.routingTable = new GlobalRoutingTable(0, ImmutableOpenMap.builder(Map.of(Metadata.DEFAULT_PROJECT_ID, rt)).build());
         }
         builder.nodes = DiscoveryNodes.readFrom(in, localNode);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {

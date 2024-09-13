@@ -7,19 +7,23 @@
 package org.elasticsearch.xpack.security.support;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
+import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -94,6 +98,20 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
             // index is created. So we don't need to assert the value.
             future.actionGet().created();
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testWhenIndexAvailableForSearch() throws Exception {
+        assertSecurityIndexActive();
+
+        final SecurityIndexManager securityIndexManager = internalCluster().getInstances(NativePrivilegeStore.class)
+            .iterator()
+            .next()
+            .getSecurityIndexManager();
+
+        final ActionFuture<Void> future = new PlainActionFuture<>();
+        securityIndexManager.whenIndexAvailableForSearch((ActionListener<Void>) future, TimeValue.ONE_MINUTE);
+        future.actionGet();
     }
 
     public void testSecurityIndexSettingsCannotBeChanged() throws Exception {

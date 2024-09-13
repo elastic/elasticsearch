@@ -275,6 +275,10 @@ public class NativePrivilegeStore {
         }
     }
 
+    public SecurityIndexManager getSecurityIndexManager() {
+        return securityIndexManager;
+    }
+
     private Tuple<QueryBuilder, Predicate<String>> getApplicationNameQueryAndPredicate(Collection<String> applications) {
         if (applications.contains("*")) {
             return new Tuple<>(QueryBuilders.existsQuery(APPLICATION.getPreferredName()), null);

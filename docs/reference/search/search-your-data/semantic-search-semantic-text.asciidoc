@@ -90,7 +90,7 @@ Every time you ingest data into the related `semantic_text` field, this endpoint
 <5> The textual data stored in the `content` field will be copied to `semantic_text` and processed by the {infer} endpoint.
 The `semantic_text` field will store the embeddings generated based on the input data.
 Copying the `content` field to the `semantic_text` field is not required to use `semantic_text`.
-However, it is recommended, as it enables hybrid search, allowing for lexical search on the `content` field and semantic search on the `semantic_text` field.
+However, it is recommended because it enables hybrid search. Hybrid search combines lexical search on the `text` field with semantic search on the `semantic_text` field.
 
 
 

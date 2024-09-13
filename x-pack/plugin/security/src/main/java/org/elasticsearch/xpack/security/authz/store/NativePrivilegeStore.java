@@ -232,8 +232,8 @@ public class NativePrivilegeStore {
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.info("Failure waiting on security index [" + frozenSecurityIndex.getConcreteIndexName() + "]", e);
-                    // Call get privileges to get most up-to-date failure (or result, in case of an unlucky time-out)
+                    logger.info("Failure waiting for security index [" + frozenSecurityIndex.getConcreteIndexName() + "]", e);
+                    // Call get privileges once more to get most up-to-date failure (or result, in case of an unlucky time-out)
                     innerGetPrivileges(applications, false, listener);
                 }
             }, SECURITY_INDEX_WAIT_TIMEOUT);

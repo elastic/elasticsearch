@@ -91,7 +91,6 @@ public class SecurityIndexManager implements ClusterStateListener {
     private final SystemIndexDescriptor systemIndexDescriptor;
 
     private final List<BiConsumer<State, State>> stateChangeListeners = new CopyOnWriteArrayList<>();
-    private final List<BiConsumer<State, State>> timeoutStateChangeListeners = new CopyOnWriteArrayList<>();
 
     private volatile State state;
     private final boolean defensiveCopy;
@@ -183,10 +182,6 @@ public class SecurityIndexManager implements ClusterStateListener {
         }
         // can never happen
         throw new IllegalStateException("Unexpected availability enumeration. This is bug, please contact support.");
-    }
-
-    public boolean indexIsCreating() {
-        return this.state.indexCreating;
     }
 
     public boolean isMappingUpToDate() {
@@ -291,7 +286,6 @@ public class SecurityIndexManager implements ClusterStateListener {
         Tuple<Boolean, Boolean> available = checkIndexAvailable(event.state());
         final boolean indexAvailableForWrite = available.v1();
         final boolean indexAvailableForSearch = available.v2();
-        final boolean indexCreating = checkIndexCreating(event.state());
         final boolean mappingIsUpToDate = indexMetadata == null || checkIndexMappingUpToDate(event.state());
         final int migrationsVersion = getMigrationVersionFromIndexMetadata(indexMetadata);
         final SystemIndexDescriptor.MappingsVersion minClusterMappingVersion = getMinSecurityIndexMappingVersion(event.state());
@@ -320,7 +314,6 @@ public class SecurityIndexManager implements ClusterStateListener {
             isIndexUpToDate,
             indexAvailableForSearch,
             indexAvailableForWrite,
-            indexCreating,
             mappingIsUpToDate,
             createdOnLatestVersion,
             migrationsVersion,
@@ -370,11 +363,6 @@ public class SecurityIndexManager implements ClusterStateListener {
      * Notifies {@code listener} once the security index is available for search, or calls {@code onFailure} on {@code timeout}.
      */
     public void whenIndexAvailableForSearch(ActionListener<Void> listener, TimeValue timeout) {
-        if (state.indexAvailableForSearch) {
-            listener.onResponse(null);
-            return;
-        }
-
         final ActionListener<Void> notifyOnceListener = ActionListener.notifyOnce(listener);
 
         final var indexAvailableForSearchListener = new StateConsumerWithCancellable() {
@@ -400,30 +388,18 @@ public class SecurityIndexManager implements ClusterStateListener {
             );
         }, timeout, client.threadPool().generic());
 
-        addStateListener(indexAvailableForSearchListener);
+        if (state.indexAvailableForSearch) {
+            indexAvailableForSearchListener.cancellable.cancel();
+            notifyOnceListener.onResponse(null);
+        } else {
+            addStateListener(indexAvailableForSearchListener);
+        }
     }
 
     private abstract static class StateConsumerWithCancellable
         implements
             BiConsumer<SecurityIndexManager.State, SecurityIndexManager.State> {
         volatile Scheduler.ScheduledCancellable cancellable;
-    }
-
-    private boolean checkIndexCreating(ClusterState state) {
-        final String aliasName = systemIndexDescriptor.getAliasName();
-        final IndexMetadata metadata = resolveConcreteIndex(aliasName, state.metadata());
-        if (metadata == null) {
-            return false;
-        }
-        final IndexRoutingTable routingTable = state.routingTable().index(metadata.getIndex());
-        return routingTable.allShards().anyMatch(r -> {
-            final boolean initializing = false == r.shardsWithState(ShardRoutingState.INITIALIZING).isEmpty();
-            final boolean anyUnassignedWithIndexCreatedReason = r.shardsWithState(ShardRoutingState.UNASSIGNED)
-                .stream()
-                .anyMatch(s -> s.unassignedInfo() != null && s.unassignedInfo().reason() == UnassignedInfo.Reason.INDEX_CREATED);
-            logger.info("Initializing: [{}] anyUnassignedWithIndexCreatedReason: [{}]", initializing, anyUnassignedWithIndexCreatedReason);
-            return initializing || anyUnassignedWithIndexCreatedReason;
-        });
     }
 
     private Tuple<Boolean, Boolean> checkIndexAvailable(ClusterState state) {
@@ -692,7 +668,6 @@ public class SecurityIndexManager implements ClusterStateListener {
             false,
             false,
             false,
-            false,
             null,
             null,
             null,
@@ -706,7 +681,6 @@ public class SecurityIndexManager implements ClusterStateListener {
         public final boolean isIndexUpToDate;
         public final boolean indexAvailableForSearch;
         public final boolean indexAvailableForWrite;
-        public final boolean indexCreating;
         public final boolean mappingUpToDate;
         public final boolean createdOnLatestVersion;
         public final Integer migrationsVersion;
@@ -725,7 +699,6 @@ public class SecurityIndexManager implements ClusterStateListener {
             boolean isIndexUpToDate,
             boolean indexAvailableForSearch,
             boolean indexAvailableForWrite,
-            boolean indexCreating,
             boolean mappingUpToDate,
             boolean createdOnLatestVersion,
             Integer migrationsVersion,
@@ -741,7 +714,6 @@ public class SecurityIndexManager implements ClusterStateListener {
             this.isIndexUpToDate = isIndexUpToDate;
             this.indexAvailableForSearch = indexAvailableForSearch;
             this.indexAvailableForWrite = indexAvailableForWrite;
-            this.indexCreating = indexCreating;
             this.mappingUpToDate = mappingUpToDate;
             this.migrationsVersion = migrationsVersion;
             this.createdOnLatestVersion = createdOnLatestVersion;
@@ -763,7 +735,6 @@ public class SecurityIndexManager implements ClusterStateListener {
                 && isIndexUpToDate == state.isIndexUpToDate
                 && indexAvailableForSearch == state.indexAvailableForSearch
                 && indexAvailableForWrite == state.indexAvailableForWrite
-                && indexCreating == state.indexCreating
                 && mappingUpToDate == state.mappingUpToDate
                 && createdOnLatestVersion == state.createdOnLatestVersion
                 && Objects.equals(indexMappingVersion, state.indexMappingVersion)
@@ -786,7 +757,6 @@ public class SecurityIndexManager implements ClusterStateListener {
                 isIndexUpToDate,
                 indexAvailableForSearch,
                 indexAvailableForWrite,
-                indexCreating,
                 mappingUpToDate,
                 createdOnLatestVersion,
                 migrationsVersion,
@@ -809,8 +779,6 @@ public class SecurityIndexManager implements ClusterStateListener {
                 + indexAvailableForSearch
                 + ", indexAvailableForWrite="
                 + indexAvailableForWrite
-                + ", indexCreating="
-                + indexCreating
                 + ", mappingUpToDate="
                 + mappingUpToDate
                 + ", createdOnLatestVersion="

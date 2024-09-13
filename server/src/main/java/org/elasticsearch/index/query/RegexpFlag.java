@@ -12,6 +12,8 @@ import org.elasticsearch.common.Strings;
 
 import java.util.Locale;
 
+import static org.apache.lucene.util.automaton.RegExp.DEPRECATED_COMPLEMENT;
+
 /**
  * Regular expression syntax flags. Each flag represents optional syntax support in the regular expression:
  * <ul>
@@ -37,10 +39,10 @@ public enum RegexpFlag {
     /**
      * Enables complement expression of the form: {@code ~&lt;expression&gt;}
      * TODO Lucene 10 upgrade: Lucenes RegExp class has removed the COMPLEMENT flag in https://issues.apache.org/jira/browse/LUCENE-10010
-     * I'm currently not sure if it still supports the "~" operator but we need an enum constant for
-     * parsing our own flag syntax, so leaving a tombstone here for now
+     * We can use the deprecated constant for now but need a plan for deprecation / removal
+     * at some point before removal of this functionality in Lucene
      */
-    COMPLEMENT(0x0002),
+    COMPLEMENT(DEPRECATED_COMPLEMENT),
 
     /**
      * Enables empty language expression: {@code #}
@@ -65,7 +67,7 @@ public enum RegexpFlag {
     /**
      * Enables all available option flags
      */
-    ALL(RegExp.ALL);
+    ALL(RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT);
 
     final int value;
 

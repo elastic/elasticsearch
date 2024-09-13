@@ -444,7 +444,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     private static Automaton patternsToAutomaton(List<String> patterns) {
         final List<Automaton> automata = patterns.stream().map(s -> {
             final String regex = s.replace(".", "\\.").replace("*", ".*");
-            return new RegExp(regex).toAutomaton();
+            return new RegExp(regex, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT).toAutomaton();
         }).toList();
         if (automata.isEmpty()) {
             return null;

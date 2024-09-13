@@ -114,7 +114,7 @@ class VersionFieldWildcardQuery extends AutomatonQuery {
         if (containsPreReleaseSeparator == false) {
             automata.add(Operations.optional(Automata.makeChar(VersionEncoder.NO_PRERELEASE_SEPARATOR_BYTE)));
         }
-        return Operations.concatenate(automata);
+        return Operations.determinize(Operations.concatenate(automata), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
     @Override

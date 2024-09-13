@@ -357,8 +357,8 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         if (exclude != null && excludeValues != null) {
             throw new IllegalArgumentException();
         }
-        this.include = include == null ? null : new RegExp(include);
-        this.exclude = exclude == null ? null : new RegExp(exclude);
+        this.include = include == null ? null : new RegExp(include, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT);
+        this.exclude = exclude == null ? null : new RegExp(exclude, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT);
         this.includeValues = includeValues;
         this.excludeValues = excludeValues;
         this.incZeroBasedPartition = 0;

@@ -601,13 +601,10 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/112453")
     public void testValidateDotIndex() {
         List<SystemIndexDescriptor> systemIndexDescriptors = new ArrayList<>();
         systemIndexDescriptors.add(SystemIndexDescriptorUtils.createUnmanaged(".test-one*", "test"));
-        // TODO Lucene 10 upgrade
-        // The "~" operator in Rexeg Automata doesn't seem to work as expected any more without minimization
-        Automaton patternAutomaton = new RegExp("\\.test-~(one.*)").toAutomaton();
+        Automaton patternAutomaton = new RegExp("\\.test-~(one.*)", RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT).toAutomaton();
         assertTrue(
             new CharacterRunAutomaton(Operations.determinize(patternAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)).run(
                 ".test-~(one.*)"

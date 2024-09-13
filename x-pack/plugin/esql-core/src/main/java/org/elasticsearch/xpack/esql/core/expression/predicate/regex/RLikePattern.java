@@ -22,7 +22,10 @@ public class RLikePattern extends AbstractStringPattern {
 
     @Override
     public Automaton createAutomaton() {
-        return Operations.determinize(new RegExp(regexpPattern).toAutomaton(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        return Operations.determinize(
+            new RegExp(regexpPattern, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT).toAutomaton(),
+            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
+        );
     }
 
     @Override

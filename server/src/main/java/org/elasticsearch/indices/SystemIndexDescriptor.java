@@ -881,13 +881,13 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         final String patternAsRegex = patternToRegex(pattern);
         final String aliasAsRegex = alias == null ? null : patternToRegex(alias);
 
-        final Automaton patternAutomaton = new RegExp(patternAsRegex).toAutomaton();
+        final Automaton patternAutomaton = new RegExp(patternAsRegex, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT).toAutomaton();
 
         if (aliasAsRegex == null) {
             return patternAutomaton;
         }
 
-        final Automaton aliasAutomaton = new RegExp(aliasAsRegex).toAutomaton();
+        final Automaton aliasAutomaton = new RegExp(aliasAsRegex, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT).toAutomaton();
 
         return Operations.determinize(Operations.union(patternAutomaton, aliasAutomaton), DEFAULT_DETERMINIZE_WORK_LIMIT);
     }

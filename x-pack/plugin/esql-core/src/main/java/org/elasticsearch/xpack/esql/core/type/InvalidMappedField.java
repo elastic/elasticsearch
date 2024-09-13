@@ -130,7 +130,13 @@ public class InvalidMappedField extends EsField {
             errorMessage.append("[");
             errorMessage.append(e.getKey());
             errorMessage.append("] in ");
-            errorMessage.append(e.getValue());
+            if (e.getValue().size() <= 3) {
+                errorMessage.append(e.getValue());
+            } else {
+                errorMessage.append(e.getValue().stream().sorted().limit(3).collect(Collectors.toList()));
+                errorMessage.append(" and [" + (e.getValue().size() - 3) + "] other ");
+                errorMessage.append(e.getValue().size() == 4 ? "index" : "indices");
+            }
         }
         return errorMessage.toString();
     }

@@ -24,14 +24,40 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         if (ESTestCase.randomBoolean()) {
             map.put("synthetic_source_keep", ESTestCase.randomFrom("none", "arrays", "all"));
         }
+
         return new DataSourceResponse.LeafMappingParametersGenerator(switch (request.fieldType()) {
-            case KEYWORD, LONG, INTEGER, SHORT, BYTE, DOUBLE, FLOAT, HALF_FLOAT, UNSIGNED_LONG -> plain(map);
+            case KEYWORD -> keywordMapping(request, map);
+            case LONG, INTEGER, SHORT, BYTE, DOUBLE, FLOAT, HALF_FLOAT, UNSIGNED_LONG -> plain(map);
             case SCALED_FLOAT -> scaledFloatMapping(map);
         });
     }
 
     private Supplier<Map<String, Object>> plain(Map<String, Object> injected) {
         return () -> injected;
+    }
+
+    private Supplier<Map<String, Object>> keywordMapping(
+        DataSourceRequest.LeafMappingParametersGenerator request,
+        Map<String, Object> injected
+    ) {
+        return () -> {
+            // Inject copy_to sometimes but reflect that it is not widely used in reality.
+            // We only add copy_to to keywords because we get into trouble with numeric fields that are copied to dynamic fields.
+            // If first copied value is numeric, dynamic field is created with numeric field type and then copy of text values fail.
+            // Actual value being copied does not influence the core logic of copy_to anyway.
+            if (ESTestCase.randomDouble() <= 0.05) {
+                var options = request.eligibleCopyToFields()
+                    .stream()
+                    .filter(f -> f.equals(request.fieldName()) == false)
+                    .collect(Collectors.toSet());
+
+                if (options.isEmpty() == false) {
+                    injected.put("copy_to", ESTestCase.randomFrom(options));
+                }
+            }
+
+            return injected;
+        };
     }
 
     private Supplier<Map<String, Object>> scaledFloatMapping(Map<String, Object> injected) {

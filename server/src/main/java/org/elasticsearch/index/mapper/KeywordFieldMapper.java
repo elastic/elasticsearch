@@ -1081,8 +1081,6 @@ public final class KeywordFieldMapper extends FieldMapper {
             });
         }
 
-        // Trimming is required in the case of multi-fields, where extra suffices are added
-        // to the full path after the simple name.
         return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, layers);
     }
 }

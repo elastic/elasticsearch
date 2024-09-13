@@ -25,6 +25,7 @@ id:l | c:long
 9    | 1
 10   | 2
 11   | 3
+12   | 3
 ;
 
 spatialRelationPolygon
@@ -55,6 +56,7 @@ id:l | intersects:boolean | within:boolean | st_intersects:boolean | st_within:b
 9    | false              | false          | false                 | false             | true                | "POINT(19.0 9.0)"  | "POINT(19 9)"
 10   | false              | false          | false                 | false             | true                | "POINT(5.0 -5.0)"  | ["POINT(-9 -19)","POINT(19 9)"]
 11   | true               | false          | true                  | false             | false               | "POINT(0.0 0.0)"   | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"]
+12   | true               | false          | true                  | false             | false               | "POINT(0.0 0.0)"   | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"]
 ;
 
 whereIntersectsPolygon
@@ -75,6 +77,7 @@ id:l | intersects:boolean | within:boolean | centroid:geo_point | location:geo_p
 5    | true               | false          | "POINT(5.5 5.5)"   | ["POINT(0 0)","POINT(11 11)"]
 6    | true               | false          | "POINT(0.0 -5.0)"  | ["POINT(-9 -19)","POINT(9 9)"]
 11   | true               | false          | "POINT(0.0 0.0)"   | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"]
+12   | true               | false          | "POINT(0.0 0.0)"   | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"]
 ;
 
 whereIntersectsPolygonStats
@@ -85,7 +88,7 @@ FROM multivalue_points
 ;
 
 c:l
-8
+9
 ;
 
 whereWithinPolygon
@@ -129,6 +132,7 @@ FROM multivalue_points
 
 id:l | within:boolean | contains:boolean | centroid:geo_point | location:geo_point
 11   | true           | true             | "POINT(0.0 0.0)"   | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"]
+12   | true           | true             | "POINT(0.0 0.0)"   | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"]
 ;
 
 whereWithinPolygonStats
@@ -279,6 +283,7 @@ id:l | contains_ab:boolean | contains_ba:boolean | within_ab:boolean  | within_b
 9    | true                | true                | true               | true              | "POINT(19 9)"                     | "POINT(19 9)"
 10   | true                | false               | false              | true              | ["POINT(-9 -19)","POINT(19 9)"]   | "POINT(-9 -19)"
 11   | true                | false               | false              | true              | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"] | ["POINT(0 0)", "POINT(55 55)"]
+12   | false               | false               | false              | false             | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"] | ["POINT(0 0)", "POINT(55 54)"]
 ;
 
 whereIntersectsMultiValuePointsFields
@@ -304,6 +309,7 @@ id:l | location:geo_point                | subset:geo_point
 9    | "POINT(19 9)"                     | "POINT(19 9)"
 10   | ["POINT(-9 -19)","POINT(19 9)"]   | "POINT(-9 -19)"
 11   | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"] | ["POINT(0 0)", "POINT(55 55)"]
+12   | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"] | ["POINT(0 0)", "POINT(55 54)"]
 ;
 
 whereIntersectsMultiValuePointsStatsFields
@@ -315,7 +321,7 @@ FROM multivalue_points
 ;
 
 c:l
-12
+13
 ;
 
 whereContainsMultiValuePointsFields
@@ -360,11 +366,12 @@ required_capability: st_contains_within
 required_capability: spatial_predicates_support_multivalues
 
 FROM multivalue_points
-| WHERE ST_CONTAINS(location, subset) | STATS c=COUNT(*), centroid=ST_CENTROID_AGG(location)
+| WHERE ST_CONTAINS(location, subset)
+| STATS c=COUNT(*), outer=ST_CENTROID_AGG(location), inner=ST_CENTROID_AGG(subset)
 ;
 
-c:l | centroid:geo_point
-12  | "POINT (4.391304308386601 3.086956503558094)"
+c:l | outer:geo_point                               | inner:geo_point
+12  | "POINT (4.391304308386601 3.086956503558094)" | "POINT (5.461538461538462 4.846153846153846)"
 ;
 
 whereWithinMultiValuePointsFields
@@ -409,9 +416,10 @@ required_capability: st_contains_within
 required_capability: spatial_predicates_support_multivalues
 
 FROM multivalue_points
-| WHERE ST_WITHIN(subset, location) | STATS c=COUNT(*), centroid=ST_CENTROID_AGG(subset)
+| WHERE ST_WITHIN(subset, location)
+| STATS c=COUNT(*), inner=ST_CENTROID_AGG(subset), outer=ST_CENTROID_AGG(location)
 ;
 
-c:l | centroid:geo_point
-12  | "POINT (5.461538432595821 4.846153828100516)"
+c:l | inner:geo_point                               | outer:geo_point
+12  | "POINT (5.461538432595821 4.846153828100516)" | "POINT (4.391304347826087 3.0869565217391304)"
 ;

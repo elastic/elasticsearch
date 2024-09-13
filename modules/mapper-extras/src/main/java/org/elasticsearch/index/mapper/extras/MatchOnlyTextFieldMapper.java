@@ -433,7 +433,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        var loader = new StringStoredFieldFieldLoader(fieldType().storedFieldNameForSyntheticSource(), leafName()) {
+        var loader = new StringStoredFieldFieldLoader(fieldType().storedFieldNameForSyntheticSource(), fieldType().name(), leafName()) {
             @Override
             protected void write(XContentBuilder b, Object value) throws IOException {
                 b.value((String) value);

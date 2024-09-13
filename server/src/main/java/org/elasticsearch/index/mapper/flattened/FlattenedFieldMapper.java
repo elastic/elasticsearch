@@ -781,7 +781,6 @@ public final class FlattenedFieldMapper extends FieldMapper {
         return builder.depthLimit.get();
     }
 
-    @Override
     public int ignoreAbove() {
         return ignoreAbove;
     }

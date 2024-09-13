@@ -162,14 +162,6 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
-     * Character counts above which terms will be rejected while indexing a document.
-     * Non-text fields don't have a character count concept and will return {@code Integer.MAX_VALUE} here.
-     */
-    public int ignoreAbove() {
-        return Integer.MAX_VALUE;
-    }
-
-    /**
      * Whether this mapper can handle an array value during document parsing. If true,
      * when an array is encountered during parsing, the document parser will pass the
      * whole array to the mapper. If false, the array is split into individual values

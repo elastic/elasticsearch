@@ -918,7 +918,6 @@ public class WildcardFieldMapper extends FieldMapper {
     /** Values that have more chars than the return value of this method will
      *  be skipped at parsing time. */
     // pkg-private for testing
-    @Override
     public int ignoreAbove() {
         return ignoreAbove;
     }

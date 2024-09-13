@@ -920,11 +920,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.fieldType().scriptValues.valuesForDoc(searchLookup, readerContext, doc, value -> indexValue(documentParserContext, value));
     }
 
-    @Override
-    public int ignoreAbove() {
-        return ignoreAbove;
-    }
-
     private void indexValue(DocumentParserContext context, String value) {
         if (value == null) {
             return;

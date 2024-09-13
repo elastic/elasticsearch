@@ -15,6 +15,10 @@ import org.elasticsearch.xpack.esql.core.type.UnsupportedEsFieldTests;
 public class UnsupportedAttributeTests extends AbstractAttributeTestCase<UnsupportedAttribute> {
     @Override
     protected UnsupportedAttribute create() {
+        return randomUnsupportedAttribute();
+    }
+
+    public static UnsupportedAttribute randomUnsupportedAttribute() {
         String name = randomAlphaOfLength(5);
         UnsupportedEsField field = UnsupportedEsFieldTests.randomUnsupportedEsField(4);
         String customMessage = randomBoolean() ? null : randomAlphaOfLength(9);

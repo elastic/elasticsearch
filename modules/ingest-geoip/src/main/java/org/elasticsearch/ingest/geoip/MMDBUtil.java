@@ -20,6 +20,8 @@ public final class MMDBUtil {
         // utility class
     }
 
+    private static final byte[] DATABASE_TYPE_MARKER = "database_type".getBytes(StandardCharsets.UTF_8);
+
     /**
      * Read the database type from the database. We do this manually instead of relying on the built-in mechanism to avoid reading the
      * entire database into memory merely to read the type. This is especially important to maintain on master nodes where pipelines are
@@ -34,7 +36,6 @@ public final class MMDBUtil {
         if (fileSize <= 512) {
             throw new IOException("unexpected file length [" + fileSize + "] for [" + databasePath + "]");
         }
-        final int[] databaseTypeMarker = { 'd', 'a', 't', 'a', 'b', 'a', 's', 'e', '_', 't', 'y', 'p', 'e' };
         try (InputStream in = Files.newInputStream(databasePath)) {
             // read the last 512 bytes
             final long skipped = in.skip(fileSize - 512);
@@ -57,12 +58,12 @@ public final class MMDBUtil {
             for (int i = 0; i < tail.length; i++) {
                 byte b = tail[i];
 
-                if (b == databaseTypeMarker[markerOffset]) {
+                if (b == DATABASE_TYPE_MARKER[markerOffset]) {
                     markerOffset++;
                 } else {
                     markerOffset = 0;
                 }
-                if (markerOffset == databaseTypeMarker.length) {
+                if (markerOffset == DATABASE_TYPE_MARKER.length) {
                     metadataOffset = i + 1;
                     break;
                 }

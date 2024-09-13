@@ -166,7 +166,9 @@ public class DateUtils {
         entry("Zulu", "Etc/UTC")
     );
 
-    public static ZoneId of(String zoneId) {
+    private DateUtils() {}
+
+    public static ZoneId ZoneIdOf(String zoneId) {
         String deprecatedId = DEPRECATED_SHORT_TIMEZONES.get(zoneId);
         if (deprecatedId != null) {
             deprecationLogger.warn(
@@ -176,7 +178,7 @@ public class DateUtils {
             );
             return ZoneId.of(deprecatedId);
         }
-        return ZoneId.of(zoneId).normalized();
+        return ZoneId.of(zoneId);
     }
 
     /**

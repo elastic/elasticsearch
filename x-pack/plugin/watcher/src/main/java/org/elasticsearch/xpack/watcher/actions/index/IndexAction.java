@@ -210,7 +210,7 @@ public class IndexAction implements Action {
                     timeout = WatcherDateTimeUtils.parseTimeValue(parser, Field.TIMEOUT_HUMAN.toString());
                 } else if (Field.DYNAMIC_NAME_TIMEZONE.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (token == XContentParser.Token.VALUE_STRING) {
-                        dynamicNameTimeZone = DateUtils.of(parser.text());
+                        dynamicNameTimeZone = DateUtils.ZoneIdOf(parser.text());
                     } else {
                         throw new ElasticsearchParseException(
                             "could not parse [{}] action for watch [{}]. failed to parse [{}]. must be "

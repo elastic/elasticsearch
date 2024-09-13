@@ -41,7 +41,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.index.IndexVersion;
@@ -78,6 +77,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.action.search.TransportSearchAction.CCS_TELEMETRY_FEATURE_FLAG;
 import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -463,7 +463,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersion.current(),
             apmIndicesExist };
-        final String expectedJson = Strings.format("""
+        final String expectedJson = """
             {
               "cluster_uuid": "_cluster",
               "timestamp": "2017-08-07T12:03:22.133Z",
@@ -754,7 +754,10 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                   },
                   "repositories": {}
                 },
-                "repositories": {},
+                "repositories": {}""";
+
+        final String ccsOutput = """
+                ,
                 "ccs": {
                     "_search": {
                         "total": 0,
@@ -786,6 +789,9 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                         "clusters": {}
                     }
                   }
+            """;
+
+        final String suffixJson = """
               },
               "cluster_state": {
                 "nodes_hash": 1314980060,
@@ -838,8 +844,11 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                   }
                 }
               }
-            }""", args);
-        assertEquals(stripWhitespace(expectedJson), xContent.utf8ToString());
+            }""";
+        assertEquals(
+            stripWhitespace(String.format(expectedJson + (CCS_TELEMETRY_FEATURE_FLAG.isEnabled() ? ccsOutput : "") + suffixJson, args)),
+            xContent.utf8ToString()
+        );
     }
 
     private DiscoveryNode masterNode() {

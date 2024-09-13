@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
@@ -41,8 +39,6 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     implements
         ChunkedToXContentObject,
         Releasable {
-
-    private static final Logger logger = LogManager.getLogger(EsqlQueryResponse.class);
 
     @SuppressWarnings("this-escape")
     private final AbstractRefCounted counted = AbstractRefCounted.of(this::closeInternal);

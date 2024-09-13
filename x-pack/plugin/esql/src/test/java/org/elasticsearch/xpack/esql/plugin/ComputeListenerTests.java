@@ -131,7 +131,7 @@ public class ComputeListenerTests extends ESTestCase {
         List<DriverProfile> allProfiles = new ArrayList<>();
         EsqlExecutionInfo executionInfo = new EsqlExecutionInfo();
         try (ComputeListener computeListener = ComputeListener.createComputeListener(transportService, newTask(), executionInfo, future)) {
-            int tasks = 1; // randomIntBetween(1, 100);
+            int tasks = randomIntBetween(1, 100);
             for (int t = 0; t < tasks; t++) {
                 if (randomBoolean()) {
                     ActionListener<Void> subListener = computeListener.acquireAvoid();

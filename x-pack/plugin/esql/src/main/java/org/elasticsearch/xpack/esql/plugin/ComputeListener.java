@@ -192,7 +192,6 @@ final class ComputeListener implements Releasable {
             esqlExecutionInfo.swapCluster(
                 clusterAlias,
                 (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v)
-                    // MP TODO: if we get here does that mean that the remote search is finished and was SUCCESSFUL?
                     // for now ESQL doesn't return partial results, so set status to SUCCESSFUL
                     .setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
                     .setTook(resp.getTook())

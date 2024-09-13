@@ -183,15 +183,9 @@ public class IndexResolver {
                 }
             });
         }
-
         if (executionInfo != null) {
             updateExecutionInfoWithFieldCapsResults(executionInfo, clusterAndResolvedIndices, fieldCapsResponse.getFailures());
         }
-
-        // System.err.println("====================");
-        // System.err.println("ExecInfo After field-caps in IndexResolver: " + executionInfo);
-        // System.err.println("====================");
-
         return IndexResolution.valid(new EsIndex(indexPattern, rootFields, concreteIndices));
     }
 
@@ -214,8 +208,11 @@ public class IndexResolver {
             clustersWithoutFieldCapsResponses.remove(clusterAlias);
         }
 
-        // these are clusters in the original request but not present in the field-caps response were specified with
-        // an index or indices that do not exist, so the search on that cluster is done. Thus, mark it as complete.
+        /*
+         * These are clusters in the original request that are not present in the field-caps response. They were
+         * specified with an index or indices that do not exist, so the search on that cluster is done.
+         * Mark it as complete with 0 shards searched and 0 took time.
+         */
         for (String c : clustersWithoutFieldCapsResponses) {
             executionInfo.swapCluster(
                 c,
@@ -250,7 +247,6 @@ public class IndexResolver {
         }
     }
 
-    // copied/modified from PainlessExecuteAction
     /**
      * @param indexExpression expects a single index expression at a time
      * @return cluster alias in the index expression. If none is present, returns RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY

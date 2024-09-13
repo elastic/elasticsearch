@@ -37,10 +37,10 @@ import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
 /**
- * Holds execution metadata about ES|QL queries.
- * The Cluster object is patterned after the SearchResponse.Cluster object.
+ * Holds execution metadata about ES|QL queries for cross-cluster searches in order to display
+ * this information in ES|QL JSON responses.
+ * Patterned after the SearchResponse.Clusters and SearchResponse.Cluster classes.
  */
-
 public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     // for cross-cluster scenarios where cluster names are shown in API responses, use this string
     // rather than empty string (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) we use internally
@@ -77,7 +77,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     }
 
     /**
-     * For use with fromXContent parsing only
+     * For testing use with fromXContent parsing only
      * @param clusterInfo
      */
     public EsqlExecutionInfo(ConcurrentMap<String, Cluster> clusterInfo) {
@@ -126,7 +126,6 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         return clusterInfo.keySet();
     }
 
-    // MP TODO: is there a better way to supply this info? Awkward to have it here?
     /**
      * @param clusterAlias to lookup skip_unavailable from
      * @return skip_unavailable setting (true/false)
@@ -190,7 +189,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     }
 
     /**
-     * @param status the state you want to query
+     * @param status the status you want a count of
      * @return how many clusters are currently in a specific state
      */
     public int getClusterStateCount(Cluster.Status status) {
@@ -255,26 +254,6 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             }
         }
 
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Cluster cluster = (Cluster) o;
-            return Objects.equals(clusterAlias, cluster.clusterAlias)
-                && Objects.equals(indexExpression, cluster.indexExpression)
-                && status == cluster.status
-                && Objects.equals(totalShards, cluster.totalShards)
-                && Objects.equals(successfulShards, cluster.successfulShards)
-                && Objects.equals(skippedShards, cluster.skippedShards)
-                && Objects.equals(failedShards, cluster.failedShards)
-                && Objects.equals(took, cluster.took);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(clusterAlias, indexExpression, status, totalShards, successfulShards, skippedShards, failedShards, took);
-        }
-
         public Cluster(String clusterAlias, String indexExpression) {
             this(clusterAlias, indexExpression, true, Cluster.Status.RUNNING, null, null, null, null, null);
         }
@@ -292,9 +271,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         }
 
         /**
-         * Create a Cluster with a new Status and one or more ShardSearchFailures. This constructor
-         * should only be used for fatal failures where shard counters (total, successful, skipped, failed)
-         * are not known (unset).
+         * Create a Cluster with a new Status other than the default of RUNNING.
          * @param clusterAlias clusterAlias as defined in the remote cluster settings or RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY
          *                     for the local cluster
          * @param indexExpression the original (not resolved/concrete) indices expression provided for this cluster.
@@ -509,6 +486,26 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
         public Integer getFailedShards() {
             return failedShards;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Cluster cluster = (Cluster) o;
+            return Objects.equals(clusterAlias, cluster.clusterAlias)
+                && Objects.equals(indexExpression, cluster.indexExpression)
+                && status == cluster.status
+                && Objects.equals(totalShards, cluster.totalShards)
+                && Objects.equals(successfulShards, cluster.successfulShards)
+                && Objects.equals(skippedShards, cluster.skippedShards)
+                && Objects.equals(failedShards, cluster.failedShards)
+                && Objects.equals(took, cluster.took);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(clusterAlias, indexExpression, status, totalShards, successfulShards, skippedShards, failedShards, took);
         }
 
         @Override

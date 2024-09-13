@@ -288,11 +288,7 @@ public class EsqlSession {
                     assert v == null : "No cluster for " + clusterAlias + " should have been added to ExecutionInfo yet";
                     return new EsqlExecutionInfo.Cluster(clusterAlias, indexExpr.toString(), executionInfo.isSkipUnavailable(clusterAlias));
                 });
-                // System.err.printf("JUST SWAPPED IN FIRST PASS for [%s]\n", clusterAlias);
             }
-            // System.err.println("====================");
-            // System.err.println("ExecInfo After init swap in preAnalyzeIndices: " + executionInfo);
-            // System.err.println("====================");
             indexResolver.resolveAsMergedMapping(table.index(), fieldNames, executionInfo, listener);
         } else {
             try {

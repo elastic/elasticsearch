@@ -215,74 +215,49 @@ public class SpatialDisjoint extends SpatialRelatesFunction {
     }
 
     @Evaluator(extraName = "GeoSourceAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static void processGeoSourceAndConstant(
-        BooleanBlock.Builder builder,
-        int position,
-        BytesRefBlock leftValue,
-        @Fixed Component2D rightValue
-    ) throws IOException {
-        GEO.processSourceAndConstant(builder, position, leftValue, rightValue);
+    static void processGeoSourceAndConstant(BooleanBlock.Builder results, int p, BytesRefBlock left, @Fixed Component2D right)
+        throws IOException {
+        GEO.processSourceAndConstant(results, p, left, right);
     }
 
     @Evaluator(extraName = "GeoSourceAndSource", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static void processGeoSourceAndSource(BooleanBlock.Builder builder, int position, BytesRefBlock leftValue, BytesRefBlock rightValue)
-        throws IOException {
-        GEO.processSourceAndSource(builder, position, leftValue, rightValue);
+    static void processGeoSourceAndSource(BooleanBlock.Builder builder, int p, BytesRefBlock left, BytesRefBlock right) throws IOException {
+        GEO.processSourceAndSource(builder, p, left, right);
     }
 
     @Evaluator(extraName = "GeoPointDocValuesAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static void processGeoPointDocValuesAndConstant(
-        BooleanBlock.Builder builder,
-        int position,
-        LongBlock leftValue,
-        @Fixed Component2D rightValue
-    ) throws IOException {
-        GEO.processPointDocValuesAndConstant(builder, position, leftValue, rightValue);
+    static void processGeoPointDocValuesAndConstant(BooleanBlock.Builder builder, int p, LongBlock left, @Fixed Component2D right)
+        throws IOException {
+        GEO.processPointDocValuesAndConstant(builder, p, left, right);
     }
 
     @Evaluator(extraName = "GeoPointDocValuesAndSource", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static void processGeoPointDocValuesAndSource(BooleanBlock.Builder builder, int position, LongBlock leftValue, BytesRefBlock rightValue)
+    static void processGeoPointDocValuesAndSource(BooleanBlock.Builder builder, int p, LongBlock left, BytesRefBlock right)
         throws IOException {
-        GEO.processPointDocValuesAndSource(builder, position, leftValue, rightValue);
+        GEO.processPointDocValuesAndSource(builder, p, left, right);
     }
 
     @Evaluator(extraName = "CartesianSourceAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static void processCartesianSourceAndConstant(
-        BooleanBlock.Builder builder,
-        int position,
-        BytesRefBlock leftValue,
-        @Fixed Component2D rightValue
-    ) throws IOException {
-        CARTESIAN.processSourceAndConstant(builder, position, leftValue, rightValue);
+    static void processCartesianSourceAndConstant(BooleanBlock.Builder builder, int p, BytesRefBlock left, @Fixed Component2D right)
+        throws IOException {
+        CARTESIAN.processSourceAndConstant(builder, p, left, right);
     }
 
     @Evaluator(extraName = "CartesianSourceAndSource", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static void processCartesianSourceAndSource(
-        BooleanBlock.Builder builder,
-        int position,
-        BytesRefBlock leftValue,
-        BytesRefBlock rightValue
-    ) throws IOException {
-        CARTESIAN.processSourceAndSource(builder, position, leftValue, rightValue);
+    static void processCartesianSourceAndSource(BooleanBlock.Builder builder, int p, BytesRefBlock left, BytesRefBlock right)
+        throws IOException {
+        CARTESIAN.processSourceAndSource(builder, p, left, right);
     }
 
     @Evaluator(extraName = "CartesianPointDocValuesAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static void processCartesianPointDocValuesAndConstant(
-        BooleanBlock.Builder builder,
-        int position,
-        LongBlock leftValue,
-        @Fixed Component2D rightValue
-    ) throws IOException {
-        CARTESIAN.processPointDocValuesAndConstant(builder, position, leftValue, rightValue);
+    static void processCartesianPointDocValuesAndConstant(BooleanBlock.Builder builder, int p, LongBlock left, @Fixed Component2D right)
+        throws IOException {
+        CARTESIAN.processPointDocValuesAndConstant(builder, p, left, right);
     }
 
     @Evaluator(extraName = "CartesianPointDocValuesAndSource", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static void processCartesianPointDocValuesAndSource(
-        BooleanBlock.Builder builder,
-        int position,
-        LongBlock leftValue,
-        BytesRefBlock rightValue
-    ) throws IOException {
-        CARTESIAN.processPointDocValuesAndSource(builder, position, leftValue, rightValue);
+    static void processCartesianPointDocValuesAndSource(BooleanBlock.Builder builder, int p, LongBlock left, BytesRefBlock right)
+        throws IOException {
+        CARTESIAN.processPointDocValuesAndSource(builder, p, left, right);
     }
 }

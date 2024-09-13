@@ -25,39 +25,38 @@ import org.elasticsearch.xpack.esql.expression.function.Warnings;
 public final class SpatialContainsCartesianSourceAndSourceEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Warnings warnings;
 
-  private final EvalOperator.ExpressionEvaluator leftValue;
+  private final EvalOperator.ExpressionEvaluator left;
 
-  private final EvalOperator.ExpressionEvaluator rightValue;
+  private final EvalOperator.ExpressionEvaluator right;
 
   private final DriverContext driverContext;
 
   public SpatialContainsCartesianSourceAndSourceEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator leftValue, EvalOperator.ExpressionEvaluator rightValue,
+      EvalOperator.ExpressionEvaluator left, EvalOperator.ExpressionEvaluator right,
       DriverContext driverContext) {
-    this.leftValue = leftValue;
-    this.rightValue = rightValue;
+    this.left = left;
+    this.right = right;
     this.driverContext = driverContext;
     this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
   public Block eval(Page page) {
-    try (BytesRefBlock leftValueBlock = (BytesRefBlock) leftValue.eval(page)) {
-      try (BytesRefBlock rightValueBlock = (BytesRefBlock) rightValue.eval(page)) {
-        return eval(page.getPositionCount(), leftValueBlock, rightValueBlock);
+    try (BytesRefBlock leftBlock = (BytesRefBlock) left.eval(page)) {
+      try (BytesRefBlock rightBlock = (BytesRefBlock) right.eval(page)) {
+        return eval(page.getPositionCount(), leftBlock, rightBlock);
       }
     }
   }
 
-  public BooleanBlock eval(int positionCount, BytesRefBlock leftValueBlock,
-      BytesRefBlock rightValueBlock) {
+  public BooleanBlock eval(int positionCount, BytesRefBlock leftBlock, BytesRefBlock rightBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
-        if (!leftValueBlock.isNull(p)) {
+        if (!leftBlock.isNull(p)) {
           allBlocksAreNulls = false;
         }
-        if (!rightValueBlock.isNull(p)) {
+        if (!rightBlock.isNull(p)) {
           allBlocksAreNulls = false;
         }
         if (allBlocksAreNulls) {
@@ -65,7 +64,7 @@ public final class SpatialContainsCartesianSourceAndSourceEvaluator implements E
           continue position;
         }
         try {
-          SpatialContains.processCartesianSourceAndSource(result, p, leftValueBlock, rightValueBlock);
+          SpatialContains.processCartesianSourceAndSource(result, p, leftBlock, rightBlock);
         } catch (IllegalArgumentException | IOException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -77,36 +76,36 @@ public final class SpatialContainsCartesianSourceAndSourceEvaluator implements E
 
   @Override
   public String toString() {
-    return "SpatialContainsCartesianSourceAndSourceEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + "]";
+    return "SpatialContainsCartesianSourceAndSourceEvaluator[" + "left=" + left + ", right=" + right + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(leftValue, rightValue);
+    Releasables.closeExpectNoException(left, right);
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory leftValue;
+    private final EvalOperator.ExpressionEvaluator.Factory left;
 
-    private final EvalOperator.ExpressionEvaluator.Factory rightValue;
+    private final EvalOperator.ExpressionEvaluator.Factory right;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory leftValue,
-        EvalOperator.ExpressionEvaluator.Factory rightValue) {
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory left,
+        EvalOperator.ExpressionEvaluator.Factory right) {
       this.source = source;
-      this.leftValue = leftValue;
-      this.rightValue = rightValue;
+      this.left = left;
+      this.right = right;
     }
 
     @Override
     public SpatialContainsCartesianSourceAndSourceEvaluator get(DriverContext context) {
-      return new SpatialContainsCartesianSourceAndSourceEvaluator(source, leftValue.get(context), rightValue.get(context), context);
+      return new SpatialContainsCartesianSourceAndSourceEvaluator(source, left.get(context), right.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "SpatialContainsCartesianSourceAndSourceEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + "]";
+      return "SpatialContainsCartesianSourceAndSourceEvaluator[" + "left=" + left + ", right=" + right + "]";
     }
   }
 }

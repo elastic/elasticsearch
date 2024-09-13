@@ -26,33 +26,32 @@ import org.elasticsearch.xpack.esql.expression.function.Warnings;
 public final class SpatialWithinGeoPointDocValuesAndConstantEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Warnings warnings;
 
-  private final EvalOperator.ExpressionEvaluator leftValue;
+  private final EvalOperator.ExpressionEvaluator left;
 
-  private final Component2D rightValue;
+  private final Component2D right;
 
   private final DriverContext driverContext;
 
   public SpatialWithinGeoPointDocValuesAndConstantEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator leftValue, Component2D rightValue,
-      DriverContext driverContext) {
-    this.leftValue = leftValue;
-    this.rightValue = rightValue;
+      EvalOperator.ExpressionEvaluator left, Component2D right, DriverContext driverContext) {
+    this.left = left;
+    this.right = right;
     this.driverContext = driverContext;
     this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
   public Block eval(Page page) {
-    try (LongBlock leftValueBlock = (LongBlock) leftValue.eval(page)) {
-      return eval(page.getPositionCount(), leftValueBlock);
+    try (LongBlock leftBlock = (LongBlock) left.eval(page)) {
+      return eval(page.getPositionCount(), leftBlock);
     }
   }
 
-  public BooleanBlock eval(int positionCount, LongBlock leftValueBlock) {
+  public BooleanBlock eval(int positionCount, LongBlock leftBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
-        if (!leftValueBlock.isNull(p)) {
+        if (!leftBlock.isNull(p)) {
           allBlocksAreNulls = false;
         }
         if (allBlocksAreNulls) {
@@ -60,7 +59,7 @@ public final class SpatialWithinGeoPointDocValuesAndConstantEvaluator implements
           continue position;
         }
         try {
-          SpatialWithin.processGeoPointDocValuesAndConstant(result, p, leftValueBlock, this.rightValue);
+          SpatialWithin.processGeoPointDocValuesAndConstant(result, p, leftBlock, this.right);
         } catch (IllegalArgumentException | IOException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -72,36 +71,36 @@ public final class SpatialWithinGeoPointDocValuesAndConstantEvaluator implements
 
   @Override
   public String toString() {
-    return "SpatialWithinGeoPointDocValuesAndConstantEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + "]";
+    return "SpatialWithinGeoPointDocValuesAndConstantEvaluator[" + "left=" + left + ", right=" + right + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(leftValue);
+    Releasables.closeExpectNoException(left);
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory leftValue;
+    private final EvalOperator.ExpressionEvaluator.Factory left;
 
-    private final Component2D rightValue;
+    private final Component2D right;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory leftValue,
-        Component2D rightValue) {
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory left,
+        Component2D right) {
       this.source = source;
-      this.leftValue = leftValue;
-      this.rightValue = rightValue;
+      this.left = left;
+      this.right = right;
     }
 
     @Override
     public SpatialWithinGeoPointDocValuesAndConstantEvaluator get(DriverContext context) {
-      return new SpatialWithinGeoPointDocValuesAndConstantEvaluator(source, leftValue.get(context), rightValue, context);
+      return new SpatialWithinGeoPointDocValuesAndConstantEvaluator(source, left.get(context), right, context);
     }
 
     @Override
     public String toString() {
-      return "SpatialWithinGeoPointDocValuesAndConstantEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + "]";
+      return "SpatialWithinGeoPointDocValuesAndConstantEvaluator[" + "left=" + left + ", right=" + right + "]";
     }
   }
 }

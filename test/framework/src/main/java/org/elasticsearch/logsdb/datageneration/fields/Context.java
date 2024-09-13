@@ -12,8 +12,10 @@ import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceResponse;
 
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 class Context {
@@ -21,26 +23,33 @@ class Context {
 
     private final DataSourceResponse.ChildFieldGenerator childFieldGenerator;
     private final DataSourceResponse.ObjectArrayGenerator objectArrayGenerator;
+
+    private final String path;
     private final int objectDepth;
     // We don't need atomicity, but we need to pass counter by reference to accumulate total value from sub-objects.
     private final AtomicInteger nestedFieldsCount;
+    private final Set<String> eligibleCopyToDestinations;
     private final DynamicMapping parentDynamicMapping;
 
     Context(DataGeneratorSpecification specification, DynamicMapping parentDynamicMapping) {
-        this(specification, 0, new AtomicInteger(0), parentDynamicMapping);
+        this(specification, "", 0, new AtomicInteger(0), new HashSet<>(), parentDynamicMapping);
     }
 
     private Context(
         DataGeneratorSpecification specification,
+        String path,
         int objectDepth,
         AtomicInteger nestedFieldsCount,
+        Set<String> eligibleCopyToDestinations,
         DynamicMapping parentDynamicMapping
     ) {
         this.specification = specification;
         this.childFieldGenerator = specification.dataSource().get(new DataSourceRequest.ChildFieldGenerator(specification));
         this.objectArrayGenerator = specification.dataSource().get(new DataSourceRequest.ObjectArrayGenerator());
+        this.path = path;
         this.objectDepth = objectDepth;
         this.nestedFieldsCount = nestedFieldsCount;
+        this.eligibleCopyToDestinations = eligibleCopyToDestinations;
         this.parentDynamicMapping = parentDynamicMapping;
     }
 
@@ -56,13 +65,21 @@ class Context {
         return specification.dataSource().get(new DataSourceRequest.FieldTypeGenerator(dynamicMapping));
     }
 
-    public Context subObject(DynamicMapping dynamicMapping) {
-        return new Context(specification, objectDepth + 1, nestedFieldsCount, dynamicMapping);
+    public Context subObject(String name, DynamicMapping dynamicMapping) {
+        return new Context(
+            specification,
+            pathToField(name),
+            objectDepth + 1,
+            nestedFieldsCount,
+            eligibleCopyToDestinations,
+            dynamicMapping
+        );
     }
 
-    public Context nestedObject(DynamicMapping dynamicMapping) {
+    public Context nestedObject(String name, DynamicMapping dynamicMapping) {
         nestedFieldsCount.incrementAndGet();
-        return new Context(specification, objectDepth + 1, nestedFieldsCount, dynamicMapping);
+        // copy_to can't be used across nested documents so all currently eligible fields are not eligible inside nested document.
+        return new Context(specification, pathToField(name), objectDepth + 1, nestedFieldsCount, new HashSet<>(), dynamicMapping);
     }
 
     public boolean shouldAddDynamicObjectField(DynamicMapping dynamicMapping) {
@@ -111,5 +128,17 @@ class Context {
         }
 
         return dynamicParameter.equals("strict") ? DynamicMapping.FORBIDDEN : DynamicMapping.SUPPORTED;
+    }
+
+    public Set<String> getEligibleCopyToDestinations() {
+        return eligibleCopyToDestinations;
+    }
+
+    public void markFieldAsEligibleForCopyTo(String field) {
+        eligibleCopyToDestinations.add(pathToField(field));
+    }
+
+    private String pathToField(String field) {
+        return path.isEmpty() ? field : path + "." + field;
     }
 }

@@ -1104,7 +1104,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * @return true if the source only has suggest
      */
     public boolean isSuggestOnly() {
-        return suggestBuilder != null && query() == null && knnSearch.isEmpty() && aggregations == null;
+        return suggestBuilder != null && knnSearch.isEmpty() && aggregations == null && subSearchSourceBuilders.isEmpty();
     }
 
     /**

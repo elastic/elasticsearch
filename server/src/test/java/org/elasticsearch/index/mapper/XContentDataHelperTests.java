@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -186,7 +187,7 @@ public class XContentDataHelperTests extends ESTestCase {
     }
 
     private void testWriteMergedWithSingleValue(Object value) throws IOException {
-        var map = executeWriteMergeOnRepeated(value);
+        var map = executeWriteMergedOnRepeated(value);
         assertEquals(Arrays.asList(value, value), map.get("foo"));
     }
 
@@ -208,7 +209,7 @@ public class XContentDataHelperTests extends ESTestCase {
     }
 
     private void testWriteMergedWithMultipleValues(List<Object> value) throws IOException {
-        var map = executeWriteMergeOnRepeated(value);
+        var map = executeWriteMergedOnRepeated(value);
         var expected = Stream.of(value, value).flatMap(Collection::stream).toList();
         assertEquals(expected, map.get("foo"));
     }
@@ -233,16 +234,74 @@ public class XContentDataHelperTests extends ESTestCase {
     }
 
     private void testWriteMergedWithMixedValues(Object value, List<Object> multipleValues) throws IOException {
-        var map = executeWriteMergeOnTwoEncodedValues(value, multipleValues);
+        var map = executeWriteMergedOnTwoEncodedValues(value, multipleValues);
         var expected = Stream.concat(Stream.of(value), multipleValues.stream()).toList();
         assertEquals(expected, map.get("foo"));
     }
 
-    private Map<String, Object> executeWriteMergeOnRepeated(Object value) throws IOException {
-        return executeWriteMergeOnTwoEncodedValues(value, value);
+    public void testWriteMergedWithVoidValue() throws IOException {
+        var destination = XContentFactory.contentBuilder(XContentType.JSON);
+        destination.startObject();
+
+        XContentDataHelper.writeMerged(destination, "field", List.of(XContentDataHelper.nothing()));
+
+        destination.endObject();
+
+        assertEquals("{}", Strings.toString(destination));
     }
 
-    private Map<String, Object> executeWriteMergeOnTwoEncodedValues(Object first, Object second) throws IOException {
+    public void testWriteMergedWithMultipleVoidValues() throws IOException {
+        var destination = XContentFactory.contentBuilder(XContentType.JSON);
+        destination.startObject();
+
+        XContentDataHelper.writeMerged(
+            destination,
+            "field",
+            List.of(XContentDataHelper.nothing(), XContentDataHelper.nothing(), XContentDataHelper.nothing())
+        );
+
+        destination.endObject();
+
+        assertEquals("{}", Strings.toString(destination));
+    }
+
+    public void testWriteMergedWithMixedVoidValues() throws IOException {
+        var destination = XContentFactory.contentBuilder(XContentType.JSON);
+        destination.startObject();
+
+        var value = XContentFactory.contentBuilder(XContentType.JSON).value(34);
+        XContentDataHelper.writeMerged(
+            destination,
+            "field",
+            List.of(XContentDataHelper.nothing(), XContentDataHelper.encodeXContentBuilder(value), XContentDataHelper.nothing())
+        );
+
+        destination.endObject();
+
+        assertEquals("{\"field\":34}", Strings.toString(destination));
+    }
+
+    public void testWriteMergedWithArraysAndVoidValues() throws IOException {
+        var destination = XContentFactory.contentBuilder(XContentType.JSON);
+        destination.startObject();
+
+        var value = XContentFactory.contentBuilder(XContentType.JSON).value(List.of(3, 4));
+        XContentDataHelper.writeMerged(
+            destination,
+            "field",
+            List.of(XContentDataHelper.nothing(), XContentDataHelper.encodeXContentBuilder(value), XContentDataHelper.nothing())
+        );
+
+        destination.endObject();
+
+        assertEquals("{\"field\":[3,4]}", Strings.toString(destination));
+    }
+
+    private Map<String, Object> executeWriteMergedOnRepeated(Object value) throws IOException {
+        return executeWriteMergedOnTwoEncodedValues(value, value);
+    }
+
+    private Map<String, Object> executeWriteMergedOnTwoEncodedValues(Object first, Object second) throws IOException {
         var xContentType = randomFrom(XContentType.values());
 
         var firstEncoded = encodeSingleValue(first, xContentType);

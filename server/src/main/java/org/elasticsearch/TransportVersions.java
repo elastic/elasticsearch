@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch;
@@ -208,6 +209,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_AGGREGATE_EXEC_TRACKS_INTERMEDIATE_ATTRS = def(8_738_00_0);
     public static final TransportVersion CCS_TELEMETRY_STATS = def(8_739_00_0);
     public static final TransportVersion GLOBAL_RETENTION_TELEMETRY = def(8_740_00_0);
+    public static final TransportVersion ROUTING_TABLE_VERSION_REMOVED = def(8_741_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

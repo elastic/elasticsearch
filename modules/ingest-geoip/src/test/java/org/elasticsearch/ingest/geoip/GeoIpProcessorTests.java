@@ -73,6 +73,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     }
 
     public void testCity() throws Exception {
+        String ip = "8.8.8.8";
         GeoIpProcessor processor = new GeoIpProcessor(
             randomAlphaOfLength(10),
             null,
@@ -87,15 +88,15 @@ public class GeoIpProcessorTests extends ESTestCase {
         );
 
         Map<String, Object> document = new HashMap<>();
-        document.put("source_field", "8.8.8.8");
+        document.put("source_field", ip);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
 
-        assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo("8.8.8.8"));
+        assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo(ip));
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
         assertThat(geoData.size(), equalTo(7));
-        assertThat(geoData.get("ip"), equalTo("8.8.8.8"));
+        assertThat(geoData.get("ip"), equalTo(ip));
         assertThat(geoData.get("country_iso_code"), equalTo("US"));
         assertThat(geoData.get("country_name"), equalTo("United States"));
         assertThat(geoData.get("continent_code"), equalTo("NA"));
@@ -190,6 +191,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     }
 
     public void testCity_withIpV6() throws Exception {
+        String ip = "2602:306:33d3:8000::3257:9652";
         GeoIpProcessor processor = new GeoIpProcessor(
             randomAlphaOfLength(10),
             null,
@@ -203,17 +205,16 @@ public class GeoIpProcessorTests extends ESTestCase {
             "filename"
         );
 
-        String address = "2602:306:33d3:8000::3257:9652";
         Map<String, Object> document = new HashMap<>();
-        document.put("source_field", address);
+        document.put("source_field", ip);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
 
-        assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo(address));
+        assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo(ip));
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
         assertThat(geoData.size(), equalTo(10));
-        assertThat(geoData.get("ip"), equalTo(address));
+        assertThat(geoData.get("ip"), equalTo(ip));
         assertThat(geoData.get("country_iso_code"), equalTo("US"));
         assertThat(geoData.get("country_name"), equalTo("United States"));
         assertThat(geoData.get("continent_code"), equalTo("NA"));
@@ -229,6 +230,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     }
 
     public void testCityWithMissingLocation() throws Exception {
+        String ip = "80.231.5.0";
         GeoIpProcessor processor = new GeoIpProcessor(
             randomAlphaOfLength(10),
             null,
@@ -243,18 +245,19 @@ public class GeoIpProcessorTests extends ESTestCase {
         );
 
         Map<String, Object> document = new HashMap<>();
-        document.put("source_field", "80.231.5.0");
+        document.put("source_field", ip);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
 
-        assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo("80.231.5.0"));
+        assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo(ip));
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
         assertThat(geoData.size(), equalTo(1));
-        assertThat(geoData.get("ip"), equalTo("80.231.5.0"));
+        assertThat(geoData.get("ip"), equalTo(ip));
     }
 
     public void testCountry() throws Exception {
+        String ip = "82.170.213.79";
         GeoIpProcessor processor = new GeoIpProcessor(
             randomAlphaOfLength(10),
             null,
@@ -269,15 +272,15 @@ public class GeoIpProcessorTests extends ESTestCase {
         );
 
         Map<String, Object> document = new HashMap<>();
-        document.put("source_field", "82.170.213.79");
+        document.put("source_field", ip);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
 
-        assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo("82.170.213.79"));
+        assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo(ip));
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
         assertThat(geoData.size(), equalTo(5));
-        assertThat(geoData.get("ip"), equalTo("82.170.213.79"));
+        assertThat(geoData.get("ip"), equalTo(ip));
         assertThat(geoData.get("country_iso_code"), equalTo("NL"));
         assertThat(geoData.get("country_name"), equalTo("Netherlands"));
         assertThat(geoData.get("continent_code"), equalTo("EU"));
@@ -285,6 +288,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     }
 
     public void testCountryWithMissingLocation() throws Exception {
+        String ip = "80.231.5.0";
         GeoIpProcessor processor = new GeoIpProcessor(
             randomAlphaOfLength(10),
             null,
@@ -299,15 +303,15 @@ public class GeoIpProcessorTests extends ESTestCase {
         );
 
         Map<String, Object> document = new HashMap<>();
-        document.put("source_field", "80.231.5.0");
+        document.put("source_field", ip);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
 
-        assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo("80.231.5.0"));
+        assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo(ip));
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
         assertThat(geoData.size(), equalTo(1));
-        assertThat(geoData.get("ip"), equalTo("80.231.5.0"));
+        assertThat(geoData.get("ip"), equalTo(ip));
     }
 
     public void testAsn() throws Exception {

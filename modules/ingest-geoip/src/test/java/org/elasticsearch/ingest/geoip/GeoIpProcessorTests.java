@@ -35,6 +35,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class GeoIpProcessorTests extends ESTestCase {
@@ -95,6 +96,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo(ip));
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
+        assertThat(geoData, notNullValue());
         assertThat(geoData.size(), equalTo(7));
         assertThat(geoData.get("ip"), equalTo(ip));
         assertThat(geoData.get("country_iso_code"), equalTo("US"));
@@ -213,6 +215,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo(ip));
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
+        assertThat(geoData, notNullValue());
         assertThat(geoData.size(), equalTo(10));
         assertThat(geoData.get("ip"), equalTo(ip));
         assertThat(geoData.get("country_iso_code"), equalTo("US"));
@@ -252,6 +255,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo(ip));
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
+        assertThat(geoData, notNullValue());
         assertThat(geoData.size(), equalTo(1));
         assertThat(geoData.get("ip"), equalTo(ip));
     }
@@ -279,6 +283,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo(ip));
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
+        assertThat(geoData, notNullValue());
         assertThat(geoData.size(), equalTo(5));
         assertThat(geoData.get("ip"), equalTo(ip));
         assertThat(geoData.get("country_iso_code"), equalTo("NL"));
@@ -310,6 +315,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo(ip));
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
+        assertThat(geoData, notNullValue());
         assertThat(geoData.size(), equalTo(1));
         assertThat(geoData.get("ip"), equalTo(ip));
     }
@@ -337,6 +343,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo(ip));
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
+        assertThat(geoData, notNullValue());
         assertThat(geoData.size(), equalTo(4));
         assertThat(geoData.get("ip"), equalTo(ip));
         assertThat(geoData.get("asn"), equalTo(1136L));
@@ -367,6 +374,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo(ip));
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
+        assertThat(geoData, notNullValue());
         assertThat(geoData.size(), equalTo(7));
         assertThat(geoData.get("ip"), equalTo(ip));
         assertThat(geoData.get("hosting_provider"), equalTo(true));
@@ -400,6 +408,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo(ip));
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
+        assertThat(geoData, notNullValue());
         assertThat(geoData.size(), equalTo(2));
         assertThat(geoData.get("ip"), equalTo(ip));
         assertThat(geoData.get("connection_type"), equalTo("Satellite"));
@@ -428,6 +437,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo(ip));
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
+        assertThat(geoData, notNullValue());
         assertThat(geoData.size(), equalTo(2));
         assertThat(geoData.get("ip"), equalTo(ip));
         assertThat(geoData.get("domain"), equalTo("ameritech.net"));
@@ -456,6 +466,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo(ip));
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
+        assertThat(geoData, notNullValue());
         assertThat(geoData.size(), equalTo(24));
         assertThat(geoData.get("ip"), equalTo(ip));
         assertThat(geoData.get("country_iso_code"), equalTo("US"));
@@ -509,6 +520,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo(ip));
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
+        assertThat(geoData, notNullValue());
         assertThat(geoData.size(), equalTo(8));
         assertThat(geoData.get("ip"), equalTo(ip));
         assertThat(geoData.get("asn"), equalTo(6167L));
@@ -586,6 +598,8 @@ public class GeoIpProcessorTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> geoData = (List<Map<String, Object>>) ingestDocument.getSourceAndMetadata().get("target_field");
+        assertThat(geoData, notNullValue());
+        assertThat(geoData.size(), equalTo(2));
 
         Map<String, Object> location = new HashMap<>();
         location.put("lat", 37.751d);
@@ -616,6 +630,8 @@ public class GeoIpProcessorTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> geoData = (List<Map<String, Object>>) ingestDocument.getSourceAndMetadata().get("target_field");
+        assertThat(geoData, notNullValue());
+        assertThat(geoData.size(), equalTo(2));
 
         Map<String, Object> location = new HashMap<>();
         location.put("lat", 37.751d);
@@ -662,6 +678,8 @@ public class GeoIpProcessorTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> geoData = (List<Map<String, Object>>) ingestDocument.getSourceAndMetadata().get("target_field");
+        assertThat(geoData, notNullValue());
+        assertThat(geoData.size(), equalTo(2));
 
         Map<String, Object> location = new HashMap<>();
         location.put("lat", 37.751d);
@@ -697,6 +715,7 @@ public class GeoIpProcessorTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
+        assertThat(geoData, notNullValue());
 
         Map<String, Object> location = new HashMap<>();
         location.put("lat", 37.751d);

@@ -16,8 +16,12 @@ import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.util.concurrent.FutureListener;
 
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.transport.netty4.Netty4Utils;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Netty based implementation of {@link HttpBody.Stream}.
@@ -29,6 +33,7 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
 
     private final Channel channel;
     private final FutureListener<Void> closeListener = future -> doClose();
+    private final List<ChunkHandler> tracingHandlers = new ArrayList<>(4);
     private ByteBuf buf;
     private boolean hasLast = false;
     private boolean requested = false;
@@ -49,6 +54,12 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
     @Override
     public void setHandler(ChunkHandler chunkHandler) {
         this.handler = chunkHandler;
+    }
+
+    @Override
+    public void addTracingHandler(ChunkHandler chunkHandler) {
+        assert tracingHandlers.contains(chunkHandler) == false;
+        tracingHandlers.add(chunkHandler);
     }
 
     @Override
@@ -118,6 +129,9 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
         var bytesRef = Netty4Utils.toReleasableBytesReference(buf);
         requested = false;
         buf = null;
+        for (var tracer : tracingHandlers) {
+            tracer.onNext(bytesRef, hasLast);
+        }
         handler.onNext(bytesRef, hasLast);
     }
 
@@ -132,6 +146,9 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
 
     private void doClose() {
         closing = true;
+        for (var tracer : tracingHandlers) {
+            Releasables.closeExpectNoException(tracer);
+        }
         if (handler != null) {
             handler.close();
         }

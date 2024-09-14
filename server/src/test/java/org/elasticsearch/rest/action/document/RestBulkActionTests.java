@@ -212,6 +212,9 @@ public class RestBulkActionTests extends ESTestCase {
                 }
 
                 @Override
+                public void addTracingHandler(ChunkHandler chunkHandler) {}
+
+                @Override
                 public void setHandler(ChunkHandler chunkHandler) {}
 
                 @Override

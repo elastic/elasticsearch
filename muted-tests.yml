@@ -219,6 +219,8 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/112823
 - class: org.elasticsearch.repositories.blobstore.testkit.analyze.HdfsRepositoryAnalysisRestIT
   issue: https://github.com/elastic/elasticsearch/issues/112889
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/111944
 
 # Examples:
 #

@@ -1,5 +1,5 @@
 [#sync-rules]
-= Connector sync rules
+=== Connector sync rules
 ++++
 <titleabbrev>Sync rules</titleabbrev>
 ++++
@@ -10,7 +10,7 @@ Define sync rules in the Kibana UI for each connector index, under the `Sync rul
 Sync rules apply to <<native-connectors,native connectors>> and <<build-connector,connector clients>>.
 
 [discrete#sync-rules-availability-prerequisites]
-== Availability and prerequisites
+==== Availability and prerequisites
 
 In Elastic versions *8.8.0 and later* all connectors have support for _basic_ sync rules.
 
@@ -18,7 +18,7 @@ Some connectors support _advanced_ sync rules.
 Learn more in the <<connectors, individual connector's reference documentation>>.
 
 [discrete#sync-rules-types]
-== Types of sync rule
+==== Types of sync rule
 
 There are two types of sync rule:
 
@@ -31,7 +31,7 @@ Advanced sync rules are defined through a _source-specific_ DSL JSON snippet.
 image::images/filtering-rules-zero-state.png[Sync rules tab]
 
 [discrete#sync-rules-general-filtering]
-== General data filtering concepts
+==== General data filtering concepts
 
 Before discussing sync rules, it's important to establish a basic understanding of _data filtering_ concepts.
 The following diagram shows that data filtering can occur in several different processes/locations.
@@ -43,19 +43,19 @@ In this documentation we will focus on remote and integration filtering.
 Sync rules can be used to modify both of these.
 
 [discrete#sync-rules-general-filtering-remote]
-=== Remote filtering
+===== Remote filtering
 
 Data might be filtered at its source.
 We call this *remote filtering*, as the filtering process is external to Elastic.
 
 [discrete#sync-rules-general-filtering-integration]
-=== Integration filtering
+===== Integration filtering
 
 *Integration filtering* acts as a bridge between the original data source and Elasticsearch.
 Filtering that takes place in connectors is an example of integration filtering.
 
 [discrete#sync-rules-general-filtering-pipeline]
-=== Pipeline filtering
+===== Pipeline filtering
 
 Finally, Elasticsearch can filter data right _before persistence_ using {ref}/ingest-pipeline-search.html[ingest pipelines].
 We will not focus on ingest pipeline filtering in this guide.
@@ -69,7 +69,7 @@ Ensure the source data is well-organized and optimized for the query types made 
 ====
 
 [discrete#sync-rules-overview]
-== Sync rules overview
+==== Sync rules overview
 
 In most cases, your data lake will contain far more data than you want to expose to end users.
 For example, you may want to search a product catalog, but not include vendor contact information, even if the two are co-located for business purposes.
@@ -106,7 +106,7 @@ If a sync rule is added, edited or removed, it will only take effect after the n
 ====
 
 [discrete#sync-rules-basic]
-== Basic sync rules
+==== Basic sync rules
 
 Each basic sync rules can be one of two "policies": `include` and `exclude`.
 `Include` rules are used to include the documents that "match" the specified condition.
@@ -135,10 +135,10 @@ For example, if a value of `[A-Z]{2}` might make sense for a `regex` rule, but m
 Similarly, you probably wouldn't have a value of `espresso` when operating on an `ip_address` field, but perhaps you would for a `beverage` field.
 
 [discrete#sync-rules-basic-examples]
-=== Basic sync rules examples
+===== Basic sync rules examples
 
 [discrete#sync-rules-basic-examples-1]
-==== Example 1
+====== Example 1
 
 Exclude all documents that have an `ID` field with the value greater than 1000.
 
@@ -146,7 +146,7 @@ Exclude all documents that have an `ID` field with the value greater than 1000.
 image::images/simple-rule-greater.png[Simple greater than rule]
 
 [discrete#sync-rules-basic-examples-2]
-==== Example 2
+====== Example 2
 
 Exclude all documents that have a `state` field that matches a specified regex.
 
@@ -154,7 +154,7 @@ Exclude all documents that have a `state` field that matches a specified regex.
 image::images/simple-rule-regex.png[Simple regex rule]
 
 [discrete#sync-rules-performance-implications]
-=== Performance implications
+===== Performance implications
 
 - If you're relying solely on basic sync rules in the integration filtering phase the connector will fetch *all* the data from the data source
 - For data sources without automatic pagination, or similar optimizations, fetching all the data can lead to memory issues.
@@ -180,7 +180,7 @@ By comparison, this diagram illustrates a paginated dataset:
 image::images/sync-rules-pagination.png[Pagination]
 
 [discrete#sync-rules-advanced]
-== Advanced sync rules
+==== Advanced sync rules
 
 [IMPORTANT]
 ====
@@ -200,7 +200,7 @@ Each connector supporting advanced sync rules provides its own DSL to specify ru
 Refer to the documentation for <<connectors,each connector>> for details.
 
 [discrete#interplay-basic-rules-advanced-rules]
-== Combining basic and advanced sync rules
+==== Combining basic and advanced sync rules
 
 You can also use basic sync rules and advanced sync rules together to filter a data set.
 
@@ -210,7 +210,7 @@ The following diagram provides an overview of the order in which advanced sync r
 image::images/sync-rules-time-dimension.png[Sync Rules: What is applied when?]
 
 [discrete#example-interplay-basic-rules-advanced-rules]
-=== Example
+===== Example
 
 In the following example we want to filter a data set containing apartments to only contain apartments with specific properties.
 We'll use basic and advanced sync rules throughout the example.
@@ -243,7 +243,7 @@ The target data set should fulfill the following conditions:
 The first 3 conditions can be handled by basic sync rules, but we'll need to use advanced sync rules for number 4.
 
 [discrete#example-interplay-basic-rules]
-==== Basic sync rules examples
+====== Basic sync rules examples
 
 To create a new basic sync rule, navigate to the 'Sync Rules' tab and select *Draft new sync rules*:
 
@@ -274,7 +274,7 @@ You may get different results for a different ordering.
 ====
 
 [discrete#example-interplay-advanced-rules]
-==== Advanced sync rules example
+====== Advanced sync rules example
 
 You want to only include apartments which are located in Portugal or Spain.
 We need to use advanced sync rules here, because we're dealing with deeply nested objects.

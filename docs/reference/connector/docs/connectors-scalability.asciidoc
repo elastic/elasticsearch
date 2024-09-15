@@ -1,11 +1,11 @@
 [#connectors-scalability]
-= Connector Scalability
+=== Connector Scalability
 ++++
 <titleabbrev>Scalability</titleabbrev>
 ++++
 
 [discrete#connectors-scalability-redundancy]
-== Redundancy
+==== Redundancy
 
 Users can create a backup (secondary) server with an identical connector service setup (settings, code, etc..).
 If the primary server running the connector service fails, users can start up the connector service on the secondary
@@ -17,7 +17,7 @@ However, note that any in-progress syncs will need to be restarted from scratch,
 interrupted from.
 
 [discrete#connectors-scalability-failover]
-== Failover
+==== Failover
 
 There is currently no automatic failover or transfer of workload in case of failure.
 If the server running the connector service fails, all outstanding connector sync jobs will go into a suspended state.
@@ -25,7 +25,7 @@ When the connector service returns (or if a replacement connector service is lau
 need to be cleaned up and automatically restart (from scratch) the suspended jobs.
 
 [discrete#connectors-scalability-balancing]
-== Workload balancing
+==== Workload balancing
 
 There is currently no division/balancing of workload for a single sync job across multiple connector service deployments.
 Once a sync job is claimed by a connector service, it will run the job to completion - unless the connector service
@@ -40,7 +40,7 @@ the same Elasticsearch cluster, with the following expectations:
 * Only 1 connector service can perform management tasks at a time, for example: populating service types and configurations, validating filters, etc.
 
 [discrete#connectors-scalability-horizontal]
-== Horizontal Scalability
+==== Horizontal Scalability
 
 Horizontal scaling can work if there are multiple connector services running and are configured to allow concurrent
 syncs via their `service.max_concurrent_syncs` settings.

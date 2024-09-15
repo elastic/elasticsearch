@@ -1,5 +1,5 @@
 [#connectors-run-from-docker]
-= Running from a Docker container
+=== Running from a Docker container
 
 [TIP]
 ====
@@ -74,13 +74,8 @@ For example, `docker.elastic.co/enterprise-search/elastic-connectors:8.14.0.0-SN
 
 Find all available Docker images in the https://www.docker.elastic.co/r/enterprise-search/elastic-connectors[official registry].
 
-[TIP]
-====
-Each <<connectors-data-sources-connector-clients,connector client reference>> in these docs contains specific instructions for deploying your connector using Docker.
-====
-
 [discrete#build-connector-finalizes-kibana]
-== Enter data source details in Kibana
+==== Enter data source details in Kibana
 
 Once the connector service is running, it's time to head back to the Kibana UI to finalize the connector configuration.
 In this step, you need to add the specific connection details about your data source instance, like URL, authorization credentials, etc.

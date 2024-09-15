@@ -1,5 +1,5 @@
 [#connectors-usage]
-= Using connectors
+== Using connectors
 
 This document describes operations available to <<native-connectors,native connectors>> and <<build-connector,connector clients>>, using the UI.
 
@@ -12,7 +12,7 @@ Use these tools if you'd like to work with connectors and sync jobs programmatic
 ====
 
 [discrete#connectors-usage-index-create]
-== Create and configure connectors
+=== Create and configure connectors
 
 You connector writes data to an {es} index.
 
@@ -20,7 +20,7 @@ To create <<native-connectors,*native connectors*>> or self-managed <<build-conn
 Once you've chosen the data source type you'd like to sync, you'll be prompted to create an {es} index.
 
 [discrete#connectors-usage-indices]
-== Manage connector indices
+=== Manage connector indices
 
 View and manage all Elasticsearch indices managed by connectors.
 
@@ -32,7 +32,7 @@ Or, you can <<connectors-usage-index-create,create a new connector index>>.
 These operations require access to Kibana and additional index privileges.
 
 [discrete#connectors-usage-index-create-configure-existing-index]
-== Customize connector index mappings and settings
+=== Customize connector index mappings and settings
 
 {es} stores your data as documents in an index. Each index is made up of a set of fields and each field has a type (such as `keyword`, `boolean`, or `date`).
 
@@ -58,13 +58,13 @@ It's important to note that these updates are more complex when the index alread
 Refer to the following sections for more information.
 
 [discrete#connectors-usage-index-create-configure-existing-index-no-data]
-=== Customize mappings and settings before syncing data
+==== Customize mappings and settings before syncing data
 
 Updating mappings and settings is simpler when your index has no data.
 If you create and attach a _new_ index while setting up a connector, you can customize the mappings and settings before syncing data, using the APIs mentioned earlier.
 
 [discrete#connectors-usage-index-create-configure-existing-index-have-data]
-=== Customize mappings and settings after syncing data
+==== Customize mappings and settings after syncing data
 
 Once data has been added to {es} using dynamic mappings, you can't directly update existing field mappings.
 If you've already synced data into an index and want to change the mappings, you'll need to {ref}/docs-reindex.html[reindex your data].
@@ -78,7 +78,7 @@ The workflow for these updates is as follows:
 . Attach your connector to the new index or alias.
 
 [discrete#connectors-usage-syncs-recurring]
-== Manage recurring syncs
+=== Manage recurring syncs
 
 After creating an index to be managed by a connector, you can configure automatic, recurring syncs.
 
@@ -103,7 +103,7 @@ After you enable recurring syncs or sync once, the first sync will begin.
 You may want to <<connectors-usage-index-view,view the index details>> to see the status or errors, or <<connectors-usage-documents,view the synced documents>>.
 
 [discrete#connectors-usage-syncs-manual]
-== Sync once
+=== Sync once
 
 After creating the index to be managed by a connector, you can request a single sync at any time.
 
@@ -124,7 +124,7 @@ Choose one of the options to request a sync.
 This operation requires access to Kibana and the `write` {ref}/security-privileges.html[indices privilege^] for the `.elastic-connectors` index.
 
 [discrete#connectors-usage-syncs-cancel]
-== Cancel sync
+=== Cancel sync
 
 After a sync has started, you can cancel the sync before it completes.
 
@@ -140,7 +140,7 @@ This will cancel the running job, and marks all _pending_ and _suspended_ jobs a
 This operation requires access to Kibana and the `write` {ref}/security-privileges.html[indices privilege^] for the `.elastic-connectors` and `.elastic-connectors-sync-jobs` index.
 
 [discrete#connectors-usage-index-view]
-== View status
+=== View status
 
 View the index details to see a variety of information that communicate the status of the index and connector.
 
@@ -187,7 +187,7 @@ For each sync, choose the `view` button to display the job details, including:
 This operation requires access to Kibana and the `read` {ref}/security-privileges.html[indices privilege^] for the `.elastic-connectors` index.
 
 [discrete#connectors-usage-documents]
-== View documents
+=== View documents
 
 View the documents the connector has synced from the data.
 Additionally view the index mappings to determine the current document schema.
@@ -207,7 +207,7 @@ These operations require access to Kibana and the `read` and `manage` {ref}/secu
 See <<connectors-security>> for security details.
 
 [discrete#connectors-usage-sync-rules]
-== Manage sync rules
+=== Manage sync rules
 
 Use <<sync-rules,sync rules>> to limit which documents are fetched from the data source, or limit which fetched documents are stored in Elastic.
 
@@ -216,7 +216,7 @@ In the {kib} UI, navigate to *Search > Content > Elasticsearch indices*.
 Then choose the index to manage and choose the *Sync rules* tab.
 
 [discrete#connectors-usage-pipelines]
-== Manage ingest pipelines
+=== Manage ingest pipelines
 
 Use {ref}/ingest-pipeline-search.html[ingest pipelines] to transform fetched data before it is stored in Elastic.
 

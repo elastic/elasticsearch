@@ -1,5 +1,5 @@
 [#connectors-gmail]
-= Elastic Gmail connector reference
+=== Elastic Gmail connector reference
 ++++
 <titleabbrev>Gmail</titleabbrev>
 ++++
@@ -15,14 +15,14 @@ The _Elastic GMail connector_ is a <<connectors,connector>> for GMail.
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#connectors-gmail-native-connector-reference]
-== *Native connector reference (managed service)*
+==== *Native connector reference (managed service)*
 
 .View reference for the *native connector reference (managed service)*.
 [%collapsible]
 ===============
 
 [discrete#connectors-gmail-availability]
-=== Availability and prerequisites
+===== Availability and prerequisites
 
 This connector is available as a *native connector* (managed service) in Elastic Cloud.
 
@@ -31,11 +31,11 @@ This connector is compatible with Elastic versions *8.13.0+*.
 To use this connector, satisfy all <<native-connectors,native connector requirements>>.
 
 [discrete#connectors-gmail-create-native-connector]
-== Create a {service-name} connector
+==== Create a {service-name} connector
 include::_connectors-create-native.asciidoc[]
 
 [discrete#connectors-gmail-usage]
-=== Usage
+===== Usage
 
 To use this connector as a native connector in Elastic Cloud, use the *Connectors* workflow in the Kibana UI.
 
@@ -48,7 +48,7 @@ To create a new {service-name} connector:
 For additional operations, see <<connectors-usage>>.
 
 [discrete#connectors-gmail-connector-authentication-prerequisites]
-=== Connector authentication prerequisites
+===== Connector authentication prerequisites
 
 Before syncing any data from GMail, you need to create a https://cloud.google.com/iam/docs/service-account-overview[service account^] with appropriate access to the GMail and the Google Directory API, which is part of the Google Admin SDK API.
 You also need to enable domain-wide delegation to impersonate the users you're fetching messages from.
@@ -81,7 +81,7 @@ You need to grant the following *OAuth Scopes* to your service account:
 This step allows the connector to access user data and their group memberships in your Google Workspace organization.
 
 [discrete#connectors-gmail-configuration]
-=== Configuration
+===== Configuration
 
 The following configuration fields are required:
 
@@ -113,19 +113,19 @@ When enabled:
 * Access control syncs will fetch users' access control lists and store them in a separate index.
 
 [discrete#connectors-gmail-documents-and-syncs]
-=== Documents and syncs
+===== Documents and syncs
 
 The connector will fetch all messages of all users the service account has access to.
 
 [discrete#connectors-gmail-sync-types]
-==== Sync types
+====== Sync types
 
 <<connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
 
 This connector also supports <<connectors-sync-types-incremental,incremental syncs>>.
 
 [discrete#connectors-gmail-sync-rules]
-=== Sync rules
+===== Sync rules
 
 <<sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
 
@@ -145,7 +145,7 @@ For example:
 ----
 
 [discrete#connectors-gmail-document-level-security]
-=== Document level security
+===== Document level security
 
 Document level security (DLS) enables you to restrict access to documents based on a user’s permissions.
 Refer to <<connectors-gmail-configuration,configuration>> on this page for how to enable DLS for this connector.
@@ -157,22 +157,22 @@ The example uses SharePoint Online as the data source, but the same steps apply 
 ====
 
 [discrete#connectors-gmail-known-issues]
-=== Known issues
+===== Known issues
 
 There are currently no known issues for this connector.
 
 [discrete#connectors-gmail-troubleshooting]
-=== Troubleshooting
+===== Troubleshooting
 
 See <<connectors-troubleshooting>>.
 
 [discrete#connectors-gmail-security]
-=== Security
+===== Security
 
 See <<connectors-security>>.
 
 [discrete#connectors-gmail-framework-and-source]
-=== Framework and source
+===== Framework and source
 
 This connector is built in Python with the {connectors-python}[Elastic connector framework^].
 
@@ -188,14 +188,14 @@ View the {connectors-python}/connectors/sources/gmail.py[source code for this co
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#connectors-gmail-connector-client-reference]
-== *Connector client reference (self-managed)*
+==== *Connector client reference (self-managed)*
 
 .View reference for the *connector client reference (self-managed)*.
 [%collapsible]
 ===============
 
 [discrete#connectors-gmail-client-availability]
-=== Availability and prerequisites
+===== Availability and prerequisites
 
 This connector is available as a self-managed *connector client* from the *Elastic connector framework*.
 
@@ -204,18 +204,18 @@ This connector client is compatible with Elastic versions *8.10.0+*.
 To use this connector, satisfy all <<build-connector,connector client requirements>>.
 
 [discrete#connectors-gmail-create-connector-client]
-=== Create a {service-name} connector
+===== Create a {service-name} connector
 include::_connectors-create-client.asciidoc[]
 
 [discrete#connectors-gmail-client-usage]
-=== Usage
+===== Usage
 
 To use this connector as a **connector client**, use the *Connector* workflow in the Kibana UI.
 
 For additional operations, see <<connectors-usage>>.
 
 [discrete#connectors-gmail-client-connector-authentication-prerequisites]
-=== Connector authentication prerequisites
+===== Connector authentication prerequisites
 
 Before syncing any data from GMail, you need to create a https://cloud.google.com/iam/docs/service-account-overview[service account^] with appropriate access to the GMail and the Google Directory API, which is part of the Google Admin SDK API.
 You also need to enable domain-wide delegation to impersonate the users you're fetching messages from.
@@ -248,7 +248,7 @@ You need to grant the following *OAuth Scopes* to your service account:
 This step allows the connector to access user data and their group memberships in your Google Workspace organization.
 
 [discrete#connectors-gmail-client-configuration]
-=== Configuration
+===== Configuration
 
 [TIP]
 ====
@@ -289,24 +289,24 @@ When enabled:
 * Access control syncs will fetch users' access control lists and store them in a separate index.
 
 [discrete#connectors-gmail-client-deployment-using-docker]
-=== Deployment using Docker
+===== Deployment using Docker
 
 include::_connectors-docker-instructions.asciidoc[]
 
 [discrete#connectors-gmail-client-documents-and-syncs]
-=== Documents and syncs
+===== Documents and syncs
 
 The connector will fetch all messages of all users the service account has access to.
 
 [discrete#connectors-gmail-client-sync-types]
-==== Sync types
+====== Sync types
 
 <<connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
 
 This connector also supports <<connectors-sync-types-incremental,incremental syncs>>.
 
 [discrete#connectors-gmail-client-sync-rules]
-=== Sync rules
+===== Sync rules
 
 <<sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
 
@@ -326,7 +326,7 @@ For example:
 ----
 
 [discrete#connectors-gmail-client-document-level-security]
-=== Document level security
+===== Document level security
 
 Document level security (DLS) enables you to restrict access to documents based on a user’s permissions.
 Refer to <<connectors-gmail-client-configuration,configuration>> on this page for how to enable DLS for this connector.
@@ -338,22 +338,22 @@ The example uses SharePoint Online as the data source, but the same steps apply 
 ====
 
 [discrete#connectors-gmail-client-known-issues]
-=== Known issues
+===== Known issues
 
 There are currently no known issues for this connector.
 
 [discrete#connectors-gmail-client-troubleshooting]
-=== Troubleshooting
+===== Troubleshooting
 
 See <<connectors-troubleshooting>>.
 
 [discrete#connectors-gmail-client-security]
-=== Security
+===== Security
 
 See <<connectors-security>>.
 
 [discrete#connectors-gmail-client-framework-and-source]
-=== Framework and source
+===== Framework and source
 
 This connector is built in Python with the {connectors-python}[Elastic connector framework^].
 

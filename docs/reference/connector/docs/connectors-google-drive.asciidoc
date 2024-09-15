@@ -1,5 +1,5 @@
 [#connectors-google-drive]
-= Elastic Google Drive connector reference
+=== Elastic Google Drive connector reference
 ++++
 <titleabbrev>Google Drive</titleabbrev>
 ++++
@@ -22,7 +22,7 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#connectors-google-drive-native-connector-reference]
-== *Native connector (Elastic Cloud)*
+==== *Native connector (Elastic Cloud)*
 
 .View *native connector* reference
 
@@ -30,21 +30,21 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 ===============
 
 [discrete#connectors-google-drive-availability-and-prerequisites]
-=== Availability and prerequisites
+===== Availability and prerequisites
 
 This connector is available as a *native connector* as of Elastic version *8.11.0*.
 
 To use this connector natively in Elastic Cloud, satisfy all <<native-connectors-prerequisites,native connector requirements>>.
 
 [discrete#connectors-google-drive-usage]
-=== Usage
+===== Usage
 
 To use this connector natively in Elastic Cloud, see <<native-connectors>>.
 
 For additional operations, see <<connectors-usage>>.
 
 [discrete#connectors-google-drive-connector-authentication-prerequisites]
-=== Connector authentication prerequisites
+===== Connector authentication prerequisites
 
 Before syncing any data from Google Drive, you need to create a https://cloud.google.com/iam/docs/service-account-overview[service account^] with appropriate access to Google Drive API.
 
@@ -72,7 +72,7 @@ This means that any folders or files contained within the granted folder or driv
 ====
 
 [discrete#connectors-google-drive-additional-prerequisites-for-domain-wide-delegation]
-==== Additional authentication prerequisites for domain-wide delegation
+====== Additional authentication prerequisites for domain-wide delegation
 
 This step is *required* when *Use domain-wide delegation for data sync* or *Enable document level security* configuration option is enabled.
 
@@ -99,7 +99,7 @@ This step allows the connector to:
 * access Google Drive data in drives associated to Google Workspace members
 
 [discrete#connectors-google-drive-configuration]
-=== Configuration
+===== Configuration
 
 The following configuration fields are required:
 
@@ -122,7 +122,7 @@ A service account with delegated authority can impersonate an admin user with pe
 Refer to the https://support.google.com/a/answer/162106?hl=en[Google Cloud documentation^] for more information.
 
 [discrete#connectors-google-drive-documents-and-syncs]
-=== Documents and syncs
+===== Documents and syncs
 
 The connector will fetch all files and folders the service account has access to.
 
@@ -137,14 +137,14 @@ Otherwise, *all documents* indexed to an Elastic deployment will be visible to *
 ====
 
 [discrete#connectors-google-drive-sync-types]
-==== Sync types
+====== Sync types
 
 <<connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
 
 This connector also supports <<connectors-sync-types-incremental,incremental syncs>>.
 
 [discrete#connectors-google-drive-sync-rules]
-=== Sync rules
+===== Sync rules
 
 <<sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
 
@@ -152,7 +152,7 @@ Advanced sync rules are not available for this connector in the present version.
 Currently filtering is controlled via ingest pipelines.
 
 [discrete#connectors-google-drive-document-level-security]
-=== Document level security
+===== Document level security
 
 Document level security (DLS) enables you to restrict access to documents based on a user’s permissions.
 Refer to <<connectors-google-drive-configuration,configuration>> on this page for how to enable DLS for this connector.
@@ -164,22 +164,22 @@ The example uses SharePoint Online as the data source, but the same steps apply 
 ====
 
 [discrete#connectors-google-drive-content-extraction]
-=== Content extraction
+===== Content extraction
 
 See <<connectors-content-extraction>> for more information.
 
 [discrete#connectors-google-drive-known-issues]
-=== Known issues
+===== Known issues
 
 There are currently no known issues for this connector.
 
 [discrete#connectors-google-drive-troubleshooting]
-=== Troubleshooting
+===== Troubleshooting
 
 See <<connectors-troubleshooting>>.
 
 [discrete#connectors-google-drive-security]
-=== Security
+===== Security
 
 See <<connectors-security>>.
 
@@ -192,7 +192,7 @@ See <<connectors-security>>.
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#connectors-google-drive-connector-client-reference]
-== *Connector client (self-managed)*
+==== *Connector client (self-managed)*
 
 .View *connector client* reference
 
@@ -200,18 +200,18 @@ See <<connectors-security>>.
 ===============
 
 [discrete#connectors-google-drive-client-availability-and-prerequisites]
-=== Availability and prerequisites
+===== Availability and prerequisites
 
 This connector is available as a self-managed *connector client*. To use this connector, satisfy all <<build-connector,connector client requirements>>.
 
 [discrete#connectors-google-drive-client-usage]
-=== Usage
+===== Usage
 
 To use this connector as a *connector client*, see <<build-connector>>
 For additional usage operations, see <<connectors-usage>>.
 
 [discrete#connectors-google-drive-client-connector-authentication-prerequisites]
-=== Connector authentication prerequisites
+===== Connector authentication prerequisites
 
 Before syncing any data from Google Drive, you need to create a https://cloud.google.com/iam/docs/service-account-overview[service account^] with appropriate access to Google Drive API.
 
@@ -239,7 +239,7 @@ This means that any folders or files contained within the granted folder or driv
 ====
 
 [discrete#connectors-google-drive-client-additional-prerequisites-for-domain-wide-delegation]
-==== Additional authentication prerequisites for domain-wide delegation
+====== Additional authentication prerequisites for domain-wide delegation
 
 This step is *required* when *Use domain-wide delegation for data sync* or *Enable document level security* configuration option is enabled.
 
@@ -266,7 +266,7 @@ This step allows the connector to:
 * access Google Drive data in drives associated to Google Workspace members
 
 [discrete#connectors-google-drive-client-configuration]
-=== Configuration
+===== Configuration
 
 [TIP]
 ====
@@ -320,12 +320,12 @@ Requires that pipeline settings disable text extraction.
 Default value is `False`.
 
 [discrete#connectors-google-drive-client-deployment-using-docker]
-=== Deployment using Docker
+===== Deployment using Docker
 
 include::_connectors-docker-instructions.asciidoc[]
 
 [discrete#connectors-google-drive-client-documents-and-syncs]
-=== Documents and syncs
+===== Documents and syncs
 
 The connector will fetch all files and folders the service account has access to.
 
@@ -340,14 +340,14 @@ Otherwise, *all documents* indexed to an Elastic deployment will be visible to *
 ====
 
 [discrete#connectors-google-drive-client-sync-types]
-==== Sync types
+====== Sync types
 
 <<connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
 
 This connector also supports <<connectors-sync-types-incremental,incremental syncs>>.
 
 [discrete#connectors-google-drive-client-sync-rules]
-=== Sync rules
+===== Sync rules
 
 <<sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
 
@@ -355,7 +355,7 @@ Advanced sync rules are not available for this connector in the present version.
 Currently filtering is controlled via ingest pipelines.
 
 [discrete#connectors-google-drive-client-document-level-security]
-=== Document level security
+===== Document level security
 
 Document level security (DLS) enables you to restrict access to documents based on a user’s permissions.
 Refer to <<connectors-google-drive-client-configuration,configuration>> on this page for how to enable DLS for this connector.
@@ -367,12 +367,12 @@ The example uses SharePoint Online as the data source, but the same steps apply 
 ====
 
 [discrete#connectors-google-drive-client-content-extraction]
-=== Content extraction
+===== Content extraction
 
 See <<connectors-content-extraction>> for more information.
 
 [discrete#connectors-google-drive-client-end-to-end-testing]
-=== End-to-end testing
+===== End-to-end testing
 
 The connector framework enables operators to run functional tests against a real data source. Refer to <<build-connector-testing>> for more details.
 
@@ -391,17 +391,17 @@ make ftest NAME=google_drive DATA_SIZE=small
 ----
 
 [discrete#connectors-google-drive-client-known-issues]
-=== Known issues
+===== Known issues
 
 There are currently no known issues for this connector.
 
 [discrete#connectors-google-drive-client-troubleshooting]
-=== Troubleshooting
+===== Troubleshooting
 
 See <<connectors-troubleshooting>>.
 
 [discrete#connectors-google-drive-client-security]
-=== Security
+===== Security
 
 See <<connectors-security>>.
 

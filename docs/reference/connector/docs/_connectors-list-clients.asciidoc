@@ -27,5 +27,3 @@
 * <<connectors-slack,Slack>>
 * <<connectors-teams,Teams>>
 * <<connectors-zoom,Zoom>>
-
-

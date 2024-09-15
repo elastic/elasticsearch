@@ -1,5 +1,5 @@
 [#connectors-content-extraction]
-= Content extraction
+=== Content extraction
 
 Connectors use the {ref}/attachment.html[Elastic ingest attachment processor^] to extract file contents.
 The processor extracts files using the https://tika.apache.org[Apache Tika^] text extraction library.
@@ -17,7 +17,7 @@ See {ref}/ingest-pipeline-search.html[Ingest pipelines for Search indices].
 For advanced use cases, the <<connectors-content-extraction-local, self-hosted extraction service>> can be used to extract content from files larger than 10MB.
 
 [discrete#connectors-content-extraction-supported-file-types]
-== Supported file types
+==== Supported file types
 
 The following file types are supported:
 
@@ -50,7 +50,7 @@ Expand the archive file and make individual uncompressed files available for the
 ====
 
 [discrete#connectors-content-extraction-local]
-== Extraction Service
+==== Extraction Service
 
 [NOTE]
 ====
@@ -78,14 +78,14 @@ The data extraction service code is now available in this public repository: htt
 ====
 
 [discrete#connectors-content-extraction-available-connectors]
-=== Available connectors
+===== Available connectors
 
 Local content extraction is available for the following self-managed connector clients:
 
 include::_connectors-list-local-content-extraction.asciidoc[]
 
 [discrete#connectors-content-extraction-data-extraction-service]
-=== Running the extraction service
+===== Running the extraction service
 
 Self-hosted content extraction is handled by a *separate* extraction service.
 
@@ -104,7 +104,7 @@ $ docker run \
 ----
 
 [discrete#connectors-extraction-service-configuration]
-=== Configuring the extraction service
+===== Configuring the extraction service
 
 You can enable your connector client to use the self-hosted extraction service by adding the required configuration.
 The connector client determines if the extraction service is enabled by the presence of these fields in the configuration file.
@@ -142,7 +142,7 @@ Data extraction service found at <HOST>.
 If you don't see this log at startup, refer to <<connectors-content-extraction-troubleshooting, troubleshooting self-hosted content extraction service>>.
 
 [discrete#connectors-content-extraction-advanced-configuration]
-==== Advanced configuration
+====== Advanced configuration
 
 The following fields can be included in the configuration file.
 They are optional and will fallback on default values if they are not specified.
@@ -168,14 +168,14 @@ extraction_service:
 |=======
 
 [discrete#connectors-content-extraction-data-extraction-service-file-pointers]
-=== Using file pointers
+===== Using file pointers
 
 The self-hosted extraction service can be set up to use file pointers instead of sending files via HTTP requests.
 File pointers are faster than sending files and consume less memory, but require the connector framework and the extraction service to be able to share a file system.
 This can be set up with both a dockerized and non-dockerized connector client.
 
 [discrete#connectors-content-extraction-data-extraction-service-file-pointers-configuration]
-==== Configuration for non-dockerized connector clients
+====== Configuration for non-dockerized connector clients
 
 If you are running a non-dockerized version of the connector client, you need to determine the local directory where you'll download files for extraction.
 This can be anywhere on your file system that you are comfortable using.
@@ -183,7 +183,7 @@ Be aware that the connector client will download files with randomized filenames
 For that reason, we recommend using a dedicated directory for self-hosted extraction.
 
 [discrete#connectors-content-extraction-data-extraction-service-file-pointers-configuration-example]
-===== Example
+======= Example
 
 1. For this example, we will be using `/app/files` as both our local directory and our container directory.
 When you run the extraction service docker container, you can mount the directory as a volume using the command-line option `-v /app/files:/app/files`.
@@ -220,7 +220,7 @@ extraction_service:
 If you encounter any unexpected errors, refer to <<connectors-content-extraction-troubleshooting, troubleshooting the self-hosted content extraction service>>.
 
 [discrete#connectors-content-extraction-data-extraction-service-file-pointers-configuration-dockerized]
-==== Configuration for dockerized connector clients
+====== Configuration for dockerized connector clients
 
 When using self-hosted extraction from a dockerized connector client, there are a few extra steps required on top of {connectors-python}/docs/DOCKER.md[running the connector client in docker^].
 
@@ -228,7 +228,7 @@ When using self-hosted extraction from a dockerized connector client, there are 
 * The connector client and the extraction service will also need to share a volume. You can decide what directory inside these docker containers the volume will be mounted onto, but the directory must be the same for both docker containers.
 
 [discrete#connectors-content-extraction-data-extraction-service-file-pointers-configuration-dockerized-example]
-===== Example
+======= Example
 
 1. First, set up a volume for the two docker containers to share.
 This will be where files are downloaded into and then extracted from.
@@ -292,7 +292,7 @@ Run a test sync to make sure everything is configured correctly.
 If you encounter any unexpected errors, refer to <<connectors-content-extraction-troubleshooting, troubleshooting the self-hosted extraction service>>.
 
 [discrete#connectors-content-extraction-local-logs]
-=== Self-hosted extraction service logs
+===== Self-hosted extraction service logs
 
 The extraction service produces two different log files that may be informative when troubleshooting.
 These are saved at the following file locations internally in the docker container:
@@ -309,7 +309,7 @@ $ docker exec extraction-service /bin/sh -c "tail /var/log/tika.log"
 ----
 
 [discrete#connectors-content-extraction-troubleshooting]
-=== Troubleshooting the self-hosted extraction service
+===== Troubleshooting the self-hosted extraction service
 
 The following warning logs may appear while using self-hosted extraction service.
 Each log in this section is followed by a description of what may have happened, and suggested fixes.

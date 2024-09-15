@@ -1,11 +1,11 @@
 [#dls]
-= Document level security
+== Document level security
 
 Document level security (DLS) enables you to restrict access to documents in your Elasticsearch indices according to user and group permissions.
 This ensures search results only return authorized information for users, based on their permissions.
 
 [discrete#dls-availability-prerequisites]
-== Availability & prerequisites
+=== Availability & prerequisites
 
 Support for DLS in Elastic connectors was introduced in version *8.9.0*.
 
@@ -18,7 +18,8 @@ Beta features are not subject to the support SLA of official GA features.
 
 This feature is not available for all Elastic subscription levels.
 Refer to the subscriptions pages for https://www.elastic.co/subscriptions/cloud[Elastic Cloud^] and https://www.elastic.co/subscriptions[Elastic Stack^].
-To change your subscription level or start a trial, see <<license-management>>.
+// To change your subscription level or start a trial, see <<license-management>>.
+// TODO
 
 DLS is available by default when using the following Elastic connectors:
 
@@ -28,13 +29,16 @@ Note that our standalone products (App Search and Workplace Search) do not use t
 Workplace Search has its own permissions management system.
 
 [discrete#dls-learn-more]
-== Learn more
+=== Learn more
 
 DLS documentation:
 
 * <<dls-overview>>
-// the overview where we explain how DLS works: the main concepts and components
-* <<dls-e2e-guide>>
+* <<dls-e2e-guide>> 
 // E2E search applications/search ui guide
-* <<connectors-sharepoint-online-dls, DLS for SharePoint Online connector>>
-// SharePoint Online reference DLS section
+// * <<connectors-sharepoint-online-dls, DLS for SharePoint Online connector>>
+// TODO
+
+include::dls-overview.asciidoc[]
+include::dls-connectors-app-search.asciidoc[]
+include::dls-e2e-guide.asciidoc[]

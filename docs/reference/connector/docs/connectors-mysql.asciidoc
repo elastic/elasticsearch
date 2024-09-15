@@ -1,5 +1,5 @@
 [#connectors-mysql]
-= Elastic MySQL connector reference
+=== Elastic MySQL connector reference
 ++++
 <titleabbrev>MySQL</titleabbrev>
 ++++
@@ -22,7 +22,7 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#connectors-mysql-native-connector-reference]
-== *Native connector (Elastic Cloud)*
+==== *Native connector (Elastic Cloud)*
 
 .View *native connector* reference
 
@@ -30,7 +30,7 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 ===============
 
 [discrete#connectors-mysql-prerequisites]
-=== Availability and prerequisites
+===== Availability and prerequisites
 
 This connector is available as a *native connector* in Elastic versions *8.5.0 and later*.
 To use this connector natively in Elastic Cloud, satisfy all <<native-connectors,native connector requirements>>.
@@ -38,7 +38,7 @@ To use this connector natively in Elastic Cloud, satisfy all <<native-connectors
 This connector has no additional prerequisites beyond the shared requirements, linked above.
 
 [discrete#connectors-mysql-compatibility]
-=== Compatibility
+===== Compatibility
 
 This connector is compatible with *MySQL 5.6 and later*.
 
@@ -47,18 +47,18 @@ The connector is also compatible with *MariaDB* databases compatible with the ab
 The data source and your Elastic deployment must be able to communicate with each other over a network.
 
 [discrete#connectors-mysql-create-native-connector]
-=== Create a {service-name} connector
+===== Create a {service-name} connector
 include::_connectors-create-native.asciidoc[]
 
 [discrete#connectors-mysql-usage]
-=== Usage
+===== Usage
 
 To use this connector natively in Elastic Cloud, see <<native-connectors>>.
 
 For additional operations, see <<connectors-usage>>.
 
 [discrete#connectors-mysql-configuration]
-=== Configuration
+===== Configuration
 
 Each time you create an index to be managed by this connector, you will create a new connector configuration.
 You will need some or all of the following information about the data source.
@@ -150,7 +150,7 @@ xw23l/k8RoD1wRWaDVbgpjwSzt+kl+vJE/ip2w3h69eEZ9wbo6scRO5lCO2JM4Pr
 ====
 
 [discrete#connectors-mysql-known-issues]
-=== Known issues
+===== Known issues
 
 This connector has the following known issues:
 
@@ -199,7 +199,7 @@ After upgrading, you must re-create your sync rules.
 See <<connectors-known-issues>> for any issues affecting all connectors.
 
 [discrete#connectors-mysql-syncs]
-=== Documents and syncs
+===== Documents and syncs
 
 The following describes the default syncing behavior for this connector.
 Use <<sync-rules,sync rules>> and {ref}/ingest-pipeline-search.html[ingest pipelines] to customize syncing for specific indices.
@@ -230,7 +230,7 @@ For each MySQL row discovered:
 ====
 
 [discrete#connectors-mysql-sync-rules]
-=== Sync rules
+===== Sync rules
 
 The following sections describe <<sync-rules>> for this connector.
 
@@ -263,12 +263,12 @@ This can also happen if the configuration specifies `*` to fetch all tables whil
 ====
 
 [discrete#connectors-mysql-troubleshooting]
-=== Troubleshooting
+===== Troubleshooting
 
 See <<connectors-troubleshooting>>.
 
 [discrete#connectors-mysql-security]
-=== Security
+===== Security
 
 See <<connectors-security>>.
 
@@ -281,7 +281,7 @@ See <<connectors-security>>.
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#connectors-mysql-connector-client-reference]
-== *Connector client (self-managed)*
+==== *Connector client (self-managed)*
 
 .View *connector client* reference
 
@@ -289,7 +289,7 @@ See <<connectors-security>>.
 ===============
 
 [discrete#connectors-mysql-client-prerequisites]
-=== Availability and prerequisites
+===== Availability and prerequisites
 
 This connector is available as a *native connector* in Elastic versions *8.5.0 and later*.
 To use this connector natively in Elastic Cloud, satisfy all <<native-connectors,native connector requirements>>.
@@ -300,11 +300,11 @@ To use this connector as a connector client, satisfy all <<build-connector,conne
 This connector has no additional prerequisites beyond the shared requirements, linked above.
 
 [discrete#connectors-mysql-create-connector-client]
-=== Create a {service-name} connector
+===== Create a {service-name} connector
 include::_connectors-create-client.asciidoc[]
 
 [discrete#connectors-mysql-client-usage]
-=== Usage
+===== Usage
 
 To use this connector as a *native connector*, use the *Connector* workflow.
 See <<native-connectors>>.
@@ -314,7 +314,7 @@ To use this connector as a *connector client*, see <<build-connector>>.
 For additional operations, see <<connectors-usage>>.
 
 [discrete#connectors-mysql-client-compatibility]
-=== Compatibility
+===== Compatibility
 
 This connector is compatible with *MySQL 5.6 and later*.
 
@@ -323,7 +323,7 @@ The connector is also compatible with *MariaDB* databases compatible with the ab
 The data source and your Elastic deployment must be able to communicate with each other over a network.
 
 [discrete#connectors-mysql-client-configuration]
-=== Configuration
+===== Configuration
 
 Each time you create an index to be managed by this connector, you will create a new connector configuration.
 You will need some or all of the following information about the data source.
@@ -410,7 +410,7 @@ xw23l/k8RoD1wRWaDVbgpjwSzt+kl+vJE/ip2w3h69eEZ9wbo6scRO5lCO2JM4Pr
 ====
 
 [discrete#connectors-mysql-client-known-issues]
-=== Known issues
+===== Known issues
 
 This connector has the following known issues:
 
@@ -459,7 +459,7 @@ After upgrading, you must re-create your sync rules.
 See <<connectors-known-issues>> for any issues affecting all connectors.
 
 [discrete#connectors-mysql-client-syncs]
-=== Documents and syncs
+===== Documents and syncs
 
 The following describes the default syncing behavior for this connector.
 Use <<sync-rules,sync rules>> and {ref}/ingest-pipeline-search.html[ingest pipelines] to customize syncing for specific indices.
@@ -483,12 +483,12 @@ For each MySQL row discovered:
 * If an existing Elasticsearch document no longer exists in the MySQL table, it is deleted from Elasticsearch.
 
 [discrete#connectors-mysql-client-docker]
-=== Deployment using Docker
+===== Deployment using Docker
 
 include::_connectors-docker-instructions.asciidoc[]
 
 [discrete#connectors-mysql-client-sync-rules]
-=== Sync rules
+===== Sync rules
 
 The following sections describe <<sync-rules>> for this connector.
 
@@ -521,12 +521,12 @@ This can also happen if the configuration specifies `*` to fetch all tables whil
 ====
 
 [discrete#connectors-mysql-client-troubleshooting]
-=== Troubleshooting
+===== Troubleshooting
 
 See <<connectors-troubleshooting>>.
 
 [discrete#connectors-mysql-client-security]
-=== Security
+===== Security
 
 See <<connectors-security>>.
 

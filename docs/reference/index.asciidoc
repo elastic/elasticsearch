@@ -4,8 +4,6 @@
 include::../Versions.asciidoc[]
 include::links.asciidoc[]
 
-include::connector/docs/index.asciidoc[]
-
 include::landing-page.asciidoc[]
 
 include::intro.asciidoc[]
@@ -39,6 +37,8 @@ include::query-dsl.asciidoc[]
 include::aggregations.asciidoc[]
 
 include::geospatial-analysis.asciidoc[]
+
+include::connector/docs/index.asciidoc[]
 
 include::eql/eql.asciidoc[]
 

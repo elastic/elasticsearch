@@ -1,5 +1,5 @@
 [#connectors-confluence]
-= Elastic Confluence connector reference
+=== Elastic Confluence connector reference
 ++++
 <titleabbrev>Confluence</titleabbrev>
 ++++
@@ -22,7 +22,7 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#connectors-confluence-native-connector-reference]
-== *Native connector (Elastic Cloud)*
+==== *Native connector (Elastic Cloud)*
 
 .View *native connector* reference
 
@@ -30,7 +30,7 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 ===============
 
 [discrete#connectors-confluence-availability-prerequisites]
-=== Availability and prerequisites
+===== Availability and prerequisites
 
 This connector is available as a *native connector* on Elastic Cloud, as of *8.9.1*.
 
@@ -42,23 +42,23 @@ Confluence Data Center support was added in 8.13.0 in technical preview and is s
 To use this connector natively in Elastic Cloud, satisfy all <<native-connectors-prerequisites,native connector requirements>>.
 
 [discrete#connectors-confluence-create-native-connector]
-=== Create a {service-name} connector
+===== Create a {service-name} connector
 include::_connectors-create-native.asciidoc[]
 
 [discrete#connectors-confluence-usage]
-=== Usage
+===== Usage
 
 To use this connector as a *native connector*, see <<connectors-native>>.
 
 For additional operations, see <<connectors-usage>>.
 
 [discrete#connectors-confluence-compatability]
-=== Compatibility
+===== Compatibility
 
 * Confluence Cloud or Confluence Server/Data Center *versions 7 or later*.
 
 [discrete#connectors-confluence-configuration]
-=== Configuration
+===== Configuration
 
 The following configuration fields are required to set up the connector:
 
@@ -124,7 +124,7 @@ This access needs to be provided by an administrator from the http://admin.atlas
 ====
 
 [discrete#connectors-confluence-documents-syncs]
-=== Documents and syncs
+===== Documents and syncs
 
 The connector syncs the following Confluence object types:
 
@@ -142,14 +142,14 @@ Otherwise, *all documents* indexed to an Elastic deployment will be visible to *
 ====
 
 [discrete#connectors-confluence-sync-types]
-==== Sync types
+====== Sync types
 
 <<connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
 
 This connector also supports <<connectors-sync-types-incremental,incremental syncs>>.
 
 [discrete#connectors-confluence-sync-rules]
-=== Sync rules
+===== Sync rules
 
 <<sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
 
@@ -158,7 +158,7 @@ These rules cover complex query-and-filter scenarios that cannot be expressed wi
 Advanced sync rules are defined through a source-specific DSL JSON snippet.
 
 [discrete#connectors-confluence-sync-rules-examples]
-==== Advanced sync rules examples
+====== Advanced sync rules examples
 
 *Example 1*: Query for indexing data that is in a particular *Space* with key 'DEV'.
 
@@ -203,7 +203,7 @@ For more details refer to the following issue in the https://jira.atlassian.com/
 ====
 
 [discrete#connectors-confluence-document-level-security]
-=== Document level security
+===== Document level security
 
 [NOTE]
 ====
@@ -227,23 +227,23 @@ The example uses SharePoint Online as the data source, but the same steps apply 
 ====
 
 [discrete#connectors-confluence-content-extraction]
-=== Content Extraction
+===== Content Extraction
 
 See <<connectors-content-extraction>>.
 
 [discrete#connectors-confluence-known-issues]
-=== Known issues
+===== Known issues
 
 There are currently no known issues for this connector.
 Refer to <<connectors-known-issues>> for a list of known issues for all connectors.
 
 [discrete#connectors-confluence-troubleshooting]
-=== Troubleshooting
+===== Troubleshooting
 
 See <<connectors-troubleshooting>>.
 
 [discrete#connectors-confluence-security]
-=== Security
+===== Security
 
 See <<connectors-security>>.
 
@@ -256,7 +256,7 @@ See <<connectors-security>>.
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#connectors-confluence-connector-client-reference]
-== *Connector client (self-managed)*
+==== *Connector client (self-managed)*
 
 .View *connector client* reference
 
@@ -264,7 +264,7 @@ See <<connectors-security>>.
 ===============
 
 [discrete#connectors-confluence-client-availability-prerequisites]
-=== Availability and prerequisites
+===== Availability and prerequisites
 
 This connector is available as a *connector client* using the *Elastic connector framework*.
 This connector client is compatible with Elastic versions *8.7.0+*.
@@ -277,22 +277,22 @@ Confluence Data Center support was added in 8.13.0 in technical preview and is s
 To use this connector, satisfy all <<build-connector,connector client requirements>>.
 
 [discrete#connectors-confluence-create-connector-client]
-=== Create a {service-name} connector
+===== Create a {service-name} connector
 include::_connectors-create-client.asciidoc[]
 
 [discrete#connectors-confluence-client-usage]
-=== Usage
+===== Usage
 
 To use this connector as a *connector client*, see <<build-connector>>
 For additional usage operations, see <<connectors-usage>>.
 
 [discrete#connectors-confluence-client-compatability]
-=== Compatibility
+===== Compatibility
 
 * Confluence Cloud or Confluence Server/Data Center *versions 7 or later*
 
 [discrete#connectors-confluence-client-configuration]
-=== Configuration
+===== Configuration
 
 [TIP]
 ====
@@ -381,12 +381,12 @@ Requires that ingest pipeline settings disable text extraction.
 
 
 [discrete#connectors-confluence-client-docker]
-=== Deployment using Docker
+===== Deployment using Docker
 
 include::_connectors-docker-instructions.asciidoc[]
 
 [discrete#connectors-confluence-client-documents-syncs]
-=== Documents and syncs
+===== Documents and syncs
 
 The connector syncs the following Confluence object types:
 
@@ -402,14 +402,14 @@ The connector syncs the following Confluence object types:
 ====
 
 [discrete#connectors-confluence-client-sync-types]
-==== Sync types
+====== Sync types
 
 <<connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
 
 This connector also supports <<connectors-sync-types-incremental,incremental syncs>>.
 
 [discrete#connectors-confluence-client-sync-rules]
-=== Sync rules
+===== Sync rules
 
 <<sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
 
@@ -418,7 +418,7 @@ These rules cover complex query-and-filter scenarios that cannot be expressed wi
 Advanced sync rules are defined through a source-specific DSL JSON snippet.
 
 [discrete#connectors-confluence-client-sync-rules-examples]
-==== Advanced sync rules examples
+====== Advanced sync rules examples
 
 *Example 1*: Query for indexing data that is in a particular *Space* with key 'DEV'.
 
@@ -463,7 +463,7 @@ For more details refer to the following issue in the https://jira.atlassian.com/
 ====
 
 [discrete#connectors-confluence-client-document-level-security]
-=== Document level security
+===== Document level security
 
 [NOTE]
 ====
@@ -486,15 +486,15 @@ The example uses SharePoint Online as the data source, but the same steps apply 
 ====
 
 [discrete#connectors-confluence-client-content-extraction]
-=== Content Extraction
+===== Content Extraction
 
 See <<connectors-content-extraction>>.
 
 [discrete#connectors-confluence-client-connector-client-operations]
-=== Connector client operations
+===== Connector client operations
 
 [discrete#connectors-confluence-client-testing]
-=== End-to-end testing
+===== End-to-end testing
 
 The connector framework enables operators to run functional tests against a real data source.
 Refer to <<build-connector-testing>> for more details.
@@ -514,18 +514,18 @@ make ftest NAME=confluence DATA_SIZE=small
 ----
 
 [discrete#connectors-confluence-client-known-issues]
-=== Known issues
+===== Known issues
 
 There are currently no known issues for this connector.
 Refer to <<connectors-known-issues>> for a list of known issues for all connectors.
 
 [discrete#connectors-confluence-client-troubleshooting]
-=== Troubleshooting
+===== Troubleshooting
 
 See <<connectors-troubleshooting>>.
 
 [discrete#connectors-confluence-client-security]
-=== Security
+===== Security
 
 See <<connectors-security>>.
 

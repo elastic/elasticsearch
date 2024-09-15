@@ -1,5 +1,5 @@
 [#connectors-salesforce]
-= Elastic Salesforce connector reference
+=== Elastic Salesforce connector reference
 ++++
 <titleabbrev>Salesforce</titleabbrev>
 ++++
@@ -15,20 +15,20 @@ The _Elastic Salesforce connector_ is a <<connectors,connector>> for https://www
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#connectors-salesforce-native-connector-reference]
-== *Native connector reference (managed service)*
+==== *Native connector reference (managed service)*
 
 .View reference for the *native connector reference (managed service)*.
 [%collapsible]
 ===============
 
 [discrete#connectors-salesforce-availability-prerequisites]
-=== Availability and prerequisites
+===== Availability and prerequisites
 
 This connector is available as a *native connector* in Elastic Cloud since *8.12.0*.
 To use this connector, satisfy all <<build-connector,connector client requirements>>.
 
 [discrete#connectors-salesforce-compatability]
-=== Compatibility
+===== Compatibility
 
 This connector is compatible with the following:
 
@@ -36,11 +36,11 @@ This connector is compatible with the following:
 *  Salesforce Sandbox
 
 [discrete#connectors-salesforce-create-native-connector]
-=== Create a {service-name} connector
+===== Create a {service-name} connector
 include::_connectors-create-native.asciidoc[]
 
 [discrete#connectors-salesforce-usage]
-=== Usage
+===== Usage
 
 To use this connector as a **connector client**, use the *Connector* workflow in the Kibana UI.
 
@@ -52,7 +52,7 @@ You need to create an Salesforce connected app with OAuth2.0 enabled to authenti
 ====
 
 [discrete#connectors-salesforce-connected-app]
-==== Create a Salesforce connected app
+====== Create a Salesforce connected app
 
 The Salesforce connector authenticates with Salesforce through a *connected app*.
 Follow the official Salesforce documentation for https://help.salesforce.com/s/articleView?id=sf.connected_app_client_credentials_setup.htm[Configuring a Connected App for the OAuth 2.0 Client Credentials Flow^].
@@ -73,7 +73,7 @@ Finally, in the section *Selected OAuth Scopes*, include the following OAuth sco
 * *Perform requests at any time (refresh_token, offline_access)*
 
 [discrete#connectors-salesforce-admin-prerequisites]
-=== Salesforce admin requirements
+===== Salesforce admin requirements
 
 By default, the Salesforce connector requires global administrator permissions to access Salesforce data.
 Expand the section below to learn how to create a custom Salesforce user with minimal permissions.
@@ -119,7 +119,7 @@ Now, the connector can be configured for this user profile to fetch all object r
 ==========================
 
 [discrete#connectors-salesforce-configuration]
-=== Configuration
+===== Configuration
 
 The following settings are required to set up this connector:
 
@@ -149,7 +149,7 @@ When enabled:
 * Access control syncs will fetch users' access control lists and store them in a separate index.
 
 [discrete#connectors-salesforce-configuration-credentials]
-==== Finding the Client ID and Client Secret
+====== Finding the Client ID and Client Secret
 
 The Client ID and Client Secret are not automatically shown to you after you create a connected app.
 You can find them by taking the following steps:
@@ -162,7 +162,7 @@ You can find them by taking the following steps:
 Your Client ID and Client Secret should now be visible at the top of the page.
 
 [discrete#connectors-salesforce-dls]
-=== Document level security (DLS)
+===== Document level security (DLS)
 
 <<dls, Document level security (DLS)>> enables you to restrict access to documents based on a user'­s permissions.
 This feature is available by default for the Salesforce connector and supports both *standard and custom objects*.
@@ -179,22 +179,22 @@ To ingest any standard or custom objects, users must ensure that at least `Read`
 This can be granted using any of the following methods for setting permissions.
 
 [discrete#connectors-salesforce-dls-profiles]
-==== Set Permissions using Profiles
+====== Set Permissions using Profiles
 
 Refer to the https://help.salesforce.com/s/articleView?id=sf.admin_userprofiles.htm&type=5[Salesforce documentation] for setting permissions via Profiles.
 
 [discrete#connectors-salesforce-dls-permission-sets]
-==== Set Permissions using Permissions Set
+====== Set Permissions using Permissions Set
 
 Refer to the https://help.salesforce.com/s/articleView?id=sf.perm_sets_overview.htm&language=en_US&type=5[Salesforce documentation] for setting permissions via Permissions Sets.
 
 [discrete#connectors-salesforce-dls-permission-set-groups]
-==== Set Permissions using Permissions Set group
+====== Set Permissions using Permissions Set group
 
 Refer to the https://help.salesforce.com/s/articleView?id=sf.perm_set_groups.htm&type=5[Salesforce documentation] for setting permissions via Permissions Set Groups.
 
 [discrete#connectors-salesforce-dls-assign-permissions]
-==== Assign Profiles, Permission Set and Permission Set Groups to the User
+====== Assign Profiles, Permission Set and Permission Set Groups to the User
 
 Once the permissions are set, assign the Profiles, Permission Set or Permission Set Groups to the user.
 Follow these steps in Salesforce:
@@ -204,13 +204,13 @@ Follow these steps in Salesforce:
 3. Set the `Profile`, `Permission Set` or `Permission Set Groups` created in the earlier steps.
 
 [discrete#connectors-salesforce-sync-rules]
-=== Sync rules
+===== Sync rules
 
 _Basic_ sync rules are identical for all connectors and are available by default.
 For more information read <<sync-rules-types>>.
 
 [discrete#connectors-salesforce-sync-rules-advanced]
-==== Advanced sync rules
+====== Advanced sync rules
 
 [NOTE]
 ====
@@ -227,7 +227,7 @@ They take the following parameters:
 Allowed values are *SOQL* and *SOSL*.
 
 [discrete#connectors-salesforce-sync-rules-advanced-fetch-query-language]
-===== Fetch documents based on the query and language specified
+======= Fetch documents based on the query and language specified
 
 **Example**: Fetch documents using SOQL query
 
@@ -254,7 +254,7 @@ Allowed values are *SOQL* and *SOSL*.
 ----
 
 [discrete#connectors-salesforce-sync-rules-advanced-fetch-objects]
-===== Fetch standard and custom objects using SOQL and SOSL queries
+======= Fetch standard and custom objects using SOQL and SOSL queries
 
 **Example**: Fetch documents for standard objects via SOQL and SOSL query.
 
@@ -289,7 +289,7 @@ Allowed values are *SOQL* and *SOSL*.
 ----
 
 [discrete#connectors-salesforce-sync-rules-advanced-fetch-standard-custom-fields]
-===== Fetch documents with standard and custom fields
+======= Fetch documents with standard and custom fields
 
 **Example**: Fetch documents with all standard and custom fields for Account object.
 
@@ -328,7 +328,7 @@ Allowed values are *SOQL* and *SOSL*.
 ----
 
 [discrete#connectors-salesforce-documents-syncs]
-=== Documents and syncs
+===== Documents and syncs
 
 The connector syncs the following Salesforce objects:
 
@@ -349,14 +349,14 @@ The connector will not ingest any objects that it does not have permissions to q
 ====
 
 [discrete#connectors-salesforce-sync-types]
-==== Sync types
+====== Sync types
 
 <<connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
 
 This connector also supports <<connectors-sync-types-incremental,incremental syncs>>.
 
 [discrete#connectors-salesforce-content-extraction]
-=== Content Extraction
+===== Content Extraction
 
 The connector will retrieve Content Documents from your Salesforce source if they meet the following criteria:
 
@@ -372,18 +372,18 @@ This document will retain links to every object that it was connected to in the 
 See <<connectors-content-extraction,content extraction>> for more specifics on content extraction.
 
 [discrete#connectors-salesforce-known-issues]
-=== Known issues
+===== Known issues
 
 There are currently no known issues for this connector.
 Refer to <<connectors-known-issues,connector known issues>> for a list of known issues for all connectors.
 
 [discrete#connectors-salesforce-security]
-=== Security
+===== Security
 
 See <<connectors-security,connectors security>>.
 
 [discrete#connectors-salesforce-source]
-=== Framework and source
+===== Framework and source
 
 This connector is built with the {connectors-python}[Elastic connector framework^].
 
@@ -398,21 +398,21 @@ View the {connectors-python}/connectors/sources/salesforce.py[source code for th
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#connectors-salesforce-connector-client-reference]
-== *Connector client reference (self-managed)*
+==== *Connector client reference (self-managed)*
 
 .View reference for the *connector client reference (self-managed)*.
 [%collapsible]
 ===============
 
 [discrete#connectors-salesforce-client-availability-prerequisites]
-=== Availability and prerequisites
+===== Availability and prerequisites
 
 This connector is available as a self-managed *connector client*.
 This connector client is compatible with Elastic versions *8.10.0+*.
 To use this connector, satisfy all <<build-connector,connector client requirements>>.
 
 [discrete#connectors-salesforce-client-compatability]
-=== Compatibility
+===== Compatibility
 
 This connector is compatible with the following:
 
@@ -420,11 +420,11 @@ This connector is compatible with the following:
 *  Salesforce Sandbox
 
 [discrete#connectors-salesforce-create-connector-client]
-=== Create a {service-name} connector
+===== Create a {service-name} connector
 include::_connectors-create-client.asciidoc[]
 
 [discrete#connectors-salesforce-client-usage]
-=== Usage
+===== Usage
 
 To use this connector as a **connector client**, use the *Connector* workflow in the Kibana UI.
 
@@ -436,7 +436,7 @@ You need to create an Salesforce connected app with OAuth2.0 enabled to authenti
 ====
 
 [discrete#connectors-salesforce-client-connected-app]
-==== Create a Salesforce connected app
+====== Create a Salesforce connected app
 
 The Salesforce connector authenticates with Salesforce through a *connected app*.
 Follow the official Salesforce documentation for https://help.salesforce.com/s/articleView?id=sf.connected_app_client_credentials_setup.htm[Configuring a Connected App for the OAuth 2.0 Client Credentials Flow^].
@@ -457,7 +457,7 @@ Finally, in the section *Selected OAuth Scopes*, include the following OAuth sco
 * *Perform requests at any time (refresh_token, offline_access)*
 
 [discrete#connectors-client-salesforce-admin-prerequisites]
-=== Salesforce admin requirements
+===== Salesforce admin requirements
 
 By default, the Salesforce connector requires global administrator permissions to access Salesforce data.
 Expand the section below to learn how to create a custom Salesforce user with minimal permissions.
@@ -503,14 +503,14 @@ Now, the connector can be configured for this user profile to fetch all object r
 ==========================
 
 [discrete#connectors-salesforce-client-docker]
-=== Deployment using Docker
+===== Deployment using Docker
 
 Connector clients are run on your own infrastructure.
 
 include::_connectors-docker-instructions.asciidoc[]
 
 [discrete#connectors-salesforce-client-configuration]
-=== Configuration
+===== Configuration
 
 The following settings are required to set up this connector:
 
@@ -540,7 +540,7 @@ When enabled:
 * Access control syncs will fetch users' access control lists and store them in a separate index.
 
 [discrete#connectors-salesforce-client-configuration-credentials]
-==== Finding the Client ID and Client Secret
+====== Finding the Client ID and Client Secret
 
 The Client ID and Client Secret are not automatically shown to you after you create a connected app.
 You can find them by taking the following steps:
@@ -553,7 +553,7 @@ You can find them by taking the following steps:
 Your Client ID and Client Secret should now be visible at the top of the page.
 
 [discrete#connectors-salesforce-client-dls]
-=== Document level security (DLS)
+===== Document level security (DLS)
 
 <<dls, Document level security (DLS)>> enables you to restrict access to documents based on a user'­s permissions.
 This feature is available by default for the Salesforce connector and supports both *standard and custom objects*.
@@ -570,22 +570,22 @@ To ingest any standard or custom objects, users must ensure that at least `Read`
 This can be granted using any of the following methods for setting permissions.
 
 [discrete#connectors-salesforce-client-dls-profiles]
-==== Set Permissions using Profiles
+====== Set Permissions using Profiles
 
 Refer to the https://help.salesforce.com/s/articleView?id=sf.admin_userprofiles.htm&type=5[Salesforce documentation] for setting permissions via Profiles.
 
 [discrete#connectors-salesforce-client-dls-permission-sets]
-==== Set Permissions using Permissions Set
+====== Set Permissions using Permissions Set
 
 Refer to the https://help.salesforce.com/s/articleView?id=sf.perm_sets_overview.htm&language=en_US&type=5[Salesforce documentation] for setting permissions via Permissions Sets.
 
 [discrete#connectors-salesforce-client-dls-permission-set-groups]
-==== Set Permissions using Permissions Set group
+====== Set Permissions using Permissions Set group
 
 Refer to the https://help.salesforce.com/s/articleView?id=sf.perm_set_groups.htm&type=5[Salesforce documentation] for setting permissions via Permissions Set Groups.
 
 [discrete#connectors-salesforce-client-dls-assign-permissions]
-==== Assign Profiles, Permission Set and Permission Set Groups to the User
+====== Assign Profiles, Permission Set and Permission Set Groups to the User
 
 Once the permissions are set, assign the Profiles, Permission Set or Permission Set Groups to the user.
 Follow these steps in Salesforce:
@@ -595,14 +595,14 @@ Follow these steps in Salesforce:
 3. Set the `Profile`, `Permission Set` or `Permission Set Groups` created in the earlier steps.
 
 [discrete#connectors-salesforce-client-sync-rules]
-=== Sync rules
+===== Sync rules
 
 _Basic_ sync rules are identical for all connectors and are available by default.
 
 For more information read <<sync-rules-types,sync rules>>.
 
 [discrete#connectors-salesforce-client-sync-rules-advanced]
-==== Advanced sync rules
+====== Advanced sync rules
 
 [NOTE]
 ====
@@ -619,7 +619,7 @@ They take the following parameters:
 Allowed values are *SOQL* and *SOSL*.
 
 [discrete#connectors-salesforce-client-sync-rules-advanced-fetch-query-language]
-===== Fetch documents based on the query and language specified
+======= Fetch documents based on the query and language specified
 
 **Example**: Fetch documents using SOQL query
 
@@ -646,7 +646,7 @@ Allowed values are *SOQL* and *SOSL*.
 ----
 
 [discrete#connectors-salesforce-client-sync-rules-advanced-fetch-objects]
-===== Fetch standard and custom objects using SOQL and SOSL queries
+======= Fetch standard and custom objects using SOQL and SOSL queries
 
 **Example**: Fetch documents for standard objects via SOQL and SOSL query.
 
@@ -681,7 +681,7 @@ Allowed values are *SOQL* and *SOSL*.
 ----
 
 [discrete#connectors-salesforce-client-sync-rules-advanced-fetch-standard-custom-fields]
-===== Fetch documents with standard and custom fields
+======= Fetch documents with standard and custom fields
 
 **Example**: Fetch documents with all standard and custom fields for Account object.
 
@@ -720,7 +720,7 @@ Allowed values are *SOQL* and *SOSL*.
 ----
 
 [discrete#connectors-salesforce-client-documents-syncs]
-=== Documents and syncs
+===== Documents and syncs
 
 The connector syncs the following Salesforce objects:
 
@@ -742,14 +742,14 @@ The connector will not ingest any objects that it does not have permissions to q
 ====
 
 [discrete#connectors-salesforce-client-sync-types]
-==== Sync types
+====== Sync types
 
 <<connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
 
 This connector also supports <<connectors-sync-types-incremental,incremental syncs>>.
 
 [discrete#connectors-salesforce-client-content-extraction]
-=== Content Extraction
+===== Content Extraction
 
 The connector will retrieve Content Documents from your Salesforce source if they meet the following criteria:
 
@@ -765,18 +765,18 @@ This document will retain links to every object that it was connected to in the 
 See <<connectors-content-extraction,content extraction>> for more specifics on content extraction.
 
 [discrete#connectors-salesforce-client-known-issues]
-=== Known issues
+===== Known issues
 
 There are currently no known issues for this connector.
 Refer to <<connectors-known-issues,connector known issues>> for a list of known issues for all connectors.
 
 [discrete#connectors-salesforce-client-security]
-=== Security
+===== Security
 
 See <<connectors-security,connectors security>>.
 
 [discrete#connectors-salesforce-client-source]
-=== Framework and source
+===== Framework and source
 
 This connector is built with the {connectors-python}[Elastic connector framework^].
 

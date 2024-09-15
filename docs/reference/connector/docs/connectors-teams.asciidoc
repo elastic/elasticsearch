@@ -1,5 +1,5 @@
 [#connectors-teams]
-= Elastic Microsoft Teams connector reference
+=== Elastic Microsoft Teams connector reference
 ++++
 <titleabbrev>Teams</titleabbrev>
 ++++
@@ -16,14 +16,14 @@ View the {connectors-python}/connectors/sources/microsoft_teams.py[source code f
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#connectors-teams-native-connector-reference]
-== *Native connector reference (managed service)*
+==== *Native connector reference (managed service)*
 
 .View reference for the *native connector reference (managed service)*.
 [%collapsible]
 ===============
 
 [discrete#connectors-microsoft-teams-native-availability-and-prerequisites]
-=== Availability and prerequisites
+===== Availability and prerequisites
 
 This native connector was introduced in Elastic *8.14.0* as a managed service on Elastic Cloud.
 
@@ -37,11 +37,11 @@ Technical preview features are not subject to the support SLA of official GA fea
 ====
 
 [discrete#connectors-teams-create-connector-native]
-=== Create a {service-name} connector
+===== Create a {service-name} connector
 include::_connectors-create-native.asciidoc[]
 
 [discrete#connectors-microsoft-teams-native-usage]
-=== Usage
+===== Usage
 
 To use this connector in the UI, select the *Teams* tile when creating a new connector under *Search -> Connectors*.
 
@@ -50,7 +50,7 @@ If you're already familiar with how connectors work, you can also use the {ref}/
 For additional operations, see <<connectors-usage>>.
 
 [discrete#connectors-microsoft-teams-native-connecting-to-microsoft-teams]
-=== Connecting to Microsoft Teams
+===== Connecting to Microsoft Teams
 
 To connect to Microsoft Teams you need to https://learn.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal[create an Azure Active Directory application and service principal] that can access resources. Follow these steps:
 
@@ -83,7 +83,7 @@ Generate a new client secret and keep a note of the string under the `Value` col
 After completion, use the following configuration parameters to configure the connector.
 
 [discrete#connectors-microsoft-teams-native-configuration]
-=== Configuration
+===== Configuration
 
 The following configuration fields are required:
 
@@ -108,12 +108,12 @@ Password for your Azure Application. Example:
 * `changeme`
 
 [discrete#connectors-microsoft-teams-native-content-extraction]
-==== Content Extraction
+====== Content Extraction
 
 Refer to <<connectors-content-extraction>>.
 
 [discrete#connectors-microsoft-teams-native-documents-and-syncs]
-=== Documents and syncs
+===== Documents and syncs
 
 The connector syncs the following objects and entities:
 
@@ -137,36 +137,36 @@ The connector syncs the following objects and entities:
 ====
 
 [discrete#connectors-microsoft-teams-native-sync-types]
-==== Sync types
+====== Sync types
 
 <<connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
 
 This connector also supports <<connectors-sync-types-incremental,incremental syncs>>.
 
 [discrete#connectors-microsoft-teams-native-sync-rules]
-=== Sync rules
+===== Sync rules
 
 <<sync-rules-basic, Basic sync rules>> are identical for all connectors and are available by default.
 
 [discrete#connectors-microsoft-teams-native-advanced-sync-rules]
-=== Advanced Sync Rules
+===== Advanced Sync Rules
 
 Advanced sync rules are not available for this connector in the present version.
 
 [discrete#connectors-microsoft-teams-native-known-issues]
-=== Known issues
+===== Known issues
 
 * Messages in one-on-one chats for _Chat with Self_ users are not fetched via Graph APIs. Therefore, these messages won't be indexed into Elasticsearch.
 
 Refer to <<connectors-known-issues>> for a list of known issues for all connectors.
 
 [discrete#connectors-microsoft-teams-native-troubleshooting]
-=== Troubleshooting
+===== Troubleshooting
 
 See <<connectors-troubleshooting>>.
 
 [discrete#connectors-microsoft-teams-native-security]
-=== Security
+===== Security
 
 See <<connectors-security>>.
 
@@ -179,14 +179,14 @@ See <<connectors-security>>.
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#connectors-teams-connector-client-reference]
-== *Connector client reference (self-managed)*
+==== *Connector client reference (self-managed)*
 
 .View reference for the *connector client reference (self-managed)*.
 [%collapsible]
 ===============
 
 [discrete#connectors-microsoft-teams-availability-and-prerequisites]
-=== Availability and prerequisites
+===== Availability and prerequisites
 
 This connector is available as a self-managed *connector client*.
 To use this connector, satisfy all <<build-connector, connector client prerequisites>>.
@@ -199,18 +199,18 @@ Technical preview features are not subject to the support SLA of official GA fea
 ====
 
 [discrete#connectors-teams-client-create-connector-client]
-=== Create a {service-name} connector
+===== Create a {service-name} connector
 include::_connectors-create-client.asciidoc[]
 
 [discrete#connectors-microsoft-teams-usage]
-=== Usage
+===== Usage
 
 To use this connector as a *connector client*, use the *Microsoft Teams* tile from the connectors list *Customized connector* workflow.
 
 For additional operations, see <<connectors-usage>>.
 
 [discrete#connectors-microsoft-teams-connecting-to-microsoft-teams]
-=== Connecting to Microsoft Teams
+===== Connecting to Microsoft Teams
 
 To connect to Microsoft Teams you need to https://learn.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal[create an Azure Active Directory application and service principal] that can access resources. Follow these steps:
 
@@ -243,7 +243,7 @@ Generate a new client secret and keep a note of the string under the `Value` col
 After completion, use the following configuration parameters to configure the connector.
 
 [discrete#connectors-microsoft-teams-configuration]
-=== Configuration
+===== Configuration
 
 The following configuration fields are required:
 
@@ -268,17 +268,17 @@ Password for your Azure Application. Example:
 * `changeme`
 
 [discrete#connectors-microsoft-teams-client-docker]
-==== Deployment using Docker
+====== Deployment using Docker
 
 include::_connectors-docker-instructions.asciidoc[]
 
 [discrete#connectors-microsoft-teams-content-extraction]
-==== Content Extraction
+====== Content Extraction
 
 Refer to <<connectors-content-extraction>>.
 
 [discrete#connectors-microsoft-teams-documents-and-syncs]
-=== Documents and syncs
+===== Documents and syncs
 
 The connector syncs the following objects and entities:
 
@@ -302,24 +302,24 @@ The connector syncs the following objects and entities:
 ====
 
 [discrete#connectors-microsoft-teams-sync-types]
-==== Sync types
+====== Sync types
 
 <<connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
 
 This connector also supports <<connectors-sync-types-incremental,incremental syncs>>.
 
 [discrete#connectors-microsoft-teams-sync-rules]
-=== Sync rules
+===== Sync rules
 
 <<sync-rules-basic, Basic sync rules>> are identical for all connectors and are available by default.
 
 [discrete#connectors-microsoft-teams-advanced-sync-rules]
-=== Advanced Sync Rules
+===== Advanced Sync Rules
 
 Advanced sync rules are not available for this connector in the present version.
 
 [discrete#connectors-microsoft-teams-end-to-end-testing]
-=== End-to-end Testing
+===== End-to-end Testing
 
 The connector framework enables operators to run functional tests against a real data source.
 Refer to <<build-connector-testing>> for more details.
@@ -339,19 +339,19 @@ make ftest NAME=microsoft_teams DATA_SIZE=small
 ----
 
 [discrete#connectors-microsoft-teams-known-issues]
-=== Known issues
+===== Known issues
 
 * Messages in one-on-one chats for _Chat with Self_ users are not fetched via Graph APIs. Therefore, these messages won't be indexed into Elasticsearch.
 
 Refer to <<connectors-known-issues>> for a list of known issues for all connectors.
 
 [discrete#connectors-microsoft-teams-troubleshooting]
-=== Troubleshooting
+===== Troubleshooting
 
 See <<connectors-troubleshooting>>.
 
 [discrete#connectors-microsoft-teams-security]
-=== Security
+===== Security
 
 See <<connectors-security>>.
 

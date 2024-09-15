@@ -1,5 +1,5 @@
 [#connectors-github]
-= Elastic GitHub connector reference
+=== Elastic GitHub connector reference
 ++++
 <titleabbrev>GitHub</titleabbrev>
 ++++
@@ -22,7 +22,7 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#connectors-github-native-connector-reference]
-== *Native connector (Elastic Cloud)*
+==== *Native connector (Elastic Cloud)*
 
 .View *native connector* reference
 
@@ -30,25 +30,25 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 ===============
 
 [discrete#connectors-github-availability-prerequisites]
-=== Availability and prerequisites
+===== Availability and prerequisites
 
 This connector is available as a *native connector* as of Elastic version *8.11.0*.
 
 To use this connector natively in Elastic Cloud, satisfy all <<native-connectors-prerequisites,native connector requirements>>.
 
 [discrete#connectors-github-create-native-connector]
-=== Create a {service-name} connector
+===== Create a {service-name} connector
 include::_connectors-create-native.asciidoc[]
 
 [discrete#connectors-github-usage]
-=== Usage
+===== Usage
 
 To use this connector as a *native connector*, see <<native-connectors>>.
 
 For additional operations, see <<connectors-usage>>.
 
 [discrete#connectors-github-personal-access-token]
-==== GitHub personal access token
+====== GitHub personal access token
 
 Configure a GitHub personal access token to fetch data from GitHub.
 
@@ -63,7 +63,7 @@ Follow these steps to generate a GitHub personal access token:
 * Select `Generate token` and copy the token.
 
 [discrete#connectors-github-github-app]
-==== GitHub App
+====== GitHub App
 
 Configure a GitHub App to fetch data from GitHub.
 
@@ -80,12 +80,12 @@ Follow these steps to create a GitHub App:
 * You can choose to install it on all repositories or selected repositories, and click `Install`.
 
 [discrete#connectors-github-compatability]
-=== Compatibility
+===== Compatibility
 
 Both GitHub and GitHub Enterprise are supported.
 
 [discrete#connectors-github-configuration]
-=== Configuration
+===== Configuration
 
 The following configuration fields are required:
 
@@ -161,7 +161,7 @@ When enabled, full syncs will fetch access control lists for each document and s
 DLS is only available when `Repository Type` is set to `Organization`.
 
 [discrete#connectors-github-documents-syncs]
-=== Documents and syncs
+===== Documents and syncs
 
 The connector syncs the following objects and entities:
 
@@ -183,20 +183,20 @@ Only the following file extensions are ingested:
 ====
 
 [discrete#connectors-github-sync-types]
-==== Sync types
+====== Sync types
 
 <<connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
 
 This connector also supports <<connectors-sync-types-incremental,incremental syncs>>.
 
 [discrete#connectors-github-sync-rules]
-=== Sync rules
+===== Sync rules
 
 _Basic_ sync rules are identical for all connectors and are available by default.
 For more information read <<sync-rules-types>>.
 
 [discrete#connectors-github-sync-rules-advanced]
-==== Advanced sync rules
+====== Advanced sync rules
 
 [NOTE]
 ====
@@ -209,7 +209,7 @@ Advanced sync rules are defined through a source-specific DSL JSON snippet.
 The following sections provide examples of advanced sync rules for this connector.
 
 [discrete#connectors-github-sync-rules-advanced-branch]
-===== Indexing document and files based on branch name configured via branch key
+======= Indexing document and files based on branch name configured via branch key
 
 [source,json]
 ----
@@ -224,7 +224,7 @@ The following sections provide examples of advanced sync rules for this connecto
 ----
 
 [discrete#connectors-github-sync-rules-advanced-issue-key]
-===== Indexing document based on issue query related to bugs via issue key
+======= Indexing document based on issue query related to bugs via issue key
 
 [source,json]
 ----
@@ -239,7 +239,7 @@ The following sections provide examples of advanced sync rules for this connecto
 ----
 
 [discrete#connectors-github-sync-rules-advanced-pr-key]
-===== Indexing document based on PR query related to open PR's via PR key
+======= Indexing document based on PR query related to open PR's via PR key
 
 [source,json]
 ----
@@ -254,7 +254,7 @@ The following sections provide examples of advanced sync rules for this connecto
 ----
 
 [discrete#connectors-github-sync-rules-advanced-issue-query-branch-name]
-===== Indexing document and files based on queries and branch name
+======= Indexing document and files based on queries and branch name
 
 [source,json]
 ----
@@ -278,7 +278,7 @@ Check the Elasticsearch index for the actual document count.
 ====
 
 [discrete#connectors-github-sync-rules-advanced-overlapping]
-===== Advanced rules for overlapping
+======= Advanced rules for overlapping
 
 [source,json]
 ----
@@ -304,23 +304,23 @@ If `GitHub App` is selected as the authentication method, the  "OWNER/" portion 
 ====
 
 [discrete#connectors-github-content-extraction]
-=== Content Extraction
+===== Content Extraction
 
 See <<connectors-content-extraction>>.
 
 [discrete#connectors-github-known-issues]
-=== Known issues
+===== Known issues
 
 There are currently no known issues for this connector.
 Refer to <<connectors-known-issues>> for a list of known issues for all connectors.
 
 [discrete#connectors-github-troubleshooting]
-=== Troubleshooting
+===== Troubleshooting
 
 See <<connectors-troubleshooting>>.
 
 [discrete#connectors-github-security]
-=== Security
+===== Security
 
 See <<connectors-security>>.
 
@@ -333,7 +333,7 @@ See <<connectors-security>>.
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#connectors-github-connector-client-reference]
-== *Connector client (self-managed)*
+==== *Connector client (self-managed)*
 
 .View *connector client* reference
 
@@ -341,7 +341,7 @@ See <<connectors-security>>.
 ===============
 
 [discrete#connectors-github-client-availability-prerequisites]
-=== Availability and prerequisites
+===== Availability and prerequisites
 
 This connector is available as a self-managed *connector client*.
 
@@ -350,17 +350,17 @@ This connector client is compatible with Elastic versions *8.10.0+*.
 To use this connector, satisfy all <<build-connector,connector client requirements>>.
 
 [discrete#connectors-github-create-connector-client]
-=== Create a {service-name} connector
+===== Create a {service-name} connector
 include::_connectors-create-client.asciidoc[]
 
 [discrete#connectors-github-client-usage]
-=== Usage
+===== Usage
 
 To use this connector as a *connector client*, see <<build-connector>>
 For additional usage operations, see <<connectors-usage>>.
 
 [discrete#connectors-github-client-personal-access-token]
-==== GitHub personal access token
+====== GitHub personal access token
 
 Configure a GitHub personal access token to fetch data from GitHub.
 
@@ -375,7 +375,7 @@ Follow these steps to generate a GitHub  access token:
 * Select `Generate token` and copy the token.
 
 [discrete#connectors-github-client-github-app]
-==== GitHub App
+====== GitHub App
 
 Configure a GitHub App to fetch data from GitHub.
 
@@ -393,12 +393,12 @@ Follow these steps to create a GitHub App:
 
 
 [discrete#connectors-github-client-compatability]
-=== Compatibility
+===== Compatibility
 
 Both GitHub and GitHub Enterprise are supported.
 
 [discrete#connectors-github-client-configuration]
-=== Configuration
+===== Configuration
 
 [TIP]
 ====
@@ -490,12 +490,12 @@ Requires a separate deployment of the <<connectors-content-extraction-local,Elas
 Default value is `False`.
 
 [discrete#connectors-github-client-docker]
-=== Deployment using Docker
+===== Deployment using Docker
 
 include::_connectors-docker-instructions.asciidoc[]
 
 [discrete#connectors-github-client-documents-syncs]
-=== Documents and syncs
+===== Documents and syncs
 
 The connector syncs the following objects and entities:
 
@@ -517,20 +517,20 @@ Only the following file extensions are ingested:
 ====
 
 [discrete#connectors-github-client-sync-types]
-==== Sync types
+====== Sync types
 
 <<connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
 
 This connector also supports <<connectors-sync-types-incremental,incremental syncs>>.
 
 [discrete#connectors-github-client-sync-rules]
-=== Sync rules
+===== Sync rules
 
 _Basic_ sync rules are identical for all connectors and are available by default.
 For more information read <<sync-rules-types>>.
 
 [discrete#connectors-github-client-sync-rules-advanced]
-==== Advanced sync rules
+====== Advanced sync rules
 
 [NOTE]
 ====
@@ -543,7 +543,7 @@ Advanced sync rules are defined through a source-specific DSL JSON snippet.
 The following sections provide examples of advanced sync rules for this connector.
 
 [discrete#connectors-github-client-sync-rules-advanced-branch]
-===== Indexing document and files based on branch name configured via branch key
+======= Indexing document and files based on branch name configured via branch key
 
 [source,json]
 ----
@@ -558,7 +558,7 @@ The following sections provide examples of advanced sync rules for this connecto
 ----
 
 [discrete#connectors-github-client-sync-rules-advanced-issue-key]
-===== Indexing document based on issue query related to bugs via issue key
+======= Indexing document based on issue query related to bugs via issue key
 
 [source,json]
 ----
@@ -573,7 +573,7 @@ The following sections provide examples of advanced sync rules for this connecto
 ----
 
 [discrete#connectors-github-client-sync-rules-advanced-pr-key]
-===== Indexing document based on PR query related to open PR's via PR key
+======= Indexing document based on PR query related to open PR's via PR key
 
 [source,json]
 ----
@@ -588,7 +588,7 @@ The following sections provide examples of advanced sync rules for this connecto
 ----
 
 [discrete#connectors-github-client-sync-rules-advanced-issue-query-branch-name]
-===== Indexing document and files based on queries and branch name
+======= Indexing document and files based on queries and branch name
 
 [source,json]
 ----
@@ -612,7 +612,7 @@ Check the Elasticsearch index for the actual document count.
 ====
 
 [discrete#connectors-github-client-sync-rules-advanced-overlapping]
-===== Advanced rules for overlapping
+======= Advanced rules for overlapping
 
 [source,json]
 ----
@@ -638,15 +638,15 @@ If `GitHub App` is selected as the authentication method, the  "OWNER/" portion 
 ====
 
 [discrete#connectors-github-client-content-extraction]
-=== Content Extraction
+===== Content Extraction
 
 See <<connectors-content-extraction>>.
 
 [discrete#connectors-github-client-connector-client-operations]
-=== Connector client operations
+===== Connector client operations
 
 [discrete#connectors-github-client-testing]
-=== End-to-end testing
+===== End-to-end testing
 
 The connector framework enables operators to run functional tests against a real data source.
 Refer to <<build-connector-testing>> for more details.
@@ -666,18 +666,18 @@ make ftest NAME=github DATA_SIZE=small
 ----
 
 [discrete#connectors-github-client-known-issues]
-=== Known issues
+===== Known issues
 
 There are currently no known issues for this connector.
 Refer to <<connectors-known-issues>> for a list of known issues for all connectors.
 
 [discrete#connectors-github-client-troubleshooting]
-=== Troubleshooting
+===== Troubleshooting
 
 See <<connectors-troubleshooting>>.
 
 [discrete#connectors-github-client-security]
-=== Security
+===== Security
 
 See <<connectors-security>>.
 

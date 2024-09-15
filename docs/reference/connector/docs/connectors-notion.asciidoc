@@ -1,5 +1,5 @@
 [#connectors-notion]
-= Elastic Notion Connector reference
+=== Elastic Notion Connector reference
 ++++
 <titleabbrev>Notion</titleabbrev>
 ++++
@@ -16,14 +16,14 @@ View the {connectors-python}/connectors/sources/{service-name-stub}.py[*source c
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#connectors-notion-native-connector-reference]
-== *Native connector reference (managed service)*
+==== *Native connector reference (managed service)*
 
 .View reference for the *native connector reference (managed service)*.
 [%collapsible]
 ===============
 
 [discrete#connectors-notion-connector-availability-and-prerequisites]
-=== Availability and prerequisites
+===== Availability and prerequisites
 
 This native connector was introduced in Elastic *8.14.0* as a managed service on Elastic Cloud.
 
@@ -35,7 +35,7 @@ This connector is in *beta* and is subject to change. The design and code is les
 ====
 
 [discrete#connectors-notion-connector-usage]
-=== Usage
+===== Usage
 
 To use this connector in the UI, select the *Notion* tile when creating a new connector under *Search -> Connectors*.
 
@@ -44,11 +44,11 @@ If you're already familiar with how connectors work, you can also use the {ref}/
 For additional operations, see <<connectors-usage>>.
 
 [discrete#connectors-notion-create-native-connector]
-=== Create a {service-name} connector
+===== Create a {service-name} connector
 include::_connectors-create-native.asciidoc[]
 
 [discrete#connectors-notion-connector-connecting-to-notion]
-=== Connecting to Notion
+===== Connecting to Notion
 
 To connect to Notion, the user needs to https://www.notion.so/help/create-integrations-with-the-notion-api#create-an-internal-integration[create an internal integration] for their Notion workspace, which can access resources using the Internal Integration Secret Token. Configure the Integration with following settings:
 
@@ -57,7 +57,7 @@ To connect to Notion, the user needs to https://www.notion.so/help/create-integr
 2. Users must manually https://www.notion.so/help/add-and-manage-connections-with-the-api#add-connections-to-pages[add the integration as a connection] to the top-level pages in a workspace. Sub-pages will inherit the connections of the parent page automatically.
 
 [discrete#connectors-notion-connector-configuration]
-=== Configuration
+===== Configuration
 
 Note the following configuration fields:
 
@@ -88,12 +88,12 @@ Enabling comment indexing could impact connector performance due to increased ne
 ====
 
 [discrete#connectors-notion-connector-content-extraction]
-==== Content Extraction
+====== Content Extraction
 
 Refer to https://www.elastic.co/guide/en/enterprise-search/current/connectors-content-extraction.html[content extraction].
 
 [discrete#connectors-notion-connector-documents-and-syncs]
-=== Documents and syncs
+===== Documents and syncs
 
 The connector syncs the following objects and entities:
 
@@ -116,12 +116,12 @@ The connector syncs the following objects and entities:
 ====
 
 [discrete#connectors-notion-connector-sync-rules]
-=== Sync rules
+===== Sync rules
 
 <<sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
 
 [discrete#connectors-notion-connector-advanced-sync-rules]
-=== Advanced sync rules
+===== Advanced sync rules
 
 [NOTE]
 ====
@@ -137,10 +137,10 @@ Advanced sync rules for Notion take the following parameters:
 2. `query`: Notion's database query filter to fetch a specific database.
 
 [discrete#connectors-notion-connector-advanced-sync-rules-examples]
-==== Examples
+====== Examples
 
 [discrete]
-===== Example 1
+======= Example 1
 
 Indexing every page where the title contains `Demo Page`:
 
@@ -159,7 +159,7 @@ Indexing every page where the title contains `Demo Page`:
 ----
 
 [discrete]
-===== Example 2
+======= Example 2
 
 Indexing every database where the title contains `Demo Database`:
 
@@ -178,7 +178,7 @@ Indexing every database where the title contains `Demo Database`:
 ----
 
 [discrete]
-===== Example 3
+======= Example 3
 
 Indexing every database where the title contains `Demo Database` and every page where the title contains `Demo Page`:
 
@@ -203,7 +203,7 @@ Indexing every database where the title contains `Demo Database` and every page 
 ----
 
 [discrete]
-===== Example 4
+======= Example 4
 
 Indexing all pages in the workspace:
 
@@ -222,7 +222,7 @@ Indexing all pages in the workspace:
 ----
 
 [discrete]
-===== Example 5
+======= Example 5
 
 Indexing all the pages and databases connected to the workspace:
 
@@ -238,7 +238,7 @@ Indexing all the pages and databases connected to the workspace:
 ----
 
 [discrete]
-===== Example 6
+======= Example 6
 
 Indexing all the rows of a database where the record is `true` for the column `Task completed` and its property(datatype) is a checkbox:
 
@@ -260,7 +260,7 @@ Indexing all the rows of a database where the record is `true` for the column `T
 ----
 
 [discrete]
-===== Example 7
+======= Example 7
 
 Indexing all rows of a specific database:
 
@@ -276,7 +276,7 @@ Indexing all rows of a specific database:
 ----
 
 [discrete]
-===== Example 8
+======= Example 8
 
 Indexing all blocks defined in `searches` and `database_query_filters`:
 
@@ -317,7 +317,7 @@ In this example the `filter` object syntax for `database_query_filters` is defin
 ====
 
 [discrete#connectors-notion-connector-known-issues]
-=== Known issues
+===== Known issues
 
 * *Updates to new pages may not be reflected immediately in the Notion API.*
 +
@@ -339,12 +339,12 @@ If you need to search a sub-object from `properties`, you may need to post-proce
 Refer to <<connectors-known-issues>> for a list of known issues for all connectors.
 
 [discrete#connectors-notion-connector-troubleshooting]
-=== Troubleshooting
+===== Troubleshooting
 
 See <<connectors-troubleshooting>>.
 
 [discrete#connectors-notion-connector-security]
-=== Security
+===== Security
 
 See <<connectors-security>>.
 
@@ -358,14 +358,14 @@ See <<connectors-security>>.
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#connectors-notion-connector-client-reference]
-== *Connector client reference (self-managed)*
+==== *Connector client reference (self-managed)*
 
 .View reference for the *connector client reference (self-managed)*.
 [%collapsible]
 ===============
 
 [discrete#connectors-notion-client-connector-availability-and-prerequisites]
-=== Availability and prerequisites
+===== Availability and prerequisites
 
 This connector was introduced in Elastic *8.13.0*, available as a *self-managed* connector client.
 
@@ -382,18 +382,18 @@ This connector is in *beta* and is subject to change. The design and code is les
 ====
 
 [discrete#connectors-notion-client-connector-usage]
-=== Usage
+===== Usage
 
 To use this connector in the UI, select the *Notion* tile when creating a new connector under *Search -> Connectors*.
 
 For additional operations, see <<connectors-usage>>.
 
 [discrete#connectors-notion-create-connector-client]
-=== Create a {service-name} connector
+===== Create a {service-name} connector
 include::_connectors-create-client.asciidoc[]
 
 [discrete#connectors-notion-client-connector-connecting-to-notion]
-=== Connecting to Notion
+===== Connecting to Notion
 
 To connect to Notion, the user needs to https://www.notion.so/help/create-integrations-with-the-notion-api#create-an-internal-integration[create an internal integration] for their Notion workspace, which can access resources using the Internal Integration Secret Token. Configure the Integration with following settings:
 
@@ -402,12 +402,12 @@ To connect to Notion, the user needs to https://www.notion.so/help/create-integr
 2. Users must manually https://www.notion.so/help/add-and-manage-connections-with-the-api#add-connections-to-pages[add the integration as a connection] to the top-level pages in a workspace. Sub-pages will inherit the connections of the parent page automatically.
 
 [discrete#connectors-notion-client-connector-docker]
-=== Deploy with Docker
+===== Deploy with Docker
 
 include::_connectors-docker-instructions.asciidoc[]
 
 [discrete#connectors-notion-client-connector-configuration]
-=== Configuration
+===== Configuration
 
 Note the following configuration fields:
 
@@ -438,12 +438,12 @@ Enabling comment indexing could impact connector performance due to increased ne
 ====
 
 [discrete#connectors-notion-client-connector-content-extraction]
-==== Content Extraction
+====== Content Extraction
 
 Refer to https://www.elastic.co/guide/en/enterprise-search/current/connectors-content-extraction.html[content extraction].
 
 [discrete#connectors-notion-client-connector-documents-and-syncs]
-=== Documents and syncs
+===== Documents and syncs
 
 The connector syncs the following objects and entities:
 
@@ -466,12 +466,12 @@ The connector syncs the following objects and entities:
 ====
 
 [discrete#connectors-notion-client-connector-sync-rules]
-=== Sync rules
+===== Sync rules
 
 <<sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
 
 [discrete#connectors-notion-client-connector-advanced-sync-rules]
-=== Advanced sync rules
+===== Advanced sync rules
 
 [NOTE]
 ====
@@ -487,10 +487,10 @@ Advanced sync rules for Notion take the following parameters:
 2. `query`: Notion's database query filter to fetch a specific database.
 
 [discrete#connectors-notion-client-connector-advanced-sync-rules-examples]
-==== Examples
+====== Examples
 
 [discrete]
-===== Example 1
+======= Example 1
 
 Indexing every page where the title contains `Demo Page`:
 
@@ -509,7 +509,7 @@ Indexing every page where the title contains `Demo Page`:
 ----
 
 [discrete]
-===== Example 2
+======= Example 2
 
 Indexing every database where the title contains `Demo Database`:
 
@@ -528,7 +528,7 @@ Indexing every database where the title contains `Demo Database`:
 ----
 
 [discrete]
-===== Example 3
+======= Example 3
 
 Indexing every database where the title contains `Demo Database` and every page where the title contains `Demo Page`:
 
@@ -553,7 +553,7 @@ Indexing every database where the title contains `Demo Database` and every page 
 ----
 
 [discrete]
-===== Example 4
+======= Example 4
 
 Indexing all pages in the workspace:
 
@@ -572,7 +572,7 @@ Indexing all pages in the workspace:
 ----
 
 [discrete]
-===== Example 5
+======= Example 5
 
 Indexing all the pages and databases connected to the workspace:
 
@@ -588,7 +588,7 @@ Indexing all the pages and databases connected to the workspace:
 ----
 
 [discrete]
-===== Example 6
+======= Example 6
 
 Indexing all the rows of a database where the record is `true` for the column `Task completed` and its property(datatype) is a checkbox:
 
@@ -610,7 +610,7 @@ Indexing all the rows of a database where the record is `true` for the column `T
 ----
 
 [discrete]
-===== Example 7
+======= Example 7
 
 Indexing all rows of a specific database:
 
@@ -626,7 +626,7 @@ Indexing all rows of a specific database:
 ----
 
 [discrete]
-===== Example 8
+======= Example 8
 
 Indexing all blocks defined in `searches` and `database_query_filters`:
 
@@ -667,10 +667,10 @@ In this example the `filter` object syntax for `database_query_filters` is defin
 ====
 
 [discrete#connectors-notion-client-connector-connector-client-operations]
-=== Connector Client operations
+===== Connector Client operations
 
 [discrete#connectors-notion-client-connector-end-to-end-testing]
-==== End-to-end Testing
+====== End-to-end Testing
 
 The connector framework enables operators to run functional tests against a real data source, using Docker Compose.
 You don't need a running Elasticsearch instance or Notion source to run this test.
@@ -695,7 +695,7 @@ make ftest NAME=notion DATA_SIZE=small
 By default, `DATA_SIZE=MEDIUM`.
 
 [discrete#connectors-notion-client-connector-known-issues]
-=== Known issues
+===== Known issues
 
 * *Updates to new pages may not be reflected immediately in the Notion API.*
 +
@@ -717,12 +717,12 @@ If you need to search a sub-object from `properties`, you may need to post-proce
 Refer to <<connectors-known-issues>> for a list of known issues for all connectors.
 
 [discrete#connectors-notion-client-connector-troubleshooting]
-=== Troubleshooting
+===== Troubleshooting
 
 See <<connectors-troubleshooting>>.
 
 [discrete#connectors-notion-client-connector-security]
-=== Security
+===== Security
 
 See <<connectors-security>>.
 

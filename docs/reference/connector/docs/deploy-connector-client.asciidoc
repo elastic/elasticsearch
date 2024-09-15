@@ -1,5 +1,5 @@
 [#deploy-connector-client]
-= Deploying self-managed connectors
+=== Deploying self-managed connectors
 
 To use connector clients in a self-managed environment, you must deploy the connector service.
 The source code is hosted in the https://github.com/elastic/connectors[elastic/connectors^] repository.

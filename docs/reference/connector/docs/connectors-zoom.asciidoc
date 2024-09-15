@@ -1,5 +1,5 @@
 [#connectors-zoom]
-= Elastic Zoom connector reference
+=== Elastic Zoom connector reference
 ++++
 <titleabbrev>Zoom</titleabbrev>
 ++++
@@ -17,14 +17,14 @@ View the {connectors-python}/connectors/sources/{service-name-stub}.py[*source c
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#connectors-zoom-native-connector-reference]
-== *Native connector reference (managed service)*
+==== *Native connector reference (managed service)*
 
 .View reference for the *native connector reference (managed service)*.
 [%collapsible]
 ===============
 
 [discrete#connectors-zoom-connector-availability-and-prerequisites]
-=== Availability and prerequisites
+===== Availability and prerequisites
 
 This native connector was introduced in Elastic *8.14.0* as a managed service on Elastic Cloud.
 
@@ -38,11 +38,11 @@ Technical preview features are not subject to the support SLA of official GA fea
 ====
 
 [discrete#connectors-zoom-create-native-connector]
-=== Create a {service-name} connector
+===== Create a {service-name} connector
 include::_connectors-create-native.asciidoc[]
 
 [discrete#connectors-zoom-connector-usage]
-=== Usage
+===== Usage
 
 To use this connector in the UI, select the *Zoom* tile when creating a new connector under *Search -> Connectors*.
 
@@ -51,7 +51,7 @@ If you're already familiar with how connectors work, you can also use the {ref}/
 For additional operations, see <<connectors-usage>>.
 
 [discrete#connectors-zoom-connector-connecting-to-zoom]
-=== Connecting to Zoom
+===== Connecting to Zoom
 
 To connect to Zoom you need to https://developers.zoom.us/docs/internal-apps/s2s-oauth/[create an Server-to-Server OAuth application] that can access resources. Follow these steps:
 
@@ -81,7 +81,7 @@ report:read:admin
 After completion, use the following configuration parameters to configure the connector.
 
 [discrete#connectors-zoom-connector-configuration]
-=== Configuration
+===== Configuration
 
 The following configuration fields are required:
 
@@ -107,12 +107,12 @@ How far back in time to request recordings from Zoom. Recordings older than this
 Retrieve more information about previous meetings, including their details and participants. Default value is `False`. Enable this option to fetch past meeting details. This setting can increase sync time.
 
 [discrete#connectors-zoom-connector-content-extraction]
-==== Content Extraction
+====== Content Extraction
 
 Refer to https://www.elastic.co/guide/en/enterprise-search/current/connectors-content-extraction.html[content extraction] in the official docs.
 
 [discrete#connectors-zoom-connector-documents-and-syncs]
-=== Documents and syncs
+===== Documents and syncs
 
 The connector syncs the following objects and entities:
 
@@ -132,24 +132,24 @@ The connector syncs the following objects and entities:
 ====
 
 [discrete#connectors-zoom-connector-sync-types]
-==== Sync types
+====== Sync types
 
 <<connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
 
 This connector also supports <<connectors-sync-types-incremental,incremental syncs>>.
 
 [discrete#connectors-zoom-connector-sync-rules]
-=== Sync rules
+===== Sync rules
 
 https://www.elastic.co/guide/en/enterprise-search/current/sync-rules.html#sync-rules-basic[Basic sync rules] are identical for all connectors and are available by default.
 
 [discrete#connectors-zoom-connector-advanced-sync-rules]
-=== Advanced Sync Rules
+===== Advanced Sync Rules
 
 Advanced sync rules are not available for this connector in the present version.
 
 [discrete#connectors-zoom-connector-known-issues]
-=== Known issues
+===== Known issues
 
 * *Meetings*: Users can only index meetings that are less than a month old.
 * *Chat Messages & Files*:Users can only index chats and files that are less than 6 months old.
@@ -157,12 +157,12 @@ Advanced sync rules are not available for this connector in the present version.
 Refer to <<connectors-known-issues>> for a list of known issues for _all_ connectors.
 
 [discrete#connectors-zoom-connector-troubleshooting]
-=== Troubleshooting
+===== Troubleshooting
 
 See <<connectors-troubleshooting>>.
 
 [discrete#connectors-zoom-connector-security]
-=== Security
+===== Security
 
 See <<connectors-security>>.
 
@@ -176,14 +176,14 @@ See <<connectors-security>>.
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#connectors-zoom-connector-client-reference]
-== *Connector client reference (self-managed)*
+==== *Connector client reference (self-managed)*
 
 .View reference for the *connector client reference (self-managed)*.
 [%collapsible]
 ===============
 
 [discrete#connectors-zoom-client-connector-availability-and-prerequisites]
-=== Availability and prerequisites
+===== Availability and prerequisites
 
 This connector is available as a self-managed *connector client*. To use this connector, satisfy all <<build-connector, connector client prerequisites>>.
 
@@ -195,11 +195,11 @@ Technical preview features are not subject to the support SLA of official GA fea
 ====
 
 [discrete#connectors-zoom-client-create-connector-client]
-=== Create a {service-name} connector
+===== Create a {service-name} connector
 include::_connectors-create-client.asciidoc[]
 
 [discrete#connectors-zoom-client-connector-usage]
-=== Usage
+===== Usage
 
 To use this connector in the UI, select the *Teams* tile when creating a new connector under *Search -> Connectors*.
 
@@ -208,7 +208,7 @@ If you're already familiar with how connectors work, you can also use the {ref}/
 For additional operations, see <<connectors-usage>>.
 
 [discrete#connectors-zoom-client-connector-connecting-to-zoom]
-=== Connecting to Zoom
+===== Connecting to Zoom
 
 To connect to Zoom you need to https://developers.zoom.us/docs/internal-apps/s2s-oauth/[create an Server-to-Server OAuth application] that can access resources. Follow these steps:
 
@@ -238,7 +238,7 @@ report:read:admin
 After completion, use the following configuration parameters to configure the connector.
 
 [discrete#connectors-zoom-client-connector-configuration]
-=== Configuration
+===== Configuration
 
 The following configuration fields are required:
 
@@ -264,17 +264,17 @@ How far back in time to request recordings from Zoom. Recordings older than this
 Retrieve more information about previous meetings, including their details and participants. Default value is `False`. Enable this option to fetch past meeting details. This setting can increase sync time.
 
 [discrete#connectors-zoom-client-client-docker]
-==== Deployment using Docker
+====== Deployment using Docker
 
 include::_connectors-docker-instructions.asciidoc[]
 
 [discrete#connectors-zoom-client-connector-content-extraction]
-==== Content Extraction
+====== Content Extraction
 
 Refer to https://www.elastic.co/guide/en/enterprise-search/current/connectors-content-extraction.html[content extraction] in the official docs.
 
 [discrete#connectors-zoom-client-connector-documents-and-syncs]
-=== Documents and syncs
+===== Documents and syncs
 
 The connector syncs the following objects and entities:
 
@@ -294,27 +294,27 @@ The connector syncs the following objects and entities:
 ====
 
 [discrete#connectors-zoom-client-connector-sync-types]
-==== Sync types
+====== Sync types
 
 <<connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
 
 This connector also supports <<connectors-sync-types-incremental,incremental syncs>>.
 
 [discrete#connectors-zoom-client-connector-sync-rules]
-=== Sync rules
+===== Sync rules
 
 https://www.elastic.co/guide/en/enterprise-search/current/sync-rules.html#sync-rules-basic[Basic sync rules] are identical for all connectors and are available by default.
 
 [discrete#connectors-zoom-client-connector-advanced-sync-rules]
-=== Advanced Sync Rules
+===== Advanced Sync Rules
 
 Advanced sync rules are not available for this connector in the present version.
 
 [discrete#connectors-zoom-client-connector-connector-client-operations]
-=== Connector Client operations
+===== Connector Client operations
 
 [discrete#connectors-zoom-client-connector-end-to-end-testing]
-==== End-to-end Testing
+====== End-to-end Testing
 
 The connector framework enables operators to run functional tests against a real data source.
 Refer to <<build-connector-testing>> for more details.
@@ -334,7 +334,7 @@ make ftest NAME=zoom DATA_SIZE=small
 ----
 
 [discrete#connectors-zoom-client-connector-known-issues]
-=== Known issues
+===== Known issues
 
 * *Meetings*: Users can only index meetings that are less than a month old.
 * *Chat Messages & Files*:Users can only index chats and files that are less than 6 months old.
@@ -342,12 +342,12 @@ make ftest NAME=zoom DATA_SIZE=small
 Refer to <<connectors-known-issues>> for a list of known issues for _all_ connectors.
 
 [discrete#connectors-zoom-client-connector-troubleshooting]
-=== Troubleshooting
+===== Troubleshooting
 
 See <<connectors-troubleshooting>>.
 
 [discrete#connectors-zoom-client-connector-security]
-=== Security
+===== Security
 
 See <<connectors-security>>.
 

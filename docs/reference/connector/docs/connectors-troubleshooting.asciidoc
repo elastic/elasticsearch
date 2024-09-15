@@ -1,5 +1,5 @@
 [#connectors-troubleshooting]
-= Troubleshooting connectors
+=== Troubleshooting connectors
 ++++
 <titleabbrev>Troubleshooting</titleabbrev>
 ++++
@@ -11,4 +11,4 @@ Use the following actions to help diagnose and resolve issues with <<native-conn
 * <<connectors-usage-documents,View synced documents and index mappings>>.
 * Edit your index configuration: <<native-connectors,native connector>>, <<build-connector,connector client>>.
 
-You can also request <<support,help or support>>.
+You can also request help or support.

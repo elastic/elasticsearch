@@ -1,5 +1,5 @@
 [#connectors-apis]
-= Connector APIs
+== Connector APIs
 
 In 8.12 we introduced a set of APIs to create and manage Elastic connectors and sync jobs.
 Learn more in the {es} documentation:
@@ -14,7 +14,7 @@ Check out this concrete <<connectors-tutorial-api, tutorial>> to get started wit
 --
 
 [discrete#connectors-apis-cli]
-== Command-line interface
+=== Command-line interface
 
 We also provide a command-line interface.
 Learn more in the https://github.com/elastic/connectors/blob/main/docs/CLI.md[`elastic/connectors` repo].

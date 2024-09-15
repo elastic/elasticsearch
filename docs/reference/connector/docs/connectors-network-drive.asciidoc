@@ -1,5 +1,5 @@
 [#connectors-network-drive]
-= Elastic network drive connector reference
+=== Elastic network drive connector reference
 ++++
 <titleabbrev>Network drive</titleabbrev>
 ++++
@@ -23,7 +23,7 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#connectors-network-drive-native-connector-reference]
-== *Native connector (Elastic Cloud)*
+==== *Native connector (Elastic Cloud)*
 
 .View *native connector* reference
 
@@ -31,19 +31,19 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 ===============
 
 [discrete#connectors-network-drive-prerequisites]
-=== Availability and prerequisites
+===== Availability and prerequisites
 
 This connector is available as a *native connector* on Elastic Cloud, as of *8.9.1*.
 
 To use this connector natively in Elastic Cloud, satisfy all <<native-connectors-prerequisites,native connector requirements>>.
 
 [discrete#connectors-network-drive-usage]
-=== Usage
+===== Usage
 
 To use this connector natively in Elastic Cloud, see <<native-connectors>>.
 
 [discrete#connectors-network-drive-configuration]
-=== Configuration
+===== Configuration
 
 The following configuration fields are required to set up the connector:
 
@@ -84,7 +84,7 @@ Refer to <<connectors-network-drive-dls, Document level security>> for more info
 ====
 
 [discrete#connectors-network-drive-documents-syncs]
-=== Documents and syncs
+===== Documents and syncs
 
 The connector syncs folders as separate documents in Elasticsearch.
 The following fields will be added for the document type `folder`:
@@ -105,14 +105,14 @@ Otherwise, *all documents* indexed to an Elastic deployment will be visible to *
 ====
 
 [discrete#connectors-network-drive-sync-types]
-==== Sync types
+====== Sync types
 
 <<connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
 
 This connector also supports <<connectors-sync-types-incremental,incremental syncs>>.
 
 [discrete#connectors-network-drive-dls]
-=== Document level security
+===== Document level security
 
 Document Level Security (DLS) enables you to restrict access to documents based on a user's permissions.
 DLS facilitates the syncing of folder and file permissions, including both user and group level permissions.
@@ -123,18 +123,18 @@ DLS facilitates the syncing of folder and file permissions, including both user 
 ====
 
 [discrete#connectors-network-drive-dls-availability]
-==== Availability
+====== Availability
 
 * The present version of Network Drive connector offers DLS support for Windows network drives only.
 * To fetch users and groups in a Windows network drive, account credentials added in the connector configuration should have access to the Powershell of the Windows Server where the network drive is hosted.
 
 [discrete#connectors-network-drive-sync-rules]
-=== Sync rules
+===== Sync rules
 
 <<sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
 
 [discrete#connectors-network-drive-sync-rules-advanced]
-==== Advanced sync rules
+====== Advanced sync rules
 
 [NOTE]
 ====
@@ -151,7 +151,7 @@ Advanced sync rules for this connector use *glob patterns*.
 The following sections provide examples of advanced sync rules for this connector.
 
 [discrete#connectors-network-drive-indexing-files-and-folders-recursively-within-folders]
-===== Indexing files and folders recursively within folders
+======= Indexing files and folders recursively within folders
 
 [source,json]
 ----
@@ -166,7 +166,7 @@ The following sections provide examples of advanced sync rules for this connecto
 ----
 
 [discrete#connectors-network-drive-indexing-files-and-folders-directly-inside-folder]
-===== Indexing files and folders directly inside folder
+======= Indexing files and folders directly inside folder
 
 [source,json]
 ----
@@ -178,7 +178,7 @@ The following sections provide examples of advanced sync rules for this connecto
 ----
 
 [discrete#connectors-network-drive-indexing-files-and-folders-directly-inside-a-set-of-folders]
-===== Indexing files and folders directly inside a set of folders
+======= Indexing files and folders directly inside a set of folders
 
 [source,json]
 ----
@@ -190,7 +190,7 @@ The following sections provide examples of advanced sync rules for this connecto
 ----
 
 [discrete#connectors-network-drive-excluding-files-and-folders-that-match-a-pattern]
-===== Excluding files and folders that match a pattern
+======= Excluding files and folders that match a pattern
 
 [source,json]
 ----
@@ -202,24 +202,24 @@ The following sections provide examples of advanced sync rules for this connecto
 ----
 
 [discrete#connectors-network-drive-content-extraction]
-=== Content extraction
+===== Content extraction
 
 See <<connectors-content-extraction>>.
 
 [discrete#connectors-network-drive-known-issues]
-=== Known issues
+===== Known issues
 
 There are no known issues for this connector.
 
 See <<connectors-known-issues>> for any issues affecting all connectors.
 
 [discrete#connectors-network-drive-troubleshooting]
-=== Troubleshooting
+===== Troubleshooting
 
 See <<connectors-troubleshooting>>.
 
 [discrete#connectors-network-drive-security]
-=== Security
+===== Security
 
 See <<connectors-security>>.
 
@@ -232,7 +232,7 @@ See <<connectors-security>>.
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#connectors-network-drive-connector-client-reference]
-== *Connector client (self-managed)*
+==== *Connector client (self-managed)*
 
 .View *connector client* reference
 
@@ -240,7 +240,7 @@ See <<connectors-security>>.
 ===============
 
 [discrete#connectors-network-drive-client-prerequisites]
-=== Availability and prerequisites
+===== Availability and prerequisites
 
 This connector is available as a self-managed *connector client*.
 This connector client is compatible with Elastic versions *8.6.0+*.
@@ -248,12 +248,12 @@ This connector client is compatible with Elastic versions *8.6.0+*.
 To use this connector, satisfy all <<build-connector,connector client requirements>>.
 
 [discrete#connectors-network-drive-client-usage]
-=== Usage
+===== Usage
 
 To use this connector as a *connector client*, see <<build-connector>>For additional usage operations, see <<connectors-usage>>.
 
 [discrete#connectors-network-drive-client-configuration]
-=== Configuration
+===== Configuration
 
 [TIP]
 ====
@@ -312,12 +312,12 @@ The following options are available:
 Path of CSV file containing user and group SIDs (For Linux Network Drive).
 
 [discrete#connectors-network-drive-client-docker]
-=== Deployment using Docker
+===== Deployment using Docker
 
 include::_connectors-docker-instructions.asciidoc[]
 
 [discrete#connectors-network-drive-client-documents-syncs]
-=== Documents and syncs
+===== Documents and syncs
 
 The connector syncs folders as separate documents in Elasticsearch.
 The following fields will be added for the document type `folder`:
@@ -339,14 +339,14 @@ Otherwise, *all documents* indexed to an Elastic deployment will be visible to *
 ====
 
 [discrete#connectors-network-drive-client-sync-types]
-==== Sync types
+====== Sync types
 
 <<connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
 
 This connector also supports <<connectors-sync-types-incremental,incremental syncs>>.
 
 [discrete#connectors-network-drive-client-dls]
-=== Document level security
+===== Document level security
 
 Document Level Security (DLS) enables you to restrict access to documents based on a user's permissions.
 DLS facilitates the syncing of folder and file permissions, including both user and group level permissions.
@@ -357,18 +357,18 @@ DLS facilitates the syncing of folder and file permissions, including both user 
 ====
 
 [discrete#connectors-network-drive-client-dls-availability]
-==== Availability
+====== Availability
 
 * The Network Drive connector client offers DLS support for both Windows and Linux network drives.
 * To fetch users and groups in a Windows network drive, account credentials added in the connector configuration should have access to the Powershell of the Windows Server where the network drive is hosted.
 
 [discrete#connectors-network-drive-client-sync-rules]
-=== Sync rules
+===== Sync rules
 
 <<sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
 
 [discrete#connectors-network-drive-client-sync-rules-advanced]
-==== Advanced sync rules
+====== Advanced sync rules
 
 [NOTE]
 ====
@@ -385,7 +385,7 @@ Advanced sync rules for this connector use *glob patterns*.
 The following sections provide examples of advanced sync rules for this connector.
 
 [discrete#connectors-network-drive-client-indexing-files-and-folders-recursively-within-folders]
-===== Indexing files and folders recursively within folders
+======= Indexing files and folders recursively within folders
 
 [source,json]
 ----
@@ -400,7 +400,7 @@ The following sections provide examples of advanced sync rules for this connecto
 ----
 
 [discrete#connectors-network-drive-client-indexing-files-and-folders-directly-inside-folder]
-===== Indexing files and folders directly inside folder
+======= Indexing files and folders directly inside folder
 
 [source,json]
 ----
@@ -412,7 +412,7 @@ The following sections provide examples of advanced sync rules for this connecto
 ----
 
 [discrete#connectors-network-drive-client-indexing-files-and-folders-directly-inside-a-set-of-folders]
-===== Indexing files and folders directly inside a set of folders
+======= Indexing files and folders directly inside a set of folders
 
 [source,json]
 ----
@@ -424,7 +424,7 @@ The following sections provide examples of advanced sync rules for this connecto
 ----
 
 [discrete#connectors-network-drive-client-excluding-files-and-folders-that-match-a-pattern]
-===== Excluding files and folders that match a pattern
+======= Excluding files and folders that match a pattern
 
 [source,json]
 ----
@@ -436,12 +436,12 @@ The following sections provide examples of advanced sync rules for this connecto
 ----
 
 [discrete#connectors-network-drive-client-content-extraction]
-=== Content extraction
+===== Content extraction
 
 See <<connectors-content-extraction>>.
 
 [discrete#connectors-network-drive-client-tests]
-=== End-to-end tests
+===== End-to-end tests
 
 The connector framework enables operators to run functional tests against a real data source.
 Refer to <<build-connector-testing>> for more details.
@@ -462,19 +462,19 @@ make ftest NAME=network_drive DATA_SIZE=small
 ----
 
 [discrete#connectors-network-drive-client-known-issues]
-=== Known issues
+===== Known issues
 
 There are no known issues for this connector.
 
 See <<connectors-known-issues>> for any issues affecting all connectors.
 
 [discrete#connectors-network-drive-client-troubleshooting]
-=== Troubleshooting
+===== Troubleshooting
 
 See <<connectors-troubleshooting>>.
 
 [discrete#connectors-network-drive-client-security]
-=== Security
+===== Security
 
 See <<connectors-security>>.
 

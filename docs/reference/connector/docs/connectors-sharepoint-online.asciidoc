@@ -1,5 +1,5 @@
 [#connectors-sharepoint-online]
-= Elastic SharePoint Online connector reference
+=== Elastic SharePoint Online connector reference
 ++++
 <titleabbrev>SharePoint Online</titleabbrev>
 ++++
@@ -28,7 +28,7 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#connectors-sharepoint-online-native-connector-reference]
-== *Native connector (Elastic Cloud)*
+==== *Native connector (Elastic Cloud)*
 
 .View *native connector* reference
 
@@ -36,29 +36,29 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 ===============
 
 [discrete#connectors-sharepoint-online-availability-prerequisites]
-=== Availability and prerequisites
+===== Availability and prerequisites
 
 This connector is available as a *native connector* in Elastic versions *8.9.0 and later*.
 To use this connector natively in Elastic Cloud, satisfy all <<native-connectors,native connector requirements>>.
 
 [NOTE]
 ====
-This connector requires a <<license-management,subscription>>.
+This connector requires a subscription.
 View the requirements for this feature under the *Elastic Search* section of the https://www.elastic.co/subscriptions[Elastic Stack subscriptions^] page.
 ====
 
 [discrete#connectors-sharepoint-online-usage]
-=== Usage
+===== Usage
 
 To use this connector as a *native connector*, see <<native-connectors>>.
 
 For additional operations, see <<connectors-usage>>.
 
 [discrete#connectors-sharepoint-online-sharepoint-prerequisites]
-=== SharePoint prerequisites
+===== SharePoint prerequisites
 
 [discrete#connectors-sharepoint-online-oauth-app-create]
-==== Create SharePoint OAuth app
+====== Create SharePoint OAuth app
 
 Before you can configure the connector, you must create an **OAuth App** in the SharePoint Online platform.
 Your connector will authenticate to SharePoint as the registered OAuth application/client.
@@ -110,7 +110,7 @@ When entities are not available via the Graph API the connector falls back to us
 ====
 
 [discrete#connectors-sharepoint-online-oauth-app-permissions]
-==== SharePoint permissions
+====== SharePoint permissions
 
 Refer to the following documentation for setting https://learn.microsoft.com/en-us/sharepoint/dev/solution-guidance/security-apponly-azureacs[SharePoint permissions^].
 
@@ -147,12 +147,12 @@ Due to the way the Graph API is designed, these permissions are "all or nothing"
 ****
 
 [discrete#connectors-sharepoint-online-compatability]
-=== Compatibility
+===== Compatibility
 
 This connector is compatible with SharePoint Online.
 
 [discrete#connectors-sharepoint-online-configuration]
-=== Configuration
+===== Configuration
 
 Use the following configuration fields to set up the connector:
 
@@ -214,7 +214,7 @@ Note that these settings may increase sync times.
 ====
 
 [discrete#connectors-sharepoint-online-documents-syncs]
-=== Documents and syncs
+===== Documents and syncs
 
 The connector syncs the following SharePoint object types:
 
@@ -239,18 +239,18 @@ We recommend setting `isHtmlString` to *True* for all Web Parts that need to be 
 ====
 
 [discrete#connectors-sharepoint-online-documents-syncs-limitations]
-==== Limitations
+====== Limitations
 
 * The connector does not currently sync content from Teams-connected sites.
 
 [discrete#connectors-sharepoint-online-sync-rules]
-=== Sync rules
+===== Sync rules
 
 _Basic_ sync rules are identical for all connectors and are available by default.
 For more information read <<sync-rules-types>>.
 
 [discrete#connectors-sharepoint-online-sync-rules-advanced]
-==== Advanced sync rules
+====== Advanced sync rules
 
 [NOTE]
 ====
@@ -274,7 +274,7 @@ Example:
 This rule will not extract content of any drive items (files in document libraries) that haven't been modified for 60 days or more.
 
 [discrete#connectors-sharepoint-online-sync-rules-limitations]
-===== Limitations of sync rules with incremental syncs
+======= Limitations of sync rules with incremental syncs
 
 Changing sync rules after Sharepoint Online content has already been indexed can bring unexpected results, when using <<connectors-sync-types-incremental,incremental syncs>>.
 
@@ -285,7 +285,7 @@ Incremental syncs ensure _updates_ from 3rd-party system, but do not modify exis
 Let's take a look at several examples where incremental syncs might lead to inconsistent data on your index.
 
 [discrete#connectors-sharepoint-online-sync-rules-limitations-restrictive-added]
-====== Example: Restrictive basic sync rule added after a full sync
+======== Example: Restrictive basic sync rule added after a full sync
 
 Imagine your Sharepoint Online drive contains the following drive items:
 
@@ -319,7 +319,7 @@ If no files were changed, incremental sync will not receive information about ch
 After a *full sync*, the index will be updated and files that are excluded by sync rules will be removed.
 
 [discrete#connectors-sharepoint-online-sync-rules-limitations-restrictive-removed]
-====== Example: Restrictive basic sync rules removed after a full sync
+======== Example: Restrictive basic sync rules removed after a full sync
 
 Imagine that Sharepoint Online drive has the following drive items:
 
@@ -351,7 +351,7 @@ Afterwards, we can remove the filtering rule and run an incremental sync. If no 
 Only a *full sync* will include the items previously ignored by the sync rule.
 
 [discrete#connectors-sharepoint-online-sync-rules-limitations-restrictive-changed]
-====== Example: Advanced sync rules edge case
+======== Example: Advanced sync rules edge case
 
 Advanced sync rules can be applied to limit which documents will have content extracted.
 For example, it's possible to set a rule so that documents older than 180 days won't have content extracted.
@@ -400,7 +400,7 @@ POST <INDEX_NAME>/_update_by_query?conflicts=proceed
 ----
 
 [discrete#connectors-sharepoint-online-dls]
-=== Document-level security
+===== Document-level security
 
 Document-level security (DLS) enables you to restrict access to documents based on a user's permissions.
 This feature is available by default for this connector.
@@ -413,10 +413,10 @@ Refer to <<dls-e2e-guide,DLS in Search Applications>> to learn how to ingest dat
 ====
 
 [discrete#connectors-sharepoint-online-content-extraction]
-=== Content extraction
+===== Content extraction
 
 [discrete#connectors-sharepoint-online-content-extraction-pipeline]
-==== Default content extraction
+====== Default content extraction
 
 The default content extraction service is powered by the Enterprise Search default ingest pipeline.
 (See {ref}/ingest-pipeline-search.html[Ingest pipelines for Search indices].)
@@ -424,7 +424,7 @@ The default content extraction service is powered by the Enterprise Search defau
 See <<connectors-content-extraction>>.
 
 [discrete#connectors-sharepoint-online-content-extraction-local]
-==== Local content extraction (for large files)
+====== Local content extraction (for large files)
 
 The SharePoint Online connector client supports large file content extraction (> *100MB*).
 This requires:
@@ -435,7 +435,7 @@ This requires:
 Refer to <<connectors-content-extraction-local, local content extraction>> for more information.
 
 [discrete#connectors-sharepoint-online-known-issues]
-=== Known issues
+===== Known issues
 
 * *Documents failing to sync due to SharePoint file and folder limits*
 +
@@ -469,12 +469,12 @@ Drive Item documents that were deleted between incremental syncs may not be dete
 Refer to <<connectors-known-issues>> for a list of known issues for all connectors.
 
 [discrete#connectors-sharepoint-online-troubleshooting]
-=== Troubleshooting
+===== Troubleshooting
 
 See <<connectors-troubleshooting>>.
 
 [discrete#connectors-sharepoint-onlinesecurity]
-=== Security
+===== Security
 
 See <<connectors-security>>.
 
@@ -486,7 +486,7 @@ See <<connectors-security>>.
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#connectors-sharepoint-online-connector-client-reference]
-== *Connector client (self-managed)*
+==== *Connector client (self-managed)*
 
 .View *connector client* reference
 
@@ -494,28 +494,28 @@ See <<connectors-security>>.
 ===============
 
 [discrete#connectors-sharepoint-online-client-availability-prerequisites]
-=== Availability and prerequisites
+===== Availability and prerequisites
 
 This connector is available as a self-managed *connector client*.
 To use this connector as a connector client, satisfy all <<build-connector,connector client requirements>>.
 
 [NOTE]
 ====
-This connector requires a <<license-management,subscription>>.
+This connector requires a subscription.
 View the requirements for this feature under the *Elastic Search* section of the https://www.elastic.co/subscriptions[Elastic Stack subscriptions^] page.
 ====
 
 [discrete#connectors-sharepoint-online-client-usage]
-=== Usage
+===== Usage
 
 To use this connector as a *connector client*, see <<build-connector>>
 For additional operations, see <<connectors-usage>>.
 
 [discrete#connectors-sharepoint-online-client-sharepoint-prerequisites]
-=== SharePoint prerequisites
+===== SharePoint prerequisites
 
 [discrete#connectors-sharepoint-online-client-oauth-app-create]
-==== Create SharePoint OAuth app
+====== Create SharePoint OAuth app
 
 Before you can configure the connector, you must create an **OAuth App** in the SharePoint Online platform.
 Your connector will authenticate to SharePoint as the registered OAuth application/client.
@@ -567,7 +567,7 @@ When entities are not available via the Graph API the connector falls back to us
 ====
 
 [discrete#connectors-sharepoint-online-client-oauth-app-permissions]
-==== SharePoint permissions
+====== SharePoint permissions
 
 Refer to the following documentation for setting https://learn.microsoft.com/en-us/sharepoint/dev/solution-guidance/security-apponly-azureacs[SharePoint permissions^].
 
@@ -604,12 +604,12 @@ Due to the way the Graph API is designed, these permissions are "all or nothing"
 ****
 
 [discrete#connectors-sharepoint-online-client-compatability]
-=== Compatibility
+===== Compatibility
 
 This connector is compatible with SharePoint Online.
 
 [discrete#connectors-sharepoint-online-client-configuration]
-=== Configuration
+===== Configuration
 
 [TIP]
 ====
@@ -690,12 +690,12 @@ Note that these settings may increase sync times.
 ====
 
 [discrete#connectors-sharepoint-online-client-docker]
-=== Deployment using Docker
+===== Deployment using Docker
 
 include::_connectors-docker-instructions.asciidoc[]
 
 [discrete#connectors-sharepoint-online-client-documents-syncs]
-=== Documents and syncs
+===== Documents and syncs
 
 The connector syncs the following SharePoint object types:
 
@@ -720,18 +720,18 @@ We recommend setting `isHtmlString` to *True* for all Web Parts that need to be 
 ====
 
 [discrete#connectors-sharepoint-online-client-documents-syncs-limitations]
-==== Limitations
+====== Limitations
 
 * The connector does not currently sync content from Teams-connected sites.
 
 [discrete#connectors-sharepoint-online-client-sync-rules]
-=== Sync rules
+===== Sync rules
 
 _Basic_ sync rules are identical for all connectors and are available by default.
 For more information read <<sync-rules-types>>.
 
 [discrete#connectors-sharepoint-online-client-sync-rules-advanced]
-==== Advanced sync rules
+====== Advanced sync rules
 
 [NOTE]
 ====
@@ -756,7 +756,7 @@ Example:
 This rule will not extract content of any drive items (files in document libraries) that haven't been modified for 60 days or more.
 
 [discrete#connectors-sharepoint-online-client-sync-rules-limitations]
-===== Limitations of sync rules with incremental syncs
+======= Limitations of sync rules with incremental syncs
 
 Changing sync rules after Sharepoint Online content has already been indexed can bring unexpected results, when using <<connectors-sync-types-incremental,incremental syncs>>.
 
@@ -767,7 +767,7 @@ Incremental syncs ensure _updates_ from 3rd-party system, but do not modify exis
 Let's take a look at several examples where incremental syncs might lead to inconsistent data on your index.
 
 [discrete#connectors-sharepoint-online-client-sync-rules-limitations-restrictive-added]
-====== Example: Restrictive basic sync rule added after a full sync
+======== Example: Restrictive basic sync rule added after a full sync
 
 Imagine your Sharepoint Online drive contains the following drive items:
 
@@ -801,7 +801,7 @@ If no files were changed, incremental sync will not receive information about ch
 After a *full sync*, the index will be updated and files that are excluded by sync rules will be removed.
 
 [discrete#connectors-sharepoint-online-client-sync-rules-limitations-restrictive-removed]
-====== Example: Restrictive basic sync rules removed after a full sync
+======== Example: Restrictive basic sync rules removed after a full sync
 
 Imagine that Sharepoint Online drive has the following drive items:
 
@@ -833,7 +833,7 @@ Afterwards, we can remove the filtering rule and run an incremental sync. If no 
 Only a *full sync* will include the items previously ignored by the sync rule.
 
 [discrete#connectors-sharepoint-online-client-sync-rules-limitations-restrictive-changed]
-====== Example: Advanced sync rules edge case
+======== Example: Advanced sync rules edge case
 
 Advanced sync rules can be applied to limit which documents will have content extracted.
 For example, it's possible to set a rule so that documents older than 180 days won't have content extracted.
@@ -882,7 +882,7 @@ POST <INDEX_NAME>/_update_by_query?conflicts=proceed
 ----
 
 [discrete#connectors-sharepoint-online-client-dls]
-=== Document-level security
+===== Document-level security
 
 Document-level security (DLS) enables you to restrict access to documents based on a user's permissions.
 This feature is available by default for this connector.
@@ -895,10 +895,10 @@ Refer to <<dls-e2e-guide,DLS in Search Applications>> to learn how to ingest dat
 ====
 
 [discrete#connectors-sharepoint-online-client-content-extraction]
-=== Content extraction
+===== Content extraction
 
 [discrete#connectors-sharepoint-online-client-content-extraction-pipeline]
-==== Default content extraction
+====== Default content extraction
 
 The default content extraction service is powered by the Enterprise Search default ingest pipeline.
 (See {ref}/ingest-pipeline-search.html[Ingest pipelines for Search indices].)
@@ -906,7 +906,7 @@ The default content extraction service is powered by the Enterprise Search defau
 See <<connectors-content-extraction>>.
 
 [discrete#connectors-sharepoint-online-client-content-extraction-local]
-==== Local content extraction (for large files)
+====== Local content extraction (for large files)
 
 The SharePoint Online connector client supports large file content extraction (> *100MB*).
 This requires:
@@ -917,7 +917,7 @@ This requires:
 Refer to <<connectors-content-extraction-local, local content extraction>> for more information.
 
 [discrete#connectors-sharepoint-online-client-testing]
-=== End-to-end testing
+===== End-to-end testing
 
 The connector framework enables operators to run functional tests against a real data source.
 Refer to <<build-connector-testing>> for more details.
@@ -937,7 +937,7 @@ make ftest NAME=sharepoint_online DATA_SIZE=small
 ----
 
 [discrete#connectors-sharepoint-online-client-known-issues]
-=== Known issues
+===== Known issues
 
 * *Documents failing to sync due to SharePoint file and folder limits*
 +
@@ -971,12 +971,12 @@ Drive Item documents that were deleted between incremental syncs may not be dete
 Refer to <<connectors-known-issues>> for a list of known issues for all connectors.
 
 [discrete#connectors-sharepoint-online-client-troubleshooting]
-=== Troubleshooting
+===== Troubleshooting
 
 See <<connectors-troubleshooting>>.
 
 [discrete#connectors-sharepoint-online-client-security]
-=== Security
+===== Security
 
 See <<connectors-security>>.
 

@@ -1,5 +1,5 @@
 [#connectors-ms-sql]
-= Elastic Microsoft SQL connector reference
+=== Elastic Microsoft SQL connector reference
 ++++
 <titleabbrev>Microsoft SQL</titleabbrev>
 ++++
@@ -22,7 +22,7 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#connectors-ms-sql-native-connector-reference]
-== *Native connector (Elastic Cloud)*
+==== *Native connector (Elastic Cloud)*
 
 .View *native connector* reference
 
@@ -30,17 +30,17 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 ===============
 
 [discrete#connectors-ms-sql-availability-prerequisites]
-=== Availability and prerequisites
+===== Availability and prerequisites
 
 This connector is available as a *native connector* in Elastic versions *8.8.0 and later*.
 To use this connector natively in Elastic Cloud, satisfy all <<native-connectors-prerequisites,native connector requirements>>.
 
 [discrete#connectors-{service_type}-create-native-connector]
-=== Create a {service-name} connector
+===== Create a {service-name} connector
 include::_connectors-create-native.asciidoc[]
 
 [discrete#connectors-ms-sql-usage]
-=== Usage
+===== Usage
 
 To use this connector as a *native connector*, use the *Connector* workflow.
 See <<native-connectors>>.
@@ -50,7 +50,7 @@ Users require the `sysadmin` server role.
 For additional operations, see <<connectors-usage>>.
 
 [discrete#connectors-ms-sql-compatability]
-=== Compatibility
+===== Compatibility
 
 The following are compatible with Elastic connector frameworks:
 
@@ -59,7 +59,7 @@ The following are compatible with Elastic connector frameworks:
 * Amazon RDS for SQL Server
 
 [discrete#connectors-ms-sql-configuration]
-=== Configuration
+===== Configuration
 
 The following configuration fields are required to set up the connector:
 
@@ -135,7 +135,7 @@ Toggle to enable host validation.
 Default value is `False`.
 
 [discrete#connectors-ms-sql-documents-syncs]
-=== Documents and syncs
+===== Documents and syncs
 
 * Tables with no primary key defined are skipped.
 * If the `last_user_update` of `sys.dm_db_index_usage_stats` table is not available for a specific table and database then all data in that table will be synced.
@@ -148,13 +148,13 @@ Default value is `False`.
 ====
 
 [discrete#connectors-ms-sql-sync-rules]
-=== Sync rules
+===== Sync rules
 
 <<sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
 For more information read <<sync-rules-types,sync rules>>.
 
 [discrete#connectors-ms-sql-sync-rules-advanced]
-==== Advanced sync rules
+====== Advanced sync rules
 
 This connector supports <<sync-rules-advanced,advanced sync rules>> for remote filtering.
 These rules cover complex query-and-filter scenarios that cannot be expressed with basic sync rules.
@@ -194,7 +194,7 @@ Here are a few examples of advanced sync rules for this connector.
 ====
 
 [discrete#connectors-ms-sql-sync-rules-advanced-queries]
-===== Example: Two queries
+======= Example: Two queries
 
 These rules fetch all records from both the `employee` and `customer` tables. The data from these tables will be synced separately to Elasticsearch.
 
@@ -217,7 +217,7 @@ These rules fetch all records from both the `employee` and `customer` tables. Th
 ----
 
 [discrete#connectors-ms-sql-sync-rules-example-one-where]
-===== Example: One WHERE query
+======= Example: One WHERE query
 
 This rule fetches only the records from the `employee` table where the `emp_id` is greater than 5. Only these filtered records will be synced to Elasticsearch.
 
@@ -232,7 +232,7 @@ This rule fetches only the records from the `employee` table where the `emp_id` 
 ----
 
 [discrete#connectors-ms-sql-sync-rules-example-one-join]
-===== Example: One JOIN query
+======= Example: One JOIN query
 
 This rule fetches records by performing an INNER JOIN between the `employee` and `customer` tables on the condition that the `emp_id` in `employee` matches the `c_id` in `customer`. The result of this combined data will be synced to Elasticsearch.
 
@@ -254,18 +254,18 @@ This can also happen if the configuration specifies `*` to fetch all tables whil
 ====
 
 [discrete#connectors-ms-sql-known-issues]
-=== Known issues
+===== Known issues
 
 There are no known issues for this connector.
 See <<connectors-known-issues>> for any issues affecting all connectors.
 
 [discrete#connectors-ms-sql-troubleshooting]
-=== Troubleshooting
+===== Troubleshooting
 
 See <<connectors-troubleshooting>>.
 
 [discrete#connectors-ms-sql-security]
-=== Security
+===== Security
 
 See <<connectors-security>>.
 
@@ -286,7 +286,7 @@ View {connectors-python}/connectors/sources/mssql.py[additional code specific to
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#connectors-ms-sql-connector-client-reference]
-== *Connector client (self-managed)*
+==== *Connector client (self-managed)*
 
 .View *connector client* reference
 
@@ -294,17 +294,17 @@ View {connectors-python}/connectors/sources/mssql.py[additional code specific to
 ===============
 
 [discrete#connectors-ms-sql-client-availability-prerequisites]
-=== Availability and prerequisites
+===== Availability and prerequisites
 
 This connector is available as a self-managed *connector client*.
 To use this connector, satisfy all <<build-connector,connector client requirements>>.
 
 [discrete#connectors-{service_type}-create-connector-client]
-=== Create a {service-name} connector
+===== Create a {service-name} connector
 include::_connectors-create-client.asciidoc[]
 
 [discrete#connectors-ms-sql-client-usage]
-=== Usage
+===== Usage
 
 Users require the `sysadmin` server role.
 
@@ -312,7 +312,7 @@ To use this connector as a *connector client*, see <<build-connector>>
 For additional usage operations, see <<connectors-usage>>.
 
 [discrete#connectors-ms-sql-client-compatability]
-=== Compatibility
+===== Compatibility
 
 The following are compatible with Elastic connector frameworks:
 
@@ -321,7 +321,7 @@ The following are compatible with Elastic connector frameworks:
 * Amazon RDS for SQL Server
 
 [discrete#connectors-ms-sql-client-configuration]
-=== Configuration
+===== Configuration
 
 [TIP]
 ====
@@ -413,12 +413,12 @@ Host validation enablement.
 Default value is `False`.
 
 [discrete#connectors-ms-sql-client-docker]
-=== Deployment using Docker
+===== Deployment using Docker
 
 include::_connectors-docker-instructions.asciidoc[]
 
 [discrete#connectors-ms-sql-client-documents-syncs]
-=== Documents and syncs
+===== Documents and syncs
 
 * Tables with no primary key defined are skipped.
 * If the `last_user_update` of `sys.dm_db_index_usage_stats` table is not available for a specific table and database then all data in that table will be synced.
@@ -431,13 +431,13 @@ include::_connectors-docker-instructions.asciidoc[]
 ====
 
 [discrete#connectors-ms-sql-client-sync-rules]
-=== Sync rules
+===== Sync rules
 
 <<sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
 For more information read <<sync-rules-types,sync rules>>.
 
 [discrete#connectors-ms-sql-client-sync-rules-advanced]
-==== Advanced sync rules
+====== Advanced sync rules
 
 This connector supports <<sync-rules-advanced,advanced sync rules>> for remote filtering.
 These rules cover complex query-and-filter scenarios that cannot be expressed with basic sync rules.
@@ -477,7 +477,7 @@ Here are a few examples of advanced sync rules for this connector.
 ====
 
 [discrete#connectors-ms-sql-client-sync-rules-advanced-queries]
-===== Example: Two queries
+======= Example: Two queries
 
 These rules fetch all records from both the `employee` and `customer` tables. The data from these tables will be synced separately to Elasticsearch.
 
@@ -500,7 +500,7 @@ These rules fetch all records from both the `employee` and `customer` tables. Th
 ----
 
 [discrete#connectors-ms-sql-client-sync-rules-example-one-where]
-===== Example: One WHERE query
+======= Example: One WHERE query
 
 This rule fetches only the records from the `employee` table where the `emp_id` is greater than 5. Only these filtered records will be synced to Elasticsearch.
 
@@ -515,7 +515,7 @@ This rule fetches only the records from the `employee` table where the `emp_id` 
 ----
 
 [discrete#connectors-ms-sql-client-sync-rules-example-one-join]
-===== Example: One JOIN query
+======= Example: One JOIN query
 
 This rule fetches records by performing an INNER JOIN between the `employee` and `customer` tables on the condition that the `emp_id` in `employee` matches the `c_id` in `customer`. The result of this combined data will be synced to Elasticsearch.
 
@@ -537,7 +537,7 @@ This can also happen if the configuration specifies `*` to fetch all tables whil
 ====
 
 [discrete#connectors-ms-sql-client-client-operations-testing]
-=== End-to-end testing
+===== End-to-end testing
 
 The connector framework enables operators to run functional tests against a real data source.
 Refer to <<build-connector-testing>> for more details.
@@ -557,18 +557,18 @@ make ftest NAME=mssql DATA_SIZE=small
 ----
 
 [discrete#connectors-ms-sql-client-known-issues]
-=== Known issues
+===== Known issues
 
 There are no known issues for this connector.
 See <<connectors-known-issues>> for any issues affecting all connectors.
 
 [discrete#connectors-ms-sql-client-troubleshooting]
-=== Troubleshooting
+===== Troubleshooting
 
 See <<connectors-troubleshooting>>.
 
 [discrete#connectors-ms-sql-client-security]
-=== Security
+===== Security
 
 See <<connectors-security>>.
 

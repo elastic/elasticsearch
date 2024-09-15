@@ -1,5 +1,5 @@
 [#dls-e2e-guide]
-= Leverage document-level security from connectors in Search Applications
+=== Leverage document-level security from connectors in Search Applications
 ++++
 <titleabbrev>DLS in Search Applications</titleabbrev>
 ++++
@@ -8,16 +8,17 @@ This guide explains how to ensure document-level security (DLS) for documents in
 
 In this example we will:
 
-* Set up the <<connectors-sharepoint-online, SharePoint Online connector>> to ingest data from SharePoint Online
+* Set up the SharePoint Online connector to ingest data from SharePoint Online
 * Set up a *Search Application* using the Elasticsearch index created by the SharePoint Online connector
 * Create Elasticsearch *API keys* with DLS and workflow restrictions to query your Search Application
 * Build a search experience where authenticated users can search over the data ingested by connectors
 
 [discrete#dls-e2e-guide-connector-setup]
-== Set up connector to sync data with access control
+==== Set up connector to sync data with access control
 
 You can run SharePoint Online connector in Elastic Cloud (native) or on a self-managed deployment (connector client).
-Refer to <<connectors-sharepoint-online, SharePoint Online connector>> to learn how to set up the SharePoint Online connector and enable DLS.
+// Refer to <<connectors-sharepoint-online, SharePoint Online connector>> to learn how to set up the SharePoint Online connector and enable DLS.
+// TODO
 
 To run the connector client, you'll need to run the *connectors service* in addition to your Elastic deployment.
 Refer to <<build-connector>> for details on how to set up a connector client and run the <<deploy-connector-client,connectors service>> separately.
@@ -35,7 +36,7 @@ Refer to {enterprise-search-ref}/dls.html[document level security] for a list of
 ====
 
 [discrete#dls-e2e-guide-sharepoint-data-overview]
-== Elasticsearch indices overview
+==== Elasticsearch indices overview
 
 When the SharePoint Online connector is set up and you've started syncing content, the connector will create two separate Elasticsearch indices:
 
@@ -47,7 +48,7 @@ For example, an index named `search-sharepoint` would have the ACL filter index 
 We'll use this index to create Elasticsearch API keys that control access to the content index.
 
 [discrete#dls-e2e-guide-search-application-create]
-== Create a Search Application
+==== Create a Search Application
 
 To build our search experience for our SharePoint Online data, we need to create a Search Application.
 
@@ -62,7 +63,7 @@ Follow these steps to create a Search Application in the Kibana UI:
 Alternatively, you can use the {ref}/put-search-application.html[Put Search Application] API.
 
 [discrete#dls-e2e-guide-elasticsearch-api-keys-setup]
-== Create Elasticsearch API keys
+==== Create Elasticsearch API keys
 
 Next we need to create Elasticsearch API keys to restrict queries to the search application.
 These restrictions will ensure that users can only query documents they have access to.
@@ -209,7 +210,7 @@ The response will look like this:
 The `api_key` field contains the API key that can be used to query the Search Application with the appropriate DLS restrictions.
 
 [discrete#dls-e2e-guide-elasticsearch-querying-multiple-indices]
-=== Querying multiple indices
+===== Querying multiple indices
 
 This section describes how to generate an API key to query a search application that contains multiple indices with documents ingested by connectors with DLS.
 
@@ -373,7 +374,7 @@ createApiKey({
 NOTE: The example combines multiple identities into a single role descriptor. This is because an Elasticsearch API key can use role restrictions only if it has a *single role descriptor*.
 
 [discrete#dls-e2e-guide-elasticsearch-api-keys-frontend-implementation]
-== Implementation in your frontend application
+==== Implementation in your frontend application
 
 If you're building a frontend application, use the `encoded` field to pass the API key to the frontend.
 Your app can then use the API key to query the search application.
@@ -406,7 +407,7 @@ We recommend always setting an `expiration` time when creating an Elasticsearch 
 ====
 
 [discrete#dls-e2e-guide-workflow-guidance]
-== Workflow guidance
+==== Workflow guidance
 
 We recommend relying on the connector access control sync to automate and keep documents in sync with changes to the original content source's user permissions.
 
@@ -418,13 +419,13 @@ The API key can be invalidated using the {ref}/security-api-invalidate-api-key.h
 Additionally, if the user's permission changes, you'll need to update or recreate the Elasticsearch API key.
 
 [discrete#dls-e2e-guide-next-steps]
-== Next steps
+==== Next steps
 
 Learn how to use the Search Application client to query your Search Application.
 See {ref}/search-application-client.html[Search Applications client].
 
 [discrete#dls-e2e-guide-learn-more]
-== Learn more
+==== Learn more
 
 * <<connectors,Elastic connectors>>
 * <<dls,Document level security (DLS)>>

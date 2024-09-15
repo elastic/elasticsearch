@@ -1,5 +1,5 @@
 [#connectors-sync-types]
-= Content syncs
+== Content syncs
 
 Elastic connectors have two types of content syncs:
 
@@ -7,7 +7,7 @@ Elastic connectors have two types of content syncs:
 * <<connectors-sync-types-incremental>>
 
 [discrete#connectors-sync-types-full]
-== Full syncs
+=== Full syncs
 
 [NOTE]
 ====
@@ -25,7 +25,7 @@ A full sync is available for all connectors.
 You can <<connectors-usage-syncs-recurring, schedule>> or <<connectors-usage-syncs-manual, manually trigger>> a full sync job.
 
 [discrete#connectors-sync-types-incremental]
-== Incremental syncs
+=== Incremental syncs
 
 An incremental sync only syncs data changes since the last full or incremental sync.
 
@@ -35,7 +35,7 @@ Otherwise the incremental sync will fail.
 You can <<connectors-usage-syncs-recurring, schedule>> or <<connectors-usage-syncs-manual, manually trigger>> an incremental sync job.
 
 [discrete#connectors-sync-types-incremental-performance]
-=== Incremental sync performance
+==== Incremental sync performance
 
 During an incremental sync your connector will still _fetch_ all data from the third-party data source.
 If data contains timestamps, the connector framework compares document ids and timestamps.
@@ -52,12 +52,12 @@ However, a fast, accessible third-party data source that stores huge amounts of 
 
 [NOTE]
 ====
-Incremental syncs for the <<connectors-sharepoint-online, SharePoint Online>> connector use specific logic.
+Incremental syncs for the SharePoint Online connector use specific logic.
 All other connectors use the same shared connector framework logic for incremental syncs.
 ====
 
 [discrete#connectors-sync-types-incremental-supported]
-=== Incremental sync availability
+==== Incremental sync availability
 
 Incremental syncs are available for the following connectors:
 

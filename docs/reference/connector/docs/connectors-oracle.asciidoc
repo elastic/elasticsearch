@@ -1,5 +1,5 @@
 [#connectors-oracle]
-= Elastic Oracle connector reference
+=== Elastic Oracle connector reference
 ++++
 <titleabbrev>Oracle</titleabbrev>
 ++++
@@ -14,31 +14,31 @@
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#connectors-oracle-native-connector-reference]
-== *Native connector reference (managed service)*
+==== *Native connector reference (managed service)*
 
 .View reference for the *native connector reference (managed service)*.
 [%collapsible]
 ===============
 
 [discrete#connectors-oracle-availability-prerequisites]
-=== Availability and prerequisites
+===== Availability and prerequisites
 
 This connector is available natively in Elastic Cloud as of *8.12.0*.
 To use this connector, satisfy all <<native-connectors, native connector requirements>>.
 
 [discrete#connectors-oracle-create-native-connector]
-=== Create a {service-name} connector
+===== Create a {service-name} connector
 include::_connectors-create-native.asciidoc[]
 
 [discrete#connectors-oracle-usage]
-=== Usage
+===== Usage
 
 To use this connector as a *native connector*, see <<native-connectors>>.
 
 The database user requires `CONNECT` and `DBA` privileges and must be the owner of the tables to be indexed.
 
 [discrete#connectors-oracle-usage-secure-connection]
-==== Secure connection
+====== Secure connection
 
 To set up a secure connection the Oracle service must be installed on the system where the connector is running.
 
@@ -79,12 +79,12 @@ Oracle docs: https://docs.oracle.com/database/121/DBSEG/asossl.htm#DBSEG070.
 For additional operations, see <<connectors-usage>>.
 
 [discrete#connectors-oracle-compatability]
-=== Compatibility
+===== Compatibility
 
 This connector is compatible with Oracle Database versions *18c*, *19c* and *21c*.
 
 [discrete#connectors-oracle-configuration]
-=== Configuration
+===== Configuration
 
 Use the following configuration fields to set up the connector:
 
@@ -118,7 +118,7 @@ Examples:
 * `*`
 
 [discrete#connectors-oracle-documents-syncs]
-=== Documents and syncs
+===== Documents and syncs
 
 * Tables with no primary key defined are skipped.
 * If the table's system change number (SCN) value is not between the `min(SCN)` and `max(SCN)` values of the `SMON_SCN_TIME` table, the connector will not be able to retrieve the most recently updated time.
@@ -134,7 +134,7 @@ Examples:
 ====
 
 [discrete#connectors-oracle-sync-rules]
-=== Sync rules
+===== Sync rules
 
 <<sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
 
@@ -142,24 +142,24 @@ Advanced sync rules are not available for this connector in the present version.
 Currently, filtering is controlled by ingest pipelines.
 
 [discrete#connectors-oracle-known-issues]
-=== Known issues
+===== Known issues
 
 There are no known issues for this connector.
 
 See <<connectors-known-issues>> for any issues affecting all connectors.
 
 [discrete#connectors-oracle-troubleshooting]
-=== Troubleshooting
+===== Troubleshooting
 
 See <<connectors-troubleshooting>>.
 
 [discrete#connectors-oracle-security]
-=== Security
+===== Security
 
 See <<connectors-security>>.
 
 [discrete#connectors-oracle-source]
-=== Framework and source
+===== Framework and source
 
 This connector is built with the {connectors-python}[Elastic connector framework^].
 
@@ -177,32 +177,32 @@ View {connectors-python}/connectors/sources/oracle.py[additional code specific t
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#connectors-oracle-connector-client-reference]
-== *Connector client reference (self-managed)*
+==== *Connector client reference (self-managed)*
 
 .View reference for the *connector client reference (self-managed)*.
 [%collapsible]
 ===============
 
 [discrete#connectors-oracle-client-availability-prerequisites]
-=== Availability and prerequisites
+===== Availability and prerequisites
 
 This connector is available as a self-managed *connector client*.
 This connector client is compatible with Elastic versions *8.6.0+*.
 To use this connector, satisfy all <<build-connector,connector client requirements>>.
 
 [discrete#connectors-oracle-create-connector-client]
-=== Create a {service-name} connector
+===== Create a {service-name} connector
 include::_connectors-create-client.asciidoc[]
 
 [discrete#connectors-oracle-client-usage]
-=== Usage
+===== Usage
 
 To use this connector as a *connector client*, see <<build-connector>>.
 
 The database user requires `CONNECT` and `DBA` privileges and must be the owner of the tables to be indexed.
 
 [discrete#connectors-oracle-client-usage-secure-connection]
-==== Secure connection
+====== Secure connection
 
 To set up a secure connection the Oracle service must be installed on the system where the connector is running.
 
@@ -243,12 +243,12 @@ Oracle docs: https://docs.oracle.com/database/121/DBSEG/asossl.htm#DBSEG070.
 For additional operations, see <<connectors-usage>>.
 
 [discrete#connectors-oracle-client-compatability]
-=== Compatibility
+===== Compatibility
 
 Oracle Database versions *18c*, *19c* and *21c* are compatible with Elastic connector frameworks.
 
 [discrete#connectors-oracle-client-configuration]
-=== Configuration
+===== Configuration
 
 [TIP]
 ====
@@ -312,12 +312,12 @@ Number of retry attempts after failed request to Oracle Database.
 Default value is `3`.
 
 [discrete#connectors-oracle-client-docker]
-=== Deployment using Docker
+===== Deployment using Docker
 
 include::_connectors-docker-instructions.asciidoc[]
 
 [discrete#connectors-oracle-client-documents-syncs]
-=== Documents and syncs
+===== Documents and syncs
 
 * Tables with no primary key defined are skipped.
 * If the table's system change number (SCN) value is not between the `min(SCN)` and `max(SCN)` values of the `SMON_SCN_TIME` table, the connector will not be able to retrieve the most recently updated time.
@@ -333,7 +333,7 @@ include::_connectors-docker-instructions.asciidoc[]
 ====
 
 [discrete#connectors-oracle-client-sync-rules]
-=== Sync rules
+===== Sync rules
 
 <<sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
 
@@ -341,10 +341,10 @@ Advanced sync rules are not available for this connector in the present version.
 Currently, filtering is controlled by ingest pipelines.
 
 [discrete#connectors-oracle-client-operations]
-=== Connector client operations
+===== Connector client operations
 
 [discrete#connectors-oracle-client-operations-testing]
-==== End-to-end testing
+====== End-to-end testing
 
 The connector framework enables operators to run functional tests against a real data source.
 Refer to <<build-connector-testing>> for more details.
@@ -365,24 +365,24 @@ make ftest NAME=oracle DATA_SIZE=small
 ----
 
 [discrete#connectors-oracle-client-known-issues]
-=== Known issues
+===== Known issues
 
 There are no known issues for this connector.
 
 See <<connectors-known-issues>> for any issues affecting all connectors.
 
 [discrete#connectors-oracle-client-troubleshooting]
-=== Troubleshooting
+===== Troubleshooting
 
 See <<connectors-troubleshooting>>.
 
 [discrete#connectors-oracle-client-security]
-=== Security
+===== Security
 
 See <<connectors-security>>.
 
 [discrete#connectors-oracle-client-source]
-=== Framework and source
+===== Framework and source
 
 This connector is built with the {connectors-python}[Elastic connector framework^].
 

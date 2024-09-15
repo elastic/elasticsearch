@@ -1,5 +1,5 @@
 [#connectors-management]
-= Management topics
+== Management topics
 
 Refer to the following sections:
 

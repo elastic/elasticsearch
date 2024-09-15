@@ -1,5 +1,5 @@
 [#connectors-graphql]
-= Elastic GraphQL connector reference
+=== Elastic GraphQL connector reference
 ++++
 <titleabbrev>GraphQL</titleabbrev>
 ++++
@@ -11,7 +11,7 @@
 The Elastic GraphQL connector is written in Python using the https://github.com/elastic/connectors/tree/main[Elastic connector framework]. View the https://github.com/elastic/connectors/blob/main/connectors/sources/graphql.py[source code for this connector].
 
 [discrete#connectors-graphql-connector-availability-and-prerequisites]
-== Availability and prerequisites
+==== Availability and prerequisites
 
 This connector was introduced in Elastic *8.14.0*, available as a *self-managed* connector client.
 
@@ -28,7 +28,7 @@ This connector is in *technical preview* and is subject to change. The design an
 ====
 
 [discrete#connectors-graphql-connector-usage]
-== Usage
+==== Usage
 
 To set up this connector in the UI, select the *GraphQL* tile when creating a new connector under *Search -> Connectors*.
 
@@ -37,15 +37,15 @@ If you're already familiar with how connectors work, you can also use the {ref}/
 For additional operations, see <<connectors-usage>>.
 
 [discrete#connectors-graphql-connector-docker]
-== Deploy with Docker
+==== Deploy with Docker
 
 include::_connectors-docker-instructions.asciidoc[]
 
 [discrete#connectors-graphql-connector-configuration]
-== Configuration
+==== Configuration
 
 [discrete#connectors-graphql-connector-configure-graphql-connector]
-=== Configure GraphQL connector
+===== Configure GraphQL connector
 
 Note the following configuration fields:
 
@@ -178,32 +178,32 @@ Specifies the maximum time in seconds to wait for a response from the GraphQL so
 Default value is *30 seconds*.
 
 [discrete#connectors-graphql-connector-documents-and-syncs]
-== Documents and syncs
+==== Documents and syncs
 
 The connector syncs the objects and entities based on GraphQL Query and GraphQL Object List.
 
 [discrete#connectors-graphql-connector-sync-types]
-== Sync types
+==== Sync types
 
 https://www.elastic.co/guide/en/enterprise-search/current/connectors-sync-types.html#connectors-sync-types-full[Full syncs] are supported by default for all connectors.
 
 This connector currently does not support https://www.elastic.co/guide/en/enterprise-search/current/connectors-sync-types.html#connectors-sync-types-incremental[incremental syncs].
 
 [discrete#connectors-graphql-connector-sync-rules]
-== Sync rules
+==== Sync rules
 
 https://www.elastic.co/guide/en/enterprise-search/current/sync-rules.html#sync-rules-basic[Basic sync rules] are identical for all connectors and are available by default.
 
 [discrete#connectors-graphql-connector-advanced-sync-rules]
-== Advanced Sync Rules
+==== Advanced Sync Rules
 
 Advanced sync rules are not available for this connector in the present version.
 
 [discrete#connectors-graphql-connector-connector-client-operations]
-== Connector Client operations
+==== Connector Client operations
 
 [discrete#connectors-graphql-connector-end-to-end-testing]
-=== End-to-end Testing
+===== End-to-end Testing
 
 The connector framework enables operators to run functional tests against a real data source, using Docker Compose.
 You don't need a running Elasticsearch instance or GraphQL source to run this test.
@@ -225,7 +225,7 @@ make ftest NAME=graphql DATA_SIZE=small
 By default, `DATA_SIZE=MEDIUM`.
 
 [discrete#connectors-graphql-connector-known-issues]
-== Known issues
+==== Known issues
 
 * Every document will be updated in every sync.
 * If the same field name exists with different types across different objects, the connector might raise a mapping parser exception.
@@ -233,12 +233,12 @@ By default, `DATA_SIZE=MEDIUM`.
 Refer to <<connectors-known-issues>> for a list of known issues for all connectors.
 
 [discrete#connectors-graphql-connector-troubleshooting]
-== Troubleshooting
+==== Troubleshooting
 
 See <<connectors-troubleshooting>>.
 
 [discrete#connectors-graphql-connector-security]
-== Security
+==== Security
 
 See <<connectors-security>>.
 

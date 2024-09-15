@@ -1,5 +1,5 @@
 [#connectors-logs]
-= Connector logs
+=== Connector logs
 ++++
 <titleabbrev>Logs</titleabbrev>
 ++++
@@ -7,10 +7,10 @@
 This document describes logs for <<native-connectors,native connectors>> and <<build-connector,connector clients>>.
 
 [discrete#connectors-logs-enable]
-== Enable logs
+==== Enable logs
 
 [discrete#connectors-logs-enable-cloud]
-=== Elastic Cloud
+===== Elastic Cloud
 
 Elastic Cloud users need to {cloud}/ec-enable-logging-and-monitoring.html#ec-enable-logging-and-monitoring-steps[enable logging^] to view connector logs.
 Go to *Cloud > Deployment > _your-deployment_ > Logs and metrics* to enable logs.
@@ -20,7 +20,7 @@ Once enabled, <<connectors-logs-view, you can view logs in Kibana>>.
 Configure the `log_level` user setting for Enterprise Search. See {cloud}/ec-manage-enterprise-search-settings.html[Add Enterprise Search user settings^] in the Elastic Cloud documentation.
 
 [discrete#connectors-logs-enable-self-managed]
-=== Self-managed connector clients
+===== Self-managed connector clients
 
 Note that self-managed deployments and connector client logs are written to `STDOUT`.
 
@@ -31,9 +31,9 @@ Self-managed connectors have the following logging options:
 * Use the `elasticsearch.log_level` setting to specify the log level for the Elasticsearch _client_ used by the connector service.
 
 [discrete#connectors-logs-view]
-== View connector logs
+==== View connector logs
 
-See <<logging-view-query-logs>> to learn how to view logs in Kibana.
+You can view logs in Kibana.
 
 You can filter by `service.type`:
 
@@ -41,7 +41,7 @@ You can filter by `service.type`:
 - `connectors`
 
 [discrete#connectors-logs-reference]
-== Logs reference
+==== Logs reference
 
 Logs use Elastic Common Schema (ECS), without extensions.
 See {ecs-ref}[the ECS Reference^] for more information.

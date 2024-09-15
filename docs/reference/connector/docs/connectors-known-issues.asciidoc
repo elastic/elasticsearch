@@ -1,11 +1,11 @@
 [#connectors-known-issues]
-= Connector known issues
+== Connector known issues
 ++++
 <titleabbrev>Known issues</titleabbrev>
 ++++
 
 [discrete#connectors-known-issues-enterprie-search-service]
-== Enterprise Search service: connector clients
+=== Enterprise Search service: connector clients
 
 As of *8.10.0* self-managed connector clients no longer require the Enterprise Search service to be running on your Elastic deployment.
 However, if you are upgrading connectors from versions _earlier than 8.9_, you'll need to run Enterprise Search once to migrate your connectors to the new format.
@@ -26,7 +26,7 @@ Elastic does not support deployments running mismatched versions (except during 
 ====
 
 [discrete#connectors-known-issues-connector-service]
-== Connector service
+=== Connector service
 
 The connector service has the following known issues:
 
@@ -110,7 +110,7 @@ If the error continues, try running the above command for every document in the 
 * *Connectors upgrading from 8.7 or earlier can be missing configuration fields*
 +
 A connector that was created prior to 8.8 can sometimes be missing configuration fields.
-This is a known issue for the <<connectors-mysql-known-issues,MySQL connector>> but could also affect other connectors.
+This is a known issue for the MySQL connector but could also affect other connectors.
 +
 If the connector client raises the error `Connector for <connector_id> has missing configuration fields: <field_a>, <field_b>...`, you can resolve the error by manually adding the missing configuration fields via the Dev Tools.
 Only the following two field properties are required, as the rest will be autopopulated by the connector client:
@@ -151,13 +151,13 @@ As a result, true document volume will be under-reported by a factor of 1024.
 +
 * *The following native connectors will not run correctly on Elastic Cloud in 8.9.0.*
 They are still available as self-managed connector clients.
-** <<connectors-azure-blob,Azure Blob Storage>>
-** <<connectors-confluence,Confluence Cloud & Server>>
-** <<connectors-jira,Jira Cloud & Server>>
-** <<connectors-network-drive,Network drive>>
+** Azure Blob Storage
+** Confluence Cloud & Server
+** Jira Cloud & Server
+** Network drives
 
 [discrete#connectors-known-issues-specific]
-== Individual connector known issues
+=== Individual connector known issues
 
 Individual connectors may have additional known issues.
 Refer to <<connectors, each connector's reference documentation>> for connector-specific known issues.

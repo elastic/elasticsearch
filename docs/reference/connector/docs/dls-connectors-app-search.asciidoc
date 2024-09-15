@@ -1,5 +1,5 @@
 [#dls-connectors-app-search]
-= Leverage DLS from connectors in App Search
+=== Leverage DLS from connectors in App Search
 ++++
 <titleabbrev>Leverage DLS from connectors in App Search</titleabbrev>
 ++++
@@ -15,7 +15,7 @@ We will go through the following steps:
 These queries will be scoped and controlled by the associated user identities ingested by the connector.
 
 [discrete#dls-connectors-app-search-connector-setup]
-== Set up connector to sync data with access control
+==== Set up connector to sync data with access control
 
 You'll need to have an Enterprise Search deployment and to run a self-managed *connectors service* instance to ingest data with access control.
 Refer to <<build-connector>> for details on how to set up a connector client and run the connectors service.
@@ -26,7 +26,8 @@ This guide assumes you already have an Elastic deployment, that satisfies the <<
 If you don't have an Elastic deployment, sign up for a https://cloud.elastic.co/registration[free Elastic Cloud trial^].
 ====
 
-In this example, we'll configure and sync data from SharePoint Online, using the <<connectors-sharepoint-online,SharePoint Online connector>>.
+// In this example, we'll configure and sync data from SharePoint Online, using the <<connectors-sharepoint-online,SharePoint Online connector>>.
+// TODO
 
 [NOTE]
 ====
@@ -35,7 +36,7 @@ Refer to {enterprise-search-ref}/dls.html[document level security] for a list of
 ====
 
 [discrete#dls-connectors-app-search-sharepoint-data-overview]
-== Elasticsearch indices overview
+==== Elasticsearch indices overview
 
 The SharePoint Online connector will create two separate Elasticsearch indices:
 
@@ -44,7 +45,7 @@ We'll use this index to create our App Search engine.
 * An *access control* index that includes access control data for each user that has access to SharePoint Online.
 
 [discrete#dls-connectors-app-search-engine-setup]
-== App Search engine setup
+==== App Search engine setup
 
 We want to use the data ingested by the SharePoint Online connector in an App Search engine.
 To do this, we need to create an Elasticsearch index-based engine.
@@ -54,11 +55,11 @@ Follow these steps:
 . Navigate to *Search > App Search > Engines > Create an engine*.
 . Select *Elasticsearch index-based* engine type.
 . Name the engine.
-. Select the <<engines-access-content-source-index,Elasticsearch index>> used by the SharePoint Online connector.
+. Select the Elasticsearch index used by the SharePoint Online connector.
 . Select *Create search engine*.
 
 [discrete#dls-connectors-app-search-signed-keys-overview]
-== App Search signed search keys
+==== App Search signed search keys
 
 {app-search-ref}/authentication.html#authentication-signed[Signed search keys^] in Elastic App Search give you more control over a user's search experience.
 They enable you to restrict the data users can see and search over.
@@ -74,7 +75,7 @@ A signed search key is a JSON Web Token.
 It is signed with an API key, ideally a read-only private key, using the HMAC with SHA-256 (HS256) algorithm.
 
 [discrete#dls-connectors-app-search-signed-keys-create]
-=== Create a signed search key
+===== Create a signed search key
 
 A signed API key can contain filters to restrict what a user can search over.
 We will use documents from the access control index created by the SharePoint Online connector to generate signed API keys.
@@ -216,7 +217,7 @@ curl -X GET 'https://my-deployment.ent.us-west2.gcp.elastic-cloud.com/api/as/v1/
 ----
 
 [discrete#dls-connectors-app-search-signed-test-search]
-=== Test search results
+===== Test search results
 
 Now it's time to test that the signed key works as expected.
 
@@ -225,7 +226,7 @@ Validate that the documents returned are limited to what was specified in the fi
 The results should match the permissions listed in the `_allow_access_control` field of the documents.
 
 [discrete#dls-connectors-app-search-workflow]
-== Workflow guidance
+==== Workflow guidance
 
 We recommend relying on the connector access control sync to automate and keep documents in sync with changes to the original content source's user permissions.
 
@@ -238,10 +239,11 @@ In order to invalidate the signed API keys, you need to invalidate the API key t
 Additionally, if the user's permission changes, you'll need to recreate the signed search key.
 
 [discrete#dls-connectors-app-search-learn-more]
-== Learn more
+==== Learn more
 
 * <<connectors,Elastic connectors>>
 * <<dls,Document level security (DLS)>>
 * {app-search-ref}/elasticsearch-engines.html[Elasticsearch-index engines^] in App Search
 * {app-search-ref}/authentication.html#authentication-signed[App Search signed search keys^]
-* <<connectors-sharepoint-online,SharePoint Online connector>>
+// * <<connectors-sharepoint-online,SharePoint Online connector>>
+// TODO

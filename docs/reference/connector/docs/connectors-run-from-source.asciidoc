@@ -1,11 +1,11 @@
 [#connectors-run-from-source]
-= Running from the source code
+=== Running from the source code
 
 The basic way to run connectors is to clone the repository and run the code locally.
 This is a good option if you are comfortable with Python and want to iterate quickly.
 
 [discrete#connectors-run-from-source-setup-kibana]
-== Initial setup in Kibana
+==== Initial setup in Kibana
 
 Follow the *Connector* workflow in the Kibana UI to select the *Connector* ingestion method.
 
@@ -28,7 +28,7 @@ connectors:
 ----
 
 [discrete#connectors-run-from-source-source-clone]
-==== Clone the repository and edit `config.yml`
+====== Clone the repository and edit `config.yml`
 
 Once you've created an index, and entered the access details for your data source, you're ready to deploy the connector service.
 
@@ -76,7 +76,7 @@ Use the example above as a guide.
 ====
 
 [discrete#connectors-run-from-source-run]
-==== Run the connector service
+====== Run the connector service
 
 [NOTE]
 ====

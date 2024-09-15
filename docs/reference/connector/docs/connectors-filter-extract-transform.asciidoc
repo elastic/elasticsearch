@@ -1,5 +1,5 @@
 [#connectors-filter-extract-transform]
-= Extract, filter, and transform content
+== Extract, filter, and transform content
 ++++
 <titleabbrev>Extract and transform</titleabbrev>
 ++++
@@ -24,14 +24,14 @@ The following tools are available for more advanced use cases:
 Learn more in the following documentation links.
 
 [discrete#connectors-filter-extract-transform-content-extraction]
-== Content extraction
+=== Content extraction
 
 Connectors have a default content extraction service, plus the <<connectors-content-extraction-local, self-hosted extraction service>> for advanced use cases.
 
 Refer to <<connectors-content-extraction>> for details.
 
 [discrete#connectors-filter-extract-transform-sync-rules]
-== Sync rules
+=== Sync rules
 
 Use sync rules to help control which documents are synced between the third-party data source and Elasticsearch.
 Sync rules enable you to filter data early in the data pipeline, which is more efficient and secure.
@@ -43,7 +43,7 @@ They cover complex query-and-filter scenarios, defined in a DSL JSON snippet.
 Refer to <<sync-rules>> for details.
 
 [discrete#connectors-filter-extract-transform-ingest-pipelines]
-== Ingest pipelines
+=== Ingest pipelines
 
 Ingest pipelines are a user-defined sequence of processors that modify documents before they are indexed into Elasticsearch.
 Use ingest pipelines for data enrichment, normalization, and more.

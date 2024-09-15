@@ -1,10 +1,11 @@
 
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
@@ -469,19 +470,22 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     protected void putReaderContext(ReaderContext context) {
-        final ReaderContext previous = activeReaders.put(context.id().getId(), context);
+        final long id = context.id().getId();
+        final ReaderContext previous = activeReaders.put(id, context);
         assert previous == null;
         // ensure that if we race against afterIndexRemoved, we remove the context from the active list.
         // this is important to ensure store can be cleaned up, in particular if the search is a scroll with a long timeout.
         final Index index = context.indexShard().shardId().getIndex();
         if (indicesService.hasIndex(index) == false) {
-            removeReaderContext(context.id().getId());
+            removeReaderContext(id);
             throw new IndexNotFoundException(index);
         }
     }
 
     protected ReaderContext removeReaderContext(long id) {
-        logger.trace("removing reader context [{}]", id);
+        if (logger.isTraceEnabled()) {
+            logger.trace("removing reader context [{}]", id);
+        }
         return activeReaders.remove(id);
     }
 
@@ -658,12 +662,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private IndexShard getShard(ShardSearchRequest request) {
         final ShardSearchContextId contextId = request.readerId();
-        if (contextId != null) {
-            if (sessionId.equals(contextId.getSessionId())) {
-                final ReaderContext readerContext = activeReaders.get(contextId.getId());
-                if (readerContext != null) {
-                    return readerContext.indexShard();
-                }
+        if (contextId != null && sessionId.equals(contextId.getSessionId())) {
+            final ReaderContext readerContext = activeReaders.get(contextId.getId());
+            if (readerContext != null) {
+                return readerContext.indexShard();
             }
         }
         return indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
@@ -977,13 +979,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
                 return createAndPutReaderContext(request, indexService, shard, searcherSupplier, defaultKeepAlive);
             }
-        } else {
-            final long keepAliveInMillis = getKeepAlive(request);
-            final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-            final IndexShard shard = indexService.getShard(request.shardId().id());
-            final Engine.SearcherSupplier searcherSupplier = shard.acquireSearcherSupplier();
-            return createAndPutReaderContext(request, indexService, shard, searcherSupplier, keepAliveInMillis);
         }
+        final long keepAliveInMillis = getKeepAlive(request);
+        final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
+        final IndexShard shard = indexService.getShard(request.shardId().id());
+        return createAndPutReaderContext(request, indexService, shard, shard.acquireSearcherSupplier(), keepAliveInMillis);
     }
 
     final ReaderContext createAndPutReaderContext(
@@ -996,19 +996,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ReaderContext readerContext = null;
         Releasable decreaseScrollContexts = null;
         try {
+            final ShardSearchContextId id = new ShardSearchContextId(sessionId, idGenerator.incrementAndGet());
             if (request.scroll() != null) {
                 decreaseScrollContexts = openScrollContexts::decrementAndGet;
                 if (openScrollContexts.incrementAndGet() > maxOpenScrollContext) {
                     throw new TooManyScrollContextsException(maxOpenScrollContext, MAX_OPEN_SCROLL_CONTEXT.getKey());
                 }
-            }
-            final ShardSearchContextId id = new ShardSearchContextId(sessionId, idGenerator.incrementAndGet());
-            if (request.scroll() != null) {
                 readerContext = new LegacyReaderContext(id, indexService, shard, reader, request, keepAliveInMillis);
-                if (request.scroll() != null) {
-                    readerContext.addOnClose(decreaseScrollContexts);
-                    decreaseScrollContexts = null;
-                }
+                readerContext.addOnClose(decreaseScrollContexts);
+                decreaseScrollContexts = null;
             } else {
                 readerContext = new ReaderContext(id, indexService, shard, reader, keepAliveInMillis, true);
             }
@@ -1018,16 +1014,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             searchOperationListener.onNewReaderContext(finalReaderContext);
             if (finalReaderContext.scrollContext() != null) {
                 searchOperationListener.onNewScrollContext(finalReaderContext);
+                readerContext.addOnClose(() -> searchOperationListener.onFreeScrollContext(finalReaderContext));
             }
-            readerContext.addOnClose(() -> {
-                try {
-                    if (finalReaderContext.scrollContext() != null) {
-                        searchOperationListener.onFreeScrollContext(finalReaderContext);
-                    }
-                } finally {
-                    searchOperationListener.onFreeReaderContext(finalReaderContext);
-                }
-            });
+            readerContext.addOnClose(() -> searchOperationListener.onFreeReaderContext(finalReaderContext));
             putReaderContext(finalReaderContext);
             readerContext = null;
             return finalReaderContext;

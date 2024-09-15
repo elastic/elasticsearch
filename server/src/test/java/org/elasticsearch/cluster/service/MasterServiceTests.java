@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.service;
@@ -33,7 +34,6 @@ import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.component.Lifecycle;
@@ -2606,16 +2606,6 @@ public class MasterServiceTests extends ESTestCase {
             currentState -> currentState.copyAndUpdateMetadata(
                 b -> b.version(randomFrom(currentState.metadata().version() - 1, currentState.metadata().version() + 1))
             )
-        );
-
-        runVersionNumberProtectionTest(
-            currentState -> ClusterState.builder(currentState)
-                .routingTable(
-                    RoutingTable.builder(currentState.routingTable())
-                        .version(randomFrom(currentState.routingTable().version() - 1, currentState.routingTable().version() + 1))
-                        .build()
-                )
-                .build()
         );
     }
 

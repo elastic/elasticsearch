@@ -19,7 +19,6 @@ import org.elasticsearch.discovery.azure.classic.AzureSeedHostsProvider.Deployme
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.function.Function;
 
 public interface AzureComputeService {
 
@@ -54,7 +53,7 @@ public interface AzureComputeService {
         );
 
         // so that it can overridden for tests
-        public static final Setting<URI> ENDPOINT_SETTING = new Setting<URI>(
+        public static final Setting<URI> ENDPOINT_SETTING = new Setting<>(
             "cloud.azure.management.endpoint",
             "https://management.core.windows.net/",
             s -> {
@@ -80,10 +79,9 @@ public interface AzureComputeService {
             AzureSeedHostsProvider.HostType::fromString,
             Property.NodeScope
         );
-        public static final Setting<String> ENDPOINT_NAME_SETTING = new Setting<>(
+        public static final Setting<String> ENDPOINT_NAME_SETTING = Setting.simpleString(
             "discovery.azure.endpoint.name",
             "elasticsearch",
-            Function.identity(),
             Property.NodeScope
         );
         public static final Setting<String> DEPLOYMENT_NAME_SETTING = Setting.simpleString(

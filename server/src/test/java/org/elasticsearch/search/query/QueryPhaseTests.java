@@ -1118,7 +1118,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         ) {
 
             @Override
-            public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
+            public void search(LeafReaderContextPartition[] partitions, Weight weight, Collector collector) throws IOException {
                 final Collector in = new FilterCollector(collector) {
                     @Override
                     public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
@@ -1135,7 +1135,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
                         };
                     }
                 };
-                super.search(leaves, weight, in);
+                super.search(partitions, weight, in);
             }
         };
     }

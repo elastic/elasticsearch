@@ -48,11 +48,11 @@ import java.util.Set;
 
 public class SinglePassGroupingCollectorTests extends ESTestCase {
     private static class SegmentSearcher extends IndexSearcher {
-        private final List<LeafReaderContext> ctx;
+        private final LeafReaderContextPartition[] ctx;
 
         SegmentSearcher(LeafReaderContext ctx, IndexReaderContext parent) {
             super(parent);
-            this.ctx = Collections.singletonList(ctx);
+            this.ctx = new LeafReaderContextPartition[] { IndexSearcher.LeafReaderContextPartition.createForEntireSegment(ctx) };
         }
 
         public void search(Weight weight, Collector collector) throws IOException {
@@ -61,7 +61,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
 
         @Override
         public String toString() {
-            return "ShardSearcher(" + ctx.get(0) + ")";
+            return "ShardSearcher(" + ctx[0] + ")";
         }
     }
 

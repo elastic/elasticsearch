@@ -958,11 +958,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     private static class ShardSearcher extends IndexSearcher {
-        private final List<LeafReaderContext> ctx;
+        private final LeafReaderContextPartition[] ctx;
 
         ShardSearcher(LeafReaderContext ctx, IndexReaderContext parent) {
             super(parent);
-            this.ctx = Collections.singletonList(ctx);
+            this.ctx = new LeafReaderContextPartition[] { IndexSearcher.LeafReaderContextPartition.createForEntireSegment(ctx) };
         }
 
         public void search(Weight weight, Collector collector) throws IOException {
@@ -971,7 +971,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         @Override
         public String toString() {
-            return "ShardSearcher(" + ctx.get(0) + ")";
+            return "ShardSearcher(" + ctx[0] + ")";
         }
     }
 

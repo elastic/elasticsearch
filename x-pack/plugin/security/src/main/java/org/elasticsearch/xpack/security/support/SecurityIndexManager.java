@@ -358,9 +358,9 @@ public class SecurityIndexManager implements ClusterStateListener {
 
     /**
      * Waits up to {@code timeout} for the security index to become available for search, based on cluster state updates.
-     * Notifies {@code listener} once the security index is available for search, or calls {@code onFailure} on {@code timeout}.
+     * Notifies {@code listener} once the security index is available, or calls {@code onFailure} on {@code timeout}.
      */
-    public void whenIndexAvailableForSearch(ActionListener<Void> listener, TimeValue timeout) {
+    public void onIndexAvailableForSearch(ActionListener<Void> listener, TimeValue timeout) {
         logger.info("Will wait for security index [{}] to become available for search", getConcreteIndexName());
 
         final ActionListener<Void> notifyOnceListener = ActionListener.notifyOnce(listener);

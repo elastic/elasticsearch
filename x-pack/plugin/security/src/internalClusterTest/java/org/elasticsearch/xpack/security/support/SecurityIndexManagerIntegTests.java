@@ -109,14 +109,14 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testWhenIndexAvailableForSearchIndexCompletesWithinTimeout() throws Exception {
+    public void testOnIndexAvailableForSearchIndexCompletesWithinTimeout() throws Exception {
         final SecurityIndexManager securityIndexManager = internalCluster().getInstances(NativePrivilegeStore.class)
             .iterator()
             .next()
             .getSecurityIndexManager();
         final ActionFuture<Void> future = new PlainActionFuture<>();
         // pick longer wait than in assertSecurityIndexActive()
-        securityIndexManager.whenIndexAvailableForSearch((ActionListener<Void>) future, TimeValue.timeValueSeconds(40));
+        securityIndexManager.onIndexAvailableForSearch((ActionListener<Void>) future, TimeValue.timeValueSeconds(40));
 
         createSecurityIndex();
 
@@ -127,7 +127,7 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testWhenIndexAvailableForSearchIndexAlreadyAvailable() throws Exception {
+    public void testOnIndexAvailableForSearchIndexAlreadyAvailable() throws Exception {
         createSecurityIndex();
 
         assertSecurityIndexActive();
@@ -140,20 +140,20 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
         // With 0 timeout
         {
             final ActionFuture<Void> future = new PlainActionFuture<>();
-            securityIndexManager.whenIndexAvailableForSearch((ActionListener<Void>) future, TimeValue.timeValueSeconds(0));
+            securityIndexManager.onIndexAvailableForSearch((ActionListener<Void>) future, TimeValue.timeValueSeconds(0));
             future.actionGet();
         }
 
         // With non-0 timeout
         {
             final ActionFuture<Void> future = new PlainActionFuture<>();
-            securityIndexManager.whenIndexAvailableForSearch((ActionListener<Void>) future, TimeValue.timeValueSeconds(10));
+            securityIndexManager.onIndexAvailableForSearch((ActionListener<Void>) future, TimeValue.timeValueSeconds(10));
             future.actionGet();
         }
     }
 
     @SuppressWarnings("unchecked")
-    public void testWhenIndexAvailableForSearchIndexWaitTimeOut() {
+    public void testOnIndexAvailableForSearchIndexWaitTimeOut() {
         // security index does not exist and nothing is triggering creation, so whenIndexAvailableForSearch will time out
 
         final SecurityIndexManager securityIndexManager = internalCluster().getInstances(NativePrivilegeStore.class)
@@ -162,7 +162,7 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
             .getSecurityIndexManager();
 
         final ActionFuture<Void> future = new PlainActionFuture<>();
-        securityIndexManager.whenIndexAvailableForSearch((ActionListener<Void>) future, TimeValue.timeValueMillis(100));
+        securityIndexManager.onIndexAvailableForSearch((ActionListener<Void>) future, TimeValue.timeValueMillis(100));
         expectThrows(ElasticsearchTimeoutException.class, future::actionGet);
     }
 

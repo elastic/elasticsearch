@@ -200,7 +200,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         ActionListener.respondAndRelease(listener.get(), buildSearchResponse(hits));
 
         assertResult(sourcePrivileges, future);
-        verify(securityIndex, never()).whenIndexAvailableForSearch(anyActionListener(), any());
+        verify(securityIndex, never()).onIndexAvailableForSearch(anyActionListener(), any());
     }
 
     public void testGetMissingPrivilege() throws InterruptedException, ExecutionException, TimeoutException {
@@ -210,7 +210,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
 
         final Collection<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors = future.get(1, TimeUnit.SECONDS);
         assertThat(applicationPrivilegeDescriptors, empty());
-        verify(securityIndex, never()).whenIndexAvailableForSearch(anyActionListener(), any());
+        verify(securityIndex, never()).onIndexAvailableForSearch(anyActionListener(), any());
     }
 
     public void testGetPrivilegesByApplicationName() throws Exception {
@@ -237,7 +237,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         ActionListener.respondAndRelease(listener.get(), buildSearchResponse(hits));
 
         assertResult(sourcePrivileges, future);
-        verify(securityIndex, never()).whenIndexAvailableForSearch(anyActionListener(), any());
+        verify(securityIndex, never()).onIndexAvailableForSearch(anyActionListener(), any());
     }
 
     public void testGetPrivilegesByWildcardApplicationName() throws Exception {
@@ -296,7 +296,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         ActionListener.respondAndRelease(listener.get(), buildSearchResponse(hits));
         // The first and last privilege should not be retrieved
         assertResult(sourcePrivileges.subList(1, 4), future);
-        verify(securityIndex, never()).whenIndexAvailableForSearch(anyActionListener(), any());
+        verify(securityIndex, never()).onIndexAvailableForSearch(anyActionListener(), any());
     }
 
     public void testGetPrivilegesByStarApplicationName() throws Exception {
@@ -311,7 +311,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertThat(query, containsString("{\"term\":{\"type\":{\"value\":\"application-privilege\""));
 
         ActionListener.respondAndRelease(listener.get(), buildSearchResponse(SearchHits.EMPTY));
-        verify(securityIndex, never()).whenIndexAvailableForSearch(anyActionListener(), any());
+        verify(securityIndex, never()).onIndexAvailableForSearch(anyActionListener(), any());
     }
 
     public void testGetPrivilegesSucceedsWithWaitOnAvailableSecurityIndex() throws Exception {
@@ -329,7 +329,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             final var listener = (ActionListener<Void>) invocation.getArguments()[0];
             listener.onResponse(null);
             return null;
-        }).when(securityIndex).whenIndexAvailableForSearch(anyActionListener(), any());
+        }).when(securityIndex).onIndexAvailableForSearch(anyActionListener(), any());
 
         final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
         store.innerGetPrivileges(Arrays.asList("myapp", "yourapp"), true, future);
@@ -337,7 +337,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         ActionListener.respondAndRelease(listener.get(), buildSearchResponse(buildHits(sourcePrivileges)));
 
         assertResult(sourcePrivileges, future);
-        verify(securityIndex, times(1)).whenIndexAvailableForSearch(anyActionListener(), any());
+        verify(securityIndex, times(1)).onIndexAvailableForSearch(anyActionListener(), any());
     }
 
     public void testGetPrivilegesWillOnlyWaitOnUnavailableShardException() {
@@ -351,13 +351,13 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             final var listener = (ActionListener<Void>) invocation.getArguments()[0];
             listener.onResponse(null);
             return null;
-        }).when(securityIndex).whenIndexAvailableForSearch(anyActionListener(), any());
+        }).when(securityIndex).onIndexAvailableForSearch(anyActionListener(), any());
 
         final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
         store.innerGetPrivileges(Arrays.asList("myapp", "yourapp"), true, future);
         expectThrows(IndexClosedException.class, future::actionGet);
 
-        verify(securityIndex, never()).whenIndexAvailableForSearch(anyActionListener(), any());
+        verify(securityIndex, never()).onIndexAvailableForSearch(anyActionListener(), any());
     }
 
     public void testGetPrivilegesFailsAfterWaitOnUnavailableShardException() {
@@ -371,13 +371,13 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             final var listener = (ActionListener<Void>) invocation.getArguments()[0];
             listener.onFailure(new ElasticsearchTimeoutException("slow potato"));
             return null;
-        }).when(securityIndex).whenIndexAvailableForSearch(anyActionListener(), any());
+        }).when(securityIndex).onIndexAvailableForSearch(anyActionListener(), any());
 
         final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
         store.innerGetPrivileges(Arrays.asList("myapp", "yourapp"), true, future);
         expectThrows(UnavailableShardsException.class, future::actionGet);
 
-        verify(securityIndex, times(1)).whenIndexAvailableForSearch(anyActionListener(), any());
+        verify(securityIndex, times(1)).onIndexAvailableForSearch(anyActionListener(), any());
     }
 
     public void testGetPrivilegesSucceedsWithWaitOnAvailableSecurityIndexAfterWaitFailure() throws Exception {
@@ -397,7 +397,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             // we fail here, but since the final check for availability succeeds, the overall request will succeed
             listener.onFailure(new ElasticsearchTimeoutException("slow potato"));
             return null;
-        }).when(securityIndex).whenIndexAvailableForSearch(anyActionListener(), any());
+        }).when(securityIndex).onIndexAvailableForSearch(anyActionListener(), any());
 
         final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
         store.innerGetPrivileges(Arrays.asList("myapp", "yourapp"), true, future);
@@ -405,7 +405,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         ActionListener.respondAndRelease(listener.get(), buildSearchResponse(buildHits(sourcePrivileges)));
 
         assertResult(sourcePrivileges, future);
-        verify(securityIndex, times(1)).whenIndexAvailableForSearch(anyActionListener(), any());
+        verify(securityIndex, times(1)).onIndexAvailableForSearch(anyActionListener(), any());
     }
 
     public void testGetAllPrivileges() throws Exception {

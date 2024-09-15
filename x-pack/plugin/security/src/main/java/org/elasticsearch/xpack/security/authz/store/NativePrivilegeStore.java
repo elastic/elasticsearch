@@ -226,7 +226,7 @@ public class NativePrivilegeStore {
                 listener.onFailure(unavailableReason);
                 return;
             }
-            securityIndexManager.whenIndexAvailableForSearch(new ActionListener<>() {
+            securityIndexManager.onIndexAvailableForSearch(new ActionListener<>() {
                 @Override
                 public void onResponse(Void unused) {
                     innerGetPrivileges(applications, false, listener);
@@ -234,7 +234,7 @@ public class NativePrivilegeStore {
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.info("failure while waiting for security index [" + frozenSecurityIndex.getConcreteIndexName() + "]", e);
+                    logger.warn("Failure while waiting for security index [" + frozenSecurityIndex.getConcreteIndexName() + "]", e);
                     // Call get privileges once more to get most up-to-date failure (or result, in case of an unlucky time-out)
                     innerGetPrivileges(applications, false, listener);
                 }

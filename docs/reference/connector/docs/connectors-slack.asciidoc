@@ -1,4 +1,4 @@
-[#connectors-slack]
+[#es-connectors-slack]
 === Elastic Slack connector reference
 ++++
 <titleabbrev>Slack</titleabbrev>
@@ -15,19 +15,19 @@ View the {connectors-python}/connectors/sources/{service-name-stub}.py[*source c
 // //////// NATIVE CONNECTOR REFERENCE (MANAGED SERVICE) ///////
 // //////// //// //// //// //// //// //// ////////
 
-[discrete#connectors-slack-native-connector-reference]
+[discrete#es-connectors-slack-native-connector-reference]
 ==== *Native connector reference (managed service)*
 
 .View reference for the *native connector reference (managed service)*.
 [%collapsible]
 ===============
 
-[discrete#connectors-slack-availability]
+[discrete#es-connectors-slack-availability]
 ===== Availability and prerequisites
 
 This native connector was introduced in Elastic *8.14.0* as a managed service on Elastic Cloud.
 
-To use this connector natively in Elastic Cloud, satisfy all <<native-connectors,native connector requirements>>.
+To use this connector natively in Elastic Cloud, satisfy all <<es-native-connectors,native connector requirements>>.
 
 [NOTE]
 ====
@@ -36,25 +36,25 @@ The design and code is less mature than official GA features and is being provid
 Technical preview features are not subject to the support SLA of official GA features.
 ====
 
-[discrete#connectors-slack-create-connector-native]
+[discrete#es-connectors-slack-create-connector-native]
 ===== Create a {service-name} connector
 include::_connectors-create-native.asciidoc[]
 
-[discrete#connectors-slack-usage]
+[discrete#es-connectors-slack-usage]
 ===== Usage
 
 To use this connector in the UI, select the *Notion* tile when creating a new connector under *Search -> Connectors*.
 
 If you're already familiar with how connectors work, you can also use the {ref}/connector-apis.html[Connector APIs].
 
-For additional operations, see <<connectors-usage>>.
+For additional operations, see <<es-connectors-usage>>.
 
 [NOTE]
 ====
 You need to create a Slack application to authenticate with Slack.
 ====
 
-[discrete#connectors-slack-app]
+[discrete#es-connectors-slack-app]
 ====== Create a Slack application
 
 When created you'll receive a credential that the connector uses for authentication.
@@ -83,7 +83,7 @@ Optionally, you can also add `channels:join` if you want the App Bot to automati
 7. Copy and save the new "Bot User OAuth Token".
 This credential will be used when configuring the connector.
 
-[discrete#connectors-slack-configuration]
+[discrete#es-connectors-slack-configuration]
 ===== Configuration
 
 The following settings are required to set up this connector:
@@ -111,23 +111,23 @@ However, regardless of the value of this setting, the Slack App does need the `u
 This allows the messages to be enriched with human-readable usernames, and not rely on unreadable User UIDs.
 Therefore, disabling this setting does not result in a speed improvement, but merely results in less overall storage in Elasticsearch.
 
-[discrete#connectors-slack-sync-rules]
+[discrete#es-connectors-slack-sync-rules]
 ===== Sync rules
 
 _Basic_ sync rules are identical for all connectors and are available by default.
 
 Advanced sync rules are not available for this connector in the present version.
 
-For more information read <<sync-rules-types>>.
+For more information read <<es-sync-rules-types>>.
 
-[discrete#connectors-slack-content-extraction]
+[discrete#es-connectors-slack-content-extraction]
 ===== Content Extraction
 
 This connector does not currently support processing Slack attachments or other binary files.
 
-//See <<connectors-content-extraction>>.
+//See <<es-connectors-content-extraction>>.
 
-[discrete#connectors-slack-documents-syncs]
+[discrete#es-connectors-slack-documents-syncs]
 ===== Documents and syncs
 
 The connector syncs the following objects and entities:
@@ -143,21 +143,21 @@ The connector syncs the following objects and entities:
 ====
 
 
-[discrete#connectors-slack-known-issues]
+[discrete#es-connectors-slack-known-issues]
 ===== Known issues
 
 There are currently no known issues for this connector.
-Refer to <<connectors-known-issues>> for a list of known issues for all connectors.
+Refer to <<es-connectors-known-issues>> for a list of known issues for all connectors.
 
-[discrete#connectors-slack-troubleshooting]
+[discrete#es-connectors-slack-troubleshooting]
 ===== Troubleshooting
 
-See <<connectors-troubleshooting>>.
+See <<es-connectors-troubleshooting>>.
 
-[discrete#connectors-slack-security]
+[discrete#es-connectors-slack-security]
 ===== Security
 
-See <<connectors-security>>.
+See <<es-connectors-security>>.
 
 
 // Closing the collapsible section 
@@ -168,21 +168,21 @@ See <<connectors-security>>.
 // //////// CONNECTOR CLIENT REFERENCE (SELF-MANAGED) ///////
 // //////// //// //// //// //// //// //// ////////
 
-[discrete#connectors-slack-connector-client-reference]
+[discrete#es-connectors-slack-connector-client-reference]
 ==== *Connector client reference (self-managed)*
 
 .View reference for the *connector client reference (self-managed)*.
 [%collapsible]
 ===============
 
-[discrete#connectors-slack-client-availability]
+[discrete#es-connectors-slack-client-availability]
 ===== Availability and prerequisites
 
 This connector is available as a self-managed *connector client* from the *Elastic connector framework*.
 
 This connector client is compatible with Elastic versions *8.10.0+*.
 
-To use this connector, satisfy all <<build-connector,connector client requirements>>.
+To use this connector, satisfy all <<es-build-connector,connector client requirements>>.
 
 [NOTE]
 ====
@@ -191,23 +191,23 @@ The design and code is less mature than official GA features and is being provid
 Technical preview features are not subject to the support SLA of official GA features.
 ====
 
-[discrete#connectors-slack-client-create-connector-client]
+[discrete#es-connectors-slack-client-create-connector-client]
 ===== Create a {service-name} connector
 include::_connectors-create-client.asciidoc[]
 
-[discrete#connectors-slack-client-usage]
+[discrete#es-connectors-slack-client-usage]
 ===== Usage
 
 To use this connector as a **connector client**, use the *Connector* workflow in the Kibana UI.
 
-For additional operations, see <<connectors-usage>>.
+For additional operations, see <<es-connectors-usage>>.
 
 [NOTE]
 ====
 You need to create a Slack application to authenticate with Slack.
 ====
 
-[discrete#connectors-slack-client-app]
+[discrete#es-connectors-slack-client-app]
 ====== Create a Slack application
 
 When created you'll receive a credential that the connector uses for authentication.
@@ -236,12 +236,12 @@ Optionally, you can also add `channels:join` if you want the App Bot to automati
 7. Copy and save the new "Bot User OAuth Token".
 This credential will be used when configuring the connector.
 
-[discrete#connectors-slack-client-docker]
+[discrete#es-connectors-slack-client-docker]
 ===== Deploy with Docker
 
 include::_connectors-docker-instructions.asciidoc[]
 
-[discrete#connectors-slack-client-configuration]
+[discrete#es-connectors-slack-client-configuration]
 ===== Configuration
 
 The following settings are required to set up this connector:
@@ -269,23 +269,23 @@ However, regardless of the value of this setting, the Slack App does need the `u
 This allows the messages to be enriched with human-readable usernames, and not rely on unreadable User UIDs.
 Therefore, disabling this setting does not result in a speed improvement, but merely results in less overall storage in Elasticsearch.
 
-[discrete#connectors-slack-client-sync-rules]
+[discrete#es-connectors-slack-client-sync-rules]
 ===== Sync rules
 
 _Basic_ sync rules are identical for all connectors and are available by default.
 
 Advanced sync rules are not available for this connector in the present version.
 
-For more information read <<sync-rules-types>>.
+For more information read <<es-sync-rules-types>>.
 
-[discrete#connectors-slack-client-content-extraction]
+[discrete#es-connectors-slack-client-content-extraction]
 ===== Content Extraction
 
 This connector does not currently support processing Slack attachments or other binary files.
 
-//See <<connectors-content-extraction>>.
+//See <<es-connectors-content-extraction>>.
 
-[discrete#connectors-slack-client-documents-syncs]
+[discrete#es-connectors-slack-client-documents-syncs]
 ===== Documents and syncs
 
 The connector syncs the following objects and entities:
@@ -300,14 +300,14 @@ The connector syncs the following objects and entities:
 * No permissions are synced. **All documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
 ====
 
-[discrete#connectors-slack-client-connector-client-operations]
+[discrete#es-connectors-slack-client-connector-client-operations]
 ===== Connector client operations
 
-[discrete#connectors-slack-client-testing]
+[discrete#es-connectors-slack-client-testing]
 ===== End-to-end testing
 
 The connector framework enables operators to run functional tests against a real data source.
-Refer to <<build-connector-testing>> for more details.
+Refer to <<es-build-connector-testing>> for more details.
 
 To perform E2E testing for the GitHub connector, run the following command:
 
@@ -323,21 +323,21 @@ For faster tests, add the `DATA_SIZE=small` flag:
 make ftest NAME=slack DATA_SIZE=small
 ----
 
-[discrete#connectors-slack-client-known-issues]
+[discrete#es-connectors-slack-client-known-issues]
 ===== Known issues
 
 There are currently no known issues for this connector.
-Refer to <<connectors-known-issues>> for a list of known issues for all connectors.
+Refer to <<es-connectors-known-issues>> for a list of known issues for all connectors.
 
-[discrete#connectors-slack-client-troubleshooting]
+[discrete#es-connectors-slack-client-troubleshooting]
 ===== Troubleshooting
 
-See <<connectors-troubleshooting>>.
+See <<es-connectors-troubleshooting>>.
 
-[discrete#connectors-slack-client-security]
+[discrete#es-connectors-slack-client-security]
 ===== Security
 
-See <<connectors-security>>.
+See <<es-connectors-security>>.
 
 
 // Closing the collapsible section 

@@ -1,4 +1,4 @@
-[#connectors-docker-compose-quickstart]
+[#es-connectors-docker-compose-quickstart]
 === Docker Compose quickstart
 
 Use our Docker Compose quickstart to easily set up a full self-managed stack and try out Elastic Connectors.

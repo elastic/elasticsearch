@@ -1,14 +1,14 @@
-[#connectors-troubleshooting]
+[#es-connectors-troubleshooting]
 === Troubleshooting connectors
 ++++
 <titleabbrev>Troubleshooting</titleabbrev>
 ++++
 
-Use the following actions to help diagnose and resolve issues with <<native-connectors,native connectors>> and <<build-connector,connector clients>>:
+Use the following actions to help diagnose and resolve issues with <<es-native-connectors,native connectors>> and <<es-build-connector,connector clients>>:
 
-* <<connectors-usage-indices,View index health and ingestion status>>.
-* <<connectors-usage-index-view,View errors, document count, sync history, and sync statuses>>.
-* <<connectors-usage-documents,View synced documents and index mappings>>.
-* Edit your index configuration: <<native-connectors,native connector>>, <<build-connector,connector client>>.
+* <<es-connectors-usage-indices,View index health and ingestion status>>.
+* <<es-connectors-usage-index-view,View errors, document count, sync history, and sync statuses>>.
+* <<es-connectors-usage-documents,View synced documents and index mappings>>.
+* Edit your index configuration: <<es-native-connectors,native connector>>, <<es-build-connector,connector client>>.
 
 You can also request help or support.

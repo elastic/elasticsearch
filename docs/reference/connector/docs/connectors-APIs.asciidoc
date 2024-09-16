@@ -1,8 +1,8 @@
-[#connectors-apis]
+[#es-connectors-apis]
 == Connector APIs
 
 In 8.12 we introduced a set of APIs to create and manage Elastic connectors and sync jobs.
-Learn more in the {es} documentation:
+Learn more in the {es} REST API documentation:
 
 * {ref}/connector-apis.html[Connector APIs]
 * {ref}/connector-apis.html#sync-job-apis[Sync job APIs]
@@ -10,10 +10,10 @@ Learn more in the {es} documentation:
 .Connector API tutorial
 [sidebar]
 --
-Check out this concrete <<connectors-tutorial-api, tutorial>> to get started with the Connector APIs.
+Check out this concrete <<es-connectors-tutorial-api, tutorial>> to get started with the Connector APIs.
 --
 
-[discrete#connectors-apis-cli]
+[discrete#es-connectors-apis-cli]
 === Command-line interface
 
 We also provide a command-line interface.

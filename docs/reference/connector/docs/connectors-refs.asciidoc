@@ -1,4 +1,4 @@
-[#connectors-refs]
+[#es-connectors-refs]
 == Connectors references
 
 The following pages contain the reference documentation for each individual connector:

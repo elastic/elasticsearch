@@ -1,4 +1,4 @@
-[#dls-overview]
+[#es-dls-overview]
 === How DLS works
 
 Document level security (DLS) enables you to control access to content at the document level.
@@ -7,22 +7,22 @@ Access to each document in an index can be managed independently, based on the i
 This feature works with the help of special access control documents that are indexed by a connector into a hidden Elasticsearch index, associated with the standard content index.
 If your content documents have access control fields that match the criteria defined in your access control documents, Elasticsearch will apply DLS to the documents synced by the connector.
 
-[discrete#dls-overview-core-concepts]
+[discrete#es-dls-overview-core-concepts]
 ==== Core concepts
 
 At a very high level, there are two essential components that enable document level security with connectors:
 
 * *Access control documents*: These documents define the access control policy for documents from your third party source.
 They live in a hidden index named with the following pattern: `.search-acl-filter-<INDEX-NAME>`.
-See <<dls-overview-access-control-documents, access control documents>> for more details and an example.
+See <<es-dls-overview-access-control-documents, access control documents>> for more details and an example.
 * *Content documents with access control fields*: The documents that contain the synced content from your third party source must have *access control fields* that match the criteria defined in your access control documents.
 These documents live in an index named with the following pattern: `search-<INDEX-NAME>`.
 ** If a content document does not have access control fields, there will be no restrictions on who can view it.
 ** If the access control field is present but _empty_, no identities will have access and the document will be effectively invisible.
 +
-See <<dls-overview-content-documents,content documents>> for more details.
+See <<es-dls-overview-content-documents,content documents>> for more details.
 
-[discrete#dls-overview-procedure]
+[discrete#es-dls-overview-procedure]
 ==== Enabling DLS
 
 To enable DLS, you need to perform the following steps:
@@ -30,14 +30,14 @@ To enable DLS, you need to perform the following steps:
 . First *enable DLS* for your connector as part of the connector configuration.
 . Run an *Access control* sync.
 . This creates a hidden access control index prefixed with `.search-acl-filter-`. For example, if you named your connector index `search-sharepoint`, the access control index would be named `.search-acl-filter-search-sharepoint`.
-. The <<dls-overview-access-control-documents, access control documents>> on the hidden index define which identities are allowed to view documents with access control fields.
+. The <<es-dls-overview-access-control-documents, access control documents>> on the hidden index define which identities are allowed to view documents with access control fields.
 . The access control document uses a search template to define how to filter search results based on identities.
 . Schedule recurring *Access control* syncs to update the access control documents in the hidden index.
 
 Note the following details about content documents and syncs:
 
 . Remember that for DLS to work, your *content documents* must have access control fields that match the criteria defined in your access control documents.
-<<dls-overview-content-documents,Content documents>> contain the actual content your users will search for.
+<<es-dls-overview-content-documents,Content documents>> contain the actual content your users will search for.
 If a content document does not have access control fields, there will be no restrictions on who can view it.
 . When a user searches for content, the access control documents determine which content the user is allowed to view.
 . At _search_ time documents without the `_allow_access_control` field or with allowed values in `_allow_access_control.enum` will be returned in the search results. The logic for determining whether a document has access control enabled is based on the presence or values of the `_allow_access_control*` fields.
@@ -50,10 +50,10 @@ You must enable DLS for your connector _before_ running the first content sync.
 If you have already run a content sync, you'll need to delete all documents on the index, enable DLS, and run a new content sync.
 ====
 
-[discrete#dls-overview-index]
+[discrete#es-dls-overview-index]
 ==== DLS at index time
 
-[discrete#dls-overview-access-control-documents]
+[discrete#es-dls-overview-access-control-documents]
 ===== Access control documents
 
 These documents define the access control policy for the data indexed into Elasticsearch.
@@ -87,7 +87,7 @@ It also contains the query `source`, which will specify a query to fetch all con
 The `_id` could be, for example, the email address or the username of a user.
 The exact content and structure of `identity` depends on the corresponding implementation.
 
-[discrete#dls-overview-content-documents]
+[discrete#es-dls-overview-content-documents]
 ===== Content documents
 
 Content documents contain the actual data from your 3rd party source.
@@ -110,7 +110,7 @@ In the following example we'll use the field `_allow_access_control` for specify
 }
 ----
 
-[discrete#dls-overview-sync-type-comparison]
+[discrete#es-dls-overview-sync-type-comparison]
 ===== Access control sync vs content sync
 
 The ingestion of documents into an Elasticsearch index is known as a sync.
@@ -125,15 +125,15 @@ The access control documents determine the access control policy for the content
 
 By leveraging DLS, you can ensure that your Elasticsearch data is securely accessible to the right users or groups, based on the permissions defined in the access control documents.
 
-[discrete#dls-overview-search-time]
+[discrete#es-dls-overview-search-time]
 ==== DLS at search time
 
-[discrete#dls-overview-search-time-identity-allowed]
+[discrete#es-dls-overview-search-time-identity-allowed]
 ===== When is an identity allowed to see a content document
 
 A user can view a document if at least one access control element in their access control document matches an item within the document's `_allow_access_control` field.
 
-[discrete#dls-overview-search-time-example]
+[discrete#es-dls-overview-search-time-example]
 ====== Example
 This section illustrates when a user has access to certain documents depending on the access control.
 
@@ -209,7 +209,7 @@ The user `example username` won't have access to this document because their ema
 
 No one will have access to this document as the `_allow_access_control` field is empty.
 
-[discrete#dls-overview-multiple-connectors]
+[discrete#es-dls-overview-multiple-connectors]
 ===== Querying multiple indices
 
 This section illustrates how to define an Elasticsearch API key that has restricted read access to multiple indices that have DLS enabled.
@@ -217,7 +217,7 @@ This section illustrates how to define an Elasticsearch API key that has restric
 A user might have multiple identities that define which documents they are allowed to read.
 We can define an Elasticsearch API key with a role descriptor for each index the user has access to.
 
-[discrete#dls-overview-multiple-connectors-example]
+[discrete#es-dls-overview-multiple-connectors-example]
 ====== Example
 
 Let's assume we want to create an API key that combines the following user identities:
@@ -317,7 +317,7 @@ POST /_security/api_key
 
 ----
 
-[discrete#dls-overview-multiple-connectors-workflow-guidance]
+[discrete#es-dls-overview-multiple-connectors-workflow-guidance]
 ====== Workflow guidance
 
 We recommend relying on the connector access control sync to automate and keep documents in sync with changes to the original content source's user permissions.
@@ -327,10 +327,10 @@ Consider setting an `expiration` time when creating an Elasticsearch API key. Wh
 The API key can be invalidated using the {ref}/security-api-invalidate-api-key.html[Invalidate API Key API].
 Additionally, if the user's permission changes, you'll need to update or recreate the Elasticsearch API key.
 
-[discrete#dls-overview-search-time-learn-more]
+[discrete#es-dls-overview-search-time-learn-more]
 ===== Learn more
 
-* <<dls-connectors-app-search>>
-* <<dls-e2e-guide>>
+* <<es-dls-connectors-app-search>>
+* <<es-dls-e2e-guide>>
 * {ref}/document-level-security.html[Elasticsearch Document Level Security^]
 

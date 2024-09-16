@@ -1,7 +1,7 @@
-[#native-connectors]
+[#es-native-connectors]
 == Elastic hosted connectors
 
-Hosted <<connectors,Elastic connectors>> are available directly within your Elastic Cloud deployment.
+Hosted <<es-connectors,Elastic connectors>> are available directly within your Elastic Cloud deployment.
 No additional infrastructure is required.
 
 Hosted connectors sync data sources directly to Elasticsearch indices.
@@ -12,7 +12,7 @@ See each connector reference for additional information specific to each connect
 
 include::_connectors-list-native.asciidoc[]
 
-[discrete#native-connectors-prerequisites]
+[discrete#es-native-connectors-prerequisites]
 === Availability and prerequisites
 
 Hosted connectors were introduced in Elastic version *8.5.0*.
@@ -21,7 +21,7 @@ Your Elastic Cloud deployment must include the following Elastic services:
 
 * *Elasticsearch*
 * *{kib}*
-* *Enterprise Search*
+* {enterprise-search-ref}/server.html[*Enterprise Search*]
 
 Refer to _Native Integrations_ on the https://www.elastic.co/subscriptions/cloud[Elastic subscriptions page], in the *Elastic Search* section for hosted connector licensing requirements.
 
@@ -34,7 +34,7 @@ If you have IP/firewall rules on your third party service, you'll need to add th
 Refer to {cloud}/ec-static-ips.html[static IP ranges] in the Elastic Cloud documentation for the latest list of IP addresses.
 --
 
-[discrete#native-connectors-usage]
+[discrete#es-native-connectors-usage]
 === Usage in {kib} UI
 
 Follow the *Connector* workflow in {kib} to select the *Connector* ingestion method.
@@ -43,12 +43,12 @@ Choose a data source, create an Elasticsearch index, and configure a hosted conn
 [.screenshot]
 image::images/use-a-connector-workflow.png[]
 
-[discrete#native-connectors-select-connector]
+[discrete#es-native-connectors-select-connector]
 ==== Select a connector
 
 Choose the data source to sync from the available options and select *Continue*.
 
-[discrete#native-connectors-index]
+[discrete#es-native-connectors-index]
 ==== Create index
 
 Create a new index to be managed by the connector:
@@ -57,7 +57,7 @@ Create a new index to be managed by the connector:
 (The index name will be automatically prefixed with `search-`.)
 . Select *Create index*.
 
-The index is created and ready to <<native-connectors-configuration,configure>>.
+The index is created and ready to <<es-native-connectors-configuration,configure>>.
 
 This operation requires:
 
@@ -67,7 +67,7 @@ This operation requires:
 . `manage_api_key` {ref}/security-privileges.html[cluster privilege^] to allow the API key to be created
 . `write_connector_secrets` {ref}/security-privileges.html[cluster privilege^] to allow the API key to be stored as a secret
 
-[discrete#native-connectors-configuration]
+[discrete#es-native-connectors-configuration]
 ==== Configure connector
 
 Create a new index to be managed by the connector.
@@ -87,10 +87,10 @@ Your team can use this information to differentiate this index from other connec
 . Edit the data source configuration.
 The fields here vary by connector.
 Refer to the documentation for each connector for details (see list of Hosted connectors, above).
-See <<connectors-security>> for security considerations.
+See <<es-connectors-security>> for security considerations.
 . Save your changes.
 
-Optionally choose *Edit sync schedule* to begin <<native-connectors-management,managing the connector>>.
+Optionally choose *Edit sync schedule* to begin <<es-native-connectors-management,managing the connector>>.
 
 This operation requires:
 
@@ -100,19 +100,19 @@ This operation requires:
 . `manage_api_key` {ref}/security-privileges.html[cluster privilege^] to allow the API key to be created
 . `write_connector_secrets` {ref}/security-privileges.html[cluster privilege^] to allow the API key to be stored as a secret
 
-[discrete#native-connectors-management]
+[discrete#es-native-connectors-management]
 ==== Manage connector
 
-To manage documents, syncs, sync rules, ingest pipelines, and other connector features, see <<connectors-usage>>.
+To manage documents, syncs, sync rules, ingest pipelines, and other connector features, see <<es-connectors-usage>>.
 
-[discrete#native-connectors-manage-API-keys]
+[discrete#es-native-connectors-manage-API-keys]
 === Manage API keys
 
 [NOTE]
 ====
 API keys for Hosted connectors were introduced in Elastic version *8.13.0*.
 Hosted connectors created in earlier versions will not automatically use API keys upon upgrading to *8.13.0*.
-See <<native-connectors-enabling-API-keys-for-upgraded-connectors,enabling API keys>> for more information.
+See <<es-native-connectors-enabling-API-keys-for-upgraded-connectors,enabling API keys>> for more information.
 ====
 
 Hosted connectors communicate with Elasticsearch using API keys.
@@ -133,9 +133,9 @@ This index can only be written to through API requests by users with the `write_
 Only the Enterprise Search instance has permission to read from this index.
 
 Users managing Hosted connectors will need the `write_connector_secrets` cluster privilege assigned to their role.
-See <<connectors-security>> for security considerations.
+See <<es-connectors-security>> for security considerations.
 
-[discrete#native-connectors-manage-API-keys-programmatically]
+[discrete#es-native-connectors-manage-API-keys-programmatically]
 ==== Manage API keys programmatically
 
 You can also create and store API keys programmatically.
@@ -146,7 +146,7 @@ You can also create and store API keys programmatically.
 include::_connectors-create-native-api-key.asciidoc[]
 ===================================
 
-[discrete#native-connectors-enabling-API-keys-for-upgraded-connectors]
+[discrete#es-native-connectors-enabling-API-keys-for-upgraded-connectors]
 ==== Enabling API keys for upgraded connectors
 
 Hosted connectors created before *8.13.0* do not initially have API keys upon upgrading.
@@ -177,18 +177,18 @@ POST .elastic-connectors/_update/<connector_id>
 Your hosted connector is now using API keys to authorize ingestion into Elasticsearch.
 ===================================
 
-[discrete#native-connectors-usage-api]
+[discrete#es-native-connectors-usage-api]
 === Usage via API
 
 In 8.12 we introduced a set of {ref}/connector-apis.html[Connector APIs] to create and manage Elastic connectors and sync jobs, along with a https://github.com/elastic/connectors/blob/main/docs/CLI.md[CLI tool].
 Use these tools if you'd like to work with connectors and sync jobs programmatically.
 
-[discrete#native-connectors-example]
+[discrete#es-native-connectors-example]
 === End-to-end example
 
-The following example demonstrates how to use a managed connector on Elastic Cloud: <<mongodb-start>>.
+The following example demonstrates how to use a managed connector on Elastic Cloud: <<es-mongodb-start>>.
 
-[discrete#native-connectors-convert]
+[discrete#es-native-connectors-convert]
 === Convert a hosted connector
 
 You can convert a hosted connector to a self-managed connector client to be run on your own infrastructure.

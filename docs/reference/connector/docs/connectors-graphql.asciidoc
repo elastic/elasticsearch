@@ -1,4 +1,4 @@
-[#connectors-graphql]
+[#es-connectors-graphql]
 === Elastic GraphQL connector reference
 ++++
 <titleabbrev>GraphQL</titleabbrev>
@@ -10,41 +10,41 @@
 
 The Elastic GraphQL connector is written in Python using the https://github.com/elastic/connectors/tree/main[Elastic connector framework]. View the https://github.com/elastic/connectors/blob/main/connectors/sources/graphql.py[source code for this connector].
 
-[discrete#connectors-graphql-connector-availability-and-prerequisites]
+[discrete#es-connectors-graphql-connector-availability-and-prerequisites]
 ==== Availability and prerequisites
 
 This connector was introduced in Elastic *8.14.0*, available as a *self-managed* connector client.
 
-To use this connector, satisfy all <<build-connector, connector client prerequisites>>.
+To use this connector, satisfy all <<es-build-connector, connector client prerequisites>>.
 Importantly, you must deploy the connectors service on your own infrastructure.
 You have two deployment options:
 
-* <<connectors-run-from-source, Run connectors service from source>>. Use this option if you're comfortable working with Python and want to iterate quickly locally.
-* <<connectors-run-from-docker, Run connectors service in Docker>>. Use this option if you want to deploy the connectors to a server, or use a container orchestration platform.
+* <<es-connectors-run-from-source, Run connectors service from source>>. Use this option if you're comfortable working with Python and want to iterate quickly locally.
+* <<es-connectors-run-from-docker, Run connectors service in Docker>>. Use this option if you want to deploy the connectors to a server, or use a container orchestration platform.
 
 [NOTE]
 ====
 This connector is in *technical preview* and is subject to change. The design and code is less mature than official GA features and is being provided as-is with no warranties. Technical preview features are not subject to the support SLA of official GA features.
 ====
 
-[discrete#connectors-graphql-connector-usage]
+[discrete#es-connectors-graphql-connector-usage]
 ==== Usage
 
 To set up this connector in the UI, select the *GraphQL* tile when creating a new connector under *Search -> Connectors*.
 
 If you're already familiar with how connectors work, you can also use the {ref}/connector-apis.html[Connector APIs].
 
-For additional operations, see <<connectors-usage>>.
+For additional operations, see <<es-connectors-usage>>.
 
-[discrete#connectors-graphql-connector-docker]
+[discrete#es-connectors-graphql-connector-docker]
 ==== Deploy with Docker
 
 include::_connectors-docker-instructions.asciidoc[]
 
-[discrete#connectors-graphql-connector-configuration]
+[discrete#es-connectors-graphql-connector-configuration]
 ==== Configuration
 
-[discrete#connectors-graphql-connector-configure-graphql-connector]
+[discrete#es-connectors-graphql-connector-configure-graphql-connector]
 ===== Configure GraphQL connector
 
 Note the following configuration fields:
@@ -177,38 +177,38 @@ Use `.` to provide the full path of the object from the root of the response.
 Specifies the maximum time in seconds to wait for a response from the GraphQL source.
 Default value is *30 seconds*.
 
-[discrete#connectors-graphql-connector-documents-and-syncs]
+[discrete#es-connectors-graphql-connector-documents-and-syncs]
 ==== Documents and syncs
 
 The connector syncs the objects and entities based on GraphQL Query and GraphQL Object List.
 
-[discrete#connectors-graphql-connector-sync-types]
+[discrete#es-connectors-graphql-connector-sync-types]
 ==== Sync types
 
 https://www.elastic.co/guide/en/enterprise-search/current/connectors-sync-types.html#connectors-sync-types-full[Full syncs] are supported by default for all connectors.
 
 This connector currently does not support https://www.elastic.co/guide/en/enterprise-search/current/connectors-sync-types.html#connectors-sync-types-incremental[incremental syncs].
 
-[discrete#connectors-graphql-connector-sync-rules]
+[discrete#es-connectors-graphql-connector-sync-rules]
 ==== Sync rules
 
 https://www.elastic.co/guide/en/enterprise-search/current/sync-rules.html#sync-rules-basic[Basic sync rules] are identical for all connectors and are available by default.
 
-[discrete#connectors-graphql-connector-advanced-sync-rules]
+[discrete#es-connectors-graphql-connector-advanced-sync-rules]
 ==== Advanced Sync Rules
 
 Advanced sync rules are not available for this connector in the present version.
 
-[discrete#connectors-graphql-connector-connector-client-operations]
+[discrete#es-connectors-graphql-connector-connector-client-operations]
 ==== Connector Client operations
 
-[discrete#connectors-graphql-connector-end-to-end-testing]
+[discrete#es-connectors-graphql-connector-end-to-end-testing]
 ===== End-to-end Testing
 
 The connector framework enables operators to run functional tests against a real data source, using Docker Compose.
 You don't need a running Elasticsearch instance or GraphQL source to run this test.
 
-Refer to <<build-connector-testing>> for more details.
+Refer to <<es-build-connector-testing>> for more details.
 
 To perform E2E testing for the GraphQL connector, run the following command:
 
@@ -224,21 +224,21 @@ make ftest NAME=graphql DATA_SIZE=small
 
 By default, `DATA_SIZE=MEDIUM`.
 
-[discrete#connectors-graphql-connector-known-issues]
+[discrete#es-connectors-graphql-connector-known-issues]
 ==== Known issues
 
 * Every document will be updated in every sync.
 * If the same field name exists with different types across different objects, the connector might raise a mapping parser exception.
 
-Refer to <<connectors-known-issues>> for a list of known issues for all connectors.
+Refer to <<es-connectors-known-issues>> for a list of known issues for all connectors.
 
-[discrete#connectors-graphql-connector-troubleshooting]
+[discrete#es-connectors-graphql-connector-troubleshooting]
 ==== Troubleshooting
 
-See <<connectors-troubleshooting>>.
+See <<es-connectors-troubleshooting>>.
 
-[discrete#connectors-graphql-connector-security]
+[discrete#es-connectors-graphql-connector-security]
 ==== Security
 
-See <<connectors-security>>.
+See <<es-connectors-security>>.
 

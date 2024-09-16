@@ -1,4 +1,4 @@
-[#connectors-onedrive]
+[#es-connectors-onedrive]
 === Elastic OneDrive connector reference
 ++++
 <titleabbrev>OneDrive</titleabbrev>
@@ -7,7 +7,7 @@
 :service-name: OneDrive
 :service-name-stub: onedrive
 
-The _Elastic OneDrive connector_ is a <<connectors,connector>> for OneDrive.
+The _Elastic OneDrive connector_ is a <<es-connectors,connector>> for OneDrive.
 This connector is written in Python using the {connectors-python}[Elastic connector framework^]. 
 
 View the {connectors-python}/connectors/sources/{service-name-stub}.py[*source code* for this connector^] (branch _{connectors-branch}_, compatible with Elastic _{minor-version}_).
@@ -21,7 +21,7 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 // ////////   NATIVE CONNECTOR REFERENCE   ///////
 // //////// //// //// //// //// //// //// ////////
 
-[discrete#connectors-onedrive-native-connector-reference]
+[discrete#es-connectors-onedrive-native-connector-reference]
 ==== *Native connector (Elastic Cloud)*
 
 .View *native connector* reference
@@ -29,25 +29,25 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 [%collapsible]
 ===============
 
-[discrete#connectors-onedrive-availability-prerequisites]
+[discrete#es-connectors-onedrive-availability-prerequisites]
 ===== Availability and prerequisites
 
 This connector is available as a *native connector* as of Elastic version *8.11.0*.
 
-To use this connector natively in Elastic Cloud, satisfy all <<native-connectors-prerequisites,native connector requirements>>.
+To use this connector natively in Elastic Cloud, satisfy all <<es-native-connectors-prerequisites,native connector requirements>>.
 
-[discrete#connectors-onedrive-create-native-connector]
+[discrete#es-connectors-onedrive-create-native-connector]
 ===== Create a {service-name} connector
 include::_connectors-create-native.asciidoc[]
 
-[discrete#connectors-onedrive-usage]
+[discrete#es-connectors-onedrive-usage]
 ===== Usage
 
-To use this connector natively in Elastic Cloud, see <<native-connectors>>.
+To use this connector natively in Elastic Cloud, see <<es-native-connectors>>.
 
-For additional operations, see <<connectors-usage>>.
+For additional operations, see <<es-connectors-usage>>.
 
-[discrete#connectors-onedrive-usage-connection]
+[discrete#es-connectors-onedrive-usage-connection]
 ====== Connecting to OneDrive
 
 To connect to OneDrive you need to https://learn.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal[create an Azure Active Directory application and service principal] that can access resources.
@@ -68,7 +68,7 @@ Follow these steps:
 Finally, click on the *Grant admin consent* button to grant the required permissions to the app. This step requires administrative privileges. **NOTE**: If you are not an admin, you need to request the Admin to grant consent via their Azure Portal.
 . Click on *Certificates & Secrets* tab. Go to Client Secrets. Generate a new client secret and keep a note of the string present under `Value` column.
 
-[discrete#connectors-onedrive-usage-configuration]
+[discrete#es-connectors-onedrive-usage-configuration]
 ===== Configuration
 
 The following configuration fields are *required*:
@@ -86,7 +86,7 @@ Unique identifier of your Azure Active Directory instance. Example:
 * `123a1b23-12a3-45b6-7c8d-fc931cfb448d`
 
 Enable document level security::
-Toggle to enable <<dls,document level security>>.
+Toggle to enable <<es-dls,document level security>>.
 When enabled:
 * Full syncs will fetch access control lists for each document and store them in the `_allow_access_control` field.
 * Access control syncs will fetch users' access control lists and store them in a separate index.
@@ -97,12 +97,12 @@ Enabling DLS for your connector will cause a significant performance degradation
 This impacts the speed at which your content can be retrieved.
 ====
 
-[discrete#connectors-onedrive-usage-content-extraction]
+[discrete#es-connectors-onedrive-usage-content-extraction]
 ===== Content Extraction
 
-Refer to <<connectors-content-extraction, Content extraction>> for more details.
+Refer to <<es-connectors-content-extraction, Content extraction>> for more details.
 
-[discrete#connectors-onedrive-documents-syncs]
+[discrete#es-connectors-onedrive-documents-syncs]
 ===== Documents and syncs
 
 The connector syncs the following objects and entities:
@@ -113,53 +113,53 @@ The connector syncs the following objects and entities:
 
 [NOTE]
 ====
-* Content from files bigger than 10 MB won't be extracted. (Self-managed connectors can use the <<connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.)
+* Content from files bigger than 10 MB won't be extracted. (Self-managed connectors can use the <<es-connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.)
 * Permissions are not synced by default.
-You must first enable <<connectors-onedrive-client-dls,DLS>>.
+You must first enable <<es-connectors-onedrive-client-dls,DLS>>.
 Otherwise, *all documents* indexed to an Elastic deployment will be visible to *all users with access* to that Elastic Deployment.
 ====
 
-[discrete#connectors-onedrive-connectors-onedrive-sync-types]
+[discrete#es-connectors-onedrive-connectors-onedrive-sync-types]
 ====== Sync types
 
-<<connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
+<<es-connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
 
-This connector also supports <<connectors-sync-types-incremental,incremental syncs>>.
+This connector also supports <<es-connectors-sync-types-incremental,incremental syncs>>.
 
-[discrete#connectors-onedrive-dls]
+[discrete#es-connectors-onedrive-dls]
 ===== Document level security
 
 Document level security (DLS) enables you to restrict access to documents based on a user’s permissions. This feature is available by default for the OneDrive connector.
-See <<connectors-onedrive-usage-configuration>> for how to enable DLS for this connector.
+See <<es-connectors-onedrive-usage-configuration>> for how to enable DLS for this connector.
 
-Refer to <<dls,document level security>> for more details about this feature.
+Refer to <<es-dls,document level security>> for more details about this feature.
 
 [NOTE]
 ====
-Refer to <<dls-e2e-guide>> to learn how to ingest data with DLS enabled, when building a search application.
+Refer to <<es-dls-e2e-guide>> to learn how to ingest data with DLS enabled, when building a search application.
 ====
 
-[discrete#connectors-onedrive-documents-sync-rules]
+[discrete#es-connectors-onedrive-documents-sync-rules]
 ===== Sync rules
 
 _Basic_ sync rules are identical for all connectors and are available by default.
-For more information read <<sync-rules-types>>.
+For more information read <<es-sync-rules-types>>.
 
-[discrete#connectors-onedrive-sync-rules-advanced]
+[discrete#es-connectors-onedrive-sync-rules-advanced]
 ====== Advanced sync rules
 
-This connector supports <<sync-rules-advanced,advanced sync rules>> for remote filtering.
+This connector supports <<es-sync-rules-advanced,advanced sync rules>> for remote filtering.
 These rules cover complex query-and-filter scenarios that cannot be expressed with basic sync rules.
 Advanced sync rules are defined through a source-specific DSL JSON snippet.
 
 [NOTE]
 ====
-A <<connectors-sync-types-full, full sync>> is required for advanced sync rules to take effect.
+A <<es-connectors-sync-types-full, full sync>> is required for advanced sync rules to take effect.
 ====
 
 Here are a few examples of advanced sync rules for this connector.
 
-[discrete#connectors-onedrive-sync-rules-advanced-examples-1]
+[discrete#es-connectors-onedrive-sync-rules-advanced-examples-1]
 ======= Example 1
 
 This rule skips indexing for files with `.xlsx` and `.docx` extensions.
@@ -174,7 +174,7 @@ All other files and folders will be indexed.
 ]
 ----
 
-[discrete#connectors-onedrive-sync-rules-advanced-examples-2]
+[discrete#es-connectors-onedrive-sync-rules-advanced-examples-2]
 ======= Example 2
 
 This rule focuses on indexing files and folders owned by `user1-domain@onmicrosoft.com` and `user2-domain@onmicrosoft.com` but excludes files with `.py` extension.
@@ -189,7 +189,7 @@ This rule focuses on indexing files and folders owned by `user1-domain@onmicroso
 ]
 ----
 
-[discrete#connectors-onedrive-sync-rules-advanced-examples-3]
+[discrete#es-connectors-onedrive-sync-rules-advanced-examples-3]
 ======= Example 3
 
 This rule indexes only the files and folders directly inside the root folder, excluding any `.md` files.
@@ -204,7 +204,7 @@ This rule indexes only the files and folders directly inside the root folder, ex
 ]
 ----
 
-[discrete#connectors-onedrive-sync-rules-advanced-examples-4]
+[discrete#es-connectors-onedrive-sync-rules-advanced-examples-4]
 ======= Example 4
 
 This rule indexes files and folders owned by `user1-domain@onmicrosoft.com` and `user3-domain@onmicrosoft.com` that are directly inside the `abc` folder, which is a subfolder of any folder under the `hello` directory in the root. Files with extensions `.pdf` and `.py` are excluded.
@@ -220,7 +220,7 @@ This rule indexes files and folders owned by `user1-domain@onmicrosoft.com` and 
 ]
 ----
 
-[discrete#connectors-onedrive-sync-rules-advanced-examples-5]
+[discrete#es-connectors-onedrive-sync-rules-advanced-examples-5]
 ======= Example 5
 
 This example contains two rules.
@@ -239,7 +239,7 @@ The second rule indexes files for all other users, but skips files with a `.py` 
 ]
 ----
 
-[discrete#connectors-onedrive-sync-rules-advanced-examples-6]
+[discrete#es-connectors-onedrive-sync-rules-advanced-examples-6]
 ======= Example 6
 
 This example contains two rules.
@@ -259,29 +259,29 @@ The second rule indexes files and folders recursively inside the `abc` folder.
 ]
 ----
 
-[discrete#connectors-onedrive-content-extraction]
+[discrete#es-connectors-onedrive-content-extraction]
 ===== Content Extraction
 
-See <<connectors-content-extraction>>.
+See <<es-connectors-content-extraction>>.
 
-[discrete#connectors-onedrive-known-issues]
+[discrete#es-connectors-onedrive-known-issues]
 ===== Known issues
 
 * *Enabling document-level security impacts performance.* 
 +
 Enabling DLS for your connector will cause a significant performance degradation, as the API calls to the data source required for this functionality are rate limited. This impacts the speed at which your content can be retrieved.
 
-Refer to <<connectors-known-issues>> for a list of known issues for all connectors.
+Refer to <<es-connectors-known-issues>> for a list of known issues for all connectors.
 
-[discrete#connectors-onedrive-troubleshooting]
+[discrete#es-connectors-onedrive-troubleshooting]
 ===== Troubleshooting
 
-See <<connectors-troubleshooting>>.
+See <<es-connectors-troubleshooting>>.
 
-[discrete#connectors-onedrive-security]
+[discrete#es-connectors-onedrive-security]
 ===== Security
 
-See <<connectors-security>>.
+See <<es-connectors-security>>.
 // Closing the collapsible section 
 ===============
 
@@ -290,7 +290,7 @@ See <<connectors-security>>.
 // //////// CONNECTOR CLIENT REFERENCE     ///////
 // //////// //// //// //// //// //// //// ////////
 
-[discrete#connectors-onedrive-connector-client-reference]
+[discrete#es-connectors-onedrive-connector-client-reference]
 ==== *Connector client (self-managed)*
 
 .View *connector client* reference
@@ -298,24 +298,24 @@ See <<connectors-security>>.
 [%collapsible]
 ===============
 
-[discrete#connectors-onedrive-client-availability-prerequisites]
+[discrete#es-connectors-onedrive-client-availability-prerequisites]
 ===== Availability and prerequisites
 
 This connector is available as a self-managed *connector client*.
 
 This connector client is compatible with Elastic versions *8.10.0+*.
 
-To use this connector, satisfy all <<build-connector,connector client requirements>>.
+To use this connector, satisfy all <<es-build-connector,connector client requirements>>.
 
-[discrete#connectors-onedrive-create-connector-client]
+[discrete#es-connectors-onedrive-create-connector-client]
 ===== Create a {service-name} connector
 include::_connectors-create-client.asciidoc[]
 
-[discrete#connectors-onedrive-client-usage]
+[discrete#es-connectors-onedrive-client-usage]
 ===== Usage
-For additional operations, see <<connectors-usage>>.
+For additional operations, see <<es-connectors-usage>>.
 
-[discrete#connectors-onedrive-client-usage-connection]
+[discrete#es-connectors-onedrive-client-usage-connection]
 ====== Connecting to OneDrive
 
 To connect to OneDrive you need to https://learn.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal[create an Azure Active Directory application and service principal] that can access resources.
@@ -336,14 +336,14 @@ Follow these steps:
 Finally, click on the *Grant admin consent* button to grant the required permissions to the app. This step requires administrative privileges. **NOTE**: If you are not an admin, you need to request the Admin to grant consent via their Azure Portal.
 . Click on *Certificates & Secrets* tab. Go to Client Secrets. Generate a new client secret and keep a note of the string present under `Value` column.
 
-[discrete#connectors-onedrive-client-docker]
+[discrete#es-connectors-onedrive-client-docker]
 ===== Deployment using Docker
 
 Connector clients are run on your own infrastructure.
 
 include::_connectors-docker-instructions.asciidoc[]
 
-[discrete#connectors-onedrive-client-usage-configuration]
+[discrete#es-connectors-onedrive-client-usage-configuration]
 ===== Configuration
 
 The following configuration fields are *required*:
@@ -364,7 +364,7 @@ Azure application Tenant ID: unique identifier of your Azure Active Directory in
 The number of retry attempts after failed request to OneDrive. Default value is `3`.
 
 `use_document_level_security`::
-Toggle to enable <<dls,document level security>>.
+Toggle to enable <<es-dls,document level security>>.
 When enabled:
 * Full syncs will fetch access control lists for each document and store them in the `_allow_access_control` field.
 * Access control syncs will fetch users' access control lists and store them in a separate index.
@@ -376,16 +376,16 @@ This impacts the speed at which your content can be retrieved.
 ====
 
 `use_text_extraction_service`::
-Requires a separate deployment of the <<connectors-content-extraction-local,Elastic Text Extraction Service>>.
+Requires a separate deployment of the <<es-connectors-content-extraction-local,Elastic Text Extraction Service>>.
 Requires that ingest pipeline settings disable text extraction.
 Default value is `False`.
 
-[discrete#connectors-onedrive-client-usage-content-extraction]
+[discrete#es-connectors-onedrive-client-usage-content-extraction]
 ===== Content Extraction
 
-Refer to <<connectors-content-extraction, Content extraction>> for more details.
+Refer to <<es-connectors-content-extraction, Content extraction>> for more details.
 
-[discrete#connectors-onedrive-client-documents-syncs]
+[discrete#es-connectors-onedrive-client-documents-syncs]
 ===== Documents and syncs
 
 The connector syncs the following objects and entities:
@@ -396,53 +396,53 @@ The connector syncs the following objects and entities:
 
 [NOTE]
 ====
-* Content from files bigger than 10 MB won't be extracted by default. You can use the <<connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.
+* Content from files bigger than 10 MB won't be extracted by default. You can use the <<es-connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.
 * Permissions are not synced by default.
-You must first enable <<connectors-onedrive-client-dls,DLS>>.
+You must first enable <<es-connectors-onedrive-client-dls,DLS>>.
 Otherwise, *all documents* indexed to an Elastic deployment will be visible to *all users with access* to that Elastic Deployment.
 ====
 
-[discrete#connectors-onedrive-client-sync-types]
+[discrete#es-connectors-onedrive-client-sync-types]
 ====== Sync types
 
-<<connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
+<<es-connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
 
-This connector also supports <<connectors-sync-types-incremental,incremental syncs>>.
+This connector also supports <<es-connectors-sync-types-incremental,incremental syncs>>.
 
-[discrete#connectors-onedrive-client-dls]
+[discrete#es-connectors-onedrive-client-dls]
 ===== Document level security
 
 Document level security (DLS) enables you to restrict access to documents based on a user’s permissions. This feature is available by default for the OneDrive connector.
-See <<connectors-onedrive-client-usage-configuration>> for how to enable DLS for this connector.
+See <<es-connectors-onedrive-client-usage-configuration>> for how to enable DLS for this connector.
 
-Refer to <<dls,document level security>> for more details about this feature.
+Refer to <<es-dls,document level security>> for more details about this feature.
 
 [NOTE]
 ====
-Refer to <<dls-e2e-guide>> to learn how to ingest data with DLS enabled, when building a search application.
+Refer to <<es-dls-e2e-guide>> to learn how to ingest data with DLS enabled, when building a search application.
 ====
 
-[discrete#connectors-onedrive-client-documents-sync-rules]
+[discrete#es-connectors-onedrive-client-documents-sync-rules]
 ===== Sync rules
 
 _Basic_ sync rules are identical for all connectors and are available by default.
-For more information read <<sync-rules-types>>.
+For more information read <<es-sync-rules-types>>.
 
-[discrete#connectors-onedrive-client-sync-rules-advanced]
+[discrete#es-connectors-onedrive-client-sync-rules-advanced]
 ====== Advanced sync rules
 
-This connector supports <<sync-rules-advanced,advanced sync rules>> for remote filtering.
+This connector supports <<es-sync-rules-advanced,advanced sync rules>> for remote filtering.
 These rules cover complex query-and-filter scenarios that cannot be expressed with basic sync rules.
 Advanced sync rules are defined through a source-specific DSL JSON snippet.
 
 [NOTE]
 ====
-A <<connectors-sync-types-full, full sync>> is required for advanced sync rules to take effect.
+A <<es-connectors-sync-types-full, full sync>> is required for advanced sync rules to take effect.
 ====
 
 Here are a few examples of advanced sync rules for this connector.
 
-[discrete#connectors-onedrive-client-sync-rules-advanced-examples-1]
+[discrete#es-connectors-onedrive-client-sync-rules-advanced-examples-1]
 ======= Example 1
 
 This rule skips indexing for files with `.xlsx` and `.docx` extensions.
@@ -457,7 +457,7 @@ All other files and folders will be indexed.
 ]
 ----
 
-[discrete#connectors-onedrive-client-sync-rules-advanced-examples-2]
+[discrete#es-connectors-onedrive-client-sync-rules-advanced-examples-2]
 ======= Example 2
 
 This rule focuses on indexing files and folders owned by `user1-domain@onmicrosoft.com` and `user2-domain@onmicrosoft.com` but excludes files with `.py` extension.
@@ -472,7 +472,7 @@ This rule focuses on indexing files and folders owned by `user1-domain@onmicroso
 ]
 ----
 
-[discrete#connectors-onedrive-client-sync-rules-advanced-examples-3]
+[discrete#es-connectors-onedrive-client-sync-rules-advanced-examples-3]
 ======= Example 3
 
 This rule indexes only the files and folders directly inside the root folder, excluding any `.md` files.
@@ -487,7 +487,7 @@ This rule indexes only the files and folders directly inside the root folder, ex
 ]
 ----
 
-[discrete#connectors-onedrive-client-sync-rules-advanced-examples-4]
+[discrete#es-connectors-onedrive-client-sync-rules-advanced-examples-4]
 ======= Example 4
 
 This rule indexes files and folders owned by `user1-domain@onmicrosoft.com` and `user3-domain@onmicrosoft.com` that are directly inside the `abc` folder, which is a subfolder of any folder under the `hello` directory in the root. Files with extensions `.pdf` and `.py` are excluded.
@@ -503,7 +503,7 @@ This rule indexes files and folders owned by `user1-domain@onmicrosoft.com` and 
 ]
 ----
 
-[discrete#connectors-onedrive-client-sync-rules-advanced-examples-5]
+[discrete#es-connectors-onedrive-client-sync-rules-advanced-examples-5]
 ======= Example 5
 
 This example contains two rules.
@@ -522,7 +522,7 @@ The second rule indexes files for all other users, but skips files with a `.py` 
 ]
 ----
 
-[discrete#connectors-onedrive-client-sync-rules-advanced-examples-6]
+[discrete#es-connectors-onedrive-client-sync-rules-advanced-examples-6]
 ======= Example 6
 
 This example contains two rules.
@@ -542,19 +542,19 @@ The second rule indexes files and folders recursively inside the `abc` folder.
 ]
 ----
 
-[discrete#connectors-onedrive-client-content-extraction]
+[discrete#es-connectors-onedrive-client-content-extraction]
 ===== Content Extraction
 
-See <<connectors-content-extraction>>.
+See <<es-connectors-content-extraction>>.
 
-[discrete#connectors-onedrive-client-connector-client-operations]
+[discrete#es-connectors-onedrive-client-connector-client-operations]
 ===== Connector client operations
 
-[discrete#connectors-onedrive-client-testing]
+[discrete#es-connectors-onedrive-client-testing]
 ===== End-to-end testing
 
 The connector framework enables operators to run functional tests against a real data source.
-Refer to <<build-connector-testing>> for more details.
+Refer to <<es-build-connector-testing>> for more details.
 
 To perform E2E testing for the GitHub connector, run the following command:
 
@@ -570,23 +570,23 @@ For faster tests, add the `DATA_SIZE=small` flag:
 make ftest NAME=onedrive DATA_SIZE=small
 ----
 
-[discrete#connectors-onedrive-client-known-issues]
+[discrete#es-connectors-onedrive-client-known-issues]
 ===== Known issues
 
 * *Enabling document-level security impacts performance.* 
 +
 Enabling DLS for your connector will cause a significant performance degradation, as the API calls to the data source required for this functionality are rate limited. This impacts the speed at which your content can be retrieved.
 
-Refer to <<connectors-known-issues>> for a list of known issues for all connectors.
+Refer to <<es-connectors-known-issues>> for a list of known issues for all connectors.
 
-[discrete#connectors-onedrive-client-troubleshooting]
+[discrete#es-connectors-onedrive-client-troubleshooting]
 ===== Troubleshooting
 
-See <<connectors-troubleshooting>>.
+See <<es-connectors-troubleshooting>>.
 
-[discrete#connectors-onedrive-client-security]
+[discrete#es-connectors-onedrive-client-security]
 ===== Security
 
-See <<connectors-security>>.
+See <<es-connectors-security>>.
 // Closing the collapsible section 
 ===============

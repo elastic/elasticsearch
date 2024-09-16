@@ -1,4 +1,4 @@
-[#connectors-confluence]
+[#es-connectors-confluence]
 === Elastic Confluence connector reference
 ++++
 <titleabbrev>Confluence</titleabbrev>
@@ -7,7 +7,7 @@
 :service-name: Confluence
 :service-name-stub: confluence
 
-The _Elastic Confluence connector_ is a <<connectors,connector>> for https://www.atlassian.com/software/confluence[Atlassian Confluence^].
+The _Elastic Confluence connector_ is a <<es-connectors,connector>> for https://www.atlassian.com/software/confluence[Atlassian Confluence^].
 This connector is written in Python using the {connectors-python}[Elastic connector framework^]. 
 
 View the {connectors-python}/connectors/sources/{service-name-stub}.py[*source code* for this connector^] (branch _{connectors-branch}_, compatible with Elastic _{minor-version}_).
@@ -21,7 +21,7 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 // ////////   NATIVE CONNECTOR REFERENCE   ///////
 // //////// //// //// //// //// //// //// ////////
 
-[discrete#connectors-confluence-native-connector-reference]
+[discrete#es-connectors-confluence-native-connector-reference]
 ==== *Native connector (Elastic Cloud)*
 
 .View *native connector* reference
@@ -29,7 +29,7 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 [%collapsible]
 ===============
 
-[discrete#connectors-confluence-availability-prerequisites]
+[discrete#es-connectors-confluence-availability-prerequisites]
 ===== Availability and prerequisites
 
 This connector is available as a *native connector* on Elastic Cloud, as of *8.9.1*.
@@ -39,25 +39,25 @@ This connector is available as a *native connector* on Elastic Cloud, as of *8.9
 Confluence Data Center support was added in 8.13.0 in technical preview and is subject to change. The design and code is less mature than official GA features and is being provided as-is with no warranties. Technical preview features are not subject to the support SLA of official GA features.
 ====
 
-To use this connector natively in Elastic Cloud, satisfy all <<native-connectors-prerequisites,native connector requirements>>.
+To use this connector natively in Elastic Cloud, satisfy all <<es-native-connectors-prerequisites,native connector requirements>>.
 
-[discrete#connectors-confluence-create-native-connector]
+[discrete#es-connectors-confluence-create-native-connector]
 ===== Create a {service-name} connector
 include::_connectors-create-native.asciidoc[]
 
-[discrete#connectors-confluence-usage]
+[discrete#es-connectors-confluence-usage]
 ===== Usage
 
-To use this connector as a *native connector*, see <<connectors-native>>.
+To use this connector as a *native connector*, see <<es-connectors-native>>.
 
-For additional operations, see <<connectors-usage>>.
+For additional operations, see <<es-connectors-usage>>.
 
-[discrete#connectors-confluence-compatability]
+[discrete#es-connectors-confluence-compatability]
 ===== Compatibility
 
 * Confluence Cloud or Confluence Server/Data Center *versions 7 or later*.
 
-[discrete#connectors-confluence-configuration]
+[discrete#es-connectors-confluence-configuration]
 ===== Configuration
 
 The following configuration fields are required to set up the connector:
@@ -114,7 +114,7 @@ MIID+jCCAuKgAwIBAgIGAJJMzlxLMA0GCSqGSIb3DQEBCwUAMHoxCzAJBgNVBAYT
 ----
 
 Enable document level security::
-Toggle to enable <<dls, document level security (DLS)>>.
+Toggle to enable <<es-dls, document level security (DLS)>>.
 When enabled, full syncs will fetch access control lists for each document and store them in the `_allow_access_control` field.
 Access control syncs will fetch users' access control lists and store them in a separate index.
 [NOTE]
@@ -123,7 +123,7 @@ To access user data in Jira Administration, the account you created must be gran
 This access needs to be provided by an administrator from the http://admin.atlassian.com/[Atlassian Admin], and the access level granted should be `Product Admin`.
 ====
 
-[discrete#connectors-confluence-documents-syncs]
+[discrete#es-connectors-confluence-documents-syncs]
 ===== Documents and syncs
 
 The connector syncs the following Confluence object types:
@@ -135,29 +135,29 @@ The connector syncs the following Confluence object types:
 
 [NOTE]
 ====
-* Content from files bigger than 10 MB won't be extracted. (Self-managed connectors can use the <<connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.)
+* Content from files bigger than 10 MB won't be extracted. (Self-managed connectors can use the <<es-connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.)
 * Permissions are not synced by default.
-You must first enable <<connectors-confluence-client-document-level-security,DLS>>.
+You must first enable <<es-connectors-confluence-client-document-level-security,DLS>>.
 Otherwise, *all documents* indexed to an Elastic deployment will be visible to *all users with access* to that Elastic Deployment.
 ====
 
-[discrete#connectors-confluence-sync-types]
+[discrete#es-connectors-confluence-sync-types]
 ====== Sync types
 
-<<connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
+<<es-connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
 
-This connector also supports <<connectors-sync-types-incremental,incremental syncs>>.
+This connector also supports <<es-connectors-sync-types-incremental,incremental syncs>>.
 
-[discrete#connectors-confluence-sync-rules]
+[discrete#es-connectors-confluence-sync-rules]
 ===== Sync rules
 
-<<sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
+<<es-sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
 
-This connector supports <<sync-rules-advanced,advanced sync rules>> for remote filtering.
+This connector supports <<es-sync-rules-advanced,advanced sync rules>> for remote filtering.
 These rules cover complex query-and-filter scenarios that cannot be expressed with <basic sync rules.
 Advanced sync rules are defined through a source-specific DSL JSON snippet.
 
-[discrete#connectors-confluence-sync-rules-examples]
+[discrete#es-connectors-confluence-sync-rules-examples]
 ====== Advanced sync rules examples
 
 *Example 1*: Query for indexing data that is in a particular *Space* with key 'DEV'.
@@ -202,7 +202,7 @@ Syncing recently created/updated items in Confluence may be delayed when using a
 For more details refer to the following issue in the https://jira.atlassian.com/browse/CONFCLOUD-73997[Confluence documentation^].
 ====
 
-[discrete#connectors-confluence-document-level-security]
+[discrete#es-connectors-confluence-document-level-security]
 ===== Document level security
 
 [NOTE]
@@ -212,7 +212,7 @@ DLS is available since 8.14.0 for Confluence Server and Confluence Data Center, 
 ====
 
 Document level security (DLS) enables you to restrict access to documents based on a user’s permissions.
-Refer to <<connectors-confluence-configuration,configuration>> on this page for how to enable DLS for this connector.
+Refer to <<es-connectors-confluence-configuration,configuration>> on this page for how to enable DLS for this connector.
 
 
 [WARNING]
@@ -222,30 +222,30 @@ When the `data_source` is set to Confluence Data Center or Server, the connector
 
 [NOTE]
 ====
-Refer to <<dls-e2e-guide, DLS in Search Applications>> to learn how to ingest data from a connector with DLS enabled, when building a search application.
+Refer to <<es-dls-e2e-guide, DLS in Search Applications>> to learn how to ingest data from a connector with DLS enabled, when building a search application.
 The example uses SharePoint Online as the data source, but the same steps apply to every connector.
 ====
 
-[discrete#connectors-confluence-content-extraction]
+[discrete#es-connectors-confluence-content-extraction]
 ===== Content Extraction
 
-See <<connectors-content-extraction>>.
+See <<es-connectors-content-extraction>>.
 
-[discrete#connectors-confluence-known-issues]
+[discrete#es-connectors-confluence-known-issues]
 ===== Known issues
 
 There are currently no known issues for this connector.
-Refer to <<connectors-known-issues>> for a list of known issues for all connectors.
+Refer to <<es-connectors-known-issues>> for a list of known issues for all connectors.
 
-[discrete#connectors-confluence-troubleshooting]
+[discrete#es-connectors-confluence-troubleshooting]
 ===== Troubleshooting
 
-See <<connectors-troubleshooting>>.
+See <<es-connectors-troubleshooting>>.
 
-[discrete#connectors-confluence-security]
+[discrete#es-connectors-confluence-security]
 ===== Security
 
-See <<connectors-security>>.
+See <<es-connectors-security>>.
 
 // Closing the collapsible section 
 ===============
@@ -255,7 +255,7 @@ See <<connectors-security>>.
 // //////// CONNECTOR CLIENT REFERENCE     ///////
 // //////// //// //// //// //// //// //// ////////
 
-[discrete#connectors-confluence-connector-client-reference]
+[discrete#es-connectors-confluence-connector-client-reference]
 ==== *Connector client (self-managed)*
 
 .View *connector client* reference
@@ -263,7 +263,7 @@ See <<connectors-security>>.
 [%collapsible]
 ===============
 
-[discrete#connectors-confluence-client-availability-prerequisites]
+[discrete#es-connectors-confluence-client-availability-prerequisites]
 ===== Availability and prerequisites
 
 This connector is available as a *connector client* using the *Elastic connector framework*.
@@ -274,29 +274,29 @@ This connector client is compatible with Elastic versions *8.7.0+*.
 Confluence Data Center support was added in 8.13.0 in technical preview and is subject to change. The design and code is less mature than official GA features and is being provided as-is with no warranties. Technical preview features are not subject to the support SLA of official GA features.
 ====
 
-To use this connector, satisfy all <<build-connector,connector client requirements>>.
+To use this connector, satisfy all <<es-build-connector,connector client requirements>>.
 
-[discrete#connectors-confluence-create-connector-client]
+[discrete#es-connectors-confluence-create-connector-client]
 ===== Create a {service-name} connector
 include::_connectors-create-client.asciidoc[]
 
-[discrete#connectors-confluence-client-usage]
+[discrete#es-connectors-confluence-client-usage]
 ===== Usage
 
-To use this connector as a *connector client*, see <<build-connector>>
-For additional usage operations, see <<connectors-usage>>.
+To use this connector as a *connector client*, see <<es-build-connector>>
+For additional usage operations, see <<es-connectors-usage>>.
 
-[discrete#connectors-confluence-client-compatability]
+[discrete#es-connectors-confluence-client-compatability]
 ===== Compatibility
 
 * Confluence Cloud or Confluence Server/Data Center *versions 7 or later*
 
-[discrete#connectors-confluence-client-configuration]
+[discrete#es-connectors-confluence-client-configuration]
 ===== Configuration
 
 [TIP]
 ====
-When using the <<build-connector, connector client>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/confluence.py[connector source code^].
+When using the <<es-build-connector, connector client>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/confluence.py[connector source code^].
 These are set in the `get_default_configuration` function definition.
 
 These configurable fields will be rendered with their respective *labels* in the Kibana UI.
@@ -363,7 +363,7 @@ The number of retry attempts after failed request to Confluence. Default value i
 The number of concurrent downloads for fetching the attachment content. This speeds up the content extraction of attachments. Defaults to `50`.
 
 `use_document_level_security`::
-Toggle to enable <<dls, document level security (DLS)>>.
+Toggle to enable <<es-dls, document level security (DLS)>>.
 +
 When enabled, full syncs will fetch access control lists for each document and store them in the `_allow_access_control` field.
 Access control syncs will fetch users' access control lists and store them in a separate index.
@@ -380,12 +380,12 @@ Requires a separate deployment of the Elastic Text Extraction Service.
 Requires that ingest pipeline settings disable text extraction.
 
 
-[discrete#connectors-confluence-client-docker]
+[discrete#es-connectors-confluence-client-docker]
 ===== Deployment using Docker
 
 include::_connectors-docker-instructions.asciidoc[]
 
-[discrete#connectors-confluence-client-documents-syncs]
+[discrete#es-connectors-confluence-client-documents-syncs]
 ===== Documents and syncs
 
 The connector syncs the following Confluence object types:
@@ -401,23 +401,23 @@ The connector syncs the following Confluence object types:
 * Permissions are not synced. **All documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
 ====
 
-[discrete#connectors-confluence-client-sync-types]
+[discrete#es-connectors-confluence-client-sync-types]
 ====== Sync types
 
-<<connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
+<<es-connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
 
-This connector also supports <<connectors-sync-types-incremental,incremental syncs>>.
+This connector also supports <<es-connectors-sync-types-incremental,incremental syncs>>.
 
-[discrete#connectors-confluence-client-sync-rules]
+[discrete#es-connectors-confluence-client-sync-rules]
 ===== Sync rules
 
-<<sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
+<<es-sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
 
-This connector supports <<sync-rules-advanced,advanced sync rules>> for remote filtering.
+This connector supports <<es-sync-rules-advanced,advanced sync rules>> for remote filtering.
 These rules cover complex query-and-filter scenarios that cannot be expressed with <basic sync rules.
 Advanced sync rules are defined through a source-specific DSL JSON snippet.
 
-[discrete#connectors-confluence-client-sync-rules-examples]
+[discrete#es-connectors-confluence-client-sync-rules-examples]
 ====== Advanced sync rules examples
 
 *Example 1*: Query for indexing data that is in a particular *Space* with key 'DEV'.
@@ -462,7 +462,7 @@ Syncing recently created/updated items in Confluence may be delayed when using a
 For more details refer to the following issue in the https://jira.atlassian.com/browse/CONFCLOUD-73997[Confluence documentation^].
 ====
 
-[discrete#connectors-confluence-client-document-level-security]
+[discrete#es-connectors-confluence-client-document-level-security]
 ===== Document level security
 
 [NOTE]
@@ -472,7 +472,7 @@ DLS is available since 8.14.0 for Confluence Server and Confluence Data Center, 
 ====
 
 Document level security (DLS) enables you to restrict access to documents based on a user’s permissions.
-Refer to <<connectors-confluence-client-configuration,configuration>> on this page for how to enable DLS for this connector.
+Refer to <<es-connectors-confluence-client-configuration,configuration>> on this page for how to enable DLS for this connector.
 
 [WARNING]
 ====
@@ -481,23 +481,23 @@ When the `data_source` is set to Confluence Data Center or Server, the connector
 
 [NOTE]
 ====
-Refer to <<dls-e2e-guide, DLS in Search Applications>> to learn how to ingest data from a connector with DLS enabled, when building a search application.
+Refer to <<es-dls-e2e-guide, DLS in Search Applications>> to learn how to ingest data from a connector with DLS enabled, when building a search application.
 The example uses SharePoint Online as the data source, but the same steps apply to every connector.
 ====
 
-[discrete#connectors-confluence-client-content-extraction]
+[discrete#es-connectors-confluence-client-content-extraction]
 ===== Content Extraction
 
-See <<connectors-content-extraction>>.
+See <<es-connectors-content-extraction>>.
 
-[discrete#connectors-confluence-client-connector-client-operations]
+[discrete#es-connectors-confluence-client-connector-client-operations]
 ===== Connector client operations
 
-[discrete#connectors-confluence-client-testing]
+[discrete#es-connectors-confluence-client-testing]
 ===== End-to-end testing
 
 The connector framework enables operators to run functional tests against a real data source.
-Refer to <<build-connector-testing>> for more details.
+Refer to <<es-build-connector-testing>> for more details.
 
 To perform E2E testing for the Confluence connector, run the following command:
 
@@ -513,21 +513,21 @@ For faster tests, add the `DATA_SIZE=small` flag:
 make ftest NAME=confluence DATA_SIZE=small
 ----
 
-[discrete#connectors-confluence-client-known-issues]
+[discrete#es-connectors-confluence-client-known-issues]
 ===== Known issues
 
 There are currently no known issues for this connector.
-Refer to <<connectors-known-issues>> for a list of known issues for all connectors.
+Refer to <<es-connectors-known-issues>> for a list of known issues for all connectors.
 
-[discrete#connectors-confluence-client-troubleshooting]
+[discrete#es-connectors-confluence-client-troubleshooting]
 ===== Troubleshooting
 
-See <<connectors-troubleshooting>>.
+See <<es-connectors-troubleshooting>>.
 
-[discrete#connectors-confluence-client-security]
+[discrete#es-connectors-confluence-client-security]
 ===== Security
 
-See <<connectors-security>>.
+See <<es-connectors-security>>.
 
 // Closing the collapsible section 
 ===============

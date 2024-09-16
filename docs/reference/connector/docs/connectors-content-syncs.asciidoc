@@ -1,17 +1,17 @@
-[#connectors-sync-types]
+[#es-connectors-sync-types]
 == Content syncs
 
 Elastic connectors have two types of content syncs:
 
-* <<connectors-sync-types-full>>
-* <<connectors-sync-types-incremental>>
+* <<es-connectors-sync-types-full>>
+* <<es-connectors-sync-types-incremental>>
 
-[discrete#connectors-sync-types-full]
+[discrete#es-connectors-sync-types-full]
 === Full syncs
 
 [NOTE]
 ====
-We recommend running a full sync whenever <<sync-rules, Sync rules>> are modified
+We recommend running a full sync whenever <<es-sync-rules, Sync rules>> are modified
 ====
 
 A full sync syncs all documents in the third-party data source into {es}.
@@ -22,9 +22,9 @@ A full sync, by definition, takes longer than an incremental sync but it ensures
 
 A full sync is available for all connectors.
 
-You can <<connectors-usage-syncs-recurring, schedule>> or <<connectors-usage-syncs-manual, manually trigger>> a full sync job.
+You can <<es-connectors-usage-syncs-recurring, schedule>> or <<es-connectors-usage-syncs-manual, manually trigger>> a full sync job.
 
-[discrete#connectors-sync-types-incremental]
+[discrete#es-connectors-sync-types-incremental]
 === Incremental syncs
 
 An incremental sync only syncs data changes since the last full or incremental sync.
@@ -32,9 +32,9 @@ An incremental sync only syncs data changes since the last full or incremental s
 Incremental syncs are only available after an initial full sync has successfully completed.
 Otherwise the incremental sync will fail.
 
-You can <<connectors-usage-syncs-recurring, schedule>> or <<connectors-usage-syncs-manual, manually trigger>> an incremental sync job.
+You can <<es-connectors-usage-syncs-recurring, schedule>> or <<es-connectors-usage-syncs-manual, manually trigger>> an incremental sync job.
 
-[discrete#connectors-sync-types-incremental-performance]
+[discrete#es-connectors-sync-types-incremental-performance]
 ==== Incremental sync performance
 
 During an incremental sync your connector will still _fetch_ all data from the third-party data source.
@@ -56,7 +56,7 @@ Incremental syncs for the SharePoint Online connector use specific logic.
 All other connectors use the same shared connector framework logic for incremental syncs.
 ====
 
-[discrete#connectors-sync-types-incremental-supported]
+[discrete#es-connectors-sync-types-incremental-supported]
 ==== Incremental sync availability
 
 Incremental syncs are available for the following connectors:

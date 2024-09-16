@@ -1,4 +1,4 @@
-[#connectors-box]
+[#es-connectors-box]
 === Elastic Box connector reference
 ++++
 <titleabbrev>Box</titleabbrev>
@@ -15,19 +15,19 @@ View the {connectors-python}/connectors/sources/box.py[source code for this conn
 // //////// NATIVE CONNECTOR REFERENCE (MANAGED SERVICE) ///////
 // //////// //// //// //// //// //// //// ////////
 
-[discrete#connectors-box-native-connector-reference]
+[discrete#es-connectors-box-native-connector-reference]
 ==== *Native connector reference (managed service)*
 
 .View reference for the *native connector reference (managed service)*.
 [%collapsible]
 ===============
 
-[discrete#connectors-box-availability-and-prerequisites]
+[discrete#es-connectors-box-availability-and-prerequisites]
 ===== Availability and prerequisites
 
 This connector is available as a *native connector* as of Elastic version *8.14.0*.
 
-To use this connector natively in Elastic Cloud, satisfy all <<native-connectors-prerequisites,native connector requirements>>.
+To use this connector natively in Elastic Cloud, satisfy all <<es-native-connectors-prerequisites,native connector requirements>>.
 
 [NOTE]
 ====
@@ -36,24 +36,24 @@ The design and code is less mature than official GA features and is being provid
 Technical preview features are not subject to the support SLA of official GA features.
 ====
 
-[discrete#connectors-box-create-connector-native]
+[discrete#es-connectors-box-create-connector-native]
 ===== Create a {service-name} connector
 include::_connectors-create-native.asciidoc[]
 
-[discrete#connectors-box-usage]
+[discrete#es-connectors-box-usage]
 ===== Usage
 
 To use this connector as a *connector client*, use the *Box* tile from the connectors list OR *Customized connector* workflow.
 
-For additional operations, see <<connectors-usage>>.
+For additional operations, see <<es-connectors-usage>>.
 
-[discrete#connectors-box-api-authorization]
+[discrete#es-connectors-box-api-authorization]
 ===== Box API Authorization
 
-[discrete#connectors-box-free-account]
+[discrete#es-connectors-box-free-account]
 ====== Box Free Account
 
-[discrete#connectors-box-create-oauth-custom-app]
+[discrete#es-connectors-box-create-oauth-custom-app]
 ======= Create Box User Authentication (OAuth 2.0) Custom App
 
 You'll need to create an OAuth app in the Box developer console by following these steps:
@@ -63,7 +63,7 @@ You'll need to create an OAuth app in the Box developer console by following the
 3. Check "Write all files and folders stored in Box" in Application Scopes.
 4. Once the app is created, *Client ID* and *Client secret* values are available in the configuration tab. Keep these handy.
 
-[discrete#connectors-box-connector-generate-a-refresh-token]
+[discrete#es-connectors-box-connector-generate-a-refresh-token]
 ======= Generate a refresh Token
 
 To generate a refresh token, follow these steps:
@@ -93,10 +93,10 @@ curl -i -X POST "https://api.box.com/oauth2/token" \
 +
 Save the refresh token from the response. You'll need this for the connector configuration.
 
-[discrete#connectors-box-enterprise-account]
+[discrete#es-connectors-box-enterprise-account]
 ====== Box Enterprise Account
 
-[discrete#connectors-box-connector-create-box-server-authentication-client-credentials-grant-custom-app]
+[discrete#es-connectors-box-connector-create-box-server-authentication-client-credentials-grant-custom-app]
 ======= Create Box Server Authentication (Client Credentials Grant) Custom App
 
 1. Register a new app in the https://app.box.com/developers/console[Box dev console] with custom App and select Server Authentication (Client Credentials Grant).
@@ -108,7 +108,7 @@ Save the refresh token from the response. You'll need this for the connector con
 4. Authorize your application from the admin console.
 Save the *Client Credentials* and *Enterprise ID*. You'll need these to configure the connector.
 
-[discrete#connectors-box-configuration]
+[discrete#es-connectors-box-configuration]
 ===== Configuration
 
 `Box Account`  (required)::
@@ -127,12 +127,12 @@ The Refresh Token to generate Access Token.
 `Enterprise ID`  (required if Box Account is Box Enterprise)::
 The Enterprise ID to authenticate with Box instance.
 
-[discrete#connectors-box-content-extraction]
+[discrete#es-connectors-box-content-extraction]
 ===== Content Extraction
 
-Refer to <<connectors-content-extraction>>.
+Refer to <<es-connectors-content-extraction>>.
 
-[discrete#connectors-box-documents-and-syncs]
+[discrete#es-connectors-box-documents-and-syncs]
 ===== Documents and syncs
 
 The connector syncs the following objects and entities:
@@ -146,38 +146,38 @@ The connector syncs the following objects and entities:
 * Permissions are not synced. *All documents* indexed to an Elastic deployment will be visible to *all users with access* to that Elastic Deployment.
 ====
 
-[discrete#connectors-box-sync-types]
+[discrete#es-connectors-box-sync-types]
 ====== Sync types
 
-<<connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
+<<es-connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
 
-This connector also supports <<connectors-sync-types-incremental,incremental syncs>>.
+This connector also supports <<es-connectors-sync-types-incremental,incremental syncs>>.
 
-[discrete#connectors-box-sync-rules]
+[discrete#es-connectors-box-sync-rules]
 ===== Sync rules
 
-<<sync-rules-basic, Basic sync rules>> are identical for all connectors and are available by default.
+<<es-sync-rules-basic, Basic sync rules>> are identical for all connectors and are available by default.
 
-[discrete#connectors-box-advanced-sync-rules]
+[discrete#es-connectors-box-advanced-sync-rules]
 ===== Advanced Sync Rules
 
 Advanced sync rules are not available for this connector in the present version.
 
-[discrete#connectors-box-known-issues]
+[discrete#es-connectors-box-known-issues]
 ===== Known issues
 
 There are no known issues for this connector.
-Refer to <<connectors-known-issues>> for a list of known issues for all connectors.
+Refer to <<es-connectors-known-issues>> for a list of known issues for all connectors.
 
-[discrete#connectors-box-troubleshooting]
+[discrete#es-connectors-box-troubleshooting]
 ===== Troubleshooting
 
-See <<connectors-troubleshooting>>.
+See <<es-connectors-troubleshooting>>.
 
-[discrete#connectors-box-security]
+[discrete#es-connectors-box-security]
 ===== Security
 
-See <<connectors-security>>.
+See <<es-connectors-security>>.
 
 // Closing the collapsible section 
 ===============
@@ -187,17 +187,17 @@ See <<connectors-security>>.
 // //////// CONNECTOR CLIENT REFERENCE (SELF-MANAGED) ///////
 // //////// //// //// //// //// //// //// ////////
 
-[discrete#connectors-box-connector-client-reference]
+[discrete#es-connectors-box-connector-client-reference]
 ==== *Connector client reference (self-managed)*
 
 .View reference for the *connector client reference (self-managed)*.
 [%collapsible]
 ===============
 
-[discrete#connectors-box-client-availability-and-prerequisites]
+[discrete#es-connectors-box-client-availability-and-prerequisites]
 ===== Availability and prerequisites
 
-This connector is available as a self-managed *connector client*. To use this connector, satisfy all <<build-connector, connector client prerequisites>>.
+This connector is available as a self-managed *connector client*. To use this connector, satisfy all <<es-build-connector, connector client prerequisites>>.
 
 [NOTE]
 ====
@@ -206,24 +206,24 @@ The design and code is less mature than official GA features and is being provid
 Technical preview features are not subject to the support SLA of official GA features.
 ====
 
-[discrete#connectors-box-client-create-connector-client]
+[discrete#es-connectors-box-client-create-connector-client]
 ===== Create a {service-name} connector
 include::_connectors-create-client.asciidoc[]
 
-[discrete#connectors-box-client-usage]
+[discrete#es-connectors-box-client-usage]
 ===== Usage
 
 To use this connector as a *connector client*, use the *Box* tile from the connectors list OR *Customized connector* workflow.
 
-For additional operations, see <<connectors-usage>>.
+For additional operations, see <<es-connectors-usage>>.
 
-[discrete#connectors-box-client-api-authorization]
+[discrete#es-connectors-box-client-api-authorization]
 ===== Box API Authorization
 
-[discrete#connectors-box-client-free-account]
+[discrete#es-connectors-box-client-free-account]
 ====== Box Free Account
 
-[discrete#connectors-box-client-create-oauth-custom-app]
+[discrete#es-connectors-box-client-create-oauth-custom-app]
 ======= Create Box User Authentication (OAuth 2.0) Custom App
 
 You'll need to create an OAuth app in the Box developer console by following these steps:
@@ -233,7 +233,7 @@ You'll need to create an OAuth app in the Box developer console by following the
 3. Check "Write all files and folders stored in Box" in Application Scopes.
 4. Once the app is created, *Client ID* and *Client secret* values are available in the configuration tab. Keep these handy.
 
-[discrete#connectors-box-client-connector-generate-a-refresh-token]
+[discrete#es-connectors-box-client-connector-generate-a-refresh-token]
 ======= Generate a refresh Token
 
 To generate a refresh token, follow these steps:
@@ -263,10 +263,10 @@ curl -i -X POST "https://api.box.com/oauth2/token" \
 +
 Save the refresh token from the response. You'll need this for the connector configuration.
 
-[discrete#connectors-box-client-enterprise-account]
+[discrete#es-connectors-box-client-enterprise-account]
 ====== Box Enterprise Account
 
-[discrete#connectors-box-client-connector-create-box-server-authentication-client-credentials-grant-custom-app]
+[discrete#es-connectors-box-client-connector-create-box-server-authentication-client-credentials-grant-custom-app]
 ======= Create Box Server Authentication (Client Credentials Grant) Custom App
 
 1. Register a new app in the https://app.box.com/developers/console[Box dev console] with custom App and select Server Authentication (Client Credentials Grant).
@@ -278,7 +278,7 @@ Save the refresh token from the response. You'll need this for the connector con
 4. Authorize your application from the admin console.
 Save the *Client Credentials* and *Enterprise ID*. You'll need these to configure the connector.
 
-[discrete#connectors-box-client-configuration]
+[discrete#es-connectors-box-client-configuration]
 ===== Configuration
 
 `Box Account`  (required)::
@@ -297,17 +297,17 @@ The Refresh Token to generate Access Token.
 `Enterprise ID`  (required if Box Account is Box Enterprise)::
 The Enterprise ID to authenticate with Box instance.
 
-[discrete#connectors-box-client-client-docker]
+[discrete#es-connectors-box-client-client-docker]
 ====== Deployment using Docker
 
 include::_connectors-docker-instructions.asciidoc[]
 
-[discrete#connectors-box-client-content-extraction]
+[discrete#es-connectors-box-client-content-extraction]
 ===== Content Extraction
 
-Refer to <<connectors-content-extraction>>.
+Refer to <<es-connectors-content-extraction>>.
 
-[discrete#connectors-box-client-documents-and-syncs]
+[discrete#es-connectors-box-client-documents-and-syncs]
 ===== Documents and syncs
 
 The connector syncs the following objects and entities:
@@ -321,28 +321,28 @@ The connector syncs the following objects and entities:
 * Permissions are not synced. *All documents* indexed to an Elastic deployment will be visible to *all users with access* to that Elastic Deployment.
 ====
 
-[discrete#connectors-box-client-sync-types]
+[discrete#es-connectors-box-client-sync-types]
 ====== Sync types
 
-<<connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
+<<es-connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
 
-This connector also supports <<connectors-sync-types-incremental,incremental syncs>>.
+This connector also supports <<es-connectors-sync-types-incremental,incremental syncs>>.
 
-[discrete#connectors-box-client-sync-rules]
+[discrete#es-connectors-box-client-sync-rules]
 ===== Sync rules
 
-<<sync-rules-basic, Basic sync rules>> are identical for all connectors and are available by default.
+<<es-sync-rules-basic, Basic sync rules>> are identical for all connectors and are available by default.
 
-[discrete#connectors-box-client-advanced-sync-rules]
+[discrete#es-connectors-box-client-advanced-sync-rules]
 ===== Advanced Sync Rules
 
 Advanced sync rules are not available for this connector in the present version.
 
-[discrete#connectors-box-client-end-to-end-testing]
+[discrete#es-connectors-box-client-end-to-end-testing]
 ===== End-to-end Testing
 
 The connector framework enables operators to run functional tests against a real data source.
-Refer to <<build-connector-testing>> for more details.
+Refer to <<es-build-connector-testing>> for more details.
 
 To perform E2E testing for the Box connector, run the following command:
 
@@ -358,21 +358,21 @@ For faster tests, add the `DATA_SIZE=small` flag:
 make ftest NAME=box DATA_SIZE=small
 ----
 
-[discrete#connectors-box-client-known-issues]
+[discrete#es-connectors-box-client-known-issues]
 ===== Known issues
 
 There are no known issues for this connector.
-Refer to <<connectors-known-issues>> for a list of known issues for all connectors.
+Refer to <<es-connectors-known-issues>> for a list of known issues for all connectors.
 
-[discrete#connectors-box-client-troubleshooting]
+[discrete#es-connectors-box-client-troubleshooting]
 ===== Troubleshooting
 
-See <<connectors-troubleshooting>>.
+See <<es-connectors-troubleshooting>>.
 
-[discrete#connectors-box-client-security]
+[discrete#es-connectors-box-client-security]
 ===== Security
 
-See <<connectors-security>>.
+See <<es-connectors-security>>.
 
 
 // Closing the collapsible section 

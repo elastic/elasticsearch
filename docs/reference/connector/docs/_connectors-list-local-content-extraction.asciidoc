@@ -1,18 +1,18 @@
-// * <<connectors-azure-blob,Azure Blob Storage>>
-// * <<connectors-confluence,Confluence>>
-// * <<connectors-dropbox,Dropbox>>
-// * <<connectors-github,GitHub>>
-// * <<connectors-google-cloud,Google Cloud Storage>>
-// * <<connectors-google-drive,Google Drive>>
-// * <<connectors-jira,Jira>>
-// * <<connectors-network-drive,Network drive>>
-// * <<connectors-onedrive,OneDrive>>
-// * <<connectors-outlook,Outlook>>
-// * <<connectors-s3,S3>>
-// * <<connectors-salesforce,Salesforce>>
-// * <<connectors-servicenow,ServiceNow>>
-// * <<connectors-sharepoint-online,SharePoint Online>>
-// * <<connectors-sharepoint,SharePoint Server>>
-// * <<connectors-zoom,Zoom>>
+// * <<es-connectors-azure-blob,Azure Blob Storage>>
+// * <<es-connectors-confluence,Confluence>>
+// * <<es-connectors-dropbox,Dropbox>>
+// * <<es-connectors-github,GitHub>>
+// * <<es-connectors-google-cloud,Google Cloud Storage>>
+// * <<es-connectors-google-drive,Google Drive>>
+// * <<es-connectors-jira,Jira>>
+// * <<es-connectors-network-drive,Network drive>>
+// * <<es-connectors-onedrive,OneDrive>>
+// * <<es-connectors-outlook,Outlook>>
+// * <<es-connectors-s3,S3>>
+// * <<es-connectors-salesforce,Salesforce>>
+// * <<es-connectors-servicenow,ServiceNow>>
+// * <<es-connectors-sharepoint-online,SharePoint Online>>
+// * <<es-connectors-sharepoint,SharePoint Server>>
+// * <<es-connectors-zoom,Zoom>>
 
 //TODO

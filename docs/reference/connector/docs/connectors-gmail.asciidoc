@@ -1,4 +1,4 @@
-[#connectors-gmail]
+[#es-connectors-gmail]
 === Elastic Gmail connector reference
 ++++
 <titleabbrev>Gmail</titleabbrev>
@@ -7,34 +7,34 @@
 :service-name: Gmail
 :service-name-stub: gmail
 
-The _Elastic GMail connector_ is a <<connectors,connector>> for GMail.
+The _Elastic GMail connector_ is a <<es-connectors,connector>> for GMail.
 
 
 // //////// //// //// //// //// //// //// ////////
 // //////// NATIVE CONNECTOR REFERENCE (MANAGED SERVICE) ///////
 // //////// //// //// //// //// //// //// ////////
 
-[discrete#connectors-gmail-native-connector-reference]
+[discrete#es-connectors-gmail-native-connector-reference]
 ==== *Native connector reference (managed service)*
 
 .View reference for the *native connector reference (managed service)*.
 [%collapsible]
 ===============
 
-[discrete#connectors-gmail-availability]
+[discrete#es-connectors-gmail-availability]
 ===== Availability and prerequisites
 
 This connector is available as a *native connector* (managed service) in Elastic Cloud.
 
 This connector is compatible with Elastic versions *8.13.0+*.
 
-To use this connector, satisfy all <<native-connectors,native connector requirements>>.
+To use this connector, satisfy all <<es-native-connectors,native connector requirements>>.
 
-[discrete#connectors-gmail-create-native-connector]
+[discrete#es-connectors-gmail-create-native-connector]
 ==== Create a {service-name} connector
 include::_connectors-create-native.asciidoc[]
 
-[discrete#connectors-gmail-usage]
+[discrete#es-connectors-gmail-usage]
 ===== Usage
 
 To use this connector as a native connector in Elastic Cloud, use the *Connectors* workflow in the Kibana UI.
@@ -45,9 +45,9 @@ To create a new {service-name} connector:
 . Select the *New Native Connector* button.
 . Select the *{service-name}* connector.
 
-For additional operations, see <<connectors-usage>>.
+For additional operations, see <<es-connectors-usage>>.
 
-[discrete#connectors-gmail-connector-authentication-prerequisites]
+[discrete#es-connectors-gmail-connector-authentication-prerequisites]
 ===== Connector authentication prerequisites
 
 Before syncing any data from GMail, you need to create a https://cloud.google.com/iam/docs/service-account-overview[service account^] with appropriate access to the GMail and the Google Directory API, which is part of the Google Admin SDK API.
@@ -80,7 +80,7 @@ You need to grant the following *OAuth Scopes* to your service account:
 +
 This step allows the connector to access user data and their group memberships in your Google Workspace organization.
 
-[discrete#connectors-gmail-configuration]
+[discrete#es-connectors-gmail-configuration]
 ===== Configuration
 
 The following configuration fields are required:
@@ -112,22 +112,22 @@ When enabled:
 * Full syncs will fetch access control lists for each document and store them in the `_allow_access_control` field.
 * Access control syncs will fetch users' access control lists and store them in a separate index.
 
-[discrete#connectors-gmail-documents-and-syncs]
+[discrete#es-connectors-gmail-documents-and-syncs]
 ===== Documents and syncs
 
 The connector will fetch all messages of all users the service account has access to.
 
-[discrete#connectors-gmail-sync-types]
+[discrete#es-connectors-gmail-sync-types]
 ====== Sync types
 
-<<connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
+<<es-connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
 
-This connector also supports <<connectors-sync-types-incremental,incremental syncs>>.
+This connector also supports <<es-connectors-sync-types-incremental,incremental syncs>>.
 
-[discrete#connectors-gmail-sync-rules]
+[discrete#es-connectors-gmail-sync-rules]
 ===== Sync rules
 
-<<sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
+<<es-sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
 
 Advanced sync rules are available for this connector.
 The connector supports the https://support.google.com/mail/answer/7190[GMail advanced search syntax] under the `messages` field.
@@ -144,34 +144,34 @@ For example:
 }
 ----
 
-[discrete#connectors-gmail-document-level-security]
+[discrete#es-connectors-gmail-document-level-security]
 ===== Document level security
 
 Document level security (DLS) enables you to restrict access to documents based on a user’s permissions.
-Refer to <<connectors-gmail-configuration,configuration>> on this page for how to enable DLS for this connector.
+Refer to <<es-connectors-gmail-configuration,configuration>> on this page for how to enable DLS for this connector.
 
 [NOTE]
 ====
-Refer to <<dls-e2e-guide, DLS in Search Applications>> to learn how to ingest data from a connector with DLS enabled, when building a search application.
+Refer to <<es-dls-e2e-guide, DLS in Search Applications>> to learn how to ingest data from a connector with DLS enabled, when building a search application.
 The example uses SharePoint Online as the data source, but the same steps apply to every connector.
 ====
 
-[discrete#connectors-gmail-known-issues]
+[discrete#es-connectors-gmail-known-issues]
 ===== Known issues
 
 There are currently no known issues for this connector.
 
-[discrete#connectors-gmail-troubleshooting]
+[discrete#es-connectors-gmail-troubleshooting]
 ===== Troubleshooting
 
-See <<connectors-troubleshooting>>.
+See <<es-connectors-troubleshooting>>.
 
-[discrete#connectors-gmail-security]
+[discrete#es-connectors-gmail-security]
 ===== Security
 
-See <<connectors-security>>.
+See <<es-connectors-security>>.
 
-[discrete#connectors-gmail-framework-and-source]
+[discrete#es-connectors-gmail-framework-and-source]
 ===== Framework and source
 
 This connector is built in Python with the {connectors-python}[Elastic connector framework^].
@@ -187,34 +187,34 @@ View the {connectors-python}/connectors/sources/gmail.py[source code for this co
 // //////// CONNECTOR CLIENT REFERENCE (SELF-MANAGED) ///////
 // //////// //// //// //// //// //// //// ////////
 
-[discrete#connectors-gmail-connector-client-reference]
+[discrete#es-connectors-gmail-connector-client-reference]
 ==== *Connector client reference (self-managed)*
 
 .View reference for the *connector client reference (self-managed)*.
 [%collapsible]
 ===============
 
-[discrete#connectors-gmail-client-availability]
+[discrete#es-connectors-gmail-client-availability]
 ===== Availability and prerequisites
 
 This connector is available as a self-managed *connector client* from the *Elastic connector framework*.
 
 This connector client is compatible with Elastic versions *8.10.0+*.
 
-To use this connector, satisfy all <<build-connector,connector client requirements>>.
+To use this connector, satisfy all <<es-build-connector,connector client requirements>>.
 
-[discrete#connectors-gmail-create-connector-client]
+[discrete#es-connectors-gmail-create-connector-client]
 ===== Create a {service-name} connector
 include::_connectors-create-client.asciidoc[]
 
-[discrete#connectors-gmail-client-usage]
+[discrete#es-connectors-gmail-client-usage]
 ===== Usage
 
 To use this connector as a **connector client**, use the *Connector* workflow in the Kibana UI.
 
-For additional operations, see <<connectors-usage>>.
+For additional operations, see <<es-connectors-usage>>.
 
-[discrete#connectors-gmail-client-connector-authentication-prerequisites]
+[discrete#es-connectors-gmail-client-connector-authentication-prerequisites]
 ===== Connector authentication prerequisites
 
 Before syncing any data from GMail, you need to create a https://cloud.google.com/iam/docs/service-account-overview[service account^] with appropriate access to the GMail and the Google Directory API, which is part of the Google Admin SDK API.
@@ -247,12 +247,12 @@ You need to grant the following *OAuth Scopes* to your service account:
 +
 This step allows the connector to access user data and their group memberships in your Google Workspace organization.
 
-[discrete#connectors-gmail-client-configuration]
+[discrete#es-connectors-gmail-client-configuration]
 ===== Configuration
 
 [TIP]
 ====
-When using the <<build-connector, connector client>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/gmail.py[connector source code^].
+When using the <<es-build-connector, connector client>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/gmail.py[connector source code^].
 These are set in the `get_default_configuration` function definition.
 
 These configurable fields will be rendered with their respective *labels* in the Kibana UI.
@@ -288,27 +288,27 @@ When enabled:
 * Full syncs will fetch access control lists for each document and store them in the `_allow_access_control` field.
 * Access control syncs will fetch users' access control lists and store them in a separate index.
 
-[discrete#connectors-gmail-client-deployment-using-docker]
+[discrete#es-connectors-gmail-client-deployment-using-docker]
 ===== Deployment using Docker
 
 include::_connectors-docker-instructions.asciidoc[]
 
-[discrete#connectors-gmail-client-documents-and-syncs]
+[discrete#es-connectors-gmail-client-documents-and-syncs]
 ===== Documents and syncs
 
 The connector will fetch all messages of all users the service account has access to.
 
-[discrete#connectors-gmail-client-sync-types]
+[discrete#es-connectors-gmail-client-sync-types]
 ====== Sync types
 
-<<connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
+<<es-connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
 
-This connector also supports <<connectors-sync-types-incremental,incremental syncs>>.
+This connector also supports <<es-connectors-sync-types-incremental,incremental syncs>>.
 
-[discrete#connectors-gmail-client-sync-rules]
+[discrete#es-connectors-gmail-client-sync-rules]
 ===== Sync rules
 
-<<sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
+<<es-sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
 
 Advanced sync rules are available for this connector.
 The connector supports the https://support.google.com/mail/answer/7190[GMail advanced search syntax] under the `messages` field.
@@ -325,34 +325,34 @@ For example:
 }
 ----
 
-[discrete#connectors-gmail-client-document-level-security]
+[discrete#es-connectors-gmail-client-document-level-security]
 ===== Document level security
 
 Document level security (DLS) enables you to restrict access to documents based on a user’s permissions.
-Refer to <<connectors-gmail-client-configuration,configuration>> on this page for how to enable DLS for this connector.
+Refer to <<es-connectors-gmail-client-configuration,configuration>> on this page for how to enable DLS for this connector.
 
 [NOTE]
 ====
-Refer to <<dls-e2e-guide, DLS in Search Applications>> to learn how to ingest data from a connector with DLS enabled, when building a search application.
+Refer to <<es-dls-e2e-guide, DLS in Search Applications>> to learn how to ingest data from a connector with DLS enabled, when building a search application.
 The example uses SharePoint Online as the data source, but the same steps apply to every connector.
 ====
 
-[discrete#connectors-gmail-client-known-issues]
+[discrete#es-connectors-gmail-client-known-issues]
 ===== Known issues
 
 There are currently no known issues for this connector.
 
-[discrete#connectors-gmail-client-troubleshooting]
+[discrete#es-connectors-gmail-client-troubleshooting]
 ===== Troubleshooting
 
-See <<connectors-troubleshooting>>.
+See <<es-connectors-troubleshooting>>.
 
-[discrete#connectors-gmail-client-security]
+[discrete#es-connectors-gmail-client-security]
 ===== Security
 
-See <<connectors-security>>.
+See <<es-connectors-security>>.
 
-[discrete#connectors-gmail-client-framework-and-source]
+[discrete#es-connectors-gmail-client-framework-and-source]
 ===== Framework and source
 
 This connector is built in Python with the {connectors-python}[Elastic connector framework^].

@@ -1,4 +1,4 @@
-[#connectors-azure-blob]
+[#es-connectors-azure-blob]
 === Elastic Azure Blob Storage connector reference
 ++++
 <titleabbrev>Azure Blob Storage</titleabbrev>
@@ -7,7 +7,7 @@
 :service-name: Azure Blob Storage
 :service-name-stub: azure_blob_storage
 
-The _Elastic Azure Blob Storage connector_ is a <<connectors,connector>> for https://azure.microsoft.com/en-us/services/storage/blobs/[Azure Blob Storage^].
+The _Elastic Azure Blob Storage connector_ is a <<es-connectors,connector>> for https://azure.microsoft.com/en-us/services/storage/blobs/[Azure Blob Storage^].
 
 This connector is written in Python using the {connectors-python}[Elastic connector framework^]. 
 
@@ -22,7 +22,7 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 // ////////   NATIVE CONNECTOR REFERENCE   ///////
 // //////// //// //// //// //// //// //// ////////
 
-[discrete#connectors-azure-blob-native-connector-reference]
+[discrete#es-connectors-azure-blob-native-connector-reference]
 ==== *Native connector (Elastic Cloud)*
 
 .View *native connector* reference
@@ -30,14 +30,14 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 [%collapsible]
 ===============
 
-[discrete#connectors-azure-blob-availability-prerequisites]
+[discrete#es-connectors-azure-blob-availability-prerequisites]
 ===== Availability and prerequisites
 
 This connector is available as a *native connector* on Elastic Cloud, as of *8.9.1*.
 
-To use this connector natively in Elastic Cloud, satisfy all <<native-connectors-prerequisites,native connector requirements>>.
+To use this connector natively in Elastic Cloud, satisfy all <<es-native-connectors-prerequisites,native connector requirements>>.
 
-[discrete#connectors-azure-blob-compatability]
+[discrete#es-connectors-azure-blob-compatability]
 ===== Compatibility
 
 This connector has not been tested with Azure Government.
@@ -45,19 +45,19 @@ Therefore we cannot guarantee that it will work with Azure Government endpoints.
 For more information on Azure Government compared to Global Azure, refer to the
  https://learn.microsoft.com/en-us/azure/azure-government/compare-azure-government-global-azure[official Microsoft documentation^].
 
-[discrete#connectors-{service-name-stub}-create-native-connector]
+[discrete#es-connectors-{service-name-stub}-create-native-connector]
 ===== Create {service-name} connector
 
 include::_connectors-create-native.asciidoc[]
 
-[discrete#connectors-azure-blob-usage]
+[discrete#es-connectors-azure-blob-usage]
 ===== Usage
 
-To use this connector as a *native connector*, see <<native-connectors>>.
+To use this connector as a *native connector*, see <<es-native-connectors>>.
 
-For additional operations, see <<connectors-usage>>.
+For additional operations, see <<es-connectors-usage>>.
 
-[discrete#connectors-azure-blob-configuration]
+[discrete#es-connectors-azure-blob-configuration]
 ===== Configuration
 
 The following configuration fields are required to set up the connector:
@@ -75,39 +75,39 @@ Containers::
 List of containers to index.
 `*` will index all containers.
 
-[discrete#connectors-azure-blob-documents-syncs]
+[discrete#es-connectors-azure-blob-documents-syncs]
 ===== Documents and syncs
 
 The connector will fetch all data available in the container.
 
 [NOTE]
 ====
-* Content from files bigger than 10 MB won't be extracted. (Self-managed connectors can use the <<connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.)
+* Content from files bigger than 10 MB won't be extracted. (Self-managed connectors can use the <<es-connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.)
 * Permissions are not synced.
 **All documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
 ====
 
-[discrete#connectors-azure-blob-sync-types]
+[discrete#es-connectors-azure-blob-sync-types]
 ====== Sync types
 
-<<connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
+<<es-connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
 
-This connector also supports <<connectors-sync-types-incremental,incremental syncs>>.
+This connector also supports <<es-connectors-sync-types-incremental,incremental syncs>>.
 
-[discrete#connectors-azure-sync-rules]
+[discrete#es-connectors-azure-sync-rules]
 ===== Sync rules
 
-<<sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
+<<es-sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
 
 Advanced sync rules are not available for this connector in the present version.
 Currently filtering is controlled via ingest pipelines.
 
-[discrete#connectors-azure-blob-content-extraction]
+[discrete#es-connectors-azure-blob-content-extraction]
 ===== Content extraction
 
-See <<connectors-content-extraction>>.
+See <<es-connectors-content-extraction>>.
 
-[discrete#connectors-azure-blob-known-issues]
+[discrete#es-connectors-azure-blob-known-issues]
 ===== Known issues
 
 This connector has the following known issues:
@@ -117,15 +117,15 @@ This connector has the following known issues:
 This is because the blob timestamp is not updated.
 Refer to https://github.com/elastic/connectors-python/issues/289[Github issue^].
 
-[discrete#connectors-azure-blob-troubleshooting]
+[discrete#es-connectors-azure-blob-troubleshooting]
 ===== Troubleshooting
 
-See <<connectors-troubleshooting>>.
+See <<es-connectors-troubleshooting>>.
 
-[discrete#connectors-azure-blob-security]
+[discrete#es-connectors-azure-blob-security]
 ===== Security
 
-See <<connectors-security>>.
+See <<es-connectors-security>>.
 
 View the {connectors-python}/connectors/sources/azure_blob_storage.py[source code for this connector^] (branch _{connectors-branch}_, compatible with Elastic _{minor-version}_)
 
@@ -137,7 +137,7 @@ View the {connectors-python}/connectors/sources/azure_blob_storage.py[source cod
 // //////// CONNECTOR CLIENT REFERENCE     ///////
 // //////// //// //// //// //// //// //// ////////
 
-[discrete#connectors-azure-blob-connector-client-reference]
+[discrete#es-connectors-azure-blob-connector-client-reference]
 ==== *Connector client (self-managed)*
 
 .View *connector client* reference
@@ -145,14 +145,14 @@ View the {connectors-python}/connectors/sources/azure_blob_storage.py[source cod
 [%collapsible]
 ===============
 
-[discrete#connectors-azure-blob-client-availability-prerequisites]
+[discrete#es-connectors-azure-blob-client-availability-prerequisites]
 ===== Availability and prerequisites
 
 This connector is available as a self-managed *connector client*.
 This connector client is compatible with Elastic versions *8.6.0+*.
-To use this connector, satisfy all <<build-connector,connector client requirements>>.
+To use this connector, satisfy all <<es-build-connector,connector client requirements>>.
 
-[discrete#connectors-azure-blob-client-compatability]
+[discrete#es-connectors-azure-blob-client-compatability]
 ===== Compatibility
 
 This connector has not been tested with Azure Government.
@@ -160,23 +160,23 @@ Therefore we cannot guarantee that it will work with Azure Government endpoints.
 For more information on Azure Government compared to Global Azure, refer to the
  https://learn.microsoft.com/en-us/azure/azure-government/compare-azure-government-global-azure[official Microsoft documentation^].
 
-[discrete#connectors-{service-name-stub}-create-connector-client]
+[discrete#es-connectors-{service-name-stub}-create-connector-client]
 ===== Create {service-name} connector
 
 include::_connectors-create-client.asciidoc[]
 
-[discrete#connectors-azure-blob-client-usage]
+[discrete#es-connectors-azure-blob-client-usage]
 ===== Usage
 
-To use this connector as a *connector client*, see <<build-connector>>
-For additional usage operations, see <<connectors-usage>>.
+To use this connector as a *connector client*, see <<es-build-connector>>
+For additional usage operations, see <<es-connectors-usage>>.
 
-[discrete#connectors-azure-blob-client-configuration]
+[discrete#es-connectors-azure-blob-client-configuration]
 ===== Configuration
 
 [TIP]
 ====
-When using the <<build-connector, connector client>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/azure_blob_storage.py[connector source code^].
+When using the <<es-build-connector, connector client>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/azure_blob_storage.py[connector source code^].
 These are set in the `get_default_configuration` function definition.
 
 These configurable fields will be rendered with their respective *labels* in the Kibana UI.
@@ -207,51 +207,51 @@ Number of concurrent downloads for fetching content.
 Default value is `100`.
 
 `use_text_extraction_service`::
-Requires a separate deployment of the <<connectors-content-extraction-local,Elastic Text Extraction Service>>. Requires that ingest pipeline settings disable text extraction.
+Requires a separate deployment of the <<es-connectors-content-extraction-local,Elastic Text Extraction Service>>. Requires that ingest pipeline settings disable text extraction.
 Default value is `False`.
 
-[discrete#connectors-azure-blob-client-docker]
+[discrete#es-connectors-azure-blob-client-docker]
 ===== Deployment using Docker
 
 include::_connectors-docker-instructions.asciidoc[]
 
-[discrete#connectors-azure-blob-client-documents-syncs]
+[discrete#es-connectors-azure-blob-client-documents-syncs]
 ===== Documents and syncs
 
 The connector will fetch all data available in the container.
 
 [NOTE]
 ====
-* Content from files bigger than 10 MB won't be extracted by default. You can use the <<connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.
+* Content from files bigger than 10 MB won't be extracted by default. You can use the <<es-connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.
 * Permissions are not synced.
 **All documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
 ====
 
-[discrete#connectors-azure-blob-client-sync-types]
+[discrete#es-connectors-azure-blob-client-sync-types]
 ====== Sync types
 
-<<connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
+<<es-connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
 
-This connector also supports <<connectors-sync-types-incremental,incremental syncs>>.
+This connector also supports <<es-connectors-sync-types-incremental,incremental syncs>>.
 
-[discrete#connectors-azure-blob-client-sync-rules]
+[discrete#es-connectors-azure-blob-client-sync-rules]
 ===== Sync rules
 
-<<sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
+<<es-sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
 
 Advanced sync rules are not available for this connector in the present version.
 Currently filtering is controlled via ingest pipelines.
 
-[discrete#connectors-azure-blob-client-content-extraction]
+[discrete#es-connectors-azure-blob-client-content-extraction]
 ===== Content extraction
 
-See <<connectors-content-extraction>>.
+See <<es-connectors-content-extraction>>.
 
-[discrete#connectors-azure-blob-client-testing]
+[discrete#es-connectors-azure-blob-client-testing]
 ===== End-to-end testing
 
 The connector framework enables operators to run functional tests against a real data source.
-Refer to <<build-connector-testing>> for more details.
+Refer to <<es-build-connector-testing>> for more details.
 
 To perform E2E testing for the Azure Blob Storage connector, run the following command:
 
@@ -267,7 +267,7 @@ For faster tests, add the `DATA_SIZE=small` flag:
 make ftest NAME=azure_blob_storage DATA_SIZE=small
 ----
 
-[discrete#connectors-azure-blob-client-known-issues]
+[discrete#es-connectors-azure-blob-client-known-issues]
 ===== Known issues
 
 This connector has the following known issues:
@@ -277,15 +277,15 @@ This connector has the following known issues:
 This is because the blob timestamp is not updated.
 Refer to https://github.com/elastic/connectors/issues/289[Github issue^].
 
-[discrete#connectors-azure-blob-client-troubleshooting]
+[discrete#es-connectors-azure-blob-client-troubleshooting]
 ===== Troubleshooting
 
-See <<connectors-troubleshooting>>.
+See <<es-connectors-troubleshooting>>.
 
-[discrete#connectors-azure-blob-client-security]
+[discrete#es-connectors-azure-blob-client-security]
 ===== Security
 
-See <<connectors-security>>.
+See <<es-connectors-security>>.
 
 // Closing the collapsible section 
 ===============

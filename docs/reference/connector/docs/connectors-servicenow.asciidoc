@@ -1,4 +1,4 @@
-[#connectors-servicenow]
+[#es-connectors-servicenow]
 === Elastic ServiceNow connector reference
 ++++
 <titleabbrev>ServiceNow</titleabbrev>
@@ -7,7 +7,7 @@
 :service-name: ServiceNow
 :service-name-stub: servicenow
 
-The _Elastic ServiceNow connector_ is a <<connectors,connector>> for https://www.servicenow.com[ServiceNow^].
+The _Elastic ServiceNow connector_ is a <<es-connectors,connector>> for https://www.servicenow.com[ServiceNow^].
 
 This connector is written in Python using the {connectors-python}[Elastic connector framework^]. 
 
@@ -22,7 +22,7 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 // ////////   NATIVE CONNECTOR REFERENCE   ///////
 // //////// //// //// //// //// //// //// ////////
 
-[discrete#connectors-servicenow-native-connector-reference]
+[discrete#es-connectors-servicenow-native-connector-reference]
 ==== *Native connector (Elastic Cloud)*
 
 .View *native connector* reference
@@ -30,25 +30,25 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 [%collapsible]
 ===============
 
-[discrete#connectors-servicenow-availability-prerequisites]
+[discrete#es-connectors-servicenow-availability-prerequisites]
 ===== Availability and prerequisites
 
 The ServiceNow connector is available natively in Elastic Cloud since 8.10.0.
 
-To use this connector natively in Elastic Cloud, satisfy all <<native-connectors-prerequisites,native connector requirements>>.
+To use this connector natively in Elastic Cloud, satisfy all <<es-native-connectors-prerequisites,native connector requirements>>.
 
-[discrete#connectors-servicenow-create-native-connector]
+[discrete#es-connectors-servicenow-create-native-connector]
 ===== Create a {service-name} connector
 include::_connectors-create-native.asciidoc[]
 
-[discrete#connectors-servicenow-usage]
+[discrete#es-connectors-servicenow-usage]
 ===== Usage
 
-To use this connector natively in Elastic Cloud, see <<native-connectors>>.
+To use this connector natively in Elastic Cloud, see <<es-native-connectors>>.
 
-For additional operations, see <<connectors-usage>>
+For additional operations, see <<es-connectors-usage>>
 
-[discrete#connectors-servicenow-compatibility]
+[discrete#es-connectors-servicenow-compatibility]
 ===== Compatibility
 
 The ServiceNow connector is compatible with the following versions of ServiceNow:
@@ -59,7 +59,7 @@ The ServiceNow connector is compatible with the following versions of ServiceNow
 * ServiceNow "Utah"
 * ServiceNow "Vancouver"
 
-[discrete#connectors-servicenow-configuration]
+[discrete#es-connectors-servicenow-configuration]
 ===== Configuration
 
 The following configuration fields are required to set up the connector:
@@ -92,9 +92,9 @@ Default value is `*`. Examples:
 
 Enable document level security::
 Restrict access to documents based on a user's permissions.
-Refer to <<connectors-servicenow-dls>> for more details.
+Refer to <<es-connectors-servicenow-dls>> for more details.
 
-[discrete#connectors-servicenow-documents-syncs]
+[discrete#es-connectors-servicenow-documents-syncs]
 ===== Documents and syncs
 
 All services and records the user has access to will be indexed according to the configurations provided.
@@ -105,21 +105,21 @@ The connector syncs the following ServiceNow object types:
 
 [NOTE]
 ====
-* Content from files bigger than 10 MB won't be extracted. (Self-managed connectors can use the <<connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.)
-* Permissions are not synced by default. Refer to <<connectors-servicenow-dls>> for more details.
+* Content from files bigger than 10 MB won't be extracted. (Self-managed connectors can use the <<es-connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.)
+* Permissions are not synced by default. Refer to <<es-connectors-servicenow-dls>> for more details.
 ====
 
-[discrete#connectors-servicenow-sync-types]
+[discrete#es-connectors-servicenow-sync-types]
 ====== Sync types
 
-<<connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
+<<es-connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
 
-This connector also supports <<connectors-sync-types-incremental,incremental syncs>>.
+This connector also supports <<es-connectors-sync-types-incremental,incremental syncs>>.
 
-[discrete#connectors-servicenow-dls]
+[discrete#es-connectors-servicenow-dls]
 ===== Document level security
 
-<<dls, Document level security (DLS)>> ensures identities and permissions set in ServiceNow are maintained in Elasticsearch.
+<<es-dls, Document level security (DLS)>> ensures identities and permissions set in ServiceNow are maintained in Elasticsearch.
 This enables you to restrict and personalize read-access users and groups have to documents in this index.
 Access control syncs ensure this metadata is kept up to date in your Elasticsearch documents.
 
@@ -147,24 +147,24 @@ For services other than these defaults, the connector iterates over access contr
 The ServiceNow connector does not support scripted and conditional permissions.
 ====
 
-[discrete#connectors-servicenow-sync-rules]
+[discrete#es-connectors-servicenow-sync-rules]
 ===== Sync rules
 
-<<sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
+<<es-sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
 
-[discrete#connectors-servicenow-sync-rules-advanced]
+[discrete#es-connectors-servicenow-sync-rules-advanced]
 ====== Advanced sync rules
 
 [NOTE]
 ====
-A <<connectors-sync-types-full, full sync>> is required for advanced sync rules to take effect.
+A <<es-connectors-sync-types-full, full sync>> is required for advanced sync rules to take effect.
 ====
 
 Advanced sync rules are defined through a source-specific DSL JSON snippet.
 
 The following sections provide examples of advanced sync rules for this connector.
 
-[discrete#connectors-servicenow-sync-rules-number-incident-service]
+[discrete#es-connectors-servicenow-sync-rules-number-incident-service]
 ======= Indexing document based on incident number for Incident service
 
 [source,json]
@@ -177,7 +177,7 @@ The following sections provide examples of advanced sync rules for this connecto
 ]
 ----
 
-[discrete#connectors-servicenow-sync-rules-active-false-user-service]
+[discrete#es-connectors-servicenow-sync-rules-active-false-user-service]
 ======= Indexing document based on user activity state for User service
 
 [source,json]
@@ -190,7 +190,7 @@ The following sections provide examples of advanced sync rules for this connecto
 ]
 ----
 
-[discrete#connectors-servicenow-sync-rules-author-administrator-knowledge-service]
+[discrete#es-connectors-servicenow-sync-rules-author-administrator-knowledge-service]
 ======= Indexing document based on author name for Knowledge service
 
 [source,json]
@@ -203,26 +203,26 @@ The following sections provide examples of advanced sync rules for this connecto
 ]
 ----
 
-[discrete#connectors-servicenow-known-issues]
+[discrete#es-connectors-servicenow-known-issues]
 ===== Known issues
 
 There are no known issues for this connector.
-Refer to <<connectors-known-issues>> for a list of known issues that impact all connectors.
+Refer to <<es-connectors-known-issues>> for a list of known issues that impact all connectors.
 
-[discrete#connectors-servicenow-troubleshooting]
+[discrete#es-connectors-servicenow-troubleshooting]
 ===== Troubleshooting
 
-See <<connectors-troubleshooting>>.
+See <<es-connectors-troubleshooting>>.
 
-[discrete#connectors-servicenow-security]
+[discrete#es-connectors-servicenow-security]
 ===== Security
 
-See <<connectors-security>>.
+See <<es-connectors-security>>.
 
-[discrete#connectors-servicenow-content-extraction]
+[discrete#es-connectors-servicenow-content-extraction]
 ===== Content extraction
 
-See <<connectors-content-extraction>>.
+See <<es-connectors-content-extraction>>.
 
 
 // Closing the collapsible section 
@@ -233,7 +233,7 @@ See <<connectors-content-extraction>>.
 // //////// CONNECTOR CLIENT REFERENCE     ///////
 // //////// //// //// //// //// //// //// ////////
 
-[discrete#connectors-servicenow-connector-client-reference]
+[discrete#es-connectors-servicenow-connector-client-reference]
 ==== *Connector client (self-managed)*
 
 .View *connector client* reference
@@ -241,24 +241,24 @@ See <<connectors-content-extraction>>.
 [%collapsible]
 ===============
 
-[discrete#connectors-servicenow-client-availability-prerequisites]
+[discrete#es-connectors-servicenow-client-availability-prerequisites]
 ===== Availability and prerequisites
 
 The ServiceNow connector was introduced in Elastic version 8.9.0.
 This connector is available as a self-managed *connector client*.
-To use this connector as a connector client, satisfy all <<build-connector,connector client requirements>>.
+To use this connector as a connector client, satisfy all <<es-build-connector,connector client requirements>>.
 
-[discrete#connectors-servicenow-create-connector-client]
+[discrete#es-connectors-servicenow-create-connector-client]
 ===== Create a {service-name} connector
 include::_connectors-create-client.asciidoc[]
 
-[discrete#connectors-servicenow-client-usage]
+[discrete#es-connectors-servicenow-client-usage]
 ===== Usage
 To use this connector as a *connector client*, use the *Customized connector* workflow.
 
 For additional operations, see link:https://www.elastic.co/guide/en/enterprise-search/master/connectors-usage.html[Usage].
 
-[discrete#connectors-servicenow-client-compatibility]
+[discrete#es-connectors-servicenow-client-compatibility]
 ===== Compatibility
 
 The ServiceNow connector is compatible with the following versions of ServiceNow:
@@ -269,12 +269,12 @@ The ServiceNow connector is compatible with the following versions of ServiceNow
 * ServiceNow "Utah"
 * ServiceNow "Vancouver"
 
-[discrete#connectors-servicenow-client-configuration]
+[discrete#es-connectors-servicenow-client-configuration]
 ===== Configuration
 
 [TIP]
 ====
-When using the <<build-connector, connector client>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/servicenow.py[connector source code^].
+When using the <<es-build-connector, connector client>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/servicenow.py[connector source code^].
 These are set in the `get_default_configuration` function definition.
 
 These configurable fields will be rendered with their respective *labels* in the Kibana UI.
@@ -316,15 +316,15 @@ The number of retry attempts after a failed request to ServiceNow. Default value
 The number of concurrent downloads for fetching the attachment content. This speeds up the content extraction of attachments. Defaults to `10`.
 
 `use_text_extraction_service`::
-Requires a separate deployment of the <<connectors-content-extraction-local,Elastic Text Extraction Service>>.
+Requires a separate deployment of the <<es-connectors-content-extraction-local,Elastic Text Extraction Service>>.
 Requires that ingest pipeline settings disable text extraction.
 Default value is `False`.
 
 `use_document_level_security`::
 Restrict access to documents based on a user's permissions.
-Refer to <<connectors-servicenow-client-dls>> for more details.
+Refer to <<es-connectors-servicenow-client-dls>> for more details.
 
-[discrete#connectors-servicenow-client-documents-syncs]
+[discrete#es-connectors-servicenow-client-documents-syncs]
 ===== Documents and syncs
 
 All services and records the user has access to will be indexed according to the configurations provided.
@@ -335,21 +335,21 @@ The connector syncs the following ServiceNow object types:
 
 [NOTE]
 ====
-* Content from files bigger than 10 MB won't be extracted. Use the <<connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.
-* Permissions are not synced by default. You must enable <<dls,document level security>>. Otherwise, **all documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
+* Content from files bigger than 10 MB won't be extracted. Use the <<es-connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.
+* Permissions are not synced by default. You must enable <<es-dls,document level security>>. Otherwise, **all documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
 ====
 
-[discrete#connectors-servicenow-client-sync-types]
+[discrete#es-connectors-servicenow-client-sync-types]
 ====== Sync types
 
-<<connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
+<<es-connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
 
-This connector also supports <<connectors-sync-types-incremental,incremental syncs>>.
+This connector also supports <<es-connectors-sync-types-incremental,incremental syncs>>.
 
-[discrete#connectors-servicenow-client-dls]
+[discrete#es-connectors-servicenow-client-dls]
 ===== Document level security
 
-<<dls, Document level security (DLS)>> ensures identities and permissions set in ServiceNow are maintained in Elasticsearch.
+<<es-dls, Document level security (DLS)>> ensures identities and permissions set in ServiceNow are maintained in Elasticsearch.
 This enables you to restrict and personalize read-access users and groups have to documents in this index.
 Access control syncs ensure this metadata is kept up to date in your Elasticsearch documents.
 
@@ -377,29 +377,29 @@ For services other than these defaults, the connector iterates over access contr
 The ServiceNow connector does not support scripted and conditional permissions.
 ====
 
-[discrete#connectors-servicenow-client-docker]
+[discrete#es-connectors-servicenow-client-docker]
 ===== Deployment using Docker
 
 include::_connectors-docker-instructions.asciidoc[]
 
-[discrete#connectors-servicenow-client-sync-rules]
+[discrete#es-connectors-servicenow-client-sync-rules]
 ===== Sync rules
 
-<<sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
+<<es-sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
 
-[discrete#connectors-servicenow-client-sync-rules-advanced]
+[discrete#es-connectors-servicenow-client-sync-rules-advanced]
 ====== Advanced sync rules
 
 [NOTE]
 ====
-A <<connectors-sync-types-full, full sync>> is required for advanced sync rules to take effect.
+A <<es-connectors-sync-types-full, full sync>> is required for advanced sync rules to take effect.
 ====
 
 Advanced sync rules are defined through a source-specific DSL JSON snippet.
 
 The following sections provide examples of advanced sync rules for this connector.
 
-[discrete#connectors-servicenow-client-sync-rules-number-incident-service]
+[discrete#es-connectors-servicenow-client-sync-rules-number-incident-service]
 ======= Indexing document based on incident number for Incident service
 
 [source,json]
@@ -412,7 +412,7 @@ The following sections provide examples of advanced sync rules for this connecto
 ]
 ----
 
-[discrete#connectors-servicenow-client-sync-rules-active-false-user-service]
+[discrete#es-connectors-servicenow-client-sync-rules-active-false-user-service]
 ======= Indexing document based on user activity state for User service
 
 [source,json]
@@ -425,7 +425,7 @@ The following sections provide examples of advanced sync rules for this connecto
 ]
 ----
 
-[discrete#connectors-servicenow-client-sync-rules-author-administrator-knowledge-service]
+[discrete#es-connectors-servicenow-client-sync-rules-author-administrator-knowledge-service]
 ======= Indexing document based on author name for Knowledge service
 
 [source,json]
@@ -438,11 +438,11 @@ The following sections provide examples of advanced sync rules for this connecto
 ]
 ----
 
-[discrete#connectors-servicenow-client-connector-client-operations-testing]
+[discrete#es-connectors-servicenow-client-connector-client-operations-testing]
 ===== End-to-end Testing
 
 The connector framework enables operators to run functional tests against a real data source.
-Refer to <<build-connector-testing>> for more details.
+Refer to <<es-build-connector-testing>> for more details.
 
 To perform E2E testing for the ServiceNow connector, run the following command:
 
@@ -458,26 +458,26 @@ By default, it is set to `MEDIUM`.
 Users do not need to have a running Elasticsearch instance or a ServiceNow source to run this test.
 Docker Compose manages the complete setup of the development environment.
 
-[discrete#connectors-servicenow-client-known-issues]
+[discrete#es-connectors-servicenow-client-known-issues]
 ===== Known issues
 
 There are no known issues for this connector.
-Refer to <<connectors-known-issues>> for a list of known issues that impact all connectors.
+Refer to <<es-connectors-known-issues>> for a list of known issues that impact all connectors.
 
-[discrete#connectors-servicenow-client-troubleshooting]
+[discrete#es-connectors-servicenow-client-troubleshooting]
 ===== Troubleshooting
 
-See <<connectors-troubleshooting>>.
+See <<es-connectors-troubleshooting>>.
 
-[discrete#connectors-servicenow-client-security]
+[discrete#es-connectors-servicenow-client-security]
 ===== Security
 
-See <<connectors-security>>.
+See <<es-connectors-security>>.
 
-[discrete#connectors-servicenow-client-content-extraction]
+[discrete#es-connectors-servicenow-client-content-extraction]
 ===== Content extraction
 
-See <<connectors-content-extraction>>.
+See <<es-connectors-content-extraction>>.
 
 
 // Closing the collapsible section 

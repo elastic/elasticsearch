@@ -1,4 +1,4 @@
-[#connectors]
+[#es-connectors]
 == Elastic connectors
 ++++
 <titleabbrev>Add data with Connectors</titleabbrev>
@@ -21,13 +21,13 @@ You can also access the source code for these (and additional) connectors, and r
 * **Native connectors** are available directly within your Elastic Cloud deployment.
 * **Connector clients** are self-managed on your own infrastructure.
 
-[discrete#connectors-native]
+[discrete#es-connectors-native]
 == Native connectors {ess-icon} (_managed service_)
 
 _Native connectors_ are available directly within your Elastic Cloud deployment, as a managed service.
 No additional infrastructure is required.
 
-See <<native-connectors>> for details on how to configure and use native connectors.
+See <<es-native-connectors>> for details on how to configure and use native connectors.
 
 .*Expand* to see list of available native connectors
 [%collapsible]
@@ -35,13 +35,13 @@ See <<native-connectors>> for details on how to configure and use native connect
 include::_connectors-list-native.asciidoc[]
 ====
 
-[discrete#connectors-build]
+[discrete#es-connectors-build]
 == Connector clients (_self-managed_)
 
 Connector clients enable you to run connectors locally on your own infrastructure.
 This means you can try out new connectors before they are available natively within Elastic Cloud, and/or customize existing connectors.
 
-See <<build-connector>> for details on how to deploy connector clients.
+See <<es-build-connector>> for details on how to deploy connector clients.
 
 .*Expand* to see list of available connector clients
 [%collapsible]
@@ -49,23 +49,23 @@ See <<build-connector>> for details on how to deploy connector clients.
 include::_connectors-list-clients.asciidoc[]
 ====
 
-[discrete#connectors-overview-framework]
+[discrete#es-connectors-overview-framework]
 == Connector framework
 
 All Elastic connectors are built using our Python connector framework.
 The source code is available in the {connectors-python}[`elastic/connectors`] repository on GitHub.
 
 The connector framework is available for developers to customize existing connector clients or build their own connectors.
-Refer to <<connectors-framework>> for details.
+Refer to <<es-connectors-framework>> for details.
 
-[discrete#connectors-overview-diagram]
+[discrete#es-connectors-overview-diagram]
 == Connectors overview diagram
 
 The following diagram provides a high-level overview of the Elastic connectors offering and some key facts.
 
 image::connectors-overview.png[align="center",width="100%"]
 
-[discrete#connectors-overview-available-connectors]
+[discrete#es-connectors-overview-available-connectors]
 == Available connectors and feature support
 
 include::_connectors-overview-table.asciidoc[]

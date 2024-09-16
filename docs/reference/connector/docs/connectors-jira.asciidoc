@@ -1,4 +1,4 @@
-[#connectors-jira]
+[#es-connectors-jira]
 === Elastic Jira connector reference
 ++++
 <titleabbrev>Jira</titleabbrev>
@@ -7,7 +7,7 @@
 :service-name: Jira
 :service-name-stub: jira
 
-The _Elastic Jira connector_ is a <<connectors,connector>> for https://www.atlassian.com/software/jira[Atlassian Jira^].
+The _Elastic Jira connector_ is a <<es-connectors,connector>> for https://www.atlassian.com/software/jira[Atlassian Jira^].
 This connector is written in Python using the {connectors-python}[Elastic connector framework^]. 
 
 View the {connectors-python}/connectors/sources/{service-name-stub}.py[*source code* for this connector^] (branch _{connectors-branch}_, compatible with Elastic _{minor-version}_).
@@ -21,7 +21,7 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 // ////////   NATIVE CONNECTOR REFERENCE   ///////
 // //////// //// //// //// //// //// //// ////////
 
-[discrete#connectors-jira-native-connector-reference]
+[discrete#es-connectors-jira-native-connector-reference]
 ==== *Native connector (Elastic Cloud)*
 
 .View *native connector* reference
@@ -29,7 +29,7 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 [%collapsible]
 ===============
 
-[discrete#connectors-jira-availability-prerequisites]
+[discrete#es-connectors-jira-availability-prerequisites]
 ===== Availability and prerequisites
 
 This connector is available as a *native connector* on Elastic Cloud, as of *8.9.1*.
@@ -39,25 +39,25 @@ This connector is available as a *native connector* on Elastic Cloud, as of *8.9
 Jira Data Center support was added in 8.13.0 in technical preview and is subject to change. The design and code is less mature than official GA features and is being provided as-is with no warranties. Technical preview features are not subject to the support SLA of official GA features.
 ====
 
-To use this connector natively in Elastic Cloud, satisfy all <<native-connectors-prerequisites,native connector requirements>>.
+To use this connector natively in Elastic Cloud, satisfy all <<es-native-connectors-prerequisites,native connector requirements>>.
 
-[discrete#connectors-jira-create-native-connector]
+[discrete#es-connectors-jira-create-native-connector]
 ===== Create a {service-name} connector
 include::_connectors-create-native.asciidoc[]
 
-[discrete#connectors-jira-usage]
+[discrete#es-connectors-jira-usage]
 ===== Usage
 
-To use this connector natively in Elastic Cloud, see <<native-connectors>>.
+To use this connector natively in Elastic Cloud, see <<es-native-connectors>>.
 
-For additional operations, see <<connectors-usage>>.
+For additional operations, see <<es-connectors-usage>>.
 
-[discrete#connectors-jira-compatability]
+[discrete#es-connectors-jira-compatability]
 ===== Compatibility
 
 * Jira Cloud, Jira Server, and Jira Data Center *versions 7 or later*.
 
-[discrete#connectors-jira-configuration]
+[discrete#es-connectors-jira-configuration]
 ===== Configuration
 
 The following configuration fields are required to set up the connector:
@@ -116,7 +116,7 @@ MIID+jCCAuKgAwIBAgIGAJJMzlxLMA0GCSqGSIb3DQEBCwUAMHoxCzAJBgNVBAYT
 ----
 
 Enable document level security::
-Toggle to enable <<dls, document level security (DLS)>>.
+Toggle to enable <<es-dls, document level security (DLS)>>.
 When enabled, full syncs will fetch access control lists for each document and store them in the `_allow_access_control` field.
 Access control syncs fetch users' access control lists and store them in a separate index.
 +
@@ -126,7 +126,7 @@ To access user data in Jira Administration, the account you created must be gran
 This access needs to be provided by an administrator from the http://admin.atlassian.com/[Atlassian Admin], and the access level granted should be `Product Admin`.
 ====
 
-[discrete#connectors-jira-documents-syncs]
+[discrete#es-connectors-jira-documents-syncs]
 ===== Documents and syncs
 
 The connector syncs the following objects and entities:
@@ -142,29 +142,29 @@ The connector syncs the following objects and entities:
 
 [NOTE]
 ====
-* Content from files bigger than 10 MB won't be extracted. (Self-managed connectors can use the <<connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.)
+* Content from files bigger than 10 MB won't be extracted. (Self-managed connectors can use the <<es-connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.)
 * Permissions are not synced by default.
-You must first enable <<connectors-jira-document-level-security,DLS>>.
+You must first enable <<es-connectors-jira-document-level-security,DLS>>.
 Otherwise, *all documents* indexed to an Elastic deployment will be visible to *all users with access* to that Elastic Deployment.
 ====
 
-[discrete#connectors-jira-sync-types]
+[discrete#es-connectors-jira-sync-types]
 ====== Sync types
 
-<<connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
+<<es-connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
 
-This connector also supports <<connectors-sync-types-incremental,incremental syncs>>.
+This connector also supports <<es-connectors-sync-types-incremental,incremental syncs>>.
 
-[discrete#connectors-jira-sync-rules]
+[discrete#es-connectors-jira-sync-rules]
 ===== Sync rules
 
-<<sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
+<<es-sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
 
-This connector supports <<sync-rules-advanced,advanced sync rules>> for remote filtering.
+This connector supports <<es-sync-rules-advanced,advanced sync rules>> for remote filtering.
 These rules cover complex query-and-filter scenarios that cannot be expressed with basic sync rules.
 Advanced sync rules are defined through a source-specific DSL JSON snippet.
 
-[discrete#connectors-jira-sync-rules-examples]
+[discrete#es-connectors-jira-sync-rules-examples]
 ====== Advanced sync rules example
 
 *Example 1*: Queries to index content based on status of Jira issues.
@@ -203,11 +203,11 @@ Advanced sync rules are defined through a source-specific DSL JSON snippet.
 ]
 ----
 
-[discrete#connectors-jira-document-level-security]
+[discrete#es-connectors-jira-document-level-security]
 ===== Document level security
 
 Document level security (DLS) enables you to restrict access to documents based on a user’s permissions.
-Refer to <<connectors-jira-configuration,configuration>> on this page for how to enable DLS for this connector.
+Refer to <<es-connectors-jira-configuration,configuration>> on this page for how to enable DLS for this connector.
 
 [WARNING]
 ====
@@ -221,33 +221,33 @@ When the `data_source` is set to Confluence Data Center or Server, the connector
 
 [NOTE]
 ====
-Refer to <<dls-e2e-guide, DLS in Search Applications>> to learn how to ingest data from a connector with DLS enabled, when building a search application.
+Refer to <<es-dls-e2e-guide, DLS in Search Applications>> to learn how to ingest data from a connector with DLS enabled, when building a search application.
 The example uses SharePoint Online as the data source, but the same steps apply to every connector.
 ====
 
-[discrete#connectors-jira-content-extraction]
+[discrete#es-connectors-jira-content-extraction]
 ===== Content Extraction
 
-See <<connectors-content-extraction>>.
+See <<es-connectors-content-extraction>>.
 
-[discrete#connectors-jira-known-issues]
+[discrete#es-connectors-jira-known-issues]
 ===== Known issues
 
 * *Enabling document-level security impacts performance.* 
 +
 Enabling DLS for your connector will cause a significant performance degradation, as the API calls to the data source required for this functionality are rate limited. This impacts the speed at which your content can be retrieved.
 
-Refer to <<connectors-known-issues>> for a list of known issues for all connectors.
+Refer to <<es-connectors-known-issues>> for a list of known issues for all connectors.
 
-[discrete#connectors-jira-troubleshooting]
+[discrete#es-connectors-jira-troubleshooting]
 ===== Troubleshooting
 
-See <<connectors-troubleshooting>>.
+See <<es-connectors-troubleshooting>>.
 
-[discrete#connectors-jira-security]
+[discrete#es-connectors-jira-security]
 ===== Security
 
-See <<connectors-security>>.
+See <<es-connectors-security>>.
 
 // Closing the collapsible section 
 ===============
@@ -257,7 +257,7 @@ See <<connectors-security>>.
 // //////// CONNECTOR CLIENT REFERENCE     ///////
 // //////// //// //// //// //// //// //// ////////
 
-[discrete#connectors-jira-connector-client-reference]
+[discrete#es-connectors-jira-connector-client-reference]
 ==== *Connector client (self-managed)*
 
 .View *connector client* reference
@@ -265,7 +265,7 @@ See <<connectors-security>>.
 [%collapsible]
 ===============
 
-[discrete#connectors-jira-client-availability-prerequisites]
+[discrete#es-connectors-jira-client-availability-prerequisites]
 ===== Availability and prerequisites
 
 This connector is available as a self-managed *connector client*.
@@ -276,29 +276,29 @@ This connector client is compatible with Elastic versions *8.7.0+*.
 Jira Data Center support was added in 8.13.0 in technical preview and is subject to change. The design and code is less mature than official GA features and is being provided as-is with no warranties. Technical preview features are not subject to the support SLA of official GA features.
 ====
 
-To use this connector, satisfy all <<build-connector,connector client requirements>>.
+To use this connector, satisfy all <<es-build-connector,connector client requirements>>.
 
-[discrete#connectors-jira-create-connector-client]
+[discrete#es-connectors-jira-create-connector-client]
 ===== Create a {service-name} connector
 include::_connectors-create-client.asciidoc[]
 
-[discrete#connectors-jira-client-usage]
+[discrete#es-connectors-jira-client-usage]
 ===== Usage
 
-To use this connector as a *connector client*, see <<build-connector>>
-For additional usage operations, see <<connectors-usage>>.
+To use this connector as a *connector client*, see <<es-build-connector>>
+For additional usage operations, see <<es-connectors-usage>>.
 
-[discrete#connectors-jira-client-compatability]
+[discrete#es-connectors-jira-client-compatability]
 ===== Compatibility
 
 * Jira Cloud, Jira Server, and Jira Data Center *versions 7 or later*.
 
-[discrete#connectors-jira-client-configuration]
+[discrete#es-connectors-jira-client-configuration]
 ===== Configuration
 
 [TIP]
 ====
-When using the <<build-connector, connector client>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/jira.py[connector source code^].
+When using the <<es-build-connector, connector client>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/jira.py[connector source code^].
 These are set in the `get_default_configuration` function definition.
 
 These configurable fields will be rendered with their respective *labels* in the Kibana UI.
@@ -366,7 +366,7 @@ The number of retry attempts after failed request to Jira. Default value is 3.
 The number of concurrent downloads for fetching the attachment content. This speeds up the content extraction of attachments. Defaults to 100.
 
 `use_document_level_security`::
-Toggle to enable <<dls, document level security (DLS)>>.
+Toggle to enable <<es-dls, document level security (DLS)>>.
 When enabled, full syncs will fetch access control lists for each document and store them in the `_allow_access_control` field.
 Access control syncs fetch users' access control lists and store them in a separate index.
 +
@@ -377,16 +377,16 @@ This access needs to be provided by an administrator from the http://admin.atlas
 ====
 
 `use_text_extraction_service`::
-Requires a separate deployment of the <<connectors-content-extraction-local,Elastic Text Extraction Service>>.
+Requires a separate deployment of the <<es-connectors-content-extraction-local,Elastic Text Extraction Service>>.
 Requires that ingest pipeline settings disable text extraction.
 Default value is `False`.
 
-[discrete#connectors-jira-client-docker]
+[discrete#es-connectors-jira-client-docker]
 ===== Deployment using Docker
 
 include::_connectors-docker-instructions.asciidoc[]
 
-[discrete#connectors-jira-client-documents-syncs]
+[discrete#es-connectors-jira-client-documents-syncs]
 ===== Documents and syncs
 
 The connector syncs the following objects and entities:
@@ -404,27 +404,27 @@ The connector syncs the following objects and entities:
 ====
 * Content from files bigger than 10 MB won't be extracted
 * Permissions are not synced by default.
-You must first enable <<connectors-jira-client-document-level-security,DLS>>.
+You must first enable <<es-connectors-jira-client-document-level-security,DLS>>.
 Otherwise, *all documents* indexed to an Elastic deployment will be visible to *all users with access* to that Elastic Deployment.
 ====
 
-[discrete#connectors-jira-client-sync-types]
+[discrete#es-connectors-jira-client-sync-types]
 ====== Sync types
 
-<<connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
+<<es-connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
 
-This connector also supports <<connectors-sync-types-incremental,incremental syncs>>.
+This connector also supports <<es-connectors-sync-types-incremental,incremental syncs>>.
 
-[discrete#connectors-jira-client-sync-rules]
+[discrete#es-connectors-jira-client-sync-rules]
 ===== Sync rules
 
-<<sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
+<<es-sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
 
-This connector supports <<sync-rules-advanced,advanced sync rules>> for remote filtering.
+This connector supports <<es-sync-rules-advanced,advanced sync rules>> for remote filtering.
 These rules cover complex query-and-filter scenarios that cannot be expressed with basic sync rules.
 Advanced sync rules are defined through a source-specific DSL JSON snippet.
 
-[discrete#connectors-jira-client-sync-rules-examples]
+[discrete#es-connectors-jira-client-sync-rules-examples]
 ====== Advanced sync rules example
 
 *Example 1*: Queries to index content based on status of Jira issues.
@@ -463,11 +463,11 @@ Advanced sync rules are defined through a source-specific DSL JSON snippet.
 ]
 ----
 
-[discrete#connectors-jira-client-document-level-security]
+[discrete#es-connectors-jira-client-document-level-security]
 ===== Document level security
 
 Document level security (DLS) enables you to restrict access to documents based on a user’s permissions.
-Refer to <<connectors-jira-client-configuration,configuration>> on this page for how to enable DLS for this connector.
+Refer to <<es-connectors-jira-client-configuration,configuration>> on this page for how to enable DLS for this connector.
 
 [WARNING]
 ====
@@ -481,23 +481,23 @@ When the `data_source` is set to Confluence Data Center or Server, the connector
 
 [NOTE]
 ====
-Refer to <<dls-e2e-guide, DLS in Search Applications>> to learn how to ingest data from a connector with DLS enabled, when building a search application.
+Refer to <<es-dls-e2e-guide, DLS in Search Applications>> to learn how to ingest data from a connector with DLS enabled, when building a search application.
 The example uses SharePoint Online as the data source, but the same steps apply to every connector.
 ====
 
-[discrete#connectors-jira-client-content-extraction]
+[discrete#es-connectors-jira-client-content-extraction]
 ===== Content Extraction
 
-See <<connectors-content-extraction>>.
+See <<es-connectors-content-extraction>>.
 
-[discrete#connectors-jira-client-connector-client-operations]
+[discrete#es-connectors-jira-client-connector-client-operations]
 ===== Connector client operations
 
-[discrete#connectors-jira-client-testing]
+[discrete#es-connectors-jira-client-testing]
 ===== End-to-end testing
 
 The connector framework enables operators to run functional tests against a real data source.
-Refer to <<build-connector-testing>> for more details.
+Refer to <<es-build-connector-testing>> for more details.
 
 To perform E2E testing for the Jira connector, run the following command:
 
@@ -513,24 +513,24 @@ For faster tests, add the `DATA_SIZE=small` flag:
 make ftest NAME=jira DATA_SIZE=small
 ----
 
-[discrete#connectors-jira-client-known-issues]
+[discrete#es-connectors-jira-client-known-issues]
 ===== Known issues
 
 * *Enabling document-level security impacts performance.* 
 +
 Enabling DLS for your connector will cause a significant performance degradation, as the API calls to the data source required for this functionality are rate limited. This impacts the speed at which your content can be retrieved.
 
-Refer to <<connectors-known-issues>> for a list of known issues for all connectors.
+Refer to <<es-connectors-known-issues>> for a list of known issues for all connectors.
 
-[discrete#connectors-jira-client-troubleshooting]
+[discrete#es-connectors-jira-client-troubleshooting]
 ===== Troubleshooting
 
-See <<connectors-troubleshooting>>.
+See <<es-connectors-troubleshooting>>.
 
-[discrete#connectors-jira-client-security]
+[discrete#es-connectors-jira-client-security]
 ===== Security
 
-See <<connectors-security>>.
+See <<es-connectors-security>>.
 
 // Closing the collapsible section 
 ===============

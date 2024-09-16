@@ -1,4 +1,4 @@
-[#connectors-sharepoint]
+[#es-connectors-sharepoint]
 === Elastic SharePoint Server connector reference
 ++++
 <titleabbrev>SharePoint Server</titleabbrev>
@@ -7,14 +7,14 @@
 :service-name: SharePoint Server
 :service-name-stub: sharepoint_server
 
-The _Elastic SharePoint Server connector_ is a <<connectors,connector>> for https://www.microsoft.com/en-ww/microsoft-365/sharepoint/[Microsoft SharePoint Server^].
+The _Elastic SharePoint Server connector_ is a <<es-connectors,connector>> for https://www.microsoft.com/en-ww/microsoft-365/sharepoint/[Microsoft SharePoint Server^].
 
 This connector is written in Python using the open code {connectors-python}[Elastic connector framework^].
 View the {connectors-python}/connectors/sources/sharepoint_server.py[source code for this connector^].
 
 [TIP]
 ====
-Looking for the SharePoint *Online* connector? See the <<connectors-sharepoint-online, SharePoint Online reference>>.
+Looking for the SharePoint *Online* connector? See the <<es-connectors-sharepoint-online, SharePoint Online reference>>.
 ====
 
 
@@ -22,18 +22,18 @@ Looking for the SharePoint *Online* connector? See the <<connectors-sharepoint-o
 // //////// NATIVE CONNECTOR REFERENCE (MANAGED SERVICE) ///////
 // //////// //// //// //// //// //// //// ////////
 
-[discrete#connectors-sharepoint-native-connector-reference]
+[discrete#es-connectors-sharepoint-native-connector-reference]
 ==== *Native connector reference (managed service)*
 
 .View reference for the *native connector reference (managed service)*.
 [%collapsible]
 ===============
 
-[discrete#connectors-sharepoint-availability-prerequisites]
+[discrete#es-connectors-sharepoint-availability-prerequisites]
 ===== Availability and prerequisites
 
 This connector is available as a managed service since Elastic *8.15.0*.
-To use this connector, satisfy all <<native-connectors, native connector requirements>>.
+To use this connector, satisfy all <<es-native-connectors, native connector requirements>>.
 
 [NOTE]
 ====
@@ -42,18 +42,18 @@ Beta features are subject to change and are not covered by the support SLA of ge
 Elastic plans to promote this feature to GA in a future release.
 ====
 
-[discrete#connectors-sharepoint-create-connector-client]
+[discrete#es-connectors-sharepoint-create-connector-client]
 ===== Create a {service-name} connector
 include::_connectors-create-native.asciidoc[]
 
-[discrete#connectors-sharepoint-usage]
+[discrete#es-connectors-sharepoint-usage]
 ===== Usage
 
-See <<native-connectors>>.
+See <<es-native-connectors>>.
 
-For additional operations, see <<connectors-usage>>.
+For additional operations, see <<es-connectors-usage>>.
 
-[discrete#connectors-sharepoint-compatability]
+[discrete#es-connectors-sharepoint-compatability]
 ===== Compatibility
 
 The following SharePoint Server versions are compatible:
@@ -62,7 +62,7 @@ The following SharePoint Server versions are compatible:
 * SharePoint 2016
 * SharePoint 2019
 
-[discrete#connectors-sharepoint-configuration]
+[discrete#es-connectors-sharepoint-configuration]
 ===== Configuration
 
 The following configuration fields are required to set up the connector:
@@ -105,7 +105,7 @@ MIID+jCCAuKgAwIBAgIGAJJMzlxLMA0GCSqGSIb3DQEBCwUAMHoxCzAJBgNVBAYT
 The number of retry attempts after a failed request to the SharePoint Server instance. Default value is `3`.
 
 `use_document_level_security`::
-Toggle to enable <<dls, Document level security (DLS)>>.
+Toggle to enable <<es-dls, Document level security (DLS)>>.
 When enabled, full syncs will fetch access control lists for each document and store them in the `_allow_access_control` field. Access control syncs fetch users' access control lists and store them in a separate index.
 +
 Once enabled, the following granular permissions toggles will be available:
@@ -119,7 +119,7 @@ If left empty the default value `true` will be used for these granular permissio
 Note that these settings may increase sync times.
 ====
 
-[discrete#connectors-sharepoint-documents-syncs]
+[discrete#es-connectors-sharepoint-documents-syncs]
 ===== Documents and syncs
 
 The connector syncs the following SharePoint object types:
@@ -131,59 +131,59 @@ The connector syncs the following SharePoint object types:
 
 [NOTE]
 ====
-* Content from files bigger than 10 MB won't be extracted by default. Use the <<connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.
+* Content from files bigger than 10 MB won't be extracted by default. Use the <<es-connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.
 * Permissions are not synced. **All documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elasticsearch Index.
 ====
 
-[discrete#connectors-sharepoint-sync-types]
+[discrete#es-connectors-sharepoint-sync-types]
 ====== Sync types
 
-<<connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
+<<es-connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
 
-This connector also supports <<connectors-sync-types-incremental,incremental syncs>>.
+This connector also supports <<es-connectors-sync-types-incremental,incremental syncs>>.
 
-[discrete#connectors-sharepoint-document-level-security]
+[discrete#es-connectors-sharepoint-document-level-security]
 ===== Document level security
 
 Document level security (DLS) enables you to restrict access to documents based on a user’s permissions.
-Refer to <<connectors-sharepoint-configuration,configuration>> on this page for how to enable DLS for this connector.
+Refer to <<es-connectors-sharepoint-configuration,configuration>> on this page for how to enable DLS for this connector.
 
 [NOTE]
 ====
-Refer to <<dls-e2e-guide, DLS in Search Applications>> to learn how to ingest data from a connector with DLS enabled, when building a search application.
+Refer to <<es-dls-e2e-guide, DLS in Search Applications>> to learn how to ingest data from a connector with DLS enabled, when building a search application.
 The example uses SharePoint _Online_ as the data source, but the same steps apply to every connector.
 ====
 
-[discrete#connectors-sharepoint-sync-rules]
+[discrete#es-connectors-sharepoint-sync-rules]
 ===== Sync rules
 
-<<sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
+<<es-sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
 
 Advanced sync rules are not available for this connector in the present version.
 Currently filtering is controlled via ingest pipelines.
 
-[discrete#connectors-sharepoint-content-extraction]
+[discrete#es-connectors-sharepoint-content-extraction]
 ===== Content Extraction
 
-See <<connectors-content-extraction>>.
+See <<es-connectors-content-extraction>>.
 
-[discrete#connectors-sharepoint-known-issues]
+[discrete#es-connectors-sharepoint-known-issues]
 ===== Known issues
 
 There are currently no known issues for this connector.
-Refer to <<connectors-known-issues>> for a list of known issues for all connectors.
+Refer to <<es-connectors-known-issues>> for a list of known issues for all connectors.
 
-[discrete#connectors-sharepoint-troubleshooting]
+[discrete#es-connectors-sharepoint-troubleshooting]
 ===== Troubleshooting
 
-See <<connectors-troubleshooting>>.
+See <<es-connectors-troubleshooting>>.
 
-[discrete#connectors-sharepoint-security]
+[discrete#es-connectors-sharepoint-security]
 ===== Security
 
-See <<connectors-security>>.
+See <<es-connectors-security>>.
 
-[discrete#connectors-sharepoint-source]
+[discrete#es-connectors-sharepoint-source]
 ===== Framework and source
 
 This connector is written in Python using the {connectors-python}[Elastic connector framework^].
@@ -198,19 +198,19 @@ View the {connectors-python}/connectors/sources/sharepoint_server.py[source code
 // //////// CONNECTOR CLIENT REFERENCE (SELF-MANAGED) ///////
 // //////// //// //// //// //// //// //// ////////
 
-[discrete#connectors-sharepoint-connector-client-reference]
+[discrete#es-connectors-sharepoint-connector-client-reference]
 ==== *Connector client reference (self-managed)*
 
 .View reference for the *connector client reference (self-managed)*.
 [%collapsible]
 ===============
 
-[discrete#connectors-sharepoint-client-availability-prerequisites]
+[discrete#es-connectors-sharepoint-client-availability-prerequisites]
 ===== Availability and prerequisites
 
 This connector is available as a self-managed *connector client*.
 This connector client is compatible with Elastic versions *8.9.0+*.
-To use this connector, satisfy all <<build-connector,connector client requirements>>.
+To use this connector, satisfy all <<es-build-connector,connector client requirements>>.
 
 [NOTE]
 ====
@@ -219,18 +219,18 @@ Beta features are subject to change and are not covered by the support SLA of ge
 Elastic plans to promote this feature to GA in a future release.
 ====
 
-[discrete#connectors-sharepoint-client-create-connector-client]
+[discrete#es-connectors-sharepoint-client-create-connector-client]
 ===== Create a {service-name} connector
 include::_connectors-create-client.asciidoc[]
 
-[discrete#connectors-sharepoint-client-usage]
+[discrete#es-connectors-sharepoint-client-usage]
 ===== Usage
 
-To use this connector as a *connector client*, see <<build-connector>>.
+To use this connector as a *connector client*, see <<es-build-connector>>.
 
-For additional operations, see <<connectors-usage>>.
+For additional operations, see <<es-connectors-usage>>.
 
-[discrete#connectors-sharepoint-client-compatability]
+[discrete#es-connectors-sharepoint-client-compatability]
 ===== Compatibility
 
 The following SharePoint Server versions are compatible with the Elastic connector framework:
@@ -239,12 +239,12 @@ The following SharePoint Server versions are compatible with the Elastic connect
 * SharePoint 2016
 * SharePoint 2019
 
-[discrete#connectors-sharepoint-client-configuration]
+[discrete#es-connectors-sharepoint-client-configuration]
 ===== Configuration
 
 [TIP]
 ====
-When using the <<build-connector, connector client>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/sharepoint_server.py[connector source code^].
+When using the <<es-build-connector, connector client>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/sharepoint_server.py[connector source code^].
 These are set in the `get_default_configuration` function definition.
 
 These configurable fields will be rendered with their respective *labels* in the Kibana UI.
@@ -291,7 +291,7 @@ MIID+jCCAuKgAwIBAgIGAJJMzlxLMA0GCSqGSIb3DQEBCwUAMHoxCzAJBgNVBAYT
 The number of retry attempts after failed request to the SharePoint Server instance. Default value is `3`.
 
 `use_document_level_security`::
-Toggle to enable <<dls, Document level security (DLS)>>.
+Toggle to enable <<es-dls, Document level security (DLS)>>.
 When enabled, full syncs will fetch access control lists for each document and store them in the `_allow_access_control` field. Access control syncs fetch users' access control lists and store them in a separate index.
 +
 Once enabled, the following granular permissions toggles will be available:
@@ -305,12 +305,12 @@ If left empty the default value `true` will be used for these granular permissio
 Note that these settings may increase sync times.
 ====
 
-[discrete#connectors-sharepoint-client-docker]
+[discrete#es-connectors-sharepoint-client-docker]
 ===== Deployment using Docker
 
 include::_connectors-docker-instructions.asciidoc[]
 
-[discrete#connectors-sharepoint-client-documents-syncs]
+[discrete#es-connectors-sharepoint-client-documents-syncs]
 
 ===== Documents and syncs
 
@@ -323,51 +323,51 @@ The connector syncs the following SharePoint object types:
 
 [NOTE]
 ====
-* Content from files bigger than 10 MB won't be extracted by default. Use the <<connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.
+* Content from files bigger than 10 MB won't be extracted by default. Use the <<es-connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.
 * Permissions are not synced. **All documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elasticsearch Index.
 ====
 
-[discrete#connectors-sharepoint-client-sync-types]
+[discrete#es-connectors-sharepoint-client-sync-types]
 ====== Sync types
 
-<<connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
+<<es-connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
 
-This connector also supports <<connectors-sync-types-incremental,incremental syncs>>, but this feature is currently disabled by default.
+This connector also supports <<es-connectors-sync-types-incremental,incremental syncs>>, but this feature is currently disabled by default.
 Refer to the linked documentation for enabling incremental syncs.
 
-[discrete#connectors-sharepoint-client-document-level-security]
+[discrete#es-connectors-sharepoint-client-document-level-security]
 ===== Document level security
 
 Document level security (DLS) enables you to restrict access to documents based on a user’s permissions.
-Refer to <<connectors-sharepoint-client-configuration,configuration>> on this page for how to enable DLS for this connector.
+Refer to <<es-connectors-sharepoint-client-configuration,configuration>> on this page for how to enable DLS for this connector.
 
 [NOTE]
 ====
-Refer to <<dls-e2e-guide, DLS in Search Applications>> to learn how to ingest data from a connector with DLS enabled, when building a search application.
+Refer to <<es-dls-e2e-guide, DLS in Search Applications>> to learn how to ingest data from a connector with DLS enabled, when building a search application.
 The example uses SharePoint Online as the data source, but the same steps apply to every connector.
 ====
 
-[discrete#connectors-sharepoint-client-sync-rules]
+[discrete#es-connectors-sharepoint-client-sync-rules]
 ===== Sync rules
 
-<<sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
+<<es-sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
 
 Advanced sync rules are not available for this connector in the present version.
 Currently filtering is controlled via ingest pipelines.
 
-[discrete#connectors-sharepoint-client-content-extraction]
+[discrete#es-connectors-sharepoint-client-content-extraction]
 ===== Content Extraction
 
-See <<connectors-content-extraction>>.
+See <<es-connectors-content-extraction>>.
 
-[discrete#connectors-sharepoint-client-connector-client-operations]
+[discrete#es-connectors-sharepoint-client-connector-client-operations]
 ===== Connector client operations
 
-[discrete#connectors-sharepoint-client-testing]
+[discrete#es-connectors-sharepoint-client-testing]
 ===== End-to-end testing
 
 The connector framework enables operators to run functional tests against a real data source.
-Refer to <<build-connector-testing>> for more details.
+Refer to <<es-build-connector-testing>> for more details.
 
 To perform E2E testing for the sharepoint connector, run the following command:
 
@@ -383,23 +383,23 @@ For faster tests, add the `DATA_SIZE=small` flag:
 make ftest NAME=sharepoint_server DATA_SIZE=small
 ----
 
-[discrete#connectors-sharepoint-client-known-issues]
+[discrete#es-connectors-sharepoint-client-known-issues]
 ===== Known issues
 
 There are currently no known issues for this connector.
-Refer to <<connectors-known-issues>> for a list of known issues for all connectors.
+Refer to <<es-connectors-known-issues>> for a list of known issues for all connectors.
 
-[discrete#connectors-sharepoint-client-troubleshooting]
+[discrete#es-connectors-sharepoint-client-troubleshooting]
 ===== Troubleshooting
 
-See <<connectors-troubleshooting>>.
+See <<es-connectors-troubleshooting>>.
 
-[discrete#connectors-sharepoint-client-security]
+[discrete#es-connectors-sharepoint-client-security]
 ===== Security
 
-See <<connectors-security>>.
+See <<es-connectors-security>>.
 
-[discrete#connectors-sharepoint-client-source]
+[discrete#es-connectors-sharepoint-client-source]
 ===== Framework and source
 
 This connector is written in Python using the {connectors-python}[Elastic connector framework^].

@@ -1,11 +1,11 @@
-[#connectors-content-extraction]
+[#es-connectors-content-extraction]
 === Content extraction
 
 Connectors use the {ref}/attachment.html[Elastic ingest attachment processor^] to extract file contents.
 The processor extracts files using the https://tika.apache.org[Apache Tika^] text extraction library.
 The logic for content extraction is defined in {connectors-python}/connectors/utils.py[utils.py^].
 
-While intended primarily for PDF and Microsoft Office formats, you can use any of the <<connectors-content-extraction-supported-file-types, supported formats>>.
+While intended primarily for PDF and Microsoft Office formats, you can use any of the <<es-connectors-content-extraction-supported-file-types, supported formats>>.
 
 Enterprise Search uses an {ref}/ingest.html[Elasticsearch ingest pipeline^] to power the web crawler's binary content extraction.
 The default pipeline, `ent-search-generic-ingestion`, is automatically created when Enterprise Search first starts.
@@ -14,9 +14,9 @@ You can {ref}/ingest.html#create-manage-ingest-pipelines[view^] this pipeline in
 Customizing your pipeline usage is also an option.
 See {ref}/ingest-pipeline-search.html[Ingest pipelines for Search indices].
 
-For advanced use cases, the <<connectors-content-extraction-local, self-hosted extraction service>> can be used to extract content from files larger than 10MB.
+For advanced use cases, the <<es-connectors-content-extraction-local, self-hosted extraction service>> can be used to extract content from files larger than 10MB.
 
-[discrete#connectors-content-extraction-supported-file-types]
+[discrete#es-connectors-content-extraction-supported-file-types]
 ==== Supported file types
 
 The following file types are supported:
@@ -49,7 +49,7 @@ The ingest attachment processor does not support compressed files, e.g., an arch
 Expand the archive file and make individual uncompressed files available for the connector to process.
 ====
 
-[discrete#connectors-content-extraction-local]
+[discrete#es-connectors-content-extraction-local]
 ==== Extraction Service
 
 [NOTE]
@@ -68,8 +68,8 @@ The extracted text is then included as the `body` field of a document when it is
 
 To use this feature, you will need to do the following:
 
-* <<connectors-content-extraction-data-extraction-service,Run the self-hosted content extraction service>>
-* <<connectors-extraction-service-configuration,Add the required configuration settings>>
+* <<es-connectors-content-extraction-data-extraction-service,Run the self-hosted content extraction service>>
+* <<es-connectors-extraction-service-configuration,Add the required configuration settings>>
 * Set the value of the configurable field `use_text_extraction_service` to `true`
 
 [TIP]
@@ -77,14 +77,14 @@ To use this feature, you will need to do the following:
 The data extraction service code is now available in this public repository: https://github.com/elastic/data-extraction-service.
 ====
 
-[discrete#connectors-content-extraction-available-connectors]
+[discrete#es-connectors-content-extraction-available-connectors]
 ===== Available connectors
 
 Local content extraction is available for the following self-managed connector clients:
 
 include::_connectors-list-local-content-extraction.asciidoc[]
 
-[discrete#connectors-content-extraction-data-extraction-service]
+[discrete#es-connectors-content-extraction-data-extraction-service]
 ===== Running the extraction service
 
 Self-hosted content extraction is handled by a *separate* extraction service.
@@ -103,7 +103,7 @@ $ docker run \
   docker.elastic.co/enterprise-search/data-extraction-service:$EXTRACTION_SERVICE_VERSION
 ----
 
-[discrete#connectors-extraction-service-configuration]
+[discrete#es-connectors-extraction-service-configuration]
 ===== Configuring the extraction service
 
 You can enable your connector client to use the self-hosted extraction service by adding the required configuration.
@@ -139,9 +139,9 @@ The following line will be output to the log if the data extraction service was 
 Data extraction service found at <HOST>.
 ----
 
-If you don't see this log at startup, refer to <<connectors-content-extraction-troubleshooting, troubleshooting self-hosted content extraction service>>.
+If you don't see this log at startup, refer to <<es-connectors-content-extraction-troubleshooting, troubleshooting self-hosted content extraction service>>.
 
-[discrete#connectors-content-extraction-advanced-configuration]
+[discrete#es-connectors-content-extraction-advanced-configuration]
 ====== Advanced configuration
 
 The following fields can be included in the configuration file.
@@ -162,19 +162,19 @@ extraction_service:
 |=======
 |Advanced Field|Description
 |`timeout`|Timeout limit in seconds for content extraction. Defaults to `30` if not set. Increase this if you have very large files that timeout during content extraction. In the event of a timeout, the indexed document's `body` field will be an empty string.
-|`use_file_pointers`|Whether or not to use file pointers instead of sending files to the extraction service. Defaults to `false`. Refer to <<connectors-content-extraction-data-extraction-service-file-pointers, using file pointers>> for more details about this setting.
+|`use_file_pointers`|Whether or not to use file pointers instead of sending files to the extraction service. Defaults to `false`. Refer to <<es-connectors-content-extraction-data-extraction-service-file-pointers, using file pointers>> for more details about this setting.
 |`stream_chunk_size`|The size that files are chunked to facilitate streaming to extraction service, in bytes. Defaults to 65536 (64 KB). Only applicable if `use_file_pointers` is `false`. Increasing this value may speed up the connector, but will also increase memory usage.
 |`shared_volume_dir`|The shared volume from which the data extraction service will extract files. Defaults to `/app/files`. Only applicable if `use_file_pointers` is `true`.
 |=======
 
-[discrete#connectors-content-extraction-data-extraction-service-file-pointers]
+[discrete#es-connectors-content-extraction-data-extraction-service-file-pointers]
 ===== Using file pointers
 
 The self-hosted extraction service can be set up to use file pointers instead of sending files via HTTP requests.
 File pointers are faster than sending files and consume less memory, but require the connector framework and the extraction service to be able to share a file system.
 This can be set up with both a dockerized and non-dockerized connector client.
 
-[discrete#connectors-content-extraction-data-extraction-service-file-pointers-configuration]
+[discrete#es-connectors-content-extraction-data-extraction-service-file-pointers-configuration]
 ====== Configuration for non-dockerized connector clients
 
 If you are running a non-dockerized version of the connector client, you need to determine the local directory where you'll download files for extraction.
@@ -182,7 +182,7 @@ This can be anywhere on your file system that you are comfortable using.
 Be aware that the connector client will download files with randomized filenames to this directory, so there is a chance that any files already present will be overwritten.
 For that reason, we recommend using a dedicated directory for self-hosted extraction.
 
-[discrete#connectors-content-extraction-data-extraction-service-file-pointers-configuration-example]
+[discrete#es-connectors-content-extraction-data-extraction-service-file-pointers-configuration-example]
 ======= Example
 
 1. For this example, we will be using `/app/files` as both our local directory and our container directory.
@@ -217,9 +217,9 @@ extraction_service:
 ----
 +
 3. Then all that's left is to start the connector client and run a sync.
-If you encounter any unexpected errors, refer to <<connectors-content-extraction-troubleshooting, troubleshooting the self-hosted content extraction service>>.
+If you encounter any unexpected errors, refer to <<es-connectors-content-extraction-troubleshooting, troubleshooting the self-hosted content extraction service>>.
 
-[discrete#connectors-content-extraction-data-extraction-service-file-pointers-configuration-dockerized]
+[discrete#es-connectors-content-extraction-data-extraction-service-file-pointers-configuration-dockerized]
 ====== Configuration for dockerized connector clients
 
 When using self-hosted extraction from a dockerized connector client, there are a few extra steps required on top of {connectors-python}/docs/DOCKER.md[running the connector client in docker^].
@@ -227,7 +227,7 @@ When using self-hosted extraction from a dockerized connector client, there are 
 * The self-hosted extraction service will need to share the same network that the connector client and Elasticsearch are sharing.
 * The connector client and the extraction service will also need to share a volume. You can decide what directory inside these docker containers the volume will be mounted onto, but the directory must be the same for both docker containers.
 
-[discrete#connectors-content-extraction-data-extraction-service-file-pointers-configuration-dockerized-example]
+[discrete#es-connectors-content-extraction-data-extraction-service-file-pointers-configuration-dockerized-example]
 ======= Example
 
 1. First, set up a volume for the two docker containers to share.
@@ -289,9 +289,9 @@ $ docker run \
 +
 6. Now the connector client and extraction service docker containers should be set up to share files.
 Run a test sync to make sure everything is configured correctly.
-If you encounter any unexpected errors, refer to <<connectors-content-extraction-troubleshooting, troubleshooting the self-hosted extraction service>>.
+If you encounter any unexpected errors, refer to <<es-connectors-content-extraction-troubleshooting, troubleshooting the self-hosted extraction service>>.
 
-[discrete#connectors-content-extraction-local-logs]
+[discrete#es-connectors-content-extraction-local-logs]
 ===== Self-hosted extraction service logs
 
 The extraction service produces two different log files that may be informative when troubleshooting.
@@ -308,7 +308,7 @@ $ docker exec extraction-service /bin/sh -c "tail /var/log/openresty.log"
 $ docker exec extraction-service /bin/sh -c "tail /var/log/tika.log"
 ----
 
-[discrete#connectors-content-extraction-troubleshooting]
+[discrete#es-connectors-content-extraction-troubleshooting]
 ===== Troubleshooting the self-hosted extraction service
 
 The following warning logs may appear while using self-hosted extraction service.
@@ -329,7 +329,7 @@ Data extraction service found at <HOST>, but health-check returned <RESPONSE STA
 
 The `/ping` endpoint returned a non-`200` response.
 This could mean that the extraction service is unhealthy and may need to be restarted, or that the configured `extraction_service.host` is incorrect.
-You can find more information about what happened in the <<connectors-content-extraction-local-logs, data extraction service logs>>.
+You can find more information about what happened in the <<es-connectors-content-extraction-local-logs, data extraction service logs>>.
 
 [source,bash]
 ----
@@ -339,7 +339,7 @@ Expected to find a running instance of data extraction service at <HOST> but fai
 The health check returned either a timeout or client connection error.
 
 * A timeout may be caused by the extraction service server not running, or not being accessible from the configured `host` in the configuration file.
-* A server connection error is an internal error on the extraction service. You will need to investigate the <<connectors-content-extraction-local-logs, data extraction service logs>>.
+* A server connection error is an internal error on the extraction service. You will need to investigate the <<es-connectors-content-extraction-local-logs, data extraction service logs>>.
 
 [source,bash]
 ----

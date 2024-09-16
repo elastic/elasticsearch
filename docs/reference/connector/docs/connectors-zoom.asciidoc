@@ -1,4 +1,4 @@
-[#connectors-zoom]
+[#es-connectors-zoom]
 === Elastic Zoom connector reference
 ++++
 <titleabbrev>Zoom</titleabbrev>
@@ -16,19 +16,19 @@ View the {connectors-python}/connectors/sources/{service-name-stub}.py[*source c
 // //////// NATIVE CONNECTOR REFERENCE (MANAGED SERVICE) ///////
 // //////// //// //// //// //// //// //// ////////
 
-[discrete#connectors-zoom-native-connector-reference]
+[discrete#es-connectors-zoom-native-connector-reference]
 ==== *Native connector reference (managed service)*
 
 .View reference for the *native connector reference (managed service)*.
 [%collapsible]
 ===============
 
-[discrete#connectors-zoom-connector-availability-and-prerequisites]
+[discrete#es-connectors-zoom-connector-availability-and-prerequisites]
 ===== Availability and prerequisites
 
 This native connector was introduced in Elastic *8.14.0* as a managed service on Elastic Cloud.
 
-To use this connector natively in Elastic Cloud, satisfy all <<native-connectors,native connector requirements>>.
+To use this connector natively in Elastic Cloud, satisfy all <<es-native-connectors,native connector requirements>>.
 
 [NOTE]
 ====
@@ -37,20 +37,20 @@ The design and code is less mature than official GA features and is being provid
 Technical preview features are not subject to the support SLA of official GA features.
 ====
 
-[discrete#connectors-zoom-create-native-connector]
+[discrete#es-connectors-zoom-create-native-connector]
 ===== Create a {service-name} connector
 include::_connectors-create-native.asciidoc[]
 
-[discrete#connectors-zoom-connector-usage]
+[discrete#es-connectors-zoom-connector-usage]
 ===== Usage
 
 To use this connector in the UI, select the *Zoom* tile when creating a new connector under *Search -> Connectors*.
 
 If you're already familiar with how connectors work, you can also use the {ref}/connector-apis.html[Connector APIs].
 
-For additional operations, see <<connectors-usage>>.
+For additional operations, see <<es-connectors-usage>>.
 
-[discrete#connectors-zoom-connector-connecting-to-zoom]
+[discrete#es-connectors-zoom-connector-connecting-to-zoom]
 ===== Connecting to Zoom
 
 To connect to Zoom you need to https://developers.zoom.us/docs/internal-apps/s2s-oauth/[create an Server-to-Server OAuth application] that can access resources. Follow these steps:
@@ -80,7 +80,7 @@ report:read:admin
 
 After completion, use the following configuration parameters to configure the connector.
 
-[discrete#connectors-zoom-connector-configuration]
+[discrete#es-connectors-zoom-connector-configuration]
 ===== Configuration
 
 The following configuration fields are required:
@@ -106,12 +106,12 @@ How far back in time to request recordings from Zoom. Recordings older than this
 `Fetch past meeting details`::
 Retrieve more information about previous meetings, including their details and participants. Default value is `False`. Enable this option to fetch past meeting details. This setting can increase sync time.
 
-[discrete#connectors-zoom-connector-content-extraction]
+[discrete#es-connectors-zoom-connector-content-extraction]
 ====== Content Extraction
 
 Refer to https://www.elastic.co/guide/en/enterprise-search/current/connectors-content-extraction.html[content extraction] in the official docs.
 
-[discrete#connectors-zoom-connector-documents-and-syncs]
+[discrete#es-connectors-zoom-connector-documents-and-syncs]
 ===== Documents and syncs
 
 The connector syncs the following objects and entities:
@@ -127,44 +127,44 @@ The connector syncs the following objects and entities:
 
 [NOTE]
 ====
-* Content from files bigger than 10 MB won't be extracted. (Self-managed connectors can use the <<connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.)
+* Content from files bigger than 10 MB won't be extracted. (Self-managed connectors can use the <<es-connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.)
 * Permissions are not synced. *All documents* indexed to an Elastic deployment will be visible to *all users with access* to that Elastic Deployment.
 ====
 
-[discrete#connectors-zoom-connector-sync-types]
+[discrete#es-connectors-zoom-connector-sync-types]
 ====== Sync types
 
-<<connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
+<<es-connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
 
-This connector also supports <<connectors-sync-types-incremental,incremental syncs>>.
+This connector also supports <<es-connectors-sync-types-incremental,incremental syncs>>.
 
-[discrete#connectors-zoom-connector-sync-rules]
+[discrete#es-connectors-zoom-connector-sync-rules]
 ===== Sync rules
 
 https://www.elastic.co/guide/en/enterprise-search/current/sync-rules.html#sync-rules-basic[Basic sync rules] are identical for all connectors and are available by default.
 
-[discrete#connectors-zoom-connector-advanced-sync-rules]
+[discrete#es-connectors-zoom-connector-advanced-sync-rules]
 ===== Advanced Sync Rules
 
 Advanced sync rules are not available for this connector in the present version.
 
-[discrete#connectors-zoom-connector-known-issues]
+[discrete#es-connectors-zoom-connector-known-issues]
 ===== Known issues
 
 * *Meetings*: Users can only index meetings that are less than a month old.
 * *Chat Messages & Files*:Users can only index chats and files that are less than 6 months old.
 
-Refer to <<connectors-known-issues>> for a list of known issues for _all_ connectors.
+Refer to <<es-connectors-known-issues>> for a list of known issues for _all_ connectors.
 
-[discrete#connectors-zoom-connector-troubleshooting]
+[discrete#es-connectors-zoom-connector-troubleshooting]
 ===== Troubleshooting
 
-See <<connectors-troubleshooting>>.
+See <<es-connectors-troubleshooting>>.
 
-[discrete#connectors-zoom-connector-security]
+[discrete#es-connectors-zoom-connector-security]
 ===== Security
 
-See <<connectors-security>>.
+See <<es-connectors-security>>.
 
 
 // Closing the collapsible section 
@@ -175,17 +175,17 @@ See <<connectors-security>>.
 // //////// CONNECTOR CLIENT REFERENCE (SELF-MANAGED) ///////
 // //////// //// //// //// //// //// //// ////////
 
-[discrete#connectors-zoom-connector-client-reference]
+[discrete#es-connectors-zoom-connector-client-reference]
 ==== *Connector client reference (self-managed)*
 
 .View reference for the *connector client reference (self-managed)*.
 [%collapsible]
 ===============
 
-[discrete#connectors-zoom-client-connector-availability-and-prerequisites]
+[discrete#es-connectors-zoom-client-connector-availability-and-prerequisites]
 ===== Availability and prerequisites
 
-This connector is available as a self-managed *connector client*. To use this connector, satisfy all <<build-connector, connector client prerequisites>>.
+This connector is available as a self-managed *connector client*. To use this connector, satisfy all <<es-build-connector, connector client prerequisites>>.
 
 [NOTE]
 ====
@@ -194,20 +194,20 @@ The design and code is less mature than official GA features and is being provid
 Technical preview features are not subject to the support SLA of official GA features.
 ====
 
-[discrete#connectors-zoom-client-create-connector-client]
+[discrete#es-connectors-zoom-client-create-connector-client]
 ===== Create a {service-name} connector
 include::_connectors-create-client.asciidoc[]
 
-[discrete#connectors-zoom-client-connector-usage]
+[discrete#es-connectors-zoom-client-connector-usage]
 ===== Usage
 
 To use this connector in the UI, select the *Teams* tile when creating a new connector under *Search -> Connectors*.
 
 If you're already familiar with how connectors work, you can also use the {ref}/connector-apis.html[Connector APIs].
 
-For additional operations, see <<connectors-usage>>.
+For additional operations, see <<es-connectors-usage>>.
 
-[discrete#connectors-zoom-client-connector-connecting-to-zoom]
+[discrete#es-connectors-zoom-client-connector-connecting-to-zoom]
 ===== Connecting to Zoom
 
 To connect to Zoom you need to https://developers.zoom.us/docs/internal-apps/s2s-oauth/[create an Server-to-Server OAuth application] that can access resources. Follow these steps:
@@ -237,7 +237,7 @@ report:read:admin
 
 After completion, use the following configuration parameters to configure the connector.
 
-[discrete#connectors-zoom-client-connector-configuration]
+[discrete#es-connectors-zoom-client-connector-configuration]
 ===== Configuration
 
 The following configuration fields are required:
@@ -263,17 +263,17 @@ How far back in time to request recordings from Zoom. Recordings older than this
 `Fetch past meeting details`::
 Retrieve more information about previous meetings, including their details and participants. Default value is `False`. Enable this option to fetch past meeting details. This setting can increase sync time.
 
-[discrete#connectors-zoom-client-client-docker]
+[discrete#es-connectors-zoom-client-client-docker]
 ====== Deployment using Docker
 
 include::_connectors-docker-instructions.asciidoc[]
 
-[discrete#connectors-zoom-client-connector-content-extraction]
+[discrete#es-connectors-zoom-client-connector-content-extraction]
 ====== Content Extraction
 
 Refer to https://www.elastic.co/guide/en/enterprise-search/current/connectors-content-extraction.html[content extraction] in the official docs.
 
-[discrete#connectors-zoom-client-connector-documents-and-syncs]
+[discrete#es-connectors-zoom-client-connector-documents-and-syncs]
 ===== Documents and syncs
 
 The connector syncs the following objects and entities:
@@ -289,35 +289,35 @@ The connector syncs the following objects and entities:
 
 [NOTE]
 ====
-* Content from files bigger than 10 MB won't be extracted by default. You can use the <<connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.
+* Content from files bigger than 10 MB won't be extracted by default. You can use the <<es-connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.
 * Permissions are not synced. *All documents* indexed to an Elastic deployment will be visible to *all users with access* to that Elastic Deployment.
 ====
 
-[discrete#connectors-zoom-client-connector-sync-types]
+[discrete#es-connectors-zoom-client-connector-sync-types]
 ====== Sync types
 
-<<connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
+<<es-connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
 
-This connector also supports <<connectors-sync-types-incremental,incremental syncs>>.
+This connector also supports <<es-connectors-sync-types-incremental,incremental syncs>>.
 
-[discrete#connectors-zoom-client-connector-sync-rules]
+[discrete#es-connectors-zoom-client-connector-sync-rules]
 ===== Sync rules
 
 https://www.elastic.co/guide/en/enterprise-search/current/sync-rules.html#sync-rules-basic[Basic sync rules] are identical for all connectors and are available by default.
 
-[discrete#connectors-zoom-client-connector-advanced-sync-rules]
+[discrete#es-connectors-zoom-client-connector-advanced-sync-rules]
 ===== Advanced Sync Rules
 
 Advanced sync rules are not available for this connector in the present version.
 
-[discrete#connectors-zoom-client-connector-connector-client-operations]
+[discrete#es-connectors-zoom-client-connector-connector-client-operations]
 ===== Connector Client operations
 
-[discrete#connectors-zoom-client-connector-end-to-end-testing]
+[discrete#es-connectors-zoom-client-connector-end-to-end-testing]
 ====== End-to-end Testing
 
 The connector framework enables operators to run functional tests against a real data source.
-Refer to <<build-connector-testing>> for more details.
+Refer to <<es-build-connector-testing>> for more details.
 
 To perform E2E testing for the Zoom connector, run the following command:
 
@@ -333,23 +333,23 @@ For faster tests, add the `DATA_SIZE=small` flag:
 make ftest NAME=zoom DATA_SIZE=small
 ----
 
-[discrete#connectors-zoom-client-connector-known-issues]
+[discrete#es-connectors-zoom-client-connector-known-issues]
 ===== Known issues
 
 * *Meetings*: Users can only index meetings that are less than a month old.
 * *Chat Messages & Files*:Users can only index chats and files that are less than 6 months old.
 
-Refer to <<connectors-known-issues>> for a list of known issues for _all_ connectors.
+Refer to <<es-connectors-known-issues>> for a list of known issues for _all_ connectors.
 
-[discrete#connectors-zoom-client-connector-troubleshooting]
+[discrete#es-connectors-zoom-client-connector-troubleshooting]
 ===== Troubleshooting
 
-See <<connectors-troubleshooting>>.
+See <<es-connectors-troubleshooting>>.
 
-[discrete#connectors-zoom-client-connector-security]
+[discrete#es-connectors-zoom-client-connector-security]
 ===== Security
 
-See <<connectors-security>>.
+See <<es-connectors-security>>.
 
 
 // Closing the collapsible section 

@@ -1,5 +1,8 @@
-[#connectors-framework]
-== Elastic connector framework
+[#es-connectors-framework]
+== Elastic connector framework: build and customize connectors
+++++
+<titleabbrev>Build and customize connectors</titleabbrev>
+++++
 
 The Elastic connector framework enables developers to build Elastic-supported connector clients which sync third-party data sources to Elasticsearch.
 The framework implements common functionalities out of the box, so developers can focus on the logic specific to integrating their chosen data source.
@@ -7,15 +10,15 @@ The framework implements common functionalities out of the box, so developers ca
 The framework ensures compatibility, makes it easier for our team to review PRs, and help out in the development process.
 When you build using our framework, we provide a pathway for the connector to be officially supported by Elastic.
 
-[discrete#connectors-framework-use-cases]
+[discrete#es-connectors-framework-use-cases]
 === Use cases
 
 The framework serves two distinct, but related use cases:
 
-* Customizing an existing Elastic <<build-connector, connector client>>
+* Customizing an existing Elastic <<es-build-connector, connector client>>
 * Building a new connector client
 
-[discrete#connectors-framework-learn-more]
+[discrete#es-connectors-framework-learn-more]
 === Learn more
 
 To learn how to contribute connectors using the framework, refer to our https://github.com/elastic/connectors/blob/main/docs/CONTRIBUTING.md[contributing guide] in the `connectors` repository.

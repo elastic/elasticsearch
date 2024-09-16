@@ -1,4 +1,4 @@
-[#connectors-release-notes]
+[#es-connectors-release-notes]
 == Connector release notes
 ++++
 <titleabbrev>Release notes</titleabbrev>

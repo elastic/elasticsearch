@@ -1,33 +1,33 @@
-[#mongodb-start]
+[#es-mongodb-start]
 === MongoDB native connector tutorial
 ++++
 <titleabbrev>Native connector tutorial (MongoDB)</titleabbrev>
 ++++
 
-// Learn how to use the <<connectors-mongodb,Elastic MongoDB connector>> to sync data from https://www.mongodb.com/docs/atlas/[MongoDB Atlas^] to an Elastic Cloud deployment.
+// Learn how to use the <<es-connectors-mongodb,Elastic MongoDB connector>> to sync data from https://www.mongodb.com/docs/atlas/[MongoDB Atlas^] to an Elastic Cloud deployment.
 
 This tutorial explains how to set up automatic, ongoing syncs from a MongoDB database to a search-optimized index on Elastic Cloud.
 We'll use an Atlas deployment, together with built-in sample datasets in this tutorial, but you can also use your own data.
 
 // This tutorial is an example of:
 
-// * How to use the <<connectors-mongodb,MongoDB connector>>, which is compatible with MongoDB Atlas and on premises MongoDB servers.
-// See <<connectors-mongodb-compatibility>>.
-// * How to use any connector available as a <<native-connectors,native connector>>.
+// * How to use the <<es-connectors-mongodb,MongoDB connector>>, which is compatible with MongoDB Atlas and on premises MongoDB servers.
+// See <<es-connectors-mongodb-compatibility>>.
+// * How to use any connector available as a <<es-native-connectors,native connector>>.
 // The workflow in this tutorial applies to all native connectors.
 
 // This tutorial has three main sections:
 
-// * <<mongodb-start-atlas-setup>>: First you'll need to get *MongoDB Atlas* up and running.
+// * <<es-mongodb-start-atlas-setup>>: First you'll need to get *MongoDB Atlas* up and running.
 // (*Skip this step* if you already have a MongoDB instance you'd like to use.)
 // ** You'll create a free account, set up a free Atlas cluster, and load some sample data.
-// * <<mongodb-start-gather-details>> Once that's done, you'll need to gather some details about your Atlas cluster, so you can connect it to an Elastic Cloud deployment.
-// * <<mongodb-start-elastic-cloud>>: Next, you'll need to get *Elastic Cloud* up and running.
+// * <<es-mongodb-start-gather-details>> Once that's done, you'll need to gather some details about your Atlas cluster, so you can connect it to an Elastic Cloud deployment.
+// * <<es-mongodb-start-elastic-cloud>>: Next, you'll need to get *Elastic Cloud* up and running.
 // ** Then you'll need to create an Elasticsearch index and configure the Elastic connector to interface with your Atlas cluster.
 // We'll do all this in the Kibana UI.
 // ** Once configured, you'll set a syncing schedule to start indexing your MongoDB data into Elasticsearch and ensure it stays up to date.
 
-// [discrete#mongodb-start-atlas-setup]
+// [discrete#es-mongodb-start-atlas-setup]
 // == Set up MongoDB Atlas
 
 // Follow the steps in the MongoDB documentation to https://www.mongodb.com/docs/atlas/getting-started[create a free Atlas account^]:
@@ -41,7 +41,7 @@ We'll use an Atlas deployment, together with built-in sample datasets in this tu
 // Select *Add new database user* in *Security > Database access*.
 // Keep these details handy, as you'll need them to configure the connector later.
 
-// [discrete#mongodb-start-load-sample-data]
+// [discrete#es-mongodb-start-load-sample-data]
 // === Load sample data into Atlas
 
 // In this example we'll use the sample data available to MongoDB Atlas.
@@ -55,7 +55,7 @@ We'll use an Atlas deployment, together with built-in sample datasets in this tu
 
 // Detailed instructions are available in the https://www.mongodb.com/docs/atlas/sample-data[Atlas documentation^].
 
-// [discrete#mongodb-start-view-sample-data]
+// [discrete#es-mongodb-start-view-sample-data]
 // === Browse sample data in Atlas UI
 
 // Once loaded, you can view your sample data in the Atlas UI, by selecting your database deployment's *Browse Collections* button.
@@ -73,7 +73,7 @@ We'll use an Atlas deployment, together with built-in sample datasets in this tu
 
 // We've added data to our MongoDB Atlas cluster, and now we need to configure the Elastic MongoDB connector.
 
-// [discrete#mongodb-start-gather-details]
+// [discrete#es-mongodb-start-gather-details]
 // == Gather details about your MongoDB instance
 
 // Before we switch over to working in Elastic Cloud, we need to gather some details about our MongoDB Atlas cluster.
@@ -95,13 +95,13 @@ We'll use an Atlas deployment, together with built-in sample datasets in this tu
 
 // Keep these details handy!
 
-// [discrete#mongodb-start-elastic-cloud]
+// [discrete#es-mongodb-start-elastic-cloud]
 // == Set up Elastic Cloud
 
 // Everything is set up in MongoDB Atlas and we have the details we need to configure the Elastic MongoDB connector.
 // First we'll need to get an Elastic Cloud deployment up and running.
 
-// [discrete#mongodb-start-create-deployment]
+// [discrete#es-mongodb-start-create-deployment]
 // === Create an {ecloud} deployment
 
 // [NOTE]
@@ -113,11 +113,11 @@ We'll use an Atlas deployment, together with built-in sample datasets in this tu
 // Log in to https://cloud.elastic.co/[Elastic Cloud^], and use the UI to create a deployment.
 // You'll need to run version *8.5.0+* or later.
 
-// Read <<native-connectors-prerequisites, prerequisites for native connectors>> for full details.
+// Read <<es-native-connectors-prerequisites, prerequisites for native connectors>> for full details.
 
 // Once you're deployment is created, navigate to *Search*.
 
-// [discrete#mongodb-start-create-index]
+// [discrete#es-mongodb-start-create-index]
 // === Create an Elasticsearch index
 
 // The Elastic connector will sync your MongoDB data into a search-optimized Elasticsearch index.
@@ -135,10 +135,10 @@ We'll use an Atlas deployment, together with built-in sample datasets in this tu
 
 // Next we need to input our Atlas details to configure the connector.
 
-// [discrete#mongodb-start-configure-connector]
+// [discrete#es-mongodb-start-configure-connector]
 // === Configure the MongoDB connector
 
-// Using the <<mongodb-start-gather-details, details gathered earlier>>, configure the MongoDB connector.
+// Using the <<es-mongodb-start-gather-details, details gathered earlier>>, configure the MongoDB connector.
 // Enter the details under the *Configuration* step.
 // Set the *Direct connection* option to `false` for this example.
 
@@ -147,7 +147,7 @@ We'll use an Atlas deployment, together with built-in sample datasets in this tu
 
 // Once you've entered these details, select *Save configuration*.
 
-// [discrete#mongodb-start-launch-sync]
+// [discrete#es-mongodb-start-launch-sync]
 // === Begin syncing
 
 // Once you've configured your MongoDB connector, it's time to schedule a sync.
@@ -164,12 +164,12 @@ We'll use an Atlas deployment, together with built-in sample datasets in this tu
 
 // Once you save your sync schedule, the connector will start syncing your MongoDB Atlas data into Elasticsearch.
 
-// [discrete#mongodb-start-verify-documents]
+// [discrete#es-mongodb-start-verify-documents]
 // === Verify documents
 
 // [TIP]
 // ====
-// Our <<connectors-mongodb-syncs, reference documentation>> explains how documents in your MongoDB database and collection are extracted and transformed into documents in your Elasticsearch index.
+// Our <<es-connectors-mongodb-syncs, reference documentation>> explains how documents in your MongoDB database and collection are extracted and transformed into documents in your Elasticsearch index.
 // ====
 
 // If all the configuration details are correct, the sync will begin and documents will start to appear in your Elasticsearch index.
@@ -181,12 +181,12 @@ We'll use an Atlas deployment, together with built-in sample datasets in this tu
 // * Choose the *Documents* tab to view the synced documents.
 // Expand a document to view its fields.
 
-// [discrete#mongodb-start-learn-more]
+// [discrete#es-mongodb-start-learn-more]
 // == Learn more
 
-// * Refer to the <<connectors-mongodb, Elastic MongoDB connector reference documentation>> for detailed information about the connector, including how *sync rules* work.
-// * For an overview of all native connectors, see <<native-connectors>>.
-// * Learn about <<sync-rules>> for native connectors.
-// * Learn <<engines-create-from-index, how to create an App Search Engine>> for your index, to quickly spin up a search engine for your data.
+// * Refer to the <<es-connectors-mongodb, Elastic MongoDB connector reference documentation>> for detailed information about the connector, including how *sync rules* work.
+// * For an overview of all native connectors, see <<es-native-connectors>>.
+// * Learn about <<es-sync-rules>> for native connectors.
+// * Learn <<es-engines-create-from-index, how to create an App Search Engine>> for your index, to quickly spin up a search engine for your data.
 // * Learn about {ref}/ingest-pipeline-search.html[ingest pipelines for Search indices]
 // * Refer to the official https://www.mongodb.com/docs/atlas/[MongoDB Atlas documentation^] for MongoDB-specific questions.

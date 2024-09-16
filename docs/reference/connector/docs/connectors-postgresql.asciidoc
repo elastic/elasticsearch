@@ -1,4 +1,4 @@
-[#connectors-postgresql]
+[#es-connectors-postgresql]
 ==== Elastic PostgreSQL connector reference
 ++++
 <titleabbrev>PostgreSQL</titleabbrev>
@@ -13,7 +13,7 @@ This connector is written in Python using the {connectors-python}[Elastic connec
 This connector uses the https://github.com/elastic/connectors/blob/{branch}/connectors/sources/generic_database.py[generic database connector source code^] (branch _{connectors-branch}_, compatible with Elastic _{minor-version}_).
 View the specific {connectors-python}/connectors/sources/{service-name-stub}.py[*source code* for this connector^] (branch _{connectors-branch}_, compatible with Elastic _{minor-version}_).
 
-[discrete#connectors-postgresql-connector-client-reference]
+[discrete#es-connectors-postgresql-connector-client-reference]
 ==== *Connector client (self-managed)*
 
 .View *connector client* reference
@@ -21,17 +21,17 @@ View the specific {connectors-python}/connectors/sources/{service-name-stub}.py[
 [%collapsible]
 ===============
 
-[discrete#connectors-postgresql-client-availability-prerequisites]
+[discrete#es-connectors-postgresql-client-availability-prerequisites]
 ===== Availability and prerequisites
 
 This connector is available as a self-managed *connector client*.
 To use this connector, satisfy all //build-connector,connector client requirements.
 
-[discrete#connectors-postgresql-create-connector-client]
+[discrete#es-connectors-postgresql-create-connector-client]
 ===== Create a {service-name} connector
 include::_connectors-create-client.asciidoc[]
 
-[discrete#connectors-postgresql-client-usage]
+[discrete#es-connectors-postgresql-client-usage]
 ===== Usage
 
 To use this connector as a *connector client*, see //build-connector
@@ -48,12 +48,12 @@ For additional operations, see.
 For an end-to-end example of the connector client workflow, see //postgresql-connector-client-tutorial.
 ====
 
-[discrete#connectors-postgresql-client-compatibility]
+[discrete#es-connectors-postgresql-client-compatibility]
 ===== Compatibility
 
 PostgreSQL versions 11 to 15 are compatible with Elastic connector frameworks.
 
-[discrete#connectors-postgresql-client-configuration]
+[discrete#es-connectors-postgresql-client-configuration]
 ===== Configuration
 
 [TIP]
@@ -149,12 +149,12 @@ xw23l/k8RoD1wRWaDVbgpjwSzt+kl+vJE/ip2w3h69eEZ9wbo6scRO5lCO2JM4Pr
 ```
 ====
 
-[discrete#connectors-postgresql-client-docker]
+[discrete#es-connectors-postgresql-client-docker]
 ===== Deployment using Docker
 
 include::_connectors-docker-instructions.asciidoc[]
 
-[discrete#connectors-postgresql-client-documents-syncs]
+[discrete#es-connectors-postgresql-client-documents-syncs]
 ===== Documents and syncs
 
 * Tables must be owned by a PostgreSQL user.
@@ -169,12 +169,12 @@ Otherwise, all data will be indexed in every sync.
 **All documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
 ====
 
-[discrete#connectors-postgresql-client-sync-rules]
+[discrete#es-connectors-postgresql-client-sync-rules]
 ===== Sync rules
 
 //sync-rules-basic,Basic sync rules are identical for all connectors and are available by default.
 
-[discrete#connectors-postgresql-client-sync-rules-advanced]
+[discrete#es-connectors-postgresql-client-sync-rules-advanced]
 ====== Advanced sync rules
 
 [NOTE]
@@ -184,12 +184,12 @@ A //connectors-sync-types-full, full sync is required for advanced sync rules to
 
 Advanced sync rules are defined through a source-specific DSL JSON snippet.
 
-[discrete#connectors-postgresql-client-sync-rules-advanced-example-data]
+[discrete#es-connectors-postgresql-client-sync-rules-advanced-example-data]
 ======= Example data
 
 Here is some example data that will be used in the following examples.
 
-[discrete#connectors-postgresql-client-sync-rules-advanced-example-data-1]
+[discrete#es-connectors-postgresql-client-sync-rules-advanced-example-data-1]
 ======== `employee` table
 
 [cols="3*", options="header"]
@@ -200,7 +200,7 @@ Here is some example data that will be used in the following examples.
 | 14     | Alex  | 22
 |===
 
-[discrete#connectors-postgresql-client-sync-rules-advanced-example-2]
+[discrete#es-connectors-postgresql-client-sync-rules-advanced-example-2]
 ======== `customer` table
 
 [cols="3*", options="header"]
@@ -211,10 +211,10 @@ Here is some example data that will be used in the following examples.
 | 9    | Oak  | 34
 |===
 
-[discrete#connectors-postgresql-client-sync-rules-advanced-examples]
+[discrete#es-connectors-postgresql-client-sync-rules-advanced-examples]
 ======= Advanced sync rules examples
 
-[discrete#connectors-postgresql-client-sync-rules-advanced-examples-1]
+[discrete#es-connectors-postgresql-client-sync-rules-advanced-examples-1]
 ======== Multiple table queries
 
 [source,json]
@@ -235,7 +235,7 @@ Here is some example data that will be used in the following examples.
 ]
 ----
 
-[discrete#connectors-postgresql-client-sync-rules-advanced-examples-1-id-columns]
+[discrete#es-connectors-postgresql-client-sync-rules-advanced-examples-1-id-columns]
 ======== Multiple table queries with `id_columns`
 
 In 8.15.0, we added a new optional `id_columns` field in our advanced sync rules for the PostgreSQL connector.
@@ -263,7 +263,7 @@ Use the `id_columns` field to ingest tables which do not have a primary key. Inc
 
 This example uses the `id_columns` field to specify the unique fields `emp_id` and `c_id` for the `employee` and `customer` tables, respectively.
 
-[discrete#connectors-postgresql-client-sync-rules-advanced-examples-2]
+[discrete#es-connectors-postgresql-client-sync-rules-advanced-examples-2]
 ======== Filtering data with `WHERE` clause
 
 [source,json]
@@ -276,7 +276,7 @@ This example uses the `id_columns` field to specify the unique fields `emp_id` a
 ]
 ----
 
-[discrete#connectors-postgresql-client-sync-rules-advanced-examples-3]
+[discrete#es-connectors-postgresql-client-sync-rules-advanced-examples-3]
 ======== `JOIN` operations
 
 [source,json]
@@ -296,7 +296,7 @@ This will happen if the query specifies a table that doesn't appear in the confi
 This can also happen if the configuration specifies `*` to fetch all tables while the advanced sync rule requests for only a subset of tables.
 ====
 
-[discrete#connectors-postgresql-client-client-operations-testing]
+[discrete#es-connectors-postgresql-client-client-operations-testing]
 ===== End-to-end testing
 
 The connector framework enables operators to run functional tests against a real data source.
@@ -316,18 +316,18 @@ For faster tests, add the `DATA_SIZE=small` flag:
 make ftest NAME=postgresql DATA_SIZE=small
 ----
 
-[discrete#connectors-postgresql-client-known-issues]
+[discrete#es-connectors-postgresql-client-known-issues]
 ===== Known issues
 
 There are no known issues for this connector.
 Refer to //connectors-known-issues for a list of known issues for all connectors.
 
-[discrete#connectors-postgresql-client-troubleshooting]
+[discrete#es-connectors-postgresql-client-troubleshooting]
 ===== Troubleshooting
 
 See //connectors-troubleshooting.
 
-[discrete#connectors-postgresql-client-security]
+[discrete#es-connectors-postgresql-client-security]
 ===== Security
 
 See //connectors-security.

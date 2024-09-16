@@ -1,19 +1,19 @@
-[#build-connector]
+[#es-build-connector]
 == Self-managed connectors
 
-Self-managed <<connectors,Elastic connectors>> are run on your own infrastructure.
+Self-managed <<es-connectors,Elastic connectors>> are run on your own infrastructure.
 This means they run outside of your Elastic deployment.
 
 You can run connectors from source or from a Docker container.
 
 We also have a quickstart option using *Docker Compose*, to spin up all the required services at once: Elasticsearch, Kibana, and the connectors service.
-Refer to <<connectors-docker-compose-quickstart>> for more information.
+Refer to <<es-connectors-docker-compose-quickstart>> for more information.
 
 The following connectors are available as self-managed connectors:
 
 include::_connectors-list-clients.asciidoc[]
 
-[discrete#build-connector-prerequisites]
+[discrete#es-build-connector-prerequisites]
 === Availability and Elastic prerequisites
 
 [NOTE]
@@ -47,7 +47,7 @@ In future releases, you may still need to run Enterprise Search for the purpose 
 You must have access to Kibana and have `write` {ref}/security-privileges.html[indices privileges^] for the `.elastic-connectors` index.
 
 You must additionally deploy the *connector service*.
-See <<deploy-connector-client>>.
+See <<es-deploy-connector-client>>.
 
 *Support and licensing*
 
@@ -66,7 +66,7 @@ Note the following information regarding support for self-managed connectors:
 
 ====
 
-[discrete#build-connector-data-source-prerequisites]
+[discrete#es-build-connector-data-source-prerequisites]
 .Data source prerequisites
 ****
 The first decision you need to make before deploying a connector is which third party service (data source) you want to sync to Elasticsearch.
@@ -76,16 +76,16 @@ For example, certain data sources may require you to create an OAuth application
 You'll need to check the individual connector documentation for these details.
 ****
 
-[discrete#build-connector-example]
+[discrete#es-build-connector-example]
 === Tutorials
 
 // TODO
-// * Follow our <<postgresql-connector-client-tutorial, UI-based tutorial>> to learn how run the self-managed connector service and a set up a self-managed connector, *using the UI*.
-// * Follow our <<connectors-tutorial-api, API-based tutorial>> to learn how to set up a self-managed connector *using the* {ref}/connector-apis.html[*connector APIs*].
+// * Follow our <<es-postgresql-connector-client-tutorial, UI-based tutorial>> to learn how run the self-managed connector service and a set up a self-managed connector, *using the UI*.
+// * Follow our <<es-connectors-tutorial-api, API-based tutorial>> to learn how to set up a self-managed connector *using the* {ref}/connector-apis.html[*connector APIs*].
 
 These examples use the PostgreSQL connector but the basic process is the same for all self-managed connectors.
 
-[discrete#build-connector-testing]
+[discrete#es-build-connector-testing]
 === Connector testing
 
 The connector framework enables you to run end-to-end (E2E) tests on your self-managed connectors, against a real data source.
@@ -97,7 +97,7 @@ Docker Compose manages the setup of the development environment, including both 
 E2E tests use *default* configuration values for the connector.
 Find instructions about testing in each connector's documentation.
 
-[discrete#build-connector-framework]
+[discrete#es-build-connector-framework]
 === Connector framework
 
 The Elastic connector framework enables you to:
@@ -105,4 +105,4 @@ The Elastic connector framework enables you to:
 * Customize existing self-managed connectors.
 * Build your own self-managed connectors.
 
-Refer to <<connectors-framework>> for more information.
+Refer to <<es-connectors-framework>> for more information.

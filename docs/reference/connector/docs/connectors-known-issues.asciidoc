@@ -1,10 +1,10 @@
-[#connectors-known-issues]
+[#es-connectors-known-issues]
 == Connector known issues
 ++++
 <titleabbrev>Known issues</titleabbrev>
 ++++
 
-[discrete#connectors-known-issues-enterprie-search-service]
+[discrete#es-connectors-known-issues-enterprie-search-service]
 === Enterprise Search service: connector clients
 
 As of *8.10.0* self-managed connector clients no longer require the Enterprise Search service to be running on your Elastic deployment.
@@ -25,7 +25,7 @@ For example, if you're running Elasticsearch 8.10.1, your connector service shou
 Elastic does not support deployments running mismatched versions (except during upgrades).
 ====
 
-[discrete#connectors-known-issues-connector-service]
+[discrete#es-connectors-known-issues-connector-service]
 === Connector service
 
 The connector service has the following known issues:
@@ -59,7 +59,7 @@ The following table shows the estimated RAM usage for loading IDs into memory.
 |===
 ==============
 +
-** *Optimize* <<sync-rules,*sync rules*>>:
+** *Optimize* <<es-sync-rules,*sync rules*>>:
 *** Review and optimize sync rules to filter and reduce data retrieved from the source before syncing.
 +
 ** *Use a self-managed connector client* instead of a native connector:
@@ -156,8 +156,8 @@ They are still available as self-managed connector clients.
 ** Jira Cloud & Server
 ** Network drives
 
-[discrete#connectors-known-issues-specific]
+[discrete#es-connectors-known-issues-specific]
 === Individual connector known issues
 
 Individual connectors may have additional known issues.
-Refer to <<connectors, each connector's reference documentation>> for connector-specific known issues.
+Refer to <<es-connectors, each connector's reference documentation>> for connector-specific known issues.

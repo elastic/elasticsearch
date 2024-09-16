@@ -1,4 +1,4 @@
-[#connectors-oracle]
+[#es-connectors-oracle]
 === Elastic Oracle connector reference
 ++++
 <titleabbrev>Oracle</titleabbrev>
@@ -13,31 +13,31 @@
 // //////// NATIVE CONNECTOR REFERENCE (MANAGED SERVICE) ///////
 // //////// //// //// //// //// //// //// ////////
 
-[discrete#connectors-oracle-native-connector-reference]
+[discrete#es-connectors-oracle-native-connector-reference]
 ==== *Native connector reference (managed service)*
 
 .View reference for the *native connector reference (managed service)*.
 [%collapsible]
 ===============
 
-[discrete#connectors-oracle-availability-prerequisites]
+[discrete#es-connectors-oracle-availability-prerequisites]
 ===== Availability and prerequisites
 
 This connector is available natively in Elastic Cloud as of *8.12.0*.
-To use this connector, satisfy all <<native-connectors, native connector requirements>>.
+To use this connector, satisfy all <<es-native-connectors, native connector requirements>>.
 
-[discrete#connectors-oracle-create-native-connector]
+[discrete#es-connectors-oracle-create-native-connector]
 ===== Create a {service-name} connector
 include::_connectors-create-native.asciidoc[]
 
-[discrete#connectors-oracle-usage]
+[discrete#es-connectors-oracle-usage]
 ===== Usage
 
-To use this connector as a *native connector*, see <<native-connectors>>.
+To use this connector as a *native connector*, see <<es-native-connectors>>.
 
 The database user requires `CONNECT` and `DBA` privileges and must be the owner of the tables to be indexed.
 
-[discrete#connectors-oracle-usage-secure-connection]
+[discrete#es-connectors-oracle-usage-secure-connection]
 ====== Secure connection
 
 To set up a secure connection the Oracle service must be installed on the system where the connector is running.
@@ -76,14 +76,14 @@ For more information, refer to this https://docs.aws.amazon.com/AmazonRDS/latest
 Oracle docs: https://docs.oracle.com/database/121/DBSEG/asossl.htm#DBSEG070.
 // TODO: check whether this link is appropriate
 
-For additional operations, see <<connectors-usage>>.
+For additional operations, see <<es-connectors-usage>>.
 
-[discrete#connectors-oracle-compatability]
+[discrete#es-connectors-oracle-compatability]
 ===== Compatibility
 
 This connector is compatible with Oracle Database versions *18c*, *19c* and *21c*.
 
-[discrete#connectors-oracle-configuration]
+[discrete#es-connectors-oracle-configuration]
 ===== Configuration
 
 Use the following configuration fields to set up the connector:
@@ -117,7 +117,7 @@ Examples:
 * `TABLE_1, TABLE_2`
 * `*`
 
-[discrete#connectors-oracle-documents-syncs]
+[discrete#es-connectors-oracle-documents-syncs]
 ===== Documents and syncs
 
 * Tables with no primary key defined are skipped.
@@ -133,32 +133,32 @@ Examples:
 **All documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
 ====
 
-[discrete#connectors-oracle-sync-rules]
+[discrete#es-connectors-oracle-sync-rules]
 ===== Sync rules
 
-<<sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
+<<es-sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
 
 Advanced sync rules are not available for this connector in the present version.
 Currently, filtering is controlled by ingest pipelines.
 
-[discrete#connectors-oracle-known-issues]
+[discrete#es-connectors-oracle-known-issues]
 ===== Known issues
 
 There are no known issues for this connector.
 
-See <<connectors-known-issues>> for any issues affecting all connectors.
+See <<es-connectors-known-issues>> for any issues affecting all connectors.
 
-[discrete#connectors-oracle-troubleshooting]
+[discrete#es-connectors-oracle-troubleshooting]
 ===== Troubleshooting
 
-See <<connectors-troubleshooting>>.
+See <<es-connectors-troubleshooting>>.
 
-[discrete#connectors-oracle-security]
+[discrete#es-connectors-oracle-security]
 ===== Security
 
-See <<connectors-security>>.
+See <<es-connectors-security>>.
 
-[discrete#connectors-oracle-source]
+[discrete#es-connectors-oracle-source]
 ===== Framework and source
 
 This connector is built with the {connectors-python}[Elastic connector framework^].
@@ -176,32 +176,32 @@ View {connectors-python}/connectors/sources/oracle.py[additional code specific t
 // //////// CONNECTOR CLIENT REFERENCE (SELF-MANAGED) ///////
 // //////// //// //// //// //// //// //// ////////
 
-[discrete#connectors-oracle-connector-client-reference]
+[discrete#es-connectors-oracle-connector-client-reference]
 ==== *Connector client reference (self-managed)*
 
 .View reference for the *connector client reference (self-managed)*.
 [%collapsible]
 ===============
 
-[discrete#connectors-oracle-client-availability-prerequisites]
+[discrete#es-connectors-oracle-client-availability-prerequisites]
 ===== Availability and prerequisites
 
 This connector is available as a self-managed *connector client*.
 This connector client is compatible with Elastic versions *8.6.0+*.
-To use this connector, satisfy all <<build-connector,connector client requirements>>.
+To use this connector, satisfy all <<es-build-connector,connector client requirements>>.
 
-[discrete#connectors-oracle-create-connector-client]
+[discrete#es-connectors-oracle-create-connector-client]
 ===== Create a {service-name} connector
 include::_connectors-create-client.asciidoc[]
 
-[discrete#connectors-oracle-client-usage]
+[discrete#es-connectors-oracle-client-usage]
 ===== Usage
 
-To use this connector as a *connector client*, see <<build-connector>>.
+To use this connector as a *connector client*, see <<es-build-connector>>.
 
 The database user requires `CONNECT` and `DBA` privileges and must be the owner of the tables to be indexed.
 
-[discrete#connectors-oracle-client-usage-secure-connection]
+[discrete#es-connectors-oracle-client-usage-secure-connection]
 ====== Secure connection
 
 To set up a secure connection the Oracle service must be installed on the system where the connector is running.
@@ -240,19 +240,19 @@ For more information, refer to this https://docs.aws.amazon.com/AmazonRDS/latest
 Oracle docs: https://docs.oracle.com/database/121/DBSEG/asossl.htm#DBSEG070.
 // TODO: check whether this link is appropriate
 
-For additional operations, see <<connectors-usage>>.
+For additional operations, see <<es-connectors-usage>>.
 
-[discrete#connectors-oracle-client-compatability]
+[discrete#es-connectors-oracle-client-compatability]
 ===== Compatibility
 
 Oracle Database versions *18c*, *19c* and *21c* are compatible with Elastic connector frameworks.
 
-[discrete#connectors-oracle-client-configuration]
+[discrete#es-connectors-oracle-client-configuration]
 ===== Configuration
 
 [TIP]
 ====
-When using the <<build-connector, connector client>> workflow, these fields will use the default configuration set in the https://github.com/elastic/connectors/blob/{branch}/connectors/sources/generic_database.py[connector source code^].
+When using the <<es-build-connector, connector client>> workflow, these fields will use the default configuration set in the https://github.com/elastic/connectors/blob/{branch}/connectors/sources/generic_database.py[connector source code^].
 Note that this data source uses the `generic_database.py` connector source code.
 Refer to https://github.com/elastic/connectors/blob/{branch}/connectors/sources/oracle.py[`oracle.py`^] for additional code, specific to this data source.
 
@@ -311,12 +311,12 @@ Default value is `50`.
 Number of retry attempts after failed request to Oracle Database.
 Default value is `3`.
 
-[discrete#connectors-oracle-client-docker]
+[discrete#es-connectors-oracle-client-docker]
 ===== Deployment using Docker
 
 include::_connectors-docker-instructions.asciidoc[]
 
-[discrete#connectors-oracle-client-documents-syncs]
+[discrete#es-connectors-oracle-client-documents-syncs]
 ===== Documents and syncs
 
 * Tables with no primary key defined are skipped.
@@ -332,22 +332,22 @@ include::_connectors-docker-instructions.asciidoc[]
 **All documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
 ====
 
-[discrete#connectors-oracle-client-sync-rules]
+[discrete#es-connectors-oracle-client-sync-rules]
 ===== Sync rules
 
-<<sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
+<<es-sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
 
 Advanced sync rules are not available for this connector in the present version.
 Currently, filtering is controlled by ingest pipelines.
 
-[discrete#connectors-oracle-client-operations]
+[discrete#es-connectors-oracle-client-operations]
 ===== Connector client operations
 
-[discrete#connectors-oracle-client-operations-testing]
+[discrete#es-connectors-oracle-client-operations-testing]
 ====== End-to-end testing
 
 The connector framework enables operators to run functional tests against a real data source.
-Refer to <<build-connector-testing>> for more details.
+Refer to <<es-build-connector-testing>> for more details.
 
 To execute a functional test for the Oracle connector, run the following command:
 
@@ -364,24 +364,24 @@ To make the test faster add the `DATA_SIZE=small` argument:
 make ftest NAME=oracle DATA_SIZE=small
 ----
 
-[discrete#connectors-oracle-client-known-issues]
+[discrete#es-connectors-oracle-client-known-issues]
 ===== Known issues
 
 There are no known issues for this connector.
 
-See <<connectors-known-issues>> for any issues affecting all connectors.
+See <<es-connectors-known-issues>> for any issues affecting all connectors.
 
-[discrete#connectors-oracle-client-troubleshooting]
+[discrete#es-connectors-oracle-client-troubleshooting]
 ===== Troubleshooting
 
-See <<connectors-troubleshooting>>.
+See <<es-connectors-troubleshooting>>.
 
-[discrete#connectors-oracle-client-security]
+[discrete#es-connectors-oracle-client-security]
 ===== Security
 
-See <<connectors-security>>.
+See <<es-connectors-security>>.
 
-[discrete#connectors-oracle-client-source]
+[discrete#es-connectors-oracle-client-source]
 ===== Framework and source
 
 This connector is built with the {connectors-python}[Elastic connector framework^].

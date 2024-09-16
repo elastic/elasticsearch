@@ -1,4 +1,4 @@
-[#connectors-ms-sql]
+[#es-connectors-ms-sql]
 === Elastic Microsoft SQL connector reference
 ++++
 <titleabbrev>Microsoft SQL</titleabbrev>
@@ -7,7 +7,7 @@
 :service-name: Microsoft SQL
 :service-name-stub: mssql
 
-The _Elastic Microsoft SQL connector_ is a <<connectors,connector>> for https://learn.microsoft.com/en-us/sql/[Microsoft SQL^] databases.
+The _Elastic Microsoft SQL connector_ is a <<es-connectors,connector>> for https://learn.microsoft.com/en-us/sql/[Microsoft SQL^] databases.
 This connector is written in Python using the {connectors-python}[Elastic connector framework^]. 
 
 View the {connectors-python}/connectors/sources/{service-name-stub}.py[*source code* for this connector^] (branch _{connectors-branch}_, compatible with Elastic _{minor-version}_).
@@ -21,7 +21,7 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 // ////////   NATIVE CONNECTOR REFERENCE   ///////
 // //////// //// //// //// //// //// //// ////////
 
-[discrete#connectors-ms-sql-native-connector-reference]
+[discrete#es-connectors-ms-sql-native-connector-reference]
 ==== *Native connector (Elastic Cloud)*
 
 .View *native connector* reference
@@ -29,27 +29,27 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 [%collapsible]
 ===============
 
-[discrete#connectors-ms-sql-availability-prerequisites]
+[discrete#es-connectors-ms-sql-availability-prerequisites]
 ===== Availability and prerequisites
 
 This connector is available as a *native connector* in Elastic versions *8.8.0 and later*.
-To use this connector natively in Elastic Cloud, satisfy all <<native-connectors-prerequisites,native connector requirements>>.
+To use this connector natively in Elastic Cloud, satisfy all <<es-native-connectors-prerequisites,native connector requirements>>.
 
-[discrete#connectors-{service_type}-create-native-connector]
+[discrete#es-connectors-{service_type}-create-native-connector]
 ===== Create a {service-name} connector
 include::_connectors-create-native.asciidoc[]
 
-[discrete#connectors-ms-sql-usage]
+[discrete#es-connectors-ms-sql-usage]
 ===== Usage
 
 To use this connector as a *native connector*, use the *Connector* workflow.
-See <<native-connectors>>.
+See <<es-native-connectors>>.
 
 Users require the `sysadmin` server role.
 
-For additional operations, see <<connectors-usage>>.
+For additional operations, see <<es-connectors-usage>>.
 
-[discrete#connectors-ms-sql-compatability]
+[discrete#es-connectors-ms-sql-compatability]
 ===== Compatibility
 
 The following are compatible with Elastic connector frameworks:
@@ -58,7 +58,7 @@ The following are compatible with Elastic connector frameworks:
 * Azure SQL
 * Amazon RDS for SQL Server
 
-[discrete#connectors-ms-sql-configuration]
+[discrete#es-connectors-ms-sql-configuration]
 ===== Configuration
 
 The following configuration fields are required to set up the connector:
@@ -134,7 +134,7 @@ Validate host::
 Toggle to enable host validation.
 Default value is `False`.
 
-[discrete#connectors-ms-sql-documents-syncs]
+[discrete#es-connectors-ms-sql-documents-syncs]
 ===== Documents and syncs
 
 * Tables with no primary key defined are skipped.
@@ -147,22 +147,22 @@ Default value is `False`.
 **All documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
 ====
 
-[discrete#connectors-ms-sql-sync-rules]
+[discrete#es-connectors-ms-sql-sync-rules]
 ===== Sync rules
 
-<<sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
-For more information read <<sync-rules-types,sync rules>>.
+<<es-sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
+For more information read <<es-sync-rules-types,sync rules>>.
 
-[discrete#connectors-ms-sql-sync-rules-advanced]
+[discrete#es-connectors-ms-sql-sync-rules-advanced]
 ====== Advanced sync rules
 
-This connector supports <<sync-rules-advanced,advanced sync rules>> for remote filtering.
+This connector supports <<es-sync-rules-advanced,advanced sync rules>> for remote filtering.
 These rules cover complex query-and-filter scenarios that cannot be expressed with basic sync rules.
 Advanced sync rules are defined through a source-specific DSL JSON snippet.
 
 [NOTE]
 ====
-A <<connectors-sync-types-full, full sync>> is required for advanced sync rules to take effect.
+A <<es-connectors-sync-types-full, full sync>> is required for advanced sync rules to take effect.
 ====
 
 Here are a few examples of advanced sync rules for this connector.
@@ -193,7 +193,7 @@ Here are a few examples of advanced sync rules for this connector.
 |===
 ====
 
-[discrete#connectors-ms-sql-sync-rules-advanced-queries]
+[discrete#es-connectors-ms-sql-sync-rules-advanced-queries]
 ======= Example: Two queries
 
 These rules fetch all records from both the `employee` and `customer` tables. The data from these tables will be synced separately to Elasticsearch.
@@ -216,7 +216,7 @@ These rules fetch all records from both the `employee` and `customer` tables. Th
 ]
 ----
 
-[discrete#connectors-ms-sql-sync-rules-example-one-where]
+[discrete#es-connectors-ms-sql-sync-rules-example-one-where]
 ======= Example: One WHERE query
 
 This rule fetches only the records from the `employee` table where the `emp_id` is greater than 5. Only these filtered records will be synced to Elasticsearch.
@@ -231,7 +231,7 @@ This rule fetches only the records from the `employee` table where the `emp_id` 
 ]
 ----
 
-[discrete#connectors-ms-sql-sync-rules-example-one-join]
+[discrete#es-connectors-ms-sql-sync-rules-example-one-join]
 ======= Example: One JOIN query
 
 This rule fetches records by performing an INNER JOIN between the `employee` and `customer` tables on the condition that the `emp_id` in `employee` matches the `c_id` in `customer`. The result of this combined data will be synced to Elasticsearch.
@@ -253,21 +253,21 @@ This will happen if the query specifies a table that doesn't appear in the confi
 This can also happen if the configuration specifies `*` to fetch all tables while the advanced sync rule requests for only a subset of tables.
 ====
 
-[discrete#connectors-ms-sql-known-issues]
+[discrete#es-connectors-ms-sql-known-issues]
 ===== Known issues
 
 There are no known issues for this connector.
-See <<connectors-known-issues>> for any issues affecting all connectors.
+See <<es-connectors-known-issues>> for any issues affecting all connectors.
 
-[discrete#connectors-ms-sql-troubleshooting]
+[discrete#es-connectors-ms-sql-troubleshooting]
 ===== Troubleshooting
 
-See <<connectors-troubleshooting>>.
+See <<es-connectors-troubleshooting>>.
 
-[discrete#connectors-ms-sql-security]
+[discrete#es-connectors-ms-sql-security]
 ===== Security
 
-See <<connectors-security>>.
+See <<es-connectors-security>>.
 
 
 
@@ -285,7 +285,7 @@ View {connectors-python}/connectors/sources/mssql.py[additional code specific to
 // //////// CONNECTOR CLIENT REFERENCE     ///////
 // //////// //// //// //// //// //// //// ////////
 
-[discrete#connectors-ms-sql-connector-client-reference]
+[discrete#es-connectors-ms-sql-connector-client-reference]
 ==== *Connector client (self-managed)*
 
 .View *connector client* reference
@@ -293,25 +293,25 @@ View {connectors-python}/connectors/sources/mssql.py[additional code specific to
 [%collapsible]
 ===============
 
-[discrete#connectors-ms-sql-client-availability-prerequisites]
+[discrete#es-connectors-ms-sql-client-availability-prerequisites]
 ===== Availability and prerequisites
 
 This connector is available as a self-managed *connector client*.
-To use this connector, satisfy all <<build-connector,connector client requirements>>.
+To use this connector, satisfy all <<es-build-connector,connector client requirements>>.
 
-[discrete#connectors-{service_type}-create-connector-client]
+[discrete#es-connectors-{service_type}-create-connector-client]
 ===== Create a {service-name} connector
 include::_connectors-create-client.asciidoc[]
 
-[discrete#connectors-ms-sql-client-usage]
+[discrete#es-connectors-ms-sql-client-usage]
 ===== Usage
 
 Users require the `sysadmin` server role.
 
-To use this connector as a *connector client*, see <<build-connector>>
-For additional usage operations, see <<connectors-usage>>.
+To use this connector as a *connector client*, see <<es-build-connector>>
+For additional usage operations, see <<es-connectors-usage>>.
 
-[discrete#connectors-ms-sql-client-compatability]
+[discrete#es-connectors-ms-sql-client-compatability]
 ===== Compatibility
 
 The following are compatible with Elastic connector frameworks:
@@ -320,12 +320,12 @@ The following are compatible with Elastic connector frameworks:
 * Azure SQL
 * Amazon RDS for SQL Server
 
-[discrete#connectors-ms-sql-client-configuration]
+[discrete#es-connectors-ms-sql-client-configuration]
 ===== Configuration
 
 [TIP]
 ====
-When using the <<build-connector, connector client>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/generic_database.py[connector source code^].
+When using the <<es-build-connector, connector client>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/generic_database.py[connector source code^].
 Note that this data source uses the `generic_database.py` connector source code.
 
 Refer to {connectors-python}/connectors/sources/mssql.py[`mssql.py`^] for additional code, specific to this data source.
@@ -412,12 +412,12 @@ MIID+jCCAuKgAwIBAgIGAJJMzlxLMA0GCSqGSIb3DQEBCwUAMHoxCzAJBgNVBAYT
 Host validation enablement.
 Default value is `False`.
 
-[discrete#connectors-ms-sql-client-docker]
+[discrete#es-connectors-ms-sql-client-docker]
 ===== Deployment using Docker
 
 include::_connectors-docker-instructions.asciidoc[]
 
-[discrete#connectors-ms-sql-client-documents-syncs]
+[discrete#es-connectors-ms-sql-client-documents-syncs]
 ===== Documents and syncs
 
 * Tables with no primary key defined are skipped.
@@ -430,22 +430,22 @@ include::_connectors-docker-instructions.asciidoc[]
 **All documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
 ====
 
-[discrete#connectors-ms-sql-client-sync-rules]
+[discrete#es-connectors-ms-sql-client-sync-rules]
 ===== Sync rules
 
-<<sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
-For more information read <<sync-rules-types,sync rules>>.
+<<es-sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
+For more information read <<es-sync-rules-types,sync rules>>.
 
-[discrete#connectors-ms-sql-client-sync-rules-advanced]
+[discrete#es-connectors-ms-sql-client-sync-rules-advanced]
 ====== Advanced sync rules
 
-This connector supports <<sync-rules-advanced,advanced sync rules>> for remote filtering.
+This connector supports <<es-sync-rules-advanced,advanced sync rules>> for remote filtering.
 These rules cover complex query-and-filter scenarios that cannot be expressed with basic sync rules.
 Advanced sync rules are defined through a source-specific DSL JSON snippet.
 
 [NOTE]
 ====
-A <<connectors-sync-types-full, full sync>> is required for advanced sync rules to take effect.
+A <<es-connectors-sync-types-full, full sync>> is required for advanced sync rules to take effect.
 ====
 
 Here are a few examples of advanced sync rules for this connector.
@@ -476,7 +476,7 @@ Here are a few examples of advanced sync rules for this connector.
 |===
 ====
 
-[discrete#connectors-ms-sql-client-sync-rules-advanced-queries]
+[discrete#es-connectors-ms-sql-client-sync-rules-advanced-queries]
 ======= Example: Two queries
 
 These rules fetch all records from both the `employee` and `customer` tables. The data from these tables will be synced separately to Elasticsearch.
@@ -499,7 +499,7 @@ These rules fetch all records from both the `employee` and `customer` tables. Th
 ]
 ----
 
-[discrete#connectors-ms-sql-client-sync-rules-example-one-where]
+[discrete#es-connectors-ms-sql-client-sync-rules-example-one-where]
 ======= Example: One WHERE query
 
 This rule fetches only the records from the `employee` table where the `emp_id` is greater than 5. Only these filtered records will be synced to Elasticsearch.
@@ -514,7 +514,7 @@ This rule fetches only the records from the `employee` table where the `emp_id` 
 ]
 ----
 
-[discrete#connectors-ms-sql-client-sync-rules-example-one-join]
+[discrete#es-connectors-ms-sql-client-sync-rules-example-one-join]
 ======= Example: One JOIN query
 
 This rule fetches records by performing an INNER JOIN between the `employee` and `customer` tables on the condition that the `emp_id` in `employee` matches the `c_id` in `customer`. The result of this combined data will be synced to Elasticsearch.
@@ -536,11 +536,11 @@ This will happen if the query specifies a table that doesn't appear in the confi
 This can also happen if the configuration specifies `*` to fetch all tables while the advanced sync rule requests for only a subset of tables.
 ====
 
-[discrete#connectors-ms-sql-client-client-operations-testing]
+[discrete#es-connectors-ms-sql-client-client-operations-testing]
 ===== End-to-end testing
 
 The connector framework enables operators to run functional tests against a real data source.
-Refer to <<build-connector-testing>> for more details.
+Refer to <<es-build-connector-testing>> for more details.
 
 To perform E2E testing for the Microsoft SQL connector, run the following command:
 
@@ -556,21 +556,21 @@ For faster tests, add the `DATA_SIZE=small` flag:
 make ftest NAME=mssql DATA_SIZE=small
 ----
 
-[discrete#connectors-ms-sql-client-known-issues]
+[discrete#es-connectors-ms-sql-client-known-issues]
 ===== Known issues
 
 There are no known issues for this connector.
-See <<connectors-known-issues>> for any issues affecting all connectors.
+See <<es-connectors-known-issues>> for any issues affecting all connectors.
 
-[discrete#connectors-ms-sql-client-troubleshooting]
+[discrete#es-connectors-ms-sql-client-troubleshooting]
 ===== Troubleshooting
 
-See <<connectors-troubleshooting>>.
+See <<es-connectors-troubleshooting>>.
 
-[discrete#connectors-ms-sql-client-security]
+[discrete#es-connectors-ms-sql-client-security]
 ===== Security
 
-See <<connectors-security>>.
+See <<es-connectors-security>>.
 
 
 

@@ -1,4 +1,4 @@
-[#connectors-google-cloud]
+[#es-connectors-google-cloud]
 === Google Cloud Storage Connector
 ++++
 <titleabbrev>Google Cloud Storage</titleabbrev>
@@ -8,27 +8,27 @@
 :service-name: Google Cloud Storage
 :service-name-stub: google_cloud_storage
 
-The _Elastic Google Cloud Storage connector_ is a <<connectors,connector>> for https://cloud.google.com/storage[Google Cloud Storage^] data sources.
+The _Elastic Google Cloud Storage connector_ is a <<es-connectors,connector>> for https://cloud.google.com/storage[Google Cloud Storage^] data sources.
 
 
 // //////// //// //// //// //// //// //// ////////
 // //////// NATIVE CONNECTOR REFERENCE (MANAGED SERVICE) ///////
 // //////// //// //// //// //// //// //// ////////
 
-[discrete#connectors-google-cloud-native-connector-reference]
+[discrete#es-connectors-google-cloud-native-connector-reference]
 ==== *Native connector reference (managed service)*
 
 .View reference for the *native connector reference (managed service)*.
 [%collapsible]
 ===============
 
-[discrete#connectors-google-cloud-availability-prerequisites]
+[discrete#es-connectors-google-cloud-availability-prerequisites]
 ===== Availability and prerequisites
 
 This connector is available natively in Elastic Cloud since *8.12.0.*
-To use this connector in Elastic Cloud, satisfy all <<native-connectors,native connector requirements>>.
+To use this connector in Elastic Cloud, satisfy all <<es-native-connectors,native connector requirements>>.
 
-[discrete#connectors-google-cloud-usage]
+[discrete#es-connectors-google-cloud-usage]
 ===== Usage
 
 The Google Cloud Storage service account must have (at least) the following scopes and roles:
@@ -41,7 +41,7 @@ The Google Cloud Storage service account must have (at least) the following scop
 
 Google Cloud Storage service account credentials are stored in a JSON file.
 
-[discrete#connectors-google-cloud-configuration]
+[discrete#es-connectors-google-cloud-configuration]
 ===== Configuration
 
 The following configuration field is required to set up the connector:
@@ -54,7 +54,7 @@ Google Cloud service account JSON::
 The service account credentials generated from Google Cloud Storage (JSON string).
 Refer to the https://developers.google.com/workspace/guides/create-credentials#create_credentials_for_a_service_account[Google Cloud documentation^] for more information.
 
-[discrete#connectors-google-cloud-documents-syncs]
+[discrete#es-connectors-google-cloud-documents-syncs]
 ===== Documents and syncs
 
 The connector will fetch all buckets and paths the service account has access to.
@@ -63,29 +63,29 @@ The `Owner` field is not fetched as `read_only` scope doesn’t allow the connec
 
 [NOTE]
 ====
-* Content from files bigger than 10 MB won't be extracted. (Self-managed connectors can use the <<connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.)
+* Content from files bigger than 10 MB won't be extracted. (Self-managed connectors can use the <<es-connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.)
 * Permission are not synced. All documents indexed to an Elastic deployment will be visible to all users with access to that Elastic Deployment.
 ====
 
-[discrete#connectors-google-cloud-sync-types]
+[discrete#es-connectors-google-cloud-sync-types]
 ====== Sync types
 
-<<connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
+<<es-connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
 
-This connector also supports <<connectors-sync-types-incremental,incremental syncs>>.
+This connector also supports <<es-connectors-sync-types-incremental,incremental syncs>>.
 
-[discrete#connectors-google-cloud-sync-rules]
+[discrete#es-connectors-google-cloud-sync-rules]
 ===== Sync rules
 
-<<sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
+<<es-sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
 
 Advanced sync rules are not available for this connector in the present version.
 Currently filtering is controlled by ingest pipelines.
 
-[discrete#connectors-google-cloud-content-extraction]
+[discrete#es-connectors-google-cloud-content-extraction]
 ===== Content extraction
 
-See <<connectors-content-extraction>>.
+See <<es-connectors-content-extraction>>.
 
 [source,shell]
 ----
@@ -99,22 +99,22 @@ For faster tests, add the `DATA_SIZE=small` flag:
 make ftest NAME=google_cloud_storage DATA_SIZE=small
 ----
 
-[discrete#connectors-google-cloud-known-issues]
+[discrete#es-connectors-google-cloud-known-issues]
 ===== Known issues
 
 There are currently no known issues for this connector.
 
-[discrete#connectors-google-cloud-troubleshooting]
+[discrete#es-connectors-google-cloud-troubleshooting]
 ===== Troubleshooting
 
-See <<connectors-troubleshooting>>.
+See <<es-connectors-troubleshooting>>.
 
-[discrete#connectors-google-cloud-security]
+[discrete#es-connectors-google-cloud-security]
 ===== Security
 
-See <<connectors-security>>.
+See <<es-connectors-security>>.
 
-[discrete#connectors-google-cloud-source]
+[discrete#es-connectors-google-cloud-source]
 ===== Framework and source
 
 This connector is built with the {connectors-python}[Elastic connector framework^].
@@ -129,21 +129,21 @@ View the {connectors-python}/connectors/sources/google_cloud_storage.py[source c
 // //////// CONNECTOR CLIENT REFERENCE (SELF-MANAGED) ///////
 // //////// //// //// //// //// //// //// ////////
 
-[discrete#connectors-google-cloud-connector-client-reference]
+[discrete#es-connectors-google-cloud-connector-client-reference]
 ==== *Connector client reference (self-managed)*
 
 .View reference for the *connector client reference (self-managed)*.
 [%collapsible]
 ===============
 
-[discrete#connectors-google-cloud-client-availability-prerequisites]
+[discrete#es-connectors-google-cloud-client-availability-prerequisites]
 ===== Availability and prerequisites
 
 This connector is available as a self-managed *connector client*.
 This connector client is compatible with Elastic versions *8.6.0+*.
-To use this connector, satisfy all <<build-connector,connector client requirements>>.
+To use this connector, satisfy all <<es-build-connector,connector client requirements>>.
 
-[discrete#connectors-google-cloud-client-usage]
+[discrete#es-connectors-google-cloud-client-usage]
 ===== Usage
 
 The Google Cloud Storage service account must have (at least) the following scopes and roles:
@@ -156,12 +156,12 @@ The Google Cloud Storage service account must have (at least) the following scop
 
 Google Cloud Storage service account credentials are stored in a JSON file.
 
-[discrete#connectors-google-cloud-client-configuration]
+[discrete#es-connectors-google-cloud-client-configuration]
 ===== Configuration
 
 [TIP]
 ====
-When using the <<build-connector, connector client>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/google_cloud_storage.py[connector source code^].
+When using the <<es-build-connector, connector client>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/google_cloud_storage.py[connector source code^].
 These are set in the `get_default_configuration` function definition.
 
 These configurable fields will be rendered with their respective *labels* in the Kibana UI.
@@ -182,12 +182,12 @@ Refer to the https://developers.google.com/workspace/guides/create-credentials#c
 The number of retry attempts after a failed call to Google Cloud Storage.
 Default value is `3`.
 
-[discrete#connectors-google-cloud-client-docker]
+[discrete#es-connectors-google-cloud-client-docker]
 ===== Deployment using Docker
 
 include::_connectors-docker-instructions.asciidoc[]
 
-[discrete#connectors-google-cloud-client-documents-syncs]
+[discrete#es-connectors-google-cloud-client-documents-syncs]
 ===== Documents and syncs
 
 The connector will fetch all buckets and paths the service account has access to.
@@ -196,35 +196,35 @@ The `Owner` field is not fetched as `read_only` scope doesn’t allow the connec
 
 [NOTE]
 ====
-* Content from files bigger than 10 MB won't be extracted by default. You can use the <<connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.
+* Content from files bigger than 10 MB won't be extracted by default. You can use the <<es-connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.
 * Permission are not synced. All documents indexed to an Elastic deployment will be visible to all users with access to that Elastic Deployment.
 ====
 
-[discrete#connectors-google-cloud-client-sync-types]
+[discrete#es-connectors-google-cloud-client-sync-types]
 ====== Sync types
 
-<<connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
+<<es-connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
 
-This connector also supports <<connectors-sync-types-incremental,incremental syncs>>.
+This connector also supports <<es-connectors-sync-types-incremental,incremental syncs>>.
 
-[discrete#connectors-google-cloud-client-sync-rules]
+[discrete#es-connectors-google-cloud-client-sync-rules]
 ===== Sync rules
 
-<<sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
+<<es-sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
 
 Advanced sync rules are not available for this connector in the present version.
 Currently filtering is controlled by ingest pipelines.
 
-[discrete#connectors-google-cloud-client-content-extraction]
+[discrete#es-connectors-google-cloud-client-content-extraction]
 ===== Content extraction
 
-See <<connectors-content-extraction>>.
+See <<es-connectors-content-extraction>>.
 
-[discrete#connectors-google-cloud-client-client-operations-testing]
+[discrete#es-connectors-google-cloud-client-client-operations-testing]
 ===== End-to-end testing
 
 The connector framework enables operators to run functional tests against a real data source.
-Refer to <<build-connector-testing>> for more details.
+Refer to <<es-build-connector-testing>> for more details.
 
 To perform E2E testing for the Google Cloud Storage connector, run the following command:
 
@@ -240,22 +240,22 @@ For faster tests, add the `DATA_SIZE=small` flag:
 make ftest NAME=google_cloud_storage DATA_SIZE=small
 ----
 
-[discrete#connectors-google-cloud-client-known-issues]
+[discrete#es-connectors-google-cloud-client-known-issues]
 ===== Known issues
 
 There are currently no known issues for this connector.
 
-[discrete#connectors-google-cloud-client-troubleshooting]
+[discrete#es-connectors-google-cloud-client-troubleshooting]
 ===== Troubleshooting
 
-See <<connectors-troubleshooting>>.
+See <<es-connectors-troubleshooting>>.
 
-[discrete#connectors-google-cloud-client-security]
+[discrete#es-connectors-google-cloud-client-security]
 ===== Security
 
-See <<connectors-security>>.
+See <<es-connectors-security>>.
 
-[discrete#connectors-google-cloud-client-source]
+[discrete#es-connectors-google-cloud-client-source]
 ===== Framework and source
 
 This connector is built with the {connectors-python}[Elastic connector framework^].

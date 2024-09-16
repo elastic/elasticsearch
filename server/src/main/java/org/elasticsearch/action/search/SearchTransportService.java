@@ -80,6 +80,7 @@ import static org.elasticsearch.action.search.SearchTransportAPMMetrics.QUERY_FE
 import static org.elasticsearch.action.search.SearchTransportAPMMetrics.QUERY_ID_ACTION_METRIC;
 import static org.elasticsearch.action.search.SearchTransportAPMMetrics.QUERY_SCROLL_ACTION_METRIC;
 import static org.elasticsearch.action.search.SearchTransportAPMMetrics.RANK_SHARD_FEATURE_ACTION_METRIC;
+import static org.elasticsearch.action.search.SearchTransportAPMMetrics.SYSTEM_THREAD_ATTRIBUTE_NAME;
 
 /**
  * An encapsulation of {@link org.elasticsearch.search.SearchService} operations exposed through
@@ -666,7 +667,12 @@ public class SearchTransportService {
     ) {
         var threadPool = transportService.getThreadPool();
         var latencies = searchTransportMetrics.getActionLatencies();
-        Map<String, Object> attributes = Map.of(ACTION_ATTRIBUTE_NAME, actionQualifier);
+        Map<String, Object> attributes = Map.of(
+            ACTION_ATTRIBUTE_NAME,
+            actionQualifier,
+            SYSTEM_THREAD_ATTRIBUTE_NAME,
+            ThreadPool.isSystemThreadPool()
+        );
         return (request, channel, task) -> {
             var startTime = threadPool.relativeTimeInMillis();
             try {

@@ -15,6 +15,7 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 public class SearchTransportAPMMetrics {
     public static final String SEARCH_ACTION_LATENCY_BASE_METRIC = "es.search.nodes.transport_actions.latency.histogram";
     public static final String ACTION_ATTRIBUTE_NAME = "action";
+    public static final String SYSTEM_THREAD_ATTRIBUTE_NAME = "system_thread";
 
     public static final String QUERY_CAN_MATCH_NODE_METRIC = "shards_can_match";
     public static final String DFS_ACTION_METRIC = "dfs_query_then_fetch/shard_dfs_phase";

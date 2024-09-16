@@ -15,9 +15,12 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDatabase;
+import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.hasLength;
 import static org.hamcrest.Matchers.is;
 
 public class MMDBUtilTests extends ESTestCase {
@@ -49,5 +52,18 @@ public class MMDBUtilTests extends ESTestCase {
 
         String type = MMDBUtil.getDatabaseType(database);
         assertThat(type, is("GeoLite2-City"));
+    }
+
+    public void testSmallFileWithALongDescription() throws IOException {
+        Path database = tmpDir.resolve("test-description.mmdb");
+        copyDatabase("test-description.mmdb", database);
+
+        // it was once the case that we couldn't read a database_type that was 29 characters or longer
+        String type = MMDBUtil.getDatabaseType(database);
+        assertThat(type, endsWith("long database_type"));
+        assertThat(type, hasLength(60)); // 60 is >= 29, ;)
+
+        // it was once the case that we couldn't process an mmdb that was smaller than 512 bytes
+        assertThat(Files.size(database), is(444L)); // 444 is <512
     }
 }

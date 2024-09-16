@@ -10,6 +10,8 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.tdigest.TDigest;
 import org.elasticsearch.tdigest.arrays.TDigestArrays;
@@ -24,7 +26,7 @@ import java.util.Iterator;
  * through factory method params, providing one optimized for performance (e.g. MergingDigest or HybridDigest) by default, or optionally one
  * that produces highly accurate results regardless of input size but its construction over the sample population takes 2x-10x longer.
  */
-public class TDigestState {
+public class TDigestState implements Releasable {
 
     private final double compression;
 
@@ -259,5 +261,10 @@ public class TDigestState {
 
     public final double getMax() {
         return tdigest.getMax();
+    }
+
+    @Override
+    public void close() {
+        Releasables.close(tdigest);
     }
 }

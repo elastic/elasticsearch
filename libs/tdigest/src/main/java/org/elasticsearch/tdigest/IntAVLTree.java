@@ -21,6 +21,8 @@
 
 package org.elasticsearch.tdigest;
 
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tdigest.arrays.TDigestArrays;
 import org.elasticsearch.tdigest.arrays.TDigestByteArray;
 import org.elasticsearch.tdigest.arrays.TDigestIntArray;
@@ -33,7 +35,7 @@ import java.util.Arrays;
  * want to add data to the nodes, typically by using arrays and node
  * identifiers as indices.
  */
-abstract class IntAVLTree {
+abstract class IntAVLTree implements Releasable {
     /**
      * We use <code>0</code> instead of <code>-1</code> so that left(NIL) works without
      * condition.
@@ -586,4 +588,8 @@ abstract class IntAVLTree {
 
     }
 
+    @Override
+    public void close() {
+        Releasables.close(parent, left, right, depth);
+    }
 }

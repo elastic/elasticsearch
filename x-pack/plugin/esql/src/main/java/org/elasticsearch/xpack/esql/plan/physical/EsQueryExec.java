@@ -15,6 +15,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.GeoDistanceSortBuilder;
+import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -47,7 +49,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     private final IndexMode indexMode;
     private final QueryBuilder query;
     private final Expression limit;
-    private final List<FieldSort> sorts;
+    private final List<Sort> sorts;
     private final List<Attribute> attrs;
 
     /**
@@ -56,8 +58,17 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
      */
     private final Integer estimatedRowSize;
 
-    public record FieldSort(FieldAttribute field, Order.OrderDirection direction, Order.NullsPosition nulls) implements Writeable {
-        public FieldSortBuilder fieldSortBuilder() {
+    public interface Sort {
+        SortBuilder<?> sortBuilder();
+
+        Order.OrderDirection direction();
+
+        FieldAttribute field();
+    }
+
+    public record FieldSort(FieldAttribute field, Order.OrderDirection direction, Order.NullsPosition nulls) implements Writeable, Sort {
+        @Override
+        public SortBuilder<?> sortBuilder() {
             FieldSortBuilder builder = new FieldSortBuilder(field.name());
             builder.order(Direction.from(direction).asOrder());
             builder.missing(Missing.from(nulls).searchOrder());
@@ -81,6 +92,32 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         }
     }
 
+    public record GeoDistanceSort(FieldAttribute field, Order.OrderDirection direction, double lat, double lon) implements Writeable, Sort {
+        @Override
+        public SortBuilder<?> sortBuilder() {
+            GeoDistanceSortBuilder builder = new GeoDistanceSortBuilder(field.name(), lat, lon);
+            builder.order(Direction.from(direction).asOrder());
+            return builder;
+        }
+
+        private static GeoDistanceSort readFrom(StreamInput in) throws IOException {
+            return new EsQueryExec.GeoDistanceSort(
+                FieldAttribute.readFrom(in),
+                in.readEnum(Order.OrderDirection.class),
+                in.readDouble(),
+                in.readDouble()
+            );
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            field().writeTo(out);
+            out.writeEnum(direction());
+            out.writeDouble(lat);
+            out.writeDouble(lon);
+        }
+    }
+
     public EsQueryExec(Source source, EsIndex index, IndexMode indexMode, List<Attribute> attributes, QueryBuilder query) {
         this(source, index, indexMode, attributes, query, null, null, null);
     }
@@ -92,7 +129,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         List<Attribute> attrs,
         QueryBuilder query,
         Expression limit,
-        List<FieldSort> sorts,
+        List<Sort> sorts,
         Integer estimatedRowSize
     ) {
         super(source);
@@ -113,9 +150,23 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             in.readNamedWriteableCollectionAsList(Attribute.class),
             in.readOptionalNamedWriteable(QueryBuilder.class),
             in.readOptionalNamedWriteable(Expression.class),
-            in.readOptionalCollectionAsList(FieldSort::readFrom),
+            in.readOptionalCollectionAsList(EsQueryExec::readSort),
             in.readOptionalVInt()
         );
+    }
+
+    private static Sort readSort(StreamInput in) throws IOException {
+        // TODO: Support GeoDistanceSort
+        return FieldSort.readFrom(in);
+    }
+
+    private static void writeSort(StreamOutput out, Sort sort) throws IOException {
+        if (sort instanceof FieldSort fieldSort) {
+            fieldSort.writeTo(out);
+        } else {
+            // TODO: Fix this
+            throw new UnsupportedOperationException("GeoDistanceSort is not supported");
+        }
     }
 
     @Override
@@ -126,7 +177,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         out.writeNamedWriteableCollection(output());
         out.writeOptionalNamedWriteable(query());
         out.writeOptionalNamedWriteable(limit());
-        out.writeOptionalCollection(sorts());
+        out.writeOptionalCollection(sorts(), EsQueryExec::writeSort);
         out.writeOptionalVInt(estimatedRowSize());
     }
 
@@ -165,7 +216,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         return limit;
     }
 
-    public List<FieldSort> sorts() {
+    public List<Sort> sorts() {
         return sorts;
     }
 
@@ -208,7 +259,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         return indexMode != IndexMode.TIME_SERIES;
     }
 
-    public EsQueryExec withSorts(List<FieldSort> sorts) {
+    public EsQueryExec withSorts(List<Sort> sorts) {
         if (indexMode == IndexMode.TIME_SERIES) {
             assert false : "time-series index mode doesn't support sorts";
             throw new UnsupportedOperationException("time-series index mode doesn't support sorts");

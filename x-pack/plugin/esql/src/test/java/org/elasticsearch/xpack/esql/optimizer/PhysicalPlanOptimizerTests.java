@@ -533,7 +533,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         assertThat(source.limit(), is(l(10)));
         assertThat(source.sorts().size(), is(1));
-        FieldSort order = source.sorts().get(0);
+        EsQueryExec.Sort order = source.sorts().get(0);
         assertThat(order.direction(), is(Order.OrderDirection.ASC));
         assertThat(name(order.field()), is("last_name"));
         // last name is keyword, salary, emp_no, doc id, segment, forwards and backwards doc id maps are all ints
@@ -1225,7 +1225,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         assertThat(source.limit(), is(l(1)));
         assertThat(source.sorts().size(), is(1));
-        FieldSort order = source.sorts().get(0);
+        EsQueryExec.Sort order = source.sorts().get(0);
         assertThat(order.direction(), is(Order.OrderDirection.ASC));
         assertThat(name(order.field()), is("salary"));
         // ints for doc id, segment id, forwards and backwards mapping, languages, and salary

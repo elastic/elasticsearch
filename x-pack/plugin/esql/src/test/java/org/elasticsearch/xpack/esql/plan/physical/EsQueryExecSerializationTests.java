@@ -35,7 +35,7 @@ public class EsQueryExecSerializationTests extends AbstractPhysicalPlanSerializa
         List<Attribute> attrs = randomFieldAttributes(1, 10, false);
         QueryBuilder query = randomQuery();
         Expression limit = new Literal(randomSource(), between(0, Integer.MAX_VALUE), DataType.INTEGER);
-        List<EsQueryExec.FieldSort> sorts = randomFieldSorts();
+        List<EsQueryExec.Sort> sorts = randomFieldSorts();
         Integer estimatedRowSize = randomEstimatedRowSize();
         return new EsQueryExec(source, index, indexMode, attrs, query, limit, sorts, estimatedRowSize);
     }
@@ -44,7 +44,7 @@ public class EsQueryExecSerializationTests extends AbstractPhysicalPlanSerializa
         return randomBoolean() ? new MatchAllQueryBuilder() : new TermQueryBuilder(randomAlphaOfLength(4), randomAlphaOfLength(4));
     }
 
-    public static List<EsQueryExec.FieldSort> randomFieldSorts() {
+    public static List<EsQueryExec.Sort> randomFieldSorts() {
         return randomList(0, 4, EsQueryExecSerializationTests::randomFieldSort);
     }
 
@@ -67,7 +67,7 @@ public class EsQueryExecSerializationTests extends AbstractPhysicalPlanSerializa
         List<Attribute> attrs = instance.attrs();
         QueryBuilder query = instance.query();
         Expression limit = instance.limit();
-        List<EsQueryExec.FieldSort> sorts = instance.sorts();
+        List<EsQueryExec.Sort> sorts = instance.sorts();
         Integer estimatedRowSize = instance.estimatedRowSize();
         switch (between(0, 6)) {
             case 0 -> index = randomValueOtherThan(index, EsIndexSerializationTests::randomEsIndex);

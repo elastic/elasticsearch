@@ -1,0 +1,6 @@
+pr: 112938
+summary: Optimize Sort by ST_DISTANCE using pushdown to Lucene
+area: ES|QL
+type: enhancement
+issues:
+ - 109973

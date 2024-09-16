@@ -155,6 +155,17 @@ public class NativePrivilegeStore {
         Collection<String> names,
         ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener
     ) {
+        // timeout of 0 means skip wait attempt entirely
+        final boolean waitForAvailableSecurityIndex = false == SECURITY_INDEX_WAIT_TIMEOUT.equals(TimeValue.ZERO);
+        getPrivileges(applications, names, waitForAvailableSecurityIndex, listener);
+    }
+
+    public void getPrivileges(
+        Collection<String> applications,
+        Collection<String> names,
+        boolean waitForAvailableSecurityIndex,
+        ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener
+    ) {
         if (false == isEmpty(names) && names.stream().noneMatch(ApplicationPrivilege::isValidPrivilegeName)) {
             logger.debug("no concrete privilege, only action patterns [{}], returning no application privilege descriptors", names);
             listener.onResponse(Collections.emptySet());
@@ -190,7 +201,7 @@ public class NativePrivilegeStore {
                 final long invalidationCount = descriptorsAndApplicationNamesCache == null
                     ? -1
                     : descriptorsAndApplicationNamesCache.getInvalidationCount();
-                innerGetPrivileges(applicationNamesCacheKey, ActionListener.wrap(fetchedDescriptors -> {
+                innerGetPrivileges(applicationNamesCacheKey, waitForAvailableSecurityIndex, ActionListener.wrap(fetchedDescriptors -> {
                     final Map<String, Set<ApplicationPrivilegeDescriptor>> mapOfFetchedDescriptors = fetchedDescriptors.stream()
                         .collect(Collectors.groupingBy(ApplicationPrivilegeDescriptor::getApplication, Collectors.toUnmodifiableSet()));
                     if (invalidationCount != -1) {
@@ -200,13 +211,6 @@ public class NativePrivilegeStore {
                 }, listener::onFailure));
             }
         }
-    }
-
-    // pck-private for testing
-    void innerGetPrivileges(Collection<String> applications, ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener) {
-        // timeout of 0 means skip wait attempt entirely
-        final boolean waitForAvailableSecurityIndex = false == SECURITY_INDEX_WAIT_TIMEOUT.equals(TimeValue.ZERO);
-        innerGetPrivileges(applications, waitForAvailableSecurityIndex, listener);
     }
 
     // pck-private for testing
@@ -265,7 +269,6 @@ public class NativePrivilegeStore {
                         .setFetchSource(true)
                         .request();
                     logger.trace(() -> format("Searching for [%s] privileges with query [%s]", applications, Strings.toString(query)));
-                    request.indicesOptions().ignoreUnavailable();
                     ScrollHelper.fetchAllByEntity(
                         client,
                         request,

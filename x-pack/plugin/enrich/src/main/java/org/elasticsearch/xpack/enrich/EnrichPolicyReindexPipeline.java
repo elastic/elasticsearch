@@ -10,7 +10,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineTransportAction;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -68,7 +70,19 @@ public class EnrichPolicyReindexPipeline {
      */
     public static void create(Client client, ActionListener<AcknowledgedResponse> listener) {
         final BytesReference pipeline = BytesReference.bytes(currentEnrichPipelineDefinition(XContentType.JSON));
-        client.execute(PutPipelineTransportAction.TYPE, new PutPipelineRequest(pipelineName(), pipeline, XContentType.JSON), listener);
+        client.execute(
+            PutPipelineTransportAction.TYPE,
+            new PutPipelineRequest(
+                // wait for as long as it takes to create the pipeline
+                MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
+                // TODO should this be longer?
+                AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
+                pipelineName(),
+                pipeline,
+                XContentType.JSON
+            ),
+            listener
+        );
     }
 
     private static XContentBuilder currentEnrichPipelineDefinition(XContentType xContentType) {

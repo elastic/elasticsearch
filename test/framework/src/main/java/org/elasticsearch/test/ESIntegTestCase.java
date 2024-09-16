@@ -2657,13 +2657,20 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * @return the result of running the {@link GetPipelineAction} on the given IDs, using the default {@link ESIntegTestCase#client()}.
      */
     protected static GetPipelineResponse getPipelines(String... ids) {
-        return safeGet(client().execute(GetPipelineAction.INSTANCE, new GetPipelineRequest(ids)));
+        return safeGet(client().execute(GetPipelineAction.INSTANCE, new GetPipelineRequest(TEST_REQUEST_TIMEOUT, ids)));
     }
 
     /**
      * Delete the ingest pipeline with the given {@code id}, the default {@link ESIntegTestCase#client()}.
      */
     protected static void deletePipeline(String id) {
-        assertAcked(safeGet(client().execute(DeletePipelineTransportAction.TYPE, new DeletePipelineRequest(id))));
+        assertAcked(
+            safeGet(
+                client().execute(
+                    DeletePipelineTransportAction.TYPE,
+                    new DeletePipelineRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, id)
+                )
+            )
+        );
     }
 }

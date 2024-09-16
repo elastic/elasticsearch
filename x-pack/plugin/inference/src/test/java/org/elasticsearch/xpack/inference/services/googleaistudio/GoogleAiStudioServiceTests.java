@@ -697,6 +697,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
             PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
             service.chunkedInfer(
                 model,
+                null,
                 input,
                 new HashMap<>(),
                 InputType.INGEST,

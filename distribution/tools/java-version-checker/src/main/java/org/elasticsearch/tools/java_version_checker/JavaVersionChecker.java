@@ -10,9 +10,10 @@
 package org.elasticsearch.tools.java_version_checker;
 
 import java.util.Arrays;
+import java.util.Locale;
 
 /**
- * Java 17 compatible main which just exits without error.
+ * Java 8 compatible main to check the runtime version
  */
 final class JavaVersionChecker {
 
@@ -23,5 +24,27 @@ final class JavaVersionChecker {
         if (args.length != 0) {
             throw new IllegalArgumentException("expected zero arguments but was " + Arrays.toString(args));
         }
+
+        final int MIN_VERSION = 21;
+        final int version;
+        String versionString = System.getProperty("java.specification.version");
+        if (versionString.equals("1.8")) {
+            version = 8;
+        } else {
+            version = Integer.parseInt(versionString);
+        }
+        if (version >= MIN_VERSION) {
+            return;
+        }
+
+        final String message = String.format(
+            Locale.ROOT,
+            "The minimum required Java version is %d; your Java version %d from [%s] does not meet that requirement.",
+            MIN_VERSION,
+            version,
+            System.getProperty("java.home")
+        );
+        System.err.println(message);
+        System.exit(1);
     }
 }

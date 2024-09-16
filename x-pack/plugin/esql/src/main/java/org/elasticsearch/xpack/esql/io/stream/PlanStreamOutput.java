@@ -215,8 +215,6 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
     @Override
     public boolean writeEsFieldCacheHeader(EsField field) throws IOException {
         if (getTransportVersion().onOrAfter(TransportVersions.ESQL_ES_FIELD_CACHED_SERIALIZATION)
-            // we made a single backport for ESQL_ES_FIELD_CACHED_SERIALIZATION and ESQL_ATTRIBUTE_CACHED_SERIALIZATION
-            // with only one TransportVersion entry
             || getTransportVersion().isPatchFrom(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION_8_15)) {
             Integer cacheId = esFieldIdFromCache(field);
             if (cacheId != null) {

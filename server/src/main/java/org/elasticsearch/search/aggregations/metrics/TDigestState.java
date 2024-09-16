@@ -49,7 +49,9 @@ public class TDigestState {
 
     private final Type type;
 
-    // TODO: DELETE ME
+    /**
+     * @deprecated this method will be removed after all usages are replaced
+     */
     @Deprecated
     public static TDigestState create(double compression) {
         return create(WrapperTDigestArrays.INSTANCE, compression);
@@ -74,7 +76,9 @@ public class TDigestState {
         return new TDigestState(arrays, Type.valueForHighAccuracy(), compression);
     }
 
-    // TODO: DELETE ME
+    /**
+     * @deprecated this method will be removed after all usages are replaced
+     */
     @Deprecated
     public static TDigestState create(double compression, TDigestExecutionHint executionHint) {
         return create(WrapperTDigestArrays.INSTANCE, compression, executionHint);
@@ -134,7 +138,9 @@ public class TDigestState {
         }
     }
 
-    // TODO: DELETE ME
+    /**
+     * @deprecated this method will be removed after all usages are replaced
+     */
     @Deprecated
     public static TDigestState read(StreamInput in) throws IOException {
         return read(WrapperTDigestArrays.INSTANCE, in);

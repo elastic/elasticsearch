@@ -110,6 +110,8 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     protected final QueryParams params;
 
+    private static final String ID_PATTERN = "ID_PATTERN";
+
     ExpressionBuilder(QueryParams params) {
         this.params = params;
     }
@@ -299,7 +301,23 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         // check special wildcard case
         if (patterns.size() == 1) {
             var idCtx = patterns.get(0);
-            if (idCtx.ID_PATTERN().getText().equals(WILDCARD)) {
+            boolean unresolvedStar = false;
+            if (idCtx.ID_PATTERN() != null && idCtx.ID_PATTERN().getText().equals(WILDCARD)) {
+                unresolvedStar = true;
+            }
+            if (idCtx.params() != null) {
+                Expression exp = expression(idCtx.params());
+                if (exp instanceof Literal lit) {
+                    if (lit.value().equals(WILDCARD)) {
+                        unresolvedStar = true;
+                    }
+                } else if (exp instanceof UnresolvedAttribute ua) {
+                    if (ua.name().equals(WILDCARD)) {
+                        unresolvedStar = true;
+                    }
+                }
+            }
+            if (unresolvedStar) {
                 return new UnresolvedStar(src, null);
             }
         }
@@ -314,7 +332,23 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 objects.add(".");
             }
 
-            String patternContext = patterns.get(i).ID_PATTERN().getText();
+            String patternContext = "";
+            if (patterns.get(i).ID_PATTERN() != null) {
+                patternContext = patterns.get(i).ID_PATTERN().getText();
+            } else if (patterns.get(i).params() != null) {
+                Expression exp = expression(patterns.get(i).params());
+                if (exp instanceof Literal lit) {
+                    patternContext = lit.value().toString();
+                } else if (exp instanceof UnresolvedAttribute ua) {
+                    if (ua.customMessage()) {
+                        patternContext = ua.name();
+                    } else {
+                        patternContext = "`" + ua.name() + "`";
+                    }
+                }
+            } else {
+                throw new ParsingException(src, "Unsupported field name pattern [{}]", patterns.get(i));
+            }
             // as this is one big string of fragments mashed together, break it manually into quoted vs unquoted
             // for readability reasons, do a first pass to break the string into fragments and then process each of them
             // to avoid doing a string allocation
@@ -726,7 +760,13 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     private Object visitParam(EsqlBaseParser.ParamsContext ctx, QueryParam param) {
         Source source = source(ctx);
         DataType type = param.type();
-        return new Literal(source, param.value(), type);
+        if (param.isPattern()) {
+            return new UnresolvedAttribute(source, (String) param.value(), ID_PATTERN);
+        } else if (param.isField()) {
+            return new UnresolvedAttribute(source, (String) param.value());
+        } else {
+            return new Literal(source, param.value(), type);
+        }
     }
 
     QueryParam paramByToken(TerminalNode node) {

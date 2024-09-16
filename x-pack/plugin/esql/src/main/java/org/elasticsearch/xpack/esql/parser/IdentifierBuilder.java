@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.esql.parser;
 
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.IdentifierContext;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.IndexStringContext;
 
@@ -16,12 +19,31 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.transport.RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
 
 abstract class IdentifierBuilder extends AbstractBuilder {
 
     @Override
     public String visitIdentifier(IdentifierContext ctx) {
-        return ctx == null ? null : unquoteIdentifier(ctx.QUOTED_IDENTIFIER(), ctx.UNQUOTED_IDENTIFIER());
+        if (ctx == null) {
+            return null;
+        } else if (ctx.QUOTED_IDENTIFIER() != null || ctx.UNQUOTED_IDENTIFIER() != null) {
+            return unquoteIdentifier(ctx.QUOTED_IDENTIFIER(), ctx.UNQUOTED_IDENTIFIER());
+        } else {
+            Expression exp = typedParsing(this, ctx.params(), Expression.class);
+            if (exp instanceof Literal lit) {
+                return (String) lit.value();
+            } else if (exp instanceof UnresolvedAttribute ua) {
+                if (ua.customMessage()) { // an identifier pattern is not allowed as an identifier
+                    throw new ParsingException(source(ctx), "Field name pattern [{}] is not supported", ua.name());
+                } else {
+                    return ua.name();
+                }
+            } else {
+                return null;
+            }
+        }
     }
 
     protected static String unquoteIdentifier(TerminalNode quotedNode, TerminalNode unquotedNode) {

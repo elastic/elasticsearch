@@ -181,10 +181,12 @@ qualifiedNamePatterns
 identifier
     : UNQUOTED_IDENTIFIER
     | QUOTED_IDENTIFIER
+    | params
     ;
 
 identifierPattern
     : ID_PATTERN
+    | params
     ;
 
 constant

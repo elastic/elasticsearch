@@ -151,11 +151,6 @@ public class EsqlCapabilities {
         SPATIAL_FUNCTIONS_FIX_CRSTYPE_FOLDING,
 
         /**
-         * Enable spatial predicate functions to support multi-values. Done in #112063.
-         */
-        SPATIAL_PREDICATES_SUPPORT_MULTIVALUES,
-
-        /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
          * https://github.com/elastic/elasticsearch/issues/110184
          */
@@ -304,7 +299,12 @@ public class EsqlCapabilities {
         /**
          * Support explicit casting from string literal to DATE_PERIOD or TIME_DURATION.
          */
-        CAST_STRING_LITERAL_TO_TEMPORAL_AMOUNT;
+        CAST_STRING_LITERAL_TO_TEMPORAL_AMOUNT,
+
+        /**
+         * Support named parameters for field names.
+         */
+        NAMED_PARAMETER_FOR_FIELD_NAME;
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

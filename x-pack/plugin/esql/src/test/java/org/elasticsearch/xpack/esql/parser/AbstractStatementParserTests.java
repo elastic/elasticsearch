@@ -7,12 +7,17 @@
 
 package org.elasticsearch.xpack.esql.parser;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.plan.TableIdentifier;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -21,6 +26,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
+import static org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy.DEFAULT;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -52,6 +58,14 @@ abstract class AbstractStatementParserTests extends ESTestCase {
 
     static UnresolvedAttribute attribute(String name) {
         return new UnresolvedAttribute(EMPTY, name);
+    }
+
+    static UnresolvedFunction function(String name, List<Expression> args) {
+        return new UnresolvedFunction(EMPTY, name, DEFAULT, args);
+    }
+
+    static UnresolvedRelation relation(String name) {
+        return new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, name), false, List.of(), IndexMode.STANDARD, null, "FROM");
     }
 
     static Literal integer(int i) {

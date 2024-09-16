@@ -15,6 +15,8 @@ many conflicting field mappings in those indices, and many of those fields are k
 makes it worse. (issue: {es-issue}111964[#111964], {es-issue}111358[#111358]).
 Either upgrade to 8.15.2 upon release, or else follow the recommendation in the manual to
 [disable ES|QL](https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-kibana.html#esql-kibana-enable) queries.
+You can also reduce the likelihood of users triggering the issue by changing the default data view in Discover to a smaller set of indices
+and/or one with fewer mapping conflicts.
 
 [[bug-8.15.1]]
 [float]

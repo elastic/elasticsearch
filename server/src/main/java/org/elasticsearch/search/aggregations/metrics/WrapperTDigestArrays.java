@@ -38,11 +38,7 @@ import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Temporal TDigestArrays with raw arrays.
- *
- * <p>
- *     Delete after the right implementation for BigArrays is made.
- * </p>
+ * TDigestArrays with raw arrays and circuit breaking.
  */
 public class WrapperTDigestArrays implements TDigestArrays {
 

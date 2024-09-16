@@ -11,7 +11,7 @@ package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.elasticsearch.test.ESTestCase;
 
-public class BaseVectorizationTestCase extends ESTestCase {
+public class BaseVectorizationTests extends ESTestCase {
 
     public static ESVectorizationProvider defaultProvider() {
         return new DefaultESVectorizationProvider();

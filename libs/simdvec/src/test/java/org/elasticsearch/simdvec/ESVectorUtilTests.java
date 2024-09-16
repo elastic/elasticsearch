@@ -9,17 +9,17 @@
 
 package org.elasticsearch.simdvec;
 
-import org.elasticsearch.simdvec.internal.vectorization.BaseVectorizationTestCase;
+import org.elasticsearch.simdvec.internal.vectorization.BaseVectorizationTests;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 
 import java.util.Arrays;
 
 import static org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport.B_QUERY;
 
-public class ESVectorUtilTests extends BaseVectorizationTestCase {
+public class ESVectorUtilTests extends BaseVectorizationTests {
 
-    static final ESVectorizationProvider defaultedProvider = BaseVectorizationTestCase.defaultProvider();
-    static final ESVectorizationProvider defOrPanamaProvider = BaseVectorizationTestCase.maybePanamaProvider();
+    static final ESVectorizationProvider defaultedProvider = BaseVectorizationTests.defaultProvider();
+    static final ESVectorizationProvider defOrPanamaProvider = BaseVectorizationTests.maybePanamaProvider();
 
     public void testIpByteBinInvariants() {
         int iterations = atLeast(10);

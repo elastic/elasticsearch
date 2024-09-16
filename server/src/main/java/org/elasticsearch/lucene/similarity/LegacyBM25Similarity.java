@@ -46,11 +46,6 @@ public final class LegacyBM25Similarity extends Similarity {
         this(new BM25Similarity());
     }
 
-    private LegacyBM25Similarity(BM25Similarity bm25Similarity) {
-        super(bm25Similarity.getDiscountOverlaps());
-        this.bm25Similarity = bm25Similarity;
-    }
-
     /**
      * BM25 with the supplied parameter values.
      * @param k1 Controls non-linear term frequency normalization (saturation).
@@ -59,7 +54,12 @@ public final class LegacyBM25Similarity extends Similarity {
      *         not within the range {@code [0..1]}
      */
     public LegacyBM25Similarity(float k1, float b, boolean discountOverlaps) {
-        this.bm25Similarity = new BM25Similarity(k1, b, discountOverlaps);
+        this(new BM25Similarity(k1, b, discountOverlaps));
+    }
+
+    private LegacyBM25Similarity(BM25Similarity bm25Similarity) {
+        super(bm25Similarity.getDiscountOverlaps());
+        this.bm25Similarity = bm25Similarity;
     }
 
     @Override

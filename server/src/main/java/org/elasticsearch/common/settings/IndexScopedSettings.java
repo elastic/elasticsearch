@@ -33,6 +33,7 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.FsDirectoryFactory;
@@ -183,6 +184,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.PREFER_ILM_SETTING,
         DataStreamFailureStoreDefinition.FAILURE_STORE_DEFINITION_VERSION_SETTING,
         FieldMapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING,
+        IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING,
+        IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING,
 
         // validate that built-in similarities don't get redefined
         Setting.groupSetting("index.similarity.", (s) -> {

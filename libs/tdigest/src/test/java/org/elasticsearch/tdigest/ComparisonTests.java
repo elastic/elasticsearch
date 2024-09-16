@@ -21,9 +21,7 @@
 
 package org.elasticsearch.tdigest;
 
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.metrics.WrapperTDigestArrays;
 import org.elasticsearch.tdigest.arrays.TDigestArrays;
@@ -33,9 +31,7 @@ import org.junit.After;
 import java.util.Arrays;
 import java.util.function.Supplier;
 
-import static org.hamcrest.Matchers.equalTo;
-
-public class ComparisonTests extends ESTestCase {
+public class ComparisonTests extends TDigestTestCase {
 
     private static final int SAMPLE_COUNT = 100_000;
 
@@ -133,16 +129,8 @@ public class ComparisonTests extends ESTestCase {
         assertEquals(expectedMedian, hybridDigest.quantile(0.5), 5000);
     }
 
-    private TDigestArrays arrays() {
-        return new WrapperTDigestArrays(breaker);
-    }
-
-    private final CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("<test>", ByteSizeValue.ofMb(100));
-
     @After
-    public void allMemoryReleased() {
+    public void closeDigests() {
         Releasables.close(avlTreeDigest, mergingDigest, sortingDigest, hybridDigest);
-
-        assertThat(breaker.getUsed(), equalTo(0L));
     }
 }

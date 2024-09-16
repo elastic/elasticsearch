@@ -34,7 +34,7 @@ import java.util.Random;
 /**
  * Base test case for TDigests, just extend this class and implement the abstract methods.
  */
-public abstract class TDigestTests extends ESTestCase {
+public abstract class TDigestTests extends TDigestTestCase {
 
     public interface DigestFactory {
         TDigest create();
@@ -543,9 +543,5 @@ public abstract class TDigestTests extends ESTestCase {
             assertTrue("Q: " + z, Double.compare(q, lastQuantile) >= 0);
             lastQuantile = q;
         }
-    }
-
-    protected static TDigestArrays arrays() {
-        return WrapperTDigestArrays.INSTANCE;
     }
 }

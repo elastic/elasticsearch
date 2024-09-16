@@ -213,8 +213,7 @@ public class NativePrivilegeStore {
         }
     }
 
-    // pck-private for testing
-    void innerGetPrivileges(
+    private void innerGetPrivileges(
         Collection<String> applications,
         boolean waitForAvailableSecurityIndex,
         ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener

@@ -332,7 +332,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         }).when(securityIndex).onIndexAvailableForSearch(anyActionListener(), any());
 
         final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
-        store.innerGetPrivileges(Arrays.asList("myapp", "yourapp"), true, future);
+        store.getPrivileges(Arrays.asList("myapp", "yourapp"), null, true, future);
 
         ActionListener.respondAndRelease(listener.get(), buildSearchResponse(buildHits(sourcePrivileges)));
 
@@ -354,7 +354,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         }).when(securityIndex).onIndexAvailableForSearch(anyActionListener(), any());
 
         final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
-        store.innerGetPrivileges(Arrays.asList("myapp", "yourapp"), true, future);
+        store.getPrivileges(Arrays.asList("myapp", "yourapp"), null, true, future);
         expectThrows(IndexClosedException.class, future::actionGet);
 
         verify(securityIndex, never()).onIndexAvailableForSearch(anyActionListener(), any());
@@ -374,7 +374,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         }).when(securityIndex).onIndexAvailableForSearch(anyActionListener(), any());
 
         final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
-        store.innerGetPrivileges(Arrays.asList("myapp", "yourapp"), true, future);
+        store.getPrivileges(Arrays.asList("myapp", "yourapp"), null, true, future);
         expectThrows(UnavailableShardsException.class, future::actionGet);
 
         verify(securityIndex, times(1)).onIndexAvailableForSearch(anyActionListener(), any());
@@ -400,7 +400,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         }).when(securityIndex).onIndexAvailableForSearch(anyActionListener(), any());
 
         final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
-        store.innerGetPrivileges(Arrays.asList("myapp", "yourapp"), true, future);
+        store.getPrivileges(Arrays.asList("myapp", "yourapp"), null, true, future);
 
         ActionListener.respondAndRelease(listener.get(), buildSearchResponse(buildHits(sourcePrivileges)));
 

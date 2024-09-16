@@ -21,8 +21,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xpack.stack.StackTemplateRegistry;
-import org.elasticsearch.xpack.stack.StackTemplateRegistryAccessor;
 import org.junit.After;
 import org.junit.Before;
 
@@ -37,14 +35,13 @@ import static org.hamcrest.Matchers.not;
 
 public class APMDSLOnlyTests extends ESTestCase {
     private APMIndexTemplateRegistry apmIndexTemplateRegistry;
-    private StackTemplateRegistryAccessor stackTemplateRegistryAccessor;
     private ThreadPool threadPool;
     private VerifyingClient client;
 
     @Before
     public void createRegistryAndClient() {
         final ClusterSettings clusterSettings = new ClusterSettings(
-            Settings.builder().put(DataStreamLifecycle.DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME, "true").build(),
+            Settings.EMPTY,
             Stream.concat(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(), Set.of(APMPlugin.APM_DATA_REGISTRY_ENABLED).stream())
                 .collect(Collectors.toSet())
         );
@@ -52,16 +49,14 @@ public class APMDSLOnlyTests extends ESTestCase {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
         DiscoveryNode discoveryNode = DiscoveryNodeUtils.create("node", "node");
-        Settings nodeSettings = Settings.builder()
-            .put("node.name", "test")
-            .put("cluster.name", "ClusterServiceTests")
-            .put(DataStreamLifecycle.DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME, true)
-            .build();
-        ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, discoveryNode, nodeSettings, clusterSettings);
-        FeatureService featureService = new FeatureService(List.of(new DataStreamFeatures()));
-        stackTemplateRegistryAccessor = new StackTemplateRegistryAccessor(
-            new StackTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, NamedXContentRegistry.EMPTY, featureService)
+        Settings additionalSettings = Settings.builder().put(DataStreamLifecycle.DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME, true).build();
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(
+            threadPool,
+            discoveryNode,
+            additionalSettings,
+            clusterSettings
         );
+        FeatureService featureService = new FeatureService(List.of(new DataStreamFeatures()));
 
         apmIndexTemplateRegistry = new APMIndexTemplateRegistry(
             Settings.EMPTY,

@@ -136,7 +136,7 @@ These expressions won't be evaluated by the underlying MongoDB client, but will 
 A possible workaround is to use https://www.mongodb.com/docs/manual/reference/aggregation-variables/[aggregation variables].
 
 Incorrect (`new Date()` will be interpreted as string):
-[source,json]
+[source,js]
 ----
 {
     "aggregate": {
@@ -154,7 +154,7 @@ Incorrect (`new Date()` will be interpreted as string):
 ----
 
 Correct (usage of https://www.mongodb.com/docs/manual/reference/aggregation-variables/#mongodb-variable-variable.NOW[$$NOW]):
-[source,json]
+[source,js]
 ----
 {
   "aggregate": {
@@ -263,7 +263,7 @@ You must create a https://www.mongodb.com/docs/current/core/indexes/index-types/
 
 For `find` queries, the structure of this JSON DSL should look like:
 
-[source,json]
+[source,js]
 ----
 {
 	"find":{
@@ -280,7 +280,7 @@ For `find` queries, the structure of this JSON DSL should look like:
 
 For example:
 
-[source,json]
+[source,js]
 ----
 {
 	"find": {
@@ -298,7 +298,7 @@ For example:
 
 `find` queries also support additional options, for example the `projection` object:
 
-[source,json]
+[source,js]
 ----
 {
   "find": {
@@ -335,7 +335,7 @@ Where the available options are:
 
 Similarly, for aggregation pipelines, the structure of the JSON DSL should look like:
 
-[source,json]
+[source,js]
 ----
 {
 	"aggregate":{
@@ -510,7 +510,7 @@ These expressions won't be evaluated by the underlying MongoDB client, but will 
 A possible workaround is to use https://www.mongodb.com/docs/manual/reference/aggregation-variables/[aggregation variables].
 
 Incorrect (`new Date()` will be interpreted as string):
-[source,json]
+[source,js]
 ----
 {
     "aggregate": {
@@ -528,7 +528,7 @@ Incorrect (`new Date()` will be interpreted as string):
 ----
 
 Correct (usage of https://www.mongodb.com/docs/manual/reference/aggregation-variables/#mongodb-variable-variable.NOW[$$NOW]):
-[source,json]
+[source,js]
 ----
 {
   "aggregate": {
@@ -650,7 +650,7 @@ You must create a https://www.mongodb.com/docs/current/core/indexes/index-types/
 
 For `find` queries, the structure of this JSON DSL should look like:
 
-[source,json]
+[source,js]
 ----
 {
 	"find":{
@@ -667,7 +667,7 @@ For `find` queries, the structure of this JSON DSL should look like:
 
 For example:
 
-[source,json]
+[source,js]
 ----
 {
 	"find": {
@@ -685,7 +685,7 @@ For example:
 
 `find` queries also support additional options, for example the `projection` object:
 
-[source,json]
+[source,js]
 ----
 {
   "find": {
@@ -722,7 +722,7 @@ Where the available options are:
 
 Similarly, for aggregation pipelines, the structure of the JSON DSL should look like:
 
-[source,json]
+[source,js]
 ----
 {
 	"aggregate":{

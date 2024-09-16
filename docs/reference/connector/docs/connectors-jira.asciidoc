@@ -169,7 +169,7 @@ Advanced sync rules are defined through a source-specific DSL JSON snippet.
 
 *Example 1*: Queries to index content based on status of Jira issues.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -183,7 +183,7 @@ Advanced sync rules are defined through a source-specific DSL JSON snippet.
 
 *Example 2*: Query to index data based on priority of issues for given projects.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -194,7 +194,7 @@ Advanced sync rules are defined through a source-specific DSL JSON snippet.
 
 *Example 3*: Query to index data based on assignee and created time.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -429,7 +429,7 @@ Advanced sync rules are defined through a source-specific DSL JSON snippet.
 
 *Example 1*: Queries to index content based on status of Jira issues.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -443,7 +443,7 @@ Advanced sync rules are defined through a source-specific DSL JSON snippet.
 
 *Example 2*: Query to index data based on priority of issues for given projects.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -454,7 +454,7 @@ Advanced sync rules are defined through a source-specific DSL JSON snippet.
 
 *Example 3*: Query to index data based on assignee and created time.
 
-[source,json]
+[source,js]
 ----
 [
   {

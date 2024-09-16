@@ -144,7 +144,7 @@ Advanced sync rules for Notion take the following parameters:
 
 Indexing every page where the title contains `Demo Page`:
 
-[source,json]
+[source,js]
 ----
   {
     "searches": [
@@ -163,7 +163,7 @@ Indexing every page where the title contains `Demo Page`:
 
 Indexing every database where the title contains `Demo Database`:
 
-[source,json]
+[source,js]
 ----
 {
   "searches": [
@@ -182,7 +182,7 @@ Indexing every database where the title contains `Demo Database`:
 
 Indexing every database where the title contains `Demo Database` and every page where the title contains `Demo Page`:
 
-[source,json]
+[source,js]
 ----
 {
   "searches": [
@@ -207,7 +207,7 @@ Indexing every database where the title contains `Demo Database` and every page 
 
 Indexing all pages in the workspace:
 
-[source,json]
+[source,js]
 ----
 {
   "searches": [
@@ -226,7 +226,7 @@ Indexing all pages in the workspace:
 
 Indexing all the pages and databases connected to the workspace:
 
-[source,json]
+[source,js]
 ----
 {
   "searches":[
@@ -242,7 +242,7 @@ Indexing all the pages and databases connected to the workspace:
 
 Indexing all the rows of a database where the record is `true` for the column `Task completed` and its property(datatype) is a checkbox:
 
-[source,json]
+[source,js]
 ----
 {
   "database_query_filters": [
@@ -264,7 +264,7 @@ Indexing all the rows of a database where the record is `true` for the column `T
 
 Indexing all rows of a specific database:
 
-[source,json]
+[source,js]
 ----
 {
   "database_query_filters": [
@@ -280,7 +280,7 @@ Indexing all rows of a specific database:
 
 Indexing all blocks defined in `searches` and `database_query_filters`:
 
-[source,json]
+[source,js]
 ----
 {
   "searches":[
@@ -494,7 +494,7 @@ Advanced sync rules for Notion take the following parameters:
 
 Indexing every page where the title contains `Demo Page`:
 
-[source,json]
+[source,js]
 ----
   {
     "searches": [
@@ -513,7 +513,7 @@ Indexing every page where the title contains `Demo Page`:
 
 Indexing every database where the title contains `Demo Database`:
 
-[source,json]
+[source,js]
 ----
 {
   "searches": [
@@ -532,7 +532,7 @@ Indexing every database where the title contains `Demo Database`:
 
 Indexing every database where the title contains `Demo Database` and every page where the title contains `Demo Page`:
 
-[source,json]
+[source,js]
 ----
 {
   "searches": [
@@ -557,7 +557,7 @@ Indexing every database where the title contains `Demo Database` and every page 
 
 Indexing all pages in the workspace:
 
-[source,json]
+[source,js]
 ----
 {
   "searches": [
@@ -576,7 +576,7 @@ Indexing all pages in the workspace:
 
 Indexing all the pages and databases connected to the workspace:
 
-[source,json]
+[source,js]
 ----
 {
   "searches":[
@@ -592,7 +592,7 @@ Indexing all the pages and databases connected to the workspace:
 
 Indexing all the rows of a database where the record is `true` for the column `Task completed` and its property(datatype) is a checkbox:
 
-[source,json]
+[source,js]
 ----
 {
   "database_query_filters": [
@@ -614,7 +614,7 @@ Indexing all the rows of a database where the record is `true` for the column `T
 
 Indexing all rows of a specific database:
 
-[source,json]
+[source,js]
 ----
 {
   "database_query_filters": [
@@ -630,7 +630,7 @@ Indexing all rows of a specific database:
 
 Indexing all blocks defined in `searches` and `database_query_filters`:
 
-[source,json]
+[source,js]
 ----
 {
   "searches":[

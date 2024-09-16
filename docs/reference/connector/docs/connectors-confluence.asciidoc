@@ -162,7 +162,7 @@ Advanced sync rules are defined through a source-specific DSL JSON snippet.
 
 *Example 1*: Query for indexing data that is in a particular *Space* with key 'DEV'.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -173,7 +173,7 @@ Advanced sync rules are defined through a source-specific DSL JSON snippet.
 
 *Example 2*: Queries for indexing data based on `created` and `lastmodified` time.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -187,7 +187,7 @@ Advanced sync rules are defined through a source-specific DSL JSON snippet.
 
 *Example 3*: Query for indexing only given types in a *Space* with key 'SD'.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -422,7 +422,7 @@ Advanced sync rules are defined through a source-specific DSL JSON snippet.
 
 *Example 1*: Query for indexing data that is in a particular *Space* with key 'DEV'.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -433,7 +433,7 @@ Advanced sync rules are defined through a source-specific DSL JSON snippet.
 
 *Example 2*: Queries for indexing data based on `created` and `lastmodified` time.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -447,7 +447,7 @@ Advanced sync rules are defined through a source-specific DSL JSON snippet.
 
 *Example 3*: Query for indexing only given types in a *Space* with key 'SD'.
 
-[source,json]
+[source,js]
 ----
 [
   {

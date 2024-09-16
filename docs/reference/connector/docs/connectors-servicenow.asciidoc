@@ -167,7 +167,7 @@ The following sections provide examples of advanced sync rules for this connecto
 [discrete#es-connectors-servicenow-sync-rules-number-incident-service]
 ======= Indexing document based on incident number for Incident service
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -180,7 +180,7 @@ The following sections provide examples of advanced sync rules for this connecto
 [discrete#es-connectors-servicenow-sync-rules-active-false-user-service]
 ======= Indexing document based on user activity state for User service
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -193,7 +193,7 @@ The following sections provide examples of advanced sync rules for this connecto
 [discrete#es-connectors-servicenow-sync-rules-author-administrator-knowledge-service]
 ======= Indexing document based on author name for Knowledge service
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -402,7 +402,7 @@ The following sections provide examples of advanced sync rules for this connecto
 [discrete#es-connectors-servicenow-client-sync-rules-number-incident-service]
 ======= Indexing document based on incident number for Incident service
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -415,7 +415,7 @@ The following sections provide examples of advanced sync rules for this connecto
 [discrete#es-connectors-servicenow-client-sync-rules-active-false-user-service]
 ======= Indexing document based on user activity state for User service
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -428,7 +428,7 @@ The following sections provide examples of advanced sync rules for this connecto
 [discrete#es-connectors-servicenow-client-sync-rules-author-administrator-knowledge-service]
 ======= Indexing document based on author name for Knowledge service
 
-[source,json]
+[source,js]
 ----
 [
   {

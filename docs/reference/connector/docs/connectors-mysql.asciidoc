@@ -245,7 +245,7 @@ You need to specify the tables used in your custom query in the "tables" field.
 
 For example:
 
-[source,json]
+[source,js]
 ----
 [
     {
@@ -503,7 +503,7 @@ You need to specify the tables used in your custom query in the "tables" field.
 
 For example:
 
-[source,json]
+[source,js]
 ----
 [
     {

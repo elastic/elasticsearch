@@ -264,7 +264,7 @@ Advanced sync rules are defined through a source-specific DSL JSON snippet.
 
 Example:
 
-[source,json]
+[source,js]
 ----
 {
 	"skipExtractingDriveItemsOlderThan": 60
@@ -745,7 +745,7 @@ Advanced sync rules are defined through a source-specific DSL JSON snippet.
 
 Example:
 
-[source,json]
+[source,js]
 ----
 {
 	"skipExtractingDriveItemsOlderThan": 60

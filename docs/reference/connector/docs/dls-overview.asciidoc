@@ -59,7 +59,7 @@ If you have already run a content sync, you'll need to delete all documents on t
 These documents define the access control policy for the data indexed into Elasticsearch.
 An example of an access control document is as follows:
 
-[source,json]
+[source,js]
 ----
 {
   "_id": "example.user@example.com",
@@ -95,7 +95,7 @@ A specific field (or fields) within these documents correlates with the query pa
 Please note, the field names used to implement DLS may vary across different connectors.
 In the following example we'll use the field `_allow_access_control` for specifying the access control for a user identity.
 
-[source,json]
+[source,js]
 ----
 {
   "_id": "some-unique-id",
@@ -138,7 +138,7 @@ A user can view a document if at least one access control element in their acces
 This section illustrates when a user has access to certain documents depending on the access control.
 
 One access control document:
-[source,json]
+[source,js]
 ----
 {
   "_id": "example.user@example.com",
@@ -161,7 +161,7 @@ One access control document:
 ----
 
 Let's see which of the following example documents these permissions can access, and why.
-[source,json]
+[source,js]
 ----
 {
   "_id": "some-unique-id-1",
@@ -175,7 +175,7 @@ Let's see which of the following example documents these permissions can access,
 
 The user `example username` will have access to this document as he's part of the corresponding group and his username and email address are also explicitly part of `_allow_access_control`.
 
-[source,json]
+[source,js]
 ----
 {
   "_id": "some-unique-id-2",
@@ -187,7 +187,7 @@ The user `example username` will have access to this document as he's part of th
 
 The user `example username` will also have access to this document as they are part of the `example group`.
 
-[source,json]
+[source,js]
 ----
 {
   "_id": "some-unique-id-3",
@@ -199,7 +199,7 @@ The user `example username` will also have access to this document as they are p
 
 The user `example username` won't have access to this document because their email does not match `another.user@example.com`.
 
-[source,json]
+[source,js]
 ----
 {
   "_id": "some-unique-id-4",
@@ -222,7 +222,7 @@ We can define an Elasticsearch API key with a role descriptor for each index the
 
 Let's assume we want to create an API key that combines the following user identities:
 
-[source,json]
+[source,js]
 ----
 GET .search-acl-filter-source1
 {
@@ -244,7 +244,7 @@ GET .search-acl-filter-source1
 }
 ----
 
-[source,json]
+[source,js]
 ----
 GET .search-acl-filter-source2
 {

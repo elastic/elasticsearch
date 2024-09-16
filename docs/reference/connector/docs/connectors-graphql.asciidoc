@@ -75,7 +75,7 @@ The connector will substitute the variables in the query with values from `graph
 +
 *Example*:
 +
-[source,json]
+[source,js]
 ----
 query getUser($id: ID!) { 
     user(id: $id) {
@@ -107,7 +107,7 @@ Use dot `(.)` notation to specify the full path from the root of the GraphQL res
 The GraphQL query `query getUser { organization { users{ user_id name email} } }` fetches all available users from the source.
 To index every user as a separate document configure this field as below.
 +
-[source, json]
+[source,js]
 ----
 {
     "organization.users": "user_id"
@@ -124,7 +124,7 @@ The path provided in this field should only contain JSON objects and not lists.
 `headers`::
 JSON object containing custom headers to be sent with each GraphQL request:
 +
-[source, json]
+[source,js]
 ----
 {
     "content-type": "Application/json"
@@ -141,7 +141,7 @@ The default value for this field is `No pagination`. Example:
 +
 For `Cursor-based pagination`, the query should look like this example:
 +
-[source, json]
+[source,js]
 ----
 query getUsers($cursor: String!) {
     sampleData { 

@@ -191,7 +191,7 @@ We have some examples below for illustration.
 [discrete#es-connectors-dropbox-sync-rules-advanced-example-1]
 ======= Example: Query only
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -206,7 +206,7 @@ We have some examples below for illustration.
 [discrete#es-connectors-dropbox-sync-rules-advanced-example-2]
 ======= Example: Query with file extension filter
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -224,7 +224,7 @@ We have some examples below for illustration.
 [discrete#es-connectors-dropbox-sync-rules-advanced-example-3]
 ======= Example: Query with file category filter
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -471,7 +471,7 @@ We have some examples below for illustration.
 [discrete#es-connectors-dropbox-client-sync-rules-advanced-example-1]
 ======= Example: Query only
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -486,7 +486,7 @@ We have some examples below for illustration.
 [discrete#es-connectors-dropbox-client-sync-rules-advanced-example-2]
 ======= Example: Query with file extension filter
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -504,7 +504,7 @@ We have some examples below for illustration.
 [discrete#es-connectors-dropbox-client-sync-rules-advanced-example-3]
 ======= Example: Query with file category filter
 
-[source,json]
+[source,js]
 ----
 [
   {

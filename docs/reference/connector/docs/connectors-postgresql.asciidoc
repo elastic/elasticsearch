@@ -217,7 +217,7 @@ Here is some example data that will be used in the following examples.
 [discrete#es-connectors-postgresql-client-sync-rules-advanced-examples-1]
 ======== Multiple table queries
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -241,7 +241,7 @@ Here is some example data that will be used in the following examples.
 In 8.15.0, we added a new optional `id_columns` field in our advanced sync rules for the PostgreSQL connector.
 Use the `id_columns` field to ingest tables which do not have a primary key. Include the names of unique fields so that the connector can use them to generate unique IDs for documents.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -266,7 +266,7 @@ This example uses the `id_columns` field to specify the unique fields `emp_id` a
 [discrete#es-connectors-postgresql-client-sync-rules-advanced-examples-2]
 ======== Filtering data with `WHERE` clause
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -279,7 +279,7 @@ This example uses the `id_columns` field to specify the unique fields `emp_id` a
 [discrete#es-connectors-postgresql-client-sync-rules-advanced-examples-3]
 ======== `JOIN` operations
 
-[source,json]
+[source,js]
 ----
 [
   {

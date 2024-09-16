@@ -198,7 +198,7 @@ Here are a few examples of advanced sync rules for this connector.
 
 These rules fetch all records from both the `employee` and `customer` tables. The data from these tables will be synced separately to Elasticsearch.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -221,7 +221,7 @@ These rules fetch all records from both the `employee` and `customer` tables. Th
 
 This rule fetches only the records from the `employee` table where the `emp_id` is greater than 5. Only these filtered records will be synced to Elasticsearch.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -236,7 +236,7 @@ This rule fetches only the records from the `employee` table where the `emp_id` 
 
 This rule fetches records by performing an INNER JOIN between the `employee` and `customer` tables on the condition that the `emp_id` in `employee` matches the `c_id` in `customer`. The result of this combined data will be synced to Elasticsearch.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -481,7 +481,7 @@ Here are a few examples of advanced sync rules for this connector.
 
 These rules fetch all records from both the `employee` and `customer` tables. The data from these tables will be synced separately to Elasticsearch.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -504,7 +504,7 @@ These rules fetch all records from both the `employee` and `customer` tables. Th
 
 This rule fetches only the records from the `employee` table where the `emp_id` is greater than 5. Only these filtered records will be synced to Elasticsearch.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -519,7 +519,7 @@ This rule fetches only the records from the `employee` table where the `emp_id` 
 
 This rule fetches records by performing an INNER JOIN between the `employee` and `customer` tables on the condition that the `emp_id` in `employee` matches the `c_id` in `customer`. The result of this combined data will be synced to Elasticsearch.
 
-[source,json]
+[source,js]
 ----
 [
   {

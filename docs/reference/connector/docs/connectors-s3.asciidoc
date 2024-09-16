@@ -124,7 +124,7 @@ Defaults to `""` (syncs all bucket objects).
 
 *Example*: Fetch files/folders in `folder1/docs`.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -137,7 +137,7 @@ Defaults to `""` (syncs all bucket objects).
 
 *Example*: Fetch files/folder starting with `folder1`.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -151,7 +151,7 @@ Defaults to `""` (syncs all bucket objects).
 
 *Example*: Fetch all objects which start with `abc` and then filter using file extensions.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -339,7 +339,7 @@ Defaults to `""` (syncs all bucket objects).
 
 *Example*: Fetch files/folders in `folder1/docs`.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -352,7 +352,7 @@ Defaults to `""` (syncs all bucket objects).
 
 *Example*: Fetch files/folder starting with `folder1`.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -366,7 +366,7 @@ Defaults to `""` (syncs all bucket objects).
 
 *Example*: Fetch all objects which start with `abc` and then filter using file extensions.
 
-[source,json]
+[source,js]
 ----
 [
   {

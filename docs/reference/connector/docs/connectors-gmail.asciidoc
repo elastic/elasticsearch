@@ -134,7 +134,7 @@ The connector supports the https://support.google.com/mail/answer/7190[GMail adv
 
 For example:
 
-[source,json]
+[source,js]
 ----
 {
   "messages": [
@@ -315,7 +315,7 @@ The connector supports the https://support.google.com/mail/answer/7190[GMail adv
 
 For example:
 
-[source,json]
+[source,js]
 ----
 {
   "messages": [

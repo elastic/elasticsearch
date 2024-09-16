@@ -165,7 +165,7 @@ Here are a few examples of advanced sync rules for this connector.
 This rule skips indexing for files with `.xlsx` and `.docx` extensions.
 All other files and folders will be indexed.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -179,7 +179,7 @@ All other files and folders will be indexed.
 
 This rule focuses on indexing files and folders owned by `user1-domain@onmicrosoft.com` and `user2-domain@onmicrosoft.com` but excludes files with `.py` extension.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -194,7 +194,7 @@ This rule focuses on indexing files and folders owned by `user1-domain@onmicroso
 
 This rule indexes only the files and folders directly inside the root folder, excluding any `.md` files.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -209,7 +209,7 @@ This rule indexes only the files and folders directly inside the root folder, ex
 
 This rule indexes files and folders owned by `user1-domain@onmicrosoft.com` and `user3-domain@onmicrosoft.com` that are directly inside the `abc` folder, which is a subfolder of any folder under the `hello` directory in the root. Files with extensions `.pdf` and `.py` are excluded.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -227,7 +227,7 @@ This example contains two rules.
 The first rule indexes all files and folders owned by `user1-domain@onmicrosoft.com` and `user2-domain@onmicrosoft.com`.
 The second rule indexes files for all other users, but skips files with a `.py` extension.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -246,7 +246,7 @@ This example contains two rules.
 The first rule indexes all files owned by `user1-domain@onmicrosoft.com` and `user2-domain@onmicrosoft.com`, excluding `.md` files.
 The second rule indexes files and folders recursively inside the `abc` folder.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -448,7 +448,7 @@ Here are a few examples of advanced sync rules for this connector.
 This rule skips indexing for files with `.xlsx` and `.docx` extensions.
 All other files and folders will be indexed.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -462,7 +462,7 @@ All other files and folders will be indexed.
 
 This rule focuses on indexing files and folders owned by `user1-domain@onmicrosoft.com` and `user2-domain@onmicrosoft.com` but excludes files with `.py` extension.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -477,7 +477,7 @@ This rule focuses on indexing files and folders owned by `user1-domain@onmicroso
 
 This rule indexes only the files and folders directly inside the root folder, excluding any `.md` files.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -492,7 +492,7 @@ This rule indexes only the files and folders directly inside the root folder, ex
 
 This rule indexes files and folders owned by `user1-domain@onmicrosoft.com` and `user3-domain@onmicrosoft.com` that are directly inside the `abc` folder, which is a subfolder of any folder under the `hello` directory in the root. Files with extensions `.pdf` and `.py` are excluded.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -510,7 +510,7 @@ This example contains two rules.
 The first rule indexes all files and folders owned by `user1-domain@onmicrosoft.com` and `user2-domain@onmicrosoft.com`.
 The second rule indexes files for all other users, but skips files with a `.py` extension.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -529,7 +529,7 @@ This example contains two rules.
 The first rule indexes all files owned by `user1-domain@onmicrosoft.com` and `user2-domain@onmicrosoft.com`, excluding `.md` files.
 The second rule indexes files and folders recursively inside the `abc` folder.
 
-[source,json]
+[source,js]
 ----
 [
   {

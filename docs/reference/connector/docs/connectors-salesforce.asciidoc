@@ -231,7 +231,7 @@ Allowed values are *SOQL* and *SOSL*.
 
 **Example**: Fetch documents using SOQL query
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -243,7 +243,7 @@ Allowed values are *SOQL* and *SOSL*.
 
 **Example**: Fetch documents using SOSL query.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -258,7 +258,7 @@ Allowed values are *SOQL* and *SOSL*.
 
 **Example**: Fetch documents for standard objects via SOQL and SOSL query.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -274,7 +274,7 @@ Allowed values are *SOQL* and *SOSL*.
 
 **Example**: Fetch documents for custom objects via SOQL and SOSL query.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -293,7 +293,7 @@ Allowed values are *SOQL* and *SOSL*.
 
 **Example**: Fetch documents with all standard and custom fields for Account object.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -305,7 +305,7 @@ Allowed values are *SOQL* and *SOSL*.
 
 **Example**: Fetch documents with all custom fields for Connector object.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -317,7 +317,7 @@ Allowed values are *SOQL* and *SOSL*.
 
 **Example**: Fetch documents with all standard fields for Account object.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -623,7 +623,7 @@ Allowed values are *SOQL* and *SOSL*.
 
 **Example**: Fetch documents using SOQL query
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -635,7 +635,7 @@ Allowed values are *SOQL* and *SOSL*.
 
 **Example**: Fetch documents using SOSL query.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -650,7 +650,7 @@ Allowed values are *SOQL* and *SOSL*.
 
 **Example**: Fetch documents for standard objects via SOQL and SOSL query.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -666,7 +666,7 @@ Allowed values are *SOQL* and *SOSL*.
 
 **Example**: Fetch documents for custom objects via SOQL and SOSL query.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -685,7 +685,7 @@ Allowed values are *SOQL* and *SOSL*.
 
 **Example**: Fetch documents with all standard and custom fields for Account object.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -697,7 +697,7 @@ Allowed values are *SOQL* and *SOSL*.
 
 **Example**: Fetch documents with all custom fields for Connector object.
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -709,7 +709,7 @@ Allowed values are *SOQL* and *SOSL*.
 
 **Example**: Fetch documents with all standard fields for Account object.
 
-[source,json]
+[source,js]
 ----
 [
   {

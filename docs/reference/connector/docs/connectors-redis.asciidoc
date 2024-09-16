@@ -141,7 +141,7 @@ Provide at least one of the following: `key_pattern` or `type`, or both.
 
 *Fetch database records where keys start with `alpha`*:
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -156,7 +156,7 @@ Provide at least one of the following: `key_pattern` or `type`, or both.
 
 *Fetch database records with exact match by specifying the full key name:*
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -171,7 +171,7 @@ Provide at least one of the following: `key_pattern` or `type`, or both.
 
 *Fetch database records where keys start with `test1`, `test2` or `test3`:*
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -187,7 +187,7 @@ Provide at least one of the following: `key_pattern` or `type`, or both.
 
 *Exclude database records where keys start with `test1`, `test2` or `test3`:*
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -202,7 +202,7 @@ Provide at least one of the following: `key_pattern` or `type`, or both.
 
 *Fetch all database records:*
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -217,7 +217,7 @@ Provide at least one of the following: `key_pattern` or `type`, or both.
 
 *Fetch all database records where type is `SET`:*
 
-[source,json]
+[source,js]
 ----
 [
   {
@@ -233,7 +233,7 @@ Provide at least one of the following: `key_pattern` or `type`, or both.
 
 *Fetch database records where type is `SET`*:
 
-[source,json]
+[source,js]
 ----
 [
   {

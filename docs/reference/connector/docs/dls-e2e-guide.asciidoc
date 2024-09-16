@@ -71,7 +71,7 @@ To create this API key, we will leverage information in the access control index
 
 The access control index will contain documents similar to this example:
 
-[source,json]
+[source,js]
 ----
 {
   "_index": ".search-acl-filter-search-sharepoint",
@@ -196,7 +196,7 @@ POST /_security/api_key
 
 The response will look like this:
 
-[source,json]
+[source,js]
 ----
 {
   "id": "0rCD3i-MjKsw4g9BpRIBa",
@@ -219,7 +219,7 @@ In this case we want to create a single Elasticsearch API key that can be used t
 
 Let's assume we want to create an API key that combines the following user identities:
 
-[source,json]
+[source,js]
 ----
 GET .search-acl-filter-source1
 {
@@ -241,7 +241,7 @@ GET .search-acl-filter-source1
 }
 ----
 
-[source,json]
+[source,js]
 ----
 GET .search-acl-filter-source2
 {

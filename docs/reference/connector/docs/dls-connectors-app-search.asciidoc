@@ -82,7 +82,7 @@ We will use documents from the access control index created by the SharePoint On
 
 The access control index will contain documents similar to this example:
 
-[source,json]
+[source,js]
 ----
 GET search-acl-filter-sharepoint/_doc/john@example.co
 {
@@ -149,7 +149,7 @@ Find these details in Kibana, by going to *Search > App Search > Credentials*.
 
 Starting from the access control document, we can build an equivalent App Search signed key where the payload looks like:
 
-[source,json]
+[source,js]
 ```
 {
   "filters": {
@@ -161,7 +161,7 @@ Starting from the access control document, we can build an equivalent App Search
 
 In our case, the signed payload looks like this:
 
-[source,json]
+[source,js]
 ----
 {
   "filters": {

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.rest.action.document;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestParser;
@@ -150,6 +151,7 @@ public class RestBulkAction extends BaseRestHandler {
 
         private volatile RestChannel restChannel;
         private boolean shortCircuited;
+        private int bytesParsed = 0;
         private final ArrayDeque<ReleasableBytesReference> unParsedChunks = new ArrayDeque<>(4);
         private final ArrayList<DocWriteRequest<?>> items = new ArrayList<>(4);
 
@@ -186,48 +188,61 @@ public class RestBulkAction extends BaseRestHandler {
 
             final BytesReference data;
             int bytesConsumed;
-            try {
-                unParsedChunks.add(chunk);
+            if (chunk.length() == 0) {
+                chunk.close();
+                bytesConsumed = 0;
+            } else {
+                try {
+                    unParsedChunks.add(chunk);
 
-                if (unParsedChunks.size() > 1) {
-                    data = CompositeBytesReference.of(unParsedChunks.toArray(new ReleasableBytesReference[0]));
-                } else {
-                    data = chunk;
+                    if (unParsedChunks.size() > 1) {
+                        data = CompositeBytesReference.of(unParsedChunks.toArray(new ReleasableBytesReference[0]));
+                    } else {
+                        data = chunk;
+                    }
+
+                    // TODO: Check that the behavior here vs. globalRouting, globalPipeline, globalRequireAlias, globalRequireDatsStream in
+                    // BulkRequest#add is fine
+                    bytesConsumed = parser.incrementalParse(
+                        data,
+                        defaultIndex,
+                        defaultRouting,
+                        defaultFetchSourceContext,
+                        defaultPipeline,
+                        defaultRequireAlias,
+                        defaultRequireDataStream,
+                        defaultListExecutedPipelines,
+                        allowExplicitIndex,
+                        request.getXContentType(),
+                        (request, type) -> items.add(request),
+                        items::add,
+                        items::add,
+                        isLast == false,
+                        stringDeduplicator
+                    );
+                    bytesParsed += bytesConsumed;
+
+                } catch (Exception e) {
+                    shortCircuit();
+                    new RestToXContentListener<>(channel).onFailure(
+                        new ElasticsearchParseException("could not parse bulk request body", e)
+                    );
+                    return;
                 }
-
-                // TODO: Check that the behavior here vs. globalRouting, globalPipeline, globalRequireAlias, globalRequireDatsStream in
-                // BulkRequest#add is fine
-                bytesConsumed = parser.incrementalParse(
-                    data,
-                    defaultIndex,
-                    defaultRouting,
-                    defaultFetchSourceContext,
-                    defaultPipeline,
-                    defaultRequireAlias,
-                    defaultRequireDataStream,
-                    defaultListExecutedPipelines,
-                    allowExplicitIndex,
-                    request.getXContentType(),
-                    (request, type) -> items.add(request),
-                    items::add,
-                    items::add,
-                    isLast == false,
-                    stringDeduplicator
-                );
-
-            } catch (Exception e) {
-                shortCircuit();
-                new RestToXContentListener<>(channel).onFailure(e);
-                return;
             }
 
             final ArrayList<Releasable> releasables = accountParsing(bytesConsumed);
             if (isLast) {
                 assert unParsedChunks.isEmpty();
-                assert channel != null;
-                ArrayList<DocWriteRequest<?>> toPass = new ArrayList<>(items);
-                items.clear();
-                handler.lastItems(toPass, () -> Releasables.close(releasables), new RestRefCountedChunkedToXContentListener<>(channel));
+                if (bytesParsed == 0) {
+                    shortCircuit();
+                    new RestToXContentListener<>(channel).onFailure(new ElasticsearchParseException("request body is required"));
+                } else {
+                    assert channel != null;
+                    ArrayList<DocWriteRequest<?>> toPass = new ArrayList<>(items);
+                    items.clear();
+                    handler.lastItems(toPass, () -> Releasables.close(releasables), new RestRefCountedChunkedToXContentListener<>(channel));
+                }
             } else if (items.isEmpty() == false) {
                 ArrayList<DocWriteRequest<?>> toPass = new ArrayList<>(items);
                 items.clear();

@@ -7,10 +7,17 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-module org.elasticsearch.simdvec {
-    requires org.elasticsearch.nativeaccess;
-    requires org.apache.lucene.core;
-    requires org.elasticsearch.logging;
+package org.elasticsearch.simdvec.internal.vectorization;
 
-    exports org.elasticsearch.simdvec to org.elasticsearch.server;
+import org.elasticsearch.test.ESTestCase;
+
+public class BaseVectorizationTestCase extends ESTestCase {
+
+    public static ESVectorizationProvider defaultProvider() {
+        return new DefaultESVectorizationProvider();
+    }
+
+    public static ESVectorizationProvider maybePanamaProvider() {
+        return ESVectorizationProvider.lookup(true);
+    }
 }

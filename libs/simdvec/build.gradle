@@ -23,9 +23,19 @@ dependencies {
   }
 }
 
+tasks.named("compileMain22Java").configure {
+  options.compilerArgs << '--add-modules=jdk.incubator.vector'
+  options.compilerArgs << '-Xlint:-incubating'
+}
+
 tasks.withType(CheckForbiddenApisTask).configureEach {
   replaceSignatureFiles 'jdk-signatures'
 }
 
 // hack for now, fix the jarhell check for MRJar
 tasks.named("jarHell").configure { enabled = false }
+
+test {
+  // TODO: if >= 21?
+  jvmArgs '--add-modules=jdk.incubator.vector'
+}

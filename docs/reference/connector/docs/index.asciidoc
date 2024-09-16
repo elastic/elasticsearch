@@ -1,11 +1,17 @@
 [#es-connectors]
 = Elastic connectors
 ++++
-<titleabbrev>Connectors</titleabbrev>
+<titleabbrev>Add data with Connectors</titleabbrev>
 ++++
 
 A _connector_ is a type of https://www.elastic.co/integrations/data-integrations[Elastic integration^] that syncs data from an original data source to an *Elasticsearch index*. 
 Connectors enable you to create _searchable_, read-only replicas of your data sources.
+
+[IMPORTANT]
+====
+These connectors are focused on general content, that is non-timestamped data.
+Refer to https://www.elastic.co/guide/en/cloud/current/ec-cloud-ingest-data.html if you're interested in ingesting timestamped data.
+====
 
 Connectors extract the original files, records, or objects; and transforms them into Elasticsearch documents.
 
@@ -16,7 +22,7 @@ You can also access the source code for these (and additional) connectors, and r
 * **Self-managed connectors** are self-managed on your own infrastructure.
 
 [discrete#es-connectors-native]
-== Managed connectors {ess-icon} (_managed service_)
+== Managed connectors {ess-icon}
 
 _Managed connectors_ are available directly within your Elastic Cloud deployment, as a managed service.
 No additional infrastructure is required.
@@ -30,7 +36,7 @@ include::_connectors-list-native.asciidoc[]
 ====
 
 [discrete#es-connectors-build]
-== Self-managed connectors (_self-managed_)
+== Self-managed connectors
 
 Self-managed connectors enable you to run connectors locally on your own infrastructure.
 This means you can try out new connectors before they are available natively within Elastic Cloud, and/or customize existing connectors.

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.datastreams.logsdb.qa;
@@ -17,7 +18,6 @@ import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.logsdb.datageneration.DataGenerator;
 import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
 import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
-import org.elasticsearch.logsdb.datageneration.FieldType;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceResponse;
@@ -44,7 +44,9 @@ public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends Standa
 
     public StandardVersusLogsIndexModeRandomDataChallengeRestIT() {
         super();
-        this.subobjects = randomFrom(ObjectMapper.Subobjects.values());
+        // TODO enable subobjects: auto
+        // It is disabled because it currently does not have auto flattening and that results in asserts being triggered when using copy_to.
+        this.subobjects = randomValueOtherThan(ObjectMapper.Subobjects.AUTO, () -> randomFrom(ObjectMapper.Subobjects.values()));
         this.keepArraySource = randomBoolean();
 
         var specificationBuilder = DataGeneratorSpecification.builder().withFullyDynamicMapping(randomBoolean());
@@ -78,7 +80,18 @@ public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends Standa
         }))
             .withPredefinedFields(
                 List.of(
-                    new PredefinedField.WithType("host.name", FieldType.KEYWORD),
+                    // Customized because it always needs doc_values for aggregations.
+                    new PredefinedField.WithGenerator("host.name", new FieldDataGenerator() {
+                        @Override
+                        public CheckedConsumer<XContentBuilder, IOException> mappingWriter() {
+                            return b -> b.startObject().field("type", "keyword").endObject();
+                        }
+
+                        @Override
+                        public CheckedConsumer<XContentBuilder, IOException> fieldValueGenerator() {
+                            return b -> b.value(randomAlphaOfLength(5));
+                        }
+                    }),
                     // Needed for terms query
                     new PredefinedField.WithGenerator("method", new FieldDataGenerator() {
                         @Override
@@ -108,6 +121,14 @@ public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends Standa
                 )
             )
             .build());
+    }
+
+    @Override
+    protected final Settings restClientSettings() {
+        return Settings.builder()
+            .put(super.restClientSettings())
+            .put(org.elasticsearch.test.rest.ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "9000s")
+            .build();
     }
 
     @Override

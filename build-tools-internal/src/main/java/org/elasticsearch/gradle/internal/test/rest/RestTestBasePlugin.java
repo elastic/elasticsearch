@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.test.rest;
@@ -78,6 +79,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
     private static final String FEATURES_METADATA_CONFIGURATION = "featuresMetadataDeps";
     private static final String DEFAULT_DISTRO_FEATURES_METADATA_CONFIGURATION = "defaultDistrofeaturesMetadataDeps";
     private static final String TESTS_FEATURES_METADATA_PATH = "tests.features.metadata.path";
+    private static final String MINIMUM_WIRE_COMPATIBLE_VERSION_SYSPROP = "tests.minimum.wire.compatible";
 
     private final ProviderFactory providerFactory;
 
@@ -172,6 +174,9 @@ public class RestTestBasePlugin implements Plugin<Project> {
             // Disable the security manager and syscall filter since the test framework needs to fork processes
             task.systemProperty("tests.security.manager", "false");
             task.systemProperty("tests.system_call_filter", "false");
+
+            // Pass minimum wire compatible version which is used by upgrade tests
+            task.systemProperty(MINIMUM_WIRE_COMPATIBLE_VERSION_SYSPROP, BuildParams.getBwcVersions().getMinimumWireCompatibleVersion());
 
             // Register plugins and modules as task inputs and pass paths as system properties to tests
             var modulePath = project.getObjects().fileCollection().from(modulesConfiguration);

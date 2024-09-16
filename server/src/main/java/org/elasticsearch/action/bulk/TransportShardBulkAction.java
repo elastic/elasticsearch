@@ -480,7 +480,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         }
         final BulkItemResponse response;
         if (isUpdate) {
+            assert context.getPrimary().mapperService() != null;
             final MappingLookup mappingLookup = context.getPrimary().mapperService().mappingLookup();
+            assert mappingLookup != null;
+
             response = processUpdateResponse(
                 (UpdateRequest) docWriteRequest,
                 context.getConcreteIndex(),

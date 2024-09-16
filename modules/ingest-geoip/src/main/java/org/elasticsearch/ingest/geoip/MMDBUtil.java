@@ -95,7 +95,7 @@ public final class MMDBUtil {
         }
     }
 
-    static int fromBytes(byte b1) {
+    private static int fromBytes(byte b1) {
         return b1 & 0xFF;
     }
 }

@@ -1,0 +1,16 @@
+[[reranking-overview]]
+== Reranking
+
+Rerankers improve the relevance of results from earlier-stage retrieval mechanisms.
+First-stage rankers must be very fast and efficient because they process either the entire corpus, or all matching documents.
+
+In a multi-stage pipeline, you can progressively use more computationally intensive ranking functions and techniques, as they will operate on smaller result sets at each step.
+This helps avoid query latency degradation and keeps costs manageable.
+
+Currently, the following reranking techniques are available in {es}:
+
+* <<semantic-reranking>>: Use machine learning models to reorder search results based on their semantic similarity to a query. Models can be hosted directly in your {es} cluster, or you can use <<inference-apis,inference endpoints>> to use models provided by third-party services. Enables out-of-the-box semantic search capabilities on existing indices.
+* <<learning-to-rank>>: Train a machine learning model to build a ranking function for your search experience that updates over time. For advanced use cases.
+
+include::semantic-reranking.asciidoc[]
+include::../learning-to-rank.asciidoc[]

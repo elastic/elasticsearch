@@ -11,10 +11,6 @@ This overview focuses more on the high-level concepts and use cases for semantic
 Rerankers improve the relevance of results from earlier-stage retrieval mechanisms.
 _Semantic_ rerankers use machine learning models to reorder search results based on their semantic similarity to a query.
 
-First-stage retrievers and rankers must be very fast and efficient because they process either the entire corpus, or all matching documents.
-In a multi-stage pipeline, you can progressively use more computationally intensive ranking functions and techniques, as they will operate on smaller result sets at each step.
-This helps avoid query latency degradation and keeps costs manageable.
-
 Semantic reranking requires relatively large and complex machine learning models and operates in real-time in response to queries.
 This technique makes sense on a small _top-k_ result set, as one the of the final steps in a pipeline.
 This is a powerful technique for improving search relevance that works equally well with keyword, semantic, or hybrid retrieval algorithms.

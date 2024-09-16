@@ -1,5 +1,5 @@
 [[learning-to-rank]]
-== Learning To Rank
+=== Learning To Rank (LTR)
 
 NOTE: This feature was introduced in version 8.12.0 and is only available to certain subscription levels.
 For more information, see {subscriptions}.
@@ -17,7 +17,7 @@ image::images/search/learning-to-rank-overview.png[Learning To Rank overview,ali
 
 [discrete]
 [[learning-to-rank-search-context]]
-=== Search context
+==== Search context
 
 In addition to the list of documents to sort, the LTR function also requires a
 search context. Typically, this search context includes at least the search
@@ -27,7 +27,7 @@ This could be information about the user doing the search (such as demographic d
 
 [discrete]
 [[learning-to-rank-judgement-list]]
-=== Judgment list
+==== Judgment list
 The LTR model is usually trained on a judgment list, which is a set of queries and documents with a relevance grade. Judgment lists can be human or machine generated: they're commonly populated from behavioural analytics, often with human moderation. Judgment lists determine the ideal ordering of results for a given search query. The goal of LTR is to fit the model to the judgment list rankings as closely as possible for new queries and documents.
 
 The judgment list is the main input used to train the model. It consists of a dataset that contains pairs of queries and documents, along with their corresponding relevance labels.
@@ -42,7 +42,7 @@ image::images/search/learning-to-rank-judgment-list.png[Judgment list example,al
 
 [discrete]
 [[judgment-list-notes]]
-==== Notes on judgment lists
+===== Notes on judgment lists
 
 While a judgment list can be created manually by humans, there are techniques available to leverage user engagement data, such as clicks or conversions, to construct judgment lists automatically.
 
@@ -54,7 +54,7 @@ The quantity and the quality of your judgment list will greatly influence the ov
 
 [discrete]
 [[learning-to-rank-feature-extraction]]
-=== Feature extraction
+==== Feature extraction
 
 Query and document pairs alone don't provide enough information to train the ML
 models used for LTR. The relevance scores in judgment lists depend on a number
@@ -101,7 +101,7 @@ templated query:
 
 [discrete]
 [[learning-to-rank-models]]
-=== Models
+==== Models
 
 The heart of LTR is of course an ML model. A model is trained using the training data described above in combination with an objective. In the case of LTR, the objective is to rank result documents in an optimal way with respect to a judgment list, given some ranking metric such as https://en.wikipedia.org/wiki/Evaluation_measures_(information_retrieval)#Discounted_cumulative_gain[nDCG^] or https://en.wikipedia.org/wiki/Evaluation_measures_(information_retrieval)#Mean_average_precision[MAP^]. The model relies solely on the features and relevance labels from the training data.
 
@@ -123,7 +123,7 @@ Learn more about training in <<learning-to-rank-model-training, Train and deploy
 ====
 [discrete]
 [[learning-to-rank-in-the-elastic-stack]]
-=== LTR in the Elastic stack
+==== LTR in the Elastic stack
 
 In the next pages of this guide you will learn to:
 

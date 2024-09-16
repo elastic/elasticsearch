@@ -215,6 +215,7 @@ public class TransportVersions {
     public static final TransportVersion CCS_TELEMETRY_STATS = def(8_739_00_0);
     public static final TransportVersion GLOBAL_RETENTION_TELEMETRY = def(8_740_00_0);
     public static final TransportVersion ROUTING_TABLE_VERSION_REMOVED = def(8_741_00_0);
+    public static final TransportVersion SIMULATE_COMPONENT_TEMPLATES_SUBSTITUTIONS = def(8_742_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

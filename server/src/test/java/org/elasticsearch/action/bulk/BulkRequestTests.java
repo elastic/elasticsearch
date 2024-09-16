@@ -475,4 +475,16 @@ public class BulkRequestTests extends ESTestCase {
             allOf(containsString("Malformed action/metadata line [1]"), containsString("found [get"))
         );
     }
+
+    public void testShallowClone() {
+        BulkRequest simulateBulkRequest = new BulkRequest();
+        simulateBulkRequest.setRefreshPolicy(randomFrom(RefreshPolicy.values()));
+        simulateBulkRequest.waitForActiveShards(randomIntBetween(1, 10));
+        simulateBulkRequest.timeout(randomTimeValue());
+        BulkRequest shallowCopy = simulateBulkRequest.shallowClone();
+        assertThat(shallowCopy.requests, equalTo(List.of()));
+        assertThat(shallowCopy.getRefreshPolicy(), equalTo(simulateBulkRequest.getRefreshPolicy()));
+        assertThat(shallowCopy.waitForActiveShards(), equalTo(simulateBulkRequest.waitForActiveShards()));
+        assertThat(shallowCopy.timeout(), equalTo(simulateBulkRequest.timeout()));
+    }
 }

@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -38,6 +39,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -474,5 +476,24 @@ public class BulkRequest extends ActionRequest
      */
     public boolean isSimulated() {
         return false; // Always false, but may be overridden by a subclass
+    }
+
+    /*
+     * Returns any component template substitutions that are to be used as part of this bulk request. We would likely only have
+     * substitutions in the event of a simulated request.
+     */
+    public Map<String, ComponentTemplate> getComponentTemplateSubstitutions() throws IOException {
+        return Map.of();
+    }
+
+    /*
+     * This copies this bulk request, but without all of its inner requests
+     */
+    public BulkRequest shallowClone() {
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.setRefreshPolicy(getRefreshPolicy());
+        bulkRequest.waitForActiveShards(waitForActiveShards());
+        bulkRequest.timeout(timeout());
+        return bulkRequest;
     }
 }

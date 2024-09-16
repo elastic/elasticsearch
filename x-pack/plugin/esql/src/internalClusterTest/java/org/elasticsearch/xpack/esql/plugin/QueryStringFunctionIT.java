@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
@@ -82,6 +83,31 @@ public class QueryStringFunctionIT extends AbstractEsqlIntegTestCase {
 
         var error = expectThrows(VerificationException.class, () -> run(query));
         assertThat(error.getMessage(), containsString("[QSTR] function is only supported in WHERE commands"));
+    }
+
+    public void testInvalidQueryStringEof() {
+        var query = """
+            FROM test
+            | WHERE qstr("content: ((((dog")
+            """;
+
+        var error = expectThrows(QueryShardException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("Failed to parse query [content: ((((dog]"));
+        assertThat(error.getRootCause().getMessage(), containsString("Encountered \"<EOF>\" at line 1, column 16"));
+    }
+
+    public void testInvalidQueryStringLexicalError() {
+        var query = """
+            FROM test
+            | WHERE qstr("/")
+            """;
+
+        var error = expectThrows(QueryShardException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("Failed to parse query [/]"));
+        assertThat(
+            error.getRootCause().getMessage(),
+            containsString("Lexical error at line 1, column 2.  Encountered: <EOF> (in lexical state 2)")
+        );
     }
 
     private void createAndPopulateIndex() {

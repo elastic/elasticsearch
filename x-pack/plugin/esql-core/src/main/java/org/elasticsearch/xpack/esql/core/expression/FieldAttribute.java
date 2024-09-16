@@ -124,31 +124,11 @@ public class FieldAttribute extends TypedAttribute {
         );
     }
 
-    private static String readParentName(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIELD_ATTRIBUTE_PARENT_SIMPLIFIED)) {
-            return in.readOptionalString();
-        }
-
-        FieldAttribute parent = in.readOptionalWriteable(FieldAttribute::readFrom);
-        return parent == null ? null : parent.name();
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (((PlanStreamOutput) out).writeAttributeCacheHeader(this)) {
             Source.EMPTY.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIELD_ATTRIBUTE_PARENT_SIMPLIFIED)) {
-                out.writeOptionalString(parentName);
-            } else {
-                if (parentName() == null) {
-                    out.writeOptionalWriteable((FieldAttribute) null);
-                } else {
-                    // Previous versions only used the parent field attribute to retrieve the parent's name, so we can use just any
-                    // fake FieldAttribute here.
-                    FieldAttribute fakeParent = new FieldAttribute(Source.EMPTY, parentName(), field());
-                    out.writeOptionalWriteable(fakeParent);
-                }
-            }
+            writeParentName(out);
             out.writeString(name());
             dataType().writeTo(out);
             field.writeTo(out);
@@ -162,6 +142,30 @@ public class FieldAttribute extends TypedAttribute {
 
     public static FieldAttribute readFrom(StreamInput in) throws IOException {
         return ((PlanStreamInput) in).readAttributeWithCache(FieldAttribute::new);
+    }
+
+    private void writeParentName(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIELD_ATTRIBUTE_PARENT_SIMPLIFIED)) {
+            out.writeOptionalString(parentName);
+        } else {
+            if (parentName() == null) {
+                out.writeOptionalWriteable((FieldAttribute) null);
+            } else {
+                // Previous versions only used the parent field attribute to retrieve the parent's name, so we can use just any
+                // fake FieldAttribute here.
+                FieldAttribute fakeParent = new FieldAttribute(Source.EMPTY, parentName(), field());
+                out.writeOptionalWriteable(fakeParent);
+            }
+        }
+    }
+
+    private static String readParentName(StreamInput in) throws IOException {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIELD_ATTRIBUTE_PARENT_SIMPLIFIED)) {
+            return in.readOptionalString();
+        }
+
+        FieldAttribute parent = in.readOptionalWriteable(FieldAttribute::readFrom);
+        return parent == null ? null : parent.name();
     }
 
     @Override

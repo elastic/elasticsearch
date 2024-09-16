@@ -211,6 +211,19 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_AMAZON_BEDROCK_ADDED = def(8_702_00_0);
     public static final TransportVersion ENTERPRISE_GEOIP_DOWNLOADER_BACKPORT_8_15 = def(8_702_00_1);
     public static final TransportVersion FIX_VECTOR_SIMILARITY_INNER_HITS_BACKPORT_8_15 = def(8_702_00_2);
+    /**
+     * This is the squash of two backports:
+     * <ul>
+     * <li>https://github.com/elastic/elasticsearch/pull/112008</li>
+     * <li>https://github.com/elastic/elasticsearch/pull/111447</li>
+     * </ul>
+     * so it incorporates the changes of two transport versions from 8.16:
+     * <ul>
+     *     <li>ESQL_ES_FIELD_CACHED_SERIALIZATION</li>
+     *     <li>ESQL_ATTRIBUTE_CACHED_SERIALIZATION</li>
+     * </ul>
+     */
+    public static final TransportVersion ESQL_ATTRIBUTE_CACHED_SERIALIZATION_8_15 = def(8_702_00_3);
 
     /*
      * STOP! READ THIS FIRST! No, really,

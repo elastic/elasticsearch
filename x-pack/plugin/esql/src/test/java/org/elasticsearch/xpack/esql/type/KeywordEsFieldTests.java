@@ -5,9 +5,11 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.core.type;
+package org.elasticsearch.xpack.esql.type;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 
 import java.util.Map;
 

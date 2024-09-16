@@ -41,7 +41,6 @@ import static org.hamcrest.Matchers.nullValue;
 public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
 
     public void testConcurrentOperationsTryingToCreateSecurityIndexAndAlias() throws Exception {
-        assertSecurityIndexActive();
         final int processors = Runtime.getRuntime().availableProcessors();
         final int numThreads = Math.min(50, scaledRandomIntBetween((processors + 1) / 2, 4 * processors));  // up to 50 threads
         final int maxNumRequests = 50 / numThreads; // bound to a maximum of 50 requests

@@ -10,6 +10,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
@@ -380,8 +381,26 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         return client -> (client instanceof NodeClient) ? client.filterWithHeader(headers) : client;
     }
 
+    /**
+     * Waits for security index to become available. Note that you must ensure index creation was triggered before calling this method,
+     * either by calling one of the resource creation APIs (e.g., creating a user), or by calling {@link #createSecurityIndex()}.
+     */
     public void assertSecurityIndexActive() throws Exception {
         assertSecurityIndexActive(cluster());
+    }
+
+    protected void createSecurityIndex() {
+        final Client client = client().filterWithHeader(
+            Collections.singletonMap(
+                "Authorization",
+                UsernamePasswordToken.basicAuthHeaderValue(
+                    SecuritySettingsSource.ES_TEST_ROOT_USER,
+                    SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING
+                )
+            )
+        );
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(SECURITY_MAIN_ALIAS);
+        client.admin().indices().create(createIndexRequest).actionGet();
     }
 
     public void assertSecurityIndexActive(TestCluster testCluster) throws Exception {
@@ -390,12 +409,10 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
                 ClusterState clusterState = client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).setLocal(true).get().getState();
                 assertFalse(clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK));
                 Index securityIndex = resolveSecurityIndex(clusterState.metadata());
-                if (securityIndex != null) {
-                    IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(securityIndex);
-                    if (indexRoutingTable != null) {
-                        assertTrue(indexRoutingTable.allPrimaryShardsActive());
-                    }
-                }
+                assertNotNull(securityIndex);
+                IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(securityIndex);
+                assertNotNull(indexRoutingTable);
+                assertTrue(indexRoutingTable.allPrimaryShardsActive());
             }, 30L, TimeUnit.SECONDS);
         }
     }

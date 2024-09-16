@@ -783,6 +783,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
     @Before
     public void waitForSecurityIndexWritable() throws Exception {
+        createSecurityIndex();
         assertSecurityIndexActive();
     }
 

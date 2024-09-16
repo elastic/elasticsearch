@@ -96,7 +96,9 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
     }
 
     /**
-     * Test the size of serializing a plan with a single root field that has many children, grandchildren etc.
+     * Test the size of serializing a plan like
+     * FROM index | LIMIT 10
+     * with a single root field that has many children, grandchildren etc.
      */
     public void testDeeplyNestedFields() throws IOException {
         ByteSizeValue expected = ByteSizeValue.ofBytes(140192814);
@@ -106,6 +108,21 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
 
         EsIndex index = EsIndexSerializationTests.deeplyNestedIndex(depth, childrenPerLevel);
         testSerializePlanWithIndex(index, expected);
+    }
+
+    /**
+     * Test the size of serializing a plan like
+     * FROM index | LIMIT 10 | KEEP one_single_field
+     * with a single root field that has many children, grandchildren etc.
+     */
+    public void testDeeplyNestedFieldsKeepOnlyOne() throws IOException {
+        ByteSizeValue expected = ByteSizeValue.ofBytes(21183264);
+
+        int depth = 6;
+        int childrenPerLevel = 9;
+
+        EsIndex index = EsIndexSerializationTests.deeplyNestedIndex(depth, childrenPerLevel);
+        testSerializePlanWithIndex(index, expected, false);
     }
 
     /**
@@ -127,8 +144,13 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
      * </p>
      */
     private void testSerializePlanWithIndex(EsIndex index, ByteSizeValue expected) throws IOException {
-        List<Attribute> attributes = Analyzer.mappingAsAttributes(randomSource(), index.mapping());
-        EsRelation relation = new EsRelation(randomSource(), index, attributes, IndexMode.STANDARD);
+        testSerializePlanWithIndex(index, expected, true);
+    }
+
+    private void testSerializePlanWithIndex(EsIndex index, ByteSizeValue expected, boolean keepAllFields) throws IOException {
+        List<Attribute> allAttributes = Analyzer.mappingAsAttributes(randomSource(), index.mapping());
+        List<Attribute> keepAttributes = keepAllFields ? allAttributes : List.of(allAttributes.get(0));
+        EsRelation relation = new EsRelation(randomSource(), index, keepAttributes, IndexMode.STANDARD);
         Limit limit = new Limit(randomSource(), new Literal(randomSource(), 10, DataType.INTEGER), relation);
         Project project = new Project(randomSource(), limit, limit.output());
         FragmentExec fragmentExec = new FragmentExec(project);

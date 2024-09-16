@@ -30,6 +30,12 @@ signed integer) may encounter errors (issue: {es-issue}111854[#111854])
 `xpack.security.authc.realms.*.files.role_mapping` configuration option. As a workaround, custom role mappings
 can be configured using the https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-put-role-mapping.html[REST API] (issue: {es-issue}112503[#112503])
 
+* ES|QL queries can cause nodes to crash due to Out Of Memory errors under some circumstances when there are many indices matching the pattern,
+many conflicting field mappings in those indices, and many of those fields are kept in the request.Lower memory proportional to all of that
+makes it worse. (issue: {es-issue}111964[#111964], {es-issue}111358[#111358]).
+Either downgrade to an earlier version, upgrade to 8.15.2 upon release, or else follow the recommendation in the manual to
+[disable ES|QL](https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-kibana.html#esql-kibana-enable) queries.
+
 [[breaking-8.15.0]]
 [float]
 === Breaking changes

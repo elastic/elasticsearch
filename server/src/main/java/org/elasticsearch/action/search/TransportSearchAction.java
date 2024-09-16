@@ -853,7 +853,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     } else {
                         // does not do a can-match
                         ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(
-                            MasterNodeRequest.infiniteMasterNodeTimeout(connection.getTransportVersion()),
+                            MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
                             indices
                         ).indicesOptions(indicesOptions).local(true).preference(preference).routing(routing);
                         transportService.sendRequest(

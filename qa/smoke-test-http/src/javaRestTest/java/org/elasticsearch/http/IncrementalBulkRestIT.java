@@ -32,10 +32,7 @@ public class IncrementalBulkRestIT extends HttpSmokeTestCase {
     public void testBulkMissingBody() throws IOException {
         Request request = new Request(randomBoolean() ? "POST" : "PUT", "/_bulk");
         request.setJsonEntity("");
-        ResponseException responseException = expectThrows(
-            ResponseException.class,
-            () -> getRestClient().performRequest(request)
-        );
+        ResponseException responseException = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
         assertEquals(400, responseException.getResponse().getStatusLine().getStatusCode());
         assertThat(responseException.getMessage(), containsString("request body is required"));
     }
@@ -43,14 +40,12 @@ public class IncrementalBulkRestIT extends HttpSmokeTestCase {
     public void testBulkRequestBodyImproperlyTerminated() throws IOException {
         Request request = new Request(randomBoolean() ? "POST" : "PUT", "/_bulk");
         // missing final line of the bulk body. cannot process
-        request.setJsonEntity("{\"index\":{\"_index\":\"index_name\",\"_id\":\"1\"}}\n"
-            + "{\"field\":1}\n"
-            + "{\"index\":{\"_index\":\"index_name\",\"_id\":\"2\"}");
-        ResponseException responseException = expectThrows(
-            ResponseException.class,
-            () -> getRestClient().performRequest(request)
+        request.setJsonEntity(
+            "{\"index\":{\"_index\":\"index_name\",\"_id\":\"1\"}}\n"
+                + "{\"field\":1}\n"
+                + "{\"index\":{\"_index\":\"index_name\",\"_id\":\"2\"}"
         );
-        responseException.printStackTrace();
+        ResponseException responseException = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
         assertEquals(400, responseException.getResponse().getStatusLine().getStatusCode());
         assertThat(responseException.getMessage(), containsString("could not parse bulk request body"));
     }

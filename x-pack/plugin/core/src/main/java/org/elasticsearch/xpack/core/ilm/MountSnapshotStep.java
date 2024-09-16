@@ -28,7 +28,6 @@ import java.util.ArrayList;
 import java.util.Objects;
 import java.util.Optional;
 
-// TODO: serialization, equals, hashcode, version
 /**
  * Restores the snapshot created for the designated index via the ILM policy to an index named using the provided prefix appended to the
  * designated index name.

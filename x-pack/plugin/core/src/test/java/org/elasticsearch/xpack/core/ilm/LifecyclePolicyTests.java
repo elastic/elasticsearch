@@ -224,7 +224,7 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
                     frozenTime,
                     Collections.singletonMap(
                         SearchableSnapshotAction.NAME,
-                        new SearchableSnapshotAction(randomAlphaOfLength(10), randomBoolean())
+                        new SearchableSnapshotAction(randomAlphaOfLength(10), randomBoolean(), randomIntBetween(-1, 100))
                     )
                 )
             );

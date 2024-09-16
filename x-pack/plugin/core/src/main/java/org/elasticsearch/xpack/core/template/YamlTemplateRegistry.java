@@ -29,9 +29,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.isDataStreamsLifecycleOnlyMode;
 import static org.elasticsearch.xpack.core.template.ResourceUtils.loadResource;
 import static org.elasticsearch.xpack.core.template.ResourceUtils.loadVersionedResourceUTF8;
 
@@ -51,7 +51,6 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
     private final FeatureService featureService;
     private volatile boolean enabled;
 
-    @SuppressWarnings({ "unchecked", "this-escape" })
     public YamlTemplateRegistry(
         Settings nodeSettings,
         ClusterService clusterService,
@@ -60,8 +59,20 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
         NamedXContentRegistry xContentRegistry,
         FeatureService featureService
     ) {
+        this(nodeSettings, clusterService, threadPool, client, xContentRegistry, featureService, ignored -> true);
+    }
+
+    @SuppressWarnings({ "unchecked", "this-escape" })
+    public YamlTemplateRegistry(
+        Settings nodeSettings,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        Client client,
+        NamedXContentRegistry xContentRegistry,
+        FeatureService featureService,
+        Predicate<String> templateFilter
+    ) {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
-        final boolean dslOnlyMode = isDataStreamsLifecycleOnlyMode(clusterService.getSettings());
         try {
             final Map<String, Object> resources = XContentHelper.convertToMap(
                 YamlXContent.yamlXContent,
@@ -78,13 +89,13 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
                 .orElse(Collections.emptyList())
                 .stream()
                 .map(o -> (String) o)
-                .filter(tpl -> shouldLoadTemplate(tpl, dslOnlyMode))
+                .filter(templateFilter)
                 .collect(Collectors.toMap(name -> name, name -> loadComponentTemplate(name, version)));
             composableIndexTemplates = Optional.ofNullable(indexTemplateNames)
                 .orElse(Collections.emptyList())
                 .stream()
                 .map(o -> (String) o)
-                .filter(tpl -> shouldLoadTemplate(tpl, dslOnlyMode))
+                .filter(templateFilter)
                 .collect(Collectors.toMap(name -> name, name -> loadIndexTemplate(name, version)));
             ingestPipelines = Optional.ofNullable(ingestPipelineConfigs)
                 .orElse(Collections.emptyList())
@@ -168,19 +179,6 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
     }
 
     protected abstract String getVersionProperty();
-
-    /**
-     * shouldLoadTemplate provides a way to filter out templates conditionally as required by the plugin.
-     * One common use of this method could be to filter out ILM based templates when data stream only mode
-     * is enabled which is passed as a parameter to the shouldLoadTemplate function.
-     *
-     * @param name of the resource currently being processed
-     * @param dslOnlyMode represents if server is running in data stream lifecycle only mode
-     * @return boolean indicating if the resource should be loaded by the plugin or not.
-     */
-    protected boolean shouldLoadTemplate(String name, boolean dslOnlyMode) {
-        return true;
-    }
 
     private ComponentTemplate loadComponentTemplate(String name, int version) {
         try {

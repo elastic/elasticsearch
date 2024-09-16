@@ -67,7 +67,7 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
      * See {@link #testManyTypeConflicts(boolean, ByteSizeValue)} for more.
      */
     public void testManyTypeConflicts() throws IOException {
-        testManyTypeConflicts(false, ByteSizeValue.ofBytes(1470519L));
+        testManyTypeConflicts(false, ByteSizeValue.ofBytes(1424048L));
         /*
          * History:
          *  2.3mb - shorten error messages for UnsupportedAttributes #111973
@@ -80,7 +80,7 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
      * See {@link #testManyTypeConflicts(boolean, ByteSizeValue)} for more.
      */
     public void testManyTypeConflictsWithParent() throws IOException {
-        testManyTypeConflicts(true, ByteSizeValue.ofBytes(2820689L));
+        testManyTypeConflicts(true, ByteSizeValue.ofBytes(2774214L));
         /*
          * History:
          *  2 gb+ - start

@@ -228,7 +228,7 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
             cacheId = cacheEsField(field);
             writeZLong(-1 - cacheId);
         }
-        writeString(field.getWriteableName());
+        writeCachedString(field.getWriteableName());
         return true;
     }
 

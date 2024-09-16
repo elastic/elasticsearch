@@ -166,9 +166,9 @@ For example:
 ./gradlew :rest-api-spec:yamlRestCompatTest
 ```
 
-Since these are a variation of backward compatibility testing, the entire suite of compatibility tests will be skipped anytime the backward compatibility testing is disabled. Since the source code for these tests live in a branch of code, disabling a specific test should be done via the transformation task configuration in build.gradle (i.e. `yamlRestTestV7CompatTransform`).
+Since these are a variation of backward compatibility testing, the entire suite of compatibility tests will be skipped anytime the backward compatibility testing is disabled. Since the source code for these tests live in a branch of code, disabling a specific test should be done via the transformation task configuration in build.gradle (i.e. `yamlRestCompatTestTransform`).
 
-In some cases the prior version of the YAML REST tests are not sufficient to fully test changes. This can happen when the prior version has insufficient test coverage. In those cases, you can simply add more testing to the prior version or you can add custom REST tests that will run along side of the other compatibility tests. These custom tests can be found in the `yamlRestTestV7` (where Vnumber follows the same conventions) sourceset and the test directory is versioned for example: `yamlRestTestV7/resources/rest-api-spec/test/v7compat`). Custom REST tests for compatibility will not be modified prior to execution, so the correct headers need to be manually added.
+In some cases the prior version of the YAML REST tests are not sufficient to fully test changes. This can happen when the prior version has insufficient test coverage. In those cases, you can simply add more testing to the prior version or you can add custom REST tests that will run along side of the other compatibility tests. These custom tests can be found in the `yamlRestCompatTest` sourceset. Custom REST tests for compatibility will not be modified prior to execution, so the correct headers need to be manually added.
 
 ### Developer's workflow
 
@@ -182,7 +182,7 @@ Mixed clusters are not explicitly tested since the change should be applied at t
 
 By far the most common reason that compatibility tests can seemingly randomly fail is that your main branch is out of date with the upstream main. For this reason, it always suggested to ensure that your PR branch is up to date.
 
-Test failure reproduction lines should behave identical to the non-compatible variant. However, to assure you are referencing the correct line number when reading the test, be sure to look at the line number from the transformed test on disk.  Generally the fully transformed tests can be found at `build/restResources/v7/yamlTests/transformed/rest-api-spec/test/*` (where v7 will change with different versions).
+Test failure reproduction lines should behave identical to the non-compatible variant. However, to assure you are referencing the correct line number when reading the test, be sure to look at the line number from the transformed test on disk.  Generally the fully transformed tests can be found at `build/restResources/compat/yamlTests/transformed/rest-api-spec/test/*`.
 
 Muting compatibility tests should be done via a test transform. A per test skip or a file match can be used to skip the tests.
 

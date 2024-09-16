@@ -13,7 +13,7 @@ import java.util.Arrays;
 import java.util.Locale;
 
 /**
- * Java 17 compatible main which just exits without error.
+ * Java 8 compatible main to check the runtime version
  */
 final class JavaVersionChecker {
 

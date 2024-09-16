@@ -15,19 +15,13 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Template;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
@@ -52,8 +46,6 @@ import static org.hamcrest.Matchers.nullValue;
 public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
 
     public void testConcurrentOperationsTryingToCreateSecurityIndexAndAlias() throws Exception {
-        createSecurityIndex();
-        assertSecurityIndexActive();
         final int processors = Runtime.getRuntime().availableProcessors();
         final int numThreads = Math.min(50, scaledRandomIntBetween((processors + 1) / 2, 4 * processors));  // up to 50 threads
         final int maxNumRequests = 50 / numThreads; // bound to a maximum of 50 requests
@@ -262,20 +254,5 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
     @Before
     public void cleanupSecurityIndex() {
         super.deleteSecurityIndex();
-    }
-
-    @Override
-    public void assertSecurityIndexActive(TestCluster testCluster) throws Exception {
-        for (Client client : testCluster.getClients()) {
-            assertBusy(() -> {
-                ClusterState clusterState = client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).setLocal(true).get().getState();
-                assertFalse(clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK));
-                Index securityIndex = resolveSecurityIndex(clusterState.metadata());
-                assertNotNull(securityIndex);
-                IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(securityIndex);
-                assertNotNull(indexRoutingTable);
-                assertTrue(indexRoutingTable.allPrimaryShardsActive());
-            }, 30L, TimeUnit.SECONDS);
-        }
     }
 }

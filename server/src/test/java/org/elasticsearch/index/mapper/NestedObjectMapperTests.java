@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -1575,11 +1576,11 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         assertNotNull(mapper.mapping().getRoot().getMapper("o"));
     }
 
-    public void testStoreArraySourceThrowsInNonSyntheticSourceMode() {
-        var exception = expectThrows(MapperParsingException.class, () -> createDocumentMapper(mapping(b -> {
+    public void testStoreArraySourceNoopInNonSyntheticSourceMode() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("o").field("type", "nested").field(ObjectMapper.STORE_ARRAY_SOURCE_PARAM, true).endObject();
-        })));
-        assertEquals("Parameter [store_array_source] can only be set in synthetic source mode.", exception.getMessage());
+        }));
+        assertNotNull(mapper.mapping().getRoot().getMapper("o"));
     }
 
     public void testSyntheticNestedWithObject() throws IOException {
@@ -1735,6 +1736,97 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         );
         assertEquals("""
             {"path":{"bar":"B","foo":"A"}}""", syntheticSource);
+    }
+
+    public void testSyntheticNestedWithEmptyObject() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path").field("type", "nested");
+            {
+                b.startObject("properties");
+                {
+                    b.startObject("foo").field("type", "keyword").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> { b.startObject("path").nullField("foo").endObject(); });
+        assertEquals("""
+            {"path":{}}""", syntheticSource);
+    }
+
+    public void testSyntheticNestedWithEmptySubObject() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path").field("type", "nested");
+            {
+                b.startObject("properties");
+                {
+                    b.startObject("to").startObject("properties");
+                    {
+                        b.startObject("foo").field("type", "keyword").endObject();
+                    }
+                    b.endObject().endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startObject("path");
+            {
+                b.startObject("to").nullField("foo").endObject();
+            }
+            b.endObject();
+        });
+        assertEquals("""
+            {"path":{}}""", syntheticSource);
+    }
+
+    public void testSyntheticNestedWithArrayContainingEmptyObject() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path").field("type", "nested");
+            {
+                b.startObject("properties");
+                {
+                    b.startObject("foo").field("type", "keyword").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startArray("path");
+            {
+                b.startObject().field("foo", "A").endObject();
+                b.startObject().nullField("foo").endObject();
+            }
+            b.endArray();
+        });
+        assertEquals("""
+            {"path":[{"foo":"A"},{}]}""", syntheticSource);
+    }
+
+    public void testSyntheticNestedWithArrayContainingOnlyEmptyObject() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path").field("type", "nested");
+            {
+                b.startObject("properties");
+                {
+                    b.startObject("foo").field("type", "keyword").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startArray("path");
+            {
+                b.startObject().nullField("foo").endObject();
+            }
+            b.endArray();
+        });
+        assertEquals("""
+            {"path":{}}""", syntheticSource);
     }
 
     private NestedObjectMapper createNestedObjectMapperWithAllParametersSet(CheckedConsumer<XContentBuilder, IOException> propertiesBuilder)

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery;
@@ -29,6 +30,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.node.NodeRoleSettings;
 
@@ -378,6 +380,16 @@ public class RecoverySettings {
         },
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
+    );
+
+    /**
+     * Indicates whether the `recovery_source` should be enabled (see {@link SourceFieldMapper}).
+     * This setting is not registered and should be used exclusively in a serverless environment.
+     */
+    public static final Setting<Boolean> INDICES_RECOVERY_SOURCE_ENABLED_SETTING = Setting.boolSetting(
+        "indices.recovery.recovery_source.enabled",
+        true,
+        Property.NodeScope
     );
 
     public static final ByteSizeValue DEFAULT_CHUNK_SIZE = new ByteSizeValue(512, ByteSizeUnit.KB);

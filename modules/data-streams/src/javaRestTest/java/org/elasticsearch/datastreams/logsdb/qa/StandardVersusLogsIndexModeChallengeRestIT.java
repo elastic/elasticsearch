@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.datastreams.logsdb.qa;
@@ -34,8 +35,11 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
@@ -178,11 +182,8 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
     }
 
     public void testMatchAllQuery() throws IOException {
-        final List<XContentBuilder> documents = new ArrayList<>();
         int numberOfDocuments = ESTestCase.randomIntBetween(100, 200);
-        for (int i = 0; i < numberOfDocuments; i++) {
-            documents.add(generateDocument(Instant.now().plus(i, ChronoUnit.SECONDS)));
-        }
+        final List<XContentBuilder> documents = generateDocuments(numberOfDocuments);
 
         assertDocumentIndexing(documents);
 
@@ -199,11 +200,8 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
     }
 
     public void testTermsQuery() throws IOException {
-        final List<XContentBuilder> documents = new ArrayList<>();
-        int numberOfDocuments = randomIntBetween(100, 200);
-        for (int i = 0; i < numberOfDocuments; i++) {
-            documents.add(generateDocument(Instant.now().plus(i, ChronoUnit.SECONDS)));
-        }
+        int numberOfDocuments = ESTestCase.randomIntBetween(100, 200);
+        final List<XContentBuilder> documents = generateDocuments(numberOfDocuments);
 
         assertDocumentIndexing(documents);
 
@@ -220,11 +218,8 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
     }
 
     public void testHistogramAggregation() throws IOException {
-        final List<XContentBuilder> documents = new ArrayList<>();
-        int numberOfDocuments = randomIntBetween(100, 200);
-        for (int i = 0; i < numberOfDocuments; i++) {
-            documents.add(generateDocument(Instant.now().plus(i, ChronoUnit.SECONDS)));
-        }
+        int numberOfDocuments = ESTestCase.randomIntBetween(100, 200);
+        final List<XContentBuilder> documents = generateDocuments(numberOfDocuments);
 
         assertDocumentIndexing(documents);
 
@@ -241,11 +236,8 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
     }
 
     public void testTermsAggregation() throws IOException {
-        final List<XContentBuilder> documents = new ArrayList<>();
-        int numberOfDocuments = randomIntBetween(100, 200);
-        for (int i = 0; i < numberOfDocuments; i++) {
-            documents.add(generateDocument(Instant.now().plus(i, ChronoUnit.SECONDS)));
-        }
+        int numberOfDocuments = ESTestCase.randomIntBetween(100, 200);
+        final List<XContentBuilder> documents = generateDocuments(numberOfDocuments);
 
         assertDocumentIndexing(documents);
 
@@ -262,11 +254,8 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
     }
 
     public void testDateHistogramAggregation() throws IOException {
-        final List<XContentBuilder> documents = new ArrayList<>();
-        int numberOfDocuments = randomIntBetween(100, 200);
-        for (int i = 0; i < numberOfDocuments; i++) {
-            documents.add(generateDocument(Instant.now().plus(i, ChronoUnit.SECONDS)));
-        }
+        int numberOfDocuments = ESTestCase.randomIntBetween(100, 200);
+        final List<XContentBuilder> documents = generateDocuments(numberOfDocuments);
 
         assertDocumentIndexing(documents);
 
@@ -280,6 +269,17 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
             .ignoringSort(true)
             .isEqualTo(getAggregationBuckets(queryContender(searchSourceBuilder), "agg"));
         assertTrue(matchResult.getMessage(), matchResult.isMatch());
+    }
+
+    private List<XContentBuilder> generateDocuments(int numberOfDocuments) throws IOException {
+        final List<XContentBuilder> documents = new ArrayList<>();
+        // This is static in order to be able to identify documents between test runs.
+        var startingPoint = ZonedDateTime.of(2024, 1, 1, 10, 0, 0, 0, ZoneId.of("UTC")).toInstant();
+        for (int i = 0; i < numberOfDocuments; i++) {
+            documents.add(generateDocument(startingPoint.plus(i, ChronoUnit.SECONDS)));
+        }
+
+        return documents;
     }
 
     protected XContentBuilder generateDocument(final Instant timestamp) throws IOException {
@@ -301,7 +301,10 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         final List<Map<String, Object>> hitsList = (List<Map<String, Object>>) hitsMap.get("hits");
         assertThat(hitsList.size(), greaterThan(0));
 
-        return hitsList.stream().map(hit -> (Map<String, Object>) hit.get("_source")).toList();
+        return hitsList.stream()
+            .sorted(Comparator.comparingInt((Map<String, Object> hit) -> Integer.parseInt((String) hit.get("_id"))))
+            .map(hit -> (Map<String, Object>) hit.get("_source"))
+            .toList();
     }
 
     @SuppressWarnings("unchecked")

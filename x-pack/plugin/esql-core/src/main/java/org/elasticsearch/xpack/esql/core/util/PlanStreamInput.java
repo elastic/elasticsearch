@@ -12,6 +12,7 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 
 import java.io.IOException;
 
@@ -44,4 +45,6 @@ public interface PlanStreamInput {
      * @throws IOException
      */
     <A extends Attribute> A readAttributeWithCache(CheckedFunction<StreamInput, A, IOException> constructor) throws IOException;
+
+    <A extends EsField> A readEsFieldWithCache() throws IOException;
 }

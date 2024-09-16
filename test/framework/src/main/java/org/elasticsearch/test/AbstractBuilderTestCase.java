@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test;
@@ -59,6 +60,7 @@ import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.indices.DateFieldRangeInfo;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -623,13 +625,13 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         }
 
         CoordinatorRewriteContext createCoordinatorContext(DateFieldMapper.DateFieldType dateFieldType, long min, long max) {
-            return new CoordinatorRewriteContext(
-                parserConfiguration,
-                this.client,
-                () -> nowInMillis,
+            DateFieldRangeInfo timestampFieldInfo = new DateFieldRangeInfo(
+                dateFieldType,
                 IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(min, max)),
-                dateFieldType
+                dateFieldType,
+                IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(min, max))
             );
+            return new CoordinatorRewriteContext(parserConfiguration, this.client, () -> nowInMillis, timestampFieldInfo);
         }
 
         DataRewriteContext createDataContext() {

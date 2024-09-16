@@ -39,6 +39,10 @@ setup:
           - create: {}
           - '{"@timestamp": "2017-06-22", "error": {"log": {"message": ""}, "exception": [{"message": "exception_used"}]}}'
 
+          # Non-empty error.exception.message used from array
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "error": {"log": {"message": ""}, "exception": [{"message": "first_exception_used"}, {"message": "2_ignored"}]}}'
+
   - is_false: errors
 
   - do:
@@ -46,7 +50,7 @@ setup:
         index: logs-apm.error-testing
         body:
           fields: ["error.grouping_name"]
-  - length: { hits.hits: 7 }
+  - length: { hits.hits: 8 }
   - match: { hits.hits.0.fields: null }
   - match: { hits.hits.1.fields: null }
   - match: { hits.hits.2.fields: null }
@@ -54,3 +58,4 @@ setup:
   - match: { hits.hits.4.fields: null }
   - match: { hits.hits.5.fields: {"error.grouping_name": ["log_used"]} }
   - match: { hits.hits.6.fields: {"error.grouping_name": ["exception_used"]} }
+  - match: { hits.hits.7.fields: {"error.grouping_name": ["first_exception_used"]} }

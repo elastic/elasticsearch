@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.vectors;
@@ -297,10 +298,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     indexOptions.getValue(),
                     meta.getValue()
                 ),
+                builderParams(this, context),
                 indexOptions.getValue(),
-                indexVersionCreated,
-                multiFieldsBuilder.build(this, context),
-                copyTo
+                indexVersionCreated
             );
         }
     }
@@ -1963,12 +1963,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
     private DenseVectorFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
+        BuilderParams params,
         IndexOptions indexOptions,
-        IndexVersion indexCreatedVersion,
-        MultiFields multiFields,
-        CopyTo copyTo
+        IndexVersion indexCreatedVersion
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, params);
         this.indexOptions = indexOptions;
         this.indexCreatedVersion = indexCreatedVersion;
     }
@@ -2015,10 +2014,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
             Mapper update = new DenseVectorFieldMapper(
                 leafName(),
                 updatedDenseVectorFieldType,
+                builderParams,
                 indexOptions,
-                indexCreatedVersion,
-                multiFields(),
-                copyTo
+                indexCreatedVersion
             );
             context.addDynamicMapper(update);
             return;
@@ -2156,24 +2154,15 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected SyntheticSourceMode syntheticSourceMode() {
-        return SyntheticSourceMode.NATIVE;
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        var loader = fieldType().indexed
+            ? new IndexedSyntheticFieldLoader(indexCreatedVersion, fieldType().similarity)
+            : new DocValuesSyntheticFieldLoader(indexCreatedVersion);
+
+        return new SyntheticSourceSupport.Native(loader);
     }
 
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        if (copyTo.copyToFields().isEmpty() != true) {
-            throw new IllegalArgumentException(
-                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
-            );
-        }
-        if (fieldType().indexed) {
-            return new IndexedSyntheticFieldLoader(indexCreatedVersion, fieldType().similarity);
-        }
-        return new DocValuesSyntheticFieldLoader(indexCreatedVersion);
-    }
-
-    private class IndexedSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
+    private class IndexedSyntheticFieldLoader extends SourceLoader.DocValuesBasedSyntheticFieldLoader {
         private FloatVectorValues values;
         private ByteVectorValues byteVectorValues;
         private boolean hasValue;
@@ -2186,11 +2175,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private IndexedSyntheticFieldLoader(IndexVersion indexCreatedVersion, VectorSimilarity vectorSimilarity) {
             this.indexCreatedVersion = indexCreatedVersion;
             this.vectorSimilarity = vectorSimilarity;
-        }
-
-        @Override
-        public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-            return Stream.of();
         }
 
         @Override
@@ -2254,18 +2238,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    private class DocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
+    private class DocValuesSyntheticFieldLoader extends SourceLoader.DocValuesBasedSyntheticFieldLoader {
         private BinaryDocValues values;
         private boolean hasValue;
         private final IndexVersion indexCreatedVersion;
 
         private DocValuesSyntheticFieldLoader(IndexVersion indexCreatedVersion) {
             this.indexCreatedVersion = indexCreatedVersion;
-        }
-
-        @Override
-        public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-            return Stream.of();
         }
 
         @Override

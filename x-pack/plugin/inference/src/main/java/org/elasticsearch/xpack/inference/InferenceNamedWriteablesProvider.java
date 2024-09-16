@@ -25,6 +25,16 @@ import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloa
 import org.elasticsearch.xpack.core.inference.results.LegacyTextEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchServiceSettings;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion.AlibabaCloudSearchCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion.AlibabaCloudSearchCompletionTaskSettings;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsTaskSettings;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.rerank.AlibabaCloudSearchRerankServiceSettings;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.rerank.AlibabaCloudSearchRerankTaskSettings;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseServiceSettings;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseTaskSettings;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockSecretSettings;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionTaskSettings;
@@ -117,6 +127,9 @@ public class InferenceNamedWriteablesProvider {
         addAnthropicNamedWritables(namedWriteables);
         addAmazonBedrockNamedWriteables(namedWriteables);
         addEisNamedWriteables(namedWriteables);
+        addAlibabaCloudSearchNamedWriteables(namedWriteables);
+
+        namedWriteables.addAll(StreamingTaskManager.namedWriteables());
 
         return namedWriteables;
     }
@@ -480,6 +493,73 @@ public class InferenceNamedWriteablesProvider {
                 AnthropicChatCompletionTaskSettings::new
             )
         );
+    }
+
+    private static void addAlibabaCloudSearchNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                AlibabaCloudSearchServiceSettings.NAME,
+                AlibabaCloudSearchServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                AlibabaCloudSearchEmbeddingsServiceSettings.NAME,
+                AlibabaCloudSearchEmbeddingsServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                TaskSettings.class,
+                AlibabaCloudSearchEmbeddingsTaskSettings.NAME,
+                AlibabaCloudSearchEmbeddingsTaskSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                AlibabaCloudSearchSparseServiceSettings.NAME,
+                AlibabaCloudSearchSparseServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                TaskSettings.class,
+                AlibabaCloudSearchSparseTaskSettings.NAME,
+                AlibabaCloudSearchSparseTaskSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                AlibabaCloudSearchRerankServiceSettings.NAME,
+                AlibabaCloudSearchRerankServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                TaskSettings.class,
+                AlibabaCloudSearchRerankTaskSettings.NAME,
+                AlibabaCloudSearchRerankTaskSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                AlibabaCloudSearchCompletionServiceSettings.NAME,
+                AlibabaCloudSearchCompletionServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                TaskSettings.class,
+                AlibabaCloudSearchCompletionTaskSettings.NAME,
+                AlibabaCloudSearchCompletionTaskSettings::new
+            )
+        );
+
     }
 
     private static void addEisNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {

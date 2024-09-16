@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch;
@@ -170,6 +171,11 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_AMAZON_BEDROCK_ADDED = def(8_702_00_0);
     public static final TransportVersion ENTERPRISE_GEOIP_DOWNLOADER_BACKPORT_8_15 = def(8_702_00_1);
     public static final TransportVersion FIX_VECTOR_SIMILARITY_INNER_HITS_BACKPORT_8_15 = def(8_702_00_2);
+    /**
+     * we made a single backport for ESQL_ES_FIELD_CACHED_SERIALIZATION and ESQL_ATTRIBUTE_CACHED_SERIALIZATION
+     * with only one TransportVersion entry
+     */
+    public static final TransportVersion ESQL_ATTRIBUTE_CACHED_SERIALIZATION_8_15 = def(8_702_00_3);
     public static final TransportVersion ML_INFERENCE_DONT_DELETE_WHEN_SEMANTIC_TEXT_EXISTS = def(8_703_00_0);
     public static final TransportVersion INFERENCE_ADAPTIVE_ALLOCATIONS = def(8_704_00_0);
     public static final TransportVersion INDEX_REQUEST_UPDATE_BY_SCRIPT_ORIGIN = def(8_705_00_0);
@@ -189,8 +195,26 @@ public class TransportVersions {
     public static final TransportVersion ESQL_ORIGINAL_INDICES = def(8_719_00_0);
     public static final TransportVersion ML_INFERENCE_EIS_INTEGRATION_ADDED = def(8_720_00_0);
     public static final TransportVersion INGEST_PIPELINE_EXCEPTION_ADDED = def(8_721_00_0);
-    public static final TransportVersion ZDT_NANOS_SUPPORT = def(8_722_00_0);
+    public static final TransportVersion ZDT_NANOS_SUPPORT_BROKEN = def(8_722_00_0);
     public static final TransportVersion REMOVE_GLOBAL_RETENTION_FROM_TEMPLATES = def(8_723_00_0);
+    public static final TransportVersion RANDOM_RERANKER_RETRIEVER = def(8_724_00_0);
+    public static final TransportVersion ESQL_PROFILE_SLEEPS = def(8_725_00_0);
+    public static final TransportVersion ZDT_NANOS_SUPPORT = def(8_726_00_0);
+    public static final TransportVersion LTR_SERVERLESS_RELEASE = def(8_727_00_0);
+    public static final TransportVersion ALLOW_PARTIAL_SEARCH_RESULTS_IN_PIT = def(8_728_00_0);
+    public static final TransportVersion RANK_DOCS_RETRIEVER = def(8_729_00_0);
+    public static final TransportVersion ESQL_ES_FIELD_CACHED_SERIALIZATION = def(8_730_00_0);
+    public static final TransportVersion ADD_MANAGE_ROLES_PRIVILEGE = def(8_731_00_0);
+    public static final TransportVersion REPOSITORIES_TELEMETRY = def(8_732_00_0);
+    public static final TransportVersion ML_INFERENCE_ALIBABACLOUD_SEARCH_ADDED = def(8_733_00_0);
+    public static final TransportVersion FIELD_CAPS_RESPONSE_INDEX_MODE = def(8_734_00_0);
+    public static final TransportVersion GET_DATA_STREAMS_VERBOSE = def(8_735_00_0);
+    public static final TransportVersion ESQL_ADD_INDEX_MODE_CONCRETE_INDICES = def(8_736_00_0);
+    public static final TransportVersion UNASSIGNED_PRIMARY_COUNT_ON_CLUSTER_HEALTH = def(8_737_00_0);
+    public static final TransportVersion ESQL_AGGREGATE_EXEC_TRACKS_INTERMEDIATE_ATTRS = def(8_738_00_0);
+    public static final TransportVersion CCS_TELEMETRY_STATS = def(8_739_00_0);
+    public static final TransportVersion GLOBAL_RETENTION_TELEMETRY = def(8_740_00_0);
+    public static final TransportVersion ROUTING_TABLE_VERSION_REMOVED = def(8_741_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,
@@ -249,6 +273,8 @@ public class TransportVersions {
      * Reference to the earliest compatible transport version to this version of the codebase.
      * This should be the transport version used by the highest minor version of the previous major.
      */
+    @UpdateForV9
+    // This needs to be bumped to the 8.last
     public static final TransportVersion MINIMUM_COMPATIBLE = V_7_17_0;
 
     /**
@@ -312,7 +338,7 @@ public class TransportVersions {
         return VERSION_IDS.values();
     }
 
-    static final IntFunction<String> VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(TransportVersions.class);
+    static final IntFunction<String> VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(TransportVersions.class, LATEST_DEFINED.id());
 
     // no instance
     private TransportVersions() {}

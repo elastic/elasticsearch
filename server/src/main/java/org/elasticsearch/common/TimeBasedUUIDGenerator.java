@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common;
@@ -47,6 +48,8 @@ class TimeBasedUUIDGenerator implements UUIDGenerator {
         return SECURE_MUNGED_ADDRESS;
     }
 
+    static final int SIZE_IN_BYTES = 15;
+
     @Override
     public String getBase64UUID() {
         final int sequenceId = sequenceNumber.incrementAndGet() & 0xffffff;
@@ -61,7 +64,7 @@ class TimeBasedUUIDGenerator implements UUIDGenerator {
             sequenceId == 0 ? (lastTimestamp, currentTimeMillis) -> Math.max(lastTimestamp, currentTimeMillis) + 1 : Math::max
         );
 
-        final byte[] uuidBytes = new byte[15];
+        final byte[] uuidBytes = new byte[SIZE_IN_BYTES];
         int i = 0;
 
         // We have auto-generated ids, which are usually used for append-only workloads.

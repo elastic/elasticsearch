@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -247,7 +248,10 @@ public final class DateFieldMapper extends FieldMapper {
         private final Parameter<Boolean> ignoreMalformed;
 
         private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).script);
-        private final Parameter<OnScriptError> onScriptError = Parameter.onScriptErrorParam(m -> toType(m).onScriptError, script);
+        private final Parameter<OnScriptError> onScriptErrorParam = Parameter.onScriptErrorParam(
+            m -> toType(m).builderParams.onScriptError(),
+            script
+        );
 
         private final Resolution resolution;
         private final IndexVersion indexCreatedVersion;
@@ -316,7 +320,17 @@ public final class DateFieldMapper extends FieldMapper {
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { index, docValues, store, format, locale, nullValue, ignoreMalformed, script, onScriptError, meta };
+            return new Parameter<?>[] {
+                index,
+                docValues,
+                store,
+                format,
+                locale,
+                nullValue,
+                ignoreMalformed,
+                script,
+                onScriptErrorParam,
+                meta };
         }
 
         private Long parseNullValue(DateFieldType fieldType) {
@@ -364,12 +378,12 @@ public final class DateFieldMapper extends FieldMapper {
                 && ignoreMalformed.isConfigured() == false) {
                 ignoreMalformed.setValue(false);
             }
-
+            hasScript = script.get() != null;
+            onScriptError = onScriptErrorParam.get();
             return new DateFieldMapper(
                 leafName(),
                 ft,
-                multiFieldsBuilder.build(this, context),
-                copyTo,
+                builderParams(this, context),
                 nullTimestamp,
                 resolution,
                 context.isSourceSynthetic(),
@@ -874,14 +888,13 @@ public final class DateFieldMapper extends FieldMapper {
     private DateFieldMapper(
         String leafName,
         MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
+        BuilderParams builderParams,
         Long nullValue,
         Resolution resolution,
         boolean isSourceSynthetic,
         Builder builder
     ) {
-        super(leafName, mappedFieldType, multiFields, copyTo, builder.script.get() != null, builder.onScriptError.get());
+        super(leafName, mappedFieldType, builderParams);
         this.store = builder.store.getValue();
         this.indexed = builder.index.getValue();
         this.hasDocValues = builder.docValues.getValue();
@@ -992,34 +1005,18 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected SyntheticSourceMode syntheticSourceMode() {
-        return SyntheticSourceMode.NATIVE;
-    }
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        if (hasDocValues) {
+            var loader = new SortedNumericDocValuesSyntheticFieldLoader(fullPath(), leafName(), ignoreMalformed) {
+                @Override
+                protected void writeValue(XContentBuilder b, long value) throws IOException {
+                    b.value(fieldType().format(value, fieldType().dateTimeFormatter()));
+                }
+            };
 
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        if (hasScript) {
-            return SourceLoader.SyntheticFieldLoader.NOTHING;
+            return new SyntheticSourceSupport.Native(loader);
         }
-        if (hasDocValues == false) {
-            throw new IllegalArgumentException(
-                "field ["
-                    + fullPath()
-                    + "] of type ["
-                    + typeName()
-                    + "] doesn't support synthetic source because it doesn't have doc values"
-            );
-        }
-        if (copyTo.copyToFields().isEmpty() != true) {
-            throw new IllegalArgumentException(
-                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
-            );
-        }
-        return new SortedNumericDocValuesSyntheticFieldLoader(fullPath(), leafName(), ignoreMalformed) {
-            @Override
-            protected void writeValue(XContentBuilder b, long value) throws IOException {
-                b.value(fieldType().format(value, fieldType().dateTimeFormatter()));
-            }
-        };
+
+        return super.syntheticSourceSupport();
     }
 }

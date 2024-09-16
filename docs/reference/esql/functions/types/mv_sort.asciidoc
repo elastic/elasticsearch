@@ -6,7 +6,7 @@
 |===
 field | order | result
 boolean | keyword | boolean
-datetime | keyword | datetime
+date | keyword | date
 double | keyword | double
 integer | keyword | integer
 ip | keyword | ip

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.settings;
@@ -1696,7 +1697,7 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static Setting<List<String>> stringListSetting(String key, List<String> defValue, Property... properties) {
-        return new ListSetting<>(key, null, s -> defValue, Setting::parseableStringToList, v -> {}, properties) {
+        return new ListSetting<>(key, null, s -> defValue, s -> parseableStringToList(s, Function.identity()), v -> {}, properties) {
             @Override
             public List<String> get(Settings settings) {
                 checkDeprecation(settings);
@@ -1735,7 +1736,13 @@ public class Setting<T> implements ToXContentObject {
         final Function<String, T> singleValueParser,
         final Property... properties
     ) {
-        return listSetting(key, fallbackSetting, singleValueParser, (s) -> parseableStringToList(fallbackSetting.getRaw(s)), properties);
+        return listSetting(
+            key,
+            fallbackSetting,
+            singleValueParser,
+            s -> parseableStringToList(fallbackSetting.getRaw(s), Function.identity()),
+            properties
+        );
     }
 
     public static <T> Setting<List<T>> listSetting(
@@ -1759,12 +1766,17 @@ public class Setting<T> implements ToXContentObject {
         if (defaultStringValue.apply(Settings.EMPTY) == null) {
             throw new IllegalArgumentException("default value function must not return null");
         }
-        Function<String, List<T>> parser = (s) -> parseableStringToList(s).stream().map(singleValueParser).toList();
-
-        return new ListSetting<>(key, fallbackSetting, defaultStringValue, parser, validator, properties);
+        return new ListSetting<>(
+            key,
+            fallbackSetting,
+            defaultStringValue,
+            s -> parseableStringToList(s, singleValueParser),
+            validator,
+            properties
+        );
     }
 
-    private static List<String> parseableStringToList(String parsableString) {
+    private static <T> List<T> parseableStringToList(String parsableString, Function<String, T> singleValueParser) {
         if ("[]".equals(parsableString)) {
             return List.of();
         }
@@ -1773,7 +1785,7 @@ public class Setting<T> implements ToXContentObject {
             xContentParser.nextToken();
             return XContentParserUtils.parseList(xContentParser, p -> {
                 XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, p.currentToken(), p);
-                return p.text();
+                return singleValueParser.apply(p.text());
             });
         } catch (IOException e) {
             throw new IllegalArgumentException("failed to parse array", e);
@@ -2079,7 +2091,7 @@ public class Setting<T> implements ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(key);
+        return key.hashCode();
     }
 
     /**
@@ -2088,8 +2100,7 @@ public class Setting<T> implements ToXContentObject {
      * {@link #getConcreteSetting(String)} is used to pull the updater.
      */
     public static <T> AffixSetting<T> prefixKeySetting(String prefix, Function<String, Setting<T>> delegateFactory) {
-        BiFunction<String, String, Setting<T>> delegateFactoryWithNamespace = (ns, k) -> delegateFactory.apply(k);
-        return affixKeySetting(new AffixKey(prefix, null, null), delegateFactoryWithNamespace);
+        return affixKeySetting(prefix, null, delegateFactory);
     }
 
     /**
@@ -2177,7 +2188,7 @@ public class Setting<T> implements ToXContentObject {
 
         @Override
         public int hashCode() {
-            return Objects.hash(key);
+            return key.hashCode();
         }
 
         @Override

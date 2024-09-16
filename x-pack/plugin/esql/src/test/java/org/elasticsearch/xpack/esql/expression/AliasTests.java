@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.tree.SourceTests;
-import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTests;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
@@ -81,7 +80,6 @@ public class AliasTests extends AbstractWireTestCase<Alias> {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(NamedExpression.getNamedWriteables());
         entries.addAll(Attribute.getNamedWriteables());
         entries.add(UnsupportedAttribute.ENTRY);
-        entries.addAll(EsField.getNamedWriteables());
         entries.addAll(Expression.getNamedWriteables());
         return new NamedWriteableRegistry(entries);
     }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.metadata;
 
@@ -137,7 +138,7 @@ public class MetadataIndexTemplateService {
     private final NamedXContentRegistry xContentRegistry;
     private final SystemIndices systemIndices;
     private final Set<IndexSettingProvider> indexSettingProviders;
-    private final DataStreamGlobalRetentionProvider globalRetentionResolver;
+    private final DataStreamGlobalRetentionSettings globalRetentionSettings;
 
     /**
      * This is the cluster state task executor for all template-based actions.
@@ -183,7 +184,7 @@ public class MetadataIndexTemplateService {
         NamedXContentRegistry xContentRegistry,
         SystemIndices systemIndices,
         IndexSettingProviders indexSettingProviders,
-        DataStreamGlobalRetentionProvider globalRetentionResolver
+        DataStreamGlobalRetentionSettings globalRetentionSettings
     ) {
         this.clusterService = clusterService;
         this.taskQueue = clusterService.createTaskQueue("index-templates", Priority.URGENT, TEMPLATE_TASK_EXECUTOR);
@@ -193,7 +194,7 @@ public class MetadataIndexTemplateService {
         this.xContentRegistry = xContentRegistry;
         this.systemIndices = systemIndices;
         this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
-        this.globalRetentionResolver = globalRetentionResolver;
+        this.globalRetentionSettings = globalRetentionSettings;
     }
 
     public void removeTemplates(
@@ -345,7 +346,7 @@ public class MetadataIndexTemplateService {
                         tempStateWithComponentTemplateAdded.metadata(),
                         composableTemplateName,
                         composableTemplate,
-                        globalRetentionResolver.provide()
+                        globalRetentionSettings.get()
                     );
                     validateIndexTemplateV2(composableTemplateName, composableTemplate, tempStateWithComponentTemplateAdded);
                 } catch (Exception e) {
@@ -369,7 +370,8 @@ public class MetadataIndexTemplateService {
         }
 
         if (finalComponentTemplate.template().lifecycle() != null) {
-            finalComponentTemplate.template().lifecycle().addWarningHeaderIfDataRetentionNotEffective(globalRetentionResolver.provide());
+            // We do not know if this lifecycle will belong to an internal data stream, so we fall back to a non internal.
+            finalComponentTemplate.template().lifecycle().addWarningHeaderIfDataRetentionNotEffective(globalRetentionSettings.get(), false);
         }
 
         logger.info("{} component template [{}]", existing == null ? "adding" : "updating", name);
@@ -730,7 +732,7 @@ public class MetadataIndexTemplateService {
 
         validate(name, templateToValidate);
         validateDataStreamsStillReferenced(currentState, name, templateToValidate);
-        validateLifecycle(currentState.metadata(), name, templateToValidate, globalRetentionResolver.provide());
+        validateLifecycle(currentState.metadata(), name, templateToValidate, globalRetentionSettings.get());
 
         if (templateToValidate.isDeprecated() == false) {
             validateUseOfDeprecatedComponentTemplates(name, templateToValidate, currentState.metadata().componentTemplates());
@@ -815,7 +817,12 @@ public class MetadataIndexTemplateService {
                         + "] specifies lifecycle configuration that can only be used in combination with a data stream"
                 );
             }
-            lifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetention);
+            if (globalRetention != null) {
+                // We cannot know for sure if the template will apply to internal data streams, so we use a simpler heuristic:
+                // If all the index patterns start with a dot, we consider that all the connected data streams are internal.
+                boolean isInternalDataStream = template.indexPatterns().stream().allMatch(indexPattern -> indexPattern.charAt(0) == '.');
+                lifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetention, isInternalDataStream);
+            }
         }
     }
 

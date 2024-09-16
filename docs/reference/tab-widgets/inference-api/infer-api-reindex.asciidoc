@@ -10,7 +10,7 @@ POST _reindex?wait_for_completion=false
   },
   "dest": {
     "index": "cohere-embeddings",
-    "pipeline": "cohere_embeddings"
+    "pipeline": "cohere_embeddings_pipeline"
   }
 }
 ----
@@ -37,7 +37,7 @@ POST _reindex?wait_for_completion=false
   },
   "dest": {
     "index": "elser-embeddings",
-    "pipeline": "elser_embeddings"
+    "pipeline": "elser_embeddings_pipeline"
   }
 }
 ----
@@ -60,7 +60,7 @@ POST _reindex?wait_for_completion=false
   },
   "dest": {
     "index": "hugging-face-embeddings",
-    "pipeline": "hugging_face_embeddings"
+    "pipeline": "hugging_face_embeddings_pipeline"
   }
 }
 ----
@@ -84,7 +84,7 @@ POST _reindex?wait_for_completion=false
   },
   "dest": {
     "index": "openai-embeddings",
-    "pipeline": "openai_embeddings"
+    "pipeline": "openai_embeddings_pipeline"
   }
 }
 ----
@@ -112,7 +112,7 @@ POST _reindex?wait_for_completion=false
   },
   "dest": {
     "index": "azure-openai-embeddings",
-    "pipeline": "azure_openai_embeddings"
+    "pipeline": "azure_openai_embeddings_pipeline"
   }
 }
 ----
@@ -140,7 +140,7 @@ POST _reindex?wait_for_completion=false
   },
   "dest": {
     "index": "azure-ai-studio-embeddings",
-    "pipeline": "azure_ai_studio_embeddings"
+    "pipeline": "azure_ai_studio_embeddings_pipeline"
   }
 }
 ----
@@ -155,6 +155,28 @@ might affect the throughput of the reindexing process. If this happens, change
 
 // end::azure-ai-studio[]
 
+// tag::google-vertex-ai[]
+
+[source,console]
+----
+POST _reindex?wait_for_completion=false
+{
+  "source": {
+    "index": "test-data",
+    "size": 50 <1>
+  },
+  "dest": {
+    "index": "google-vertex-ai-embeddings",
+    "pipeline": "google_vertex_ai_embeddings_pipeline"
+  }
+}
+----
+// TEST[skip:TBD]
+<1> The default batch size for reindexing is 1000. Reducing `size` will make updates to the reindexing process faster. This enables you to
+follow the progress closely and detect errors early.
+
+// end::google-vertex-ai[]
+
 // tag::mistral[]
 
 [source,console]
@@ -167,7 +189,7 @@ POST _reindex?wait_for_completion=false
   },
   "dest": {
     "index": "mistral-embeddings",
-    "pipeline": "mistral_embeddings"
+    "pipeline": "mistral_embeddings_pipeline"
   }
 }
 ----
@@ -190,7 +212,7 @@ POST _reindex?wait_for_completion=false
   },
   "dest": {
     "index": "amazon-bedrock-embeddings",
-    "pipeline": "amazon_bedrock_embeddings"
+    "pipeline": "amazon_bedrock_embeddings_pipeline"
   }
 }
 ----
@@ -200,3 +222,26 @@ number makes the update of the reindexing process quicker which enables you to
 follow the progress closely and detect errors early.
 
 // end::amazon-bedrock[]
+
+// tag::alibabacloud-ai-search[]
+
+[source,console]
+----
+POST _reindex?wait_for_completion=false
+{
+  "source": {
+    "index": "test-data",
+    "size": 50 <1>
+  },
+  "dest": {
+    "index": "alibabacloud-ai-search-embeddings",
+    "pipeline": "alibabacloud_ai_search_embeddings_pipeline"
+  }
+}
+----
+// TEST[skip:TBD]
+<1> The default batch size for reindexing is 1000. Reducing `size` to a smaller
+number makes the update of the reindexing process quicker which enables you to
+follow the progress closely and detect errors early.
+
+// end::alibabacloud-ai-search[]

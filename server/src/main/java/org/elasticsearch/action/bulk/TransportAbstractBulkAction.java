@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.bulk;
@@ -222,7 +223,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
             original.numberOfActions(),
             () -> bulkRequestModifier,
             bulkRequestModifier::markItemAsDropped,
-            (indexName) -> shouldStoreFailure(indexName, metadata, threadPool.absoluteTimeInMillis()),
+            (indexName) -> resolveFailureStore(indexName, metadata, threadPool.absoluteTimeInMillis()),
             bulkRequestModifier::markItemForFailureStore,
             bulkRequestModifier::markItemAsFailed,
             (originalThread, exception) -> {
@@ -274,13 +275,15 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
     /**
      * Determines if an index name is associated with either an existing data stream or a template
      * for one that has the failure store enabled.
+     *
      * @param indexName The index name to check.
      * @param metadata Cluster state metadata.
      * @param epochMillis A timestamp to use when resolving date math in the index name.
      * @return true if this is not a simulation, and the given index name corresponds to a data stream with a failure store
-     * or if it matches a template that has a data stream failure store enabled.
+     * or if it matches a template that has a data stream failure store enabled. Returns false if the index name corresponds to a
+     * data stream, but it doesn't have the failure store enabled. Returns null when it doesn't correspond to a data stream.
      */
-    protected abstract boolean shouldStoreFailure(String indexName, Metadata metadata, long epochMillis);
+    protected abstract Boolean resolveFailureStore(String indexName, Metadata metadata, long epochMillis);
 
     /**
      * Retrieves the {@link IndexRequest} from the provided {@link DocWriteRequest} for index or upsert actions.  Upserts are

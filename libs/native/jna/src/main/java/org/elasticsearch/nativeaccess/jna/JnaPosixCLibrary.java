@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.nativeaccess.jna;
@@ -16,6 +17,7 @@ import com.sun.jna.NativeLong;
 import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
 
+import org.elasticsearch.nativeaccess.CloseableByteBuffer;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
 import java.util.Arrays;
@@ -109,6 +111,16 @@ class JnaPosixCLibrary implements PosixCLibrary {
         }
     }
 
+    public static class JnaSockAddr implements SockAddr {
+        final Memory memory;
+
+        JnaSockAddr(String path) {
+            this.memory = new Memory(110);
+            memory.setShort(0, AF_UNIX);
+            memory.setString(2, path, "UTF-8");
+        }
+    }
+
     private interface NativeFunctions extends Library {
         int geteuid();
 
@@ -125,6 +137,12 @@ class JnaPosixCLibrary implements PosixCLibrary {
         int open(String filename, int flags, Object... mode);
 
         int close(int fd);
+
+        int socket(int domain, int type, int protocol);
+
+        int connect(int sockfd, Pointer addr, int addrlen);
+
+        long send(int sockfd, Pointer buf, long buflen, int flags);
 
         String strerror(int errno);
     }
@@ -233,6 +251,30 @@ class JnaPosixCLibrary implements PosixCLibrary {
         assert stats instanceof JnaStat64;
         var jnaStats = (JnaStat64) stats;
         return fstat64.fstat64(fd, jnaStats.memory);
+    }
+
+    @Override
+    public int socket(int domain, int type, int protocol) {
+        return functions.socket(domain, type, protocol);
+    }
+
+    @Override
+    public SockAddr newUnixSockAddr(String path) {
+        return new JnaSockAddr(path);
+    }
+
+    @Override
+    public int connect(int sockfd, SockAddr addr) {
+        assert addr instanceof JnaSockAddr;
+        var jnaAddr = (JnaSockAddr) addr;
+        return functions.connect(sockfd, jnaAddr.memory, (int) jnaAddr.memory.size());
+    }
+
+    @Override
+    public long send(int sockfd, CloseableByteBuffer buffer, int flags) {
+        assert buffer instanceof JnaCloseableByteBuffer;
+        var nativeBuffer = (JnaCloseableByteBuffer) buffer;
+        return functions.send(sockfd, nativeBuffer.memory, nativeBuffer.buffer().remaining(), flags);
     }
 
     @Override

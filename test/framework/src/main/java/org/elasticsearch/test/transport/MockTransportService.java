@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.transport;
@@ -29,6 +30,8 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
@@ -81,6 +84,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.spy;
 
 /**
@@ -206,6 +210,7 @@ public class MockTransportService extends TransportService {
     }
 
     private final Transport original;
+    private final EsThreadPoolExecutor testExecutor;
 
     /**
      * Build the service.
@@ -302,6 +307,16 @@ public class MockTransportService extends TransportService {
             Tracer.NOOP
         );
         this.original = transport.getDelegate();
+        this.testExecutor = EsExecutors.newScaling(
+            "mock-transport",
+            0,
+            4,
+            30,
+            TimeUnit.SECONDS,
+            true,
+            EsExecutors.daemonThreadFactory("mock-transport"),
+            threadPool.getThreadContext()
+        );
     }
 
     private static TransportAddress[] extractTransportAddresses(TransportService transportService) {
@@ -617,7 +632,7 @@ public class MockTransportService extends TransportService {
                                 delay
                             )
                         );
-                        threadPool.schedule(runnable, delay, threadPool.generic());
+                        threadPool.schedule(runnable, delay, testExecutor);
                     }
                 }
             }
@@ -795,6 +810,8 @@ public class MockTransportService extends TransportService {
             }
         } catch (InterruptedException e) {
             throw new IllegalStateException(e);
+        } finally {
+            assertTrue(ThreadPool.terminate(testExecutor, 10, TimeUnit.SECONDS));
         }
     }
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -67,6 +68,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -88,6 +90,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "keyword";
 
     static final NodeFeature KEYWORD_DIMENSION_IGNORE_ABOVE = new NodeFeature("mapper.keyword_dimension_ignore_above");
+    static final NodeFeature KEYWORD_NORMALIZER_SYNTHETIC_SOURCE = new NodeFeature("mapper.keyword_normalizer_synthetic_source");
 
     public static class Defaults {
         public static final FieldType FIELD_TYPE;
@@ -180,7 +183,10 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).script);
-        private final Parameter<OnScriptError> onScriptError = Parameter.onScriptErrorParam(m -> toType(m).onScriptError, script);
+        private final Parameter<OnScriptError> onScriptError = Parameter.onScriptErrorParam(
+            m -> toType(m).builderParams.onScriptError(),
+            script
+        );
         private final Parameter<Boolean> dimension;
 
         private final IndexAnalyzers indexAnalyzers;
@@ -349,12 +355,13 @@ public final class KeywordFieldMapper extends FieldMapper {
                 // deduplicate in the common default case to save some memory
                 fieldtype = Defaults.FIELD_TYPE;
             }
+            super.hasScript = script.get() != null;
+            super.onScriptError = onScriptError.getValue();
             return new KeywordFieldMapper(
                 leafName(),
                 fieldtype,
                 buildFieldType(context, fieldtype),
-                multiFieldsBuilder.build(this, context),
-                copyTo,
+                builderParams(this, context),
                 context.isSourceSynthetic(),
                 this
             );
@@ -855,7 +862,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final Script script;
     private final ScriptCompiler scriptCompiler;
     private final IndexVersion indexCreatedVersion;
-    private final boolean storeIgnored;
+    private final boolean isSyntheticSource;
 
     private final IndexAnalyzers indexAnalyzers;
 
@@ -863,12 +870,11 @@ public final class KeywordFieldMapper extends FieldMapper {
         String simpleName,
         FieldType fieldType,
         KeywordFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
-        boolean storeIgnored,
+        BuilderParams builderParams,
+        boolean isSyntheticSource,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, builder.script.get() != null, builder.onScriptError.getValue());
+        super(simpleName, mappedFieldType, builderParams);
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
@@ -880,7 +886,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.indexAnalyzers = builder.indexAnalyzers;
         this.scriptCompiler = builder.scriptCompiler;
         this.indexCreatedVersion = builder.indexCreatedVersion;
-        this.storeIgnored = storeIgnored;
+        this.isSyntheticSource = isSyntheticSource;
     }
 
     @Override
@@ -915,7 +921,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         if (value.length() > fieldType().ignoreAbove()) {
             context.addIgnoredField(fullPath());
-            if (storeIgnored) {
+            if (isSyntheticSource) {
                 // Save a copy of the field so synthetic source can load it
                 context.doc().add(new StoredField(originalName(), new BytesRef(value)));
             }
@@ -1024,55 +1030,34 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected SyntheticSourceMode syntheticSourceMode() {
-        if (fieldType.stored() || hasDocValues) {
-            return SyntheticSourceMode.NATIVE;
-        }
-
-        return SyntheticSourceMode.FALLBACK;
-    }
-
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return syntheticFieldLoader(leafName());
-    }
-
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String simpleName) {
-        if (hasScript()) {
-            return SourceLoader.SyntheticFieldLoader.NOTHING;
-        }
-        if (copyTo.copyToFields().isEmpty() != true) {
-            throw new IllegalArgumentException(
-                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
-            );
-        }
+    protected SyntheticSourceSupport syntheticSourceSupport() {
         if (hasNormalizer()) {
-            throw new IllegalArgumentException(
-                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares a normalizer"
-            );
+            // NOTE: no matter if we have doc values or not we use fallback synthetic source
+            // to store the original value whose doc values would be altered by the normalizer
+            return SyntheticSourceSupport.FALLBACK;
         }
 
+        if (fieldType.stored() || hasDocValues) {
+            return new SyntheticSourceSupport.Native(syntheticFieldLoader(fullPath(), leafName()));
+        }
+
+        return super.syntheticSourceSupport();
+    }
+
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fullFieldName, String leafFieldName) {
+        assert fieldType.stored() || hasDocValues;
+
+        var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
         if (fieldType.stored()) {
-            return new StringStoredFieldFieldLoader(
-                fullPath(),
-                simpleName,
-                fieldType().ignoreAbove == Defaults.IGNORE_ABOVE ? null : originalName()
-            ) {
+            layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(fullPath()) {
                 @Override
-                protected void write(XContentBuilder b, Object value) throws IOException {
+                protected void writeValue(Object value, XContentBuilder b) throws IOException {
                     BytesRef ref = (BytesRef) value;
                     b.utf8Value(ref.bytes, ref.offset, ref.length);
                 }
-            };
-        }
-
-        if (hasDocValues) {
-            return new SortedSetDocValuesSyntheticFieldLoader(
-                fullPath(),
-                simpleName,
-                fieldType().ignoreAbove == Defaults.IGNORE_ABOVE ? null : originalName(),
-                false
-            ) {
+            });
+        } else if (hasDocValues) {
+            layers.add(new SortedSetDocValuesSyntheticFieldLoaderLayer(fullPath()) {
 
                 @Override
                 protected BytesRef convert(BytesRef value) {
@@ -1084,10 +1069,19 @@ public final class KeywordFieldMapper extends FieldMapper {
                     // Preserve must make a deep copy because convert gets a shallow copy from the iterator
                     return BytesRef.deepCopyOf(value);
                 }
-            };
+            });
         }
 
-        return super.syntheticFieldLoader();
-    }
+        if (fieldType().ignoreAbove != Defaults.IGNORE_ABOVE) {
+            layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(originalName()) {
+                @Override
+                protected void writeValue(Object value, XContentBuilder b) throws IOException {
+                    BytesRef ref = (BytesRef) value;
+                    b.utf8Value(ref.bytes, ref.offset, ref.length);
+                }
+            });
+        }
 
+        return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, layers);
+    }
 }

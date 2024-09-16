@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index;
@@ -166,7 +167,7 @@ public class IndexVersions {
      * In branches 8.7-8.11 see server/src/main/java/org/elasticsearch/index/IndexVersion.java for the equivalent definitions.
      */
 
-    public static final IndexVersion MINIMUM_COMPATIBLE = V_7_0_0;
+    public static final IndexVersion MINIMUM_COMPATIBLE = V_8_0_0;
 
     static final NavigableMap<Integer, IndexVersion> VERSION_IDS = getAllVersionIds(IndexVersions.class);
     static final IndexVersion LATEST_DEFINED;
@@ -217,11 +218,13 @@ public class IndexVersions {
         return Collections.unmodifiableNavigableMap(builder);
     }
 
+    @UpdateForV9
+    // We can simplify this once we've removed all references to index versions earlier than MINIMUM_COMPATIBLE
     static Collection<IndexVersion> getAllVersions() {
-        return VERSION_IDS.values();
+        return VERSION_IDS.values().stream().filter(v -> v.onOrAfter(MINIMUM_COMPATIBLE)).toList();
     }
 
-    static final IntFunction<String> VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(IndexVersions.class);
+    static final IntFunction<String> VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(IndexVersions.class, LATEST_DEFINED.id());
 
     // no instance
     private IndexVersions() {}

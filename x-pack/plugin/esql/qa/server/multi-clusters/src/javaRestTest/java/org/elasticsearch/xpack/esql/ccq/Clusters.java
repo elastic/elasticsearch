@@ -12,9 +12,13 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 
 public class Clusters {
+
+    static final String REMOTE_CLUSTER_NAME = "remote_cluster";
+    static final String LOCAL_CLUSTER_NAME = "local_cluster";
+
     public static ElasticsearchCluster remoteCluster() {
         return ElasticsearchCluster.local()
-            .name("remote_cluster")
+            .name(REMOTE_CLUSTER_NAME)
             .distribution(DistributionType.DEFAULT)
             .version(Version.fromString(System.getProperty("tests.old_cluster_version")))
             .nodes(2)
@@ -28,7 +32,7 @@ public class Clusters {
 
     public static ElasticsearchCluster localCluster(ElasticsearchCluster remoteCluster) {
         return ElasticsearchCluster.local()
-            .name("local_cluster")
+            .name(LOCAL_CLUSTER_NAME)
             .distribution(DistributionType.DEFAULT)
             .version(Version.CURRENT)
             .nodes(2)

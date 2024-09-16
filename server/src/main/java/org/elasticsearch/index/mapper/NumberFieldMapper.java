@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -100,7 +101,10 @@ public class NumberFieldMapper extends FieldMapper {
         private final Parameter<Number> nullValue;
 
         private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).script);
-        private final Parameter<OnScriptError> onScriptError = Parameter.onScriptErrorParam(m -> toType(m).onScriptError, script);
+        private final Parameter<OnScriptError> onScriptErrorParam = Parameter.onScriptErrorParam(
+            m -> toType(m).builderParams.onScriptError(),
+            script
+        );
 
         /**
          * Parameter that marks this field as a time series dimension.
@@ -253,7 +257,7 @@ public class NumberFieldMapper extends FieldMapper {
                 coerce,
                 nullValue,
                 script,
-                onScriptError,
+                onScriptErrorParam,
                 meta,
                 dimension,
                 metric };
@@ -266,14 +270,9 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             MappedFieldType ft = new NumberFieldType(context.buildFullName(leafName()), this);
-            return new NumberFieldMapper(
-                leafName(),
-                ft,
-                multiFieldsBuilder.build(this, context),
-                copyTo,
-                context.isSourceSynthetic(),
-                this
-            );
+            hasScript = script.get() != null;
+            onScriptError = onScriptErrorParam.getValue();
+            return new NumberFieldMapper(leafName(), ft, builderParams(this, context), context.isSourceSynthetic(), this);
         }
     }
 
@@ -1841,12 +1840,11 @@ public class NumberFieldMapper extends FieldMapper {
     private NumberFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
+        BuilderParams builderParams,
         boolean storeMalformedFields,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, builder.script.get() != null, builder.onScriptError.getValue());
+        super(simpleName, mappedFieldType, builderParams);
         this.type = builder.type;
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
@@ -1987,29 +1985,12 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected SyntheticSourceMode syntheticSourceMode() {
+    protected SyntheticSourceSupport syntheticSourceSupport() {
         if (hasDocValues) {
-            return SyntheticSourceMode.NATIVE;
+            return new SyntheticSourceSupport.Native(type.syntheticFieldLoader(fullPath(), leafName(), ignoreMalformed.value()));
         }
 
-        return SyntheticSourceMode.FALLBACK;
-    }
-
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        if (hasScript()) {
-            return SourceLoader.SyntheticFieldLoader.NOTHING;
-        }
-        if (copyTo.copyToFields().isEmpty() != true) {
-            throw new IllegalArgumentException(
-                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
-            );
-        }
-        if (hasDocValues) {
-            return type.syntheticFieldLoader(fullPath(), leafName(), ignoreMalformed.value());
-        }
-
-        return super.syntheticFieldLoader();
+        return super.syntheticSourceSupport();
     }
 
     // For testing only:

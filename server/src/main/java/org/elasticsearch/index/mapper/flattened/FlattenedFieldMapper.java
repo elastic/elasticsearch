@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.flattened;
@@ -53,7 +54,6 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextParams;
@@ -216,7 +216,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 eagerGlobalOrdinals.get(),
                 dimensions.get()
             );
-            return new FlattenedFieldMapper(leafName(), ft, this);
+            return new FlattenedFieldMapper(leafName(), ft, builderParams(this, context), this);
         }
     }
 
@@ -737,8 +737,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
     private final FlattenedFieldParser fieldParser;
     private final Builder builder;
 
-    private FlattenedFieldMapper(String leafName, MappedFieldType mappedFieldType, Builder builder) {
-        super(leafName, mappedFieldType, MultiFields.empty(), CopyTo.empty());
+    private FlattenedFieldMapper(String leafName, MappedFieldType mappedFieldType, BuilderParams builderParams, Builder builder) {
+        super(leafName, mappedFieldType, builderParams);
         this.builder = builder;
         this.fieldParser = new FlattenedFieldParser(
             mappedFieldType.name(),
@@ -809,21 +809,13 @@ public final class FlattenedFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected SyntheticSourceMode syntheticSourceMode() {
-        return SyntheticSourceMode.NATIVE;
-    }
-
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        if (hasScript()) {
-            return SourceLoader.SyntheticFieldLoader.NOTHING;
-        }
+    protected SyntheticSourceSupport syntheticSourceSupport() {
         if (fieldType().hasDocValues()) {
-            return new FlattenedSortedSetDocValuesSyntheticFieldLoader(fullPath(), fullPath() + "._keyed", leafName());
+            var loader = new FlattenedSortedSetDocValuesSyntheticFieldLoader(fullPath(), fullPath() + "._keyed", leafName());
+
+            return new SyntheticSourceSupport.Native(loader);
         }
 
-        throw new IllegalArgumentException(
-            "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
-        );
+        return super.syntheticSourceSupport();
     }
 }

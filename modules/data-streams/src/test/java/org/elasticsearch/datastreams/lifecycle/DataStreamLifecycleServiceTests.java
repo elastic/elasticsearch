@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.datastreams.lifecycle;
@@ -37,7 +38,7 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFactoryRetention;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionProvider;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle.Downsampling;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle.Downsampling.Round;
@@ -138,7 +139,8 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
     private List<TransportRequest> clientSeenRequests;
     private DoExecuteDelegate clientDelegate;
     private ClusterService clusterService;
-    private final DataStreamGlobalRetentionProvider globalRetentionResolver = new DataStreamGlobalRetentionProvider(
+    private final DataStreamGlobalRetentionSettings globalRetentionSettings = DataStreamGlobalRetentionSettings.create(
+        ClusterSettings.createBuiltInClusterSettings(),
         DataStreamFactoryRetention.emptyFactoryRetention()
     );
 
@@ -187,7 +189,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
                 errorStore,
                 new FeatureService(List.of(new DataStreamFeatures()))
             ),
-            globalRetentionResolver
+            globalRetentionSettings
         );
         clientDelegate = null;
         dataStreamLifecycleService.init();
@@ -1426,7 +1428,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
                 errorStore,
                 new FeatureService(List.of(new DataStreamFeatures()))
             ),
-            globalRetentionResolver
+            globalRetentionSettings
         );
         assertThat(service.getLastRunDuration(), is(nullValue()));
         assertThat(service.getTimeBetweenStarts(), is(nullValue()));

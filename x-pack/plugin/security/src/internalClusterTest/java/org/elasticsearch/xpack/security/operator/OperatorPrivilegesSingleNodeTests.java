@@ -66,7 +66,9 @@ public class OperatorPrivilegesSingleNodeTests extends SecuritySingleNodeTestCas
     }
 
     public void testNormalSuperuserWillFailToCallOperatorOnlyAction() {
-        final ClearVotingConfigExclusionsRequest clearVotingConfigExclusionsRequest = new ClearVotingConfigExclusionsRequest();
+        final ClearVotingConfigExclusionsRequest clearVotingConfigExclusionsRequest = new ClearVotingConfigExclusionsRequest(
+            TEST_REQUEST_TIMEOUT
+        );
         final ElasticsearchSecurityException e = expectThrows(
             ElasticsearchSecurityException.class,
             () -> client().execute(TransportClearVotingConfigExclusionsAction.TYPE, clearVotingConfigExclusionsRequest).actionGet()
@@ -76,7 +78,10 @@ public class OperatorPrivilegesSingleNodeTests extends SecuritySingleNodeTestCas
 
     public void testNormalSuperuserWillFailToSetOperatorOnlySettings() {
         final Settings settings = Settings.builder().put(IPFilter.IP_FILTER_ENABLED_SETTING.getKey(), "null").build();
-        final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = new ClusterUpdateSettingsRequest();
+        final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = new ClusterUpdateSettingsRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT
+        );
         if (randomBoolean()) {
             clusterUpdateSettingsRequest.transientSettings(settings);
         } else {
@@ -91,13 +96,18 @@ public class OperatorPrivilegesSingleNodeTests extends SecuritySingleNodeTestCas
 
     public void testOperatorUserWillSucceedToCallOperatorOnlyAction() {
         final Client client = createOperatorClient();
-        final ClearVotingConfigExclusionsRequest clearVotingConfigExclusionsRequest = new ClearVotingConfigExclusionsRequest();
+        final ClearVotingConfigExclusionsRequest clearVotingConfigExclusionsRequest = new ClearVotingConfigExclusionsRequest(
+            TEST_REQUEST_TIMEOUT
+        );
         client.execute(TransportClearVotingConfigExclusionsAction.TYPE, clearVotingConfigExclusionsRequest).actionGet();
     }
 
     public void testOperatorUserWillSucceedToSetOperatorOnlySettings() {
         final Client client = createOperatorClient();
-        final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = new ClusterUpdateSettingsRequest();
+        final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = new ClusterUpdateSettingsRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT
+        );
         final Settings settings = Settings.builder().put(IPFilter.IP_FILTER_ENABLED_SETTING.getKey(), false).build();
         final boolean useTransientSetting = randomBoolean();
         try {
@@ -108,7 +118,10 @@ public class OperatorPrivilegesSingleNodeTests extends SecuritySingleNodeTestCas
             }
             client.execute(ClusterUpdateSettingsAction.INSTANCE, clusterUpdateSettingsRequest).actionGet();
         } finally {
-            final ClusterUpdateSettingsRequest clearSettingsRequest = new ClusterUpdateSettingsRequest();
+            final ClusterUpdateSettingsRequest clearSettingsRequest = new ClusterUpdateSettingsRequest(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT
+            );
             final Settings clearSettings = Settings.builder().putNull(IPFilter.IP_FILTER_ENABLED_SETTING.getKey()).build();
             if (useTransientSetting) {
                 clearSettingsRequest.transientSettings(clearSettings);

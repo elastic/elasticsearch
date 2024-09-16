@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.blobstore;
@@ -81,6 +82,10 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.repositories.RepositoryDataTests.generateRandomRepoData;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.INDEX_FILE_PREFIX;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.METADATA_BLOB_NAME_SUFFIX;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.METADATA_PREFIX;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.SNAPSHOT_PREFIX;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -550,7 +555,10 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                         expectedShardGenerations.put(indexId, shard, shardGeneration);
                         final var blobsToDelete = randomList(
                             100,
-                            () -> randomFrom("meta-", "index-", "snap-") + randomUUID() + randomFrom("", ".dat")
+                            () -> randomFrom(METADATA_PREFIX, INDEX_FILE_PREFIX, SNAPSHOT_PREFIX) + randomUUID() + randomFrom(
+                                "",
+                                METADATA_BLOB_NAME_SUFFIX
+                            )
                         );
                         blobCount += blobsToDelete.size();
                         final var indexPath = repo.basePath()

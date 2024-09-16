@@ -38,7 +38,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isPrimitiveAndSupported;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.UNSIGNED_LONG_MAX;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.inUnsignedLongRange;
@@ -50,85 +49,6 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.isUnsignedLong
 public final class DataTypeConverter {
 
     private DataTypeConverter() {}
-
-    /**
-     * Returns the type compatible with both left and right types
-     * <p>
-     * If one of the types is null - returns another type
-     * If both types are numeric - returns type with the highest precision int &lt; long &lt; float &lt; double
-     * If one of the types is string and another numeric - returns numeric
-     */
-    public static DataType commonType(DataType left, DataType right) {
-        if (left == right) {
-            return left;
-        }
-        if (left == NULL) {
-            return right;
-        }
-        if (right == NULL) {
-            return left;
-        }
-        if (isString(left) && isString(right)) {
-            if (left == TEXT || right == TEXT) {
-                return TEXT;
-            }
-            if (left == KEYWORD) {
-                return KEYWORD;
-            }
-            return right;
-        }
-        if (left.isNumeric() && right.isNumeric()) {
-            int lsize = left.estimatedSize().orElseThrow();
-            int rsize = right.estimatedSize().orElseThrow();
-            // if one is int
-            if (left.isWholeNumber()) {
-                // promote the highest int
-                if (right.isWholeNumber()) {
-                    if (left == UNSIGNED_LONG || right == UNSIGNED_LONG) {
-                        return UNSIGNED_LONG;
-                    }
-                    return lsize > rsize ? left : right;
-                }
-                // promote the rational
-                return right;
-            }
-            // try the other side
-            if (right.isWholeNumber()) {
-                return left;
-            }
-            // promote the highest rational
-            return lsize > rsize ? left : right;
-        }
-        if (isString(left)) {
-            if (right.isNumeric()) {
-                return right;
-            }
-        }
-        if (isString(right)) {
-            if (left.isNumeric()) {
-                return left;
-            }
-        }
-
-        if (isDateTime(left) && isDateTime(right)) {
-            return DATETIME;
-        }
-
-        // none found
-        return null;
-    }
-
-    /**
-     * Returns true if the from type can be converted to the to type, false - otherwise
-     */
-    public static boolean canConvert(DataType from, DataType to) {
-        // Special handling for nulls and if conversion is not requires
-        if (from == to || from == NULL) {
-            return true;
-        }
-        // only primitives are supported so far
-        return isPrimitiveAndSupported(from) && isPrimitiveAndSupported(to) && converterFor(from, to) != null;
-    }
 
     /**
      * Get the conversion from one type to another.

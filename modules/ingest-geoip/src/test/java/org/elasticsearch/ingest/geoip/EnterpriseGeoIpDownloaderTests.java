@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.geoip;
@@ -40,6 +41,7 @@ import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
@@ -86,7 +88,11 @@ public class EnterpriseGeoIpDownloaderTests extends ESTestCase {
             "e4a3411cdd7b21eaf18675da5a7f9f360d33c6882363b2c19c38715834c9e836  GeoIP2-City_20240709.tar.gz".getBytes(StandardCharsets.UTF_8)
         );
         clusterService = mock(ClusterService.class);
-        threadPool = new ThreadPool(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build(), MeterRegistry.NOOP);
+        threadPool = new ThreadPool(
+            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build(),
+            MeterRegistry.NOOP,
+            new DefaultBuiltInExecutorBuilders()
+        );
         when(clusterService.getClusterSettings()).thenReturn(
             new ClusterSettings(Settings.EMPTY, Set.of(GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING))
         );

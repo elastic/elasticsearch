@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.search;
 
@@ -28,8 +29,8 @@ import java.util.List;
 
 /**
  * This search phase is responsible for executing any re-ranking needed for the given search request, iff that is applicable.
- * It starts by retrieving {@code num_shards * window_size} results from the query phase and reduces them to a global list of
- * the top {@code window_size} results. It then reaches out to the shards to extract the needed feature data,
+ * It starts by retrieving {@code num_shards * rank_window_size} results from the query phase and reduces them to a global list of
+ * the top {@code rank_window_size} results. It then reaches out to the shards to extract the needed feature data,
  * and finally passes all this information to the appropriate {@code RankFeatureRankCoordinatorContext} which is responsible for reranking
  * the results. If no rank query is specified, it proceeds directly to the next phase (FetchSearchPhase) by first reducing the results.
  */
@@ -88,7 +89,7 @@ public class RankFeaturePhase extends SearchPhase {
 
     void innerRun() throws Exception {
         // if the RankBuilder specifies a QueryPhaseCoordinatorContext, it will be called as part of the reduce call
-        // to operate on the first `window_size * num_shards` results and merge them appropriately.
+        // to operate on the first `rank_window_size * num_shards` results and merge them appropriately.
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase = queryPhaseResults.reduce();
         RankFeaturePhaseRankCoordinatorContext rankFeaturePhaseRankCoordinatorContext = coordinatorContext(context.getRequest().source());
         if (rankFeaturePhaseRankCoordinatorContext != null) {

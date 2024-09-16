@@ -5,10 +5,11 @@ import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
@@ -24,16 +25,16 @@ versions << [
 
 dependencies {
   // Microsoft
-  api "com.azure:azure-core-http-netty:1.15.1"
-  api "com.azure:azure-core:1.50.0"
-  api "com.azure:azure-identity:1.13.1"
-  api "com.azure:azure-json:1.1.0"
-  api "com.azure:azure-storage-blob:12.26.1"
-  api "com.azure:azure-storage-common:12.26.0"
-  api "com.azure:azure-storage-internal-avro:12.11.1"
-  api "com.azure:azure-xml:1.0.0"
+  api "com.azure:azure-core-http-netty:1.15.3"
+  api "com.azure:azure-core:1.51.0"
+  api "com.azure:azure-identity:1.13.2"
+  api "com.azure:azure-json:1.2.0"
+  api "com.azure:azure-storage-blob:12.27.1"
+  api "com.azure:azure-storage-common:12.26.1"
+  api "com.azure:azure-storage-internal-avro:12.12.1"
+  api "com.azure:azure-xml:1.1.0"
   api "com.microsoft.azure:msal4j-persistence-extension:1.3.0"
-  api "com.microsoft.azure:msal4j:1.16.1"
+  api "com.microsoft.azure:msal4j:1.16.2"
 
   // Jackson
   api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
@@ -57,7 +58,7 @@ dependencies {
   api "org.reactivestreams:reactive-streams:1.0.4"
 
   // Others
-  api "com.fasterxml.woodstox:woodstox-core:6.4.0"
+  api "com.fasterxml.woodstox:woodstox-core:6.7.0"
   api "com.github.stephenc.jcip:jcip-annotations:1.0-1"
   api "com.nimbusds:content-type:2.3"
   api "com.nimbusds:lang-tag:1.7"
@@ -69,7 +70,7 @@ dependencies {
   api "net.java.dev.jna:jna:${versions.jna}" // Maven says 5.14.0 but this aligns with the Elasticsearch-wide version
   api "net.minidev:accessors-smart:2.5.0"
   api "net.minidev:json-smart:2.5.0"
-  api "org.codehaus.woodstox:stax2-api:4.2.1"
+  api "org.codehaus.woodstox:stax2-api:4.2.2"
   api "org.ow2.asm:asm:9.3"
 
   runtimeOnly "com.google.crypto.tink:tink:1.14.0"

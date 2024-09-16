@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -41,6 +42,7 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -831,10 +833,12 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                                     discover other nodes and form a multi-node cluster via the [{}={}] setting. Fully-formed clusters do \
                                     not attempt to discover other nodes, and nodes with different cluster UUIDs cannot belong to the same \
                                     cluster. The cluster UUID persists across restarts and can only be changed by deleting the contents of \
-                                    the node's data path(s). Remove the discovery configuration to suppress this message.""",
+                                    the node's data path(s). Remove the discovery configuration to suppress this message. See [{}] for \
+                                    more information.""",
                                 applierState.metadata().clusterUUID(),
                                 DISCOVERY_SEED_HOSTS_SETTING.getKey(),
-                                DISCOVERY_SEED_HOSTS_SETTING.get(settings)
+                                DISCOVERY_SEED_HOSTS_SETTING.get(settings),
+                                ReferenceDocs.FORMING_SINGLE_NODE_CLUSTERS
                             );
                         }
                     }

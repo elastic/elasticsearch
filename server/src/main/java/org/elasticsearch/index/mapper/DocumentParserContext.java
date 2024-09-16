@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -116,6 +117,12 @@ public abstract class DocumentParserContext {
     private Field version;
     private final SeqNoFieldMapper.SequenceIDFields seqID;
     private final Set<String> fieldsAppliedFromTemplates;
+    /**
+     * Fields that are copied from values of other fields via copy_to.
+     * This per-document state is needed since it is possible
+     * that copy_to field in introduced using a dynamic template
+     * in this document and therefore is not present in mapping yet.
+     */
     private final Set<String> copyToFields;
 
     // Indicates if the source for this context has been cloned and gets parsed multiple times.
@@ -207,7 +214,7 @@ public abstract class DocumentParserContext {
             parent,
             dynamic,
             new HashSet<>(),
-            new HashSet<>(),
+            new HashSet<>(mappingLookup.fieldTypesLookup().getCopyToDestinationFields()),
             new DynamicMapperSize(),
             false
         );
@@ -329,6 +336,10 @@ public abstract class DocumentParserContext {
         return mappingLookup.isSourceSynthetic() && clonedSource == false;
     }
 
+    Mapper.SourceKeepMode sourceKeepModeFromIndexSettings() {
+        return indexSettings().sourceKeepMode();
+    }
+
     /**
      * Description on the document being parsed used in error messages. Not
      * called unless there is an error.
@@ -356,9 +367,23 @@ public abstract class DocumentParserContext {
 
     public void markFieldAsCopyTo(String fieldName) {
         copyToFields.add(fieldName);
+        if (mappingLookup.isSourceSynthetic()) {
+            /*
+            Mark this field as containing copied data meaning it should not be present
+            in synthetic _source (to be consistent with stored _source).
+            Ignored source values take precedence over standard synthetic source implementation
+            so by adding this nothing entry we "disable" field in synthetic source.
+            Otherwise, it would be constructed f.e. from doc_values which leads to duplicate values
+            in copied field after reindexing.
+
+            Note that this applies to fields that are copied from fields using ignored source themselves
+            and therefore we don't check for canAddIgnoredField().
+            */
+            ignoredFieldValues.add(IgnoredSourceFieldMapper.NameValue.fromContext(this, fieldName, XContentDataHelper.nothing()));
+        }
     }
 
-    public boolean isCopyToField(String name) {
+    public boolean isCopyToDestinationField(String name) {
         return copyToFields.contains(name);
     }
 

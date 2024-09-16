@@ -1,13 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
-import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
@@ -20,9 +17,6 @@ dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation(testArtifact(project(":qa:full-cluster-restart"), "javaRestTest"))
 }
-
-assert Version.fromString(VersionProperties.getVersions().get("elasticsearch")).getMajor() == 8:
-  "If we are targeting a branch other than 8, we should enable migration tests"
 
 BuildParams.bwcVersions.withWireCompatible(v -> v.after("8.8.0")) { bwcVersion, baseName ->
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {

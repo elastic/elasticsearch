@@ -918,7 +918,6 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             }
         });
 
-
         UpdateHelper updateHelper = mock(UpdateHelper.class);
         when(updateHelper.prepare(any(), eq(shard), any())).thenReturn(
             new UpdateHelper.Result(

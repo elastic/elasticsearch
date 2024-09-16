@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -41,6 +42,9 @@ public class RemoteClusterStatsRequest extends ActionRequest {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().before(TransportVersions.CCS_TELEMETRY_STATS)) {
+            throw new UnsupportedOperationException("RemoteClusterStatsRequest is not supported by the remote cluster");
+        }
         out.writeStringArrayNullable(nodesIds);
     }
 

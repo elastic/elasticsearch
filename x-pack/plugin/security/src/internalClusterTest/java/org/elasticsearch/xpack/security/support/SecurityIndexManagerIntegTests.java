@@ -115,15 +115,19 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
             .next()
             .getSecurityIndexManager();
         final ActionFuture<Void> future = new PlainActionFuture<>();
-        // pick longer wait than in assertSecurityIndexActive()
+        // pick longer wait than in the assertBusy that waits for below to ensure index has had enough time to initialize
         securityIndexManager.onIndexAvailableForSearch((ActionListener<Void>) future, TimeValue.timeValueSeconds(40));
 
         createSecurityIndex();
 
-        // ensure security index manager state is fully in the expected precondition state for this test (ready for search)
-        assertBusy(() -> assertThat(securityIndexManager.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS), is(true)));
+        assertBusy(
+            () -> assertThat(securityIndexManager.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS), is(true)),
+            30,
+            TimeUnit.SECONDS
+        );
 
-        // security index creation is complete and index is active; therefore whenIndexAvailableForSearch should report success
+        // security index creation is complete and index is available for search; therefore whenIndexAvailableForSearch should report
+        // success in time
         future.actionGet();
     }
 
@@ -137,7 +141,11 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
             .getSecurityIndexManager();
 
         // ensure security index manager state is fully in the expected precondition state for this test (ready for search)
-        assertBusy(() -> assertThat(securityIndexManager.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS), is(true)));
+        assertBusy(
+            () -> assertThat(securityIndexManager.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS), is(true)),
+            30,
+            TimeUnit.SECONDS
+        );
 
         // With 0 timeout
         {

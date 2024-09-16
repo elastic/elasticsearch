@@ -801,17 +801,18 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         return new RandomIndexWriter(random(), directory, new StandardAnalyzer());
     }
 
-    protected final String syntheticSource(DocumentMapper mapper, CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
+    protected final String syntheticSource(MapperService mapperService, CheckedConsumer<XContentBuilder, IOException> build)
+        throws IOException {
         try (Directory directory = newDirectory()) {
             RandomIndexWriter iw = indexWriterForSyntheticSource(directory);
-            ParsedDocument doc = mapper.parse(source(build));
+            ParsedDocument doc = mapperService.documentMapper().parse(source(build));
             doc.updateSeqID(0, 0);
             doc.version().setLongValue(0);
             iw.addDocuments(doc.docs());
             iw.close();
             try (DirectoryReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
-                String syntheticSource = syntheticSource(mapper, indexReader, doc.docs().size() - 1);
-                roundTripSyntheticSource(mapper, syntheticSource, indexReader);
+                String syntheticSource = syntheticSource(mapperService, indexReader, doc.docs().size() - 1);
+                roundTripSyntheticSource(mapperService, syntheticSource, indexReader);
                 return syntheticSource;
             }
         }
@@ -827,30 +828,35 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
      * That's the point, really. It'll just be "close enough" for
      * round tripping.
      */
-    private void roundTripSyntheticSource(DocumentMapper mapper, String syntheticSource, DirectoryReader reader) throws IOException {
+    private void roundTripSyntheticSource(MapperService mapperService, String syntheticSource, DirectoryReader reader) throws IOException {
         try (Directory roundTripDirectory = newDirectory()) {
             RandomIndexWriter roundTripIw = indexWriterForSyntheticSource(roundTripDirectory);
-            ParsedDocument doc = mapper.parse(new SourceToParse("1", new BytesArray(syntheticSource), XContentType.JSON));
+            ParsedDocument doc = mapperService.documentMapper()
+                .parse(new SourceToParse("1", new BytesArray(syntheticSource), XContentType.JSON));
             // Process root and nested documents in the same way as the normal indexing chain (assuming a single document)
             doc.updateSeqID(0, 0);
             doc.version().setLongValue(0);
             roundTripIw.addDocuments(doc.docs());
             roundTripIw.close();
             try (DirectoryReader roundTripReader = wrapInMockESDirectoryReader(DirectoryReader.open(roundTripDirectory))) {
-                String roundTripSyntheticSource = syntheticSource(mapper, roundTripReader, doc.docs().size() - 1);
+                String roundTripSyntheticSource = syntheticSource(mapperService, roundTripReader, doc.docs().size() - 1);
                 assertThat(roundTripSyntheticSource, equalTo(syntheticSource));
                 validateRoundTripReader(syntheticSource, reader, roundTripReader);
             }
         }
     }
 
-    protected static String syntheticSource(DocumentMapper mapper, IndexReader reader, int docId) throws IOException {
+    protected static String syntheticSource(MapperService mapperService, IndexReader reader, int docId) throws IOException {
         LeafReader leafReader = getOnlyLeafReader(reader);
 
         final String synthetic1;
         final XContent xContent;
         {
-            SourceProvider provider = SourceProvider.fromSyntheticSource(mapper.mapping(), SourceFieldMetrics.NOOP);
+            SourceProvider provider = SourceProvider.fromSyntheticSource(
+                mapperService.documentMapper().mapping(),
+                mapperService.getIndexSettings(),
+                SourceFieldMetrics.NOOP
+            );
             var source = provider.getSource(leafReader.getContext(), docId);
             synthetic1 = source.internalSourceRef().utf8ToString();
             xContent = source.sourceContentType().xContent();
@@ -859,7 +865,11 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         final String synthetic2;
         {
             int[] docIds = new int[] { docId };
-            SourceLoader sourceLoader = new SourceLoader.Synthetic(mapper.mapping()::syntheticFieldLoader, SourceFieldMetrics.NOOP);
+            SourceLoader sourceLoader = new SourceLoader.Synthetic(
+                mapperService.documentMapper().mapping()::syntheticFieldLoader,
+                mapperService.getIndexSettings(),
+                SourceFieldMetrics.NOOP
+            );
             var sourceLeafLoader = sourceLoader.leaf(getOnlyLeafReader(reader), docIds);
             var storedFieldLoader = StoredFieldLoader.create(false, sourceLoader.requiredStoredFields())
                 .getLoader(leafReader.getContext(), docIds);

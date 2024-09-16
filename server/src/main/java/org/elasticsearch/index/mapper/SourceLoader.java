@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -112,12 +113,15 @@ public interface SourceLoader {
          * @param fieldLoaderSupplier A supplier to create {@link SyntheticFieldLoader}, one for each leaf.
          * @param metrics Metrics for profiling.
          */
-        public Synthetic(Supplier<SyntheticFieldLoader> fieldLoaderSupplier, SourceFieldMetrics metrics) {
+        public Synthetic(Supplier<SyntheticFieldLoader> fieldLoaderSupplier, IndexSettings indexSettings, SourceFieldMetrics metrics) {
             this.syntheticFieldLoaderLeafSupplier = fieldLoaderSupplier;
             this.requiredStoredFields = syntheticFieldLoaderLeafSupplier.get()
                 .storedFieldLoaders()
                 .map(Map.Entry::getKey)
                 .collect(Collectors.toSet());
+            if (indexSettings.getSkipIgnoredSourceRead() == false) {
+                this.requiredStoredFields.add(IgnoredSourceFieldMapper.NAME);
+            }
             this.metrics = metrics;
         }
 

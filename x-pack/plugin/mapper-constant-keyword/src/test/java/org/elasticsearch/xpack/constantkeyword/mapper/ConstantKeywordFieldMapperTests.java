@@ -325,12 +325,12 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testNullValueSyntheticSource() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+        MapperService mapperService = createMapperService(syntheticSourceMapping(b -> {
             b.startObject("field");
             b.field("type", "constant_keyword");
             b.endObject();
         }));
-        assertThat(syntheticSource(mapper, b -> {}), equalTo("{}"));
+        assertThat(syntheticSource(mapperService, b -> {}), equalTo("{}"));
     }
 
     @Override

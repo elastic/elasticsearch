@@ -367,7 +367,7 @@ public abstract class DocumentParserContext {
 
     public void markFieldAsCopyTo(String fieldName) {
         copyToFields.add(fieldName);
-        if (mappingLookup.isSourceSynthetic() && indexSettings().getSkipIgnoredSourceWrite()) {
+        if (mappingLookup.isSourceSynthetic() && indexSettings().getSkipIgnoredSourceWrite() == false) {
             /*
             Mark this field as containing copied data meaning it should not be present
             in synthetic _source (to be consistent with stored _source).

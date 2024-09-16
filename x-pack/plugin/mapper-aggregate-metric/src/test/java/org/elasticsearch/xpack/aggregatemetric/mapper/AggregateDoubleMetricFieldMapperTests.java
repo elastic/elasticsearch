@@ -527,7 +527,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
     }
 
     public void testArrayValueSyntheticSource() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(
+        MapperService mapperService = createMapperService(
             syntheticSourceFieldMapping(
                 b -> b.field("type", CONTENT_TYPE)
                     .array("metrics", "min", "max")
@@ -559,7 +559,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
         }
         expected.endObject();
 
-        var syntheticSource = syntheticSource(mapper, arrayValue);
+        var syntheticSource = syntheticSource(mapperService, arrayValue);
         assertEquals(Strings.toString(expected), syntheticSource);
     }
 

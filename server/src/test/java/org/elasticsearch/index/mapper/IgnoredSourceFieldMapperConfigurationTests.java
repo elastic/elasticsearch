@@ -19,7 +19,7 @@ import java.util.Map;
 
 public class IgnoredSourceFieldMapperConfigurationTests extends MapperServiceTestCase {
     public void testDisableIgnoredSourceRead() throws IOException {
-        var mapper = documentMapperWithCustomSettings(
+        var mapperService = mapperServiceWithCustomSettings(
             Map.of(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING.getKey(), true),
             b -> {
                 b.startObject("fallback_field");
@@ -49,17 +49,17 @@ public class IgnoredSourceFieldMapperConfigurationTests extends MapperServiceTes
             b.endObject();
         };
 
-        var doc = mapper.parse(source(inputDocument));
+        var doc = mapperService.documentMapper().parse(source(inputDocument));
         // Field was written.
         assertNotNull(doc.docs().get(0).getField(IgnoredSourceFieldMapper.NAME));
 
-        String syntheticSource = syntheticSource(mapper, inputDocument);
+        String syntheticSource = syntheticSource(mapperService, inputDocument);
         // Values are not loaded.
         assertEquals("{}", syntheticSource);
     }
 
     public void testDisableIgnoredSourceWrite() throws IOException {
-        var mapper = documentMapperWithCustomSettings(
+        var mapperService = mapperServiceWithCustomSettings(
             Map.of(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING.getKey(), true),
             b -> {
                 b.startObject("fallback_field");
@@ -89,16 +89,16 @@ public class IgnoredSourceFieldMapperConfigurationTests extends MapperServiceTes
             b.endObject();
         };
 
-        var doc = mapper.parse(source(inputDocument));
+        var doc = mapperService.documentMapper().parse(source(inputDocument));
         // Field is not written.
         assertNull(doc.docs().get(0).getField(IgnoredSourceFieldMapper.NAME));
 
-        String syntheticSource = syntheticSource(mapper, inputDocument);
+        String syntheticSource = syntheticSource(mapperService, inputDocument);
         // Values are not loaded.
         assertEquals("{}", syntheticSource);
     }
 
-    private DocumentMapper documentMapperWithCustomSettings(
+    private MapperService mapperServiceWithCustomSettings(
         Map<String, Boolean> customSettings,
         CheckedConsumer<XContentBuilder, IOException> mapping
     ) throws IOException {
@@ -107,7 +107,7 @@ public class IgnoredSourceFieldMapperConfigurationTests extends MapperServiceTes
             settings.put(entry.getKey(), entry.getValue());
         }
 
-        return createMapperService(settings.build(), syntheticSourceMapping(mapping)).documentMapper();
+        return createMapperService(settings.build(), syntheticSourceMapping(mapping));
     }
 
     protected void validateRoundTripReader(String syntheticSource, DirectoryReader reader, DirectoryReader roundTripReader)

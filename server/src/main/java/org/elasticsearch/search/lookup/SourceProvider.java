@@ -10,6 +10,7 @@
 package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
@@ -48,7 +49,7 @@ public interface SourceProvider {
      * but it is not safe to use this to access documents from the same segment across
      * multiple threads.
      */
-    static SourceProvider fromSyntheticSource(Mapping mapping, SourceFieldMetrics metrics) {
-        return new SyntheticSourceProvider(new SourceLoader.Synthetic(mapping::syntheticFieldLoader, metrics));
+    static SourceProvider fromSyntheticSource(Mapping mapping, IndexSettings indexSettings, SourceFieldMetrics metrics) {
+        return new SyntheticSourceProvider(new SourceLoader.Synthetic(mapping::syntheticFieldLoader, indexSettings, metrics));
     }
 }

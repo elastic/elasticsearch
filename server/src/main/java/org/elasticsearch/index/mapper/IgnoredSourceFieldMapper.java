@@ -10,7 +10,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Setting;
@@ -30,7 +29,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 
 /**
 
@@ -145,49 +143,6 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         for (NameValue nameValue : ignoredFieldValues) {
             nameValue.doc().add(new StoredField(NAME, encode(nameValue)));
         }
-    }
-
-    @Override
-    protected SyntheticSourceSupport syntheticSourceSupport() {
-        // Loader implementation that only controls if this fields values are loaded.
-        // Handling of loaded values is in SourceLoader and ObjectMapper#SyntheticSourceFieldLoader.
-        // The reason for this implementation is that it is easier to work with index settings here
-        // than in SourceLoader.
-        return new SyntheticSourceSupport.Native(new SourceLoader.SyntheticFieldLoader() {
-            @Override
-            public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-                if (indexSettings.getSkipIgnoredSourceRead()) {
-                    return Stream.empty();
-                }
-                return Stream.of(Map.entry(NAME, (v) -> {}));
-            }
-
-            @Override
-            public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
-                return null;
-            }
-
-            @Override
-            public boolean hasValue() {
-                return false;
-            }
-
-            @Override
-            public void write(XContentBuilder b) throws IOException {
-
-            }
-
-            @Override
-            public String fieldName() {
-                // Doesn't really matter
-                return NAME;
-            }
-
-            @Override
-            public void reset() {
-
-            }
-        });
     }
 
     static byte[] encode(NameValue values) {

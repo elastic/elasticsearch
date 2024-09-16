@@ -1133,12 +1133,12 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     private void assertSyntheticSource(SyntheticSourceExample example) throws IOException {
-        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+        MapperService mapperService = createMapperService(syntheticSourceMapping(b -> {
             b.startObject("field");
             example.mapping().accept(b);
             b.endObject();
         }));
-        assertThat(syntheticSource(mapper, example::buildInput), equalTo(example.expected()));
+        assertThat(syntheticSource(mapperService, example::buildInput), equalTo(example.expected()));
     }
 
     protected boolean supportsEmptyInputArray() {
@@ -1218,24 +1218,24 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     public final void testNoSyntheticSourceForScript() throws IOException {
         // Fetch the ingest script support to eagerly assumeFalse if the mapper doesn't support ingest scripts
         ingestScriptSupport();
-        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+        MapperService mapperService = createMapperService(syntheticSourceMapping(b -> {
             b.startObject("field");
             minimalMapping(b);
             b.field("script", randomBoolean() ? "empty" : "non-empty");
             b.endObject();
         }));
-        assertThat(syntheticSource(mapper, b -> {}), equalTo("{}"));
+        assertThat(syntheticSource(mapperService, b -> {}), equalTo("{}"));
     }
 
     public final void testSyntheticSourceInObject() throws IOException {
         boolean ignoreMalformed = shouldUseIgnoreMalformed();
         SyntheticSourceExample syntheticSourceExample = syntheticSourceSupport(ignoreMalformed).example(5);
-        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+        MapperService mapperService = createMapperService(syntheticSourceMapping(b -> {
             b.startObject("obj").startObject("properties").startObject("field");
             syntheticSourceExample.mapping().accept(b);
             b.endObject().endObject().endObject();
         }));
-        assertThat(syntheticSource(mapper, b -> {
+        assertThat(syntheticSource(mapperService, b -> {
             b.startObject("obj");
             syntheticSourceExample.buildInput(b);
             b.endObject();
@@ -1247,14 +1247,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         boolean ignoreMalformed = shouldUseIgnoreMalformed();
         SyntheticSourceSupport support = syntheticSourceSupport(ignoreMalformed);
         SyntheticSourceExample syntheticSourceExample = support.example(5);
-        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+        MapperService mapperService = createMapperService(syntheticSourceMapping(b -> {
             b.startObject("field");
             syntheticSourceExample.mapping().accept(b);
             b.endObject();
         }));
 
         var expected = support.preservesExactSource() ? "{\"field\":[]}" : "{}";
-        assertThat(syntheticSource(mapper, b -> b.startArray("field").endArray()), equalTo(expected));
+        assertThat(syntheticSource(mapperService, b -> b.startArray("field").endArray()), equalTo(expected));
     }
 
     private boolean shouldUseIgnoreMalformed() {
@@ -1508,12 +1508,12 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     public final void testSyntheticSourceInNestedObject() throws IOException {
         boolean ignoreMalformed = shouldUseIgnoreMalformed();
         SyntheticSourceExample syntheticSourceExample = syntheticSourceSupport(ignoreMalformed).example(5);
-        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+        MapperService mapperService = createMapperService(syntheticSourceMapping(b -> {
             b.startObject("obj").field("type", "nested").startObject("properties").startObject("field");
             syntheticSourceExample.mapping().accept(b);
             b.endObject().endObject().endObject();
         }));
-        assertThat(syntheticSource(mapper, b -> {
+        assertThat(syntheticSource(mapperService, b -> {
             b.startObject("obj");
             syntheticSourceExample.buildInput(b);
             b.endObject();

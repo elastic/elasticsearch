@@ -57,6 +57,7 @@ Combined with https://www.elastic.co/kibana[{kib}], it powers the following Elas
 
 * *Full-text search*: Fast, relevant full-text search using inverted indexes, tokenization, and text analysis.
 * *Vector database*: Store and search vectorized data, and create vector embeddings with built-in and third-party natural language processing (NLP) models.
+* *Semantic search*: Understand the intent and contextual meaning behind search queries using tools like synonyms, dense vector embeddings, and learned sparse query/document expansion.
 * *Hybrid search*: Combine full-text search with vector search using state-of-the-art ranking algorithms.
 * *Search applications*: Add hybrid search capabilities to apps or websites, or build enterprise search engines over your organization's internal data sources.
 * *Retrieval augmented generation (RAG)*: Use {es} as a retrieval engine to update and augment Generative AI models.

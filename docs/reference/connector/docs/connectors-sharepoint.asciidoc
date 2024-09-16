@@ -23,9 +23,9 @@ Looking for the SharePoint *Online* connector? See the <<es-connectors-sharepoin
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-sharepoint-native-connector-reference]
-==== *Native connector reference (managed service)*
+==== *Managed connector reference*
 
-.View reference for the *native connector reference (managed service)*.
+.View reference for the *Managed connector reference*.
 [%collapsible]
 ===============
 
@@ -33,7 +33,7 @@ Looking for the SharePoint *Online* connector? See the <<es-connectors-sharepoin
 ===== Availability and prerequisites
 
 This connector is available as a managed service since Elastic *8.15.0*.
-To use this connector, satisfy all <<es-native-connectors, native connector requirements>>.
+To use this connector, satisfy all <<es-native-connectors, managed connector requirements>>.
 
 [NOTE]
 ====
@@ -199,18 +199,18 @@ View the {connectors-python}/connectors/sources/sharepoint_server.py[source code
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-sharepoint-connector-client-reference]
-==== *Connector client reference (self-managed)*
+==== *Self-managed connector reference**
 
-.View reference for the *connector client reference (self-managed)*.
+.View reference for the *Self-managed connector reference**.
 [%collapsible]
 ===============
 
 [discrete#es-connectors-sharepoint-client-availability-prerequisites]
 ===== Availability and prerequisites
 
-This connector is available as a self-managed *connector client*.
-This connector client is compatible with Elastic versions *8.9.0+*.
-To use this connector, satisfy all <<es-build-connector,connector client requirements>>.
+This connector is available as a self-managed *self-managed connector*.
+This self-managed connector is compatible with Elastic versions *8.9.0+*.
+To use this connector, satisfy all <<es-build-connector,self-managed connector requirements>>.
 
 [NOTE]
 ====
@@ -226,7 +226,7 @@ include::_connectors-create-client.asciidoc[]
 [discrete#es-connectors-sharepoint-client-usage]
 ===== Usage
 
-To use this connector as a *connector client*, see <<es-build-connector>>.
+To use this connector as a *self-managed connector*, see <<es-build-connector>>.
 
 For additional operations, see <<es-connectors-usage>>.
 
@@ -244,7 +244,7 @@ The following SharePoint Server versions are compatible with the Elastic connect
 
 [TIP]
 ====
-When using the <<es-build-connector, connector client>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/sharepoint_server.py[connector source code^].
+When using the <<es-build-connector, self-managed connector>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/sharepoint_server.py[connector source code^].
 These are set in the `get_default_configuration` function definition.
 
 These configurable fields will be rendered with their respective *labels* in the Kibana UI.
@@ -361,7 +361,7 @@ Currently filtering is controlled via ingest pipelines.
 See <<es-connectors-content-extraction>>.
 
 [discrete#es-connectors-sharepoint-client-connector-client-operations]
-===== Connector client operations
+===== Self-managed connector operations
 
 [discrete#es-connectors-sharepoint-client-testing]
 ===== End-to-end testing

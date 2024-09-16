@@ -14,7 +14,7 @@ View the {connectors-python}/connectors/sources/{service-name-stub}.py[*source c
 
 .Choose your connector reference
 *******************************
-Are you using a native connector on Elastic Cloud or a self-managed connector client? Expand the documentation based on your deployment method.
+Are you using a managed connector on Elastic Cloud or a self-managed self-managed connector? Expand the documentation based on your deployment method.
 *******************************
 
 // //////// //// //// //// //// //// //// ////////
@@ -22,9 +22,9 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-confluence-native-connector-reference]
-==== *Native connector (Elastic Cloud)*
+==== *Managed connector (Elastic Cloud)*
 
-.View *native connector* reference
+.View *managed connector* reference
 
 [%collapsible]
 ===============
@@ -32,14 +32,14 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 [discrete#es-connectors-confluence-availability-prerequisites]
 ===== Availability and prerequisites
 
-This connector is available as a *native connector* on Elastic Cloud, as of *8.9.1*.
+This connector is available as a *managed connector* on Elastic Cloud, as of *8.9.1*.
 
 [NOTE]
 ====
 Confluence Data Center support was added in 8.13.0 in technical preview and is subject to change. The design and code is less mature than official GA features and is being provided as-is with no warranties. Technical preview features are not subject to the support SLA of official GA features.
 ====
 
-To use this connector natively in Elastic Cloud, satisfy all <<es-native-connectors-prerequisites,native connector requirements>>.
+To use this connector natively in Elastic Cloud, satisfy all <<es-native-connectors-prerequisites,managed connector requirements>>.
 
 [discrete#es-connectors-confluence-create-native-connector]
 ===== Create a {service-name} connector
@@ -48,7 +48,7 @@ include::_connectors-create-native.asciidoc[]
 [discrete#es-connectors-confluence-usage]
 ===== Usage
 
-To use this connector as a *native connector*, see <<es-connectors-native>>.
+To use this connector as a *managed connector*, see <<es-connectors-native>>.
 
 For additional operations, see <<es-connectors-usage>>.
 
@@ -256,9 +256,9 @@ See <<es-connectors-security>>.
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-confluence-connector-client-reference]
-==== *Connector client (self-managed)*
+==== *Self-managed connector (self-managed)*
 
-.View *connector client* reference
+.View *self-managed connector* reference
 
 [%collapsible]
 ===============
@@ -266,15 +266,15 @@ See <<es-connectors-security>>.
 [discrete#es-connectors-confluence-client-availability-prerequisites]
 ===== Availability and prerequisites
 
-This connector is available as a *connector client* using the *Elastic connector framework*.
-This connector client is compatible with Elastic versions *8.7.0+*.
+This connector is available as a *self-managed connector* using the *Elastic connector framework*.
+This self-managed connector is compatible with Elastic versions *8.7.0+*.
 
 [NOTE]
 ====
 Confluence Data Center support was added in 8.13.0 in technical preview and is subject to change. The design and code is less mature than official GA features and is being provided as-is with no warranties. Technical preview features are not subject to the support SLA of official GA features.
 ====
 
-To use this connector, satisfy all <<es-build-connector,connector client requirements>>.
+To use this connector, satisfy all <<es-build-connector,self-managed connector requirements>>.
 
 [discrete#es-connectors-confluence-create-connector-client]
 ===== Create a {service-name} connector
@@ -283,7 +283,7 @@ include::_connectors-create-client.asciidoc[]
 [discrete#es-connectors-confluence-client-usage]
 ===== Usage
 
-To use this connector as a *connector client*, see <<es-build-connector>>
+To use this connector as a *self-managed connector*, see <<es-build-connector>>
 For additional usage operations, see <<es-connectors-usage>>.
 
 [discrete#es-connectors-confluence-client-compatability]
@@ -296,7 +296,7 @@ For additional usage operations, see <<es-connectors-usage>>.
 
 [TIP]
 ====
-When using the <<es-build-connector, connector client>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/confluence.py[connector source code^].
+When using the <<es-build-connector, self-managed connector>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/confluence.py[connector source code^].
 These are set in the `get_default_configuration` function definition.
 
 These configurable fields will be rendered with their respective *labels* in the Kibana UI.
@@ -491,7 +491,7 @@ The example uses SharePoint Online as the data source, but the same steps apply 
 See <<es-connectors-content-extraction>>.
 
 [discrete#es-connectors-confluence-client-connector-client-operations]
-===== Connector client operations
+===== Self-managed connector operations
 
 [discrete#es-connectors-confluence-client-testing]
 ===== End-to-end testing

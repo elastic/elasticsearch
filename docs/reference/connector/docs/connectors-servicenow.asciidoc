@@ -15,7 +15,7 @@ View the {connectors-python}/connectors/sources/{service-name-stub}.py[*source c
 
 .Choose your connector reference
 *******************************
-Are you using a native connector on Elastic Cloud or a self-managed connector client? Expand the documentation based on your deployment method.
+Are you using a managed connector on Elastic Cloud or a self-managed self-managed connector? Expand the documentation based on your deployment method.
 *******************************
 
 // //////// //// //// //// //// //// //// ////////
@@ -23,9 +23,9 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-servicenow-native-connector-reference]
-==== *Native connector (Elastic Cloud)*
+==== *Managed connector (Elastic Cloud)*
 
-.View *native connector* reference
+.View *managed connector* reference
 
 [%collapsible]
 ===============
@@ -35,7 +35,7 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 
 The ServiceNow connector is available natively in Elastic Cloud since 8.10.0.
 
-To use this connector natively in Elastic Cloud, satisfy all <<es-native-connectors-prerequisites,native connector requirements>>.
+To use this connector natively in Elastic Cloud, satisfy all <<es-native-connectors-prerequisites,managed connector requirements>>.
 
 [discrete#es-connectors-servicenow-create-native-connector]
 ===== Create a {service-name} connector
@@ -234,9 +234,9 @@ See <<es-connectors-content-extraction>>.
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-servicenow-connector-client-reference]
-==== *Connector client (self-managed)*
+==== *Self-managed connector (self-managed)*
 
-.View *connector client* reference
+.View *self-managed connector* reference
 
 [%collapsible]
 ===============
@@ -245,8 +245,8 @@ See <<es-connectors-content-extraction>>.
 ===== Availability and prerequisites
 
 The ServiceNow connector was introduced in Elastic version 8.9.0.
-This connector is available as a self-managed *connector client*.
-To use this connector as a connector client, satisfy all <<es-build-connector,connector client requirements>>.
+This connector is available as a self-managed *self-managed connector*.
+To use this connector as a self-managed connector, satisfy all <<es-build-connector,self-managed connector requirements>>.
 
 [discrete#es-connectors-servicenow-create-connector-client]
 ===== Create a {service-name} connector
@@ -254,7 +254,7 @@ include::_connectors-create-client.asciidoc[]
 
 [discrete#es-connectors-servicenow-client-usage]
 ===== Usage
-To use this connector as a *connector client*, use the *Customized connector* workflow.
+To use this connector as a *self-managed connector*, use the *Customized connector* workflow.
 
 For additional operations, see link:https://www.elastic.co/guide/en/enterprise-search/master/connectors-usage.html[Usage].
 
@@ -274,7 +274,7 @@ The ServiceNow connector is compatible with the following versions of ServiceNow
 
 [TIP]
 ====
-When using the <<es-build-connector, connector client>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/servicenow.py[connector source code^].
+When using the <<es-build-connector, self-managed connector>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/servicenow.py[connector source code^].
 These are set in the `get_default_configuration` function definition.
 
 These configurable fields will be rendered with their respective *labels* in the Kibana UI.

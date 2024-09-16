@@ -14,7 +14,7 @@ View the {connectors-python}/connectors/sources/{service-name-stub}.py[*source c
 
 .Choose your connector reference
 *******************************
-Are you using a native connector on Elastic Cloud or a self-managed connector client? Expand the documentation based on your deployment method.
+Are you using a managed connector on Elastic Cloud or a self-managed self-managed connector? Expand the documentation based on your deployment method.
 *******************************
 
 // //////// //// //// //// //// //// //// ////////
@@ -22,9 +22,9 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-mongodb-native-connector-reference]
-==== *Native connector (Elastic Cloud)*
+==== *Managed connector (Elastic Cloud)*
 
-.View *native connector* reference
+.View *managed connector* reference
 
 [%collapsible]
 ===============
@@ -32,9 +32,9 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 [discrete#es-connectors-mongodb-prerequisites]
 ===== Availability and prerequisites
 
-This connector is available as a *native connector* in Elastic versions *8.5.0 and later*.
+This connector is available as a *managed connector* in Elastic versions *8.5.0 and later*.
 
-To use this connector natively in Elastic Cloud, satisfy all <<es-native-connectors-prerequisites,native connector requirements>>.
+To use this connector natively in Elastic Cloud, satisfy all <<es-native-connectors-prerequisites,managed connector requirements>>.
 
 [discrete#es-connectors-mongodb-compatibility]
 ===== Compatibility
@@ -108,7 +108,7 @@ include::_connectors-create-native.asciidoc[]
 [discrete#es-connectors-mongodb-usage]
 ===== Usage
 
-To use this connector as a *native connector*, use the *Connector* workflow.
+To use this connector as a *managed connector*, use the *Connector* workflow.
 See <<es-native-connectors>>.
 
 For additional operations, see <<es-connectors-usage>>.
@@ -383,9 +383,9 @@ If that does not work, we recommend deleting the search index attached to this c
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-mongodb-connector-client-reference]
-==== *Connector client (self-managed)*
+==== *Self-managed connector (self-managed)*
 
-.View *connector client* reference
+.View *self-managed connector* reference
 
 [%collapsible]
 ===============
@@ -393,8 +393,8 @@ If that does not work, we recommend deleting the search index attached to this c
 [discrete#es-connectors-mongodb-client-prerequisites]
 ===== Availability and prerequisites
 
-This connector is also available as a *connector client* from the *Elastic connector framework*.
-To use this connector as a connector client, satisfy all <<es-build-connector,connector client requirements>>.
+This connector is also available as a *self-managed connector* from the *Elastic connector framework*.
+To use this connector as a self-managed connector, satisfy all <<es-build-connector,self-managed connector requirements>>.
 
 [discrete#es-connectors-mongodb-client-compatibility]
 ===== Compatibility
@@ -408,7 +408,7 @@ The data source and your Elastic deployment must be able to communicate with eac
 
 [TIP]
 ====
-When using the <<es-build-connector, connector client>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/jira.py[connector source code^].
+When using the <<es-build-connector, self-managed connector>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/jira.py[connector source code^].
 These are set in the `get_default_configuration` function definition.
 
 These configurable fields will be rendered with their respective *labels* in the Kibana UI.
@@ -483,7 +483,7 @@ include::_connectors-create-client.asciidoc[]
 [discrete#es-connectors-mongodb-client-usage]
 ===== Usage
 
-To use this connector as a *connector client*, see <<es-build-connector>>
+To use this connector as a *self-managed connector*, see <<es-build-connector>>
 For additional usage operations, see <<es-connectors-usage>>.
 
 [discrete#es-connectors-mongodb-client-example]
@@ -579,7 +579,7 @@ The full host in this example will look like this:
 A bug introduced in *8.12.0* causes the Connectors docker image to error out if run using MongoDB as its source.
 The command line will output the error `cannot import name 'coroutine' from 'asyncio'`.
 ** This issue is fixed in versions *8.12.2* and *8.13.0*.
-** This bug does not affect native connectors.
+** This bug does not affect managed connectors.
 
 See <<es-connectors-known-issues>> for any issues affecting all connectors.
 

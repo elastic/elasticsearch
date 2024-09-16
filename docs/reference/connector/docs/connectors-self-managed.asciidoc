@@ -61,8 +61,8 @@ Find your connector of interest in the *Elastic Search* section under *Client In
 
 Note the following information regarding support for self-managed connectors:
 
-* A converted but _unmodified_ native connector is supported by Elastic.
-* A converted but _customized_ native connector is _not_ supported by Elastic.
+* A converted but _unmodified_ managed connector is supported by Elastic.
+* A converted but _customized_ managed connector is _not_ supported by Elastic.
 
 ====
 

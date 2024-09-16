@@ -15,7 +15,7 @@ View the {connectors-python}/connectors/sources/{service-name-stub}.py[*source c
 
 .Choose your connector reference
 *******************************
-Are you using a native connector on Elastic Cloud or a self-managed connector client? Expand the documentation based on your deployment method.
+Are you using a managed connector on Elastic Cloud or a self-managed self-managed connector? Expand the documentation based on your deployment method.
 *******************************
 
 // //////// //// //// //// //// //// //// ////////
@@ -23,9 +23,9 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-network-drive-native-connector-reference]
-==== *Native connector (Elastic Cloud)*
+==== *Managed connector (Elastic Cloud)*
 
-.View *native connector* reference
+.View *managed connector* reference
 
 [%collapsible]
 ===============
@@ -33,9 +33,9 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 [discrete#es-connectors-network-drive-prerequisites]
 ===== Availability and prerequisites
 
-This connector is available as a *native connector* on Elastic Cloud, as of *8.9.1*.
+This connector is available as a *managed connector* on Elastic Cloud, as of *8.9.1*.
 
-To use this connector natively in Elastic Cloud, satisfy all <<es-native-connectors-prerequisites,native connector requirements>>.
+To use this connector natively in Elastic Cloud, satisfy all <<es-native-connectors-prerequisites,managed connector requirements>>.
 
 [discrete#es-connectors-network-drive-usage]
 ===== Usage
@@ -232,9 +232,9 @@ See <<es-connectors-security>>.
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-network-drive-connector-client-reference]
-==== *Connector client (self-managed)*
+==== *Self-managed connector (self-managed)*
 
-.View *connector client* reference
+.View *self-managed connector* reference
 
 [%collapsible]
 ===============
@@ -242,22 +242,22 @@ See <<es-connectors-security>>.
 [discrete#es-connectors-network-drive-client-prerequisites]
 ===== Availability and prerequisites
 
-This connector is available as a self-managed *connector client*.
-This connector client is compatible with Elastic versions *8.6.0+*.
+This connector is available as a self-managed *self-managed connector*.
+This self-managed connector is compatible with Elastic versions *8.6.0+*.
 
-To use this connector, satisfy all <<es-build-connector,connector client requirements>>.
+To use this connector, satisfy all <<es-build-connector,self-managed connector requirements>>.
 
 [discrete#es-connectors-network-drive-client-usage]
 ===== Usage
 
-To use this connector as a *connector client*, see <<es-build-connector>>For additional usage operations, see <<es-connectors-usage>>.
+To use this connector as a *self-managed connector*, see <<es-build-connector>>For additional usage operations, see <<es-connectors-usage>>.
 
 [discrete#es-connectors-network-drive-client-configuration]
 ===== Configuration
 
 [TIP]
 ====
-When using the <<es-build-connector, connector client>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/network_drive.py[connector source code^].
+When using the <<es-build-connector, self-managed connector>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/network_drive.py[connector source code^].
 These are set in the `get_default_configuration` function definition.
 
 These configurable fields will be rendered with their respective *labels* in the Kibana UI.
@@ -359,7 +359,7 @@ DLS facilitates the syncing of folder and file permissions, including both user 
 [discrete#es-connectors-network-drive-client-dls-availability]
 ====== Availability
 
-* The Network Drive connector client offers DLS support for both Windows and Linux network drives.
+* The Network Drive self-managed connector offers DLS support for both Windows and Linux network drives.
 * To fetch users and groups in a Windows network drive, account credentials added in the connector configuration should have access to the Powershell of the Windows Server where the network drive is hosted.
 
 [discrete#es-connectors-network-drive-client-sync-rules]
@@ -446,7 +446,7 @@ See <<es-connectors-content-extraction>>.
 The connector framework enables operators to run functional tests against a real data source.
 Refer to <<es-build-connector-testing>> for more details.
 
-To execute a functional test for the Network Drive connector client, run the following command:
+To execute a functional test for the Network Drive self-managed connector, run the following command:
 
 [source,shell]
 ----

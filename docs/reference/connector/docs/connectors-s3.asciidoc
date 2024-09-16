@@ -15,9 +15,9 @@ The _Elastic S3 connector_ is a <<es-connectors,connector>> for https://aws.amaz
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-s3-native-connector-reference]
-==== *Native connector reference (managed service)*
+==== *Managed connector reference*
 
-.View reference for the *native connector reference (managed service)*.
+.View reference for the *Managed connector reference*.
 [%collapsible]
 ===============
 
@@ -25,7 +25,7 @@ The _Elastic S3 connector_ is a <<es-connectors,connector>> for https://aws.amaz
 ===== Availability and prerequisites
 
 This connector is available natively in Elastic Cloud as of version *8.12.0*.
-To use this connector, satisfy all <<es-native-connectors, native connector requirements>>.
+To use this connector, satisfy all <<es-native-connectors, managed connector requirements>>.
 
 [discrete#es-connectors-s3-create-native-connector]
 ===== Create a {service-name} connector
@@ -34,7 +34,7 @@ include::_connectors-create-native.asciidoc[]
 [discrete#es-connectors-s3-usage]
 ===== Usage
 
-To use this native connector, see <<es-native-connectors>>.
+To use this managed connector, see <<es-native-connectors>>.
 
 For additional operations, see <<es-connectors-usage>>.
 
@@ -43,7 +43,7 @@ S3 users will also need to <<es-connectors-s3-usage-create-iam, Create an IAM id
 [discrete#es-connectors-s3-usage-create-iam]
 ====== Create an IAM identity
 
-Users need to create an IAM identity to use this connector as a *connector client*.
+Users need to create an IAM identity to use this connector as a *self-managed connector*.
 Refer to https://docs.aws.amazon.com/IAM/latest/UserGuide/getting-set-up.html[the AWS documentation^].
 
 The https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies.html[policy^] associated with the IAM identity must have the following *AWS permissions*:
@@ -201,18 +201,18 @@ View the {connectors-python}/connectors/sources/s3.py[source code for this conne
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-s3-connector-client-reference]
-==== *Connector client reference (self-managed)*
+==== *Self-managed connector reference**
 
-.View reference for the *connector client reference (self-managed)*.
+.View reference for the *Self-managed connector reference**.
 [%collapsible]
 ===============
 
 [discrete#es-connectors-s3-client-prerequisites]
 ===== Availability and prerequisites
 
-This connector is available as a self-managed *connector client*.
-This connector client is compatible with Elastic versions *8.6.0+*.
-To use this connector, satisfy all <<es-build-connector,connector client requirements>>.
+This connector is available as a self-managed *self-managed connector*.
+This self-managed connector is compatible with Elastic versions *8.6.0+*.
+To use this connector, satisfy all <<es-build-connector,self-managed connector requirements>>.
 
 [discrete#es-connectors-s3-create-connector-client]
 ===== Create a {service-name} connector
@@ -221,7 +221,7 @@ include::_connectors-create-client.asciidoc[]
 [discrete#es-connectors-s3-client-usage]
 ===== Usage
 
-To use this connector as a *connector client*, see <<es-build-connector>>.
+To use this connector as a *self-managed connector*, see <<es-build-connector>>.
 
 For additional operations, see <<es-connectors-usage>>.
 
@@ -230,7 +230,7 @@ S3 users will also need to <<es-connectors-s3-client-usage-create-iam, Create an
 [discrete#es-connectors-s3-client-usage-create-iam]
 ====== Create an IAM identity
 
-Users need to create an IAM identity to use this connector as a *connector client*.
+Users need to create an IAM identity to use this connector as a *self-managed connector*.
 Refer to https://docs.aws.amazon.com/IAM/latest/UserGuide/getting-set-up.html[the AWS documentation^].
 
 The https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies.html[policy^] associated with the IAM identity must have the following *AWS permissions*:
@@ -250,7 +250,7 @@ Currently the connector does not support S3-compatible vendors.
 
 [TIP]
 ====
-When using the <<es-build-connector, connector client>> workflow, these fields will use the default configuration set in the https://github.com/elastic/connectors/blob/a5976d20cd8277ae46511f7176662afc889e56ec/connectors/sources/s3.py#L231-L258[connector source code^].
+When using the <<es-build-connector, self-managed connector>> workflow, these fields will use the default configuration set in the https://github.com/elastic/connectors/blob/a5976d20cd8277ae46511f7176662afc889e56ec/connectors/sources/s3.py#L231-L258[connector source code^].
 These configurable fields will be rendered with their respective *labels* in the Kibana UI.
 Once connected, you'll be able to update these values in Kibana.
 ====
@@ -388,7 +388,7 @@ See <<es-connectors-content-extraction>>.
 The connector framework enables operators to run functional tests against a real data source.
 Refer to <<es-build-connector-testing>> for more details.
 
-To execute a functional test for the Amazon S3 *connector client*, run the following command:
+To execute a functional test for the Amazon S3 *self-managed connector*, run the following command:
 
 [source,shell]
 ----

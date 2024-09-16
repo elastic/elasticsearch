@@ -14,9 +14,9 @@
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-oracle-native-connector-reference]
-==== *Native connector reference (managed service)*
+==== *Managed connector reference*
 
-.View reference for the *native connector reference (managed service)*.
+.View reference for the *Managed connector reference*.
 [%collapsible]
 ===============
 
@@ -24,7 +24,7 @@
 ===== Availability and prerequisites
 
 This connector is available natively in Elastic Cloud as of *8.12.0*.
-To use this connector, satisfy all <<es-native-connectors, native connector requirements>>.
+To use this connector, satisfy all <<es-native-connectors, managed connector requirements>>.
 
 [discrete#es-connectors-oracle-create-native-connector]
 ===== Create a {service-name} connector
@@ -33,7 +33,7 @@ include::_connectors-create-native.asciidoc[]
 [discrete#es-connectors-oracle-usage]
 ===== Usage
 
-To use this connector as a *native connector*, see <<es-native-connectors>>.
+To use this connector as a *managed connector*, see <<es-native-connectors>>.
 
 The database user requires `CONNECT` and `DBA` privileges and must be the owner of the tables to be indexed.
 
@@ -177,18 +177,18 @@ View {connectors-python}/connectors/sources/oracle.py[additional code specific t
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-oracle-connector-client-reference]
-==== *Connector client reference (self-managed)*
+==== *Self-managed connector reference**
 
-.View reference for the *connector client reference (self-managed)*.
+.View reference for the *Self-managed connector reference**.
 [%collapsible]
 ===============
 
 [discrete#es-connectors-oracle-client-availability-prerequisites]
 ===== Availability and prerequisites
 
-This connector is available as a self-managed *connector client*.
-This connector client is compatible with Elastic versions *8.6.0+*.
-To use this connector, satisfy all <<es-build-connector,connector client requirements>>.
+This connector is available as a self-managed *self-managed connector*.
+This self-managed connector is compatible with Elastic versions *8.6.0+*.
+To use this connector, satisfy all <<es-build-connector,self-managed connector requirements>>.
 
 [discrete#es-connectors-oracle-create-connector-client]
 ===== Create a {service-name} connector
@@ -197,7 +197,7 @@ include::_connectors-create-client.asciidoc[]
 [discrete#es-connectors-oracle-client-usage]
 ===== Usage
 
-To use this connector as a *connector client*, see <<es-build-connector>>.
+To use this connector as a *self-managed connector*, see <<es-build-connector>>.
 
 The database user requires `CONNECT` and `DBA` privileges and must be the owner of the tables to be indexed.
 
@@ -252,7 +252,7 @@ Oracle Database versions *18c*, *19c* and *21c* are compatible with Elastic conn
 
 [TIP]
 ====
-When using the <<es-build-connector, connector client>> workflow, these fields will use the default configuration set in the https://github.com/elastic/connectors/blob/{branch}/connectors/sources/generic_database.py[connector source code^].
+When using the <<es-build-connector, self-managed connector>> workflow, these fields will use the default configuration set in the https://github.com/elastic/connectors/blob/{branch}/connectors/sources/generic_database.py[connector source code^].
 Note that this data source uses the `generic_database.py` connector source code.
 Refer to https://github.com/elastic/connectors/blob/{branch}/connectors/sources/oracle.py[`oracle.py`^] for additional code, specific to this data source.
 
@@ -341,7 +341,7 @@ Advanced sync rules are not available for this connector in the present version.
 Currently, filtering is controlled by ingest pipelines.
 
 [discrete#es-connectors-oracle-client-operations]
-===== Connector client operations
+===== Self-managed connector operations
 
 [discrete#es-connectors-oracle-client-operations-testing]
 ====== End-to-end testing

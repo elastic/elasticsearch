@@ -13,9 +13,9 @@ The Elastic GraphQL connector is written in Python using the https://github.com/
 [discrete#es-connectors-graphql-connector-availability-and-prerequisites]
 ==== Availability and prerequisites
 
-This connector was introduced in Elastic *8.14.0*, available as a *self-managed* connector client.
+This connector was introduced in Elastic *8.14.0*, available as a *self-managed* self-managed connector.
 
-To use this connector, satisfy all <<es-build-connector, connector client prerequisites>>.
+To use this connector, satisfy all <<es-build-connector, self-managed connector prerequisites>>.
 Importantly, you must deploy the connectors service on your own infrastructure.
 You have two deployment options:
 

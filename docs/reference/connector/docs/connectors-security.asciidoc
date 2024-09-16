@@ -4,7 +4,7 @@
 <titleabbrev>Security</titleabbrev>
 ++++
 
-This document describes security considerations for <<es-native-connectors,native connectors>> and <<es-build-connector,connector clients>>.
+This document describes security considerations for <<es-native-connectors,managed connectors>> and <<es-build-connector,self-managed connectors>>.
 
 Elastic Cloud deployments have strong security defaults.
 For example, data is encrypted by default, whether at rest or in transit.
@@ -23,7 +23,7 @@ Enterprise Search service account tokens can also read the `.elastic-connectors`
 [discrete#es-native-connectors-security-api-key]
 ==== Access to internally stored API keys
 
-API keys for native connectors are stored in the internal system index `.connector-secrets`.
+API keys for managed connectors are stored in the internal system index `.connector-secrets`.
 Access to this index is restricted to authorized API calls only.
 The cluster privilege `write_connector_secrets` is required to store or update secrets through the API.
 Only the Enterprise Search instance has permission to read from this index.

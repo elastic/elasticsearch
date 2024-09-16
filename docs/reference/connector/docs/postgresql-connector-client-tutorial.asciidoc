@@ -1,23 +1,23 @@
 [#es-postgresql-connector-client-tutorial]
-=== PostgreSQL connector client tutorial
+=== PostgreSQL self-managed connector tutorial
 ++++
 <titleabbrev>Tutorial</titleabbrev>
 ++++
 
-This tutorial walks you through the process of creating a connector client for a PostgreSQL data source.
-You'll be using the <<es-build-connector, connector client>> workflow in the Kibana UI.
+This tutorial walks you through the process of creating a self-managed connector for a PostgreSQL data source.
+You'll be using the <<es-build-connector, self-managed connector>> workflow in the Kibana UI.
 This means you'll be deploying the connector on your own infrastructure.
 Refer to the <<es-connectors-postgresql, Elastic PostgreSQL connector reference>> for more information about this connector.
 
 You'll use the {connectors-python}[connector framework^] to create the connector.
 In this exercise, you'll be working in both the terminal (or your IDE) and the Kibana UI.
 
-If you want to deploy a connector client for another data source, use this tutorial as a blueprint.
-Refer to the list of available <<es-build-connector,connector clients>>.
+If you want to deploy a self-managed connector for another data source, use this tutorial as a blueprint.
+Refer to the list of available <<es-build-connector,self-managed connectors>>.
 
 [TIP]
 ====
-Want to get started quickly testing a self-managed connector client using Docker Compose?
+Want to get started quickly testing a self-managed self-managed connector using Docker Compose?
 Refer to this https://github.com/elastic/connectors/tree/main/scripts/stack#readme[README] in the `elastic/connectors` repo for more information.
 ====
 
@@ -27,7 +27,7 @@ Refer to this https://github.com/elastic/connectors/tree/main/scripts/stack#read
 [discrete#es-postgresql-connector-client-tutorial-prerequisites-elastic]
 ===== Elastic prerequisites
 
-First, ensure you satisfy the <<es-build-connector-prerequisites, prerequisites>> for self-managed connector clients.
+First, ensure you satisfy the <<es-build-connector-prerequisites, prerequisites>> for self-managed self-managed connectors.
 
 [discrete#es-postgresql-connector-client-tutorial-postgresql-prerequisites]
 ===== PostgreSQL prerequisites
@@ -68,7 +68,7 @@ To complete this tutorial, you'll need to complete the following steps:
 ==== Create an Elasticsearch index
 
 Elastic connectors enable you to create searchable, read-only replicas of your data sources in Elasticsearch.
-The first step in setting up your connector client is to create an index.
+The first step in setting up your self-managed connector is to create an index.
 
 In the {kibana-ref}[Kibana^] UI go to *Search > Content > Elasticsearch indices*.
 
@@ -133,7 +133,7 @@ connectors:
 
 
 
-# Connector client settings
+# Self-managed connector settings
 connector_id: '<YOUR-CONNECTOR-ID>' # Your connector ID
 service_type: 'postgresql'  # The service type for your connector
 
@@ -227,8 +227,8 @@ This will ensure your _searchable_ data in Elasticsearch is always up to date wi
 [discrete#es-postgresql-connector-client-tutorial-learn-more]
 ==== Learn more
 
-* <<es-build-connector, Overview of connector clients and frameworks>>
+* <<es-build-connector, Overview of self-managed connectors and frameworks>>
 * {connectors-python}[Elastic Elastic connector framework repository^]
 * <<es-connectors-postgresql, Elastic PostgreSQL connector reference>>
 * <<es-connectors, Overview of all Elastic connectors>>
-* <<es-native-connectors, Native connectors available in Elastic Cloud>>
+* <<es-native-connectors, Managed connectors available in Elastic Cloud>>

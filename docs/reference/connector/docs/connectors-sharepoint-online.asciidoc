@@ -20,7 +20,7 @@ View the {connectors-python}/connectors/sources/{service-name-stub}.py[*source c
 
 .Choose your connector reference
 *******************************
-Are you using a native connector on Elastic Cloud or a self-managed connector client? Expand the documentation based on your deployment method.
+Are you using a managed connector on Elastic Cloud or a self-managed self-managed connector? Expand the documentation based on your deployment method.
 *******************************
 
 // //////// //// //// //// //// //// //// ////////
@@ -28,9 +28,9 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-sharepoint-online-native-connector-reference]
-==== *Native connector (Elastic Cloud)*
+==== *Managed connector (Elastic Cloud)*
 
-.View *native connector* reference
+.View *managed connector* reference
 
 [%collapsible]
 ===============
@@ -38,8 +38,8 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 [discrete#es-connectors-sharepoint-online-availability-prerequisites]
 ===== Availability and prerequisites
 
-This connector is available as a *native connector* in Elastic versions *8.9.0 and later*.
-To use this connector natively in Elastic Cloud, satisfy all <<es-native-connectors,native connector requirements>>.
+This connector is available as a *managed connector* in Elastic versions *8.9.0 and later*.
+To use this connector natively in Elastic Cloud, satisfy all <<es-native-connectors,managed connector requirements>>.
 
 [NOTE]
 ====
@@ -50,7 +50,7 @@ View the requirements for this feature under the *Elastic Search* section of the
 [discrete#es-connectors-sharepoint-online-usage]
 ===== Usage
 
-To use this connector as a *native connector*, see <<es-native-connectors>>.
+To use this connector as a *managed connector*, see <<es-native-connectors>>.
 
 For additional operations, see <<es-connectors-usage>>.
 
@@ -426,7 +426,7 @@ See <<es-connectors-content-extraction>>.
 [discrete#es-connectors-sharepoint-online-content-extraction-local]
 ====== Local content extraction (for large files)
 
-The SharePoint Online connector client supports large file content extraction (> *100MB*).
+The SharePoint Online self-managed connector supports large file content extraction (> *100MB*).
 This requires:
 
 * A self-managed deployment of the Elastic Text Extraction Service.
@@ -486,9 +486,9 @@ See <<es-connectors-security>>.
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-sharepoint-online-connector-client-reference]
-==== *Connector client (self-managed)*
+==== *Self-managed connector (self-managed)*
 
-.View *connector client* reference
+.View *self-managed connector* reference
 
 [%collapsible]
 ===============
@@ -496,8 +496,8 @@ See <<es-connectors-security>>.
 [discrete#es-connectors-sharepoint-online-client-availability-prerequisites]
 ===== Availability and prerequisites
 
-This connector is available as a self-managed *connector client*.
-To use this connector as a connector client, satisfy all <<es-build-connector,connector client requirements>>.
+This connector is available as a self-managed *self-managed connector*.
+To use this connector as a self-managed connector, satisfy all <<es-build-connector,self-managed connector requirements>>.
 
 [NOTE]
 ====
@@ -508,7 +508,7 @@ View the requirements for this feature under the *Elastic Search* section of the
 [discrete#es-connectors-sharepoint-online-client-usage]
 ===== Usage
 
-To use this connector as a *connector client*, see <<es-build-connector>>
+To use this connector as a *self-managed connector*, see <<es-build-connector>>
 For additional operations, see <<es-connectors-usage>>.
 
 [discrete#es-connectors-sharepoint-online-client-sharepoint-prerequisites]
@@ -613,7 +613,7 @@ This connector is compatible with SharePoint Online.
 
 [TIP]
 ====
-When using the <<es-build-connector, connector client>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/sharepoint_online.py[connector source code^].
+When using the <<es-build-connector, self-managed connector>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/sharepoint_online.py[connector source code^].
 These are set in the `get_default_configuration` function definition.
 
 These configurable fields will be rendered with their respective *labels* in the Kibana UI.
@@ -908,7 +908,7 @@ See <<es-connectors-content-extraction>>.
 [discrete#es-connectors-sharepoint-online-client-content-extraction-local]
 ====== Local content extraction (for large files)
 
-The SharePoint Online connector client supports large file content extraction (> *100MB*).
+The SharePoint Online self-managed connector supports large file content extraction (> *100MB*).
 This requires:
 
 * A self-managed deployment of the Elastic Text Extraction Service.

@@ -14,9 +14,9 @@ This connector uses the https://github.com/elastic/connectors/blob/{branch}/conn
 View the specific {connectors-python}/connectors/sources/{service-name-stub}.py[*source code* for this connector^] (branch _{connectors-branch}_, compatible with Elastic _{minor-version}_).
 
 [discrete#es-connectors-postgresql-connector-client-reference]
-==== *Connector client (self-managed)*
+==== *Self-managed connector (self-managed)*
 
-.View *connector client* reference
+.View *self-managed connector* reference
 
 [%collapsible]
 ===============
@@ -24,8 +24,8 @@ View the specific {connectors-python}/connectors/sources/{service-name-stub}.py[
 [discrete#es-connectors-postgresql-client-availability-prerequisites]
 ===== Availability and prerequisites
 
-This connector is available as a self-managed *connector client*.
-To use this connector, satisfy all //build-connector,connector client requirements.
+This connector is available as a self-managed *self-managed connector*.
+To use this connector, satisfy all //build-connector,self-managed connector requirements.
 
 [discrete#es-connectors-postgresql-create-connector-client]
 ===== Create a {service-name} connector
@@ -34,7 +34,7 @@ include::_connectors-create-client.asciidoc[]
 [discrete#es-connectors-postgresql-client-usage]
 ===== Usage
 
-To use this connector as a *connector client*, see //build-connector
+To use this connector as a *self-managed connector*, see //build-connector
 [TIP]
 ====
 Users must set `track_commit_timestamp` to `on`.
@@ -45,7 +45,7 @@ For additional operations, see.
 
 [NOTE]
 ====
-For an end-to-end example of the connector client workflow, see //postgresql-connector-client-tutorial.
+For an end-to-end example of the self-managed connector workflow, see //postgresql-connector-client-tutorial.
 ====
 
 [discrete#es-connectors-postgresql-client-compatibility]
@@ -58,7 +58,7 @@ PostgreSQL versions 11 to 15 are compatible with Elastic connector frameworks.
 
 [TIP]
 ====
-When using the //build-connector, connector client workflow, initially these fields will use the default configuration set in the https://github.com/elastic/connectors-python/blob/{branch}/connectors/sources/postgresql.py[connector source code^].
+When using the //build-connector, self-managed connector workflow, initially these fields will use the default configuration set in the https://github.com/elastic/connectors-python/blob/{branch}/connectors/sources/postgresql.py[connector source code^].
 
 These configurable fields will be rendered with their respective *labels* in the Kibana UI.
 Once connected, users will be able to update these values in Kibana.

@@ -16,18 +16,18 @@ View the {connectors-python}/connectors/sources/microsoft_teams.py[source code f
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-teams-native-connector-reference]
-==== *Native connector reference (managed service)*
+==== *Managed connector reference*
 
-.View reference for the *native connector reference (managed service)*.
+.View reference for the *Managed connector reference*.
 [%collapsible]
 ===============
 
 [discrete#es-connectors-microsoft-teams-native-availability-and-prerequisites]
 ===== Availability and prerequisites
 
-This native connector was introduced in Elastic *8.14.0* as a managed service on Elastic Cloud.
+This managed connector was introduced in Elastic *8.14.0* as a managed service on Elastic Cloud.
 
-To use this connector natively in Elastic Cloud, satisfy all <<es-native-connectors,native connector requirements>>.
+To use this connector natively in Elastic Cloud, satisfy all <<es-native-connectors,managed connector requirements>>.
 
 [NOTE]
 ====
@@ -179,17 +179,17 @@ See <<es-connectors-security>>.
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-teams-connector-client-reference]
-==== *Connector client reference (self-managed)*
+==== *Self-managed connector reference**
 
-.View reference for the *connector client reference (self-managed)*.
+.View reference for the *Self-managed connector reference**.
 [%collapsible]
 ===============
 
 [discrete#es-connectors-microsoft-teams-availability-and-prerequisites]
 ===== Availability and prerequisites
 
-This connector is available as a self-managed *connector client*.
-To use this connector, satisfy all <<es-build-connector, connector client prerequisites>>.
+This connector is available as a self-managed *self-managed connector*.
+To use this connector, satisfy all <<es-build-connector, self-managed connector prerequisites>>.
 
 [NOTE]
 ====
@@ -205,7 +205,7 @@ include::_connectors-create-client.asciidoc[]
 [discrete#es-connectors-microsoft-teams-usage]
 ===== Usage
 
-To use this connector as a *connector client*, use the *Microsoft Teams* tile from the connectors list *Customized connector* workflow.
+To use this connector as a *self-managed connector*, use the *Microsoft Teams* tile from the connectors list *Customized connector* workflow.
 
 For additional operations, see <<es-connectors-usage>>.
 

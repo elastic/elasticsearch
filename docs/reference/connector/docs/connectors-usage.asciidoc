@@ -1,7 +1,7 @@
 [#es-connectors-usage]
 == Connectors UI in {kib}
 
-This document describes operations available to <<es-native-connectors,native connectors>> and <<es-build-connector,connector clients>>, using the UI.
+This document describes operations available to <<es-native-connectors,managed connectors>> and <<es-build-connector,self-managed connectors>>, using the UI.
 
 In the Kibana UI, go to *Search > Content > Connectors* to view a summary of all your connectors and sync jobs, and to create new connectors.
 
@@ -16,7 +16,7 @@ Use these tools if you'd like to work with connectors and sync jobs programmatic
 
 You connector writes data to an {es} index.
 
-To create <<es-native-connectors,*native connectors*>> or self-managed <<es-build-connector,*connector clients*>>, use the buttons under *Search > Content > Connectors*.
+To create <<es-native-connectors,*managed connectors*>> or self-managed <<es-build-connector,*self-managed connectors*>>, use the buttons under *Search > Content > Connectors*.
 Once you've chosen the data source type you'd like to sync, you'll be prompted to create an {es} index.
 
 [discrete#es-connectors-usage-indices]

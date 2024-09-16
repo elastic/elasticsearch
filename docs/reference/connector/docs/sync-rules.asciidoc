@@ -7,7 +7,7 @@
 Use connector sync rules to help control which documents are synced between the third-party data source and Elasticsearch.
 Define sync rules in the Kibana UI for each connector index, under the `Sync rules` tab for the index.
 
-Sync rules apply to <<es-native-connectors,native connectors>> and <<es-build-connector,connector clients>>.
+Sync rules apply to <<es-native-connectors,managed connectors>> and <<es-build-connector,self-managed connectors>>.
 
 [discrete#es-sync-rules-availability-prerequisites]
 ==== Availability and prerequisites
@@ -163,7 +163,7 @@ For example, loading datasets which are too big to fit in memory at once.
 [NOTE]
 ====
 The native MongoDB connector provided by Elastic uses pagination and therefore has optimized performance.
-Keep in mind that custom community-built connector clients may not have these performance optimizations.
+Keep in mind that custom community-built self-managed connectors may not have these performance optimizations.
 ====
 
 The following diagrams illustrate the concept of pagination.

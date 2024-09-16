@@ -14,7 +14,7 @@ View the {connectors-python}/connectors/sources/{service-name-stub}.py[*source c
 
 .Choose your connector reference
 *******************************
-Are you using a native connector on Elastic Cloud or a self-managed connector client? Expand the documentation based on your deployment method.
+Are you using a managed connector on Elastic Cloud or a self-managed self-managed connector? Expand the documentation based on your deployment method.
 *******************************
 
 // //////// //// //// //// //// //// //// ////////
@@ -22,9 +22,9 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-dropbox-native-connector-reference]
-==== *Native connector (Elastic Cloud)*
+==== *Managed connector (Elastic Cloud)*
 
-.View *native connector* reference
+.View *managed connector* reference
 
 [%collapsible]
 ===============
@@ -32,9 +32,9 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 [discrete#es-connectors-dropbox-availability-and-prerequisites]
 ===== Availability and prerequisites
 
-This connector is available as a *native connector* in Elastic versions *8.10.0 and later*.
+This connector is available as a *managed connector* in Elastic versions *8.10.0 and later*.
 
-To use this connector natively in Elastic Cloud, satisfy all <<es-native-connectors-prerequisites,native connector requirements>>.
+To use this connector natively in Elastic Cloud, satisfy all <<es-native-connectors-prerequisites,managed connector requirements>>.
 
 [discrete#es-connectors-dropbox-create-native-connector]
 ===== Create a {service-name} connector
@@ -43,7 +43,7 @@ include::_connectors-create-native.asciidoc[]
 [discrete#es-connectors-dropbox-usage]
 ===== Usage
 
-To use this connector as a *native connector*, see <<es-native-connectors>>.
+To use this connector as a *managed connector*, see <<es-native-connectors>>.
 
 For additional operations, see <<es-connectors-usage>>.
 
@@ -276,9 +276,9 @@ See <<es-connectors-content-extraction>>.
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-dropbox-connector-client-reference]
-==== *Connector client (self-managed)*
+==== *Self-managed connector (self-managed)*
 
-.View *connector client* reference
+.View *self-managed connector* reference
 
 [%collapsible]
 ===============
@@ -286,11 +286,11 @@ See <<es-connectors-content-extraction>>.
 [discrete#es-connectors-dropbox-client-availability-and-prerequisites]
 ===== Availability and prerequisites
 
-This connector is available as a self-managed *connector client*.
+This connector is available as a self-managed *self-managed connector*.
 
-This connector client is compatible with Elastic versions *8.9.0*+.
+This self-managed connector is compatible with Elastic versions *8.9.0*+.
 
-To use this connector, satisfy all <<es-build-connector-prerequisites,connector client requirements>>.
+To use this connector, satisfy all <<es-build-connector-prerequisites,self-managed connector requirements>>.
 
 [discrete#es-connectors-dropbox-create-connector-client]
 ===== Create a {service-name} connector
@@ -304,7 +304,7 @@ Before you can configure your connector, you'll need to:
 * <<es-connectors-dropbox-client-refresh-token,Generate a refresh token>>
 
 
-To use this connector as a *connector client*, see <<es-build-connector>>
+To use this connector as a *self-managed connector*, see <<es-build-connector>>
 Once set up, for additional usage operations, see <<es-connectors-usage>>.
 
 [discrete#es-connectors-dropbox-client-dropbox-api-authorization]
@@ -362,7 +362,7 @@ Make sure the response has a list of the following scopes:
 
 [TIP]
 ====
-When using the <<es-build-connector, connector client>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/confluence.py[connector source code^].
+When using the <<es-build-connector, self-managed connector>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/confluence.py[connector source code^].
 These are set in the `get_default_configuration` function definition.
 
 These configurable fields will be rendered with their respective *labels* in the Kibana UI.

@@ -16,18 +16,18 @@ View the {connectors-python}/connectors/sources/box.py[source code for this conn
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-box-native-connector-reference]
-==== *Native connector reference (managed service)*
+==== *Managed connector reference*
 
-.View reference for the *native connector reference (managed service)*.
+.View reference for the *Managed connector reference*.
 [%collapsible]
 ===============
 
 [discrete#es-connectors-box-availability-and-prerequisites]
 ===== Availability and prerequisites
 
-This connector is available as a *native connector* as of Elastic version *8.14.0*.
+This connector is available as a *managed connector* as of Elastic version *8.14.0*.
 
-To use this connector natively in Elastic Cloud, satisfy all <<es-native-connectors-prerequisites,native connector requirements>>.
+To use this connector natively in Elastic Cloud, satisfy all <<es-native-connectors-prerequisites,managed connector requirements>>.
 
 [NOTE]
 ====
@@ -43,7 +43,7 @@ include::_connectors-create-native.asciidoc[]
 [discrete#es-connectors-box-usage]
 ===== Usage
 
-To use this connector as a *connector client*, use the *Box* tile from the connectors list OR *Customized connector* workflow.
+To use this connector as a *self-managed connector*, use the *Box* tile from the connectors list OR *Customized connector* workflow.
 
 For additional operations, see <<es-connectors-usage>>.
 
@@ -188,16 +188,16 @@ See <<es-connectors-security>>.
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-box-connector-client-reference]
-==== *Connector client reference (self-managed)*
+==== *Self-managed connector reference**
 
-.View reference for the *connector client reference (self-managed)*.
+.View reference for the *Self-managed connector reference**.
 [%collapsible]
 ===============
 
 [discrete#es-connectors-box-client-availability-and-prerequisites]
 ===== Availability and prerequisites
 
-This connector is available as a self-managed *connector client*. To use this connector, satisfy all <<es-build-connector, connector client prerequisites>>.
+This connector is available as a self-managed *self-managed connector*. To use this connector, satisfy all <<es-build-connector, self-managed connector prerequisites>>.
 
 [NOTE]
 ====
@@ -213,7 +213,7 @@ include::_connectors-create-client.asciidoc[]
 [discrete#es-connectors-box-client-usage]
 ===== Usage
 
-To use this connector as a *connector client*, use the *Box* tile from the connectors list OR *Customized connector* workflow.
+To use this connector as a *self-managed connector*, use the *Box* tile from the connectors list OR *Customized connector* workflow.
 
 For additional operations, see <<es-connectors-usage>>.
 

@@ -15,7 +15,7 @@ Next, complete these steps:
 2. Create and name a new *Elasticsearch index*.
 3. Generate a new *API key* and save it somewhere safe.
 4. Name your connector and provide an optional description
-5. *Convert* native connector to a connector client (_Only applicable if connector is also available natively_). This action is irreversible.
+5. *Convert* managed connector to a self-managed connector (_Only applicable if connector is also available natively_). This action is irreversible.
 6. Copy the configuration block from the example shown on the screen. You’ll use this in a later step:
 +
 [source,yaml]

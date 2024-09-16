@@ -18,7 +18,7 @@ These queries will be scoped and controlled by the associated user identities in
 ==== Set up connector to sync data with access control
 
 You'll need to have an Enterprise Search deployment and to run a self-managed *connectors service* instance to ingest data with access control.
-Refer to <<es-build-connector>> for details on how to set up a connector client and run the connectors service.
+Refer to <<es-build-connector>> for details on how to set up a self-managed connector and run the connectors service.
 
 [TIP]
 ====

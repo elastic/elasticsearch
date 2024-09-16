@@ -10,7 +10,7 @@ The columns provide specific information about each connector:
 * *Document level security*: Specifies the version in which document level security is supported, if applicable.
 * *Code*: Provides a link to the connector's source code in the https://github.com/elastic/connectors[`elastic/connectors` GitHub repository].
 
-NOTE: All connectors are available as self-managed <<es-build-connector,connector clients>>.
+NOTE: All connectors are available as self-managed <<es-build-connector,self-managed connectors>>.
 
 [options="header"]
 |====================================================================================================================================================================================================

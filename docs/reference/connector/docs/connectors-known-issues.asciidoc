@@ -5,9 +5,9 @@
 ++++
 
 [discrete#es-connectors-known-issues-enterprie-search-service]
-=== Enterprise Search service: connector clients
+=== Enterprise Search service: self-managed connectors
 
-As of *8.10.0* self-managed connector clients no longer require the Enterprise Search service to be running on your Elastic deployment.
+As of *8.10.0* self-managed self-managed connectors no longer require the Enterprise Search service to be running on your Elastic deployment.
 However, if you are upgrading connectors from versions _earlier than 8.9_, you'll need to run Enterprise Search once to migrate your connectors to the new format.
 
 Some points to note about this migration:
@@ -20,7 +20,7 @@ If you have trouble with this migration, please contact support.
 
 [WARNING]
 ====
-To run connector clients your self-deployed connector service version must match your Elasticsearch version.
+To run self-managed connectors your self-deployed connector service version must match your Elasticsearch version.
 For example, if you're running Elasticsearch 8.10.1, your connector service should be version 8.10.1.x.
 Elastic does not support deployments running mismatched versions (except during upgrades).
 ====
@@ -39,7 +39,7 @@ For tables with millions of records, this can lead to memory exhaustion if the c
 To mitigate this issue, you can:
 +
 ** *Increase RAM allocation*:
-*** *Elastic Cloud*: Upgrade the Enterprise Search instance to a larger size. Note that for native connectors running on Elastic Cloud, the connector service runs on the Enterprise Search node. It only has access to up to 40% of the node’s RAM allocation.
+*** *Elastic Cloud*: Upgrade the Enterprise Search instance to a larger size. Note that for managed connectors running on Elastic Cloud, the connector service runs on the Enterprise Search node. It only has access to up to 40% of the node’s RAM allocation.
 *** *Self-managed*: Increase RAM allocation for the machine/container running the connector service.
 +
 .RAM *sizing guidelines*
@@ -62,8 +62,8 @@ The following table shows the estimated RAM usage for loading IDs into memory.
 ** *Optimize* <<es-sync-rules,*sync rules*>>:
 *** Review and optimize sync rules to filter and reduce data retrieved from the source before syncing.
 +
-** *Use a self-managed connector client* instead of a native connector:
-*** Because connector clients run on your infrastructure, they are not subject to the same RAM limitations of the Enterprise Search node.
+** *Use a self-managed self-managed connector* instead of a managed connector:
+*** Because self-managed connectors run on your infrastructure, they are not subject to the same RAM limitations of the Enterprise Search node.
 
 * *Upgrades from deployments running on versions earlier than 8.9.0 can cause sync job failures*
 +
@@ -112,8 +112,8 @@ If the error continues, try running the above command for every document in the 
 A connector that was created prior to 8.8 can sometimes be missing configuration fields.
 This is a known issue for the MySQL connector but could also affect other connectors.
 +
-If the connector client raises the error `Connector for <connector_id> has missing configuration fields: <field_a>, <field_b>...`, you can resolve the error by manually adding the missing configuration fields via the Dev Tools.
-Only the following two field properties are required, as the rest will be autopopulated by the connector client:
+If the self-managed connector raises the error `Connector for <connector_id> has missing configuration fields: <field_a>, <field_b>...`, you can resolve the error by manually adding the missing configuration fields via the Dev Tools.
+Only the following two field properties are required, as the rest will be autopopulated by the self-managed connector:
 +
 ** `type`: one of `str`, `int`, `bool`, or `list`
 ** `value`: any value, as long as it is of the correct `type` (`list` type values should be saved as comma-separated strings)
@@ -149,8 +149,8 @@ POST /.elastic-connectors/_update/<connector_id>
 +
 As a result, true document volume will be under-reported by a factor of 1024.
 +
-* *The following native connectors will not run correctly on Elastic Cloud in 8.9.0.*
-They are still available as self-managed connector clients.
+* *The following managed connectors will not run correctly on Elastic Cloud in 8.9.0.*
+They are still available as self-managed self-managed connectors.
 ** Azure Blob Storage
 ** Confluence Cloud & Server
 ** Jira Cloud & Server

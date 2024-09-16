@@ -15,7 +15,7 @@ View the {connectors-python}/connectors/sources/{service-name-stub}.py[*source c
 
 .Choose your connector reference
 *******************************
-Are you using a native connector on Elastic Cloud or a self-managed connector client? Expand the documentation based on your deployment method.
+Are you using a managed connector on Elastic Cloud or a self-managed self-managed connector? Expand the documentation based on your deployment method.
 *******************************
 
 // //////// //// //// //// //// //// //// ////////
@@ -23,9 +23,9 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-azure-blob-native-connector-reference]
-==== *Native connector (Elastic Cloud)*
+==== *Managed connector (Elastic Cloud)*
 
-.View *native connector* reference
+.View *managed connector* reference
 
 [%collapsible]
 ===============
@@ -33,9 +33,9 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 [discrete#es-connectors-azure-blob-availability-prerequisites]
 ===== Availability and prerequisites
 
-This connector is available as a *native connector* on Elastic Cloud, as of *8.9.1*.
+This connector is available as a *managed connector* on Elastic Cloud, as of *8.9.1*.
 
-To use this connector natively in Elastic Cloud, satisfy all <<es-native-connectors-prerequisites,native connector requirements>>.
+To use this connector natively in Elastic Cloud, satisfy all <<es-native-connectors-prerequisites,managed connector requirements>>.
 
 [discrete#es-connectors-azure-blob-compatability]
 ===== Compatibility
@@ -53,7 +53,7 @@ include::_connectors-create-native.asciidoc[]
 [discrete#es-connectors-azure-blob-usage]
 ===== Usage
 
-To use this connector as a *native connector*, see <<es-native-connectors>>.
+To use this connector as a *managed connector*, see <<es-native-connectors>>.
 
 For additional operations, see <<es-connectors-usage>>.
 
@@ -138,9 +138,9 @@ View the {connectors-python}/connectors/sources/azure_blob_storage.py[source cod
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-azure-blob-connector-client-reference]
-==== *Connector client (self-managed)*
+==== *Self-managed connector (self-managed)*
 
-.View *connector client* reference
+.View *self-managed connector* reference
 
 [%collapsible]
 ===============
@@ -148,9 +148,9 @@ View the {connectors-python}/connectors/sources/azure_blob_storage.py[source cod
 [discrete#es-connectors-azure-blob-client-availability-prerequisites]
 ===== Availability and prerequisites
 
-This connector is available as a self-managed *connector client*.
-This connector client is compatible with Elastic versions *8.6.0+*.
-To use this connector, satisfy all <<es-build-connector,connector client requirements>>.
+This connector is available as a self-managed *self-managed connector*.
+This self-managed connector is compatible with Elastic versions *8.6.0+*.
+To use this connector, satisfy all <<es-build-connector,self-managed connector requirements>>.
 
 [discrete#es-connectors-azure-blob-client-compatability]
 ===== Compatibility
@@ -168,7 +168,7 @@ include::_connectors-create-client.asciidoc[]
 [discrete#es-connectors-azure-blob-client-usage]
 ===== Usage
 
-To use this connector as a *connector client*, see <<es-build-connector>>
+To use this connector as a *self-managed connector*, see <<es-build-connector>>
 For additional usage operations, see <<es-connectors-usage>>.
 
 [discrete#es-connectors-azure-blob-client-configuration]
@@ -176,7 +176,7 @@ For additional usage operations, see <<es-connectors-usage>>.
 
 [TIP]
 ====
-When using the <<es-build-connector, connector client>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/azure_blob_storage.py[connector source code^].
+When using the <<es-build-connector, self-managed connector>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/azure_blob_storage.py[connector source code^].
 These are set in the `get_default_configuration` function definition.
 
 These configurable fields will be rendered with their respective *labels* in the Kibana UI.

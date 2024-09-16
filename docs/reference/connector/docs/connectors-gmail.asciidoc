@@ -15,20 +15,20 @@ The _Elastic GMail connector_ is a <<es-connectors,connector>> for GMail.
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-gmail-native-connector-reference]
-==== *Native connector reference (managed service)*
+==== *Managed connector reference*
 
-.View reference for the *native connector reference (managed service)*.
+.View reference for the *Managed connector reference*.
 [%collapsible]
 ===============
 
 [discrete#es-connectors-gmail-availability]
 ===== Availability and prerequisites
 
-This connector is available as a *native connector* (managed service) in Elastic Cloud.
+This connector is available as a *managed connector* (managed service) in Elastic Cloud.
 
 This connector is compatible with Elastic versions *8.13.0+*.
 
-To use this connector, satisfy all <<es-native-connectors,native connector requirements>>.
+To use this connector, satisfy all <<es-native-connectors,managed connector requirements>>.
 
 [discrete#es-connectors-gmail-create-native-connector]
 ==== Create a {service-name} connector
@@ -37,7 +37,7 @@ include::_connectors-create-native.asciidoc[]
 [discrete#es-connectors-gmail-usage]
 ===== Usage
 
-To use this connector as a native connector in Elastic Cloud, use the *Connectors* workflow in the Kibana UI.
+To use this connector as a managed connector in Elastic Cloud, use the *Connectors* workflow in the Kibana UI.
 
 To create a new {service-name} connector:
 
@@ -188,20 +188,20 @@ View the {connectors-python}/connectors/sources/gmail.py[source code for this co
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-gmail-connector-client-reference]
-==== *Connector client reference (self-managed)*
+==== *Self-managed connector reference**
 
-.View reference for the *connector client reference (self-managed)*.
+.View reference for the *Self-managed connector reference**.
 [%collapsible]
 ===============
 
 [discrete#es-connectors-gmail-client-availability]
 ===== Availability and prerequisites
 
-This connector is available as a self-managed *connector client* from the *Elastic connector framework*.
+This connector is available as a self-managed *self-managed connector* from the *Elastic connector framework*.
 
-This connector client is compatible with Elastic versions *8.10.0+*.
+This self-managed connector is compatible with Elastic versions *8.10.0+*.
 
-To use this connector, satisfy all <<es-build-connector,connector client requirements>>.
+To use this connector, satisfy all <<es-build-connector,self-managed connector requirements>>.
 
 [discrete#es-connectors-gmail-create-connector-client]
 ===== Create a {service-name} connector
@@ -210,7 +210,7 @@ include::_connectors-create-client.asciidoc[]
 [discrete#es-connectors-gmail-client-usage]
 ===== Usage
 
-To use this connector as a **connector client**, use the *Connector* workflow in the Kibana UI.
+To use this connector as a **self-managed connector**, use the *Connector* workflow in the Kibana UI.
 
 For additional operations, see <<es-connectors-usage>>.
 
@@ -252,7 +252,7 @@ This step allows the connector to access user data and their group memberships i
 
 [TIP]
 ====
-When using the <<es-build-connector, connector client>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/gmail.py[connector source code^].
+When using the <<es-build-connector, self-managed connector>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/gmail.py[connector source code^].
 These are set in the `get_default_configuration` function definition.
 
 These configurable fields will be rendered with their respective *labels* in the Kibana UI.

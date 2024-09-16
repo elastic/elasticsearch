@@ -16,9 +16,9 @@ The _Elastic Google Cloud Storage connector_ is a <<es-connectors,connector>> fo
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-google-cloud-native-connector-reference]
-==== *Native connector reference (managed service)*
+==== *Managed connector reference*
 
-.View reference for the *native connector reference (managed service)*.
+.View reference for the *Managed connector reference*.
 [%collapsible]
 ===============
 
@@ -26,7 +26,7 @@ The _Elastic Google Cloud Storage connector_ is a <<es-connectors,connector>> fo
 ===== Availability and prerequisites
 
 This connector is available natively in Elastic Cloud since *8.12.0.*
-To use this connector in Elastic Cloud, satisfy all <<es-native-connectors,native connector requirements>>.
+To use this connector in Elastic Cloud, satisfy all <<es-native-connectors,managed connector requirements>>.
 
 [discrete#es-connectors-google-cloud-usage]
 ===== Usage
@@ -130,18 +130,18 @@ View the {connectors-python}/connectors/sources/google_cloud_storage.py[source c
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-google-cloud-connector-client-reference]
-==== *Connector client reference (self-managed)*
+==== *Self-managed connector reference**
 
-.View reference for the *connector client reference (self-managed)*.
+.View reference for the *Self-managed connector reference**.
 [%collapsible]
 ===============
 
 [discrete#es-connectors-google-cloud-client-availability-prerequisites]
 ===== Availability and prerequisites
 
-This connector is available as a self-managed *connector client*.
-This connector client is compatible with Elastic versions *8.6.0+*.
-To use this connector, satisfy all <<es-build-connector,connector client requirements>>.
+This connector is available as a self-managed *self-managed connector*.
+This self-managed connector is compatible with Elastic versions *8.6.0+*.
+To use this connector, satisfy all <<es-build-connector,self-managed connector requirements>>.
 
 [discrete#es-connectors-google-cloud-client-usage]
 ===== Usage
@@ -161,7 +161,7 @@ Google Cloud Storage service account credentials are stored in a JSON file.
 
 [TIP]
 ====
-When using the <<es-build-connector, connector client>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/google_cloud_storage.py[connector source code^].
+When using the <<es-build-connector, self-managed connector>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/google_cloud_storage.py[connector source code^].
 These are set in the `get_default_configuration` function definition.
 
 These configurable fields will be rendered with their respective *labels* in the Kibana UI.

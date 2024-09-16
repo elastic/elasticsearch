@@ -16,18 +16,18 @@ View the {connectors-python}/connectors/sources/{service-name-stub}.py[*source c
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-notion-native-connector-reference]
-==== *Native connector reference (managed service)*
+==== *Managed connector reference*
 
-.View reference for the *native connector reference (managed service)*.
+.View reference for the *Managed connector reference*.
 [%collapsible]
 ===============
 
 [discrete#es-connectors-notion-connector-availability-and-prerequisites]
 ===== Availability and prerequisites
 
-This native connector was introduced in Elastic *8.14.0* as a managed service on Elastic Cloud.
+This managed connector was introduced in Elastic *8.14.0* as a managed service on Elastic Cloud.
 
-To use this connector natively in Elastic Cloud, satisfy all <<es-native-connectors,native connector requirements>>.
+To use this connector natively in Elastic Cloud, satisfy all <<es-native-connectors,managed connector requirements>>.
 
 [NOTE]
 ====
@@ -358,18 +358,18 @@ See <<es-connectors-security>>.
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-notion-connector-client-reference]
-==== *Connector client reference (self-managed)*
+==== *Self-managed connector reference**
 
-.View reference for the *connector client reference (self-managed)*.
+.View reference for the *Self-managed connector reference**.
 [%collapsible]
 ===============
 
 [discrete#es-connectors-notion-client-connector-availability-and-prerequisites]
 ===== Availability and prerequisites
 
-This connector was introduced in Elastic *8.13.0*, available as a *self-managed* connector client.
+This connector was introduced in Elastic *8.13.0*, available as a *self-managed* self-managed connector.
 
-To use this connector, satisfy all <<es-build-connector, connector client prerequisites>>.
+To use this connector, satisfy all <<es-build-connector, self-managed connector prerequisites>>.
 Importantly, you must deploy the connectors service on your own infrastructure.
 You have two deployment options:
 

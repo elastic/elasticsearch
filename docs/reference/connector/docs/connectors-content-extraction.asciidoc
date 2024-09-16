@@ -54,15 +54,15 @@ Expand the archive file and make individual uncompressed files available for the
 
 [NOTE]
 ====
-Currently, content extraction from large files via the Extraction Service is available for a subset of our **self-managed connector clients**.
-It is not available for native connectors running on Elastic Cloud.
+Currently, content extraction from large files via the Extraction Service is available for a subset of our **self-managed self-managed connectors**.
+It is not available for managed connectors running on Elastic Cloud.
 This feature is in *beta*.
 ====
 
 Standard content extraction is done via the Attachment Processor, through Elasticsearch Ingest Pipelines.
-The connector client limits file sizes for pipeline extraction to 10MB per file (Elasticsearch also has a hard limit of 100MB per file).
+The self-managed connector limits file sizes for pipeline extraction to 10MB per file (Elasticsearch also has a hard limit of 100MB per file).
 
-For use cases that require extracting content from files larger than these limits, the *self-managed extraction service* can be used for connector clients.
+For use cases that require extracting content from files larger than these limits, the *self-managed extraction service* can be used for self-managed connectors.
 Instead of sending the file as an `attachment` to Elasticsearch, the file's content is extracted at the edge by the extraction service before ingestion.
 The extracted text is then included as the `body` field of a document when it is ingested.
 
@@ -80,7 +80,7 @@ The data extraction service code is now available in this public repository: htt
 [discrete#es-connectors-content-extraction-available-connectors]
 ===== Available connectors
 
-Local content extraction is available for the following self-managed connector clients:
+Local content extraction is available for the following self-managed self-managed connectors:
 
 include::_connectors-list-local-content-extraction.asciidoc[]
 
@@ -106,8 +106,8 @@ $ docker run \
 [discrete#es-connectors-extraction-service-configuration]
 ===== Configuring the extraction service
 
-You can enable your connector client to use the self-hosted extraction service by adding the required configuration.
-The connector client determines if the extraction service is enabled by the presence of these fields in the configuration file.
+You can enable your self-managed connector to use the self-hosted extraction service by adding the required configuration.
+The self-managed connector determines if the extraction service is enabled by the presence of these fields in the configuration file.
 
 1. Open the `config.yml` configuration file in your text editor of choice.
 2. Add the following fields. They can be added anywhere in the file, so long as they begin at the root level.
@@ -121,17 +121,17 @@ extraction_service:
 
 [NOTE]
 ====
-There is no password protection between the connector client and the extraction service.
+There is no password protection between the self-managed connector and the extraction service.
 Self-hosted extraction should only be used if the two services are running on the same network and behind the same firewall.
 ====
 
 [options="header"]
 |=======
 |Field|Description
-|`host`|The endpoint for the extraction service. `http://localhost:8090` can be used if it is running on the same server as your connector client.
+|`host`|The endpoint for the extraction service. `http://localhost:8090` can be used if it is running on the same server as your self-managed connector.
 |=======
 
-The connector client will perform a preflight check against the configured `host` value at startup.
+The self-managed connector will perform a preflight check against the configured `host` value at startup.
 The following line will be output to the log if the data extraction service was found and is running normally.
 
 [source,bash]
@@ -172,14 +172,14 @@ extraction_service:
 
 The self-hosted extraction service can be set up to use file pointers instead of sending files via HTTP requests.
 File pointers are faster than sending files and consume less memory, but require the connector framework and the extraction service to be able to share a file system.
-This can be set up with both a dockerized and non-dockerized connector client.
+This can be set up with both a dockerized and non-dockerized self-managed connector.
 
 [discrete#es-connectors-content-extraction-data-extraction-service-file-pointers-configuration]
-====== Configuration for non-dockerized connector clients
+====== Configuration for non-dockerized self-managed connectors
 
-If you are running a non-dockerized version of the connector client, you need to determine the local directory where you'll download files for extraction.
+If you are running a non-dockerized version of the self-managed connector, you need to determine the local directory where you'll download files for extraction.
 This can be anywhere on your file system that you are comfortable using.
-Be aware that the connector client will download files with randomized filenames to this directory, so there is a chance that any files already present will be overwritten.
+Be aware that the self-managed connector will download files with randomized filenames to this directory, so there is a chance that any files already present will be overwritten.
 For that reason, we recommend using a dedicated directory for self-hosted extraction.
 
 [discrete#es-connectors-content-extraction-data-extraction-service-file-pointers-configuration-example]
@@ -202,10 +202,10 @@ $ docker run \
 ====
 Due to how this feature works in the codebase for non-dockerized setups, **the local filepath and the docker container's filepath must be identical**.
 For example, if using `/app/files`, you must mount the directory as `-v /app/files:/app/files`.
-If either directory is different, the connector client will be unable to provide an accurate file pointer for the extraction service. This is not a factor when using a dockerized connector client.
+If either directory is different, the self-managed connector will be unable to provide an accurate file pointer for the extraction service. This is not a factor when using a dockerized self-managed connector.
 ====
 +
-2. Next, before running the connector client, be sure to update the config file with the correct information.
+2. Next, before running the self-managed connector, be sure to update the config file with the correct information.
 +
 [source,yaml]
 ----
@@ -216,16 +216,16 @@ extraction_service:
   shared_volume_dir: '/app/files'
 ----
 +
-3. Then all that's left is to start the connector client and run a sync.
+3. Then all that's left is to start the self-managed connector and run a sync.
 If you encounter any unexpected errors, refer to <<es-connectors-content-extraction-troubleshooting, troubleshooting the self-hosted content extraction service>>.
 
 [discrete#es-connectors-content-extraction-data-extraction-service-file-pointers-configuration-dockerized]
-====== Configuration for dockerized connector clients
+====== Configuration for dockerized self-managed connectors
 
-When using self-hosted extraction from a dockerized connector client, there are a few extra steps required on top of {connectors-python}/docs/DOCKER.md[running the connector client in docker^].
+When using self-hosted extraction from a dockerized self-managed connector, there are a few extra steps required on top of {connectors-python}/docs/DOCKER.md[running the self-managed connector in docker^].
 
-* The self-hosted extraction service will need to share the same network that the connector client and Elasticsearch are sharing.
-* The connector client and the extraction service will also need to share a volume. You can decide what directory inside these docker containers the volume will be mounted onto, but the directory must be the same for both docker containers.
+* The self-hosted extraction service will need to share the same network that the self-managed connector and Elasticsearch are sharing.
+* The self-managed connector and the extraction service will also need to share a volume. You can decide what directory inside these docker containers the volume will be mounted onto, but the directory must be the same for both docker containers.
 
 [discrete#es-connectors-content-extraction-data-extraction-service-file-pointers-configuration-dockerized-example]
 ======= Example
@@ -259,7 +259,7 @@ $ docker run \
   docker.elastic.co/enterprise-search/data-extraction-service:$EXTRACTION_SERVICE_VERSION
 ----
 +
-4. Next, you can follow the instructions for {connectors-python}/docs/DOCKER.md[running the connector client in docker^] until step `4. Update the configuration file for your self-hosted connector`.
+4. Next, you can follow the instructions for {connectors-python}/docs/DOCKER.md[running the self-managed connector in docker^] until step `4. Update the configuration file for your self-hosted connector`.
 When setting up your configuration, be sure to add the following settings for the self-hosted content extraction service.
 Note that the `host` will now refer to an internal docker endpoint instead of localhost.
 +
@@ -287,7 +287,7 @@ $ docker run \
   -c /config/config.yml
 ----
 +
-6. Now the connector client and extraction service docker containers should be set up to share files.
+6. Now the self-managed connector and extraction service docker containers should be set up to share files.
 Run a test sync to make sure everything is configured correctly.
 If you encounter any unexpected errors, refer to <<es-connectors-content-extraction-troubleshooting, troubleshooting the self-hosted extraction service>>.
 

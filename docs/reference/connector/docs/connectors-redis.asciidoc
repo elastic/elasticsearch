@@ -8,15 +8,15 @@
 :service-name: Redis
 :service-name-stub: redis
 
-The Redis connector is built with the Elastic connectors Python framework and is available as a self-managed <<es-build-connector, connector client>>.
+The Redis connector is built with the Elastic connectors Python framework and is available as a self-managed <<es-build-connector, self-managed connector>>.
 View the {connectors-python}/connectors/sources/{service-name-stub}.py[*source code* for this connector^] (branch _{connectors-branch}_, compatible with Elastic _{minor-version}_).
 
 [discrete#es-connectors-redis-connector-availability-and-prerequisites]
 ===== Availability and prerequisites
 
-This connector was introduced in Elastic *8.13.0*, available as a *self-managed* connector client.
+This connector was introduced in Elastic *8.13.0*, available as a *self-managed* self-managed connector.
 
-To use this connector, satisfy all <<es-build-connector, connector client prerequisites>>.
+To use this connector, satisfy all <<es-build-connector, self-managed connector prerequisites>>.
 Importantly, you must deploy the connectors service on your own infrastructure.
 You have two deployment options:
 

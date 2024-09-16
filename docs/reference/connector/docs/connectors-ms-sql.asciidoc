@@ -14,7 +14,7 @@ View the {connectors-python}/connectors/sources/{service-name-stub}.py[*source c
 
 .Choose your connector reference
 *******************************
-Are you using a native connector on Elastic Cloud or a self-managed connector client? Expand the documentation based on your deployment method.
+Are you using a managed connector on Elastic Cloud or a self-managed self-managed connector? Expand the documentation based on your deployment method.
 *******************************
 
 // //////// //// //// //// //// //// //// ////////
@@ -22,9 +22,9 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-ms-sql-native-connector-reference]
-==== *Native connector (Elastic Cloud)*
+==== *Managed connector (Elastic Cloud)*
 
-.View *native connector* reference
+.View *managed connector* reference
 
 [%collapsible]
 ===============
@@ -32,8 +32,8 @@ Are you using a native connector on Elastic Cloud or a self-managed connector cl
 [discrete#es-connectors-ms-sql-availability-prerequisites]
 ===== Availability and prerequisites
 
-This connector is available as a *native connector* in Elastic versions *8.8.0 and later*.
-To use this connector natively in Elastic Cloud, satisfy all <<es-native-connectors-prerequisites,native connector requirements>>.
+This connector is available as a *managed connector* in Elastic versions *8.8.0 and later*.
+To use this connector natively in Elastic Cloud, satisfy all <<es-native-connectors-prerequisites,managed connector requirements>>.
 
 [discrete#es-connectors-{service_type}-create-native-connector]
 ===== Create a {service-name} connector
@@ -42,7 +42,7 @@ include::_connectors-create-native.asciidoc[]
 [discrete#es-connectors-ms-sql-usage]
 ===== Usage
 
-To use this connector as a *native connector*, use the *Connector* workflow.
+To use this connector as a *managed connector*, use the *Connector* workflow.
 See <<es-native-connectors>>.
 
 Users require the `sysadmin` server role.
@@ -286,9 +286,9 @@ View {connectors-python}/connectors/sources/mssql.py[additional code specific to
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-ms-sql-connector-client-reference]
-==== *Connector client (self-managed)*
+==== *Self-managed connector (self-managed)*
 
-.View *connector client* reference
+.View *self-managed connector* reference
 
 [%collapsible]
 ===============
@@ -296,8 +296,8 @@ View {connectors-python}/connectors/sources/mssql.py[additional code specific to
 [discrete#es-connectors-ms-sql-client-availability-prerequisites]
 ===== Availability and prerequisites
 
-This connector is available as a self-managed *connector client*.
-To use this connector, satisfy all <<es-build-connector,connector client requirements>>.
+This connector is available as a self-managed *self-managed connector*.
+To use this connector, satisfy all <<es-build-connector,self-managed connector requirements>>.
 
 [discrete#es-connectors-{service_type}-create-connector-client]
 ===== Create a {service-name} connector
@@ -308,7 +308,7 @@ include::_connectors-create-client.asciidoc[]
 
 Users require the `sysadmin` server role.
 
-To use this connector as a *connector client*, see <<es-build-connector>>
+To use this connector as a *self-managed connector*, see <<es-build-connector>>
 For additional usage operations, see <<es-connectors-usage>>.
 
 [discrete#es-connectors-ms-sql-client-compatability]
@@ -325,7 +325,7 @@ The following are compatible with Elastic connector frameworks:
 
 [TIP]
 ====
-When using the <<es-build-connector, connector client>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/generic_database.py[connector source code^].
+When using the <<es-build-connector, self-managed connector>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/generic_database.py[connector source code^].
 Note that this data source uses the `generic_database.py` connector source code.
 
 Refer to {connectors-python}/connectors/sources/mssql.py[`mssql.py`^] for additional code, specific to this data source.

@@ -18,32 +18,32 @@ Connectors extract the original files, records, or objects; and transforms them 
 Many connectors are available out-of-the-box on Elastic Cloud.
 You can also access the source code for these (and additional) connectors, and run them on your own infrastructure.
 
-* **Native connectors** are available directly within your Elastic Cloud deployment.
-* **Connector clients** are self-managed on your own infrastructure.
+* **Managed connectors** are available directly within your Elastic Cloud deployment.
+* **Self-managed connectors** are self-managed on your own infrastructure.
 
 [discrete#es-connectors-native]
-== Native connectors {ess-icon} (_managed service_)
+== Managed connectors {ess-icon} (_managed service_)
 
-_Native connectors_ are available directly within your Elastic Cloud deployment, as a managed service.
+_Managed connectors_ are available directly within your Elastic Cloud deployment, as a managed service.
 No additional infrastructure is required.
 
-See <<es-native-connectors>> for details on how to configure and use native connectors.
+See <<es-native-connectors>> for details on how to configure and use managed connectors.
 
-.*Expand* to see list of available native connectors
+.*Expand* to see list of available managed connectors
 [%collapsible]
 ====
 include::_connectors-list-native.asciidoc[]
 ====
 
 [discrete#es-connectors-build]
-== Connector clients (_self-managed_)
+== Self-managed connectors (_self-managed_)
 
-Connector clients enable you to run connectors locally on your own infrastructure.
+Self-managed connectors enable you to run connectors locally on your own infrastructure.
 This means you can try out new connectors before they are available natively within Elastic Cloud, and/or customize existing connectors.
 
-See <<es-build-connector>> for details on how to deploy connector clients.
+See <<es-build-connector>> for details on how to deploy self-managed connectors.
 
-.*Expand* to see list of available connector clients
+.*Expand* to see list of available self-managed connectors
 [%collapsible]
 ====
 include::_connectors-list-clients.asciidoc[]
@@ -55,7 +55,7 @@ include::_connectors-list-clients.asciidoc[]
 All Elastic connectors are built using our Python connector framework.
 The source code is available in the {connectors-python}[`elastic/connectors`] repository on GitHub.
 
-The connector framework is available for developers to customize existing connector clients or build their own connectors.
+The connector framework is available for developers to customize existing self-managed connectors or build their own connectors.
 Refer to <<es-connectors-framework>> for details.
 
 [discrete#es-connectors-overview-diagram]

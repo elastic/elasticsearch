@@ -15,17 +15,17 @@ The _Elastic Salesforce connector_ is a <<es-connectors,connector>> for https://
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-salesforce-native-connector-reference]
-==== *Native connector reference (managed service)*
+==== *Managed connector reference*
 
-.View reference for the *native connector reference (managed service)*.
+.View reference for the *Managed connector reference*.
 [%collapsible]
 ===============
 
 [discrete#es-connectors-salesforce-availability-prerequisites]
 ===== Availability and prerequisites
 
-This connector is available as a *native connector* in Elastic Cloud since *8.12.0*.
-To use this connector, satisfy all <<es-build-connector,connector client requirements>>.
+This connector is available as a *managed connector* in Elastic Cloud since *8.12.0*.
+To use this connector, satisfy all <<es-build-connector,self-managed connector requirements>>.
 
 [discrete#es-connectors-salesforce-compatability]
 ===== Compatibility
@@ -42,7 +42,7 @@ include::_connectors-create-native.asciidoc[]
 [discrete#es-connectors-salesforce-usage]
 ===== Usage
 
-To use this connector as a **connector client**, use the *Connector* workflow in the Kibana UI.
+To use this connector as a **self-managed connector**, use the *Connector* workflow in the Kibana UI.
 
 For additional operations, see <<es-connectors-usage, connectors usage>>.
 
@@ -398,18 +398,18 @@ View the {connectors-python}/connectors/sources/salesforce.py[source code for th
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-salesforce-connector-client-reference]
-==== *Connector client reference (self-managed)*
+==== *Self-managed connector reference**
 
-.View reference for the *connector client reference (self-managed)*.
+.View reference for the *Self-managed connector reference**.
 [%collapsible]
 ===============
 
 [discrete#es-connectors-salesforce-client-availability-prerequisites]
 ===== Availability and prerequisites
 
-This connector is available as a self-managed *connector client*.
-This connector client is compatible with Elastic versions *8.10.0+*.
-To use this connector, satisfy all <<es-build-connector,connector client requirements>>.
+This connector is available as a self-managed *self-managed connector*.
+This self-managed connector is compatible with Elastic versions *8.10.0+*.
+To use this connector, satisfy all <<es-build-connector,self-managed connector requirements>>.
 
 [discrete#es-connectors-salesforce-client-compatability]
 ===== Compatibility
@@ -426,7 +426,7 @@ include::_connectors-create-client.asciidoc[]
 [discrete#es-connectors-salesforce-client-usage]
 ===== Usage
 
-To use this connector as a **connector client**, use the *Connector* workflow in the Kibana UI.
+To use this connector as a **self-managed connector**, use the *Connector* workflow in the Kibana UI.
 
 For additional operations, see <<es-connectors-usage, connectors usage>>.
 
@@ -505,7 +505,7 @@ Now, the connector can be configured for this user profile to fetch all object r
 [discrete#es-connectors-salesforce-client-docker]
 ===== Deployment using Docker
 
-Connector clients are run on your own infrastructure.
+Self-managed connectors are run on your own infrastructure.
 
 include::_connectors-docker-instructions.asciidoc[]
 

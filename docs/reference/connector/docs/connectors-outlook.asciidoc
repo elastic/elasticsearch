@@ -7,7 +7,7 @@
 :service-name: Outlook
 :service-name-stub: outlook
 
-The Elastic Outlook connector is built with the Elastic connector framework and is available as a self-managed <<es-build-connector, connector client>>.
+The Elastic Outlook connector is built with the Elastic connector framework and is available as a self-managed <<es-build-connector, self-managed connector>>.
 
 
 // //////// //// //// //// //// //// //// ////////
@@ -15,20 +15,20 @@ The Elastic Outlook connector is built with the Elastic connector framework and 
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-outlook-native-connector-reference]
-==== *Native connector reference (managed service)*
+==== *Managed connector reference*
 
-.View reference for the *native connector reference (managed service)*.
+.View reference for the *Managed connector reference*.
 [%collapsible]
 ===============
 
 [discrete#es-connectors-outlook-availability-and-prerequisites]
 ===== Availability and prerequisites
 
-This connector is available as a *native connector* (managed service) in Elastic Cloud.
+This connector is available as a *managed connector* (managed service) in Elastic Cloud.
 
 This connector is compatible with Elastic versions *8.13.0+*.
 
-To use this connector, satisfy all <<es-native-connectors,native connector requirements>>.
+To use this connector, satisfy all <<es-native-connectors,managed connector requirements>>.
 
 [discrete#es-connectors-outlook-create-native-connector]
 ===== Create a {service-name} connector
@@ -37,7 +37,7 @@ include::_connectors-create-native.asciidoc[]
 [discrete#es-connectors-outlook-usage]
 ===== Usage
 
-To use this connector as a native connector in Elastic Cloud, use the *Connectors* workflow in the Kibana UI.
+To use this connector as a managed connector in Elastic Cloud, use the *Connectors* workflow in the Kibana UI.
 
 To create a new {service-name} connector:
 
@@ -237,16 +237,16 @@ View the {connectors-python}/connectors/sources/outlook.py[source code for this 
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-outlook-connector-client-reference]
-==== *Connector client reference (self-managed)*
+==== *Self-managed connector reference**
 
-.View reference for the *connector client reference (self-managed)*.
+.View reference for the *Self-managed connector reference**.
 [%collapsible]
 ===============
 
 [discrete#es-connectors-outlook-client-availability-and-prerequisites]
 ===== Availability and prerequisites
 
-This connector is available as a self-managed *connector client*. To use this connector, satisfy all <<es-build-connector, connector client prerequisites>>.
+This connector is available as a self-managed *self-managed connector*. To use this connector, satisfy all <<es-build-connector, self-managed connector prerequisites>>.
 
 [discrete#es-connectors-outlook-create-connector-client]
 ===== Create a {service-name} connector
@@ -255,7 +255,7 @@ include::_connectors-create-client.asciidoc[]
 [discrete#es-connectors-outlook-client-usage]
 ===== Usage
 
-To use this connector as a *connector client*, use the *Outlook* tile from the connectors list OR *Customized connector* workflow.
+To use this connector as a *self-managed connector*, use the *Outlook* tile from the connectors list OR *Customized connector* workflow.
 
 For additional operations, see <<es-connectors-usage>>.
 

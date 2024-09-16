@@ -23,10 +23,32 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestStatus.OK;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 2, numClientNodes = 0)
 public class IncrementalBulkRestIT extends HttpSmokeTestCase {
+
+    public void testBulkMissingBody() throws IOException {
+        Request request = new Request(randomBoolean() ? "POST" : "PUT", "/_bulk");
+        request.setJsonEntity("");
+        ResponseException responseException = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
+        assertEquals(400, responseException.getResponse().getStatusLine().getStatusCode());
+        assertThat(responseException.getMessage(), containsString("request body is required"));
+    }
+
+    public void testBulkRequestBodyImproperlyTerminated() throws IOException {
+        Request request = new Request(randomBoolean() ? "POST" : "PUT", "/_bulk");
+        // missing final line of the bulk body. cannot process
+        request.setJsonEntity(
+            "{\"index\":{\"_index\":\"index_name\",\"_id\":\"1\"}}\n"
+                + "{\"field\":1}\n"
+                + "{\"index\":{\"_index\":\"index_name\",\"_id\":\"2\"}"
+        );
+        ResponseException responseException = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
+        assertEquals(400, responseException.getResponse().getStatusLine().getStatusCode());
+        assertThat(responseException.getMessage(), containsString("could not parse bulk request body"));
+    }
 
     public void testIncrementalBulk() throws IOException {
         Request createRequest = new Request("PUT", "/index_name");

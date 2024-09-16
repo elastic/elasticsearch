@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -64,6 +65,8 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         Order.OrderDirection direction();
 
         FieldAttribute field();
+
+        void writeTo(StreamOutput out) throws IOException;
     }
 
     public record FieldSort(FieldAttribute field, Order.OrderDirection direction, Order.NullsPosition nulls) implements Writeable, Sort {
@@ -156,16 +159,26 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     }
 
     private static Sort readSort(StreamInput in) throws IOException {
-        // TODO: Support GeoDistanceSort
-        return FieldSort.readFrom(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERYEXEC_SORT_GENERALIZATION)) {
+            String name = in.readString();
+            if (name.equals("GeoDistanceSort")) {
+                return GeoDistanceSort.readFrom(in);
+            } else {
+                return FieldSort.readFrom(in);
+            }
+        } else {
+            return FieldSort.readFrom(in);
+        }
     }
 
     private static void writeSort(StreamOutput out, Sort sort) throws IOException {
-        if (sort instanceof FieldSort fieldSort) {
-            fieldSort.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERYEXEC_SORT_GENERALIZATION)) {
+            out.writeString(sort.getClass().getSimpleName());
+            sort.writeTo(out);
         } else {
-            // TODO: Fix this
-            throw new UnsupportedOperationException("GeoDistanceSort is not supported");
+            assert sort instanceof FieldSort;
+            FieldSort fieldSort = (FieldSort) sort;
+            fieldSort.writeTo(out);
         }
     }
 

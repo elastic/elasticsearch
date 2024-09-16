@@ -26,12 +26,10 @@ public class RequestsWithoutContentIT extends ESRestTestCase {
         assertResponseException(responseException, "request body is required");
     }
 
-    @AwaitsFix(bugUrl = "need to decide how to handle this scenario")
     public void testBulkMissingBody() throws IOException {
-        ResponseException responseException = expectThrows(
-            ResponseException.class,
-            () -> client().performRequest(new Request(randomBoolean() ? "POST" : "PUT", "/_bulk"))
-        );
+        Request request = new Request(randomBoolean() ? "POST" : "PUT", "/_bulk");
+        request.setJsonEntity("");
+        ResponseException responseException = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertResponseException(responseException, "request body is required");
     }
 

@@ -142,6 +142,7 @@ final class RequestXContent {
             QueryParam currentParam = null;
             TempObjects param;
             boolean isField = false;
+            HashMap<String, Object> tempMap = new HashMap<>();
 
             while ((token = p.nextToken()) != XContentParser.Token.END_ARRAY) {
                 XContentLocation loc = p.getTokenLocation();
@@ -172,8 +173,14 @@ final class RequestXContent {
                         }
                         value = entry.getValue();
                         if (value instanceof HashMap<?, ?> v) {
-                            value = v.get("value");
-                            isField = (boolean) v.get("identifier");
+                            tempMap.clear();
+                            for (Map.Entry<?, ?> kv : v.entrySet()) {
+                                tempMap.put(kv.getKey().toString().toLowerCase(Locale.ROOT), kv.getValue());
+                            }
+                            value = tempMap.get("value");
+                            if (tempMap.get("identifier") != null) {
+                                isField = (boolean) tempMap.get("identifier");
+                            }
                         }
                         type = DataType.fromJava(value);
                         if (type == null) {

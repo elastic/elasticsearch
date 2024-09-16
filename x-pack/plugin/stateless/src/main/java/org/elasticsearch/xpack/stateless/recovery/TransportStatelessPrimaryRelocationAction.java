@@ -250,7 +250,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
 
         logShardStats("flushing before acquiring all primary operation permits", indexShard, engine);
 
-        final var threadDumpListener = slowShardOperationListener(indexShard, TimeValue.timeValueSeconds(5), "flush and acquire permits");
+        final var threadDumpListener = slowShardOperationListener(indexShard, TimeValue.timeValueSeconds(10), "flush and acquire permits");
 
         final long beforeInitialFlush = threadPool.relativeTimeInMillis();
         ActionListener.run(preFlushStep, l -> engine.flush(false, false, l));

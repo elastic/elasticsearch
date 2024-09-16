@@ -47,7 +47,8 @@ setup:
               field: "sparse_field"
               query: "inference test"
 
-  - not_exists: hits.hits.0._source.sparse_field.inference.chunks.0.embeddings
+  - not_exists: hits.hits.0._source.sparse_field.inference
+  - not_exists: hits.hits.1._source.sparse_field.inference
 
 ---
 "Exclude embeddings from _source":
@@ -62,7 +63,8 @@ setup:
               field: "sparse_field"
               query: "inference test"
 
-  - not_exists: hits.hits.0._source.sparse_field.inference.chunks.0.embeddings
+  - not_exists: hits.hits.0._source.sparse_field.inference
+  - not_exists: hits.hits.1._source.sparse_field.inference
 
 ---
 "Include embedding in _source":
@@ -78,3 +80,4 @@ setup:
               query: "inference test"
 
   - exists: hits.hits.0._source.sparse_field.inference.chunks.0.embeddings
+  - exists: hits.hits.1._source.sparse_field.inference.chunks.0.embeddings

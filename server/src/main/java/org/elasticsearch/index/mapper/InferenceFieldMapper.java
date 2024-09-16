@@ -42,6 +42,6 @@ public interface InferenceFieldMapper {
      * @return The field's full path to embedding value
      */
     static String getInferenceFieldName(String fieldName) {
-        return fieldName + ".inference.chunks.embeddings";
+        return fieldName + ".inference";
     }
 }

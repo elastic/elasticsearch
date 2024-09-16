@@ -13,6 +13,8 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.ChannelPromise;
 import io.netty.channel.DefaultChannelPromise;
 import io.netty.util.NettyRuntime;
 import io.netty.util.concurrent.Future;
@@ -141,7 +143,7 @@ public class Netty4Utils {
         // can only be completed by some network event from this point on. However...
         final var promise = new DefaultChannelPromise(channel, ImmediateEventExecutor.INSTANCE);
         addListener(promise, listener);
-        assert assertCorrectPromiseListenerThreading(channel, promise);
+        assert assertCorrectPromiseListenerThreading(promise);
         channel.writeAndFlush(message, promise);
         if (channel.eventLoop().isShuttingDown()) {
             // ... if we get here then the event loop may already have terminated, and https://github.com/netty/netty/issues/8007 means that
@@ -156,10 +158,10 @@ public class Netty4Utils {
         }
     }
 
-    private static boolean assertCorrectPromiseListenerThreading(Channel channel, Future<?> promise) {
-        final var eventLoop = channel.eventLoop();
-        promise.addListener(future -> {
-            assert eventLoop.inEventLoop() || future.cause() instanceof RejectedExecutionException || channel.eventLoop().isTerminated()
+    private static boolean assertCorrectPromiseListenerThreading(ChannelPromise promise) {
+        promise.addListener((ChannelFutureListener) future -> {
+            var eventLoop = future.channel().eventLoop();
+            assert eventLoop.inEventLoop() || future.cause() instanceof RejectedExecutionException || eventLoop.isTerminated()
                 : future.cause();
         });
         return true;

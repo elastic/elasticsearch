@@ -13,6 +13,7 @@ import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.AdaptiveRecvByteBufAllocator;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
@@ -381,9 +382,9 @@ public class Netty4Transport extends TcpTransport {
     }
 
     private static void addClosedExceptionLogger(Channel channel) {
-        channel.closeFuture().addListener(f -> {
-            if (f.isSuccess() == false) {
-                logger.debug(() -> format("exception while closing channel: %s", channel), f.cause());
+        channel.closeFuture().addListener((ChannelFutureListener) channelFuture -> {
+            if (channelFuture.isSuccess() == false && logger.isDebugEnabled()) {
+                logger.debug(format("exception while closing channel: %s", channelFuture.channel()), channelFuture.cause());
             }
         });
     }

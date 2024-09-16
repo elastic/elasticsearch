@@ -11,7 +11,7 @@ import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 
-public class SpatialPushDownGeoPointIT extends SpatialPushDownTestCase {
+public class SpatialPushDownGeoPointIT extends SpatialPushDownPointsTestCase {
 
     private static final double LAT_MAX_VALUE = GeoEncodingUtils.decodeLatitude(Integer.MAX_VALUE - 3);
 

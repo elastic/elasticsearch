@@ -122,8 +122,19 @@ public final class CsvTestUtils {
 
         record CsvColumn(String name, Type type, BuilderWrapper builderWrapper) implements Releasable {
             void append(String stringValue) {
-                if (stringValue.startsWith("\"") && stringValue.endsWith("\"")) { // string value
-                    stringValue = stringValue.substring(1, stringValue.length() - 1).replace(ESCAPED_COMMA_SEQUENCE, ",");
+                if (stringValue.startsWith("\"") && stringValue.endsWith("\"")) {
+                    // string value
+                    String[] mvStrings = stringValue.substring(1, stringValue.length() - 1).split("\",\\s*\"");
+                    if (mvStrings.length > 1) {
+                        builderWrapper().builder().beginPositionEntry();
+                        for (String mvString : mvStrings) {
+                            mvString = mvString.replace(ESCAPED_COMMA_SEQUENCE, ",");
+                            builderWrapper().append().accept(mvString.length() == 0 ? null : type.convert(mvString));
+                        }
+                        builderWrapper().builder().endPositionEntry();
+                        return;
+                    }
+                    stringValue = mvStrings[0].replace(ESCAPED_COMMA_SEQUENCE, ",");
                 } else if (stringValue.contains(",")) {// multi-value field
                     builderWrapper().builder().beginPositionEntry();
 
@@ -376,7 +387,20 @@ public final class CsvTestUtils {
                         }
                         List<Object> listOfMvValues = new ArrayList<>();
                         for (String mvValue : multiValues) {
-                            listOfMvValues.add(columnTypes.get(i).convert(mvValue.trim().replace(ESCAPED_COMMA_SEQUENCE, ",")));
+                            try {
+                                listOfMvValues.add(columnTypes.get(i).convert(mvValue.trim().replace(ESCAPED_COMMA_SEQUENCE, ",")));
+                            } catch (IllegalArgumentException e) {
+                                throw new IllegalArgumentException(
+                                    "Error parsing multi-value field ["
+                                        + columnNames.get(i)
+                                        + "] with value ["
+                                        + mvValue
+                                        + "] on row "
+                                        + values.size(),
+                                    e
+                                );
+
+                            }
                         }
                         rowValues.add(listOfMvValues);
                     } else {

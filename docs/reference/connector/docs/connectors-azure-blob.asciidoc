@@ -138,7 +138,7 @@ View the {connectors-python}/connectors/sources/azure_blob_storage.py[source cod
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-azure-blob-connector-client-reference]
-==== *Self-managed connector (self-managed)*
+==== *Self-managed connector*
 
 .View *self-managed connector* reference
 

@@ -286,7 +286,7 @@ View {connectors-python}/connectors/sources/mssql.py[additional code specific to
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-ms-sql-connector-client-reference]
-==== *Self-managed connector (self-managed)*
+==== *Self-managed connector*
 
 .View *self-managed connector* reference
 

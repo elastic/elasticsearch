@@ -234,7 +234,7 @@ See <<es-connectors-content-extraction>>.
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-servicenow-connector-client-reference]
-==== *Self-managed connector (self-managed)*
+==== *Self-managed connector*
 
 .View *self-managed connector* reference
 

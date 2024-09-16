@@ -14,7 +14,7 @@ This connector uses the https://github.com/elastic/connectors/blob/{branch}/conn
 View the specific {connectors-python}/connectors/sources/{service-name-stub}.py[*source code* for this connector^] (branch _{connectors-branch}_, compatible with Elastic _{minor-version}_).
 
 [discrete#es-connectors-postgresql-connector-client-reference]
-==== *Self-managed connector (self-managed)*
+==== *Self-managed connector*
 
 .View *self-managed connector* reference
 

@@ -22,7 +22,7 @@ You can also access the source code for these (and additional) connectors, and r
 * **Self-managed connectors** are self-managed on your own infrastructure.
 
 [discrete#es-connectors-native]
-== Managed connectors {ess-icon} (_managed service_)
+== Managed connectors {ess-icon}
 
 _Managed connectors_ are available directly within your Elastic Cloud deployment, as a managed service.
 No additional infrastructure is required.
@@ -36,7 +36,7 @@ include::_connectors-list-native.asciidoc[]
 ====
 
 [discrete#es-connectors-build]
-== Self-managed connectors (_self-managed_)
+== Self-managed connectors
 
 Self-managed connectors enable you to run connectors locally on your own infrastructure.
 This means you can try out new connectors before they are available natively within Elastic Cloud, and/or customize existing connectors.

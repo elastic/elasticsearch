@@ -291,7 +291,7 @@ See <<es-connectors-security>>.
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-onedrive-connector-client-reference]
-==== *Self-managed connector (self-managed)*
+==== *Self-managed connector*
 
 .View *self-managed connector* reference
 

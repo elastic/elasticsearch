@@ -383,7 +383,7 @@ If that does not work, we recommend deleting the search index attached to this c
 // //////// //// //// //// //// //// //// ////////
 
 [discrete#es-connectors-mongodb-connector-client-reference]
-==== *Self-managed connector (self-managed)*
+==== *Self-managed connector*
 
 .View *self-managed connector* reference
 

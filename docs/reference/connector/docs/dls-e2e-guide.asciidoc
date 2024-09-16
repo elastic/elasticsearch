@@ -21,7 +21,7 @@ You can run SharePoint Online connector in Elastic Cloud (native) or on a self-m
 // TODO
 
 To run the self-managed connector, you'll need to run the *connectors service* in addition to your Elastic deployment.
-Refer to <<es-build-connector>> for details on how to set up a self-managed connector and run the <<es-deploy-connector-client,connectors service>> separately.
+Refer to <<es-build-connector>> for details on how to set up a self-managed connector and run the connectors service.
 
 [TIP]
 ====

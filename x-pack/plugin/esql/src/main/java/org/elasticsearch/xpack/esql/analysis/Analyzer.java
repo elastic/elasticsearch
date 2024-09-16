@@ -1147,8 +1147,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 HashMap<TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
                 Set<DataType> supportedTypes = convert.supportedTypes();
                 imf.types().forEach(type -> {
-                    // TODO: Shouldn't we perform widening of small numerical types here?
-                    if (supportedTypes.contains(type)) {
+                    if (supportedTypes.contains(type.widenSmallNumeric())) {
                         TypeResolutionKey key = new TypeResolutionKey(fa.name(), type);
                         var concreteConvert = typeSpecificConvert(convert, fa.source(), type, imf);
                         typeResolutions.put(key, concreteConvert);

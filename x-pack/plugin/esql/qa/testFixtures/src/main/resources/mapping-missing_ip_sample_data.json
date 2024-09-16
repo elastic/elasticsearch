@@ -3,9 +3,6 @@
         "@timestamp": {
             "type": "date"
         },
-        "client_ip": {
-            "type": "keyword"
-        },
         "event_duration": {
             "type": "long"
         },

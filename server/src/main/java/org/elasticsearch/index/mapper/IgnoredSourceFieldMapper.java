@@ -62,16 +62,14 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         "index.mapping.synthetic_source.skip_ignored_source_write",
         false,
         Setting.Property.Dynamic,
-        Setting.Property.IndexScope,
-        Setting.Property.ServerlessPublic
+        Setting.Property.IndexScope
     );
 
     public static final Setting<Boolean> SKIP_IGNORED_SOURCE_READ_SETTING = Setting.boolSetting(
         "index.mapping.synthetic_source.skip_ignored_source_read",
         false,
         Setting.Property.Dynamic,
-        Setting.Property.IndexScope,
-        Setting.Property.ServerlessPublic
+        Setting.Property.IndexScope
     );
 
     /*

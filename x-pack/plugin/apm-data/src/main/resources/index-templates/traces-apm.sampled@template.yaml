@@ -11,6 +11,7 @@ composed_of:
 - traces@mappings
 - apm@mappings
 - apm@settings
+- traces-apm.sampled-fallback@lifecycle
 - traces@custom
 - traces-apm.sampled@custom
 - ecs@mappings

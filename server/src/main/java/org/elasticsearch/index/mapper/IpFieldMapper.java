@@ -42,11 +42,11 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -532,8 +532,9 @@ public class IpFieldMapper extends FieldMapper {
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         InetAddress address;
+        String value = context.parser().textOrNull();
         try {
-            address = value(context.parser(), nullValue);
+            address = value == null ? nullValue : InetAddresses.forString(value);
         } catch (IllegalArgumentException e) {
             if (ignoreMalformed) {
                 context.addIgnoredField(fieldType().name());
@@ -549,14 +550,6 @@ public class IpFieldMapper extends FieldMapper {
         if (address != null) {
             indexValue(context, address);
         }
-    }
-
-    private static InetAddress value(XContentParser parser, InetAddress nullValue) throws IOException {
-        String value = parser.textOrNull();
-        if (value == null) {
-            return nullValue;
-        }
-        return InetAddresses.forString(value);
     }
 
     private void indexValue(DocumentParserContext context, InetAddress address) {
@@ -625,7 +618,9 @@ public class IpFieldMapper extends FieldMapper {
                 "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
-        return new SortedSetDocValuesSyntheticFieldLoader(fullPath(), leafName(), null, ignoreMalformed) {
+
+        var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
+        layers.add(new SortedSetDocValuesSyntheticFieldLoaderLayer(fullPath()) {
             @Override
             protected BytesRef convert(BytesRef value) {
                 byte[] bytes = Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length);
@@ -637,6 +632,12 @@ public class IpFieldMapper extends FieldMapper {
                 // No need to copy because convert has made a deep copy
                 return value;
             }
-        };
+        });
+
+        if (ignoreMalformed) {
+            layers.add(new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath()));
+        }
+
+        return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
     }
 }

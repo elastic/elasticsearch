@@ -30,7 +30,7 @@ record ExecutableInferenceRequest(
 
     @Override
     public void run() {
-        var inferenceEntityId = request.createHttpRequest().inferenceEntityId();
+        var inferenceEntityId = request.getInferenceEntityId();
 
         try {
             requestSender.send(logger, request, HttpClientContext.create(), hasFinished, responseHandler, listener);

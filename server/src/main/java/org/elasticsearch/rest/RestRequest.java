@@ -12,6 +12,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -297,9 +298,15 @@ public class RestRequest implements ToXContent.Params, Traceable {
         if (hasContent() == false) {
             throw new ElasticsearchParseException("request body is required");
         } else if (xContentType.get() == null) {
-            throw new IllegalStateException("unknown content type");
+            throwValidationException("unknown content type");
         }
         return content();
+    }
+
+    private static void throwValidationException(String msg) {
+        ValidationException unknownContentType = new ValidationException();
+        unknownContentType.addValidationError(msg);
+        throw unknownContentType;
     }
 
     /**
@@ -561,12 +568,12 @@ public class RestRequest implements ToXContent.Params, Traceable {
         String source = param("source");
         String typeParam = param("source_content_type");
         if (source == null || typeParam == null) {
-            throw new IllegalStateException("source and source_content_type parameters are required");
+            throwValidationException("source and source_content_type parameters are required");
         }
         BytesArray bytes = new BytesArray(source);
         final XContentType xContentType = parseContentType(Collections.singletonList(typeParam));
         if (xContentType == null) {
-            throw new IllegalStateException("Unknown value for source_content_type [" + typeParam + "]");
+            throwValidationException("Unknown value for source_content_type [" + typeParam + "]");
         }
         return new Tuple<>(xContentType, bytes);
     }

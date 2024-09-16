@@ -8,6 +8,9 @@ dependencies {
   javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
   javaRestTestImplementation project(xpackModule('esql:qa:server'))
   yamlRestTestImplementation project(xpackModule('esql:qa:server'))
+
+  clusterPlugins project(':plugins:mapper-size')
+  clusterPlugins project(':plugins:mapper-murmur3')
 }
 
 GradleUtils.extendSourceSet(project, "javaRestTest", "yamlRestTest")

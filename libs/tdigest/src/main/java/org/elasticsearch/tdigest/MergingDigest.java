@@ -302,8 +302,12 @@ public class MergingDigest extends AbstractTDigest {
                 addThis = projectedW <= wLimit;
             }
             if (i == 1 || i == incomingCount - 1) {
-                // force last centroid to never merge
+                // force first and last centroid to never merge
                 addThis = false;
+            }
+            if (lastUsedCell == mean.length - 1) {
+                // use the last centroid, there's no more
+                addThis = true;
             }
 
             if (addThis) {

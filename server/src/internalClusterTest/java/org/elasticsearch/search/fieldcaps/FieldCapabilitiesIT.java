@@ -859,7 +859,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
         @Override
         public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-            return new StringStoredFieldFieldLoader(fullPath(), leafName(), null) {
+            return new StringStoredFieldFieldLoader(fullPath(), leafName()) {
                 @Override
                 protected void write(XContentBuilder b, Object value) throws IOException {
                     BytesRef ref = (BytesRef) value;

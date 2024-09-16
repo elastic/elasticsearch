@@ -15,6 +15,7 @@ composed_of:
 - metrics-apm@mappings
 - metrics-apm@settings
 - metrics-apm.service_destination@mappings
+- metrics-apm.service_destination.1m-fallback@lifecycle
 - metrics@custom
 - metrics-apm.service_destination.1m@custom
 - ecs@mappings

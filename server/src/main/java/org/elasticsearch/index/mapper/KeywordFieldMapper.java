@@ -67,6 +67,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -1052,27 +1053,21 @@ public final class KeywordFieldMapper extends FieldMapper {
             );
         }
 
+        if (syntheticSourceMode() != SyntheticSourceMode.NATIVE) {
+            return super.syntheticFieldLoader();
+        }
+
+        var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
         if (fieldType.stored()) {
-            return new StringStoredFieldFieldLoader(
-                fullPath(),
-                simpleName,
-                fieldType().ignoreAbove == Defaults.IGNORE_ABOVE ? null : originalName()
-            ) {
+            layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(fullPath()) {
                 @Override
-                protected void write(XContentBuilder b, Object value) throws IOException {
+                protected void writeValue(Object value, XContentBuilder b) throws IOException {
                     BytesRef ref = (BytesRef) value;
                     b.utf8Value(ref.bytes, ref.offset, ref.length);
                 }
-            };
-        }
-
-        if (hasDocValues) {
-            return new SortedSetDocValuesSyntheticFieldLoader(
-                fullPath(),
-                simpleName,
-                fieldType().ignoreAbove == Defaults.IGNORE_ABOVE ? null : originalName(),
-                false
-            ) {
+            });
+        } else if (hasDocValues) {
+            layers.add(new SortedSetDocValuesSyntheticFieldLoaderLayer(fullPath()) {
 
                 @Override
                 protected BytesRef convert(BytesRef value) {
@@ -1084,10 +1079,19 @@ public final class KeywordFieldMapper extends FieldMapper {
                     // Preserve must make a deep copy because convert gets a shallow copy from the iterator
                     return BytesRef.deepCopyOf(value);
                 }
-            };
+            });
         }
 
-        return super.syntheticFieldLoader();
-    }
+        if (fieldType().ignoreAbove != Defaults.IGNORE_ABOVE) {
+            layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(originalName()) {
+                @Override
+                protected void writeValue(Object value, XContentBuilder b) throws IOException {
+                    BytesRef ref = (BytesRef) value;
+                    b.utf8Value(ref.bytes, ref.offset, ref.length);
+                }
+            });
+        }
 
+        return new CompositeSyntheticFieldLoader(simpleName, fullPath(), layers);
+    }
 }

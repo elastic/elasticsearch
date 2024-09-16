@@ -1,6 +1,0 @@
-pr: 110710
-summary: Add a cluster listener to fix missing node features after upgrading from a version prior to 8.13
-area: Infra/Core
-type: bug
-issues:
- - 109254

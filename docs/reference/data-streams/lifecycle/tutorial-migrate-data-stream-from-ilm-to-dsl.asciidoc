@@ -2,8 +2,8 @@
 [[tutorial-migrate-data-stream-from-ilm-to-dsl]]
 === Tutorial: Migrate ILM managed data stream to data stream lifecycle 
 
-In this tutorial we'll look at migrating an existing data stream from Index Lifecycle Management ({ilm-init}) to
-data stream lifecycle. The existing {ilm-init} managed backing indices will continue 
+In this tutorial we'll look at migrating an existing data stream from <<index-lifecycle-management,Index Lifecycle Management ({ilm-init})>> to
+<<data-stream-lifecycle,data stream lifecycle>>. The existing {ilm-init} managed backing indices will continue 
 to be managed by {ilm-init} until they age out and get deleted by {ilm-init}; however,
 the new backing indices will be managed by data stream lifecycle. 
 This way, a data stream is gradually migrated away from being managed by {ilm-init} to 

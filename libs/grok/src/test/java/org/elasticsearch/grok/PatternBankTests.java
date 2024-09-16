@@ -11,8 +11,13 @@ package org.elasticsearch.grok;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.TreeMap;
+import java.util.Set;
+
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.hamcrest.Matchers.containsString;
 
 public class PatternBankTests extends ESTestCase {
 
@@ -32,7 +37,7 @@ public class PatternBankTests extends ESTestCase {
 
     public void testConstructorValidatesCircularReferences() {
         var e = expectThrows(IllegalArgumentException.class, () -> new PatternBank(Map.of("NAME", "!!!%{NAME}!!!")));
-        assertEquals("circular reference in pattern [NAME][!!!%{NAME}!!!]", e.getMessage());
+        assertEquals("circular reference detected: NAME->NAME", e.getMessage());
     }
 
     public void testExtendWith() {
@@ -48,36 +53,36 @@ public class PatternBankTests extends ESTestCase {
 
     public void testCircularReference() {
         var e = expectThrows(IllegalArgumentException.class, () -> PatternBank.forbidCircularReferences(Map.of("NAME", "!!!%{NAME}!!!")));
-        assertEquals("circular reference in pattern [NAME][!!!%{NAME}!!!]", e.getMessage());
+        assertEquals("circular reference detected: NAME->NAME", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () -> PatternBank.forbidCircularReferences(Map.of("NAME", "!!!%{NAME:name}!!!")));
-        assertEquals("circular reference in pattern [NAME][!!!%{NAME:name}!!!]", e.getMessage());
+        assertEquals("circular reference detected: NAME->NAME", e.getMessage());
 
         e = expectThrows(
             IllegalArgumentException.class,
             () -> { PatternBank.forbidCircularReferences(Map.of("NAME", "!!!%{NAME:name:int}!!!")); }
         );
-        assertEquals("circular reference in pattern [NAME][!!!%{NAME:name:int}!!!]", e.getMessage());
+        assertEquals("circular reference detected: NAME->NAME", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () -> {
-            Map<String, String> bank = new TreeMap<>();
+            Map<String, String> bank = new LinkedHashMap<>();
             bank.put("NAME1", "!!!%{NAME2}!!!");
             bank.put("NAME2", "!!!%{NAME1}!!!");
             PatternBank.forbidCircularReferences(bank);
         });
-        assertEquals("circular reference in pattern [NAME2][!!!%{NAME1}!!!] back to pattern [NAME1]", e.getMessage());
+        assertEquals("circular reference detected: NAME1->NAME2->NAME1", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () -> {
-            Map<String, String> bank = new TreeMap<>();
+            Map<String, String> bank = new LinkedHashMap<>();
             bank.put("NAME1", "!!!%{NAME2}!!!");
             bank.put("NAME2", "!!!%{NAME3}!!!");
             bank.put("NAME3", "!!!%{NAME1}!!!");
             PatternBank.forbidCircularReferences(bank);
         });
-        assertEquals("circular reference in pattern [NAME3][!!!%{NAME1}!!!] back to pattern [NAME1] via patterns [NAME2]", e.getMessage());
+        assertEquals("circular reference detected: NAME1->NAME2->NAME3->NAME1", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () -> {
-            Map<String, String> bank = new TreeMap<>();
+            Map<String, String> bank = new LinkedHashMap<>();
             bank.put("NAME1", "!!!%{NAME2}!!!");
             bank.put("NAME2", "!!!%{NAME3}!!!");
             bank.put("NAME3", "!!!%{NAME4}!!!");
@@ -85,10 +90,78 @@ public class PatternBankTests extends ESTestCase {
             bank.put("NAME5", "!!!%{NAME1}!!!");
             PatternBank.forbidCircularReferences(bank);
         });
-        assertEquals(
-            "circular reference in pattern [NAME5][!!!%{NAME1}!!!] back to pattern [NAME1] via patterns [NAME2=>NAME3=>NAME4]",
-            e.getMessage()
-        );
+        assertEquals("circular reference detected: NAME1->NAME2->NAME3->NAME4->NAME5->NAME1", e.getMessage());
+
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            Map<String, String> bank = new LinkedHashMap<>();
+            bank.put("NAME1", "!!!%{NAME2}!!!");
+            bank.put("NAME2", "!!!%{NAME3}!!!");
+            bank.put("NAME3", "!!!%{NAME2}!!!");
+            PatternBank.forbidCircularReferences(bank);
+        });
+        assertEquals("circular reference detected: NAME2->NAME3->NAME2", e.getMessage());
+
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            Map<String, String> bank = new LinkedHashMap<>();
+            bank.put("NAME1", "!!!%{NAME2}!!!");
+            bank.put("NAME2", "!!!%{NAME2}!!%{NAME3}!");
+            bank.put("NAME3", "!!!%{NAME1}!!!");
+            PatternBank.forbidCircularReferences(bank);
+        });
+        assertEquals("circular reference detected: NAME1->NAME2->NAME3->NAME1", e.getMessage());
+
+        {
+            Map<String, String> bank = new HashMap<>();
+            bank.put("NAME1", "!!!%{NAME2}!!!%{NAME3}%{NAME4}");
+            bank.put("NAME2", "!!!%{NAME3}!!!");
+            bank.put("NAME3", "!!!!!!");
+            bank.put("NAME4", "!!!%{NAME5}!!!");
+            bank.put("NAME5", "!!!!!!");
+            PatternBank.forbidCircularReferences(bank);
+        }
+
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            Map<String, String> bank = new LinkedHashMap<>();
+            bank.put("NAME1", "!!!%{NAME2}!!!%{NAME3}%{NAME4}");
+            bank.put("NAME2", "!!!%{NAME3}!!!");
+            bank.put("NAME3", "!!!!!!");
+            bank.put("NAME4", "!!!%{NAME5}!!!");
+            bank.put("NAME5", "!!!%{NAME1}!!!");
+            PatternBank.forbidCircularReferences(bank);
+        });
+        assertEquals("circular reference detected: NAME1->NAME4->NAME5->NAME1", e.getMessage());
+
+        {
+            Map<String, String> bank = new HashMap<>();
+            bank.put("NAME1", "!!!%{NAME2}!!!");
+            bank.put("NAME2", "!!!%{NAME3}!!!");
+            bank.put("NAME3", "!!!!!!");
+            bank.put("NAME4", "!!!%{NAME5}!!!");
+            bank.put("NAME5", "!!!%{NAME1}!!!");
+            PatternBank.forbidCircularReferences(bank);
+        }
+
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            Map<String, String> bank = new LinkedHashMap<>();
+            bank.put("NAME1", "!!!%{NAME2} %{NAME3}!!!");
+            bank.put("NAME2", "!!!%{NAME4} %{NAME5}!!!");
+            bank.put("NAME3", "!!!!!!");
+            bank.put("NAME4", "!!!!!!");
+            bank.put("NAME5", "!!!%{NAME1}!!!");
+            PatternBank.forbidCircularReferences(bank);
+        });
+        assertEquals("circular reference detected: NAME1->NAME2->NAME5->NAME1", e.getMessage());
+
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            Map<String, String> bank = new LinkedHashMap<>();
+            bank.put("NAME1", "!!!%{NAME2} %{NAME3}!!!");
+            bank.put("NAME2", "!!!%{NAME4} %{NAME5}!!!");
+            bank.put("NAME3", "!!!%{NAME1}!!!");
+            bank.put("NAME4", "!!!!!!");
+            bank.put("NAME5", "!!!!!!");
+            PatternBank.forbidCircularReferences(bank);
+        });
+        assertEquals("circular reference detected: NAME1->NAME3->NAME1", e.getMessage());
     }
 
     public void testCircularSelfReference() {
@@ -96,7 +169,7 @@ public class PatternBankTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> PatternBank.forbidCircularReferences(Map.of("ANOTHER", "%{INT}", "INT", "%{INT}"))
         );
-        assertEquals("circular reference in pattern [INT][%{INT}]", e.getMessage());
+        assertEquals("circular reference detected: INT->INT", e.getMessage());
     }
 
     public void testInvalidPatternReferences() {
@@ -111,5 +184,81 @@ public class PatternBankTests extends ESTestCase {
             () -> PatternBank.forbidCircularReferences(Map.of("VALID", "valid", "NAME", "%{VALID"))
         );
         assertEquals("pattern [%{VALID] has an invalid syntax", e.getMessage());
+    }
+
+    public void testDeepGraphOfPatterns() {
+        Map<String, String> patternBankMap = randomBoolean() ? new HashMap<>() : new LinkedHashMap<>();
+        final int nodeCount = 20_000;
+        for (int i = 0; i < nodeCount - 1; i++) {
+            patternBankMap.put("FOO" + i, "%{FOO" + (i + 1) + "}");
+        }
+        patternBankMap.put("FOO" + (nodeCount - 1), "foo");
+        new PatternBank(patternBankMap);
+    }
+
+    public void testRandomBanksWithoutCycles() {
+        /*
+         * This creates a large number of pattens, each of which refers to a large number of patterns. But there are no cycles in any of
+         * these since each pattern only references patterns with a higher ID. We don't expect any exceptions here.
+         */
+        Map<String, String> patternBankMap = randomBoolean() ? new HashMap<>() : new LinkedHashMap<>();
+        final int nodeCount = 500;
+        for (int i = 0; i < nodeCount - 1; i++) {
+            StringBuilder patternBuilder = new StringBuilder();
+            for (int j = 0; j < randomIntBetween(0, 20); j++) {
+                patternBuilder.append("%{FOO-" + randomIntBetween(i + 1, nodeCount - 1) + "}");
+            }
+            patternBankMap.put("FOO-" + i, patternBuilder.toString());
+        }
+        patternBankMap.put("FOO-" + (nodeCount - 1), "foo");
+        new PatternBank(patternBankMap);
+    }
+
+    public void testRandomBanksWithCycles() {
+        /*
+         * This creates a large number of pattens, each of which refers to a large number of patterns. We have at least one cycle because
+         * we pick a node at random, and make sure that a node that it links (or one of its descendants) to links back. If no descendant
+         * links back to it, we create an artificial cycle at the end.
+         */
+        Map<String, String> patternBankMap = new LinkedHashMap<>();
+        final int nodeCount = 500;
+        int nodeToHaveCycle = randomIntBetween(0, nodeCount);
+        int nodeToPotentiallyCreateCycle = -1;
+        boolean haveCreatedCycle = false;
+        for (int i = 0; i < nodeCount - 1; i++) {
+            StringBuilder patternBuilder = new StringBuilder();
+            int numberOfLinkedPatterns = randomIntBetween(1, 20);
+            int nodeToLinkBackIndex = randomIntBetween(0, numberOfLinkedPatterns);
+            Set<Integer> childNodes = new HashSet<>();
+            for (int j = 0; j < numberOfLinkedPatterns; j++) {
+                int childNode = randomIntBetween(i + 1, nodeCount - 1);
+                childNodes.add(childNode);
+                patternBuilder.append("%{FOO-" + childNode + "}");
+                if (i == nodeToHaveCycle) {
+                    if (nodeToLinkBackIndex == j) {
+                        nodeToPotentiallyCreateCycle = childNode;
+                    }
+                }
+            }
+            if (i == nodeToPotentiallyCreateCycle) {
+                // We either create the cycle here, or randomly pick a child node to maybe create the cycle
+                if (randomBoolean()) {
+                    patternBuilder.append("%{FOO-" + nodeToHaveCycle + "}");
+                    haveCreatedCycle = true;
+                } else {
+                    nodeToPotentiallyCreateCycle = randomFrom(childNodes);
+                }
+            }
+            patternBankMap.put("FOO-" + i, patternBuilder.toString());
+        }
+        if (haveCreatedCycle) {
+            patternBankMap.put("FOO-" + (nodeCount - 1), "foo");
+        } else {
+            // We didn't randomly create a cycle, so just force one in this last pattern
+            nodeToHaveCycle = nodeCount - 1;
+            patternBankMap.put("FOO-" + nodeToHaveCycle, "%{FOO-" + nodeToHaveCycle + "}");
+        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new PatternBank(patternBankMap));
+        assertThat(e.getMessage(), containsString("FOO-" + nodeToHaveCycle));
     }
 }

@@ -4,7 +4,7 @@
 <titleabbrev>Get Data Stream Lifecycle</titleabbrev>
 ++++
 
-Gets the lifecycle of a set of data streams.
+Gets the <<data-stream-lifecycle,lifecycle>> of a set of <<data-streams,data streams>>.
 
 [[get-lifecycle-api-prereqs]]
 ==== {api-prereq-title}

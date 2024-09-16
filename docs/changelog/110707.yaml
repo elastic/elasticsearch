@@ -1,5 +1,0 @@
-pr: 110707
-summary: Fix issue with returning incomplete fragment for plain highlighter
-area: Highlighting
-type: bug
-issues: []

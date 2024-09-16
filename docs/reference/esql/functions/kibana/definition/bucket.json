@@ -8,7 +8,7 @@
       "params" : [
         {
           "name" : "field",
-          "type" : "datetime",
+          "type" : "date",
           "optional" : false,
           "description" : "Numeric or date expression from which to derive buckets."
         },
@@ -20,13 +20,13 @@
         }
       ],
       "variadic" : false,
-      "returnType" : "datetime"
+      "returnType" : "date"
     },
     {
       "params" : [
         {
           "name" : "field",
-          "type" : "datetime",
+          "type" : "date",
           "optional" : false,
           "description" : "Numeric or date expression from which to derive buckets."
         },
@@ -38,25 +38,25 @@
         },
         {
           "name" : "from",
-          "type" : "datetime",
+          "type" : "date",
           "optional" : true,
           "description" : "Start of the range. Can be a number or a date expressed as a string."
         },
         {
           "name" : "to",
-          "type" : "datetime",
+          "type" : "date",
           "optional" : true,
           "description" : "End of the range. Can be a number or a date expressed as a string."
         }
       ],
       "variadic" : false,
-      "returnType" : "datetime"
+      "returnType" : "date"
     },
     {
       "params" : [
         {
           "name" : "field",
-          "type" : "datetime",
+          "type" : "date",
           "optional" : false,
           "description" : "Numeric or date expression from which to derive buckets."
         },
@@ -68,7 +68,7 @@
         }
       ],
       "variadic" : false,
-      "returnType" : "datetime"
+      "returnType" : "date"
     },
     {
       "params" : [

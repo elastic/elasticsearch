@@ -28,8 +28,8 @@ import java.util.List;
 
 /**
  * This search phase is responsible for executing any re-ranking needed for the given search request, iff that is applicable.
- * It starts by retrieving {@code num_shards * window_size} results from the query phase and reduces them to a global list of
- * the top {@code window_size} results. It then reaches out to the shards to extract the needed feature data,
+ * It starts by retrieving {@code num_shards * rank_window_size} results from the query phase and reduces them to a global list of
+ * the top {@code rank_window_size} results. It then reaches out to the shards to extract the needed feature data,
  * and finally passes all this information to the appropriate {@code RankFeatureRankCoordinatorContext} which is responsible for reranking
  * the results. If no rank query is specified, it proceeds directly to the next phase (FetchSearchPhase) by first reducing the results.
  */
@@ -88,7 +88,7 @@ public class RankFeaturePhase extends SearchPhase {
 
     void innerRun() throws Exception {
         // if the RankBuilder specifies a QueryPhaseCoordinatorContext, it will be called as part of the reduce call
-        // to operate on the first `window_size * num_shards` results and merge them appropriately.
+        // to operate on the first `rank_window_size * num_shards` results and merge them appropriately.
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase = queryPhaseResults.reduce();
         RankFeaturePhaseRankCoordinatorContext rankFeaturePhaseRankCoordinatorContext = coordinatorContext(context.getRequest().source());
         if (rankFeaturePhaseRankCoordinatorContext != null) {

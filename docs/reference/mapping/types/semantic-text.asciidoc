@@ -7,8 +7,8 @@
 
 beta[]
 
-The `semantic_text` field type automatically generates embeddings for text
-content using an inference endpoint.
+The `semantic_text` field type automatically generates embeddings for text content using an inference endpoint.
+Long passages are <<auto-text-chunking, automatically chunked>> to smaller sections to enable the processing of larger corpuses of text.
 
 The `semantic_text` field type specifies an inference endpoint identifier that will be used to generate embeddings.
 You can create the inference endpoint by using the <<put-inference-api>>.

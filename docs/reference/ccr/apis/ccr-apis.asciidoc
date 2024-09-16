@@ -2,7 +2,7 @@
 [[ccr-apis]]
 == {ccr-cap} APIs
 
-You can use the following APIs to perform {ccr} operations.
+You can use the following APIs to perform <<xpack-ccr,{ccr}>> operations.
 
 [discrete]
 [[ccr-api-top-level]]

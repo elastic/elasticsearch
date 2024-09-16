@@ -5,7 +5,7 @@
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
 field | limit | order | result
-datetime | integer | keyword | datetime
+date | integer | keyword | date
 double | integer | keyword | double
 integer | integer | keyword | integer
 long | integer | keyword | long

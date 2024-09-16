@@ -62,6 +62,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
 
             // Ensure we get exactly as many scores as the number of docs we passed, otherwise we may return incorrect results
             List<RankedDocsResults.RankedDoc> rankedDocs = ((RankedDocsResults) results).getRankedDocs();
+
             if (rankedDocs.size() != featureDocs.length) {
                 l.onFailure(
                     new IllegalStateException(
@@ -104,12 +105,18 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
                 );
                 return;
             }
-            List<String> featureData = Arrays.stream(featureDocs).map(x -> x.featureData).toList();
-            InferenceAction.Request inferenceRequest = generateRequest(featureData);
-            try {
-                client.execute(InferenceAction.INSTANCE, inferenceRequest, inferenceListener);
-            } finally {
-                inferenceRequest.decRef();
+
+            // Short circuit on empty results after request validation
+            if (featureDocs.length == 0) {
+                inferenceListener.onResponse(new InferenceAction.Response(new RankedDocsResults(List.of())));
+            } else {
+                List<String> featureData = Arrays.stream(featureDocs).map(x -> x.featureData).toList();
+                InferenceAction.Request inferenceRequest = generateRequest(featureData);
+                try {
+                    client.execute(InferenceAction.INSTANCE, inferenceRequest, inferenceListener);
+                } finally {
+                    inferenceRequest.decRef();
+                }
             }
         });
 

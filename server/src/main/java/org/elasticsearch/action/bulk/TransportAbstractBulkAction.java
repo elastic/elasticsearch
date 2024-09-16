@@ -56,7 +56,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
     protected final SystemIndices systemIndices;
     private final IngestService ingestService;
     private final IngestActionForwarder ingestForwarder;
-    protected final LongSupplier relativeTimeProvider;
+    protected final LongSupplier relativeTimeNanosProvider;
     protected final Executor writeExecutor;
     protected final Executor systemWriteExecutor;
     private final ActionType<BulkResponse> bulkAction;
@@ -71,7 +71,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         IngestService ingestService,
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
-        LongSupplier relativeTimeProvider
+        LongSupplier relativeTimeNanosProvider
     ) {
         super(action.name(), transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
@@ -83,7 +83,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         this.systemWriteExecutor = threadPool.executor(ThreadPool.Names.SYSTEM_WRITE);
         this.ingestForwarder = new IngestActionForwarder(transportService);
         clusterService.addStateApplier(this.ingestForwarder);
-        this.relativeTimeProvider = relativeTimeProvider;
+        this.relativeTimeNanosProvider = relativeTimeNanosProvider;
         this.bulkAction = action;
     }
 
@@ -216,7 +216,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         Metadata metadata,
         ActionListener<BulkResponse> listener
     ) {
-        final long ingestStartTimeInNanos = System.nanoTime();
+        final long ingestStartTimeInNanos = relativeTimeNanos();
         final BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(original);
         getIngestService(original).executeBulkRequest(
             original.numberOfActions(),
@@ -230,7 +230,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                     logger.debug("failed to execute pipeline for a bulk request", exception);
                     listener.onFailure(exception);
                 } else {
-                    long ingestTookInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - ingestStartTimeInNanos);
+                    long ingestTookInMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeNanos() - ingestStartTimeInNanos);
                     BulkRequest bulkRequest = bulkRequestModifier.getBulkRequest();
                     ActionListener<BulkResponse> actionListener = bulkRequestModifier.wrapActionListenerIfNeeded(
                         ingestTookInMillis,
@@ -307,12 +307,12 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         return ingestService;
     }
 
-    protected long relativeTime() {
-        return relativeTimeProvider.getAsLong();
+    protected long relativeTimeNanos() {
+        return relativeTimeNanosProvider.getAsLong();
     }
 
     protected long buildTookInMillis(long startTimeNanos) {
-        return TimeUnit.NANOSECONDS.toMillis(relativeTime() - startTimeNanos);
+        return TimeUnit.NANOSECONDS.toMillis(relativeTimeNanos() - startTimeNanos);
     }
 
     private void applyPipelinesAndDoInternalExecute(
@@ -321,9 +321,9 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         Executor executor,
         ActionListener<BulkResponse> listener
     ) {
-        final long relativeStartTime = threadPool.relativeTimeInMillis();
+        final long relativeStartTimeNanos = relativeTimeNanos();
         if (applyPipelines(task, bulkRequest, executor, listener) == false) {
-            doInternalExecute(task, bulkRequest, executor, listener, relativeStartTime);
+            doInternalExecute(task, bulkRequest, executor, listener, relativeStartTimeNanos);
         }
     }
 

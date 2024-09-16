@@ -133,6 +133,11 @@ public class UnresolvedFunction extends Function implements Unresolvable {
     }
 
     @Override
+    protected TypeResolution resolveType() {
+        return new TypeResolution("unresolved function [" + name + "]");
+    }
+
+    @Override
     public DataType dataType() {
         throw new UnresolvedException("dataType", this);
     }

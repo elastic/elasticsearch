@@ -151,6 +151,11 @@ public class EsqlCapabilities {
         SPATIAL_FUNCTIONS_FIX_CRSTYPE_FOLDING,
 
         /**
+         * Enable spatial predicate functions to support multi-values. Done in #112063.
+         */
+        SPATIAL_PREDICATES_SUPPORT_MULTIVALUES,
+
+        /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
          * https://github.com/elastic/elasticsearch/issues/110184
          */

@@ -219,7 +219,6 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
         builder.field(DESCRIPTION.getPreferredName(), description);
         builder.timeField(START_TIME.getPreferredName(), START_TIME.getPreferredName() + "_string", startTime.toEpochMilli());
         builder.timeField(END_TIME.getPreferredName(), END_TIME.getPreferredName() + "_string", endTime.toEpochMilli());
-        // TODO: Check if this needs to be behind a feature flag?
         builder.field(SKIP_RESULT.getPreferredName(), skipResult);
         builder.field(SKIP_MODEL_UPDATE.getPreferredName(), skipModelUpdate);
         if (forceTimeShift != null) {

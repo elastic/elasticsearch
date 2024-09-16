@@ -37,13 +37,13 @@
         "type": "date"
       },
       "skip_result": {
-        "type": "keyword"
+        "type": "boolean"
       },
       "skip_model_update": {
-        "type": "keyword"
+        "type": "boolean"
       },
       "force_time_shift": {
-        "type": "keyword"
+        "type": "integer"
       },
       "type": {
         "type": "keyword"

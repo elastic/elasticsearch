@@ -20,6 +20,7 @@ import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
@@ -1117,7 +1118,11 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         if (shouldLog()) {
             LOGGER.info("RESPONSE warnings (after muted)={}", warnings);
         }
-        EsqlTestUtils.assertWarnings(warnings, allowedWarnings, allowedWarningsRegex);
+        EsqlTestUtils.assertWarnings(
+            warnings,
+            allowedWarnings,
+            CollectionUtils.concatLists(allowedWarningsRegex, alwaysAllowedWarningsRegex())
+        );
         return response.getEntity();
     }
 
@@ -1126,6 +1131,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             "No limit defined, adding default limit of [1000]",
             "No limit defined, adding default limit of [500]" // this is for bwc tests, the limit in v 8.12.x is 500
         );
+    }
+
+    private static Set<Pattern> alwaysAllowedWarningsRegex() {
+        return Set.of(Pattern.compile("Date format \\[.*] contains textual field specifiers that could change in JDK 23"));
     }
 
     private static void bulkLoadTestData(int count) throws IOException {

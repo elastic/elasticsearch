@@ -93,6 +93,16 @@ public class DoSection implements ExecutableSection {
         return parse(parser, true);
     }
 
+    /**
+     * Add the warning from DateUtils as a generally acceptable warning in YAML tests.
+     * This is so we don't need to go and add this to every single test that uses changing field specifiers;
+     * they've all already been updated to account for CLDR.
+     */
+    @UpdateForV9
+    private static void addAllowedJdkDateWarning(List<Pattern> allowedWarningsRegex) {
+        allowedWarningsRegex.add(Pattern.compile("Date format \\[.*] contains textual field specifiers that could change in JDK 23"));
+    }
+
     private static DoSection parse(XContentParser parser, boolean enableLegacyNodeSelectorSupport) throws IOException {
         String currentFieldName = null;
         XContentParser.Token token;
@@ -105,6 +115,8 @@ public class DoSection implements ExecutableSection {
         List<Pattern> expectedWarningsRegex = new ArrayList<>();
         List<String> allowedWarnings = new ArrayList<>();
         List<Pattern> allowedWarningsRegex = new ArrayList<>();
+
+        addAllowedJdkDateWarning(allowedWarningsRegex);
 
         if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
             throw new IllegalArgumentException(

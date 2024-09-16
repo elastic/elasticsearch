@@ -10,15 +10,12 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
-import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
-import org.elasticsearch.cluster.metadata.Template;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -130,7 +127,7 @@ public class SimulateBulkRequest extends BulkRequest {
     }
 
     @Override
-    public Map<String, ComponentTemplate> getComponentTemplateSubstitutions() throws IOException {
+    public Map<String, ComponentTemplate> getComponentTemplateSubstitutions() {
         if (componentTemplateSubstitutions == null) {
             return Map.of();
         }
@@ -141,20 +138,14 @@ public class SimulateBulkRequest extends BulkRequest {
         return result;
     }
 
-    @SuppressWarnings("unchecked")
-    private static ComponentTemplate convertRawTemplateToComponentTemplate(Map<String, Object> rawTemplate) throws IOException {
-        Settings settings = null;
-        CompressedXContent mappings = null;
-        if (rawTemplate.containsKey("mappings")) {
-            mappings = new CompressedXContent((Map<String, Object>) rawTemplate.get("mappings"));
+    private static ComponentTemplate convertRawTemplateToComponentTemplate(Map<String, Object> rawTemplate) {
+        ComponentTemplate componentTemplate;
+        try (var parser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, rawTemplate)) {
+            componentTemplate = ComponentTemplate.parse(parser);
+        } catch (IOException e) {
+            throw new AssertionError(e);
         }
-        if (rawTemplate.containsKey("settings")) {
-            settings = Settings.builder().loadFromMap((Map<String, ?>) rawTemplate.get("settings")).build();
-        }
-        Map<String, AliasMetadata> aliases = null;
-        DataStreamLifecycle lifecycle = null;
-        Template template = new Template(settings, mappings, aliases, lifecycle);
-        return new ComponentTemplate(template, null, null);
+        return componentTemplate;
     }
 
     @Override

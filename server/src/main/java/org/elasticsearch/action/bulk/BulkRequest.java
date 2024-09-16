@@ -482,7 +482,7 @@ public class BulkRequest extends ActionRequest
      * Returns any component template substitutions that are to be used as part of this bulk request. We would likely only have
      * substitutions in the event of a simulated request.
      */
-    public Map<String, ComponentTemplate> getComponentTemplateSubstitutions() throws IOException {
+    public Map<String, ComponentTemplate> getComponentTemplateSubstitutions() {
         return Map.of();
     }
 

@@ -12,6 +12,7 @@ import org.apache.http.HttpResponse;
 import org.apache.http.nio.ContentDecoder;
 import org.apache.http.nio.IOControl;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
@@ -75,10 +76,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
      */
     public void testFirstResponseCallsListener() throws IOException {
         var latch = new CountDownLatch(1);
-        var listener = ActionListener.<Flow.Publisher<HttpResult>>wrap(
-            r -> latch.countDown(),
-            e -> fail("Listener onFailure should never be called.")
-        );
+        var listener = ActionTestUtils.<Flow.Publisher<HttpResult>>assertNoFailureListener(r -> latch.countDown());
         publisher = new StreamingHttpResultPublisher(threadPool, settings, listener);
 
         publisher.responseReceived(mock(HttpResponse.class));
@@ -93,10 +91,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
      */
     public void testEmptyFirstResponseCallsListener() throws IOException {
         var latch = new CountDownLatch(1);
-        var listener = ActionListener.<Flow.Publisher<HttpResult>>wrap(
-            r -> latch.countDown(),
-            e -> fail("Listener onFailure should never be called.")
-        );
+        var listener = ActionTestUtils.<Flow.Publisher<HttpResult>>assertNoFailureListener(r -> latch.countDown());
         publisher = new StreamingHttpResultPublisher(threadPool, settings, listener);
 
         var response = mock(HttpResponse.class);
@@ -115,10 +110,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
      */
     public void testNonEmptyFirstResponseCallsListener() throws IOException {
         var latch = new CountDownLatch(1);
-        var listener = ActionListener.<Flow.Publisher<HttpResult>>wrap(
-            r -> latch.countDown(),
-            e -> fail("Listener onFailure should never be called.")
-        );
+        var listener = ActionTestUtils.<Flow.Publisher<HttpResult>>assertNoFailureListener(r -> latch.countDown());
         publisher = new StreamingHttpResultPublisher(threadPool, settings, listener);
 
         when(settings.getMaxResponseSize()).thenReturn(ByteSizeValue.ofBytes(9000));

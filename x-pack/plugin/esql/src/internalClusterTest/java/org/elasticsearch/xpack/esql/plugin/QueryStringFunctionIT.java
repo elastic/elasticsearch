@@ -81,7 +81,7 @@ public class QueryStringFunctionIT extends AbstractEsqlIntegTestCase {
             """;
 
         var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("full text functions are only supported in WHERE commands"));
+        assertThat(error.getMessage(), containsString("QSTR function is only supported in WHERE commands"));
     }
 
     private void createAndPopulateIndex() {

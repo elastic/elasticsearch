@@ -4,10 +4,10 @@
 Managed <<es-connectors,Elastic connectors>> are available directly within your Elastic Cloud deployment.
 No additional infrastructure is required.
 
-Hosted connectors sync data sources directly to Elasticsearch indices.
+Managed connectors sync data sources directly to Elasticsearch indices.
 Create these indices using the *Connector* workflow within {kib}.
 
-The following connectors are available as Hosted connectors.
+The following connectors are available as Managed connectors.
 See each connector reference for additional information specific to each connector.
 
 include::_connectors-list-native.asciidoc[]
@@ -15,7 +15,7 @@ include::_connectors-list-native.asciidoc[]
 [discrete#es-native-connectors-prerequisites]
 === Availability and prerequisites
 
-Hosted connectors were introduced in Elastic version *8.5.0*.
+Managed connectors were introduced in Elastic version *8.5.0*.
 
 Your Elastic Cloud deployment must include the following Elastic services:
 
@@ -28,7 +28,7 @@ Refer to _Native Integrations_ on the https://www.elastic.co/subscriptions/cloud
 .Elastic Cloud IPs
 [sidebar]
 --
-Using our Hosted connectors managed service involves outbound data transfer (egress) from your Elastic Cloud deployment.
+Using our Managed connectors managed service involves outbound data transfer (egress) from your Elastic Cloud deployment.
 If you have IP/firewall rules on your third party service, you'll need to add the Elastic Cloud egress static IP ranges to your service’s configuration.
 
 Refer to {cloud}/ec-static-ips.html[static IP ranges] in the Elastic Cloud documentation for the latest list of IP addresses.
@@ -86,7 +86,7 @@ Your team can use this information to differentiate this index from other connec
 . Save your changes.
 . Edit the data source configuration.
 The fields here vary by connector.
-Refer to the documentation for each connector for details (see list of Hosted connectors, above).
+Refer to the documentation for each connector for details (see list of Managed connectors, above).
 See <<es-connectors-security>> for security considerations.
 . Save your changes.
 
@@ -110,14 +110,14 @@ To manage documents, syncs, sync rules, ingest pipelines, and other connector fe
 
 [NOTE]
 ====
-API keys for Hosted connectors were introduced in Elastic version *8.13.0*.
-Hosted connectors created in earlier versions will not automatically use API keys upon upgrading to *8.13.0*.
+API keys for Managed connectors were introduced in Elastic version *8.13.0*.
+Managed connectors created in earlier versions will not automatically use API keys upon upgrading to *8.13.0*.
 See <<es-native-connectors-enabling-API-keys-for-upgraded-connectors,enabling API keys>> for more information.
 ====
 
-Hosted connectors communicate with Elasticsearch using API keys.
+Managed connectors communicate with Elasticsearch using API keys.
 When managing a managed connector through the Connectors page in the {kib} UI, API key management is handled automatically.
-API keys for Hosted connectors have the `manage` permission for three indices:
+API keys for Managed connectors have the `manage` permission for three indices:
 
 . The attached index
 . The access control (ACL) index used for document level security
@@ -128,11 +128,11 @@ If you want to rotate an existing API key, navigate to the *Configuration* tab.
 Scroll down to *Manage API key* and select *Generate API key*.
 This action will invalidate the previous API key, create a new API key, and update the connector secret.
 
-API keys for Hosted connectors are stored on an internal system index called `.connector-secrets`.
+API keys for Managed connectors are stored on an internal system index called `.connector-secrets`.
 This index can only be written to through API requests by users with the `write_connector-secrets` cluster privilege.
 Only the Enterprise Search instance has permission to read from this index.
 
-Users managing Hosted connectors will need the `write_connector_secrets` cluster privilege assigned to their role.
+Users managing Managed connectors will need the `write_connector_secrets` cluster privilege assigned to their role.
 See <<es-connectors-security>> for security considerations.
 
 [discrete#es-native-connectors-manage-API-keys-programmatically]
@@ -149,10 +149,10 @@ include::_connectors-create-native-api-key.asciidoc[]
 [discrete#es-native-connectors-enabling-API-keys-for-upgraded-connectors]
 ==== Enabling API keys for upgraded connectors
 
-Hosted connectors created before *8.13.0* do not initially have API keys upon upgrading.
+Managed connectors created before *8.13.0* do not initially have API keys upon upgrading.
 The attached indices of these connectors cannot be changed until the connector has been converted to use an API key.
 
-.*Expand* the following section for steps on enabling API keys for upgraded Hosted connectors.
+.*Expand* the following section for steps on enabling API keys for upgraded Managed connectors.
 [%collapsible]
 ===================================
 . Run the following command in *Dev Tools* to enable API keys for the connector, replacing values where indicated.

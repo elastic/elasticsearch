@@ -727,16 +727,19 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 @Override
                 @SuppressWarnings("unchecked")
                 protected Object parseSourceValue(Object value) {
-                    if (value instanceof Map<?, ?> map) {
-                        if (map.isEmpty()) {
+                    if (value instanceof Map<?, ?> valueAsMap) {
+                        if (valueAsMap.isEmpty()) {
                             return null;
                         }
-                        final Map.Entry<?, ?> mapEntry = map.entrySet().iterator().next();
-                        if (mapEntry.getValue() instanceof String) {
-                            return singleValueFieldMap((Map<String, String>) value);
-                        } else if (mapEntry.getValue() instanceof List) {
-                            return multiValueFieldMap((Map<String, List<String>>) value);
+                        final Map<String, List<String>> result = new HashMap<>();
+                        for (final Map.Entry<?, ?> entry : valueAsMap.entrySet()) {
+                            if (entry.getValue() instanceof String) {
+                                singleValueFieldMap((Map<String, Object>) value, result);
+                            } else if (entry.getValue() instanceof List) {
+                                multiValueFieldMap((Map<String, Object>) value, result);
+                            }
                         }
+                        return result;
                     }
                     if (value instanceof String valueAsString) {
                         if (valueAsString.length() < ignoreAbove) {
@@ -746,30 +749,40 @@ public final class FlattenedFieldMapper extends FieldMapper {
                     return null;
                 }
 
-                private Object multiValueFieldMap(final Map<String, List<String>> values) {
-                    final Map<String, List<String>> result = new HashMap<>();
-                    for (final Map.Entry<String, List<String>> entry : values.entrySet()) {
-                        final List<String> list = new ArrayList<>();
-                        for (final String value : entry.getValue()) {
+                private void multiValueFieldMap(final Map<String, Object> values, final Map<String, List<String>> result) {
+                    for (final Map.Entry<String, Object> entry : values.entrySet()) {
+                        final List<String> listOfValues = new ArrayList<>();
+                        final Object flattenedFieldValue = entry.getValue();
+                        if (flattenedFieldValue instanceof List) {
+                            @SuppressWarnings("unchecked")
+                            final List<String> flattenedFieldValueList = (List<String>) flattenedFieldValue;
+                            for (final String value : flattenedFieldValueList) {
+                                if (value.length() < ignoreAbove) {
+                                    listOfValues.add(value);
+                                }
+                            }
+                        } else if (flattenedFieldValue instanceof String value) {
                             if (value.length() < ignoreAbove) {
-                                list.add(value);
+                                listOfValues.add(value);
                             }
                         }
-                        if (list.isEmpty() == false) {
-                            result.put(entry.getKey(), list);
+
+                        if (listOfValues.isEmpty() == false) {
+                            final String flattenedFieldName = entry.getKey();
+                            result.put(flattenedFieldName, listOfValues);
                         }
                     }
-                    return result.isEmpty() ? null : result;
                 }
 
-                private Object singleValueFieldMap(final Map<String, String> values) {
-                    final Map<String, String> result = new HashMap<>();
-                    for (final Map.Entry<String, String> entry : values.entrySet()) {
-                        if (entry.getValue().length() < ignoreAbove) {
-                            result.put(entry.getKey(), entry.getValue());
+                private void singleValueFieldMap(final Map<String, Object> values, final Map<String, List<String>> result) {
+                    for (final Map.Entry<String, Object> entry : values.entrySet()) {
+                        final Object value = entry.getValue();
+                        if (value instanceof String valueAsString) {
+                            if (valueAsString.length() < ignoreAbove) {
+                                result.put(entry.getKey(), List.of(valueAsString));
+                            }
                         }
                     }
-                    return result.isEmpty() ? null : result;
                 }
             };
         }

@@ -1449,7 +1449,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(((Literal) ((Add) eval.fields().get(0).child()).right().children().get(0)).value(), equalTo("3 days"));
     }
 
-    public void testParamForFieldName() {
+    public void testParamForFieldFunctionName() {
         // field names can appear in eval/where/stats/sort/keep/drop/rename/dissect/grok/enrich/mvexpand
         // eval, where, stats, sort, mv_expand
         assertEquals(
@@ -1467,13 +1467,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
                                 new Eval(
                                     EMPTY,
                                     relation("test"),
-                                    List.of(new Alias(EMPTY, "x", function("fn1", List.of(attribute("f1.")))))
+                                    List.of(new Alias(EMPTY, "x", function("toString", List.of(attribute("f1.")))))
                                 ),
                                 new Equals(EMPTY, attribute("f1."), attribute("f.2"))
                             ),
                             Aggregate.AggregateType.STANDARD,
                             List.of(attribute("f.4.")),
-                            List.of(new Alias(EMPTY, "y", function("fn2", List.of(attribute("f3.*")))), attribute("f.4."))
+                            List.of(new Alias(EMPTY, "y", function("count", List.of(attribute("f3.*")))), attribute("f.4."))
                         ),
                         List.of(
                             new Order(EMPTY, attribute("f.5.*"), Order.OrderDirection.ASC, Order.NullsPosition.LAST),
@@ -1487,9 +1487,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
             statement(
                 """
                     from test
-                    | eval x = fn1(?f1)
+                    | eval x = ?fn1(?f1)
                     | where ?f1 == ?f2
-                    | stats y = fn2(?f3) by ?f4
+                    | stats y = ?fn2(?f3) by ?f4
                     | sort ?f5, ?f6
                     | mv_expand ?f7
                     | limit 1""",
@@ -1501,7 +1501,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
                         new QueryParam("f4", "f.4.", NULL, true),
                         new QueryParam("f5", "f.5.*", NULL, true),
                         new QueryParam("f6", "f.*.6", NULL, true),
-                        new QueryParam("f7", "f.7*", NULL, true)
+                        new QueryParam("f7", "f.7*", NULL, true),
+                        new QueryParam("fn1", "toString", NULL, true),
+                        new QueryParam("fn2", "count", NULL, true)
 
                     )
                 )
@@ -1523,13 +1525,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
                                 new Eval(
                                     EMPTY,
                                     relation("test"),
-                                    List.of(new Alias(EMPTY, "x", function("fn1", List.of(attribute("f1..f.2")))))
+                                    List.of(new Alias(EMPTY, "x", function("toString", List.of(attribute("f1..f.2")))))
                                 ),
                                 new Equals(EMPTY, attribute("f3.*.f.4."), attribute("f.5.*.f.*.6"))
                             ),
                             Aggregate.AggregateType.STANDARD,
                             List.of(attribute("f.9.f10.*")),
-                            List.of(new Alias(EMPTY, "y", function("fn2", List.of(attribute("f.7*.f8.")))), attribute("f.9.f10.*"))
+                            List.of(new Alias(EMPTY, "y", function("count", List.of(attribute("f.7*.f8.")))), attribute("f.9.f10.*"))
                         ),
                         List.of(
                             new Order(EMPTY, attribute("f.11..f.12.*"), Order.OrderDirection.ASC, Order.NullsPosition.LAST),
@@ -1543,9 +1545,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
             statement(
                 """
                     from test
-                    | eval x = fn1(?f1.?f2)
+                    | eval x = ?fn1(?f1.?f2)
                     | where ?f3.?f4 == ?f5.?f6
-                    | stats y = fn2(?f7.?f8) by ?f9.?f10
+                    | stats y = ?fn2(?f7.?f8) by ?f9.?f10
                     | sort ?f11.?f12, ?f13.?f14
                     | mv_expand ?f15.?f16
                     | limit 1""",
@@ -1566,7 +1568,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
                         new QueryParam("f13", "f.*.13", NULL, true),
                         new QueryParam("f14", "f.14*", NULL, true),
                         new QueryParam("f15", "f.*.15", NULL, true),
-                        new QueryParam("f16", "f.16*", NULL, true)
+                        new QueryParam("f16", "f.16*", NULL, true),
+                        new QueryParam("fn1", "toString", NULL, true),
+                        new QueryParam("fn2", "count", NULL, true)
                     )
                 )
             )
@@ -1811,10 +1815,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(up.pattern(), "`f*1.`.`f.2*`*");
         ur = (UnresolvedRelation) keep.child();
         assertEquals(ur, relation("test"));
+
+        // TODO add more complicated patterns here
     }
 
     public void testInvalidParamPosition() {
         // param for pattern is not supported in eval/where/stats/sort/rename/dissect/grok/enrich/mvexpand
+        // where/stats/sort/dissect/grok are in RestEsqlTestCase
         expectError("""
             from test | eval ?f1 = 1
             """, List.of(new QueryParam("f1", "f1*", NULL, false, true)), "Field name pattern [f1*] is not supported");
@@ -1822,7 +1829,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
             """
                 from test | rename ?f1 as ?f2
                 """,
-
             List.of(new QueryParam("f1", "f1*", NULL, false, true), new QueryParam("f2", "f*2", NULL, false, true)),
             "Using wildcards [*] in RENAME is not allowed [?f1 as ?f2]"
         );
@@ -1841,7 +1847,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
             List.of(new QueryParam("n1", "f1*", NULL, false, true)),
             "Field name pattern [f1*] is not supported"
         );
-
     }
 
     public void testFieldContainingDotsAndNumbers() {

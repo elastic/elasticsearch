@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 /**
  * Represent a strongly typed parameter value
  */
-public record QueryParam(String name, Object value, DataType type, boolean isField, boolean isPattern) {
+public record QueryParam(String name, Object value, DataType type, boolean isIdentifier, boolean isIdentifierPattern) {
 
     public QueryParam(String name, Object value, DataType type) {
         this(name, value, type, false, false);
@@ -27,15 +27,15 @@ public record QueryParam(String name, Object value, DataType type, boolean isFie
 
     @Override
     public String toString() {
-        return value + " [" + name + "][" + type + "][" + isField + "][" + isPattern + "]";
+        return value + " [" + name + "][" + type + "][" + isIdentifier + "][" + isIdentifierPattern + "]";
     }
 
     public boolean isField() {
-        return isField;
+        return isIdentifier;
     }
 
     public boolean isPattern() {
-        return isPattern;
+        return isIdentifierPattern;
     }
 
 }

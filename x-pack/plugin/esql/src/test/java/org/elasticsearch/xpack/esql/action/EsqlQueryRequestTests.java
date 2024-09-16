@@ -93,12 +93,12 @@ public class EsqlQueryRequestTests extends ESTestCase {
         QueryBuilder filter = randomQueryBuilder();
 
         String paramsString = """
-            ,"params":[ {"n1" : {"value" : "f1", "identifier" : true}},
+            ,"params":[ {"n1" : {"value" : "f1", "Identifier" : true}},
              {"n2" : {"value" : "f1*", "identifier" : true}},
              {"n3" : {"value" : "f.1*", "identifierPattern" : true}},
              {"n4" : {"value" : "*", "identifierPattern" : true}},
              {"n5" : {"value" : "esql", "identifier" : true}},
-             {"n_6" : {"value" : null, "identifier" : true}},
+             {"n_6" : {"value" : "null", "identifier" : true}},
              {"n7_" : {"value" : "f.1.1", "identifier" : true}},
              {"_n1" : "8.15.0"},
              { "__n2" : 0.05},
@@ -114,7 +114,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         params.add(new QueryParam("n3", "f.1*", NULL, false, true));
         params.add(new QueryParam("n4", "*", NULL, false, true));
         params.add(new QueryParam("n5", "esql", NULL, true));
-        params.add(new QueryParam("n_6", null, NULL, true));
+        params.add(new QueryParam("n_6", "null", NULL, true));
         params.add(new QueryParam("n7_", "f.1.1", NULL, true));
         params.add(new QueryParam("_n1", "8.15.0", DataType.KEYWORD));
         params.add(new QueryParam("__n2", 0.05, DataType.DOUBLE));
@@ -151,6 +151,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         Locale locale = randomLocale(random());
         QueryBuilder filter = randomQueryBuilder();
 
+        // invalid named parameter for constants
         String paramsString1 = """
             "params":[ {"1" : "v1" }, {"1x" : "v1" }, {"@a" : "v1" }, {"@-#" : "v1" }, 1, 2, {"_1" : "v1" }, {"Å" : 0}, {"x " : 0}]""";
         String json1 = String.format(Locale.ROOT, """
@@ -208,6 +209,44 @@ public class EsqlQueryRequestTests extends ESTestCase {
             e2.getCause().getMessage(),
             containsString("Params cannot contain both named and unnamed parameters; got [{1:v1}, {1x:v1}] and [{1}, {2}]")
         );
+
+        // invalid named parameter for identifier and identifier pattern
+        String paramsString3 = """
+            "params":[ {"n1" : {"v" : "v1"}}, {"n2" : {"value" : "v2", "id" : true}}, {"n3" : {"value" : "v3", "pattern" : true }},
+            {"n4" : {"value" : 1, "identifier" : true}}, {"n5" : {"value" : true, "identifierPattern" : true}},
+            {"n6" : {"identifierPattern" : true}}, {"n7" : {"v" : "v7", "identifier" : true}},
+            {"n8" : {"value" : "v8", "identifierPattern" : true}}]""";
+        String json3 = String.format(Locale.ROOT, """
+            {
+                %s
+                "query": "%s",
+                "columnar": %s,
+                "locale": "%s",
+                "filter": %s
+            }""", paramsString3, query, columnar, locale.toLanguageTag(), filter);
+
+        Exception e3 = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json3));
+        assertThat(
+            e3.getCause().getMessage(),
+            containsString(
+                "Failed to parse params: [2:16] [v] is not a valid param attribute, "
+                    + "a valid attribute is value, identifier, or identifierpattern"
+            )
+        );
+        assertThat(e3.getCause().getMessage(), containsString("[2:39] [id] is not a valid param attribute"));
+        assertThat(e3.getCause().getMessage(), containsString("[2:79] [pattern] is not a valid param attribute"));
+        assertThat(
+            e3.getCause().getMessage(),
+            containsString("[3:1] [1] is not a valid value for an identifier, " + "a valid identifier can only be a string")
+        );
+        assertThat(
+            e3.getCause().getMessage(),
+            containsString(
+                "[3:46] [true] is not a valid value for an identifier pattern, " + "a valid identifier pattern can only be a string"
+            )
+        );
+        assertThat(e3.getCause().getMessage(), containsString("[4:40] [n7={identifier=true, v=v7}] does not have a value provided"));
+        assertThat(e3.getCause().getMessage(), containsString("[5:1] [v8] is not an identifier pattern"));
     }
 
     // Test for https://github.com/elastic/elasticsearch/issues/110028

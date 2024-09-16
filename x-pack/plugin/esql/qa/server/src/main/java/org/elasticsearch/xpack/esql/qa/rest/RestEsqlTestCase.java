@@ -644,6 +644,110 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         );
     }
 
+    public void testErrorMessageForArrayValuesInParams() throws IOException {
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            () -> runEsql(requestObjectBuilder().query("row a = 1 | eval x = ?").params("[{\"n1\": [5, 6, 7]}]"))
+        );
+        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("n1=[5, 6, 7] is not supported as a parameter"));
+    }
+
+    public void testNamedParamsForFieldNamesAndFieldNamePatterns() throws IOException {
+        bulkLoadTestData(10);
+        var query = requestObjectBuilder().query(
+            format(
+                null,
+                "from {} | eval x1 = ?n1 | where ?n2 == x1 | stats xx2 = max(?n3) by ?n4 | keep ?n4, ?n5 | sort ?n4",
+                testIndexName()
+            )
+        )
+            .params(
+                "[{\"n1\" : {\"value\" : \"integer\" , \"identifier\" : true}},"
+                    + "{\"n2\" : {\"value\" : \"short\" , \"identifier\" : true}}, "
+                    + "{\"n3\" : {\"value\" : \"double\" , \"identifier\" : true}},"
+                    + "{\"n4\" : {\"value\" : \"boolean\" , \"identifier\" : true}}, "
+                    + "{\"n5\" : {\"value\" : \"xx*\" , \"identifierpattern\" : true}}]"
+            );
+        Map<String, Object> result = runEsql(query);
+        assertEquals(2, result.size());
+        Map<String, String> colA = Map.of("name", "boolean", "type", "boolean");
+        Map<String, String> colB = Map.of("name", "xx2", "type", "double");
+        assertEquals(List.of(colA, colB), result.get("columns"));
+        assertEquals(List.of(List.of(false, 9.1), List.of(true, 8.1)), result.get("values"));
+
+        // missing params
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(
+                requestObjectBuilder().query(
+                    format(
+                        null,
+                        "from {} | eval x1 = ?n1 | where ?n2 == x1 | stats xx2 = max(?n3) by ?n4 | keep ?n4, ?n5 | sort ?n4",
+                        testIndexName()
+                    )
+                ).params("[]")
+            )
+        );
+        String error = re.getMessage();
+        assertThat(error, containsString(": Unknown query parameter [n1]"));
+
+        // field name pattern is not supported in where/stats/sort/dissect/grok
+        re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(
+                requestObjectBuilder().query(format(null, "from {} | where ?n1 == 1", testIndexName()))
+                    .params("[{\"n1\" : {\"value\" : \"integer*\" , \"identifierpattern\" : true}}]")
+            )
+        );
+        error = re.getMessage();
+        assertThat(error, containsString("VerificationException"));
+        assertThat(error, containsString("Field name pattern [integer*] is not supported"));
+
+        re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(
+                requestObjectBuilder().query(format(null, "from {} | stats x = count(?n1)", testIndexName()))
+                    .params("[{\"n1\" : {\"value\" : \"integer*\" , \"identifierpattern\" : true}}]")
+            )
+        );
+        error = re.getMessage();
+        assertThat(error, containsString("VerificationException"));
+        assertThat(error, containsString("Field name pattern [integer*] is not supported"));
+
+        re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(
+                requestObjectBuilder().query(format(null, "from {} | sort ?n1", testIndexName()))
+                    .params("[{\"n1\" : {\"value\" : \"integer*\" , \"identifierpattern\" : true}}]")
+            )
+        );
+        error = re.getMessage();
+        assertThat(error, containsString("VerificationException"));
+        assertThat(error, containsString("Field name pattern [integer*] is not supported"));
+
+        re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(
+                requestObjectBuilder().query(format(null, "from {} | dissect ?n1 \"%{bar}\"", testIndexName()))
+                    .params("[{\"n1\" : {\"value\" : \"keyword*\" , \"identifierpattern\" : true}}]")
+            )
+        );
+        error = re.getMessage();
+        assertThat(error, containsString("VerificationException"));
+        assertThat(error, containsString("Field name pattern [keyword*] is not supported"));
+
+        re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(
+                requestObjectBuilder().query(format(null, "from {} | grok ?n1 \"%{WORD:foo}\"", testIndexName()))
+                    .params("[{\"n1\" : {\"value\" : \"keyword*\" , \"identifierpattern\" : true}}]")
+            )
+        );
+        error = re.getMessage();
+        assertThat(error, containsString("VerificationException"));
+        assertThat(error, containsString("Field name pattern [keyword*] is not supported"));
+    }
+
     public void testErrorMessageForLiteralDateMathOverflow() throws IOException {
         List<String> dateMathOverflowExpressions = List.of(
             "2147483647 day + 1 day",
@@ -681,14 +785,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertThat(responseMessage, containsString(errorSubstring));
 
         assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-    }
-
-    public void testErrorMessageForArrayValuesInParams() throws IOException {
-        ResponseException re = expectThrows(
-            ResponseException.class,
-            () -> runEsql(requestObjectBuilder().query("row a = 1 | eval x = ?").params("[{\"n1\": [5, 6, 7]}]"))
-        );
-        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("n1=[5, 6, 7] is not supported as a parameter"));
     }
 
     public void testComplexFieldNames() throws IOException {

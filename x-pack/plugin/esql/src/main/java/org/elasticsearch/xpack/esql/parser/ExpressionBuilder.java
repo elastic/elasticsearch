@@ -110,8 +110,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     protected final QueryParams params;
 
-    private static final String ID_PATTERN = "ID_PATTERN";
-
     ExpressionBuilder(QueryParams params) {
         this.params = params;
     }
@@ -308,11 +306,11 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             if (idCtx.params() != null) {
                 Expression exp = expression(idCtx.params());
                 if (exp instanceof Literal lit) {
-                    if (lit.value().equals(WILDCARD)) {
+                    if (lit.value() != null && lit.value().equals(WILDCARD)) {
                         unresolvedStar = true;
                     }
                 } else if (exp instanceof UnresolvedAttribute ua) {
-                    if (ua.name().equals(WILDCARD)) {
+                    if (ua.name() != null && ua.name().equals(WILDCARD)) {
                         unresolvedStar = true;
                     }
                 }
@@ -761,7 +759,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         Source source = source(ctx);
         DataType type = param.type();
         if (param.isPattern()) {
-            return new UnresolvedAttribute(source, (String) param.value(), ID_PATTERN);
+            return new UnresolvedAttribute(source, (String) param.value(), "Field name pattern [" + param.value() + "] is not supported");
         } else if (param.isField()) {
             return new UnresolvedAttribute(source, (String) param.value());
         } else {

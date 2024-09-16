@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.BitSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -30,6 +31,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xcontent.ObjectParser.ValueType.VALUE_OBJECT_ARRAY;
+import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.isValidParamName;
 
 /** Static methods for parsing xcontent requests to transport requests. */
@@ -78,6 +80,10 @@ final class RequestXContent {
 
     private static final ObjectParser<EsqlQueryRequest, Void> SYNC_PARSER = objectParserSync(EsqlQueryRequest::syncEsqlQueryRequest);
     private static final ObjectParser<EsqlQueryRequest, Void> ASYNC_PARSER = objectParserAsync(EsqlQueryRequest::asyncEsqlQueryRequest);
+
+    private static final String PARAM_VALUE = "value";
+    private static final String PARAM_IDENTIFIER = "identifier";
+    private static final String PARAM_IDENTIFIER_PATTERN = "identifierpattern";
 
     /** Parses a synchronous request. */
     static EsqlQueryRequest parseSync(XContentParser parser) {
@@ -141,8 +147,8 @@ final class RequestXContent {
             DataType type = null;
             QueryParam currentParam = null;
             TempObjects param;
-            boolean isField = false;
-            boolean isPattern = false;
+            // paramAttributes(0) = true if this is an identifier, paramAttributes(1) = true if this is an identifier pattern
+            BitSet paramAttributes = new BitSet(2);
             HashMap<String, Object> tempMap = new HashMap<>();
 
             while ((token = p.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -157,8 +163,6 @@ final class RequestXContent {
                             )
                         );
                     }
-                    isField = false;
-                    isPattern = false;
                     for (Map.Entry<String, Object> entry : param.fields.entrySet()) {
                         String name = entry.getKey();
                         if (isValidParamName(name) == false) {
@@ -174,24 +178,72 @@ final class RequestXContent {
                             );
                         }
                         value = entry.getValue();
+                        paramAttributes.clear();
                         if (value instanceof HashMap<?, ?> v) {
                             tempMap.clear();
                             for (Map.Entry<?, ?> kv : v.entrySet()) {
-                                tempMap.put(kv.getKey().toString().toLowerCase(Locale.ROOT), kv.getValue());
+                                String k = kv.getKey().toString();
+                                if ((k.equalsIgnoreCase(PARAM_VALUE)
+                                    || k.equalsIgnoreCase(PARAM_IDENTIFIER)
+                                    || k.equalsIgnoreCase(PARAM_IDENTIFIER_PATTERN)) == false) {
+                                    errors.add(
+                                        new XContentParseException(
+                                            loc,
+                                            "["
+                                                + k
+                                                + "] is not a valid param attribute, "
+                                                + "a valid attribute is "
+                                                + PARAM_VALUE
+                                                + ", "
+                                                + PARAM_IDENTIFIER
+                                                + ", or "
+                                                + PARAM_IDENTIFIER_PATTERN
+                                        )
+                                    );
+                                } else {
+                                    tempMap.put(k.toLowerCase(Locale.ROOT), kv.getValue());
+                                }
+
                             }
-                            value = tempMap.get("value");
-                            if (tempMap.get("identifier") != null) {
-                                isField = (boolean) tempMap.get("identifier");
+                            value = tempMap.get(PARAM_VALUE);
+                            if (value == null && v.size() > 1) {
+                                errors.add(new XContentParseException(loc, "[" + entry + "] does not have a value provided"));
                             }
-                            if (tempMap.get("identifierpattern") != null) {
-                                isPattern = (boolean) tempMap.get("identifierpattern");
+                            if (tempMap.get(PARAM_IDENTIFIER) != null && (boolean) tempMap.get(PARAM_IDENTIFIER)) {
+                                paramAttributes.set(0);
+                            }
+                            if (tempMap.get(PARAM_IDENTIFIER_PATTERN) != null && (boolean) tempMap.get(PARAM_IDENTIFIER_PATTERN)) {
+                                paramAttributes.set(1);
+                            }
+                            if (paramAttributes.get(1) && value != null && String.valueOf(value).contains(WILDCARD) == false) {
+                                errors.add(new XContentParseException(loc, "[" + value + "] is not an identifier pattern"));
                             }
                         }
                         type = DataType.fromJava(value);
                         if (type == null) {
                             errors.add(new XContentParseException(loc, entry + " is not supported as a parameter"));
                         }
-                        currentParam = new QueryParam(name, value, (isField || isPattern) ? DataType.NULL : type, isField, isPattern);
+                        if (paramAttributes.cardinality() > 0 && type != DataType.KEYWORD && value != null) {
+                            errors.add(
+                                new XContentParseException(
+                                    loc,
+                                    "["
+                                        + value
+                                        + "] is not a valid value for an "
+                                        + (paramAttributes.get(0) ? "identifier" : "identifier pattern")
+                                        + ", a valid "
+                                        + (paramAttributes.get(0) ? "identifier" : "identifier pattern")
+                                        + " can only be a string"
+                                )
+                            );
+                        }
+                        currentParam = new QueryParam(
+                            name,
+                            value,
+                            (paramAttributes.cardinality() > 0) ? DataType.NULL : type,
+                            paramAttributes.get(0),
+                            paramAttributes.get(1)
+                        );
                         namedParams.add(currentParam);
                     }
                 } else {

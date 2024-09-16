@@ -72,11 +72,11 @@ public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<Glo
     public static class GlobalRoutingTableWithEquals extends GlobalRoutingTable {
 
         public GlobalRoutingTableWithEquals(long version, ImmutableOpenMap<ProjectId, RoutingTable> routingTable) {
-            super(version, routingTable);
+            super(routingTable);
         }
 
         public GlobalRoutingTableWithEquals(GlobalRoutingTable other) {
-            super(other.version(), other.routingTables());
+            super(other.routingTables());
         }
 
         @Override
@@ -91,9 +91,6 @@ public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<Glo
         }
 
         static boolean equals(GlobalRoutingTable left, GlobalRoutingTable right) {
-            if (left.version() != right.version()) {
-                return false;
-            }
             if (left.size() != right.size()) {
                 return false;
             }
@@ -112,7 +109,7 @@ public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<Glo
 
         @Override
         public int hashCode() {
-            int result = Long.hashCode(version());
+            int result = 0;
             // This is not pretty, but it's necessary because ImmutableOpenMap does not guarantee that the iteration order is identical
             // for separate instances with the same elements
             final var iterator = routingTables().entrySet().stream().sorted(Comparator.comparing(e -> e.getKey().id())).iterator();
@@ -160,16 +157,9 @@ public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<Glo
 
     public final void testDiffSerializationPreMultiProject() throws IOException {
         // BWC serialization only works for a routing table with a single project
-        final Function<GlobalRoutingTable, GlobalRoutingTable> mutator = instance -> {
-            if (randomBoolean()) {
-                return new GlobalRoutingTable(randomValueOtherThan(instance.version(), ESTestCase::randomLong), instance.routingTables());
-            } else {
-                return new GlobalRoutingTable(
-                    instance.version(),
-                    ImmutableOpenMap.builder(transformValues(instance.routingTables(), this::mutate)).build()
-                );
-            }
-        };
+        final Function<GlobalRoutingTable, GlobalRoutingTable> mutator = instance -> new GlobalRoutingTable(
+            ImmutableOpenMap.builder(transformValues(instance.routingTables(), this::mutate)).build()
+        );
         DiffableTestUtils.testDiffableSerialization(
             () -> testRoutingTable(1),
             mutator,
@@ -191,20 +181,19 @@ public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<Glo
         );
 
         // Exactly the same projects => same routing
-        GlobalRoutingTable updated = new GlobalRoutingTable(randomLong(), original.routingTables());
+        GlobalRoutingTable updated = new GlobalRoutingTable(original.routingTables());
         assertTrue(original.hasSameIndexRouting(updated));
         assertTrue(updated.hasSameIndexRouting(original));
 
         // Updated projects but with same routing => same routing
         updated = new GlobalRoutingTable(
-            randomLong(),
             ImmutableOpenMap.builder(transformValues(original.routingTables(), rt -> RoutingTable.builder(rt).build())).build()
         );
         assertTrue(original.hasSameIndexRouting(updated));
         assertTrue(updated.hasSameIndexRouting(original));
 
         // Reconstructed index map (with same elements) => different routing
-        updated = new GlobalRoutingTable(randomLong(), ImmutableOpenMap.builder(transformValues(original.routingTables(), rt -> {
+        updated = new GlobalRoutingTable(ImmutableOpenMap.builder(transformValues(original.routingTables(), rt -> {
             final RoutingTable.Builder builder = RoutingTable.builder();
             rt.indicesRouting().values().forEach(builder::add);
             return builder.build();
@@ -213,7 +202,7 @@ public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<Glo
         assertFalse(updated.hasSameIndexRouting(original));
 
         // Mutated routing table => different routing
-        updated = new GlobalRoutingTable(original.version(), mutate(original.routingTables()));
+        updated = new GlobalRoutingTable(mutate(original.routingTables()));
         assertFalse(original.hasSameIndexRouting(updated));
         assertFalse(updated.hasSameIndexRouting(original));
     }
@@ -240,19 +229,16 @@ public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<Glo
     }
 
     public void testBuilderFromEmpty() {
-        final long version = randomLong();
         final int numberOfProjects = randomIntBetween(1, 10);
         final ProjectId[] projectIds = randomArray(numberOfProjects, numberOfProjects, ProjectId[]::new, () -> new ProjectId(randomUUID()));
         final Integer[] projectIndexCount = randomArray(numberOfProjects, numberOfProjects, Integer[]::new, () -> randomIntBetween(0, 12));
 
         final GlobalRoutingTable.Builder builder = GlobalRoutingTable.builder();
-        builder.version(version);
         for (int i = 0; i < numberOfProjects; i++) {
             builder.put(projectIds[i], addIndices(projectIndexCount[i], RoutingTable.builder()));
         }
         final GlobalRoutingTable builtRoutingTable = builder.build();
 
-        assertThat(builtRoutingTable.version(), equalTo(version));
         assertThat(builtRoutingTable.size(), equalTo(numberOfProjects));
         assertThat(builtRoutingTable.routingTables().keySet(), containsInAnyOrder(projectIds));
         for (int i = 0; i < numberOfProjects; i++) {
@@ -275,14 +261,7 @@ public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<Glo
         }
 
         {
-            final var instance = GlobalRoutingTable.builder(initial).incrementVersion().build();
-            assertThat(instance.version(), equalTo(initial.version() + 1));
-            assertThat(instance.routingTables(), equalTo(initial.routingTables()));
-        }
-
-        {
             final var instance = GlobalRoutingTable.builder(initial).clear().build();
-            assertThat(instance.version(), equalTo(initial.version()));
             assertThat(instance.routingTables(), anEmptyMap());
         }
 
@@ -290,7 +269,6 @@ public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<Glo
             final ProjectId projectId = randomProjectId();
             final RoutingTable projectRouting = randomRoutingTable();
             final var instance = GlobalRoutingTable.builder(initial).put(projectId, projectRouting).build();
-            assertThat(instance.version(), equalTo(initial.version()));
             assertThat(instance.routingTables(), aMapWithSize(initial.size() + 1));
             assertThat(instance.routingTables(), hasEntry(projectId, projectRouting));
             initial.routingTables().forEach((id, rt) -> assertThat(instance.routingTables(), hasEntry(id, rt)));
@@ -450,7 +428,7 @@ public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<Glo
             }
             routingTables.put(projectId, rt.build());
         });
-        GlobalRoutingTable globalRoutingTable = new GlobalRoutingTable(1, routingTables.build());
+        GlobalRoutingTable globalRoutingTable = new GlobalRoutingTable(routingTables.build());
 
         DiscoveryNodes.Builder nodes = new DiscoveryNodes.Builder().add(buildRandomDiscoveryNode()).add(buildRandomDiscoveryNode());
         return ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(globalRoutingTable).nodes(nodes).build();
@@ -497,11 +475,7 @@ public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<Glo
 
     @Override
     protected GlobalRoutingTable mutateInstance(GlobalRoutingTable instance) {
-        if (randomBoolean()) {
-            return new GlobalRoutingTable(randomValueOtherThan(instance.version(), ESTestCase::randomLong), instance.routingTables());
-        } else {
-            return new GlobalRoutingTable(instance.version(), mutate(instance.routingTables()));
-        }
+        return new GlobalRoutingTable(mutate(instance.routingTables()));
     }
 
     private ImmutableOpenMap<ProjectId, RoutingTable> mutate(ImmutableOpenMap<ProjectId, RoutingTable> routingTables) {

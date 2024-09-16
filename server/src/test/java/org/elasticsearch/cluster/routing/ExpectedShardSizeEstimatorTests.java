@@ -218,7 +218,7 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
             }
             projectRouting.put(entry.getKey(), builder.build());
         }
-        GlobalRoutingTable routingTable = new GlobalRoutingTable(0L, projectRouting.build());
+        GlobalRoutingTable routingTable = new GlobalRoutingTable(projectRouting.build());
         return ClusterState.builder(state).routingTable(routingTable).build();
     }
 

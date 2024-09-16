@@ -80,7 +80,7 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
      * See {@link #testManyTypeConflicts(boolean, ByteSizeValue)} for more.
      */
     public void testManyTypeConflictsWithParent() throws IOException {
-        testManyTypeConflicts(true, ByteSizeValue.ofBytes(3271486));
+        testManyTypeConflicts(true, ByteSizeValue.ofBytes(3307704L));
         /*
          * History:
          *  2 gb+ - start

@@ -84,3 +84,4 @@ Vector Search::
 * Fix `NullPointerException` when doing knn search on empty index without dims {es-pull}111756[#111756] (issue: {es-issue}111733[#111733])
 * Speed up dense/sparse vector stats {es-pull}111729[#111729] (issue: {es-issue}111715[#111715])
 
+

@@ -209,6 +209,10 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
         return new EsField(name, DataType.OBJECT, children, false);
     }
 
+    /**
+     * Test de-/serialization and size on the wire for an index that has multiple levels of children:
+     * A single root with 9 children, each of which has 9 children etc. 6 levels deep.
+     */
     public void testDeeplyNestedFields() throws IOException {
         ByteSizeValue expectedSize = ByteSizeValue.ofBytes(21182948);
 

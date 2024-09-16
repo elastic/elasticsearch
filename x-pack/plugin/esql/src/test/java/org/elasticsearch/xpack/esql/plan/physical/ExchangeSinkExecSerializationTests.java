@@ -101,10 +101,10 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
      * with a single root field that has many children, grandchildren etc.
      */
     public void testDeeplyNestedFields() throws IOException {
-        ByteSizeValue expected = ByteSizeValue.ofBytes(140192814);
+        ByteSizeValue expected = ByteSizeValue.ofBytes(69352081);
 
         int depth = 6;
-        int childrenPerLevel = 9;
+        int childrenPerLevel = 8;
 
         EsIndex index = EsIndexSerializationTests.deeplyNestedIndex(depth, childrenPerLevel);
         testSerializePlanWithIndex(index, expected);

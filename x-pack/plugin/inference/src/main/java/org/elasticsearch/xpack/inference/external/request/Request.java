@@ -7,11 +7,10 @@
 
 package org.elasticsearch.xpack.inference.external.request;
 
-import java.io.IOException;
 import java.net.URI;
 
 public interface Request {
-    HttpRequest createHttpRequest() throws IOException;
+    HttpRequest createHttpRequest();
 
     URI getURI();
 

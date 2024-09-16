@@ -93,7 +93,11 @@ public class SpatialContains extends SpatialRelatesFunction {
         @Override
         protected void processSourceAndSource(BooleanBlock.Builder builder, int position, BytesRefBlock left, BytesRefBlock right)
             throws IOException {
-            processSourceAndConstant(builder, position, left, asLuceneComponent2Ds(crsType, right, position));
+            if (right.getValueCount(position) < 1) {
+                builder.appendNull();
+            } else {
+                processSourceAndConstant(builder, position, left, asLuceneComponent2Ds(crsType, right, position));
+            }
         }
 
         @Override

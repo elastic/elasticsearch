@@ -727,62 +727,44 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 @Override
                 @SuppressWarnings("unchecked")
                 protected Object parseSourceValue(Object value) {
-                    if (value instanceof Map<?, ?> valueAsMap) {
-                        if (valueAsMap.isEmpty()) {
-                            return null;
-                        }
-                        final Map<String, List<String>> result = new HashMap<>();
-                        for (final Map.Entry<?, ?> entry : valueAsMap.entrySet()) {
-                            if (entry.getValue() instanceof String) {
-                                singleValueFieldMap((Map<String, Object>) value, result);
-                            } else if (entry.getValue() instanceof List) {
-                                multiValueFieldMap((Map<String, Object>) value, result);
-                            }
-                        }
-                        return result;
+                    if (value instanceof Map<?, ?> valueAsMap && valueAsMap.isEmpty() == false) {
+                        final Map<String, List<String>> result = filterIgnoredValues((Map<String, Object>) valueAsMap);
+                        return result.isEmpty() ? null : result;
                     }
-                    if (value instanceof String valueAsString) {
-                        if (valueAsString.length() < ignoreAbove) {
-                            return valueAsString;
-                        }
+                    if (value instanceof String valueAsString && valueAsString.length() < ignoreAbove) {
+                        return valueAsString;
                     }
                     return null;
                 }
 
-                private void multiValueFieldMap(final Map<String, Object> values, final Map<String, List<String>> result) {
+                private Map<String, List<String>> filterIgnoredValues(final Map<String, Object> values) {
+                    final Map<String, List<String>> result = new HashMap<>();
                     for (final Map.Entry<String, Object> entry : values.entrySet()) {
-                        final List<String> listOfValues = new ArrayList<>();
-                        final Object flattenedFieldValue = entry.getValue();
-                        if (flattenedFieldValue instanceof List) {
-                            @SuppressWarnings("unchecked")
-                            final List<String> flattenedFieldValueList = (List<String>) flattenedFieldValue;
-                            for (final String value : flattenedFieldValueList) {
-                                if (value.length() < ignoreAbove) {
-                                    listOfValues.add(value);
-                                }
-                            }
-                        } else if (flattenedFieldValue instanceof String value) {
-                            if (value.length() < ignoreAbove) {
-                                listOfValues.add(value);
-                            }
-                        }
+                        final List<String> validValues = filterIgnoredValues(entry.getValue());
 
-                        if (listOfValues.isEmpty() == false) {
+                        if (validValues.isEmpty() == false) {
                             final String flattenedFieldName = entry.getKey();
-                            result.put(flattenedFieldName, listOfValues);
+                            result.put(flattenedFieldName, validValues);
                         }
                     }
+                    return result;
                 }
 
-                private void singleValueFieldMap(final Map<String, Object> values, final Map<String, List<String>> result) {
-                    for (final Map.Entry<String, Object> entry : values.entrySet()) {
-                        final Object value = entry.getValue();
-                        if (value instanceof String valueAsString) {
-                            if (valueAsString.length() < ignoreAbove) {
-                                result.put(entry.getKey(), List.of(valueAsString));
+                private List<String> filterIgnoredValues(final Object entryValue) {
+                    final List<String> validValues = new ArrayList<>();
+
+                    if (entryValue instanceof List<?> valueAsList) {
+                        for (Object value : valueAsList) {
+                            if (value instanceof String valueAsString && valueAsString.length() < ignoreAbove) {
+                                validValues.add(valueAsString);
                             }
                         }
+                    } else if (entryValue instanceof String valueAsString) {
+                        if (valueAsString.length() < ignoreAbove) {
+                            validValues.add(valueAsString);
+                        }
                     }
+                    return validValues;
                 }
             };
         }

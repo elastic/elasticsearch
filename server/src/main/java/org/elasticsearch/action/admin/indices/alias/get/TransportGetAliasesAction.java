@@ -24,7 +24,6 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Predicates;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
 import org.elasticsearch.injection.guice.Inject;
@@ -41,11 +40,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
-/**
- * NB prior to 8.12 this was a TransportMasterNodeReadAction so for BwC it must be registered with the TransportService (i.e. a
- * HandledTransportAction) until we no longer need to support calling this action remotely.
- */
-@UpdateForV9 // remove the HandledTransportAction superclass, this action need not be registered with the TransportService
 public class TransportGetAliasesAction extends TransportLocalClusterStateAction<GetAliasesRequest, GetAliasesResponse> {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TransportGetAliasesAction.class);
 
@@ -63,10 +57,9 @@ public class TransportGetAliasesAction extends TransportLocalClusterStateAction<
     ) {
         super(
             GetAliasesAction.NAME,
-            clusterService,
-            transportService,
             actionFilters,
-            GetAliasesRequest::new,
+            transportService.getTaskManager(),
+            clusterService,
             clusterService.threadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
         this.indexNameExpressionResolver = indexNameExpressionResolver;

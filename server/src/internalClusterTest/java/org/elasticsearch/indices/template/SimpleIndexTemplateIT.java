@@ -687,7 +687,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         ensureGreen();
 
-        GetAliasesResponse getAliasesResponse = indicesAdmin().prepareGetAliases().addIndices("test").get();
+        GetAliasesResponse getAliasesResponse = indicesAdmin().prepareGetAliases().setIndices("test").get();
         assertThat(getAliasesResponse.getAliases().get("test").size(), equalTo(4));
 
         for (AliasMetadata aliasMetadata : getAliasesResponse.getAliases().get("test")) {

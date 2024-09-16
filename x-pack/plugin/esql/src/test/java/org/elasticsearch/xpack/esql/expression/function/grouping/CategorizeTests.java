@@ -38,7 +38,7 @@ public class CategorizeTests extends AbstractScalarFunctionTestCase {
                     List.of(dataType),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(new TestCaseSupplier.TypedData(new BytesRef("blah blah blah"), dataType, "f")),
-                        "CategorizeInternalEvaluator[v=Attribute[channel=0]]",
+                        "CategorizeEvaluator[v=Attribute[channel=0]]",
                         DataType.INTEGER,
                         equalTo(0)
                     )

@@ -2,7 +2,7 @@
 // or more contributor license agreements. Licensed under the Elastic License
 // 2.0; you may not use this file except in compliance with the Elastic License
 // 2.0.
-package org.elasticsearch.xpack.esql.expression.function.scalar.string;
+package org.elasticsearch.xpack.esql.expression.function.grouping;
 
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
@@ -24,10 +24,10 @@ import org.elasticsearch.xpack.ml.aggs.categorization.TokenListCategorizer;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link CategorizeInternal}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Categorize}.
  * This class is generated. Do not edit it.
  */
-public final class CategorizeInternalEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class CategorizeEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Warnings warnings;
 
   private final EvalOperator.ExpressionEvaluator v;
@@ -38,7 +38,7 @@ public final class CategorizeInternalEvaluator implements EvalOperator.Expressio
 
   private final DriverContext driverContext;
 
-  public CategorizeInternalEvaluator(Source source, EvalOperator.ExpressionEvaluator v,
+  public CategorizeEvaluator(Source source, EvalOperator.ExpressionEvaluator v,
       CategorizationAnalyzer analyzer,
       TokenListCategorizer.CloseableTokenListCategorizer categorizer, DriverContext driverContext) {
     this.v = v;
@@ -74,7 +74,7 @@ public final class CategorizeInternalEvaluator implements EvalOperator.Expressio
           result.appendNull();
           continue position;
         }
-        result.appendInt(CategorizeInternal.process(vBlock.getBytesRef(vBlock.getFirstValueIndex(p), vScratch), this.analyzer, this.categorizer));
+        result.appendInt(Categorize.process(vBlock.getBytesRef(vBlock.getFirstValueIndex(p), vScratch), this.analyzer, this.categorizer));
       }
       return result.build();
     }
@@ -84,7 +84,7 @@ public final class CategorizeInternalEvaluator implements EvalOperator.Expressio
     try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
       BytesRef vScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendInt(p, CategorizeInternal.process(vVector.getBytesRef(p, vScratch), this.analyzer, this.categorizer));
+        result.appendInt(p, Categorize.process(vVector.getBytesRef(p, vScratch), this.analyzer, this.categorizer));
       }
       return result.build();
     }
@@ -92,7 +92,7 @@ public final class CategorizeInternalEvaluator implements EvalOperator.Expressio
 
   @Override
   public String toString() {
-    return "CategorizeInternalEvaluator[" + "v=" + v + "]";
+    return "CategorizeEvaluator[" + "v=" + v + "]";
   }
 
   @Override
@@ -119,13 +119,13 @@ public final class CategorizeInternalEvaluator implements EvalOperator.Expressio
     }
 
     @Override
-    public CategorizeInternalEvaluator get(DriverContext context) {
-      return new CategorizeInternalEvaluator(source, v.get(context), analyzer.apply(context), categorizer.apply(context), context);
+    public CategorizeEvaluator get(DriverContext context) {
+      return new CategorizeEvaluator(source, v.get(context), analyzer.apply(context), categorizer.apply(context), context);
     }
 
     @Override
     public String toString() {
-      return "CategorizeInternalEvaluator[" + "v=" + v + "]";
+      return "CategorizeEvaluator[" + "v=" + v + "]";
     }
   }
 }

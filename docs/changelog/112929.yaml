@@ -1,0 +1,5 @@
+pr: 112929
+summary: "ES|QL: Add support for cached strings in plan serialization"
+area: ES|QL
+type: enhancement
+issues: []

@@ -21,8 +21,8 @@
 
 package org.elasticsearch.tdigest;
 
+import org.elasticsearch.search.aggregations.metrics.WrapperTDigestArrays;
 import org.elasticsearch.tdigest.arrays.TDigestIntArray;
-import org.elasticsearch.tdigest.arrays.WrapperTDigestArrays;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;

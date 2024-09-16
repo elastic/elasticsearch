@@ -15,7 +15,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.tdigest.TDigest;
 import org.elasticsearch.tdigest.arrays.TDigestArrays;
-import org.elasticsearch.tdigest.arrays.WrapperTDigestArrays;
 
 import java.io.IOException;
 import java.util.Collection;

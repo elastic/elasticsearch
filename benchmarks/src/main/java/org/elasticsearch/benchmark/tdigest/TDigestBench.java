@@ -23,7 +23,6 @@ package org.elasticsearch.benchmark.tdigest;
 
 import org.elasticsearch.tdigest.MergingDigest;
 import org.elasticsearch.tdigest.TDigest;
-import org.elasticsearch.tdigest.arrays.WrapperTDigestArrays;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;

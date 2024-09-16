@@ -16,6 +16,7 @@ import org.elasticsearch.tdigest.arrays.TDigestIntArray;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class TDigestBigArraysTests extends ESTestCase {
     public void testIntEmpty() {
@@ -136,7 +137,7 @@ public class TDigestBigArraysTests extends ESTestCase {
             double previous = -Double.MAX_VALUE;
             for (int i = 0; i < array.size(); i++) {
                 double current = array.get(i);
-                assertThat(current, equalTo(Math.max(previous, current)));
+                assertThat(current, greaterThanOrEqualTo(previous));
                 previous = current;
             }
         }

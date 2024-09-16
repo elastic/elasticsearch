@@ -20,6 +20,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -187,6 +188,23 @@ public class DelegatingProcessorTests extends ESTestCase {
         processor.onComplete();
 
         verify(downstream, times(1)).onComplete();
+    }
+
+    public void testSubscriberOnlyAllowsOnePublisher() {
+        var publisher1 = delegatingProcessor();
+        var publisher2 = delegatingProcessor();
+        var subscriber1 = spy(delegatingProcessor());
+
+        publisher1.subscribe(subscriber1);
+        verify(subscriber1, times(1)).onSubscribe(any());
+
+        // verify we cannot reuse subscribers
+        assertThrows(IllegalStateException.class, () -> publisher2.subscribe(subscriber1));
+
+        // verify publisher resets its subscriber
+        var subscriber2 = spy(delegatingProcessor());
+        publisher2.subscribe(subscriber2);
+        verify(subscriber2, times(1)).onSubscribe(any());
     }
 
     private DelegatingProcessor<String, String> delegatingProcessor() {

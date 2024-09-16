@@ -32,8 +32,16 @@ public abstract class DelegatingProcessor<T, R> implements Flow.Processor<T, R> 
             return;
         }
 
-        downstream = subscriber;
-        downstream.onSubscribe(forwardingSubscription());
+        var subscription = forwardingSubscription();
+        try {
+            downstream = subscriber;
+            downstream.onSubscribe(subscription);
+        } catch (Exception e) {
+            log.atDebug().withThrowable(e).log("Another publisher is already publishing to subscriber, canceling.");
+            subscription.cancel();
+            downstream = null;
+            throw e;
+        }
     }
 
     private Flow.Subscription forwardingSubscription() {
@@ -60,6 +68,10 @@ public abstract class DelegatingProcessor<T, R> implements Flow.Processor<T, R> 
 
     @Override
     public void onSubscribe(Flow.Subscription subscription) {
+        if (upstream != null) {
+            throw new IllegalStateException("Another upstream already exists. This subscriber can only subscribe to one publisher.");
+        }
+
         if (isClosed.get()) {
             subscription.cancel();
             return;

@@ -165,6 +165,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         this.observer = observer;
         this.failureStoreDocumentConverter = failureStoreDocumentConverter;
         this.rolloverClient = new OriginSettingClient(client, LAZY_ROLLOVER_ORIGIN);
+        this.shortCircuitShardFailures.putAll(bulkRequest.incrementalState().shardLevelFailures());
         this.failureStoreMetrics = failureStoreMetrics;
     }
 

@@ -1,0 +1,109 @@
+---
+flattened ignore_above single-value field:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+                ignore_above: 5
+              flat:
+                type: flattened
+                ignore_above: 5
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        refresh: true
+        body:
+          keyword: "foo"
+          flat: { "value": "foo" }
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        refresh: true
+        body:
+          keyword: "foo bar"
+          flat: { "value": "foo bar" }
+
+  - do:
+      search:
+        index: test
+        body:
+          fields:
+            - keyword
+            - flat
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 2 }
+
+  - match: { hits.hits.0._source.keyword: "foo" }
+  - match: { hits.hits.0._source.flat.value: "foo" }
+  - match: { hits.hits.1._source.keyword: "foo bar" }
+  - match: { hits.hits.1._source.flat.value: "foo bar" }
+
+  - match: { hits.hits.0.fields.keyword.0: "foo" }
+  - match: { hits.hits.0.fields.flat.0.value: "foo" }
+  - match: { hits.hits.1.fields.keyword.0: null }
+  - match: { hits.hits.1.fields.flat.0.value: null }
+
+---
+flattened ignore_above multi-value field:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+                ignore_above: 5
+              flat:
+                type: flattened
+                ignore_above: 5
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        refresh: true
+        body:
+          keyword: ["foo","bar"]
+          flat: { "value": ["foo", "bar"] }
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        refresh: true
+        body:
+          keyword: ["foobar", "foo", "bar"]
+          flat: { "value": ["foobar", "foo", "bar"] }
+
+  - do:
+      search:
+        index: test
+        body:
+          fields:
+            - keyword
+            - flat
+          query:
+            match_all: { }
+
+  - match: { hits.total.value: 2 }
+
+  - match: { hits.hits.0._source.keyword: ["foo", "bar"] }
+  - match: { hits.hits.0._source.flat.value: ["foo", "bar"] }
+  - match: { hits.hits.1._source.keyword: ["foobar", "foo", "bar"] }
+  - match: { hits.hits.1._source.flat.value: ["foobar", "foo", "bar"] }
+
+  - match: { hits.hits.0.fields.keyword: [ "foo", "bar" ] }
+  - match: { hits.hits.0.fields.flat.0.value: [ "foo", "bar" ] }
+  - match: { hits.hits.1.fields.keyword: [ "foo", "bar" ] }
+  - match: { hits.hits.1.fields.flat.0.value: [ "foo", "bar" ] }

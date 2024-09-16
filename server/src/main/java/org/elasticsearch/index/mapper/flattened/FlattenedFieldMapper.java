@@ -73,9 +73,12 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -214,7 +217,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 meta.get(),
                 splitQueriesOnWhitespace.get(),
                 eagerGlobalOrdinals.get(),
-                dimensions.get()
+                dimensions.get(),
+                ignoreAbove.getValue()
             );
             return new FlattenedFieldMapper(leafName(), ft, builderParams(this, context), this);
         }
@@ -258,7 +262,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             this.isDimension = isDimension;
         }
 
-        private KeyedFlattenedFieldType(String rootName, String key, RootFlattenedFieldType ref) {
+        private KeyedFlattenedFieldType(String rootName, String key, RootFlattenedFieldType ref, int ignoreAbove) {
             this(
                 rootName,
                 ref.isIndexed(),
@@ -642,6 +646,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         private final boolean eagerGlobalOrdinals;
         private final List<String> dimensions;
         private final boolean isDimension;
+        private final int ignoreAbove;
 
         public RootFlattenedFieldType(
             String name,
@@ -649,9 +654,10 @@ public final class FlattenedFieldMapper extends FieldMapper {
             boolean hasDocValues,
             Map<String, String> meta,
             boolean splitQueriesOnWhitespace,
-            boolean eagerGlobalOrdinals
+            boolean eagerGlobalOrdinals,
+            int ignoreAbove
         ) {
-            this(name, indexed, hasDocValues, meta, splitQueriesOnWhitespace, eagerGlobalOrdinals, Collections.emptyList());
+            this(name, indexed, hasDocValues, meta, splitQueriesOnWhitespace, eagerGlobalOrdinals, Collections.emptyList(), ignoreAbove);
         }
 
         public RootFlattenedFieldType(
@@ -661,7 +667,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
             Map<String, String> meta,
             boolean splitQueriesOnWhitespace,
             boolean eagerGlobalOrdinals,
-            List<String> dimensions
+            List<String> dimensions,
+            int ignoreAbove
         ) {
             super(
                 name,
@@ -675,6 +682,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             this.eagerGlobalOrdinals = eagerGlobalOrdinals;
             this.dimensions = dimensions;
             this.isDimension = dimensions.isEmpty() == false;
+            this.ignoreAbove = ignoreAbove;
         }
 
         @Override
@@ -708,12 +716,67 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return SourceValueFetcher.identity(name(), context, format);
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+            }
+            return sourceValueFetcher(context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet());
+        }
+
+        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
+            return new SourceValueFetcher(sourcePaths, null) {
+                @Override
+                @SuppressWarnings("unchecked")
+                protected Object parseSourceValue(Object value) {
+                    if (value instanceof Map<?, ?> map) {
+                        if (map.isEmpty()) {
+                            return null;
+                        }
+                        final Map.Entry<?, ?> mapEntry = map.entrySet().iterator().next();
+                        if (mapEntry.getValue() instanceof String) {
+                            return singleValueFieldMap((Map<String, String>) value);
+                        } else if (mapEntry.getValue() instanceof List) {
+                            return multiValueFieldMap((Map<String, List<String>>) value);
+                        }
+                    }
+                    if (value instanceof String valueAsString) {
+                        if (valueAsString.length() < ignoreAbove) {
+                            return valueAsString;
+                        }
+                    }
+                    return null;
+                }
+
+                private Object multiValueFieldMap(final Map<String, List<String>> values) {
+                    final Map<String, List<String>> result = new HashMap<>();
+                    for (final Map.Entry<String, List<String>> entry : values.entrySet()) {
+                        final List<String> list = new ArrayList<>();
+                        for (final String value : entry.getValue()) {
+                            if (value.length() < ignoreAbove) {
+                                list.add(value);
+                            }
+                        }
+                        if (list.isEmpty() == false) {
+                            result.put(entry.getKey(), list);
+                        }
+                    }
+                    return result.isEmpty() ? null : result;
+                }
+
+                private Object singleValueFieldMap(final Map<String, String> values) {
+                    final Map<String, String> result = new HashMap<>();
+                    for (final Map.Entry<String, String> entry : values.entrySet()) {
+                        if (entry.getValue().length() < ignoreAbove) {
+                            result.put(entry.getKey(), entry.getValue());
+                        }
+                    }
+                    return result.isEmpty() ? null : result;
+                }
+            };
         }
 
         @Override
         public MappedFieldType getChildFieldType(String childPath) {
-            return new KeyedFlattenedFieldType(name(), childPath, this);
+            return new KeyedFlattenedFieldType(name(), childPath, this, ignoreAbove);
         }
 
         @Override

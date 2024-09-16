@@ -50,9 +50,14 @@ such a shutdown, it does not go through an orderly shutdown as described above. 
 process will also return with a special status code indicating the nature of the error.
 
 [horizontal]
+Killed by jvmkiller agent:: 158
+User or kernel SIGTERM:: 143
+Slain by kernel oom-killer:: 137
+Segmentation fault:: 134
 JVM internal error:: 128
 Out of memory error:: 127
 Stack overflow error:: 126
 Unknown virtual machine error:: 125
 Serious I/O error:: 124
+Bootstrap check failure:: 78
 Unknown fatal error:: 1

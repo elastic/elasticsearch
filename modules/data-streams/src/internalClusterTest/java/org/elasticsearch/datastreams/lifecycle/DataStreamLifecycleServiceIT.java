@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.datastreams.lifecycle;
 
@@ -917,7 +918,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         String firstGenerationIndex = getBackingIndices(dataStreamName).get(0);
         ClusterGetSettingsAction.Response response = client().execute(
             ClusterGetSettingsAction.INSTANCE,
-            new ClusterGetSettingsAction.Request()
+            new ClusterGetSettingsAction.Request(TEST_REQUEST_TIMEOUT)
         ).get();
         Settings clusterSettings = response.persistentSettings();
 
@@ -1093,7 +1094,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         // Let's verify the merge settings
         ClusterGetSettingsAction.Response response = client().execute(
             ClusterGetSettingsAction.INSTANCE,
-            new ClusterGetSettingsAction.Request()
+            new ClusterGetSettingsAction.Request(TEST_REQUEST_TIMEOUT)
         ).get();
         Settings clusterSettings = response.persistentSettings();
 

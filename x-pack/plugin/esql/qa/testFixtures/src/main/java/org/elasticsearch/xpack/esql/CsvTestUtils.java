@@ -118,12 +118,23 @@ public final class CsvTestUtils {
         return null;
     }
 
-    public static Tuple<Page, List<String>> loadPageFromCsv(URL source) throws Exception {
+    public static Tuple<Page, List<String>> loadPageFromCsv(URL source, Map<String, String> typeMapping) throws Exception {
 
         record CsvColumn(String name, Type type, BuilderWrapper builderWrapper) implements Releasable {
             void append(String stringValue) {
-                if (stringValue.startsWith("\"") && stringValue.endsWith("\"")) { // string value
-                    stringValue = stringValue.substring(1, stringValue.length() - 1).replace(ESCAPED_COMMA_SEQUENCE, ",");
+                if (stringValue.startsWith("\"") && stringValue.endsWith("\"")) {
+                    // string value
+                    String[] mvStrings = stringValue.substring(1, stringValue.length() - 1).split("\",\\s*\"");
+                    if (mvStrings.length > 1) {
+                        builderWrapper().builder().beginPositionEntry();
+                        for (String mvString : mvStrings) {
+                            mvString = mvString.replace(ESCAPED_COMMA_SEQUENCE, ",");
+                            builderWrapper().append().accept(mvString.length() == 0 ? null : type.convert(mvString));
+                        }
+                        builderWrapper().builder().endPositionEntry();
+                        return;
+                    }
+                    stringValue = mvStrings[0].replace(ESCAPED_COMMA_SEQUENCE, ",");
                 } else if (stringValue.contains(",")) {// multi-value field
                     builderWrapper().builder().beginPositionEntry();
 
@@ -164,21 +175,16 @@ public final class CsvTestUtils {
                     if (columns == null) {
                         columns = new CsvColumn[entries.length];
                         for (int i = 0; i < entries.length; i++) {
-                            int split = entries[i].indexOf(':');
-                            String name, typeName;
+                            String[] header = entries[i].split(":");
+                            String name = header[0].trim();
+                            String typeName = (typeMapping != null && typeMapping.containsKey(name)) ? typeMapping.get(name)
+                                : header.length > 1 ? header[1].trim()
+                                : null;
 
-                            if (split < 0) {
+                            if (typeName == null || typeName.isEmpty()) {
                                 throw new IllegalArgumentException(
                                     "A type is always expected in the schema definition; found " + entries[i]
                                 );
-                            } else {
-                                name = entries[i].substring(0, split).trim();
-                                typeName = entries[i].substring(split + 1).trim();
-                                if (typeName.length() == 0) {
-                                    throw new IllegalArgumentException(
-                                        "A type is always expected in the schema definition; found " + entries[i]
-                                    );
-                                }
                             }
                             Type type = Type.asType(typeName);
                             if (type == null) {
@@ -381,7 +387,20 @@ public final class CsvTestUtils {
                         }
                         List<Object> listOfMvValues = new ArrayList<>();
                         for (String mvValue : multiValues) {
-                            listOfMvValues.add(columnTypes.get(i).convert(mvValue.trim().replace(ESCAPED_COMMA_SEQUENCE, ",")));
+                            try {
+                                listOfMvValues.add(columnTypes.get(i).convert(mvValue.trim().replace(ESCAPED_COMMA_SEQUENCE, ",")));
+                            } catch (IllegalArgumentException e) {
+                                throw new IllegalArgumentException(
+                                    "Error parsing multi-value field ["
+                                        + columnNames.get(i)
+                                        + "] with value ["
+                                        + mvValue
+                                        + "] on row "
+                                        + values.size(),
+                                    e
+                                );
+
+                            }
                         }
                         rowValues.add(listOfMvValues);
                     } else {

@@ -25,7 +25,6 @@ import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsFeatureFlag;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elser.ElserInternalModel;
@@ -102,7 +101,6 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
     }
 
     public void testGetModel() throws Exception {
-        assumeTrue("Only if 'inference_adaptive_allocations' feature flag is enabled", AdaptiveAllocationsFeatureFlag.isEnabled());
         String inferenceEntityId = "test-get-model";
         Model model = buildElserModelConfig(inferenceEntityId, TaskType.SPARSE_EMBEDDING);
         AtomicReference<Boolean> putModelHolder = new AtomicReference<>();

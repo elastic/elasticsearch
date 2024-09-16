@@ -1,7 +1,7 @@
 [#es-native-connectors]
 == Elastic managed connectors
 
-Hosted <<es-connectors,Elastic connectors>> are available directly within your Elastic Cloud deployment.
+Managed <<es-connectors,Elastic connectors>> are available directly within your Elastic Cloud deployment.
 No additional infrastructure is required.
 
 Hosted connectors sync data sources directly to Elasticsearch indices.

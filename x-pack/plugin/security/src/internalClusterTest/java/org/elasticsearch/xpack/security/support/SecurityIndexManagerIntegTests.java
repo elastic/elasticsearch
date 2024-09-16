@@ -120,7 +120,8 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
 
         createSecurityIndex();
 
-        assertSecurityIndexActive();
+        // ensure security index manager state is fully in the expected precondition state for this test (ready for search)
+        assertBusy(() -> assertThat(securityIndexManager.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS), is(true)));
 
         // security index creation is complete and index is active; therefore whenIndexAvailableForSearch should report success
         future.actionGet();
@@ -130,12 +131,13 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
     public void testOnIndexAvailableForSearchIndexAlreadyAvailable() throws Exception {
         createSecurityIndex();
 
-        assertSecurityIndexActive();
-
         final SecurityIndexManager securityIndexManager = internalCluster().getInstances(NativePrivilegeStore.class)
             .iterator()
             .next()
             .getSecurityIndexManager();
+
+        // ensure security index manager state is fully in the expected precondition state for this test (ready for search)
+        assertBusy(() -> assertThat(securityIndexManager.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS), is(true)));
 
         // With 0 timeout
         {

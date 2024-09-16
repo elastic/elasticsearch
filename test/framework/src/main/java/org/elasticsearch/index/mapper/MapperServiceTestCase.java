@@ -350,7 +350,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         );
         try (Directory dir = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc)) {
             builder.accept(iw);
-            try (DirectoryReader reader = iw.getReader()) {
+            try (DirectoryReader reader = wrapInMockESDirectoryReader(iw.getReader())) {
                 test.accept(reader);
             }
         }
@@ -850,7 +850,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         final String synthetic1;
         final XContent xContent;
         {
-            SourceProvider provider = SourceProvider.fromSyntheticSource(mapper.mapping(), SourceFieldMetrics.NOOP);
+            SourceProvider provider = SourceProvider.fromLookup(mapper.mappers(), SourceFieldMetrics.NOOP);
             var source = provider.getSource(leafReader.getContext(), docId);
             synthetic1 = source.internalSourceRef().utf8ToString();
             xContent = source.sourceContentType().xContent();

@@ -405,7 +405,7 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
             iw.addDocument(doc);
             iw.close();
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
-                SourceProvider provider = SourceProvider.fromSyntheticSource(mapper.mapping(), SourceFieldMetrics.NOOP);
+                SourceProvider provider = SourceProvider.fromLookup(mapper.mappers(), SourceFieldMetrics.NOOP);
                 Source syntheticSource = provider.getSource(getOnlyLeafReader(reader).getContext(), 0);
 
                 return syntheticSource;

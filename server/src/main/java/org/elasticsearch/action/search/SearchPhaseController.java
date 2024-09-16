@@ -654,13 +654,11 @@ public final class SearchPhaseController {
         final SearchProfileResultsBuilder profileBuilder = profileShardResults.isEmpty()
             ? null
             : new SearchProfileResultsBuilder(profileShardResults);
-        final SortedTopDocs sortedTopDocs;
+        SortedTopDocs sortedTopDocs;
         if (queryPhaseRankCoordinatorContext == null) {
-            if (isRankQuery) {
-                SortedTopDocs originalTopDocs = sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions);
-                sortedTopDocs = extractRankDocs(originalTopDocs);
-            } else {
-                sortedTopDocs = sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions);
+            sortedTopDocs = sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions);
+            if (sortedTopDocs.sortFields != null && RankDocsAndScoreSortField.NAME.equals(sortedTopDocs.sortFields[0].getField())) {
+                sortedTopDocs = extractRankDocs(sortedTopDocs);
             }
         } else {
             ScoreDoc[] rankedDocs = queryPhaseRankCoordinatorContext.rankQueryPhaseResults(

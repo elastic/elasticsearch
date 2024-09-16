@@ -45,13 +45,20 @@ public final class ExplainPhase implements FetchSubPhase {
                 for (RescoreContext rescore : context.rescore()) {
                     explanation = rescore.rescorer().explain(topLevelDocId, context.searcher(), rescore, explanation);
                 }
-                if (context.rankBuilder() != null) {
+
+                if (context.rankBuilder() != null || context.isRankRequest()) {
                     // if we have nested fields, then the query is wrapped using an additional filter on the _primary_term field
                     // through the DefaultSearchContext#buildFilteredQuery so we have to extract the actual query
                     if (context.getSearchExecutionContext().nestedLookup() != NestedLookup.EMPTY) {
                         explanation = explanation.getDetails()[0];
                     }
-                    explanation = context.rankBuilder().explainHit(explanation, hitContext.rankDoc(), queryNames);
+
+                    if (context.isRankRequest() && explanation.getDetails().length > 1) {
+                        explanation = explanation.getDetails()[1];
+                    }
+                    if (context.rankBuilder() != null) {
+                        explanation = context.rankBuilder().explainHit(explanation, hitContext.rankDoc(), queryNames);
+                    }
                 }
                 // we use the top level doc id, since we work with the top level searcher
                 hitContext.hit().explanation(explanation);

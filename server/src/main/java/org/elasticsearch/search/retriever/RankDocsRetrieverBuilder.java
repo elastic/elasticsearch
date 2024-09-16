@@ -13,7 +13,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankDoc;
-import org.elasticsearch.search.rank.RankDocsRankBuilder;
 import org.elasticsearch.search.retriever.rankdoc.RankDocsAndScoreSortBuilder;
 import org.elasticsearch.search.retriever.rankdoc.RankDocsQueryBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -98,9 +97,10 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
         if (searchSourceBuilder.rescores() == null || searchSourceBuilder.rescores().isEmpty()) {
             searchSourceBuilder.sort(List.of(new RankDocsAndScoreSortBuilder(rankDocs.get())));
         }
-
+        RankDocsQueryBuilder rankQuery = isExplainRequest(searchSourceBuilder)
+            ? new RankDocsQueryBuilder(rankDocs.get(), sources.stream().map(RetrieverBuilder::topDocsQuery).toArray(QueryBuilder[]::new))
+            : new RankDocsQueryBuilder(rankDocs.get(), null);
         BoolQueryBuilder boolQuery = new BoolQueryBuilder();
-        RankDocsQueryBuilder rankQuery = new RankDocsQueryBuilder(rankDocs.get());
         // if we have aggregations we need to compute them based on all doc matches, not just the top hits
         // similarly, for profile and explain we re-run all parent queries to get all needed information
         if (hasAggregations(searchSourceBuilder)
@@ -122,9 +122,6 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
             boolQuery.filter(preFilterQueryBuilder);
         }
         searchSourceBuilder.query(boolQuery);
-        searchSourceBuilder.rankBuilder(
-            new RankDocsRankBuilder(rankWindowSize, sources.stream().map(RetrieverBuilder::retrieverName).toList())
-        );
     }
 
     private boolean hasAggregations(SearchSourceBuilder searchSourceBuilder) {

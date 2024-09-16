@@ -34,6 +34,8 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 public class RankDocsQuery extends Query {
 
     private final RankDoc[] docs;
+    private final Query[] sources;
+    private final String[] queryNames;
     private final int[] segmentStarts;
     private final Object contextIdentity;
 
@@ -41,6 +43,8 @@ public class RankDocsQuery extends Query {
      * Creates a {@code RankDocsQuery} based on the provided docs.
      *
      * @param docs the global doc IDs of documents that match, in ascending order
+     * @param sources the original queries that were used to compute the top documents
+     * @param queryNames the names (if present) of the original retrievers
      * @param segmentStarts the indexes in docs and scores corresponding to the first matching
      *     document in each segment. If a segment has no matching documents, it should be assigned
      *     the index of the next segment that does. There should be a final entry that is always
@@ -48,8 +52,10 @@ public class RankDocsQuery extends Query {
      * @param contextIdentity an object identifying the reader context that was used to build this
      *     query
      */
-    RankDocsQuery(RankDoc[] docs, int[] segmentStarts, Object contextIdentity) {
+    RankDocsQuery(RankDoc[] docs, Query[] sources, String[] queryNames, int[] segmentStarts, Object contextIdentity) {
         this.docs = docs;
+        this.sources = sources;
+        this.queryNames = queryNames;
         this.segmentStarts = segmentStarts;
         this.contextIdentity = contextIdentity;
     }
@@ -58,6 +64,18 @@ public class RankDocsQuery extends Query {
     public Query rewrite(IndexSearcher searcher) throws IOException {
         if (docs.length == 0) {
             return new MatchNoDocsQuery();
+        }
+        boolean changed = false;
+        if (sources != null) {
+            Query[] newSources = new Query[sources.length];
+            for (int i = 0; i < sources.length; i++) {
+                Query rewritten = sources[i].rewrite(searcher);
+                newSources[i] = rewritten;
+                changed |= rewritten != sources[i];
+            }
+            if (changed) {
+                return new RankDocsQuery(docs, newSources, queryNames, segmentStarts, contextIdentity);
+            }
         }
         return this;
     }
@@ -71,6 +89,14 @@ public class RankDocsQuery extends Query {
         if (searcher.getIndexReader().getContext().id() != contextIdentity) {
             throw new IllegalStateException("This RankDocsDocQuery was created by a different reader");
         }
+        Weight[] weights = null;
+        if (sources != null) {
+            weights = new Weight[sources.length];
+            for (int i = 0; i < sources.length; i++) {
+                weights[i] = sources[i].createWeight(searcher, scoreMode, boost);
+            }
+        }
+        Weight[] finalWeights = weights;
         return new Weight(this) {
 
             @Override
@@ -79,12 +105,18 @@ public class RankDocsQuery extends Query {
             }
 
             @Override
-            public Explanation explain(LeafReaderContext context, int doc) {
+            public Explanation explain(LeafReaderContext context, int doc) throws IOException {
                 int found = Arrays.binarySearch(docs, doc + context.docBase, (a, b) -> Integer.compare(((RankDoc) a).doc, (int) b));
                 if (found < 0) {
                     return Explanation.noMatch("doc not found in top " + docs.length + " rank docs");
                 }
-                return docs[found].explain();
+                Explanation[] sourceExplanations = new Explanation[sources.length];
+                for (int i = 0; i < sources.length; i++) {
+                    if (finalWeights != null) {
+                        sourceExplanations[i] = finalWeights[i].explain(context, doc);
+                    }
+                }
+                return docs[found].explain(sourceExplanations, queryNames);
             }
 
             @Override

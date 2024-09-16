@@ -15,6 +15,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -28,14 +29,17 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
     public static final String NAME = "rank_docs_query";
 
     private final RankDoc[] rankDocs;
+    private final QueryBuilder[] queryBuilders;
 
-    public RankDocsQueryBuilder(RankDoc[] rankDocs) {
+    public RankDocsQueryBuilder(RankDoc[] rankDocs, QueryBuilder[] queryBuilders) {
         this.rankDocs = rankDocs;
+        this.queryBuilders = queryBuilders;
     }
 
     public RankDocsQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.rankDocs = in.readArray(c -> c.readNamedWriteable(RankDoc.class), RankDoc[]::new);
+        this.queryBuilders = in.readOptionalArray(c -> c.readNamedWriteable(QueryBuilder.class), QueryBuilder[]::new);
     }
 
     RankDoc[] rankDocs() {
@@ -45,6 +49,7 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeArray(StreamOutput::writeNamedWriteable, rankDocs);
+        out.writeOptionalArray(StreamOutput::writeNamedWriteable, queryBuilders);
     }
 
     @Override
@@ -60,7 +65,17 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
             .toArray(RankDoc[]::new);
         IndexReader reader = context.getIndexReader();
         int[] segmentStarts = findSegmentStarts(reader, shardRankDocs);
-        return new RankDocsQuery(shardRankDocs, segmentStarts, reader.getContext().id());
+        Query[] queries = null;
+        String[] queryNames = null;
+        if (queryBuilders != null) {
+            queries = new Query[queryBuilders.length];
+            queryNames = new String[queryBuilders.length];
+            for (int i = 0; i < queryBuilders.length; i++) {
+                queries[i] = queryBuilders[i].toQuery(context);
+                queryNames[i] = queryBuilders[i].queryName();
+            }
+        }
+        return new RankDocsQuery(shardRankDocs, queries, queryNames, segmentStarts, reader.getContext().id());
     }
 
     private static int[] findSegmentStarts(IndexReader reader, RankDoc[] docs) {

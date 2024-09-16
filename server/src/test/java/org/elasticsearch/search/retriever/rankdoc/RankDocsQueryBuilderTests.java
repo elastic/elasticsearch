@@ -38,7 +38,7 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
     @Override
     protected RankDocsQueryBuilder doCreateTestQueryBuilder() {
         RankDoc[] rankDocs = generateRandomRankDocs();
-        return new RankDocsQueryBuilder(rankDocs);
+        return new RankDocsQueryBuilder(rankDocs, null);
     }
 
     @Override

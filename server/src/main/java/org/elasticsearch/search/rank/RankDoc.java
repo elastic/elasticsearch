@@ -73,8 +73,12 @@ public class RankDoc extends ScoreDoc implements NamedWriteable, ToXContentFragm
     /**
      * Explain the ranking of this document.
      */
-    public Explanation explain() {
-        return Explanation.match(rank, "doc [" + doc + "] with an original score of [" + score + "] is at rank [" + rank + "].");
+    public Explanation explain(Explanation[] sourceExplanations, String[] queryNames) {
+        return Explanation.match(
+            rank,
+            "doc [" + doc + "] with an original score of [" + score + "] is at rank [" + rank + "] from the following source queries.",
+            sourceExplanations
+        );
     }
 
     @Override

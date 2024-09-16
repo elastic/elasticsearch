@@ -28,8 +28,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.TransportVersions.V_8_11_X;
-
 public class TransportNodesInfoAction extends TransportNodesAction<
     NodesInfoRequest,
     NodesInfoResponse,
@@ -102,7 +100,6 @@ public class TransportNodesInfoAction extends TransportNodesAction<
 
         public NodeInfoRequest(StreamInput in) throws IOException {
             super(in);
-            skipLegacyNodesRequestHeader(V_8_11_X, in);
             this.nodesInfoMetrics = new NodesInfoMetrics(in);
         }
 
@@ -113,7 +110,6 @@ public class TransportNodesInfoAction extends TransportNodesAction<
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            sendLegacyNodesRequestHeader(V_8_11_X, out);
             nodesInfoMetrics.writeTo(out);
         }
 

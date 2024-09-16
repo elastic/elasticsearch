@@ -1,0 +1,6 @@
+pr: 112957
+summary: Making changes to `BulkRequest` to enable component template substitutions
+  in the simulate ingest API
+area: Ingest Node
+type: enhancement
+issues: []

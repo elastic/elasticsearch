@@ -672,7 +672,7 @@ public class Verifier {
                         failures.add(
                             fail(
                                 plan,
-                                "{} function cannot be used after {}",
+                                "[{}] function cannot be used after {}",
                                 ftf.functionName(),
                                 lp.sourceText().split(" ")[0].toUpperCase(Locale.ROOT)
                             )
@@ -682,7 +682,7 @@ public class Verifier {
             }
         } else {
             plan.forEachExpression(FullTextFunction.class, ftf -> {
-                failures.add(fail(ftf, "{} function is only supported in WHERE commands", ftf.functionName()));
+                failures.add(fail(ftf, "[{}] function is only supported in WHERE commands", ftf.functionName()));
             });
         }
     }

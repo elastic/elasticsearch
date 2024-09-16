@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModel;
 
+import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
@@ -34,7 +35,7 @@ public class IbmWatsonxEmbeddingsRequest implements IbmWatsonxRequest {
     }
 
     @Override
-    public HttpRequest createHttpRequest() {
+    public HttpRequest createHttpRequest() throws IOException {
         HttpPost httpPost = new HttpPost(model.uri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
@@ -50,7 +51,7 @@ public class IbmWatsonxEmbeddingsRequest implements IbmWatsonxRequest {
         httpPost.setEntity(byteEntity);
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
 
-        IbmWatsonxRequest.decorateWithBearerToken(httpPost, model.getSecretSettings());
+        IbmWatsonxRequest.decorateWithBearerToken(httpPost, model.getSecretSettings(), model.getInferenceEntityId());
 
         return new HttpRequest(httpPost, getInferenceEntityId());
     }

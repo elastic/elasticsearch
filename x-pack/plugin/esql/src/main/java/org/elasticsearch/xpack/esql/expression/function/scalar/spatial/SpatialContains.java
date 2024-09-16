@@ -96,6 +96,16 @@ public class SpatialContains extends SpatialRelatesFunction {
             processSourceAndConstant(builder, position, left, asLuceneComponent2Ds(crsType, right, position));
         }
 
+        @Override
+        protected void processPointDocValuesAndSource(
+            BooleanBlock.Builder builder,
+            int position,
+            LongBlock leftValue,
+            BytesRefBlock rightValue
+        ) throws IOException {
+            processPointDocValuesAndConstant(builder, position, leftValue, asLuceneComponent2Ds(crsType, rightValue, position));
+        }
+
         private boolean geometryRelatesGeometries(BytesRef left, Component2D[] rightComponent2Ds) throws IOException {
             Geometry leftGeom = fromBytesRef(left);
             GeometryDocValueReader leftDocValueReader = asGeometryDocValueReader(coordinateEncoder, shapeIndexer, leftGeom);

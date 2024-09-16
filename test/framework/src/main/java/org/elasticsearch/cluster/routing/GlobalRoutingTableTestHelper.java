@@ -31,7 +31,7 @@ public final class GlobalRoutingTableTestHelper {
             projectMetadata.indices().values().forEach(indexMetadata -> indexConsumer.accept(rtBuilder, indexMetadata));
             projectRouting.put(projectId, rtBuilder.build());
         });
-        return new GlobalRoutingTable(0L, projectRouting.build());
+        return new GlobalRoutingTable(projectRouting.build());
     }
 
     /**

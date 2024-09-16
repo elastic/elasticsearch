@@ -38,20 +38,17 @@ import java.util.Set;
  */
 public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<GlobalRoutingTable> {
 
-    public static final GlobalRoutingTable EMPTY_ROUTING_TABLE = new GlobalRoutingTable(0, ImmutableOpenMap.of());
-    private final long version;
+    public static final GlobalRoutingTable EMPTY_ROUTING_TABLE = new GlobalRoutingTable(ImmutableOpenMap.of());
 
     private final ImmutableOpenMap<ProjectId, RoutingTable> routingTables;
     private volatile ProjectLookup projectLookup = null;
 
-    public GlobalRoutingTable(long version, ImmutableOpenMap<ProjectId, RoutingTable> routingTables) {
-        this.version = version;
+    public GlobalRoutingTable(ImmutableOpenMap<ProjectId, RoutingTable> routingTables) {
         this.routingTables = routingTables;
     }
 
     /**
-     * Constructs a new routing table with the same {@link #version()} as this table, with the project routing tables
-     * rebuilt based on the provided {@link RoutingNodes} parameter.
+     * Constructs a new routing table with the project routing tables rebuilt based on the provided {@link RoutingNodes} parameter.
      *
      */
     public GlobalRoutingTable rebuild(RoutingNodes routingNodes) {
@@ -138,19 +135,6 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
         return projectLookup;
     }
 
-    public GlobalRoutingTable withIncrementedVersion() {
-        return new GlobalRoutingTable(version + 1, routingTables);
-    }
-
-    /**
-     * Returns the version of the {@link RoutingTable}.
-     *
-     * @return version of the {@link RoutingTable}
-     */
-    public long version() {
-        return this.version;
-    }
-
     /**
      * TODO: Remove this method, replace with routingTable(ProjectId)
      * @return
@@ -209,14 +193,12 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
     }
 
     public static GlobalRoutingTable readFrom(StreamInput in) throws IOException {
-        final long version = in.readLong();
         final var table = in.readImmutableOpenMap(ProjectId::new, RoutingTable::readFrom);
-        return new GlobalRoutingTable(version, table);
+        return new GlobalRoutingTable(table);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeLong(version);
         out.writeMap(routingTables);
     }
 
@@ -269,7 +251,7 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
                 builder.put(entry.getKey(), entry.getValue());
             }
         }
-        return new GlobalRoutingTable(version + 1, builder.build());
+        return new GlobalRoutingTable(builder.build());
     }
 
     /**
@@ -284,7 +266,7 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
             final Map<ProjectId, RoutingTable> newTable = Maps.newMapWithExpectedSize(this.size() + projectIds.size());
             newTable.putAll(this.routingTables);
             projectIds.forEach(id -> newTable.computeIfAbsent(id, ignore -> RoutingTable.EMPTY_ROUTING_TABLE));
-            return new GlobalRoutingTable(this.version + 1, ImmutableOpenMap.builder(newTable).build());
+            return new GlobalRoutingTable(ImmutableOpenMap.builder(newTable).build());
         }
     }
 
@@ -335,13 +317,10 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
         private static final DiffableUtils.DiffableValueReader<ProjectId, RoutingTable> DIFF_VALUE_READER =
             new DiffableUtils.DiffableValueReader<>(RoutingTable::readFrom, RoutingTable::readDiffFrom);
 
-        private final long version;
-
         private final Diff<ImmutableOpenMap<ProjectId, RoutingTable>> routingTable;
         private final Diff<RoutingTable> singleProjectForBwc;
 
         GlobalRoutingTableDiff(GlobalRoutingTable before, GlobalRoutingTable after) {
-            this.version = after.version;
             this.routingTable = DiffableUtils.diff(before.routingTables, after.routingTables, PROJECT_ID_KEY_SERIALIZER);
             if (before.size() == 1 && after.size() == 1) {
                 var afterTable = after.routingTables.values().iterator().next();
@@ -354,11 +333,9 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
 
         GlobalRoutingTableDiff(StreamInput in) throws IOException {
             if (in.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
-                this.version = in.readLong();
                 this.routingTable = DiffableUtils.readImmutableOpenMapDiff(in, PROJECT_ID_KEY_SERIALIZER, DIFF_VALUE_READER);
                 this.singleProjectForBwc = null;
             } else {
-                this.version = -1;
                 this.routingTable = null;
                 this.singleProjectForBwc = RoutingTable.readDiffFrom(in);
             }
@@ -375,21 +352,20 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
                 }
                 final Map.Entry<ProjectId, RoutingTable> entry = part.routingTables.entrySet().iterator().next();
                 final RoutingTable updatedTable = singleProjectForBwc.apply(entry.getValue());
-                return new GlobalRoutingTable(0, ImmutableOpenMap.builder(Map.of(entry.getKey(), updatedTable)).build());
+                return new GlobalRoutingTable(ImmutableOpenMap.builder(Map.of(entry.getKey(), updatedTable)).build());
             } else {
                 final ImmutableOpenMap<ProjectId, RoutingTable> updatedTable = routingTable.apply(part.routingTables);
-                if (part.version == version && updatedTable == part.routingTables) {
+                if (updatedTable == part.routingTables) {
                     return part;
                 }
 
-                return new GlobalRoutingTable(version, updatedTable);
+                return new GlobalRoutingTable(updatedTable);
             }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             if (out.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
-                out.writeLong(version);
                 routingTable.writeTo(out);
             } else {
                 if (singleProjectForBwc != null) {
@@ -412,26 +388,14 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
     }
 
     public static class Builder {
-        private long version;
         private final ImmutableOpenMap.Builder<ProjectId, RoutingTable> projectRouting;
 
         public Builder(GlobalRoutingTable init) {
-            this.version = init.version;
             this.projectRouting = ImmutableOpenMap.builder(init.routingTables);
         }
 
         public Builder() {
-            this.version = 0L;
             this.projectRouting = ImmutableOpenMap.builder();
-        }
-
-        public Builder version(long version) {
-            this.version = version;
-            return this;
-        }
-
-        public Builder incrementVersion() {
-            return version(version + 1);
         }
 
         public Builder put(ProjectId id, RoutingTable routing) {
@@ -454,13 +418,13 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
         }
 
         public GlobalRoutingTable build() {
-            return new GlobalRoutingTable(version, projectRouting.build());
+            return new GlobalRoutingTable(projectRouting.build());
         }
     }
 
     @Override
     public String toString() {
-        return "global_routing_table{v" + version + "," + routingTables + "}";
+        return "global_routing_table{" + routingTables + "}";
     }
 
     /**

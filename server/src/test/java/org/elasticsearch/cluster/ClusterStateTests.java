@@ -197,7 +197,7 @@ public class ClusterStateTests extends ESTestCase {
         assertThat(toString, containsString("\n   {node03}{" + node3.getEphemeralId() + "}{0.0.0.0}{"));
 
         // routing table
-        assertThat(toString, containsString("global_routing_table{v0,[ProjectId[id="));
+        assertThat(toString, containsString("global_routing_table{[ProjectId[id="));
         assertThat(toString, containsString("ProjectId[id=tb5W0bx765nDVIwqJPw92G]=>routing_table:\n"));
         assertThat(toString, containsString("ProjectId[id=3LftaL7hgfXAsF60Gm6jcD]=>routing_table:\n"));
         assertThat(toString, containsString("ProjectId[id=WHyuJ0uqBYOPgHX9kYUXlZ]=>routing_table:\n"));

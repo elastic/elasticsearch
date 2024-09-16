@@ -262,7 +262,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             this.isDimension = isDimension;
         }
 
-        private KeyedFlattenedFieldType(String rootName, String key, RootFlattenedFieldType ref, int ignoreAbove) {
+        private KeyedFlattenedFieldType(String rootName, String key, RootFlattenedFieldType ref) {
             this(
                 rootName,
                 ref.isIndexed(),
@@ -771,7 +771,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
         @Override
         public MappedFieldType getChildFieldType(String childPath) {
-            return new KeyedFlattenedFieldType(name(), childPath, this, ignoreAbove);
+            return new KeyedFlattenedFieldType(name(), childPath, this);
         }
 
         @Override

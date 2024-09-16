@@ -386,7 +386,7 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
         });
 
         try {
-            if (countdown.await(120, TimeUnit.SECONDS) == false) {
+            if (countdown.await(10, TimeUnit.SECONDS) == false) {
                 cancellable.cancel();
                 fail("Failed to finish test in 10 seconds");
             }

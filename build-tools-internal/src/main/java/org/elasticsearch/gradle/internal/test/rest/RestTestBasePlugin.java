@@ -114,7 +114,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
 
         // Add test-features plugin as a test cluster dependency by default
         if (project.findProject(":plugins:test-features") != null) {
-            pluginsConfiguration.getDependencies().add(project.getDependencies().create(":plugins-test-features"));
+            pluginsConfiguration.getDependencies().add(project.getDependencies().create(":plugins:test-features"));
         }
 
         // Create configuration for aggregating historical feature metadata

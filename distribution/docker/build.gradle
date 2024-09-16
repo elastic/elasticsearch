@@ -515,6 +515,8 @@ subprojects { Project subProject ->
       base = DockerBase.CLOUD_ESS
     } else if (subProject.name.contains('cloud-')) {
       base = DockerBase.CLOUD
+    } else if (subProject.name.contains('wolfi-')) {
+      base = DockerBase.WOLFI
     }
 
     final String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
@@ -522,7 +524,8 @@ subprojects { Project subProject ->
       (base == DockerBase.IRON_BANK ? 'ironbank.tar' :
         (base == DockerBase.CLOUD ? 'cloud.tar' :
           (base == DockerBase.CLOUD_ESS ? 'cloud-ess.tar' :
-            'docker.tar')))
+            (base == DockerBase.WOLFI ? 'wolfi.tar' :
+              'docker.tar'))))
     final String artifactName = "elasticsearch${arch}${base.suffix}_test"
 
     final String exportTaskName = taskName("export", architecture, base, 'DockerImage')

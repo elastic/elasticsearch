@@ -45,6 +45,7 @@ public interface TDigestIntArray {
      */
     default void set(int index, TDigestIntArray buf, int offset, int len) {
         assert index >= 0 && index + len <= this.size();
+        assert buf != this || index >= offset : "To set to itself, the destination index must be greater than the source offset";
         for (int i = len - 1; i >= 0; i--) {
             this.set(index + i, buf.get(offset + i));
         }

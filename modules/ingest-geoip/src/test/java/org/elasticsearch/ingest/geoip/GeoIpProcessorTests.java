@@ -104,10 +104,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(geoData.get("continent_code"), equalTo("NA"));
         assertThat(geoData.get("continent_name"), equalTo("North America"));
         assertThat(geoData.get("timezone"), equalTo("America/Chicago"));
-        Map<String, Object> location = new HashMap<>();
-        location.put("lat", 37.751d);
-        location.put("lon", -97.822d);
-        assertThat(geoData.get("location"), equalTo(location));
+        assertThat(geoData.get("location"), equalTo(Map.of("lat", 37.751d, "lon", -97.822d)));
     }
 
     public void testNullValueWithIgnoreMissing() throws Exception {
@@ -226,10 +223,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(geoData.get("region_name"), equalTo("Florida"));
         assertThat(geoData.get("city_name"), equalTo("Homestead"));
         assertThat(geoData.get("timezone"), equalTo("America/New_York"));
-        Map<String, Object> location = new HashMap<>();
-        location.put("lat", 25.4573d);
-        location.put("lon", -80.4572d);
-        assertThat(geoData.get("location"), equalTo(location));
+        assertThat(geoData.get("location"), equalTo(Map.of("lat", 25.4573d, "lon", -80.4572d)));
     }
 
     public void testCityWithMissingLocation() throws Exception {
@@ -477,10 +471,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(geoData.get("region_name"), equalTo("New York"));
         assertThat(geoData.get("city_name"), equalTo("Chatham"));
         assertThat(geoData.get("timezone"), equalTo("America/New_York"));
-        Map<String, Object> location = new HashMap<>();
-        location.put("lat", 42.3478);
-        location.put("lon", -73.5549);
-        assertThat(geoData.get("location"), equalTo(location));
+        assertThat(geoData.get("location"), equalTo(Map.of("lat", 42.3478, "lon", -73.5549)));
         assertThat(geoData.get("asn"), equalTo(14671L));
         assertThat(geoData.get("organization_name"), equalTo("FairPoint Communications"));
         assertThat(geoData.get("network"), equalTo("74.209.16.0/20"));
@@ -600,12 +591,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         List<Map<String, Object>> geoData = (List<Map<String, Object>>) ingestDocument.getSourceAndMetadata().get("target_field");
         assertThat(geoData, notNullValue());
         assertThat(geoData.size(), equalTo(2));
-
-        Map<String, Object> location = new HashMap<>();
-        location.put("lat", 37.751d);
-        location.put("lon", -97.822d);
-        assertThat(geoData.get(0).get("location"), equalTo(location));
-
+        assertThat(geoData.get(0).get("location"), equalTo(Map.of("lat", 37.751d, "lon", -97.822d)));
         assertThat(geoData.get(1).get("city_name"), equalTo("Hoensbroek"));
     }
 
@@ -632,12 +618,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         List<Map<String, Object>> geoData = (List<Map<String, Object>>) ingestDocument.getSourceAndMetadata().get("target_field");
         assertThat(geoData, notNullValue());
         assertThat(geoData.size(), equalTo(2));
-
-        Map<String, Object> location = new HashMap<>();
-        location.put("lat", 37.751d);
-        location.put("lon", -97.822d);
-        assertThat(geoData.get(0).get("location"), equalTo(location));
-
+        assertThat(geoData.get(0).get("location"), equalTo(Map.of("lat", 37.751d, "lon", -97.822d)));
         assertThat(geoData.get(1), nullValue());
     }
 
@@ -680,12 +661,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         List<Map<String, Object>> geoData = (List<Map<String, Object>>) ingestDocument.getSourceAndMetadata().get("target_field");
         assertThat(geoData, notNullValue());
         assertThat(geoData.size(), equalTo(2));
-
-        Map<String, Object> location = new HashMap<>();
-        location.put("lat", 37.751d);
-        location.put("lon", -97.822d);
-        assertThat(geoData.get(0).get("location"), equalTo(location));
-
+        assertThat(geoData.get(0).get("location"), equalTo(Map.of("lat", 37.751d, "lon", -97.822d)));
         assertThat(geoData.get(1).get("city_name"), equalTo("Hoensbroek"));
 
         // Check the loader's reference count and attempt to close
@@ -716,11 +692,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
         assertThat(geoData, notNullValue());
-
-        Map<String, Object> location = new HashMap<>();
-        location.put("lat", 37.751d);
-        location.put("lon", -97.822d);
-        assertThat(geoData.get("location"), equalTo(location));
+        assertThat(geoData.get("location"), equalTo(Map.of("lat", 37.751d, "lon", -97.822d)));
     }
 
     public void testListFirstOnlyNoMatches() throws Exception {

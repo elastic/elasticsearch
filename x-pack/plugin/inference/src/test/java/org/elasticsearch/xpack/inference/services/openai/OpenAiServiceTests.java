@@ -1254,6 +1254,7 @@ public class OpenAiServiceTests extends ESTestCase {
             PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
             service.chunkedInfer(
                 model,
+                null,
                 List.of("foo", "bar"),
                 new HashMap<>(),
                 InputType.INGEST,

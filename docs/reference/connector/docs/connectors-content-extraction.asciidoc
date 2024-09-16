@@ -259,7 +259,7 @@ $ docker run \
   docker.elastic.co/enterprise-search/data-extraction-service:$EXTRACTION_SERVICE_VERSION
 ----
 +
-4. Next, you can follow the instructions for {connectors-python}/docs/DOCKER.md[running the self-managed connector in docker^] until step `4. Update the configuration file for your self-hosted connector`.
+4. Next, you can follow the instructions for {connectors-python}/docs/DOCKER.md[running the self-managed connector in docker^] until step `4. Update the configuration file for your self-managed connector`.
 When setting up your configuration, be sure to add the following settings for the self-hosted content extraction service.
 Note that the `host` will now refer to an internal docker endpoint instead of localhost.
 +

@@ -21,7 +21,7 @@ Refer to {ref}/getting-started.html[quickstart] for a more beginner-friendly int
 If you're just getting started with connectors, you might want to start in the UI first.
 We have two tutorials that focus on managing connectors using the UI:
 
-* <<es-mongodb-start,Elastic hosted connector tutorial>>. Set up a native MongoDB connector, fully managed in Elastic Cloud.
+* <<es-mongodb-start,Elastic managed connector tutorial>>. Set up a native MongoDB connector, fully managed in Elastic Cloud.
 * <<es-postgresql-connector-client-tutorial,self-managed connector tutorial>>. Set up a self-managed PostgreSQL connector.
 ====
 

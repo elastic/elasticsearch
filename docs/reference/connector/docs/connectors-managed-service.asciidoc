@@ -1,5 +1,5 @@
 [#es-native-connectors]
-== Elastic hosted connectors
+== Elastic managed connectors
 
 Hosted <<es-connectors,Elastic connectors>> are available directly within your Elastic Cloud deployment.
 No additional infrastructure is required.
@@ -23,7 +23,7 @@ Your Elastic Cloud deployment must include the following Elastic services:
 * *{kib}*
 * {enterprise-search-ref}/server.html[*Enterprise Search*]
 
-Refer to _Native Integrations_ on the https://www.elastic.co/subscriptions/cloud[Elastic subscriptions page], in the *Elastic Search* section for hosted connector licensing requirements.
+Refer to _Native Integrations_ on the https://www.elastic.co/subscriptions/cloud[Elastic subscriptions page], in the *Elastic Search* section for managed connector licensing requirements.
 
 .Elastic Cloud IPs
 [sidebar]
@@ -38,7 +38,7 @@ Refer to {cloud}/ec-static-ips.html[static IP ranges] in the Elastic Cloud docum
 === Usage in {kib} UI
 
 Follow the *Connector* workflow in {kib} to select the *Connector* ingestion method.
-Choose a data source, create an Elasticsearch index, and configure a hosted connector to manage the index.
+Choose a data source, create an Elasticsearch index, and configure a managed connector to manage the index.
 
 [.screenshot]
 image::images/use-a-connector-workflow.png[]
@@ -116,7 +116,7 @@ See <<es-native-connectors-enabling-API-keys-for-upgraded-connectors,enabling AP
 ====
 
 Hosted connectors communicate with Elasticsearch using API keys.
-When managing a hosted connector through the Connectors page in the {kib} UI, API key management is handled automatically.
+When managing a managed connector through the Connectors page in the {kib} UI, API key management is handled automatically.
 API keys for Hosted connectors have the `manage` permission for three indices:
 
 . The attached index
@@ -174,7 +174,7 @@ POST .elastic-connectors/_update/<connector_id>
 . Go back to the Connectors page and navigate to the *Configuration* tab.
 . Scroll down to *Manage API key* and select *Generate API key*.
 
-Your hosted connector is now using API keys to authorize ingestion into Elasticsearch.
+Your managed connector is now using API keys to authorize ingestion into Elasticsearch.
 ===================================
 
 [discrete#es-native-connectors-usage-api]
@@ -189,12 +189,12 @@ Use these tools if you'd like to work with connectors and sync jobs programmatic
 The following example demonstrates how to use a managed connector on Elastic Cloud: <<es-mongodb-start>>.
 
 [discrete#es-native-connectors-convert]
-=== Convert a hosted connector
+=== Convert a managed connector
 
-You can convert a hosted connector to a self-managed self-managed connector to be run on your own infrastructure.
+You can convert a managed connector to a self-managed self-managed connector to be run on your own infrastructure.
 You'll find instructions in the UI on the connector index's overview page.
 
 [WARNING]
 ====
-Converting a hosted connector to a self-managed self-managed connector is an irreversible operation!
+Converting a managed connector to a self-managed self-managed connector is an irreversible operation!
 ====

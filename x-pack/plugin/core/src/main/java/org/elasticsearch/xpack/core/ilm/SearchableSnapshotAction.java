@@ -102,8 +102,9 @@ public class SearchableSnapshotAction implements LifecycleAction {
     public SearchableSnapshotAction(StreamInput in) throws IOException {
         this.snapshotRepository = in.readString();
         this.forceMergeIndex = in.readBoolean();
-        this.totalShardsPerNode = in.getTransportVersion().onOrAfter(ILM_ADD_SEARCHABLE_SNAPSHOT_TOTAL_SHARDS_PER_NODE) ?
-            in.readOptionalInt() : null;
+        this.totalShardsPerNode = in.getTransportVersion().onOrAfter(ILM_ADD_SEARCHABLE_SNAPSHOT_TOTAL_SHARDS_PER_NODE)
+            ? in.readOptionalInt()
+            : null;
     }
 
     boolean isForceMergeIndex() {

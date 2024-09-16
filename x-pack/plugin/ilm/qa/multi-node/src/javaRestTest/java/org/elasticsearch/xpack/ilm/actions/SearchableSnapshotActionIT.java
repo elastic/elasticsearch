@@ -953,7 +953,8 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         updateIndexSettings(index, Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy));
 
         // wait for snapshot successfully mounted and ILM execution completed
-        final String searchableSnapMountedIndexName = SearchableSnapshotAction.PARTIAL_RESTORED_INDEX_PREFIX + SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + index;
+        final String searchableSnapMountedIndexName = SearchableSnapshotAction.PARTIAL_RESTORED_INDEX_PREFIX
+            + SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + index;
         assertBusy(() -> {
             logger.info("--> waiting for [{}] to exist...", searchableSnapMountedIndexName);
             assertTrue(indexExists(searchableSnapMountedIndexName));
@@ -968,9 +969,12 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // validate total_shards_per_node setting
         Map<String, Object> indexSettings = getIndexSettingsAsMap(searchableSnapMountedIndexName);
         assertNotNull("expected total_shards_per_node to exist", indexSettings.get(INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()));
-        Integer snapshotTotalShardsPerNode = Integer.valueOf((String) indexSettings.get(INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey())) ;
-        assertEquals("expected total_shards_per_node to be " +  totalShardsPerNode + ", but got: " + snapshotTotalShardsPerNode,
-            snapshotTotalShardsPerNode, totalShardsPerNode);
+        Integer snapshotTotalShardsPerNode = Integer.valueOf((String) indexSettings.get(INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()));
+        assertEquals(
+            "expected total_shards_per_node to be " + totalShardsPerNode + ", but got: " + snapshotTotalShardsPerNode,
+            snapshotTotalShardsPerNode,
+            totalShardsPerNode
+        );
     }
 
     /**

@@ -232,18 +232,25 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
         return true;
     }
 
+    /**
+     * Writes a string caching it, ie. the second time the same string is written, only a small, numeric ID will be sent.
+     * This should be used only to serialize recurring strings.
+     *
+     * Values serialized with this method have to be deserialized with {@link PlanStreamInput#readCachedString()}
+     */
     @Override
     public void writeCachedString(String string) throws IOException {
-        if (getTransportVersion().onOrAfter(TransportVersions.ESQL_CACHED_STRING_SERIALIZATION)) {
-            Integer cacheId = stringCache.get(string);
-            if (cacheId != null) {
-                writeZLong(cacheId);
-                return;
-            } else {
-                cacheId = cacheString(string);
-                writeZLong(-1 - cacheId);
-            }
+        if (getTransportVersion().before(TransportVersions.ESQL_CACHED_STRING_SERIALIZATION)) {
+            writeString(string);
+            return;
         }
+        Integer cacheId = stringCache.get(string);
+        if (cacheId != null) {
+            writeZLong(cacheId);
+            return;
+        }
+        cacheId = cacheString(string);
+        writeZLong(-1 - cacheId);
         writeString(string);
     }
 

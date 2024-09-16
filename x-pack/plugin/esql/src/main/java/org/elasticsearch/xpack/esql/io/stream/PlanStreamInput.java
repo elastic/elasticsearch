@@ -281,19 +281,22 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
         }
     }
 
+    /**
+     * Reads a cached string, serialized with {@link PlanStreamOutput#writeCachedString(String)}.
+     */
+
     public String readCachedString() throws IOException {
-        if (getTransportVersion().onOrAfter(TransportVersions.ESQL_CACHED_STRING_SERIALIZATION)) {
-            int cacheId = Math.toIntExact(readZLong());
-            if (cacheId < 0) {
-                String string = readString();
-                cacheId = -1 - cacheId;
-                cacheString(cacheId, string);
-                return string;
-            } else {
-                return stringFromCache(cacheId);
-            }
-        } else {
+        if (getTransportVersion().before(TransportVersions.ESQL_CACHED_STRING_SERIALIZATION)) {
             return readString();
+        }
+        int cacheId = Math.toIntExact(readZLong());
+        if (cacheId < 0) {
+            String string = readString();
+            cacheId = -1 - cacheId;
+            cacheString(cacheId, string);
+            return string;
+        } else {
+            return stringFromCache(cacheId);
         }
     }
 

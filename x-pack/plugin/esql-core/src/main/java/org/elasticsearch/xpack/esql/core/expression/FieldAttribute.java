@@ -131,7 +131,6 @@ public class FieldAttribute extends TypedAttribute {
             Source.EMPTY.writeTo(out);
             out.writeOptionalWriteable(parent);
             ((PlanStreamOutput) out).writeCachedString(name());
-            ;
             dataType().writeTo(out);
             field.writeTo(out);
             // We used to write the qualifier here. We can still do if needed in the future.

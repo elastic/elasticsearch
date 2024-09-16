@@ -141,6 +141,7 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
          * History:
          *  953.7kb - shorten error messages for UnsupportedAttributes #111973
          *  967.7kb - cache EsFields #112008 (little overhead of the cache)
+         *  895.5kb - string serialization #112929
          */
     }
 
@@ -155,6 +156,7 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
          * 16.9mb - start
          *  1.8mb - shorten error messages for UnsupportedAttributes #111973
          *  1.3mb - cache EsFields #112008
+         *  1.2mb - string serialization #112929
          */
     }
 

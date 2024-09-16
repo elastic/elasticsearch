@@ -25,7 +25,7 @@ final class JavaVersionChecker {
             throw new IllegalArgumentException("expected zero arguments but was " + Arrays.toString(args));
         }
 
-        final int MIN_VERSION = 21;
+        final int MIN_VERSION = 17;
         final int version;
         String versionString = System.getProperty("java.specification.version");
         if (versionString.equals("1.8")) {

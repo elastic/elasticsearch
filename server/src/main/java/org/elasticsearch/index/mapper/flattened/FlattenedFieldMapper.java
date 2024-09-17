@@ -740,7 +740,10 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 private Map<String, Object> filterIgnoredValues(final Map<String, Object> values) {
                     final Map<String, Object> result = new HashMap<>();
                     for (final Map.Entry<String, Object> entry : values.entrySet()) {
-                        result.put(entry.getKey(), filterIgnoredValues(entry.getValue()));
+                        Object value = filterIgnoredValues(entry.getValue());
+                        if (value != null) {
+                            result.put(entry.getKey(), value);
+                        }
                     }
                     return result;
                 }

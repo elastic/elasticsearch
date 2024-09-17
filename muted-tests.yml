@@ -238,6 +238,9 @@ tests:
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testRollupAfterRestart {cluster=OLD}
   issue: https://github.com/elastic/elasticsearch/issues/113061
+- class: org.elasticsearch.upgrades.MultiVersionRepositoryAccessIT
+  method: testUpgradeMovesRepoToNewMetaVersion
+  issue: https://github.com/elastic/elasticsearch/issues/113062
 
 # Examples:
 #

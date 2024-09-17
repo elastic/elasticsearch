@@ -3,6 +3,8 @@
  * or more contributor license agreements. Licensed under the Elastic License
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
+ *
+ * this file was contributed to by a Generative AI model
  */
 
 package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
@@ -39,13 +41,12 @@ public class DebertaTokenizationResult extends TokenizationResult {
         builder.startObject();
         builder.field(REQUEST_ID, requestId);
         writePaddedTokens(TOKENS, builder);
-        writeTokenTypeIds(ARG1, builder);
-        writeAttentionMask(ARG2, builder);
+        writeAttentionMask(ARG1, builder);
+        writeTokenTypeIds(ARG2, builder);
         builder.endObject();
 
         // BytesReference.bytes closes the builder
         BytesReference jsonRequest = BytesReference.bytes(builder);
-        logger.debug("DebertaTokenizationResult.buildRequest: {}", jsonRequest.utf8ToString());
         return new NlpTask.Request(this, jsonRequest);
     }
 
@@ -88,6 +89,10 @@ public class DebertaTokenizationResult extends TokenizationResult {
             List<Integer> tokenId2s,
             List<Integer> tokenMap2
         ) {
+            if (tokenId1s.isEmpty() || tokenId2s.isEmpty()) {
+                throw new IllegalArgumentException("Both sequences must have at least one token");
+            }
+
             // DeBERTa-v2 pair of sequences: [CLS] A [SEP] B [SEP]
             if (withSpecialTokens) {
                 tokenIds.add(IntStream.of(clsTokenId));

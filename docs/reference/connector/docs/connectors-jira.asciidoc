@@ -107,6 +107,7 @@ Whether SSL verification will be enabled. Default value is `False`.
 SSL certificate::
 Content of SSL certificate. Note: In case of `ssl_enabled` is `False`, the `ssl_ca` value will be ignored. Example certificate:
 +
+[source, txt]
 ----
 -----BEGIN CERTIFICATE-----
 MIID+jCCAuKgAwIBAgIGAJJMzlxLMA0GCSqGSIb3DQEBCwUAMHoxCzAJBgNVBAYT
@@ -351,6 +352,7 @@ Whether SSL verification will be enabled. Default value is `False`.
 `ssl_ca`::
 Content of SSL certificate. Note: In case of `ssl_enabled` is `False`, the `ssl_ca` value will be ignored. Example certificate:
 +
+[source, txt]
 ----
 -----BEGIN CERTIFICATE-----
 MIID+jCCAuKgAwIBAgIGAJJMzlxLMA0GCSqGSIb3DQEBCwUAMHoxCzAJBgNVBAYT

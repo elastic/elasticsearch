@@ -121,6 +121,7 @@ Required if ssl is enabled.
 Content of SSL certificate. Example certificate:
 +
 [text]
+[source, txt]
 ----
 -----BEGIN CERTIFICATE-----
 MIID+jCCAuKgAwIBAgIGAJJMzlxLMA0GCSqGSIb3DQEBCwUAMHoxCzAJBgNVBAYT
@@ -324,6 +325,7 @@ Whether SSL verification will be enabled. Default value is `False`.
 Content of SSL certificate. Example certificate:
 +
 [text]
+[source, txt]
 ----
 -----BEGIN CERTIFICATE-----
 MIID+jCCAuKgAwIBAgIGAJJMzlxLMA0GCSqGSIb3DQEBCwUAMHoxCzAJBgNVBAYT

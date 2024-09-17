@@ -38,3 +38,6 @@ ccr_user_role:
     - names: [ 'leader-index', 'shared-*', 'metrics-*' ]
       privileges: [ 'cross_cluster_replication' ]
       clusters: [ "*" ]
+
+manage_role:
+  cluster: [ 'manage' ]

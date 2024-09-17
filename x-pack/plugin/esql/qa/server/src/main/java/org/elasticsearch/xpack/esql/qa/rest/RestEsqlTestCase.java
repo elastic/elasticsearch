@@ -657,7 +657,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         var query = requestObjectBuilder().query(
             format(
                 null,
-                "from {} | eval x1 = ?n1 | where ?n2 == x1 | stats xx2 = max(?n3) by ?n4 | keep ?n4, ?n5 | sort ?n4",
+                "from {} | eval x1 = ?n1 | where ?n2 == x1 | stats xx2 = ?fn1(?n3) by ?n4 | keep ?n4, ?n5 | sort ?n4",
                 testIndexName()
             )
         )
@@ -666,7 +666,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                     + "{\"n2\" : {\"value\" : \"short\" , \"identifier\" : true}}, "
                     + "{\"n3\" : {\"value\" : \"double\" , \"identifier\" : true}},"
                     + "{\"n4\" : {\"value\" : \"boolean\" , \"identifier\" : true}}, "
-                    + "{\"n5\" : {\"value\" : \"xx*\" , \"identifierpattern\" : true}}]"
+                    + "{\"n5\" : {\"value\" : \"xx*\" , \"identifierpattern\" : true}}, "
+                    + "{\"fn1\" : {\"value\" : \"max\" , \"identifier\" : true}}]"
             );
         Map<String, Object> result = runEsql(query);
         assertEquals(2, result.size());

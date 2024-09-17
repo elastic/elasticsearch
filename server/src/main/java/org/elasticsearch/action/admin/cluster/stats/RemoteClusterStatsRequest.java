@@ -21,18 +21,12 @@ import java.io.IOException;
  * A request to get cluster level stats from the remote cluster.
  */
 public class RemoteClusterStatsRequest extends ActionRequest {
-    private final String[] nodesIds;
-
-    /**
-     * Get stats from nodes based on the nodes ids specified. If none are passed, stats
-     * based on all nodes will be returned.
-     */
-    public RemoteClusterStatsRequest(String... nodesIds) {
-        this.nodesIds = nodesIds;
+    public RemoteClusterStatsRequest(StreamInput in) {
+        this();
     }
 
-    public RemoteClusterStatsRequest(StreamInput in) throws IOException {
-        this.nodesIds = in.readStringArray();
+    public RemoteClusterStatsRequest() {
+        super();
     }
 
     @Override
@@ -45,11 +39,5 @@ public class RemoteClusterStatsRequest extends ActionRequest {
         if (out.getTransportVersion().before(TransportVersions.CCS_TELEMETRY_STATS)) {
             throw new UnsupportedOperationException("RemoteClusterStatsRequest is not supported by the remote cluster");
         }
-        out.writeStringArrayNullable(nodesIds);
     }
-
-    public String[] nodesIds() {
-        return nodesIds;
-    }
-
 }

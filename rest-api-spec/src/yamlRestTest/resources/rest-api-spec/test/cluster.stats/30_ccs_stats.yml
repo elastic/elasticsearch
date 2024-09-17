@@ -115,9 +115,9 @@
   - is_true: ccs.clusters.cluster_one.nodes_count
   - is_true: ccs.clusters.cluster_one.shards_count
   - is_true: ccs.clusters.cluster_one.indices_count
-  - is_true: ccs.clusters.cluster_one.indices_total_size_bytes
-  - is_true: ccs.clusters.cluster_one.max_heap_bytes
-  - is_true: ccs.clusters.cluster_one.mem_total_bytes
+  - is_true: ccs.clusters.cluster_one.indices_total_size_in_bytes
+  - is_true: ccs.clusters.cluster_one.max_heap_in_bytes
+  - is_true: ccs.clusters.cluster_one.mem_total_in_bytes
   - is_true: ccs._search.total
   - is_true: ccs._search.success
   - exists: ccs._search.skipped

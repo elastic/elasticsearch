@@ -187,12 +187,11 @@ This number is based on documents in Lucene segments and may include documents f
 This number is based on documents in Lucene segments. {es} reclaims the disk space of deleted Lucene documents when a segment is merged.
 
 `total_size_in_bytes`::
-(integer)
-Total size in bytes across all primary shards assigned to selected nodes.
+(integer) Total size in bytes across all primary shards assigned to selected nodes.
 
 `total_size`::
-(string)
-Total size across all primary shards assigned to selected nodes, as a human-readable string.
+(string) Total size across all primary shards assigned to selected nodes, as a human-readable string.
+
 =====
 
 `store`::
@@ -1289,8 +1288,7 @@ They are included here for expert users, but should otherwise be ignored.
 ====
 
 `repositories`::
-(object) Contains statistics about the <<snapshot-restore,snapshot>> repositories defined in the cluster, broken down
-by repository type.
+(object) Contains statistics about the <<snapshot-restore,snapshot>> repositories defined in the cluster, broken down by repository type.
 +
 .Properties of `repositories`
 [%collapsible%open]
@@ -1319,15 +1317,16 @@ Each repository type may also include other statistics about the repositories of
 =====
 
 `clusters`:::
-(object) Contains remote cluster settings and metrics collected from them. Only present if `include_remotes` option is
-set to `true` and there are any remote clusters configured. If the node filter is specified, it will be passed
-to the remote clusters.
+(object) Contains remote cluster settings and metrics collected from them.
+Only present if `include_remotes` option is set to `true` and there are any remote clusters configured.
+If the node filter is specified, it will be passed to the remote clusters.
 The keys are cluster names, and the values are per-cluster data.
 
 +
 .Properties of `clusters`
 [%collapsible%open]
 ======
+
 `cluster_uuid`:::
 (string) The UUID of the remote cluster.
 
@@ -1357,14 +1356,24 @@ See <<cluster-health>>.
 `indices_count`:::
 (integer) The total number of indices in the remote cluster.
 
-`indices_total_size_bytes`:::
+`indices_total_size_in_bytes`:::
 (integer) Total data set size, in bytes, of all shards assigned to selected nodes.
 
-`max_heap_bytes`:::
+`indices_total_size`:::
+(string) Total data set size, in bytes, of all shards assigned to selected nodes, as a human-readable string.
+
+`max_heap_in_bytes`:::
 (integer) Maximum amount of memory, in bytes, available for use by the heap across the nodes of the remote cluster.
 
-`mem_total_bytes`:::
-(string) Total amount, in bytes, of physical memory across the nodes of the remote cluster.
+`max_heap`:::
+(string) Maximum amount of memory, in bytes, available for use by the heap across the nodes of the remote cluster,
+as a human-readable string.
+
+`mem_total_in_bytes`:::
+(integer) Total amount, in bytes, of physical memory across the nodes of the remote cluster.
+
+`mem_total`:::
+(string) Total amount, in bytes, of physical memory across the nodes of the remote cluster, as a human-readable string.
 
 ======
 
@@ -1375,6 +1384,7 @@ See <<cluster-health>>.
 .Properties of `_search`
 [%collapsible%open]
 ======
+
 `total`:::
 (integer) The total number of {ccs} requests that have been executed by the cluster.
 
@@ -1390,6 +1400,7 @@ See <<cluster-health>>.
 .Properties of `took`
 [%collapsible%open]
 =======
+
 `max`:::
 (integer) The maximum time taken to execute a {ccs} request, in milliseconds.
 
@@ -1398,6 +1409,7 @@ See <<cluster-health>>.
 
 `p90`:::
 (integer) The 90th percentile of the time taken to execute {ccs} requests, in milliseconds.
+
 =======
 
 `took_mrt_true`::
@@ -1415,6 +1427,7 @@ See <<cluster-health>>.
 
 `p90`:::
 (integer) The 90th percentile of the time taken to execute {ccs} requests, in milliseconds.
+
 =======
 
 `took_mrt_false`::
@@ -1432,6 +1445,7 @@ See <<cluster-health>>.
 
 `p90`:::
 (integer) The 90th percentile of the time taken to execute {ccs} requests, in milliseconds.
+
 =======
 
 `remotes_per_search_max`::
@@ -1445,9 +1459,10 @@ See <<cluster-health>>.
 The keys are the failure reason names and the values are the number of requests that failed for that reason.
 
 `features`::
-(object) Contains statistics about the features used in {ccs} requests. The keys are the names of the search feature,
-and the values are the number of requests that used that feature. Single request can use more than one feature
-(e.g. both `async` and `wildcard`). Known features are:
+(object) Contains statistics about the features used in {ccs} requests.
+The keys are the names of the search feature, and the values are the number of requests that used that feature.
+Single request can use more than one feature (e.g. both `async` and `wildcard`).
+Known features are:
 
 * `async` - <<async-search, Async search>>
 
@@ -1481,6 +1496,7 @@ This may include requests where partial results were returned, but not requests 
 .Properties of `took`
 [%collapsible%open]
 ========
+
 `max`:::
 (integer) The maximum time taken to execute a {ccs} request, in milliseconds.
 
@@ -1489,6 +1505,7 @@ This may include requests where partial results were returned, but not requests 
 
 `p90`:::
 (integer) The 90th percentile of the time taken to execute {ccs} requests, in milliseconds.
+
 ========
 
 =======
@@ -1873,9 +1890,10 @@ This API call will return data about the remote clusters if any are configured:
 --------------------------------------------------
 GET /_cluster/stats?include_remotes=true
 --------------------------------------------------
+
 The resulting response will contain the `ccs` object with information about the remote clusters:
 
-[source, js]
+[source,js]
 --------------------------------------------------
 {
   "ccs": {
@@ -1890,9 +1908,9 @@ The resulting response will contain the `ccs` object with information about the 
         "nodes_count": 10,
         "shards_count": 420,
         "indices_count": 10,
-        "indices_total_size_bytes": 6232658362,
-        "max_heap_bytes": 1037959168,
-        "mem_total_bytes": 137438953472
+        "indices_total_size_in_bytes": 6232658362,
+        "max_heap_in_bytes": 1037959168,
+        "mem_total_in_bytes": 137438953472
       }
     }
   }

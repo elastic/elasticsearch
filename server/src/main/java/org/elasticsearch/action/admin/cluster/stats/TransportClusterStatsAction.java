@@ -402,7 +402,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
 
         @Override
         protected void sendItemRequest(String clusterAlias, ActionListener<RemoteClusterStatsResponse> listener) {
-            var remoteRequest = new RemoteClusterStatsRequest(request.nodesIds());
+            var remoteRequest = new RemoteClusterStatsRequest();
             var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
                 clusterAlias,
                 requestExecutor,

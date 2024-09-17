@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -209,9 +210,9 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
             builder.field("nodes_count", nodesCount);
             builder.field("shards_count", shardsCount);
             builder.field("indices_count", indicesCount);
-            builder.field("indices_total_size_bytes", indicesBytes);
-            builder.field("max_heap_bytes", heapBytes);
-            builder.field("mem_total_bytes", memBytes);
+            builder.humanReadableField("indices_total_size_in_bytes", "indices_total_size", ByteSizeValue.ofBytes(indicesBytes));
+            builder.humanReadableField("max_heap_in_bytes", "max_heap", ByteSizeValue.ofBytes(heapBytes));
+            builder.humanReadableField("mem_total_in_bytes", "mem_total", ByteSizeValue.ofBytes(memBytes));
             builder.endObject();
             return builder;
         }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.datastreams.logsdb;
@@ -281,35 +282,6 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
             "index.mapping.total_fields.ignore_dynamic_beyond_limit"
         );
         assertThat(ignoreDynamicBeyondLimitIndexSetting, equalTo("false"));
-    }
-
-    public void testAddNonCompatibleMapping() throws IOException {
-        var nonCompatibleMappingAdditionTemplate = """
-            {
-              "template": {
-                "mappings": {
-                  "properties": {
-                    "bomb": {
-                      "type": "ip",
-                      "doc_values": false
-                    }
-                  }
-                }
-              }
-            }""";
-
-        Exception e = assertThrows(
-            ResponseException.class,
-            () -> putComponentTemplate(client, "logs@custom", nonCompatibleMappingAdditionTemplate)
-        );
-        assertThat(
-            e.getMessage(),
-            containsString("updating component template [logs@custom] results in invalid composable template [logs]")
-        );
-        assertThat(
-            e.getMessage(),
-            containsString("field [bomb] of type [ip] doesn't support synthetic source because it doesn't have doc values")
-        );
     }
 
     private static Map<String, Object> getMapping(final RestClient client, final String indexName) throws IOException {

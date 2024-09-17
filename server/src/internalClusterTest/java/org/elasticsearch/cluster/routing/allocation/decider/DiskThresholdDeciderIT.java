@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.decider;
@@ -231,7 +232,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
 
     private Set<ShardId> getShardIds(final String nodeId, final String indexName) {
         final Set<ShardId> shardIds = new HashSet<>();
-        final IndexRoutingTable indexRoutingTable = clusterAdmin().prepareState()
+        final IndexRoutingTable indexRoutingTable = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setRoutingTable(true)
             .get()
@@ -319,7 +320,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         }
 
         assertFalse(
-            clusterAdmin().prepareHealth()
+            clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                 .setWaitForEvents(Priority.LANGUID)
                 .setWaitForNoRelocatingShards(true)
                 .setWaitForNoInitializingShards(true)

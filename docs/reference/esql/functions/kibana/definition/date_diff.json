@@ -55,5 +55,6 @@
   ],
   "examples" : [
     "ROW date1 = TO_DATETIME(\"2023-12-02T11:00:00.000Z\"), date2 = TO_DATETIME(\"2023-12-02T11:00:00.001Z\")\n| EVAL dd_ms = DATE_DIFF(\"microseconds\", date1, date2)"
-  ]
+  ],
+  "preview" : false
 }

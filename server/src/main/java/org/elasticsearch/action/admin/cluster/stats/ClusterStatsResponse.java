@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.stats;
@@ -24,6 +25,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 
+import static org.elasticsearch.action.search.TransportSearchAction.CCS_TELEMETRY_FEATURE_FLAG;
+
 public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResponse> implements ToXContentFragment {
 
     final ClusterStatsNodes nodesStats;
@@ -31,6 +34,8 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
     final ClusterHealthStatus status;
     final ClusterSnapshotStats clusterSnapshotStats;
     final RepositoryUsageStats repositoryUsageStats;
+
+    final CCSTelemetrySnapshot ccsMetrics;
     final long timestamp;
     final String clusterUUID;
 
@@ -50,6 +55,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         this.timestamp = timestamp;
         nodesStats = new ClusterStatsNodes(nodes);
         indicesStats = new ClusterStatsIndices(nodes, mappingStats, analysisStats, versionStats);
+        ccsMetrics = new CCSTelemetrySnapshot();
         ClusterHealthStatus status = null;
         for (ClusterStatsNodeResponse response : nodes) {
             // only the master node populates the status
@@ -58,6 +64,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
                 break;
             }
         }
+        nodes.forEach(node -> ccsMetrics.add(node.getCcsMetrics()));
         this.status = status;
         this.clusterSnapshotStats = clusterSnapshotStats;
 
@@ -88,6 +95,10 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
 
     public ClusterStatsIndices getIndicesStats() {
         return indicesStats;
+    }
+
+    public CCSTelemetrySnapshot getCcsMetrics() {
+        return ccsMetrics;
     }
 
     @Override
@@ -124,6 +135,12 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
 
         builder.field("repositories");
         repositoryUsageStats.toXContent(builder, params);
+
+        if (CCS_TELEMETRY_FEATURE_FLAG.isEnabled()) {
+            builder.startObject("ccs");
+            ccsMetrics.toXContent(builder, params);
+            builder.endObject();
+        }
 
         return builder;
     }

@@ -175,5 +175,6 @@
   ],
   "examples" : [
     "ROW a=\"foo;bar;baz\"\n| EVAL first_a = MV_FIRST(SPLIT(a, \";\"))"
-  ]
+  ],
+  "preview" : false
 }

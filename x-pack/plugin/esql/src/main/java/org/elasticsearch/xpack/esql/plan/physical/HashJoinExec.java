@@ -7,13 +7,15 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.List;
@@ -21,6 +23,12 @@ import java.util.Objects;
 import java.util.Set;
 
 public class HashJoinExec extends UnaryExec implements EstimatesRowSize {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        PhysicalPlan.class,
+        "HashJoinExec",
+        HashJoinExec::new
+    );
+
     private final LocalSourceExec joinData;
     private final List<Attribute> matchFields;
     private final List<Attribute> leftFields;
@@ -45,8 +53,8 @@ public class HashJoinExec extends UnaryExec implements EstimatesRowSize {
         this.output = output;
     }
 
-    public HashJoinExec(PlanStreamInput in) throws IOException {
-        super(Source.readFrom(in), in.readPhysicalPlanNode());
+    private HashJoinExec(StreamInput in) throws IOException {
+        super(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(PhysicalPlan.class));
         this.joinData = new LocalSourceExec(in);
         this.matchFields = in.readNamedWriteableCollectionAsList(Attribute.class);
         this.leftFields = in.readNamedWriteableCollectionAsList(Attribute.class);
@@ -54,14 +62,20 @@ public class HashJoinExec extends UnaryExec implements EstimatesRowSize {
         this.output = in.readNamedWriteableCollectionAsList(Attribute.class);
     }
 
-    public void writeTo(PlanStreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        out.writePhysicalPlanNode(child());
+        out.writeNamedWriteable(child());
         joinData.writeTo(out);
         out.writeNamedWriteableCollection(matchFields);
         out.writeNamedWriteableCollection(leftFields);
         out.writeNamedWriteableCollection(rightFields);
         out.writeNamedWriteableCollection(output);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     public LocalSourceExec joinData() {

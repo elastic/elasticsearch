@@ -52,7 +52,6 @@ If configuration files are not at the default location, set the `wallet_configur
 ----
 $ mkdir $ORACLE_HOME/ssl_wallet
 ----
-// NOTCONSOLE
 . Create file named `sqlnet.ora` at `$ORACLE_HOME/network/admin` and add the following content:
 +
 [source,shell]
@@ -63,7 +62,6 @@ SSL_VERSION = 1.0
 SSL_CIPHER_SUITES = (SSL_RSA_WITH_AES_256_CBC_SHA)
 SSL_SERVER_DN_MATCH = ON
 ----
-// NOTCONSOLE
 +
 . Run the following commands to create a wallet and attach an SSL certificate.
 Replace the file name with your file name.
@@ -73,7 +71,6 @@ Replace the file name with your file name.
 $ orapki wallet create -wallet path-to-oracle-home/ssl_wallet -auto_login_only
 $ orapki wallet add -wallet path-to-oracle-home/ssl_wallet -trusted_cert -cert path-to-oracle-home/ssl_wallet/root_ca.pem -auto_login_only
 ----
-// NOTCONSOLE
 
 For more information, refer to this https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Appendix.Oracle.Options.SSL.html[Amazon RDS documentation^] about Oracle SSL.
 Oracle docs: https://docs.oracle.com/database/121/DBSEG/asossl.htm#DBSEG070.
@@ -219,7 +216,6 @@ If configuration files are not at the default location, set the `wallet_configur
 ----
 $ mkdir $ORACLE_HOME/ssl_wallet
 ----
-// NOTCONSOLE
 . Create file named `sqlnet.ora` at `$ORACLE_HOME/network/admin` and add the following content:
 +
 [source,shell]
@@ -230,7 +226,6 @@ SSL_VERSION = 1.0
 SSL_CIPHER_SUITES = (SSL_RSA_WITH_AES_256_CBC_SHA)
 SSL_SERVER_DN_MATCH = ON
 ----
-// NOTCONSOLE
 +
 . Run the following commands to create a wallet and attach an SSL certificate.
 Replace the file name with your file name.
@@ -240,7 +235,6 @@ Replace the file name with your file name.
 $ orapki wallet create -wallet path-to-oracle-home/ssl_wallet -auto_login_only
 $ orapki wallet add -wallet path-to-oracle-home/ssl_wallet -trusted_cert -cert path-to-oracle-home/ssl_wallet/root_ca.pem -auto_login_only
 ----
-// NOTCONSOLE
 
 For more information, refer to this https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Appendix.Oracle.Options.SSL.html[Amazon RDS documentation^] about Oracle SSL.
 Oracle docs: https://docs.oracle.com/database/121/DBSEG/asossl.htm#DBSEG070.
@@ -361,7 +355,6 @@ To execute a functional test for the Oracle connector, run the following command
 ----
 make ftest NAME=oracle
 ----
-// NOTCONSOLE
 
 By default, this will use a medium-sized dataset.
 To make the test faster add the `DATA_SIZE=small` argument:
@@ -370,7 +363,6 @@ To make the test faster add the `DATA_SIZE=small` argument:
 ----
 make ftest NAME=oracle DATA_SIZE=small
 ----
-// NOTCONSOLE
 
 [discrete#es-connectors-oracle-client-known-issues]
 ===== Known issues

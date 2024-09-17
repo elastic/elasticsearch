@@ -259,7 +259,6 @@ To perform E2E testing for the Azure Blob Storage connector, run the following c
 ----
 $ make ftest NAME=azure_blob_storage
 ----
-// NOTCONSOLE
 
 For faster tests, add the `DATA_SIZE=small` flag:
 
@@ -267,7 +266,6 @@ For faster tests, add the `DATA_SIZE=small` flag:
 ----
 make ftest NAME=azure_blob_storage DATA_SIZE=small
 ----
-// NOTCONSOLE
 
 [discrete#es-connectors-azure-blob-client-known-issues]
 ===== Known issues

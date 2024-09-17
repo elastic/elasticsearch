@@ -95,7 +95,6 @@ In your terminal or IDE:
 make install
 make run
 ----
-// NOTCONSOLE
 
 The connector service should now be running.
 The UI will let you know that the connector has successfully connected to your Elasticsearch instance.

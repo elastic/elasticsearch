@@ -270,7 +270,6 @@ Example:
 	"skipExtractingDriveItemsOlderThan": 60
 }
 ----
-// NOTCONSOLE
 
 This rule will not extract content of any drive items (files in document libraries) that haven't been modified for 60 days or more.
 
@@ -754,7 +753,6 @@ Example:
 }
 
 ----
-// NOTCONSOLE
 
 This rule will not extract content of any drive items (files in document libraries) that haven't been modified for 60 days or more.
 
@@ -932,7 +930,6 @@ To perform E2E testing for the SharePoint Online connector, run the following co
 ----
 $ make ftest NAME=sharepoint_online
 ----
-// NOTCONSOLE
 
 For faster tests, add the `DATA_SIZE=small` flag:
 
@@ -940,7 +937,6 @@ For faster tests, add the `DATA_SIZE=small` flag:
 ----
 make ftest NAME=sharepoint_online DATA_SIZE=small
 ----
-// NOTCONSOLE
 
 [discrete#es-connectors-sharepoint-online-client-known-issues]
 ===== Known issues

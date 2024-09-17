@@ -91,7 +91,6 @@ See <<es-connectors-content-extraction>>.
 ----
 $ make ftest NAME=google_cloud_storage
 ----
-// NOTCONSOLE
 
 For faster tests, add the `DATA_SIZE=small` flag:
 
@@ -99,7 +98,6 @@ For faster tests, add the `DATA_SIZE=small` flag:
 ----
 make ftest NAME=google_cloud_storage DATA_SIZE=small
 ----
-// NOTCONSOLE
 
 [discrete#es-connectors-google-cloud-known-issues]
 ===== Known issues
@@ -234,7 +232,6 @@ To perform E2E testing for the Google Cloud Storage connector, run the following
 ----
 $ make ftest NAME=google_cloud_storage
 ----
-// NOTCONSOLE
 
 For faster tests, add the `DATA_SIZE=small` flag:
 
@@ -242,7 +239,6 @@ For faster tests, add the `DATA_SIZE=small` flag:
 ----
 make ftest NAME=google_cloud_storage DATA_SIZE=small
 ----
-// NOTCONSOLE
 
 [discrete#es-connectors-google-cloud-client-known-issues]
 ===== Known issues

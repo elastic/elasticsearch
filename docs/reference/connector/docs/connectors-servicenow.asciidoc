@@ -176,7 +176,6 @@ The following sections provide examples of advanced sync rules for this connecto
   }
 ]
 ----
-// NOTCONSOLE
 
 [discrete#es-connectors-servicenow-sync-rules-active-false-user-service]
 ======= Indexing document based on user activity state for User service
@@ -190,7 +189,6 @@ The following sections provide examples of advanced sync rules for this connecto
   }
 ]
 ----
-// NOTCONSOLE
 
 [discrete#es-connectors-servicenow-sync-rules-author-administrator-knowledge-service]
 ======= Indexing document based on author name for Knowledge service
@@ -204,7 +202,6 @@ The following sections provide examples of advanced sync rules for this connecto
   }
 ]
 ----
-// NOTCONSOLE
 
 [discrete#es-connectors-servicenow-known-issues]
 ===== Known issues
@@ -414,7 +411,6 @@ The following sections provide examples of advanced sync rules for this connecto
   }
 ]
 ----
-// NOTCONSOLE
 
 [discrete#es-connectors-servicenow-client-sync-rules-active-false-user-service]
 ======= Indexing document based on user activity state for User service
@@ -428,7 +424,6 @@ The following sections provide examples of advanced sync rules for this connecto
   }
 ]
 ----
-// NOTCONSOLE
 
 [discrete#es-connectors-servicenow-client-sync-rules-author-administrator-knowledge-service]
 ======= Indexing document based on author name for Knowledge service
@@ -442,7 +437,6 @@ The following sections provide examples of advanced sync rules for this connecto
   }
 ]
 ----
-// NOTCONSOLE
 
 [discrete#es-connectors-servicenow-client-connector-client-operations-testing]
 ===== End-to-end Testing
@@ -456,7 +450,6 @@ To perform E2E testing for the ServiceNow connector, run the following command:
 ----
 $ make ftest NAME=servicenow
 ----
-// NOTCONSOLE
 
 Generate performance reports using the following flag: `PERF8=yes`.
 Toggle test data set size between SMALL, MEDIUM and LARGE with the argument `DATA_SIZE=`.

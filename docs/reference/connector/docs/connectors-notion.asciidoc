@@ -157,7 +157,6 @@ Indexing every page where the title contains `Demo Page`:
     ]
   }
 ----
-// NOTCONSOLE
 
 [discrete]
 ======= Example 2
@@ -177,7 +176,6 @@ Indexing every database where the title contains `Demo Database`:
   ]
 }
 ----
-// NOTCONSOLE
 
 [discrete]
 ======= Example 3
@@ -203,7 +201,6 @@ Indexing every database where the title contains `Demo Database` and every page 
   ]
 }
 ----
-// NOTCONSOLE
 
 [discrete]
 ======= Example 4
@@ -223,7 +220,6 @@ Indexing all pages in the workspace:
   ]
 }
 ----
-// NOTCONSOLE
 
 [discrete]
 ======= Example 5
@@ -240,7 +236,6 @@ Indexing all the pages and databases connected to the workspace:
   ]
 }
 ----
-// NOTCONSOLE
 
 [discrete]
 ======= Example 6
@@ -263,7 +258,6 @@ Indexing all the rows of a database where the record is `true` for the column `T
   ]
 }
 ----
-// NOTCONSOLE
 
 [discrete]
 ======= Example 7
@@ -280,7 +274,6 @@ Indexing all rows of a specific database:
   ]
 }
 ----
-// NOTCONSOLE
 
 [discrete]
 ======= Example 8
@@ -317,7 +310,6 @@ Indexing all blocks defined in `searches` and `database_query_filters`:
   ]
 }
 ----
-// NOTCONSOLE
 
 [NOTE]
 ====
@@ -515,7 +507,6 @@ Indexing every page where the title contains `Demo Page`:
     ]
   }
 ----
-// NOTCONSOLE
 
 [discrete]
 ======= Example 2
@@ -535,7 +526,6 @@ Indexing every database where the title contains `Demo Database`:
   ]
 }
 ----
-// NOTCONSOLE
 
 [discrete]
 ======= Example 3
@@ -561,7 +551,6 @@ Indexing every database where the title contains `Demo Database` and every page 
   ]
 }
 ----
-// NOTCONSOLE
 
 [discrete]
 ======= Example 4
@@ -581,7 +570,6 @@ Indexing all pages in the workspace:
   ]
 }
 ----
-// NOTCONSOLE
 
 [discrete]
 ======= Example 5
@@ -598,7 +586,6 @@ Indexing all the pages and databases connected to the workspace:
   ]
 }
 ----
-// NOTCONSOLE
 
 [discrete]
 ======= Example 6
@@ -621,7 +608,6 @@ Indexing all the rows of a database where the record is `true` for the column `T
   ]
 }
 ----
-// NOTCONSOLE
 
 [discrete]
 ======= Example 7
@@ -638,7 +624,6 @@ Indexing all rows of a specific database:
   ]
 }
 ----
-// NOTCONSOLE
 
 [discrete]
 ======= Example 8
@@ -675,7 +660,6 @@ Indexing all blocks defined in `searches` and `database_query_filters`:
   ]
 }
 ----
-// NOTCONSOLE
 
 [NOTE]
 ====
@@ -700,7 +684,6 @@ To perform E2E testing for the Notion connector, run the following command:
 ----
 $ make ftest NAME=notion
 ----
-// NOTCONSOLE
 
 For faster tests, add the `DATA_SIZE=small` flag:
 
@@ -708,7 +691,6 @@ For faster tests, add the `DATA_SIZE=small` flag:
 ----
 make ftest NAME=notion DATA_SIZE=small
 ----
-// NOTCONSOLE
 
 By default, `DATA_SIZE=MEDIUM`.
 

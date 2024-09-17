@@ -110,7 +110,7 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
         // pick longer wait than in the assertBusy that waits for below to ensure index has had enough time to initialize
         securityIndexManager.onIndexAvailableForSearch((ActionListener<Void>) future, TimeValue.timeValueSeconds(40));
 
-        createSecurityIndex();
+        createSecurityIndexWithWaitForActiveShards();
 
         assertBusy(
             () -> assertThat(securityIndexManager.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS), is(true)),
@@ -125,7 +125,7 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
 
     @SuppressWarnings("unchecked")
     public void testOnIndexAvailableForSearchIndexAlreadyAvailable() throws Exception {
-        createSecurityIndex();
+        createSecurityIndexWithWaitForActiveShards();
 
         final SecurityIndexManager securityIndexManager = internalCluster().getInstances(NativePrivilegeStore.class)
             .iterator()

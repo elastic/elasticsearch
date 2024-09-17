@@ -191,8 +191,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
     @Before
     public void waitForSecurityIndexWritable() throws Exception {
-        createSecurityIndex();
-        assertSecurityIndexActive();
+        createSecurityIndexWithWaitForActiveShards();
     }
 
     @After

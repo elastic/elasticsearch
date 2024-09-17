@@ -104,7 +104,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             true,
             mapper -> ((SemanticTextFieldType) mapper.fieldType()).searchInferenceId,
             null
-        );
+        ).acceptsNull();
 
         private final Parameter<SemanticTextField.ModelSettings> modelSettings = new Parameter<>(
             "model_settings",

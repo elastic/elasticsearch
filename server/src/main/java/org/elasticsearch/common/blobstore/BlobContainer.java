@@ -99,8 +99,8 @@ public interface BlobContainer {
      * @param purpose             The purpose of the operation
      * @param blobName            The name of the blob to write the contents of the input stream to.
      * @param inputStream         The input stream from which to retrieve the bytes to write to the blob.
-     * @param blobSize            The size of the blob to be written, in bytes.  It is implementation dependent whether
-     *                            this value is used in writing the blob to the repository.
+     * @param blobSize            The size of the blob to be written, in bytes. Must be the amount of bytes in the input stream. It is
+     *                            implementation dependent whether this value is used in writing the blob to the repository.
      * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
      * @throws FileAlreadyExistsException if failIfAlreadyExists is true and a blob by the same name already exists
      * @throws IOException                if the input stream could not be read, or the target blob could not be written to.
@@ -151,8 +151,8 @@ public interface BlobContainer {
      * @param purpose             The purpose of the operation
      * @param blobName            The name of the blob to write the contents of the input stream to.
      * @param inputStream         The input stream from which to retrieve the bytes to write to the blob.
-     * @param blobSize            The size of the blob to be written, in bytes.  It is implementation dependent whether
-     *                            this value is used in writing the blob to the repository.
+     * @param blobSize            The size of the blob to be written, in bytes. Must be the amount of bytes in the input stream. It is
+     *                            implementation dependent whether this value is used in writing the blob to the repository.
      * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
      * @throws FileAlreadyExistsException if failIfAlreadyExists is true and a blob by the same name already exists
      * @throws IOException                if the input stream could not be read, or the target blob could not be written to.

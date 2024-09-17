@@ -359,11 +359,12 @@ public class FsBlobContainer extends AbstractBlobContainer {
     private void writeToPath(InputStream inputStream, Path tempBlobPath, long blobSize) throws IOException {
         try (OutputStream outputStream = Files.newOutputStream(tempBlobPath, StandardOpenOption.CREATE_NEW)) {
             final int bufferSize = blobStore.bufferSizeInBytes();
-            org.elasticsearch.core.Streams.copy(
+            long bytesWritten = org.elasticsearch.core.Streams.copy(
                 inputStream,
                 outputStream,
                 new byte[blobSize < bufferSize ? Math.toIntExact(blobSize) : bufferSize]
             );
+            assert bytesWritten == blobSize : "expected [" + blobSize + "] bytes but wrote [" + bytesWritten + "]";
         }
         IOUtils.fsync(tempBlobPath, false);
     }

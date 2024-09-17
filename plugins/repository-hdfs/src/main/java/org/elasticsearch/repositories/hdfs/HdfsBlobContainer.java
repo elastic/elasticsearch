@@ -282,6 +282,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
             while ((bytesRead = inputStream.read(buffer)) != -1) {
                 stream.write(buffer, 0, bytesRead);
             }
+            assert stream.size() == blobSize : "Expected to write [" + blobSize + "] bytes but wrote [" + stream.size() + "] bytes";
         }
     }
 

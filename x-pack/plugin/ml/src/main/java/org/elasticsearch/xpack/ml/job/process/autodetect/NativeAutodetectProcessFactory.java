@@ -122,8 +122,11 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
             // and if it is set to true, then we create the autodetect controll message file
             if (job.keepJobData()) {
                 FileUtils.recreateTempDirectoryIfNeeded(env.tmpFile());
-                Path controlMsgFile = Files.createTempFile(env.tmpFile(), "autodetect_control_msg", ".json");
+                Path controlMsgFile = Files.createTempFile(env.tmpFile(), "autodetect_control_msg", ".csv");
                 autodetect.setControlMessageFilePath(controlMsgFile);
+
+                Path restoreFile = Files.createTempFile(env.tmpFile(), "autodetect_restore", ".json");
+                autodetect.setRestoreFilePath(restoreFile);
             }
             autodetect.start(executorService, stateProcessor);
             return autodetect;

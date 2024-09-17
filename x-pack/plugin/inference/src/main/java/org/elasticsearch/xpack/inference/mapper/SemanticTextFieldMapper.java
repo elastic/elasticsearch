@@ -114,7 +114,11 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             mapper -> ((SemanticTextFieldType) mapper.fieldType()).modelSettings,
             XContentBuilder::field,
             Objects::toString
-        ).acceptsNull().setMergeValidator(SemanticTextFieldMapper::canMergeModelSettings);
+        ).acceptsNull()
+            .setMergeValidator(
+                ((previous, current, conflicts) -> SemanticTextFieldMapper.canMergeModelSettings(previous, current, true, conflicts))
+            )
+            .setValueMerger(SemanticTextFieldMapper::mergeModelSettings);
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -253,8 +257,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 context.path().add(leafName());
             }
         } else {
+            // Don't allow current model settings to be null in this context because we need them to validate embedding compatibility
             Conflicts conflicts = new Conflicts(fullFieldName);
-            canMergeModelSettings(field.inference().modelSettings(), fieldType().getModelSettings(), conflicts);
+            canMergeModelSettings(fieldType().getModelSettings(), field.inference().modelSettings(), false, conflicts);
             try {
                 conflicts.check();
             } catch (Exception exc) {
@@ -552,15 +557,23 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     private static boolean canMergeModelSettings(
         SemanticTextField.ModelSettings previous,
         SemanticTextField.ModelSettings current,
+        boolean allowCurrentToBeNull,
         Conflicts conflicts
     ) {
         if (Objects.equals(previous, current)) {
             return true;
         }
-        if (previous == null) {
+        if (previous == null || (allowCurrentToBeNull && current == null)) {
             return true;
         }
         conflicts.addConflict("model_settings", "");
         return false;
+    }
+
+    private static SemanticTextField.ModelSettings mergeModelSettings(
+        SemanticTextField.ModelSettings previous,
+        SemanticTextField.ModelSettings current
+    ) {
+        return current == null ? previous : current;
     }
 }

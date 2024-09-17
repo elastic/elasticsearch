@@ -724,6 +724,10 @@ public abstract class FieldMapper extends Mapper {
         boolean canMerge(T previous, T current, Conflicts conflicts);
     }
 
+    protected interface ValueMerger<T> {
+        T mergeValues(T previous, T current);
+    }
+
     /**
      * Check on whether or not a parameter should be serialized
      */
@@ -756,6 +760,7 @@ public abstract class FieldMapper extends Mapper {
         private final Function<T, String> conflictSerializer;
         private boolean deprecated;
         private MergeValidator<T> mergeValidator;
+        private ValueMerger<T> valueMerger;
         private T value;
         private boolean isSet;
         private List<Parameter<?>> requires = List.of();
@@ -791,6 +796,7 @@ public abstract class FieldMapper extends Mapper {
             this.mergeValidator = updateable
                 ? (previous, toMerge, conflicts) -> true
                 : (previous, toMerge, conflicts) -> Objects.equals(previous, toMerge);
+            this.valueMerger = (previous, current) -> current;
             this.serializer = serializer;
             this.conflictSerializer = conflictSerializer;
         }
@@ -819,7 +825,7 @@ public abstract class FieldMapper extends Mapper {
          */
         public void setValue(T value) {
             this.isSet = true;
-            this.value = value;
+            this.value = valueMerger.mergeValues(getValue(), value);
         }
 
         public boolean isConfigured() {
@@ -899,6 +905,11 @@ public abstract class FieldMapper extends Mapper {
          */
         public Parameter<T> setMergeValidator(MergeValidator<T> mergeValidator) {
             this.mergeValidator = mergeValidator;
+            return this;
+        }
+
+        public Parameter<T> setValueMerger(ValueMerger<T> valueMerger) {
+            this.valueMerger = valueMerger;
             return this;
         }
 

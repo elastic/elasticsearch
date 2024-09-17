@@ -55,8 +55,24 @@ public class IbmWatsonxEmbeddingsRequestManager extends IbmWatsonxRequestManager
     ) {
         List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
         var truncatedInput = truncate(docsInput, model.getServiceSettings().maxInputTokens());
-        IbmWatsonxEmbeddingsRequest request = new IbmWatsonxEmbeddingsRequest(truncator, truncatedInput, model);
 
-        execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
+        execute(
+            new ExecutableInferenceRequest(
+                requestSender,
+                logger,
+                getEmbeddingRequest(truncator, truncatedInput, model),
+                HANDLER,
+                hasRequestCompletedFunction,
+                listener
+            )
+        );
+    }
+
+    protected IbmWatsonxEmbeddingsRequest getEmbeddingRequest(
+        Truncator truncator,
+        Truncator.TruncationResult truncatedInput,
+        IbmWatsonxEmbeddingsModel model
+    ) {
+        return new IbmWatsonxEmbeddingsRequest(truncator, truncatedInput, model);
     }
 }

@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.ibmwatsonx.IbmWatsonxActionCreator;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
+import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -220,9 +221,8 @@ public class IbmWatsonxService extends SenderService {
         }
 
         IbmWatsonxModel ibmWatsonxModel = (IbmWatsonxModel) model;
-        var actionCreator = new IbmWatsonxActionCreator(getSender(), getServiceComponents());
 
-        var action = ibmWatsonxModel.accept(actionCreator, taskSettings, inputType);
+        var action = ibmWatsonxModel.accept(getActionCreator(getSender(), getServiceComponents()), taskSettings, inputType);
         action.execute(new DocumentsOnlyInput(input), timeout, listener);
     }
 
@@ -251,14 +251,16 @@ public class IbmWatsonxService extends SenderService {
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
         IbmWatsonxModel ibmWatsonxModel = (IbmWatsonxModel) model;
-        var actionCreator = new IbmWatsonxActionCreator(getSender(), getServiceComponents());
 
         var batchedRequests = new EmbeddingRequestChunker(input, EMBEDDING_MAX_BATCH_SIZE, EmbeddingRequestChunker.EmbeddingType.FLOAT)
             .batchRequestsWithListeners(listener);
         for (var request : batchedRequests) {
-            var action = ibmWatsonxModel.accept(actionCreator, taskSettings, inputType);
+            var action = ibmWatsonxModel.accept(getActionCreator(getSender(), getServiceComponents()), taskSettings, inputType);
             action.execute(new DocumentsOnlyInput(request.batch().inputs()), timeout, request.listener());
         }
     }
 
+    protected IbmWatsonxActionCreator getActionCreator(Sender sender, ServiceComponents serviceComponents) {
+        return new IbmWatsonxActionCreator(getSender(), getServiceComponents());
+    }
 }

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.external.action.ibmwatsonx;
 
 import org.apache.http.HttpHeaders;
+import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -20,6 +21,7 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
@@ -28,7 +30,10 @@ import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.IbmWatsonxEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.ibmwatsonx.IbmWatsonxEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModel;
 import org.junit.After;
 import org.junit.Before;
 
@@ -197,8 +202,47 @@ public class IbmWatsonxEmbeddingsActionTests extends ESTestCase {
         Sender sender
     ) {
         var model = createModel(modelName, projectId, uri, apiVersion, apiKey, url);
-        var requestManager = new IbmWatsonxEmbeddingsRequestManager(model, TruncatorTests.createTruncator(), threadPool);
+        var requestManager = new IbmWatsonxEmbeddingsRequestManagerWithoutAuth(model, TruncatorTests.createTruncator(), threadPool);
         var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(model.uri(), "IBM Watsonx embeddings");
         return new SenderExecutableAction(sender, requestManager, failedToSendRequestErrorMessage);
+    }
+
+    private static class IbmWatsonxEmbeddingsRequestManagerWithoutAuth extends IbmWatsonxEmbeddingsRequestManager {
+        IbmWatsonxEmbeddingsRequestManagerWithoutAuth(IbmWatsonxEmbeddingsModel model, Truncator truncator, ThreadPool threadPool) {
+            super(model, truncator, threadPool);
+        }
+
+        @Override
+        protected IbmWatsonxEmbeddingsRequest getEmbeddingRequest(
+            Truncator truncator,
+            Truncator.TruncationResult truncatedInput,
+            IbmWatsonxEmbeddingsModel model
+        ) {
+            return new IbmWatsonxEmbeddingsWithoutAuthRequest(truncator, truncatedInput, model);
+        }
+
+    }
+
+    private static class IbmWatsonxEmbeddingsWithoutAuthRequest extends IbmWatsonxEmbeddingsRequest {
+        private static final String AUTH_HEADER_VALUE = "foo";
+
+        IbmWatsonxEmbeddingsWithoutAuthRequest(Truncator truncator, Truncator.TruncationResult input, IbmWatsonxEmbeddingsModel model) {
+            super(truncator, input, model);
+        }
+
+        @Override
+        public void decorateWithAuth(HttpPost httpPost) {
+            httpPost.setHeader(HttpHeaders.AUTHORIZATION, AUTH_HEADER_VALUE);
+        }
+
+        @Override
+        public Request truncate() {
+            IbmWatsonxEmbeddingsRequest embeddingsRequest = (IbmWatsonxEmbeddingsRequest) super.truncate();
+            return new IbmWatsonxEmbeddingsWithoutAuthRequest(
+                embeddingsRequest.truncator(),
+                embeddingsRequest.truncationResult(),
+                embeddingsRequest.model()
+            );
+        }
     }
 }

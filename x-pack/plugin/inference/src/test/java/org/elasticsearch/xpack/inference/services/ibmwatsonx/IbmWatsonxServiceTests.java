@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.ibmwatsonx;
 
 import org.apache.http.HttpHeaders;
+import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -30,11 +31,17 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.inference.common.Truncator;
+import org.elasticsearch.xpack.inference.external.action.ibmwatsonx.IbmWatsonxActionCreator;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
+import org.elasticsearch.xpack.inference.external.http.sender.IbmWatsonxEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.ibmwatsonx.IbmWatsonxEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModelTests;
@@ -428,7 +435,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new IbmWatsonxService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new IbmWatsonxServiceWithoutAuth(senderFactory, createWithEmptySettings(threadPool))) {
             String responseJson = """
                 {
                      "results": [
@@ -480,7 +487,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new IbmWatsonxService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new IbmWatsonxServiceWithoutAuth(senderFactory, createWithEmptySettings(threadPool))) {
             String responseJson = """
                 {
                      "results": [
@@ -557,7 +564,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
     public void testInfer_ResourceNotFound() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new IbmWatsonxService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new IbmWatsonxServiceWithoutAuth(senderFactory, createWithEmptySettings(threadPool))) {
 
             String responseJson = """
                 {
@@ -598,7 +605,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         var similarityMeasure = SimilarityMeasure.DOT_PRODUCT;
 
-        try (var service = new IbmWatsonxService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new IbmWatsonxServiceWithoutAuth(senderFactory, createWithEmptySettings(threadPool))) {
             String responseJson = """
                 {
                      "results": [
@@ -653,7 +660,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         var twoDimension = 2;
 
-        try (var service = new IbmWatsonxService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new IbmWatsonxServiceWithoutAuth(senderFactory, createWithEmptySettings(threadPool))) {
             String responseJson = """
                 {
                      "results": [
@@ -707,7 +714,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         var twoDimension = 2;
 
-        try (var service = new IbmWatsonxService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new IbmWatsonxServiceWithoutAuth(senderFactory, createWithEmptySettings(threadPool))) {
             String responseJson = """
                 {
                      "results": [
@@ -780,5 +787,70 @@ public class IbmWatsonxServiceTests extends ESTestCase {
 
     private IbmWatsonxService createIbmWatsonxService() {
         return new IbmWatsonxService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool));
+    }
+
+    private static class IbmWatsonxServiceWithoutAuth extends IbmWatsonxService {
+        IbmWatsonxServiceWithoutAuth(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
+            super(factory, serviceComponents);
+        }
+
+        @Override
+        protected IbmWatsonxActionCreator getActionCreator(Sender sender, ServiceComponents serviceComponents) {
+            return new IbmWatsonxActionCreatorWithoutAuth(getSender(), getServiceComponents());
+        }
+    }
+
+    private static class IbmWatsonxActionCreatorWithoutAuth extends IbmWatsonxActionCreator {
+        IbmWatsonxActionCreatorWithoutAuth(Sender sender, ServiceComponents serviceComponents) {
+            super(sender, serviceComponents);
+        }
+
+        @Override
+        protected IbmWatsonxEmbeddingsRequestManager getEmbeddingsRequestManager(
+            IbmWatsonxEmbeddingsModel model,
+            Truncator truncator,
+            ThreadPool threadPool
+        ) {
+            return new IbmWatsonxEmbeddingsRequestManagerWithoutAuth(model, truncator, threadPool);
+        }
+    }
+
+    private static class IbmWatsonxEmbeddingsRequestManagerWithoutAuth extends IbmWatsonxEmbeddingsRequestManager {
+        IbmWatsonxEmbeddingsRequestManagerWithoutAuth(IbmWatsonxEmbeddingsModel model, Truncator truncator, ThreadPool threadPool) {
+            super(model, truncator, threadPool);
+        }
+
+        @Override
+        protected IbmWatsonxEmbeddingsRequest getEmbeddingRequest(
+            Truncator truncator,
+            Truncator.TruncationResult truncatedInput,
+            IbmWatsonxEmbeddingsModel model
+        ) {
+            return new IbmWatsonxEmbeddingsWithoutAuthRequest(truncator, truncatedInput, model);
+        }
+
+    }
+
+    private static class IbmWatsonxEmbeddingsWithoutAuthRequest extends IbmWatsonxEmbeddingsRequest {
+        private static final String AUTH_HEADER_VALUE = "foo";
+
+        IbmWatsonxEmbeddingsWithoutAuthRequest(Truncator truncator, Truncator.TruncationResult input, IbmWatsonxEmbeddingsModel model) {
+            super(truncator, input, model);
+        }
+
+        @Override
+        public void decorateWithAuth(HttpPost httpPost) {
+            httpPost.setHeader(HttpHeaders.AUTHORIZATION, AUTH_HEADER_VALUE);
+        }
+
+        @Override
+        public Request truncate() {
+            IbmWatsonxEmbeddingsRequest embeddingsRequest = (IbmWatsonxEmbeddingsRequest) super.truncate();
+            return new IbmWatsonxEmbeddingsWithoutAuthRequest(
+                embeddingsRequest.truncator(),
+                embeddingsRequest.truncationResult(),
+                embeddingsRequest.model()
+            );
+        }
     }
 }

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.external.action.ibmwatsonx;
 
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.IbmWatsonxEmbeddingsRequestManager;
@@ -31,8 +33,19 @@ public class IbmWatsonxActionCreator implements IbmWatsonxActionVisitor {
 
     @Override
     public ExecutableAction create(IbmWatsonxEmbeddingsModel model, Map<String, Object> taskSettings) {
-        var requestManager = new IbmWatsonxEmbeddingsRequestManager(model, serviceComponents.truncator(), serviceComponents.threadPool());
         var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(model.uri(), "IBM WatsonX embeddings");
-        return new SenderExecutableAction(sender, requestManager, failedToSendRequestErrorMessage);
+        return new SenderExecutableAction(
+            sender,
+            getEmbeddingsRequestManager(model, serviceComponents.truncator(), serviceComponents.threadPool()),
+            failedToSendRequestErrorMessage
+        );
+    }
+
+    protected IbmWatsonxEmbeddingsRequestManager getEmbeddingsRequestManager(
+        IbmWatsonxEmbeddingsModel model,
+        Truncator truncator,
+        ThreadPool threadPool
+    ) {
+        return new IbmWatsonxEmbeddingsRequestManager(model, truncator, threadPool);
     }
 }

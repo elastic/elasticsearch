@@ -529,7 +529,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         if (exclude != null) {
             a = Operations.minus(a, exclude.toAutomaton(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         }
-        return a;
+        return Operations.determinize(a, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
     public StringFilter convertToStringFilter(DocValueFormat format) {

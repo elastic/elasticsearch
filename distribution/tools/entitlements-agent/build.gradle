@@ -1,5 +1,3 @@
-import static java.util.stream.Collectors.joining
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the "Elastic License
@@ -28,8 +26,6 @@ tasks.named("test").configure {
 
 test {
   dependsOn(jar)
-  def runtimeJars = configurations.entitlementRuntime.files.stream().map(File::toString).collect(joining(File.pathSeparator))
-  jvmArgs "-Dentitlements.runtimeJars=$runtimeJars"
   jvmArgs "-javaagent:${jar.archiveFile.get().asFile}"
 }
 

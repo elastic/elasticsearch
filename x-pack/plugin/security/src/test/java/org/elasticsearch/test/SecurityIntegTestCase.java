@@ -389,20 +389,6 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         assertSecurityIndexActive(cluster());
     }
 
-    protected void createSecurityIndex() {
-        final Client client = client().filterWithHeader(
-            Collections.singletonMap(
-                "Authorization",
-                UsernamePasswordToken.basicAuthHeaderValue(
-                    SecuritySettingsSource.ES_TEST_ROOT_USER,
-                    SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING
-                )
-            )
-        );
-        CreateIndexRequest createIndexRequest = new CreateIndexRequest(SECURITY_MAIN_ALIAS);
-        client.admin().indices().create(createIndexRequest).actionGet();
-    }
-
     public void assertSecurityIndexActive(TestCluster testCluster) throws Exception {
         for (Client client : testCluster.getClients()) {
             assertBusy(() -> {
@@ -438,7 +424,21 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         }
     }
 
-    private static Index resolveSecurityIndex(Metadata metadata) {
+    protected void createSecurityIndex() {
+        final Client client = client().filterWithHeader(
+            Collections.singletonMap(
+                "Authorization",
+                UsernamePasswordToken.basicAuthHeaderValue(
+                    SecuritySettingsSource.ES_TEST_ROOT_USER,
+                    SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING
+                )
+            )
+        );
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(SECURITY_MAIN_ALIAS);
+        client.admin().indices().create(createIndexRequest).actionGet();
+    }
+
+    protected static Index resolveSecurityIndex(Metadata metadata) {
         final IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(SECURITY_MAIN_ALIAS);
         if (indexAbstraction != null) {
             return indexAbstraction.getIndices().get(0);

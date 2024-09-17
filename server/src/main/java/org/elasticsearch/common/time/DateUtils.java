@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.time;
@@ -389,8 +390,9 @@ public class DateUtils {
     }
 
     // check for all textual fields, and localized zone offset
+    // the weird thing with Z is to ONLY match 4 in a row, with no Z before or after (but those groups can also be empty)
     private static final Predicate<String> CONTAINS_CHANGING_TEXT_SPECIFIERS = System.getProperty("java.locale.providers", "")
-        .contains("COMPAT") ? Pattern.compile("[EcGaO]|MMM|LLL|eee|ccc|QQQ|ZZZZ").asPredicate() : Predicates.never();
+        .contains("COMPAT") ? Pattern.compile("[BEGOavz]|LLL|MMM|QQQ|ccc|eee|(?<!Z)Z{4}(?!Z)").asPredicate() : Predicates.never();
 
     @UpdateForV9    // this can be removed, we will only use CLDR on v9
     static void checkTextualDateFormats(String format) {

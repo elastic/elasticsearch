@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations;
 
@@ -83,7 +84,7 @@ public abstract class InternalOrder extends BucketOrder {
         }
 
         @Override
-        public <B extends InternalMultiBucketAggregation.InternalBucket> Comparator<DelayedBucket<B>> delayedBucketComparator(
+        <B extends InternalMultiBucketAggregation.InternalBucket> Comparator<DelayedBucket<B>> delayedBucketComparator(
             BiFunction<List<B>, AggregationReduceContext, B> reduce,
             AggregationReduceContext reduceContext
         ) {
@@ -218,7 +219,7 @@ public abstract class InternalOrder extends BucketOrder {
         }
 
         @Override
-        public <B extends InternalMultiBucketAggregation.InternalBucket> Comparator<DelayedBucket<B>> delayedBucketComparator(
+        <B extends InternalMultiBucketAggregation.InternalBucket> Comparator<DelayedBucket<B>> delayedBucketComparator(
             BiFunction<List<B>, AggregationReduceContext, B> reduce,
             AggregationReduceContext reduceContext
         ) {
@@ -286,7 +287,7 @@ public abstract class InternalOrder extends BucketOrder {
         }
 
         @Override
-        public <B extends InternalMultiBucketAggregation.InternalBucket> Comparator<DelayedBucket<B>> delayedBucketComparator(
+        <B extends InternalMultiBucketAggregation.InternalBucket> Comparator<DelayedBucket<B>> delayedBucketComparator(
             BiFunction<List<B>, AggregationReduceContext, B> reduce,
             AggregationReduceContext reduceContext
         ) {

@@ -57,9 +57,14 @@ public class RestPutPipelineAction extends BaseRestHandler {
         }
 
         Tuple<XContentType, BytesReference> sourceTuple = restRequest.contentOrSourceParam();
-        PutPipelineRequest request = new PutPipelineRequest(restRequest.param("id"), sourceTuple.v2(), sourceTuple.v1(), ifVersion);
-        request.masterNodeTimeout(getMasterNodeTimeout(restRequest));
-        request.ackTimeout(getAckTimeout(restRequest));
+        final var request = new PutPipelineRequest(
+            getMasterNodeTimeout(restRequest),
+            getAckTimeout(restRequest),
+            restRequest.param("id"),
+            sourceTuple.v2(),
+            sourceTuple.v1(),
+            ifVersion
+        );
         return channel -> client.execute(PutPipelineTransportAction.TYPE, request, new RestToXContentListener<>(channel));
     }
 }

@@ -9,23 +9,9 @@ package org.elasticsearch.xpack.core.common.notifications;
 import java.util.Locale;
 
 public enum Level {
-    INFO {
-        public org.apache.logging.log4j.Level log4jLevel() {
-            return org.apache.logging.log4j.Level.INFO;
-        }
-    },
-    WARNING {
-        public org.apache.logging.log4j.Level log4jLevel() {
-            return org.apache.logging.log4j.Level.WARN;
-        }
-    },
-    ERROR {
-        public org.apache.logging.log4j.Level log4jLevel() {
-            return org.apache.logging.log4j.Level.ERROR;
-        }
-    };
-
-    public abstract org.apache.logging.log4j.Level log4jLevel();
+    INFO,
+    WARNING,
+    ERROR;
 
     /**
      * Case-insensitive from string method.

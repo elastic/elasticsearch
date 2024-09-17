@@ -46,7 +46,6 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -67,7 +66,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
-import java.io.OutputStream;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -196,15 +195,15 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
             this.targetUploadsCounter = new AtomicInteger(this.targetUploads);
             this.statelessMockRepositoryStrategy = new StatelessMockRepositoryStrategy() {
                 @Override
-                public void blobContainerWriteMetadataBlob(
-                    CheckedRunnable<IOException> original,
+                public void blobContainerWriteBlobAtomic(
+                    CheckedRunnable<IOException> originalRunnable,
                     OperationPurpose purpose,
                     String blobName,
-                    boolean failIfAlreadyExists,
-                    boolean atomic,
-                    CheckedConsumer<OutputStream, IOException> writer
+                    InputStream inputStream,
+                    long blobSize,
+                    boolean failIfAlreadyExists
                 ) throws IOException {
-                    super.blobContainerWriteMetadataBlob(original, purpose, blobName, failIfAlreadyExists, atomic, writer);
+                    super.blobContainerWriteBlobAtomic(originalRunnable, purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
                     if (StatelessCompoundCommit.startsWithBlobPrefix(blobName)) {
                         if (TrackedCluster.this.targetUploadsCounter.decrementAndGet() == 0) {
                             stopLatch.countDown();

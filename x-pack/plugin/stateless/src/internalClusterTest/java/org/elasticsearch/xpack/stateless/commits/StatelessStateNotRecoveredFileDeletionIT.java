@@ -44,6 +44,7 @@ import org.elasticsearch.test.LambdaMatchers;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Collection;
 import java.util.concurrent.Semaphore;
@@ -220,6 +221,23 @@ public class StatelessStateNotRecoveredFileDeletionIT extends AbstractStatelessI
 
     private static class BlockUploads extends StatelessMockRepositoryStrategy {
         private Semaphore blocker = new Semaphore(Integer.MAX_VALUE);
+
+        @Override
+        public void blobContainerWriteBlobAtomic(
+            CheckedRunnable<IOException> originalRunnable,
+            OperationPurpose purpose,
+            String blobName,
+            InputStream inputStream,
+            long blobSize,
+            boolean failIfAlreadyExists
+        ) throws IOException {
+            safeAcquire(blocker);
+            try {
+                super.blobContainerWriteBlobAtomic(originalRunnable, purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
+            } finally {
+                blocker.release();
+            }
+        }
 
         @Override
         public void blobContainerWriteMetadataBlob(

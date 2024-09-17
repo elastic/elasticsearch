@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import joptsimple.internal.Strings;
+
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
@@ -16,7 +18,6 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -36,13 +37,16 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
@@ -118,8 +122,7 @@ public final class DocumentParser {
         };
     }
 
-    private static void internalParseDocument(MetadataFieldMapper[] metadataFieldsMappers, DocumentParserContext context) {
-
+    private void internalParseDocument(MetadataFieldMapper[] metadataFieldsMappers, DocumentParserContext context) {
         try {
             final boolean emptyDoc = isEmptyDoc(context.root(), context.parser());
 
@@ -147,12 +150,131 @@ public final class DocumentParser {
 
             executeIndexTimeScripts(context);
 
+            // Record additional entries for {@link IgnoredSourceFieldMapper} before calling #postParse, so that they get stored.
+            addIgnoredSourceMissingValues(context);
+
             for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
                 metadataMapper.postParse(context);
             }
         } catch (Exception e) {
             throw wrapInDocumentParsingException(context, e);
         }
+    }
+
+    private void addIgnoredSourceMissingValues(DocumentParserContext context) throws IOException {
+        Collection<IgnoredSourceFieldMapper.NameValue> ignoredFieldsMissingValues = context.getIgnoredFieldsMissingValues();
+        if (ignoredFieldsMissingValues.isEmpty()) {
+            return;
+        }
+
+        try (
+            XContentParser parser = XContentHelper.createParser(
+                parserConfiguration,
+                context.sourceToParse().source(),
+                context.sourceToParse().getXContentType()
+            )
+        ) {
+            DocumentParserContext newContext = new RootDocumentParserContext(
+                context.mappingLookup(),
+                mappingParserContext,
+                context.sourceToParse(),
+                parser
+            );
+            var nameValues = parseDocForMissingValues(newContext, ignoredFieldsMissingValues);
+            for (var nameValue : nameValues) {
+                context.addIgnoredField(nameValue);
+            }
+        }
+    }
+
+    /**
+     * Simplified parsing version for retrieving the source of a given
+     */
+    private static List<IgnoredSourceFieldMapper.NameValue> parseDocForMissingValues(
+        DocumentParserContext context,
+        Collection<IgnoredSourceFieldMapper.NameValue> ignoredFieldsMissingValues
+    ) throws IOException {
+        // Maps full name to the corresponding NameValue entry.
+        Map<String, IgnoredSourceFieldMapper.NameValue> fields = new HashMap<>();
+        for (var field : ignoredFieldsMissingValues) {
+            fields.put(field.name(), field);
+        }
+
+        // Generate all possible parent names for the given fields.
+        // This is used to skip processing objects that can't generate missing values.
+        Set<String> parentNames = getPossibleParentNames(fields.keySet());
+        List<IgnoredSourceFieldMapper.NameValue> result = new ArrayList<>();
+
+        XContentParser parser = context.parser();
+        XContentParser.Token currentToken = parser.nextToken();
+        List<String> path = new ArrayList<>();
+        String fieldName = null;
+        while (currentToken != null) {
+            while (currentToken != XContentParser.Token.FIELD_NAME) {
+                if (fieldName != null
+                    && (currentToken == XContentParser.Token.START_OBJECT || currentToken == XContentParser.Token.START_ARRAY)) {
+                    if (parentNames.contains(getCurrentPath(path, fieldName)) == false) {
+                        // No missing value under this parsing subtree, skip it.
+                        parser.skipChildren();
+                    } else {
+                        path.add(fieldName);
+                    }
+                    fieldName = null;
+                } else if (currentToken == XContentParser.Token.END_OBJECT || currentToken == XContentParser.Token.END_ARRAY) {
+                    if (path.isEmpty() == false) {
+                        path.removeLast();
+                    }
+                    fieldName = null;
+                }
+                currentToken = parser.nextToken();
+                if (currentToken == null) {
+                    return result;
+                }
+            }
+            fieldName = parser.currentName();
+            String fullName = getCurrentPath(path, fieldName);
+            var leaf = fields.remove(fullName);
+            if (leaf != null) {
+                parser.nextToken();  // Advance the parser to the value to be read.
+                result.add(leaf.cloneWithValue(XContentDataHelper.encodeToken(parser)));
+            }
+            if (fields.isEmpty()) {
+                break;
+            }
+            currentToken = parser.nextToken();
+        }
+        return result;
+    }
+
+    private static String getCurrentPath(List<String> path, String fieldName) {
+        assert fieldName != null;
+        return path.isEmpty() ? fieldName : Strings.join(path, ".") + "." + fieldName;
+    }
+
+    /**
+     * Generates all possible parent object names for the given full names.
+     * For instance, for input ['path.to.foo', 'another.path.to.bar'], it returns:
+     * [ 'path', 'path.to', 'another', 'another.path', 'another.path.to' ]
+     */
+    private static Set<String> getPossibleParentNames(Set<String> fullPaths) {
+        if (fullPaths.isEmpty()) {
+            return Collections.emptySet();
+        }
+        Set<String> paths = new HashSet<>();
+        for (String fullPath : fullPaths) {
+            String[] split = fullPath.split("\\.");
+            if (split.length < 2) {
+                continue;
+            }
+            StringBuilder builder = new StringBuilder(split[0]);
+            paths.add(builder.toString());
+            for (int i = 1; i < split.length - 1; i++) {
+                builder.append(".");
+                builder.append(split[i]);
+                paths.add(builder.toString());
+            }
+        }
+        return paths;
     }
 
     private static void executeIndexTimeScripts(DocumentParserContext context) {
@@ -299,16 +421,15 @@ public final class DocumentParser {
         if (context.parent().isNested()) {
             // Handle a nested object that doesn't contain an array. Arrays are handled in #parseNonDynamicArray.
             if (context.parent().storeArraySource() && context.canAddIgnoredField()) {
-                Tuple<DocumentParserContext, XContentBuilder> tuple = XContentDataHelper.cloneSubContext(context);
-                context.addIgnoredField(
+                context.addIgnoredFieldMissingValue(
                     new IgnoredSourceFieldMapper.NameValue(
                         context.parent().fullPath(),
                         context.parent().fullPath().lastIndexOf(context.parent().leafName()),
-                        XContentDataHelper.encodeXContentBuilder(tuple.v2()),
+                        null,
                         context.doc()
                     )
                 );
-                context = tuple.v1();
+                context = XContentDataHelper.cloneSubContextWithRecordedSource(context);
                 token = context.parser().currentToken();
                 parser = context.parser();
             }
@@ -445,17 +566,10 @@ public final class DocumentParser {
                 if (context.canAddIgnoredField()
                     && (fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK
                         || (context.isWithinCopyTo() == false && context.isCopyToDestinationField(mapper.fullPath())))) {
-                    Tuple<DocumentParserContext, XContentBuilder> contextWithSourceToStore = XContentDataHelper.cloneSubContext(context);
-
-                    context.addIgnoredField(
-                        IgnoredSourceFieldMapper.NameValue.fromContext(
-                            context,
-                            fieldMapper.fullPath(),
-                            XContentDataHelper.encodeXContentBuilder(contextWithSourceToStore.v2())
-                        )
+                    context.addIgnoredFieldMissingValue(
+                        IgnoredSourceFieldMapper.NameValue.fromContext(context, fieldMapper.fullPath(), null)
                     );
-
-                    fieldMapper.parse(contextWithSourceToStore.v1());
+                    fieldMapper.parse(XContentDataHelper.cloneSubContextWithRecordedSource(context));
                 } else {
                     fieldMapper.parse(context);
                 }
@@ -554,15 +668,10 @@ public final class DocumentParser {
                 dynamicObjectMapper = new NoOpObjectMapper(currentFieldName, context.path().pathAsText(currentFieldName));
                 if (context.canAddIgnoredField()) {
                     // Clone the DocumentParserContext to parse its subtree twice.
-                    Tuple<DocumentParserContext, XContentBuilder> tuple = XContentDataHelper.cloneSubContext(context);
-                    context.addIgnoredField(
-                        IgnoredSourceFieldMapper.NameValue.fromContext(
-                            context,
-                            context.path().pathAsText(currentFieldName),
-                            XContentDataHelper.encodeXContentBuilder(tuple.v2())
-                        )
+                    context.addIgnoredFieldMissingValue(
+                        IgnoredSourceFieldMapper.NameValue.fromContext(context, context.path().pathAsText(currentFieldName), null)
                     );
-                    context = tuple.v1();
+                    context = XContentDataHelper.cloneSubContextWithRecordedSource(context);
                 }
             } else {
                 dynamicObjectMapper = DynamicFieldsBuilder.createDynamicObjectMapper(context, currentFieldName);
@@ -686,6 +795,12 @@ public final class DocumentParser {
         final String lastFieldName,
         String arrayFieldName
     ) throws IOException {
+        // In synthetic source, if any array element requires storing its source as-is, it takes precedence over
+        // other elements that are then skipped from the synthesized array source.
+        // To prevent this, we pre-emptively track the top array (may contain more arrays in its elements),
+        // and store it as a whole when any sub-object or sub-array requires storing its source.
+        context = context.maybeCloneForArray(arrayFieldName);
+
         // Check if we need to record the array source. This only applies to synthetic source.
         if (context.canAddIgnoredField()) {
             String fullPath = context.path().pathAsText(arrayFieldName);
@@ -706,11 +821,7 @@ public final class DocumentParser {
                 || dynamicRuntimeContext
                 || fieldWithStoredArraySource
                 || copyToFieldHasValuesInDocument) {
-                Tuple<DocumentParserContext, XContentBuilder> tuple = XContentDataHelper.cloneSubContext(context);
-                context.addIgnoredField(
-                    IgnoredSourceFieldMapper.NameValue.fromContext(context, fullPath, XContentDataHelper.encodeXContentBuilder(tuple.v2()))
-                );
-                context = tuple.v1();
+                context.addIgnoredFieldMissingValue(null);  // Marks the parent array for storing its source.
             } else if (mapper instanceof ObjectMapper objectMapper
                 && (objectMapper.isEnabled() == false || objectMapper.dynamic == ObjectMapper.Dynamic.FALSE)) {
                     context.addIgnoredField(

@@ -118,9 +118,6 @@ tests:
 - class: org.elasticsearch.search.retriever.RankDocRetrieverBuilderIT
   method: testRankDocsRetrieverWithCollapse
   issue: https://github.com/elastic/elasticsearch/issues/112254
-- class: org.elasticsearch.datastreams.logsdb.qa.StandardVersusLogsIndexModeRandomDataChallengeRestIT
-  method: testMatchAllQuery
-  issue: https://github.com/elastic/elasticsearch/issues/112374
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/rest-api/watcher/put-watch/line_120}
   issue: https://github.com/elastic/elasticsearch/issues/99517
@@ -212,12 +209,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/112823
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   issue: https://github.com/elastic/elasticsearch/issues/111944
-- class: org.elasticsearch.datastreams.logsdb.qa.StandardVersusLogsIndexModeRandomDataChallengeRestIT
-  method: testDateHistogramAggregation
-  issue: https://github.com/elastic/elasticsearch/issues/112919
-- class: org.elasticsearch.datastreams.logsdb.qa.StandardVersusLogsIndexModeRandomDataChallengeRestIT
-  method: testTermsQuery
-  issue: https://github.com/elastic/elasticsearch/issues/112462
 
 # Examples:
 #

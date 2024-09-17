@@ -104,8 +104,12 @@ public abstract class DocumentParserContext {
     private final MappingLookup mappingLookup;
     private final MappingParserContext mappingParserContext;
     private final SourceToParse sourceToParse;
+
     private final Set<String> ignoredFields;
     private final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues;
+    private final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldsMissingValues;
+    private IgnoredSourceFieldMapper.NameValue arrayFieldMissingValue;
+
     private final Map<String, List<Mapper>> dynamicMappers;
     private final DynamicMapperSize dynamicMappersSize;
     private final Map<String, ObjectMapper> dynamicObjectMappers;
@@ -125,8 +129,8 @@ public abstract class DocumentParserContext {
      */
     private final Set<String> copyToFields;
 
-    // Indicates if the source for this context has been cloned and gets parsed multiple times.
-    private boolean clonedSource;
+    // Indicates if the source for this context has been marked to be recorded. Applies to synthetic source only.
+    private boolean recordedSource;
 
     private DocumentParserContext(
         MappingLookup mappingLookup,
@@ -134,6 +138,8 @@ public abstract class DocumentParserContext {
         SourceToParse sourceToParse,
         Set<String> ignoreFields,
         List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues,
+        List<IgnoredSourceFieldMapper.NameValue> ignoredFieldsWithNoSource,
+        IgnoredSourceFieldMapper.NameValue arrayFieldWithNoSource,
         Map<String, List<Mapper>> dynamicMappers,
         Map<String, ObjectMapper> dynamicObjectMappers,
         Map<String, List<RuntimeField>> dynamicRuntimeFields,
@@ -153,6 +159,8 @@ public abstract class DocumentParserContext {
         this.sourceToParse = sourceToParse;
         this.ignoredFields = ignoreFields;
         this.ignoredFieldValues = ignoredFieldValues;
+        this.ignoredFieldsMissingValues = ignoredFieldsWithNoSource;
+        this.arrayFieldMissingValue = arrayFieldWithNoSource;
         this.dynamicMappers = dynamicMappers;
         this.dynamicObjectMappers = dynamicObjectMappers;
         this.dynamicRuntimeFields = dynamicRuntimeFields;
@@ -165,7 +173,7 @@ public abstract class DocumentParserContext {
         this.fieldsAppliedFromTemplates = fieldsAppliedFromTemplates;
         this.copyToFields = copyToFields;
         this.dynamicMappersSize = dynamicMapperSize;
-        this.clonedSource = clonedSource;
+        this.recordedSource = clonedSource;
     }
 
     private DocumentParserContext(ObjectMapper parent, ObjectMapper.Dynamic dynamic, DocumentParserContext in) {
@@ -175,6 +183,8 @@ public abstract class DocumentParserContext {
             in.sourceToParse,
             in.ignoredFields,
             in.ignoredFieldValues,
+            in.ignoredFieldsMissingValues,
+            in.arrayFieldMissingValue,
             in.dynamicMappers,
             in.dynamicObjectMappers,
             in.dynamicRuntimeFields,
@@ -187,7 +197,7 @@ public abstract class DocumentParserContext {
             in.fieldsAppliedFromTemplates,
             in.copyToFields,
             in.dynamicMappersSize,
-            in.clonedSource
+            in.recordedSource
         );
     }
 
@@ -204,6 +214,8 @@ public abstract class DocumentParserContext {
             source,
             new HashSet<>(),
             new ArrayList<>(),
+            new ArrayList<>(),
+            null,
             new HashMap<>(),
             new HashMap<>(),
             new HashMap<>(),
@@ -288,6 +300,44 @@ public abstract class DocumentParserContext {
     }
 
     /**
+     * Adds an ignored field with missing value, that will be retrieved from the source on a subsequent parsing pass.
+     */
+    public final void addIgnoredFieldMissingValue(IgnoredSourceFieldMapper.NameValue ignoredFieldWithNoSource) {
+        if (canAddIgnoredField()) {
+            if (arrayFieldMissingValue != null) {
+                // The field is within an array, store the full array instead.
+                ignoredFieldsMissingValues.add(arrayFieldMissingValue);
+                recordedSource = true;
+            } else {
+                assert ignoredFieldWithNoSource != null;
+                assert ignoredFieldWithNoSource.value() == null;
+                ignoredFieldsMissingValues.add(ignoredFieldWithNoSource);
+            }
+        }
+    }
+
+    /**
+     * Return the collection of fields that are missing their source values.
+     */
+    public final Collection<IgnoredSourceFieldMapper.NameValue> getIgnoredFieldsMissingValues() {
+        return Collections.unmodifiableCollection(ignoredFieldsMissingValues);
+    }
+
+    /**
+     * Clones the current context if this is the first array in the stack.
+     * Records the information for retrieving and storing the array source if needed.
+     * Applies to synthetic source only.
+     */
+    public final DocumentParserContext maybeCloneForArray(String leafName) throws IOException {
+        if (canAddIgnoredField() && arrayFieldMissingValue == null) {
+            DocumentParserContext subcontext = switchParser(parser());
+            subcontext.arrayFieldMissingValue = IgnoredSourceFieldMapper.NameValue.fromContext(this, path().pathAsText(leafName), null);
+            return subcontext;
+        }
+        return this;
+    }
+
+    /**
      * Add the given {@code field} to the _field_names field
      *
      * Use this if an exists query run against the field cannot use docvalues
@@ -324,16 +374,16 @@ public abstract class DocumentParserContext {
         return this.seqID;
     }
 
-    final void setClonedSource() {
-        this.clonedSource = true;
+    final void setRecordedSource() {
+        this.recordedSource = true;
     }
 
-    final boolean getClonedSource() {
-        return clonedSource;
+    final boolean getRecordedSource() {
+        return recordedSource;
     }
 
     public final boolean canAddIgnoredField() {
-        return mappingLookup.isSourceSynthetic() && clonedSource == false;
+        return mappingLookup.isSourceSynthetic() && recordedSource == false;
     }
 
     Mapper.SourceKeepMode sourceKeepModeFromIndexSettings() {

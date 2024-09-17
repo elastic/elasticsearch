@@ -759,6 +759,49 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             {"path":[{"to":[{"name":"A"},{"name":"B"}]},{"to":[{"name":"C"},{"name":"D"}]}]}""", booleanValue), syntheticSource);
     }
 
+    public void testObjectArrayAndValue() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path");
+            {
+                b.field("type", "object");
+                b.startObject("properties");
+                {
+                    b.startObject("stored");
+                    {
+                        b.field("type", "object").field("store_array_source", true);
+                        b.startObject("properties").startObject("leaf").field("type", "integer").endObject().endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+        // { "path": [ { "stored":[ { "leaf": 10 } ] }, { "stored": { "leaf": 20 } } ] }
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startArray("path");
+            {
+                b.startObject();
+                {
+                    b.startArray("stored");
+                    {
+                        b.startObject().field("leaf", 10).endObject();
+                    }
+                    b.endArray();
+                }
+                b.endObject();
+                b.startObject();
+                {
+                    b.startObject("stored").field("leaf", 20).endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        });
+        assertEquals("""
+            {"path":[{"stored":[{"leaf":10}]},{"stored":{"leaf":20}}]}""", syntheticSource);
+    }
+
     public void testDisabledObjectWithinHigherLevelArray() throws IOException {
         DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
             b.startObject("path");
@@ -852,7 +895,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             b.endArray();
         });
         assertEquals(String.format(Locale.ROOT, """
-            {"path":{"to":[{"name":"A"},{"name":"B"},{"name":"C"},{"name":"D"}]}}""", booleanValue), syntheticSource);
+            {"path":[{"to":[{"name":"A"},{"name":"B"}]},{"to":[{"name":"C"},{"name":"D"}]}]}""", booleanValue), syntheticSource);
     }
 
     public void testFallbackFieldWithinHigherLevelArray() throws IOException {
@@ -882,7 +925,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             b.endArray();
         });
         assertEquals(String.format(Locale.ROOT, """
-            {"path":{"name":["A","B","C","D"]}}""", booleanValue), syntheticSource);
+            {"path":[{"name":"A"},{"name":"B"},{"name":"C"},{"name":"D"}]}""", booleanValue), syntheticSource);
     }
 
     public void testFieldOrdering() throws IOException {

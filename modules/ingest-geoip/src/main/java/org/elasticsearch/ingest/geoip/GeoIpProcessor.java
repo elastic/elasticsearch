@@ -30,7 +30,6 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
@@ -222,7 +221,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         Map<String, Object> geoData = new HashMap<>();
         for (Property property : this.properties) {
             switch (property) {
-                case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                case IP -> geoData.put("ip", response.getTraits().getIpAddress());
                 case COUNTRY_ISO_CODE -> {
                     String countryIsoCode = country.getIsoCode();
                     if (countryIsoCode != null) {
@@ -301,7 +300,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         Map<String, Object> geoData = new HashMap<>();
         for (Property property : this.properties) {
             switch (property) {
-                case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                case IP -> geoData.put("ip", response.getTraits().getIpAddress());
                 case COUNTRY_ISO_CODE -> {
                     String countryIsoCode = country.getIsoCode();
                     if (countryIsoCode != null) {
@@ -343,7 +342,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         Map<String, Object> geoData = new HashMap<>();
         for (Property property : this.properties) {
             switch (property) {
-                case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                case IP -> geoData.put("ip", response.getIpAddress());
                 case ASN -> {
                     if (asn != null) {
                         geoData.put("asn", asn);
@@ -380,7 +379,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         Map<String, Object> geoData = new HashMap<>();
         for (Property property : this.properties) {
             switch (property) {
-                case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                case IP -> geoData.put("ip", response.getIpAddress());
                 case HOSTING_PROVIDER -> {
                     geoData.put("hosting_provider", isHostingProvider);
                 }
@@ -415,7 +414,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         Map<String, Object> geoData = new HashMap<>();
         for (Property property : this.properties) {
             switch (property) {
-                case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                case IP -> geoData.put("ip", response.getIpAddress());
                 case CONNECTION_TYPE -> {
                     if (connectionType != null) {
                         geoData.put("connection_type", connectionType.toString());
@@ -437,7 +436,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         Map<String, Object> geoData = new HashMap<>();
         for (Property property : this.properties) {
             switch (property) {
-                case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                case IP -> geoData.put("ip", response.getIpAddress());
                 case DOMAIN -> {
                     if (domain != null) {
                         geoData.put("domain", domain);
@@ -485,7 +484,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         Map<String, Object> geoData = new HashMap<>();
         for (Property property : this.properties) {
             switch (property) {
-                case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                case IP -> geoData.put("ip", response.getTraits().getIpAddress());
                 case COUNTRY_ISO_CODE -> {
                     String countryIsoCode = country.getIsoCode();
                     if (countryIsoCode != null) {
@@ -638,7 +637,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         Map<String, Object> geoData = new HashMap<>();
         for (Property property : this.properties) {
             switch (property) {
-                case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                case IP -> geoData.put("ip", response.getIpAddress());
                 case ASN -> {
                     if (asn != null) {
                         geoData.put("asn", asn);

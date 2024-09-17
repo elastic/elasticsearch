@@ -1864,7 +1864,15 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
         while (inFlightAsyncOperations.size() > MAX_IN_FLIGHT_ASYNC_INDEXES) {
             int waitFor = between(0, inFlightAsyncOperations.size() - 1);
-            safeAwait(inFlightAsyncOperations.remove(waitFor));
+            try {
+                assertTrue(
+                    "operation did not complete within timeout",
+                    inFlightAsyncOperations.remove(waitFor).await(60, TimeUnit.SECONDS)
+                );
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                fail(e, "interrupted while waiting for operation to complete");
+            }
         }
     }
 

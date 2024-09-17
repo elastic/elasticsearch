@@ -1,5 +1,8 @@
 ---
 flattened ignore_above single-value field:
+  - requires:
+      cluster_features: [ "flattened.ignore_above_support" ]
+      reason: introduce ignore_above support in flattened fields
   - do:
       indices.create:
         index: test
@@ -57,6 +60,9 @@ flattened ignore_above single-value field:
 
 ---
 flattened ignore_above multi-value field:
+  - requires:
+      cluster_features: [ "flattened.ignore_above_support" ]
+      reason: introduce ignore_above support in flattened fields
   - do:
       indices.create:
         index: test

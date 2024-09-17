@@ -652,7 +652,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("n1=[5, 6, 7] is not supported as a parameter"));
     }
 
-    public void testNamedParamsForFieldNamesAndFieldNamePatterns() throws IOException {
+    public void testNamedParamsForIdentifierAndIdentifierPatterns() throws IOException {
         bulkLoadTestData(10);
         var query = requestObjectBuilder().query(
             format(
@@ -746,6 +746,28 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         error = re.getMessage();
         assertThat(error, containsString("VerificationException"));
         assertThat(error, containsString("Field name pattern [keyword*] is not supported"));
+
+        re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(
+                requestObjectBuilder().query(format(null, "from {} | stats x = ?n1(*)", testIndexName()))
+                    .params("[{\"n1\" : {\"value\" : \"count*\" , \"identifier\" : true}}]")
+            )
+        );
+        error = re.getMessage();
+        assertThat(error, containsString("VerificationException"));
+        assertThat(error, containsString("Unknown function [count*], did you mean any of [count, round, mv_count]"));
+
+        re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(
+                requestObjectBuilder().query(format(null, "from {} | stats x = ?n1(*)", testIndexName()))
+                    .params("[{\"n1\" : {\"value\" : \"count*\" , \"identifierpattern\" : true}}]")
+            )
+        );
+        error = re.getMessage();
+        assertThat(error, containsString("ParsingException"));
+        assertThat(error, containsString("Field name pattern [count*] is not supported"));
     }
 
     public void testErrorMessageForLiteralDateMathOverflow() throws IOException {

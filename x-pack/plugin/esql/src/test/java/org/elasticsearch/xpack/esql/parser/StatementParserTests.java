@@ -1449,7 +1449,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(((Literal) ((Add) eval.fields().get(0).child()).right().children().get(0)).value(), equalTo("3 days"));
     }
 
-    public void testParamForFieldFunctionName() {
+    public void testParamForIdentifier() {
         // field names can appear in eval/where/stats/sort/keep/drop/rename/dissect/grok/enrich/mvexpand
         // eval, where, stats, sort, mv_expand
         assertEquals(
@@ -1713,7 +1713,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
-    public void testParamForPattern() {
+    public void testParamForIdentifierPattern() {
         // name patterns can appear in keep and drop
         // all patterns
         LogicalPlan plan = statement(

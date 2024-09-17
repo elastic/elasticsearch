@@ -76,14 +76,16 @@ breaking change].
 
     The +default+ value compresses stored data with LZ4
     compression, but this can be set to +best_compression+
-    which uses {wikipedia}/DEFLATE[DEFLATE] for a higher
-    compression ratio, at the expense of slower stored fields performance.
+    which uses {wikipedia}/Zstd[ZSTD] for a higher
+    compression ratio, at the expense of slower stored fields read performance.
     If you are updating the compression type, the new one will be applied
     after segments are merged. Segment merging can be forced using
     <<indices-forcemerge,force merge>>. Experiments with indexing log datasets
-    have shown that `best_compression` gives up to ~18% lower storage usage in
-    the most ideal scenario compared to `default` while only minimally affecting
-    indexing throughput (~2%).
+    have shown that `best_compression` gives up to ~28% lower storage usage and
+    similar indexing throughput (sometimes a bit slower or faster depending on other used options) compared
+    to `default` while affecting get by id latencies between ~10% and ~33%. The higher get
+    by id latencies is not a concern for many use cases like logging or metrics, since
+    these don't really rely on get by id functionality (Get APIs or searching by _id).
 
 [[index-mode-setting]] `index.mode`::
 +

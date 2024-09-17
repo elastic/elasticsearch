@@ -476,6 +476,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
             service.chunkedInfer(
                 model,
+                null,
                 List.of("input text"),
                 new HashMap<>(),
                 InputType.INGEST,

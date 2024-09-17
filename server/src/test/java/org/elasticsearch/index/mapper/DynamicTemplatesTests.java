@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -20,10 +21,8 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.test.XContentTestUtils;
-import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -221,61 +220,25 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
     }
 
     public void testDynamicMapperWithBadMapping() throws IOException {
-        {
-            // in 7.x versions this will issue a deprecation warning
-            IndexVersion version = IndexVersionUtils.randomVersionBetween(
-                random(),
-                IndexVersions.V_7_0_0,
-                IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
-            );
-            DocumentMapper mapper = createDocumentMapper(version, topMapping(b -> {
-                b.startArray("dynamic_templates");
+        // in 8.x it will error out
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
                 {
-                    b.startObject();
+                    b.startObject("test");
                     {
-                        b.startObject("test");
-                        {
-                            b.field("match_mapping_type", "string");
-                            b.startObject("mapping").field("badparam", false).endObject();
-                        }
-                        b.endObject();
+                        b.field("match_mapping_type", "string");
+                        b.startObject("mapping").field("badparam", false).endObject();
                     }
                     b.endObject();
                 }
-                b.endArray();
-            }));
-            assertWarnings(
-                "Parameter [badparam] is used in a dynamic template mapping and has no effect on type [null]. "
-                    + "Usage will result in an error in future major versions and should be removed."
-            );
-            mapper.parse(source(b -> b.field("field", "foo")));
-            assertWarnings(
-                "Parameter [badparam] is used in a dynamic template mapping and has no effect on type [null]. "
-                    + "Usage will result in an error in future major versions and should be removed."
-            );
-        }
-
-        {
-            // in 8.x it will error out
-            Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(topMapping(b -> {
-                b.startArray("dynamic_templates");
-                {
-                    b.startObject();
-                    {
-                        b.startObject("test");
-                        {
-                            b.field("match_mapping_type", "string");
-                            b.startObject("mapping").field("badparam", false).endObject();
-                        }
-                        b.endObject();
-                    }
-                    b.endObject();
-                }
-                b.endArray();
-            })));
-            assertThat(e.getMessage(), containsString("dynamic template [test] has invalid content"));
-            assertThat(e.getCause().getMessage(), containsString("badparam"));
-        }
+                b.endObject();
+            }
+            b.endArray();
+        })));
+        assertThat(e.getMessage(), containsString("dynamic template [test] has invalid content"));
+        assertThat(e.getCause().getMessage(), containsString("badparam"));
     }
 
     public void testDynamicRuntimeWithBadMapping() {
@@ -675,35 +638,6 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             containsString("attempted to validate it with the following match_mapping_type: " + "[string, long, double, boolean, date]")
         );
         assertEquals("unknown parameter [foo] on runtime field [__dynamic__my_template] of type [date]", e.getRootCause().getMessage());
-    }
-
-    public void testIllegalDynamicTemplate7DotXIndex() throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder();
-        mapping.startObject();
-        {
-            mapping.startObject(MapperService.SINGLE_MAPPING_NAME);
-            mapping.startArray("dynamic_templates");
-            {
-                mapping.startObject();
-                mapping.startObject("my_template");
-                mapping.field("match_mapping_type", "string");
-                mapping.startObject("mapping");
-                mapping.field("type", "string");
-                mapping.endObject();
-                mapping.endObject();
-                mapping.endObject();
-            }
-            mapping.endArray();
-            mapping.endObject();
-        }
-        mapping.endObject();
-        IndexVersion createdVersion = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_0_0, IndexVersions.V_7_7_0);
-        MapperService mapperService = createMapperService(createdVersion, mapping);
-        assertThat(mapperService.documentMapper().mappingSource().toString(), containsString("\"type\":\"string\""));
-        assertWarnings("""
-            dynamic template [my_template] has invalid content \
-            [{"match_mapping_type":"string","mapping":{"type":"string"}}], attempted to validate it \
-            with the following match_mapping_type: [string], last error: [No mapper found for type [string]]""");
     }
 
     public void testTemplateWithoutMatchPredicates() throws Exception {

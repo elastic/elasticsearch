@@ -121,7 +121,20 @@ public class ClusterServiceUtils {
     }
 
     public static ClusterService createClusterService(ThreadPool threadPool, DiscoveryNode localNode, ClusterSettings clusterSettings) {
-        Settings settings = Settings.builder().put("node.name", "test").put("cluster.name", "ClusterServiceTests").build();
+        return createClusterService(threadPool, localNode, Settings.EMPTY, clusterSettings);
+    }
+
+    public static ClusterService createClusterService(
+        ThreadPool threadPool,
+        DiscoveryNode localNode,
+        Settings providedSettings,
+        ClusterSettings clusterSettings
+    ) {
+        Settings settings = Settings.builder()
+            .put("node.name", "test")
+            .put("cluster.name", "ClusterServiceTests")
+            .put(providedSettings)
+            .build();
         ClusterService clusterService = new ClusterService(
             settings,
             clusterSettings,

@@ -494,10 +494,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
         doAnswer((invocationOnMock) -> {
             @SuppressWarnings("unchecked")
             ActionListener<Collection<ApplicationPrivilegeDescriptor>> callback = (ActionListener<
-                Collection<ApplicationPrivilegeDescriptor>>) invocationOnMock.getArguments()[2];
+                Collection<ApplicationPrivilegeDescriptor>>) invocationOnMock.getArguments()[3];
             privilegesHandler.accept(callback);
             return null;
-        }).when(nativePrivilegeStore).getPrivileges(anySet(), anySet(), anyActionListener());
+        }).when(nativePrivilegeStore).getPrivileges(anySet(), anySet(), eq(false), anyActionListener());
 
         final CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
             SECURITY_ENABLED_SETTINGS,
@@ -576,10 +576,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
         doAnswer((invocationOnMock) -> {
             @SuppressWarnings("unchecked")
             ActionListener<Collection<ApplicationPrivilegeDescriptor>> callback = (ActionListener<
-                Collection<ApplicationPrivilegeDescriptor>>) invocationOnMock.getArguments()[2];
+                Collection<ApplicationPrivilegeDescriptor>>) invocationOnMock.getArguments()[3];
             callback.onResponse(Collections.emptyList());
             return null;
-        }).when(nativePrivilegeStore).getPrivileges(anySet(), anySet(), anyActionListener());
+        }).when(nativePrivilegeStore).getPrivileges(anySet(), anySet(), eq(false), anyActionListener());
 
         final AtomicReference<Collection<RoleDescriptor>> effectiveRoleDescriptors = new AtomicReference<Collection<RoleDescriptor>>();
         final CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
@@ -629,7 +629,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             }
         }
         if (numberOfTimesToCall > 0 && getSuperuserRole) {
-            verify(nativePrivilegeStore).getPrivileges(eq(Set.of("*")), eq(Set.of("*")), anyActionListener());
+            verify(nativePrivilegeStore).getPrivileges(eq(Set.of("*")), eq(Set.of("*")), eq(false), anyActionListener());
             // We can't verify the contents of the Set here because the set is mutated inside the method
             verify(reservedRolesStore, times(2)).accept(anySet(), anyActionListener());
         }
@@ -997,10 +997,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
         PlainActionFuture<Role> future = new PlainActionFuture<>();
         final NativePrivilegeStore privilegeStore = mock(NativePrivilegeStore.class);
         doAnswer(inv -> {
-            assertEquals(3, inv.getArguments().length);
+            assertEquals(4, inv.getArguments().length);
             @SuppressWarnings("unchecked")
             ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener = (ActionListener<
-                Collection<ApplicationPrivilegeDescriptor>>) inv.getArguments()[2];
+                Collection<ApplicationPrivilegeDescriptor>>) inv.getArguments()[3];
             Set<ApplicationPrivilegeDescriptor> set = new HashSet<>();
             Arrays.asList("app1", "app2a", "app2b")
                 .forEach(
@@ -1011,7 +1011,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 );
             listener.onResponse(set);
             return null;
-        }).when(privilegeStore).getPrivileges(anyCollection(), anyCollection(), anyActionListener());
+        }).when(privilegeStore).getPrivileges(anyCollection(), anyCollection(), eq(false), anyActionListener());
         CompositeRolesStore.buildRoleFromDescriptors(
             Sets.newHashSet(role1, role2),
             cache,
@@ -1958,10 +1958,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener = (ActionListener<
-                Collection<ApplicationPrivilegeDescriptor>>) invocationOnMock.getArguments()[2];
+                Collection<ApplicationPrivilegeDescriptor>>) invocationOnMock.getArguments()[3];
             listener.onResponse(Collections.emptyList());
             return Void.TYPE;
-        }).when(nativePrivStore).getPrivileges(anyCollection(), anyCollection(), anyActionListener());
+        }).when(nativePrivStore).getPrivileges(anyCollection(), anyCollection(), eq(false), anyActionListener());
 
         final AtomicReference<Collection<RoleDescriptor>> effectiveRoleDescriptors = new AtomicReference<Collection<RoleDescriptor>>();
         final CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
@@ -2042,10 +2042,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener = (ActionListener<
-                Collection<ApplicationPrivilegeDescriptor>>) invocationOnMock.getArguments()[2];
+                Collection<ApplicationPrivilegeDescriptor>>) invocationOnMock.getArguments()[3];
             listener.onResponse(Collections.emptyList());
             return Void.TYPE;
-        }).when(nativePrivStore).getPrivileges(anyCollection(), anyCollection(), anyActionListener());
+        }).when(nativePrivStore).getPrivileges(anyCollection(), anyCollection(), eq(false), anyActionListener());
 
         final AtomicReference<Collection<RoleDescriptor>> effectiveRoleDescriptors = new AtomicReference<Collection<RoleDescriptor>>();
         final CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
@@ -2143,10 +2143,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener = (ActionListener<
-                Collection<ApplicationPrivilegeDescriptor>>) invocationOnMock.getArguments()[2];
+                Collection<ApplicationPrivilegeDescriptor>>) invocationOnMock.getArguments()[3];
             listener.onResponse(Collections.emptyList());
             return Void.TYPE;
-        }).when(nativePrivStore).getPrivileges(anyCollection(), anyCollection(), anyActionListener());
+        }).when(nativePrivStore).getPrivileges(anyCollection(), anyCollection(), eq(false), anyActionListener());
 
         final AtomicReference<Collection<RoleDescriptor>> effectiveRoleDescriptors = new AtomicReference<Collection<RoleDescriptor>>();
         final CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
@@ -2301,10 +2301,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
         doAnswer((invocationOnMock) -> {
             @SuppressWarnings("unchecked")
             ActionListener<Collection<ApplicationPrivilegeDescriptor>> callback = (ActionListener<
-                Collection<ApplicationPrivilegeDescriptor>>) invocationOnMock.getArguments()[2];
+                Collection<ApplicationPrivilegeDescriptor>>) invocationOnMock.getArguments()[3];
             callback.onResponse(Collections.emptyList());
             return null;
-        }).when(privilegeStore).getPrivileges(isASet(), isASet(), anyActionListener());
+        }).when(privilegeStore).getPrivileges(isASet(), isASet(), eq(false), anyActionListener());
         final ThreadContext threadContext = new ThreadContext(settings);
         final XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
         final CompositeRolesStore compositeRolesStore = new CompositeRolesStore(
@@ -2414,10 +2414,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
         doAnswer((invocationOnMock) -> {
             @SuppressWarnings("unchecked")
             ActionListener<Collection<ApplicationPrivilegeDescriptor>> callback = (ActionListener<
-                Collection<ApplicationPrivilegeDescriptor>>) invocationOnMock.getArguments()[2];
+                Collection<ApplicationPrivilegeDescriptor>>) invocationOnMock.getArguments()[3];
             callback.onResponse(Collections.emptyList());
             return null;
-        }).when(privilegeStore).getPrivileges(isASet(), isASet(), anyActionListener());
+        }).when(privilegeStore).getPrivileges(isASet(), isASet(), eq(false), anyActionListener());
         final ThreadContext threadContext = new ThreadContext(settings);
         final XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
         final CompositeRolesStore compositeRolesStore = new CompositeRolesStore(
@@ -2624,10 +2624,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener = (ActionListener<
-                Collection<ApplicationPrivilegeDescriptor>>) invocationOnMock.getArguments()[2];
+                Collection<ApplicationPrivilegeDescriptor>>) invocationOnMock.getArguments()[3];
             listener.onResponse(Collections.emptyList());
             return Void.TYPE;
-        }).when(nativePrivStore).getPrivileges(anyCollection(), anyCollection(), anyActionListener());
+        }).when(nativePrivStore).getPrivileges(anyCollection(), anyCollection(), eq(false), anyActionListener());
 
         final AtomicReference<Collection<RoleDescriptor>> effectiveRoleDescriptors = new AtomicReference<Collection<RoleDescriptor>>();
         final CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
@@ -2992,10 +2992,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
             doAnswer((invocationOnMock) -> {
                 @SuppressWarnings("unchecked")
                 ActionListener<Collection<ApplicationPrivilegeDescriptor>> callback = (ActionListener<
-                    Collection<ApplicationPrivilegeDescriptor>>) invocationOnMock.getArguments()[2];
+                    Collection<ApplicationPrivilegeDescriptor>>) invocationOnMock.getArguments()[3];
                 callback.onResponse(Collections.emptyList());
                 return null;
-            }).when(privilegeStore).getPrivileges(isASet(), isASet(), anyActionListener());
+            }).when(privilegeStore).getPrivileges(isASet(), isASet(), eq(false), anyActionListener());
         }
         if (apiKeyService == null) {
             apiKeyService = mock(ApiKeyService.class);
@@ -3162,10 +3162,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
         doAnswer((invocationOnMock) -> {
             @SuppressWarnings("unchecked")
             ActionListener<Collection<ApplicationPrivilegeDescriptor>> callback = (ActionListener<
-                Collection<ApplicationPrivilegeDescriptor>>) invocationOnMock.getArguments()[2];
+                Collection<ApplicationPrivilegeDescriptor>>) invocationOnMock.getArguments()[3];
             callback.onResponse(Collections.emptyList());
             return null;
-        }).when(privilegeStore).getPrivileges(isASet(), isASet(), anyActionListener());
+        }).when(privilegeStore).getPrivileges(isASet(), isASet(), eq(false), anyActionListener());
         CompositeRolesStore.buildRoleFromDescriptors(
             Sets.newHashSet(roleDescriptors),
             cache,

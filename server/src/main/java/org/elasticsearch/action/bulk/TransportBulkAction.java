@@ -205,6 +205,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         ActionListener<BulkResponse> listener,
         long relativeStartTimeNanos
     ) {
+        assert (bulkRequest instanceof SimulateBulkRequest) == false
+            : "TransportBulkAction should never be called with a SimulateBulkRequest";
         trackIndexRequests(bulkRequest);
 
         Map<String, CreateIndexRequest> indicesToAutoCreate = new HashMap<>();

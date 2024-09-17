@@ -82,6 +82,7 @@ final class ModelLoaderUtils {
         private final AtomicLong totalBytesRead = new AtomicLong();
         private final AtomicInteger currentPart;
         private final int lastPartNumber;
+        private final byte[] buf;
 
         HttpStreamChunker(URI uri, RequestRange range, int chunkSize) {
             var inputStream = getHttpOrHttpsInputStream(uri, range);
@@ -89,6 +90,7 @@ final class ModelLoaderUtils {
             this.chunkSize = chunkSize;
             this.lastPartNumber = range.startPart() + range.numParts();
             this.currentPart = new AtomicInteger(range.startPart());
+            this.buf = new byte[chunkSize];
         }
 
         // This ctor exists for testing purposes only.
@@ -97,6 +99,7 @@ final class ModelLoaderUtils {
             this.chunkSize = chunkSize;
             this.lastPartNumber = range.startPart() + range.numParts();
             this.currentPart = new AtomicInteger(range.startPart());
+            this.buf = new byte[chunkSize];
         }
 
         public boolean hasNext() {
@@ -105,7 +108,6 @@ final class ModelLoaderUtils {
 
         public BytesAndPartIndex next() throws IOException {
             int bytesRead = 0;
-            byte[] buf = new byte[chunkSize];
 
             while (bytesRead < chunkSize) {
                 int read = inputStream.read(buf, bytesRead, chunkSize - bytesRead);

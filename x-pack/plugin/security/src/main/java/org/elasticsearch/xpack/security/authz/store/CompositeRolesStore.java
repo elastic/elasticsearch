@@ -531,6 +531,7 @@ public class CompositeRolesStore {
                 .stream()
                 .flatMap(Collection::stream)
                 .collect(Collectors.toSet());
+            // TODO hack hack hack
             privilegeStore.threadPool()
                 .generic()
                 .execute(

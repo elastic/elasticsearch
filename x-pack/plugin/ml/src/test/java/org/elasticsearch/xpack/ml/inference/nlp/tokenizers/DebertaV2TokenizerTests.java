@@ -43,7 +43,9 @@ public class DebertaV2TokenizerTests extends ESTestCase {
         "▁😀",
         "▁🇸🇴",
         MASK_TOKEN,
-        "."
+        ".",
+        "<0xC2>",
+        "<0xAD>"
     );
     private static final List<Double> TEST_CASE_SCORES = List.of(
         0.0,
@@ -65,7 +67,9 @@ public class DebertaV2TokenizerTests extends ESTestCase {
         -10.230172157287598,
         -9.451579093933105,
         0.0,
-        -3.0
+        -3.0,
+        1.0,
+        2.0
     );
 
     private List<String> tokenStrings(List<? extends DelimitedToken> tokens) {
@@ -96,7 +100,21 @@ public class DebertaV2TokenizerTests extends ESTestCase {
                 new DebertaV2Tokenization(false, false, null, Tokenization.Truncate.NONE, -1)
             ).build()
         ) {
-            TokenizationResult.Tokens tokenization = tokenizer.tokenize("😀", Tokenization.Truncate.NONE, -1, 0, null).get(0);
+            TokenizationResult.Tokens tokenization = tokenizer.tokenize(
+                "Elastic" + "\u00AD" + "search 😀" + "\u00AD" + " fun",
+                Tokenization.Truncate.NONE,
+                -1,
+                0,
+                null
+            ).get(0);
+            assertArrayEquals(new int[] { 4, 5, 20, 21, 6, 16, 20, 21, 8 }, tokenization.tokenIds());
+            System.out.println(tokenization.tokens().get(0));
+            assertThat(
+                tokenStrings(tokenization.tokens().get(0)),
+                contains("▁Ela", "stic", "<0xC2>", "<0xAD>", "search", "▁\uD83D\uDE00", "<0xC2>", "<0xAD>", "▁fun")
+            );
+
+            tokenization = tokenizer.tokenize("😀", Tokenization.Truncate.NONE, -1, 0, null).get(0);
             assertThat(tokenStrings(tokenization.tokens().get(0)), contains("▁\uD83D\uDE00"));
 
             tokenization = tokenizer.tokenize("Elasticsearch 😀", Tokenization.Truncate.NONE, -1, 0, null).get(0);
@@ -104,6 +122,7 @@ public class DebertaV2TokenizerTests extends ESTestCase {
 
             tokenization = tokenizer.tokenize("Elasticsearch 😀 fun", Tokenization.Truncate.NONE, -1, 0, null).get(0);
             assertThat(tokenStrings(tokenization.tokens().get(0)), contains("▁Ela", "stic", "search", "▁\uD83D\uDE00", "▁fun"));
+
         }
     }
 

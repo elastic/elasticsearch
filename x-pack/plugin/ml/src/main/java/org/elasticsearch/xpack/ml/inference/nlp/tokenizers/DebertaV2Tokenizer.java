@@ -291,7 +291,7 @@ public class DebertaV2Tokenizer extends NlpTokenizer {
 
         @Override
         protected TokenStreamComponents createComponents(String fieldName) {
-            this.innerTokenizer = UnigramTokenizer.build(neverSplit, vocabulary, scores, unknownToken);
+            this.innerTokenizer = UnigramTokenizer.build(neverSplit, vocabulary, scores, unknownToken, true);
             return new TokenStreamComponents(this.innerTokenizer);
         }
 

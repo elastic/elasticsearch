@@ -153,7 +153,7 @@ public class UnigramTokenizerTests extends BaseTokenStreamTestCase {
 
         @Override
         protected TokenStreamComponents createComponents(String fieldName) {
-            UnigramTokenizer tokenizer = UnigramTokenizer.build(NEVER_SPLIT, dictionary, scores, unknownToken);
+            UnigramTokenizer tokenizer = UnigramTokenizer.build(NEVER_SPLIT, dictionary, scores, unknownToken, false);
             return new TokenStreamComponents(tokenizer);
         }
     }

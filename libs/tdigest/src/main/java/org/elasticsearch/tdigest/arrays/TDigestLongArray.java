@@ -19,11 +19,20 @@
  * This project is based on a modification of https://github.com/tdunning/t-digest which is licensed under the Apache 2.0 License.
  */
 
-package org.elasticsearch.tdigest;
+package org.elasticsearch.tdigest.arrays;
 
-public class HybridDigestTests extends TDigestTests {
+/**
+ * Minimal interface for LongArray-like classes used within TDigest.
+ */
+public interface TDigestLongArray {
+    int size();
 
-    protected DigestFactory factory(final double compression) {
-        return () -> new HybridDigest(arrays(), compression);
-    }
+    long get(int index);
+
+    void set(int index, long value);
+
+    /**
+     * Resizes the array. If the new size is bigger than the current size, the new elements are set to 0.
+     */
+    void resize(int newSize);
 }

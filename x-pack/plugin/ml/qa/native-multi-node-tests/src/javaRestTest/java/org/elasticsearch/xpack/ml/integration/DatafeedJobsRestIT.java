@@ -1272,6 +1272,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
         String rollupJobId = "rollup-" + jobId;
         Request createRollupRequest = new Request("PUT", "/_rollup/job/" + rollupJobId);
+        createRollupRequest.setOptions(ROLLUP_REQUESTS_OPTIONS);
         createRollupRequest.setJsonEntity("""
             {
             "index_pattern": "airline-data-aggs",
@@ -1299,18 +1300,26 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                 ]
             }""");
         client().performRequest(createRollupRequest);
-        client().performRequest(new Request("POST", "/_rollup/job/" + rollupJobId + "/_start"));
+        var startRolupRequest = new Request("POST", "/_rollup/job/" + rollupJobId + "/_start");
+        startRolupRequest.setOptions(ROLLUP_REQUESTS_OPTIONS);
+        client().performRequest(startRolupRequest);
 
         assertBusy(() -> {
-            Response getRollup = client().performRequest(new Request("GET", "/_rollup/job/" + rollupJobId));
+            var getRollupRequest = new Request("GET", "/_rollup/job/" + rollupJobId);
+            getRollupRequest.setOptions(ROLLUP_REQUESTS_OPTIONS);
+            Response getRollup = client().performRequest(getRollupRequest);
             String body = EntityUtils.toString(getRollup.getEntity());
             assertThat(body, containsString("\"job_state\":\"started\""));
             assertThat(body, containsString("\"rollups_indexed\":4"));
         }, 60, TimeUnit.SECONDS);
 
-        client().performRequest(new Request("POST", "/_rollup/job/" + rollupJobId + "/_stop"));
+        var stopRollupRequest = new Request("POST", "/_rollup/job/" + rollupJobId + "/_stop");
+        stopRollupRequest.setOptions(ROLLUP_REQUESTS_OPTIONS);
+        client().performRequest(stopRollupRequest);
         assertBusy(() -> {
-            Response getRollup = client().performRequest(new Request("GET", "/_rollup/job/" + rollupJobId));
+            var getRollupRequest = new Request("GET", "/_rollup/job/" + rollupJobId);
+            getRollupRequest.setOptions(ROLLUP_REQUESTS_OPTIONS);
+            Response getRollup = client().performRequest(getRollupRequest);
             assertThat(EntityUtils.toString(getRollup.getEntity()), containsString("\"job_state\":\"stopped\""));
         }, 60, TimeUnit.SECONDS);
 
@@ -1827,6 +1836,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
         String rollupJobId = "rollup-" + jobId;
         Request createRollupRequest = new Request("PUT", "/_rollup/job/" + rollupJobId);
+        createRollupRequest.setOptions(ROLLUP_REQUESTS_OPTIONS);
         createRollupRequest.setJsonEntity("""
             {
             "index_pattern": "airline-data-aggs",

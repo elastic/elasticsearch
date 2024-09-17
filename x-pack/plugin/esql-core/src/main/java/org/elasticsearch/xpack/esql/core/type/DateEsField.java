@@ -32,7 +32,7 @@ public class DateEsField extends EsField {
     }
 
     @Override
-    protected void writeContent(StreamOutput out) throws IOException {
+    public void writeContent(StreamOutput out) throws IOException {
         ((PlanStreamOutput) out).writeCachedString(getName());
         out.writeMap(getProperties(), (o, x) -> x.writeTo(out));
         out.writeBoolean(isAggregatable());

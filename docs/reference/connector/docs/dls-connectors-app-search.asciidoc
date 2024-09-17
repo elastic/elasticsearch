@@ -134,6 +134,7 @@ GET search-acl-filter-sharepoint/_doc/john@example.co
     }
   }
 }
+// NOTCONSOLE
 ----
 
 This document contains the Elasticsearch query that describes which documents the user `john@example.com` has access to.
@@ -172,6 +173,7 @@ In our case, the signed payload looks like this:
   },
   "api_key_name": "search-key"
 }
+// NOTCONSOLE
 ----
 
 The payload will be signed with the value of the public search key.

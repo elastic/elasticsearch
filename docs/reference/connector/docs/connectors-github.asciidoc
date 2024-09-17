@@ -222,6 +222,7 @@ The following sections provide examples of advanced sync rules for this connecto
     }
   }
 ]
+// NOTCONSOLE
 ----
 
 [discrete#es-connectors-github-sync-rules-advanced-issue-key]
@@ -237,6 +238,7 @@ The following sections provide examples of advanced sync rules for this connecto
     }
   }
 ]
+// NOTCONSOLE
 ----
 
 [discrete#es-connectors-github-sync-rules-advanced-pr-key]
@@ -252,6 +254,7 @@ The following sections provide examples of advanced sync rules for this connecto
     }
   }
 ]
+// NOTCONSOLE
 ----
 
 [discrete#es-connectors-github-sync-rules-advanced-issue-query-branch-name]
@@ -269,6 +272,7 @@ The following sections provide examples of advanced sync rules for this connecto
     }
   }
 ]
+// NOTCONSOLE
 ----
 
 [NOTE]
@@ -297,6 +301,7 @@ Check the Elasticsearch index for the actual document count.
     "repository": "repo_name"
   }
 ]
+// NOTCONSOLE
 ----
 
 [NOTE]
@@ -557,6 +562,7 @@ The following sections provide examples of advanced sync rules for this connecto
     }
   }
 ]
+// NOTCONSOLE
 ----
 
 [discrete#es-connectors-github-client-sync-rules-advanced-issue-key]
@@ -572,6 +578,7 @@ The following sections provide examples of advanced sync rules for this connecto
     }
   }
 ]
+// NOTCONSOLE
 ----
 
 [discrete#es-connectors-github-client-sync-rules-advanced-pr-key]
@@ -587,6 +594,7 @@ The following sections provide examples of advanced sync rules for this connecto
     }
   }
 ]
+// NOTCONSOLE
 ----
 
 [discrete#es-connectors-github-client-sync-rules-advanced-issue-query-branch-name]
@@ -604,6 +612,7 @@ The following sections provide examples of advanced sync rules for this connecto
     }
   }
 ]
+// NOTCONSOLE
 ----
 
 [NOTE]
@@ -632,6 +641,7 @@ Check the Elasticsearch index for the actual document count.
     "repository": "repo_name"
   }
 ]
+// NOTCONSOLE
 ----
 
 [NOTE]
@@ -658,6 +668,7 @@ To perform E2E testing for the GitHub connector, run the following command:
 [source,shell]
 ----
 $ make ftest NAME=github
+// NOTCONSOLE
 ----
 
 For faster tests, add the `DATA_SIZE=small` flag:
@@ -665,6 +676,7 @@ For faster tests, add the `DATA_SIZE=small` flag:
 [source,shell]
 ----
 make ftest NAME=github DATA_SIZE=small
+// NOTCONSOLE
 ----
 
 [discrete#es-connectors-github-client-known-issues]

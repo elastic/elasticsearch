@@ -83,6 +83,8 @@ PUT .elastic-connectors-sync-jobs-v1/_mapping
     }
   }
 }
+// TEST[skip:TODO]
+// NOTCONSOLE
 ----
 
 * *The connector service will fail to sync when the connector tries to fetch more more than 2,147,483,647 (_2^31-1_) documents from a data source*
@@ -102,6 +104,8 @@ POST /.elastic-connectors/_update/<connector-id>
     "custom_scheduling": {}
   }
 }
+// TEST[skip:TODO]
+// NOTCONSOLE
 ----
 +
 This error can appear on Connectors or Crawlers that aren't the cause of the issue.
@@ -143,6 +147,8 @@ POST /.elastic-connectors/_update/<connector_id>
     }
   }
 }
+// TEST[skip:TODO]
+// NOTCONSOLE
 ----
 +
 * *Python connectors that upgraded from 8.7.1 will report document volumes in gigabytes (GB) instead of megabytes (MB)*

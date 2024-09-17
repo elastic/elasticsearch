@@ -133,6 +133,7 @@ Defaults to `""` (syncs all bucket objects).
   }
 
 ]
+// NOTCONSOLE
 ----
 
 *Example*: Fetch files/folder starting with `folder1`.
@@ -145,6 +146,7 @@ Defaults to `""` (syncs all bucket objects).
     "prefix": "folder1"
   }
 ]
+// NOTCONSOLE
 ----
 
 *Fetching files and folders by specifying extensions*
@@ -160,6 +162,7 @@ Defaults to `""` (syncs all bucket objects).
     "extension": [".txt", ".png"]
   }
 ]
+// NOTCONSOLE
 ----
 
 [discrete#es-connectors-s3-content-extraction]
@@ -348,6 +351,7 @@ Defaults to `""` (syncs all bucket objects).
   }
 
 ]
+// NOTCONSOLE
 ----
 
 *Example*: Fetch files/folder starting with `folder1`.
@@ -360,6 +364,7 @@ Defaults to `""` (syncs all bucket objects).
     "prefix": "folder1"
   }
 ]
+// NOTCONSOLE
 ----
 
 *Fetching files and folders by specifying extensions*
@@ -375,6 +380,7 @@ Defaults to `""` (syncs all bucket objects).
     "extension": [".txt", ".png"]
   }
 ]
+// NOTCONSOLE
 ----
 
 [discrete#es-connectors-s3-client-content-extraction]
@@ -393,6 +399,7 @@ To execute a functional test for the Amazon S3 *self-managed connector*, run the
 [source,shell]
 ----
 make ftest NAME=s3
+// NOTCONSOLE
 ----
 
 By default, this will use a medium-sized dataset.
@@ -401,6 +408,7 @@ To make the test faster add the `DATA_SIZE=small` argument:
 [source,shell]
 ----
 make ftest NAME=s3 DATA_SIZE=small
+// NOTCONSOLE
 ----
 
 [discrete#es-connectors-s3-client-known-issues]

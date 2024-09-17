@@ -83,6 +83,7 @@ query getUser($id: ID!) {
         email 
     }
 }
+// NOTCONSOLE
 ----
 
 `graphql_variables`::
@@ -112,6 +113,7 @@ To index every user as a separate document configure this field as below.
 {
     "organization.users": "user_id"
 }
+// NOTCONSOLE
 ----
 +
 In this example `user_id` is unique in every user document. Therefore, we set `user_id` as the value for `organization.users`.
@@ -129,6 +131,7 @@ JSON object containing custom headers to be sent with each GraphQL request:
 {
     "content-type": "Application/json"
 }
+// NOTCONSOLE
 ----
 
 `pagination_model` (required)::
@@ -158,6 +161,7 @@ query getUsers($cursor: String!) {
         } 
     } 
 }
+// NOTCONSOLE
 ----
 +
 The value of `pagination_key` is `sampleData.users` so it must contain:
@@ -220,6 +224,7 @@ For faster tests, add the `DATA_SIZE=small` flag:
 [source,shell]
 ----
 make ftest NAME=graphql DATA_SIZE=small
+// NOTCONSOLE
 ----
 
 By default, `DATA_SIZE=MEDIUM`.

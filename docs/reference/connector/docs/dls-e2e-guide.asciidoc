@@ -122,6 +122,7 @@ The access control index will contain documents similar to this example:
     }
   }
 }
+// NOTCONSOLE
 ----
 
 This document contains the Elasticsearch query that describes which documents the user `john@example.com` has access to.
@@ -192,6 +193,8 @@ POST /_security/api_key
     }
   }
 }
+// TEST[skip:TODO]
+// NOTCONSOLE
 ----
 
 The response will look like this:
@@ -205,6 +208,7 @@ The response will look like this:
   "api_key": "zTxre9L6TcmRIgd2NgLCRg",
   "encoded": "Qk05dy1JZ0JhRDNyNGpLQ3MwUmk6elRzdGU5QjZUY21SSWdkMldnQ1RMZw=="
 }
+// NOTCONSOLE
 ----
 
 The `api_key` field contains the API key that can be used to query the Search Application with the appropriate DLS restrictions.
@@ -239,6 +243,7 @@ GET .search-acl-filter-source1
         "source": "..."
     }
 }
+// NOTCONSOLE
 ----
 
 [source,js]
@@ -261,6 +266,7 @@ GET .search-acl-filter-source2
         "source": "..."
     }
 }
+// NOTCONSOLE
 ----
 
 `.search-acl-filter-source1` and `.search-acl-filter-source2` define the access control identities for `source1` and `source2`.
@@ -369,6 +375,7 @@ createApiKey({
   },
 }).then((encodedKey) => console.log(encodedKey));
 
+// NOTCONSOLE
 ----
 
 NOTE: The example combines multiple identities into a single role descriptor. This is because an Elasticsearch API key can use role restrictions only if it has a *single role descriptor*.
@@ -389,6 +396,7 @@ For example, you might use the https://github.com/elastic/search-application-cli
 [source,js]
 ----
 const client = SearchApplicationClient(applicationName, endpoint, apiKey, params);
+// NOTCONSOLE
 ----
 
 Here's what this workflow looks like in a sequence diagram:

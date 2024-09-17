@@ -376,6 +376,7 @@ To perform E2E testing for the sharepoint connector, run the following command:
 [source,shell]
 ----
 $ make ftest NAME=sharepoint_server
+// NOTCONSOLE
 ----
 
 For faster tests, add the `DATA_SIZE=small` flag:
@@ -383,6 +384,7 @@ For faster tests, add the `DATA_SIZE=small` flag:
 [source,shell]
 ----
 make ftest NAME=sharepoint_server DATA_SIZE=small
+// NOTCONSOLE
 ----
 
 [discrete#es-connectors-sharepoint-client-known-issues]

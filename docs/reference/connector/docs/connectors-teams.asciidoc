@@ -329,6 +329,7 @@ To perform E2E testing for the Teams connector, run the following command:
 [source,shell]
 ----
 $ make ftest NAME=microsoft_teams
+// NOTCONSOLE
 ----
 
 For faster tests, add the `DATA_SIZE=small` flag:
@@ -336,6 +337,7 @@ For faster tests, add the `DATA_SIZE=small` flag:
 [source,shell]
 ----
 make ftest NAME=microsoft_teams DATA_SIZE=small
+// NOTCONSOLE
 ----
 
 [discrete#es-connectors-microsoft-teams-known-issues]

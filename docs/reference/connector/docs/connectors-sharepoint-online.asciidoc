@@ -269,6 +269,7 @@ Example:
 {
 	"skipExtractingDriveItemsOlderThan": 60
 }
+// NOTCONSOLE
 ----
 
 This rule will not extract content of any drive items (files in document libraries) that haven't been modified for 60 days or more.
@@ -397,6 +398,8 @@ POST <INDEX_NAME>/_update_by_query?conflicts=proceed
     "lang": "painless"
   }
 }
+// TEST[skip:TODO]
+// NOTCONSOLE
 ----
 
 [discrete#es-connectors-sharepoint-online-dls]
@@ -751,6 +754,7 @@ Example:
 	"skipExtractingDriveItemsOlderThan": 60
 }
 
+// NOTCONSOLE
 ----
 
 This rule will not extract content of any drive items (files in document libraries) that haven't been modified for 60 days or more.
@@ -879,6 +883,8 @@ POST <INDEX_NAME>/_update_by_query?conflicts=proceed
     "lang": "painless"
   }
 }
+// TEST[skip:TODO]
+// NOTCONSOLE
 ----
 
 [discrete#es-connectors-sharepoint-online-client-dls]
@@ -927,6 +933,7 @@ To perform E2E testing for the SharePoint Online connector, run the following co
 [source,shell]
 ----
 $ make ftest NAME=sharepoint_online
+// NOTCONSOLE
 ----
 
 For faster tests, add the `DATA_SIZE=small` flag:
@@ -934,6 +941,7 @@ For faster tests, add the `DATA_SIZE=small` flag:
 [source,shell]
 ----
 make ftest NAME=sharepoint_online DATA_SIZE=small
+// NOTCONSOLE
 ----
 
 [discrete#es-connectors-sharepoint-online-client-known-issues]

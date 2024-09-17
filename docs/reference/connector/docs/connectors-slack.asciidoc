@@ -314,6 +314,7 @@ To perform E2E testing for the GitHub connector, run the following command:
 [source,shell]
 ----
 $ make ftest NAME=slack
+// NOTCONSOLE
 ----
 
 For faster tests, add the `DATA_SIZE=small` flag:
@@ -321,6 +322,7 @@ For faster tests, add the `DATA_SIZE=small` flag:
 [source,shell]
 ----
 make ftest NAME=slack DATA_SIZE=small
+// NOTCONSOLE
 ----
 
 [discrete#es-connectors-slack-client-known-issues]

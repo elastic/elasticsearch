@@ -21,6 +21,7 @@
 
 package org.elasticsearch.benchmark.tdigest;
 
+import org.elasticsearch.search.aggregations.metrics.WrapperTDigestArrays;
 import org.elasticsearch.tdigest.Sort;
 import org.elasticsearch.tdigest.arrays.TDigestDoubleArray;
 import org.elasticsearch.tdigest.arrays.TDigestIntArray;

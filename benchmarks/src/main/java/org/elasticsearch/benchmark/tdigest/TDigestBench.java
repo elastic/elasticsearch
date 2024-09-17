@@ -21,6 +21,7 @@
 
 package org.elasticsearch.benchmark.tdigest;
 
+import org.elasticsearch.search.aggregations.metrics.WrapperTDigestArrays;
 import org.elasticsearch.tdigest.MergingDigest;
 import org.elasticsearch.tdigest.TDigest;
 import org.openjdk.jmh.annotations.Benchmark;

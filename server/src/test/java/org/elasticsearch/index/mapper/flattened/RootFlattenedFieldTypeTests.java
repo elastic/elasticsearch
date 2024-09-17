@@ -211,4 +211,10 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
             fetchSourceValue(createDefaultFieldType(3), sourceValue)
         );
     }
+
+    public void testFetchSourceValueFilterStringsOnly() throws IOException {
+        Map<String, Object> sourceValue = Map.of("key1", List.of("the quick brown", 1_234_567, "jumps over", 2_456));
+
+        assertEquals(List.of(Map.of("key1", List.of(1_234_567, 2_456))), fetchSourceValue(createDefaultFieldType(8), sourceValue));
+    }
 }

@@ -126,19 +126,19 @@ POST /.elastic-connectors/_update/<connector_id>
 {
   "doc" : {
     "configuration": {
-      field_a: {
+      "field_a": {
         "type": "str",
         "value": ""
       },
-      field_b: {
+      "field_b": {
         "type": "bool",
         "value": false
       },
-      field_c: {
+      "field_c": {
         "type": "int",
         "value": 1
       },
-      field_d: {
+      "field_d": {
         "type": "list",
         "value": "a,b"
       }

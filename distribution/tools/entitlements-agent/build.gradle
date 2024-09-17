@@ -1,0 +1,48 @@
+import static java.util.stream.Collectors.joining
+
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+apply plugin: 'elasticsearch.build'
+
+base {
+  archivesName = 'elasticsearch-entitlements-agent'
+}
+
+configurations {
+  entitlementRuntime
+}
+
+dependencies {
+  entitlementRuntime project(":libs:elasticsearch-entitlements-runtime")
+  implementation project(":libs:elasticsearch-entitlements-runtime")
+  implementation 'org.ow2.asm:asm:9.7'
+  testImplementation project(":test:framework")
+}
+
+tasks.named("test").configure {
+  systemProperty "tests.security.manager", "false"
+}
+
+test {
+  dependsOn(jar)
+  def runtimeJars = configurations.entitlementRuntime.files.stream().map(File::toString).collect(joining(File.pathSeparator))
+  jvmArgs "-Dentitlements.runtimeJars=$runtimeJars"
+  jvmArgs "-javaagent:${jar.archiveFile.get().asFile}"
+}
+
+jar {
+  manifest {
+    attributes(
+      'Premain-Class': 'org.elasticsearch.entitlements.agent.Agent'
+      , 'Can-Retransform-Classes': 'true'
+    )
+  }
+}
+

@@ -176,7 +176,7 @@ public class ModelImporter {
             var bytesAndIndex = downloadChunker.next();
             task.setProgress(totalParts, progressCounter.getAndIncrement());
 
-            indexPart(bytesAndIndex.partIndex(), totalParts, size, bytesAndIndex.bytes(), countingListener.acquire(ack -> {}));
+            indexPart(bytesAndIndex.partIndex(), totalParts, size, bytesAndIndex.bytes());
         } catch (Exception e) {
             rangeFullyDownloadedListener.onFailure(e);
             return;
@@ -215,7 +215,8 @@ public class ModelImporter {
             var bytesAndIndex = downloader.next();
             task.setProgress(totalParts, progressCounter.getAndIncrement());
 
-            indexPart(bytesAndIndex.partIndex(), totalParts, size, bytesAndIndex.bytes(), lastPartWrittenListener);
+            indexPart(bytesAndIndex.partIndex(), totalParts, size, bytesAndIndex.bytes());
+            lastPartWrittenListener.onResponse(AcknowledgedResponse.TRUE);
         } catch (Exception e) {
             lastPartWrittenListener.onFailure(e);
         }
@@ -240,7 +241,7 @@ public class ModelImporter {
                     throwIfTaskCancelled();
                     task.setProgress(totalParts, part);
                     BytesArray definition = chunkIterator.next();
-                    indexPart(part, totalParts, size, definition, countingListener.acquire(ack -> {}));
+                    indexPart(part, totalParts, size, definition);
                 }
                 task.setProgress(totalParts, totalParts);
 
@@ -265,7 +266,7 @@ public class ModelImporter {
         }));
     }
 
-    private void indexPart(int partIndex, int totalParts, long totalSize, BytesArray bytes, ActionListener<AcknowledgedResponse> listener) {
+    private void indexPart(int partIndex, int totalParts, long totalSize, BytesArray bytes) {
         PutTrainedModelDefinitionPartAction.Request modelPartRequest = new PutTrainedModelDefinitionPartAction.Request(
             modelId,
             bytes,
@@ -275,7 +276,7 @@ public class ModelImporter {
             true
         );
 
-        client.execute(PutTrainedModelDefinitionPartAction.INSTANCE, modelPartRequest, listener);
+        client.execute(PutTrainedModelDefinitionPartAction.INSTANCE, modelPartRequest).actionGet();
     }
 
     private void checkDownloadComplete(List<ModelLoaderUtils.HttpStreamChunker> downloaders) {

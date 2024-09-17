@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.packageloader.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
@@ -80,7 +81,7 @@ public class ModelImporterTests extends ESTestCase {
         importer.downloadModelDefinition(size, totalParts, vocab, streamers, latchedListener);
 
         latch.await();
-        verify(client, times(totalParts)).execute(eq(PutTrainedModelDefinitionPartAction.INSTANCE), any(), any());
+        verify(client, times(totalParts)).execute(eq(PutTrainedModelDefinitionPartAction.INSTANCE), any());
         assertEquals(totalParts - 1, task.getStatus().downloadProgress().downloadedParts());
         assertEquals(totalParts, task.getStatus().downloadProgress().totalParts());
     }
@@ -108,7 +109,7 @@ public class ModelImporterTests extends ESTestCase {
         importer.readModelDefinitionFromFile(size, totalParts, streamChunker, vocab, latchedListener);
 
         latch.await();
-        verify(client, times(totalParts)).execute(eq(PutTrainedModelDefinitionPartAction.INSTANCE), any(), any());
+        verify(client, times(totalParts)).execute(eq(PutTrainedModelDefinitionPartAction.INSTANCE), any());
         assertEquals(totalParts, task.getStatus().downloadProgress().downloadedParts());
         assertEquals(totalParts, task.getStatus().downloadProgress().totalParts());
     }
@@ -141,7 +142,7 @@ public class ModelImporterTests extends ESTestCase {
 
         latch.await();
         assertThat(exceptionHolder.get().getMessage(), containsString("Model size does not match"));
-        verify(client, times(totalParts)).execute(eq(PutTrainedModelDefinitionPartAction.INSTANCE), any(), any());
+        verify(client, times(totalParts)).execute(eq(PutTrainedModelDefinitionPartAction.INSTANCE), any());
     }
 
     public void testDigestMismatch() throws InterruptedException, URISyntaxException {
@@ -172,7 +173,7 @@ public class ModelImporterTests extends ESTestCase {
 
         latch.await();
         assertThat(exceptionHolder.get().getMessage(), containsString("Model sha256 checksums do not match"));
-        verify(client, times(totalParts)).execute(eq(PutTrainedModelDefinitionPartAction.INSTANCE), any(), any());
+        verify(client, times(totalParts)).execute(eq(PutTrainedModelDefinitionPartAction.INSTANCE), any());
     }
 
     public void testPutFailure() throws InterruptedException, URISyntaxException {
@@ -198,7 +199,7 @@ public class ModelImporterTests extends ESTestCase {
 
         latch.await();
         assertThat(exceptionHolder.get().getMessage(), containsString("put model part failed"));
-        verify(client, times(1)).execute(eq(PutTrainedModelDefinitionPartAction.INSTANCE), any(), any());
+        verify(client, times(1)).execute(eq(PutTrainedModelDefinitionPartAction.INSTANCE), any());
     }
 
     public void testReadFailure() throws IOException, InterruptedException, URISyntaxException {
@@ -255,7 +256,7 @@ public class ModelImporterTests extends ESTestCase {
         latch.await();
         assertThat(exceptionHolder.get().getMessage(), containsString("put vocab failed"));
         verify(client, times(1)).execute(eq(PutTrainedModelVocabularyAction.INSTANCE), any(), any());
-        verify(client, never()).execute(eq(PutTrainedModelDefinitionPartAction.INSTANCE), any(), any());
+        verify(client, never()).execute(eq(PutTrainedModelDefinitionPartAction.INSTANCE), any());
     }
 
     private List<ModelLoaderUtils.HttpStreamChunker> mockHttpStreamChunkers(byte[] modelDef, int chunkSize, int numStreams) {
@@ -288,15 +289,16 @@ public class ModelImporterTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     private Client mockClient(boolean failPutPart) {
         var client = mock(Client.class);
-        doAnswer(invocation -> {
-            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
-            if (failPutPart) {
-                listener.onFailure(new IllegalStateException("put model part failed"));
-            } else {
-                listener.onResponse(AcknowledgedResponse.TRUE);
-            }
-            return null;
-        }).when(client).execute(eq(PutTrainedModelDefinitionPartAction.INSTANCE), any(), any());
+
+        if (failPutPart) {
+            when(client.execute(eq(PutTrainedModelDefinitionPartAction.INSTANCE), any())).thenThrow(
+                new IllegalStateException("put model part failed")
+            );
+        } else {
+            ActionFuture<AcknowledgedResponse> future = mock(ActionFuture.class);
+            when(future.actionGet()).thenReturn(AcknowledgedResponse.TRUE);
+            when(client.execute(eq(PutTrainedModelDefinitionPartAction.INSTANCE), any())).thenReturn(future);
+        }
 
         doAnswer(invocation -> {
             ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];

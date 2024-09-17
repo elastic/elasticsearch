@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.search.CheckedIntConsumer;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -377,6 +378,27 @@ public class NestedObjectMapper extends ObjectMapper {
     }
 
     @Override
+    protected SourceLoader.PatchFieldLoader patchFieldLoader() {
+        var patchLoader = super.patchFieldLoader();
+        if (patchLoader == null) {
+            return null;
+        }
+        return context -> {
+            var patchFieldLoader = patchLoader.leaf(context);
+            if (patchFieldLoader == null) {
+                return null;
+            }
+            IndexSearcher searcher = new IndexSearcher(context.reader());
+            searcher.setQueryCache(null);
+            var childScorer = searcher.createWeight(nestedTypeFilter, ScoreMode.COMPLETE_NO_SCORES, 1f).scorer(context);
+            var parentsDocs = bitsetProducer.apply(parentTypeFilter).getBitSet(context);
+            return (doc, acc) -> {
+                collectChildren(nestedTypePath, doc, parentsDocs, childScorer.iterator(), child -> patchFieldLoader.load(child, acc));
+            };
+        };
+    }
+
+    @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         if (storeArraySource()) {
             // IgnoredSourceFieldMapper integration takes care of writing the source for nested objects that enabled store_array_source.
@@ -427,27 +449,13 @@ public class NestedObjectMapper extends ObjectMapper {
             if (childScorer != null) {
                 var parentDocs = parentBitSetProducer.get().getBitSet(leafReader.getContext());
                 return parentDoc -> {
-                    collectChildren(parentDoc, parentDocs, childScorer.iterator());
+                    children.clear();
+                    collectChildren(nestedTypePath, parentDoc, parentDocs, childScorer.iterator(), child -> children.add(child));
                     return children.size() > 0;
                 };
             } else {
                 return parentDoc -> false;
             }
-        }
-
-        private List<Integer> collectChildren(int parentDoc, BitSet parentDocs, DocIdSetIterator childIt) throws IOException {
-            assert parentDoc < 0 || parentDocs.get(parentDoc) : "wrong context, doc " + parentDoc + " is not a parent of " + nestedTypePath;
-            final int prevParentDoc = parentDoc > 0 ? parentDocs.prevSetBit(parentDoc - 1) : -1;
-            int childDocId = childIt.docID();
-            if (childDocId <= prevParentDoc) {
-                childDocId = childIt.advance(prevParentDoc + 1);
-            }
-
-            children.clear();
-            for (; childDocId < parentDoc; childDocId = childIt.nextDoc()) {
-                children.add(childDocId);
-            }
-            return children;
         }
 
         @Override
@@ -477,4 +485,24 @@ public class NestedObjectMapper extends ObjectMapper {
             return NestedObjectMapper.this.fullPath();
         }
     }
+
+    private static void collectChildren(
+        String nestedTypePath,
+        int parentDoc,
+        BitSet parentDocs,
+        DocIdSetIterator childIt,
+        CheckedIntConsumer<IOException> childConsumer
+    ) throws IOException {
+        assert parentDoc < 0 || parentDocs.get(parentDoc) : "wrong context, doc " + parentDoc + " is not a parent of " + nestedTypePath;
+        final int prevParentDoc = parentDoc > 0 ? parentDocs.prevSetBit(parentDoc - 1) : -1;
+        int childDocId = childIt.docID();
+        if (childDocId <= prevParentDoc) {
+            childDocId = childIt.advance(prevParentDoc + 1);
+        }
+
+        for (; childDocId < parentDoc; childDocId = childIt.nextDoc()) {
+            childConsumer.accept(childDocId);
+        }
+    }
+
 }

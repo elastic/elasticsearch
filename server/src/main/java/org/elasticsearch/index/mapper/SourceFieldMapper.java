@@ -28,6 +28,8 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceFilter;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -36,7 +38,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.index.mapper.DocumentParserContext.XContentPatch;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING;
 
 public class SourceFieldMapper extends MetadataFieldMapper {
@@ -50,6 +55,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     public static final NodeFeature SYNTHETIC_SOURCE_COPY_TO_FIX = new NodeFeature("mapper.source.synthetic_source_copy_to_fix");
 
     public static final String NAME = "_source";
+    public static final String PATCH_NAME = "_source_patch";
     public static final String RECOVERY_SOURCE_NAME = "_recovery_source";
 
     public static final String CONTENT_TYPE = "_source";
@@ -411,20 +417,21 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void preParse(DocumentParserContext context) throws IOException {
+    public void postParse(DocumentParserContext context) throws IOException {
         BytesReference originalSource = context.sourceToParse().source();
         XContentType contentType = context.sourceToParse().getXContentType();
-        final BytesReference adaptedSource = applyFilters(originalSource, contentType);
+        final BytesReference patchSource = applyPatches(originalSource, contentType.xContent(), context.getSourcePatches());
+        final BytesReference adaptedSource = applyFilters(patchSource, contentType);
 
         if (adaptedSource != null) {
             assert context.indexSettings().getIndexVersionCreated().before(IndexVersions.V_8_7_0)
                 || indexMode == null
                 || indexMode.isSyntheticSourceEnabled() == false;
-            final BytesRef ref = adaptedSource.toBytesRef();
+            BytesRef ref = adaptedSource.toBytesRef();
             context.doc().add(new StoredField(fieldType().name(), ref.bytes, ref.offset, ref.length));
         }
 
-        if (enableRecoverySource && originalSource != null && adaptedSource != originalSource) {
+        if (enableRecoverySource && originalSource != null && adaptedSource != patchSource) {
             // if we omitted source or modified it we add the _recovery_source to ensure we have it for ops based recovery
             BytesRef ref = originalSource.toBytesRef();
             context.doc().add(new StoredField(RECOVERY_SOURCE_NAME, ref.bytes, ref.offset, ref.length));
@@ -462,10 +469,91 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         if (mode == Mode.SYNTHETIC) {
             return new SourceLoader.Synthetic(mapping::syntheticFieldLoader, metrics);
         }
-        return SourceLoader.FROM_STORED_SOURCE;
+        var patchLoader = mapping.patchFieldLoader();
+        return patchLoader == null ? SourceLoader.FROM_STORED_SOURCE : new SourceLoader.PatchSourceLoader(patchLoader);
     }
 
     public boolean isSynthetic() {
         return mode == Mode.SYNTHETIC;
+    }
+
+    /**
+     * Retrieves the name of the numeric doc-value field used to store the patch reference
+     * ID for the specified fullPath.
+     */
+    public static String getPatchFieldName(String fullPath) {
+        return PATCH_NAME + "." + fullPath;
+    }
+
+    /**
+     * Verifies and indexes a patch for a specific field in the document.
+     *
+     * Ensures only one patch is applied per field per document. If valid, a numeric doc-value field
+     * is added to reference the patch in the modified source.
+     *
+     * The numeric value acts as a unique reference to the patch. The reference field's name
+     * can be retrieved using {@link #getPatchFieldName(String)}.
+     */
+    public void indexFieldPatch(
+        LuceneDocument doc,
+        FieldMapper fieldMapper,
+        XContentLocation location,
+        Map<XContentLocation, XContentPatch> acc
+    ) {
+        if (enabled() == false || stored() == false) {
+            return;
+        }
+
+        if (isSynthetic()) {
+            throw new IllegalArgumentException(
+                "Patching the field ["
+                    + fieldMapper.leafName()
+                    + "] in the original source is not allowed when synthetic source is enabled."
+            );
+        }
+
+        // TODO handle includes and excludes
+        int id = acc.size();
+        var patch = new XContentPatch(fieldMapper.fullPath(), location, id);
+        if (acc.put(location, patch) != null) {
+            throw new IllegalArgumentException(
+                "Field [" + fieldMapper.fullPath() + "] does not support patching the same location [" + location + "] more than once."
+            );
+        }
+        String patchFieldName = getPatchFieldName(fieldMapper.fullPath());
+        if (doc.getByKey(patchFieldName) != null) {
+            throw new IllegalArgumentException(
+                "Field [" + patch.fullPath() + "] does not support patching multiple values for the same field in a single document."
+            );
+        }
+        doc.addWithKey(patchFieldName, new NumericDocValuesField(patchFieldName, patch.id()));
+    }
+
+    /**
+     * Applies the provided patches to the given source, replacing each {@link XContentPatch#fullPath()} with a numeric value.
+     *
+     * Throws an {@link IllegalArgumentException} if a patch is applied at a location that doesn't match
+     * its {@link XContentPatch#fullPath()}, or if no patch is registered at the specified location.
+     */
+    static BytesReference applyPatches(BytesReference source, XContent xContent, Map<XContentLocation, XContentPatch> patches)
+        throws IOException {
+        if (patches.isEmpty()) {
+            return source;
+        }
+        var patchFields = patches.values().stream().map(p -> p.fullPath()).collect(Collectors.toSet());
+        var res = PatchSourceUtils.patchSource(source, xContent, patchFields, (fullPath, parser, dest) -> {
+            var patch = patches.remove(parser.getTokenLocation());
+            if (patch == null) {
+                throw new IllegalArgumentException(
+                    "Registered patch not found at location: [" + parser.getTokenLocation() + "] for path: [" + fullPath + "]."
+                );
+            }
+            dest.writeNumber(patch.id());
+            parser.skipChildren();
+        });
+        if (patches.size() > 0) {
+            throw new IllegalArgumentException("Unable to apply all patches: " + patches.values());
+        }
+        return res;
     }
 }

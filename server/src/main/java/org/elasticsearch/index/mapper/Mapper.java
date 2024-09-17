@@ -18,6 +18,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentLocation;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -173,6 +174,16 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      */
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         throw new IllegalArgumentException("field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source");
+    }
+
+    /**
+     * Creates a {@link SourceLoader.PatchFieldLoader} to load patches that were previously indexed
+     * with {@link DocumentParserContext#addSourceFieldPatch(FieldMapper, XContentLocation)}.
+     *
+     * Returns {@code null} if the field doesn't allow patching.
+     */
+    protected SourceLoader.PatchFieldLoader patchFieldLoader() {
+        return null;
     }
 
     @Override

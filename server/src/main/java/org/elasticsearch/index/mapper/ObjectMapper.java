@@ -37,6 +37,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class ObjectMapper extends Mapper {
@@ -806,6 +807,31 @@ public class ObjectMapper extends Mapper {
 
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
 
+    }
+
+    @Override
+    protected SourceLoader.PatchFieldLoader patchFieldLoader() {
+        var loaders = mappers.values().stream().map(m -> m.patchFieldLoader()).filter(l -> l != null).collect(Collectors.toList());
+        if (loaders.isEmpty()) {
+            return null;
+        }
+        return context -> {
+            final List<SourceLoader.PatchFieldLoader.Leaf> leaves = new ArrayList<>();
+            for (var loader : loaders) {
+                var leaf = loader.leaf(context);
+                if (leaf != null) {
+                    leaves.add(leaf);
+                }
+            }
+            if (leaves.isEmpty()) {
+                return null;
+            }
+            return (doc, acc) -> {
+                for (var leaf : leaves) {
+                    leaf.load(doc, acc);
+                }
+            };
+        };
     }
 
     protected SourceLoader.SyntheticFieldLoader syntheticFieldLoader(Stream<Mapper> mappers, boolean isFragment) {

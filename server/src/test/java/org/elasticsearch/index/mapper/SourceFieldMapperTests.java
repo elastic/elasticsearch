@@ -22,7 +22,9 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -31,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -543,6 +546,79 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
                 source("123", b -> b.field("@timestamp", "2012-02-13").field("field", randomAlphaOfLength(5)), null)
             );
             assertNull(doc.rootDoc().getField("_recovery_source"));
+        }
+    }
+
+    public void testWrongLocationPatchSourceInPostParse() throws Exception {
+        MapperService mapperService = createMapperService(Settings.EMPTY, mapping(b -> {
+            b.startObject("field");
+            b.field("type", "long");
+            b.endObject();
+        }));
+        SourceFieldMapper mapper = (SourceFieldMapper) mapperService.getMetadataMappers().get(SourceFieldMapper.class);
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.value(Map.of("field", 45));
+        var sourceToParse = new SourceToParse("0", BytesReference.bytes(builder), builder.contentType());
+        FieldMapper fieldMapper = (FieldMapper) mapperService.mappingLookup().getMapper("field");
+        try (
+            var parser = XContentHelper.createParserNotCompressed(
+                XContentParserConfiguration.EMPTY,
+                sourceToParse.source(),
+                XContentType.JSON
+            )
+        ) {
+            DocumentParserContext context = new TestDocumentParserContext(MappingLookup.EMPTY, sourceToParse) {
+                @Override
+                public XContentParser parser() {
+                    return parser;
+                }
+            };
+            var xContentLocation = new XContentLocation(0, 3);
+            context.addSourceFieldPatch(fieldMapper, xContentLocation);
+            var exc = expectThrows(IllegalArgumentException.class, () -> mapper.postParse(context));
+            assertThat(exc.getMessage(), containsString("Cannot find patch"));
+        }
+    }
+
+    public void testRemainingPatchSourceInPostParse() throws Exception {
+        MapperService mapperService = createMapperService(Settings.EMPTY, mapping(b -> {
+            b.startObject("field");
+            b.field("type", "long");
+            b.endObject();
+
+            b.startObject("another_field");
+            b.field("type", "long");
+            b.endObject();
+        }));
+        SourceFieldMapper mapper = (SourceFieldMapper) mapperService.getMetadataMappers().get(SourceFieldMapper.class);
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.value(Map.of("another_field", 45));
+        var sourceToParse = new SourceToParse("0", BytesReference.bytes(builder), builder.contentType());
+        FieldMapper fieldMapper = (FieldMapper) mapperService.mappingLookup().getMapper("field");
+        try (
+            var parser = XContentHelper.createParserNotCompressed(
+                XContentParserConfiguration.EMPTY,
+                sourceToParse.source(),
+                XContentType.JSON
+            )
+        ) {
+            DocumentParserContext context = new TestDocumentParserContext(MappingLookup.EMPTY, sourceToParse) {
+                @Override
+                public XContentParser parser() {
+                    return parser;
+                }
+            };
+            var xContentLocation1 = new XContentLocation(0, 3);
+            context.addSourceFieldPatch(fieldMapper, xContentLocation1);
+            {
+                var exc = expectThrows(IllegalArgumentException.class, () -> context.addSourceFieldPatch(fieldMapper, xContentLocation1));
+                assertThat(exc.getMessage(), containsString(xContentLocation1.toString()));
+            }
+            var xContentLocation2 = new XContentLocation(2, 6);
+            context.addSourceFieldPatch(fieldMapper, xContentLocation2);
+
+            var exc = expectThrows(IllegalArgumentException.class, () -> mapper.postParse(context));
+            assertThat(exc.getMessage(), allOf(containsString(xContentLocation2.toString()), containsString(xContentLocation1.toString())));
         }
     }
 }

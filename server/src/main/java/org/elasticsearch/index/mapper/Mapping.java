@@ -131,6 +131,10 @@ public final class Mapping implements ToXContentFragment {
         return root.syntheticFieldLoader(stream);
     }
 
+    protected SourceLoader.PatchFieldLoader patchFieldLoader() {
+        return root.patchFieldLoader();
+    }
+
     /**
      * Merges a new mapping into the existing one.
      *

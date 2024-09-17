@@ -26,8 +26,10 @@ import com.maxmind.geoip2.model.IspResponse;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
@@ -96,19 +98,19 @@ class DatabaseReaderLazyLoader implements IpDatabase, Closeable {
 
     @Nullable
     @Override
-    public CityResponse getCity(InetAddress ipAddress) {
+    public CityResponse getCity(String ipAddress) {
         return getResponse(ipAddress, (reader, ip) -> lookup(reader, ip, CityResponse.class, CityResponse::new));
     }
 
     @Nullable
     @Override
-    public CountryResponse getCountry(InetAddress ipAddress) {
+    public CountryResponse getCountry(String ipAddress) {
         return getResponse(ipAddress, (reader, ip) -> lookup(reader, ip, CountryResponse.class, CountryResponse::new));
     }
 
     @Nullable
     @Override
-    public AsnResponse getAsn(InetAddress ipAddress) {
+    public AsnResponse getAsn(String ipAddress) {
         return getResponse(
             ipAddress,
             (reader, ip) -> lookup(
@@ -122,7 +124,7 @@ class DatabaseReaderLazyLoader implements IpDatabase, Closeable {
 
     @Nullable
     @Override
-    public AnonymousIpResponse getAnonymousIp(InetAddress ipAddress) {
+    public AnonymousIpResponse getAnonymousIp(String ipAddress) {
         return getResponse(
             ipAddress,
             (reader, ip) -> lookup(
@@ -136,7 +138,7 @@ class DatabaseReaderLazyLoader implements IpDatabase, Closeable {
 
     @Nullable
     @Override
-    public ConnectionTypeResponse getConnectionType(InetAddress ipAddress) {
+    public ConnectionTypeResponse getConnectionType(String ipAddress) {
         return getResponse(
             ipAddress,
             (reader, ip) -> lookup(
@@ -150,7 +152,7 @@ class DatabaseReaderLazyLoader implements IpDatabase, Closeable {
 
     @Nullable
     @Override
-    public DomainResponse getDomain(InetAddress ipAddress) {
+    public DomainResponse getDomain(String ipAddress) {
         return getResponse(
             ipAddress,
             (reader, ip) -> lookup(
@@ -164,13 +166,13 @@ class DatabaseReaderLazyLoader implements IpDatabase, Closeable {
 
     @Nullable
     @Override
-    public EnterpriseResponse getEnterprise(InetAddress ipAddress) {
+    public EnterpriseResponse getEnterprise(String ipAddress) {
         return getResponse(ipAddress, (reader, ip) -> lookup(reader, ip, EnterpriseResponse.class, EnterpriseResponse::new));
     }
 
     @Nullable
     @Override
-    public IspResponse getIsp(InetAddress ipAddress) {
+    public IspResponse getIsp(String ipAddress) {
         return getResponse(
             ipAddress,
             (reader, ip) -> lookup(
@@ -199,14 +201,14 @@ class DatabaseReaderLazyLoader implements IpDatabase, Closeable {
 
     @Nullable
     private <T extends AbstractResponse> T getResponse(
-        InetAddress ipAddress,
-        CheckedBiFunction<Reader, InetAddress, Optional<T>, Exception> responseProvider
+        String ipAddress,
+        CheckedBiFunction<Reader, String, Optional<T>, Exception> responseProvider
     ) {
         return cache.putIfAbsent(ipAddress, databasePath.toString(), ip -> {
             try {
                 return responseProvider.apply(get(), ipAddress).orElse(null);
             } catch (Exception e) {
-                throw new RuntimeException(e);
+                throw ExceptionsHelper.convertToRuntime(e);
             }
         });
     }
@@ -267,14 +269,15 @@ class DatabaseReaderLazyLoader implements IpDatabase, Closeable {
         RESPONSE build(RESPONSE response, String responseIp, Network network, List<String> locales);
     }
 
-    private <RESPONSE> Optional<RESPONSE> lookup(Reader reader, InetAddress ip, Class<RESPONSE> clazz, ResponseBuilder<RESPONSE> builder)
+    private <RESPONSE> Optional<RESPONSE> lookup(Reader reader, String ip, Class<RESPONSE> clazz, ResponseBuilder<RESPONSE> builder)
         throws IOException {
-        DatabaseRecord<RESPONSE> record = reader.getRecord(ip, clazz);
+        InetAddress inetAddress = InetAddresses.forString(ip);
+        DatabaseRecord<RESPONSE> record = reader.getRecord(inetAddress, clazz);
         RESPONSE result = record.getData();
         if (result == null) {
             return Optional.empty();
         } else {
-            return Optional.of(builder.build(result, NetworkAddress.format(ip), record.getNetwork(), List.of("en")));
+            return Optional.of(builder.build(result, NetworkAddress.format(inetAddress), record.getNetwork(), List.of("en")));
         }
     }
 }

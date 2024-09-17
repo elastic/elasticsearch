@@ -29,7 +29,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
@@ -37,7 +36,6 @@ import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.geoip.Database.Property;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -165,7 +163,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return ingestDocument;
     }
 
-    private Map<String, Object> getGeoData(IpDatabase ipDatabase, String ip) throws IOException {
+    private Map<String, Object> getGeoData(IpDatabase ipDatabase, String ipAddress) throws IOException {
         final String databaseType = ipDatabase.getDatabaseType();
         final Database database;
         try {
@@ -173,7 +171,6 @@ public final class GeoIpProcessor extends AbstractProcessor {
         } catch (IllegalArgumentException e) {
             throw new ElasticsearchParseException(e.getMessage(), e);
         }
-        final InetAddress ipAddress = InetAddresses.forString(ip);
         return switch (database) {
             case City -> retrieveCityGeoData(ipDatabase, ipAddress);
             case Country -> retrieveCountryGeoData(ipDatabase, ipAddress);
@@ -207,7 +204,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return properties;
     }
 
-    private Map<String, Object> retrieveCityGeoData(IpDatabase ipDatabase, InetAddress ipAddress) {
+    private Map<String, Object> retrieveCityGeoData(IpDatabase ipDatabase, String ipAddress) {
         CityResponse response = ipDatabase.getCity(ipAddress);
         if (response == null) {
             return Map.of();
@@ -289,7 +286,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return geoData;
     }
 
-    private Map<String, Object> retrieveCountryGeoData(IpDatabase ipDatabase, InetAddress ipAddress) {
+    private Map<String, Object> retrieveCountryGeoData(IpDatabase ipDatabase, String ipAddress) {
         CountryResponse response = ipDatabase.getCountry(ipAddress);
         if (response == null) {
             return Map.of();
@@ -330,7 +327,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return geoData;
     }
 
-    private Map<String, Object> retrieveAsnGeoData(IpDatabase ipDatabase, InetAddress ipAddress) {
+    private Map<String, Object> retrieveAsnGeoData(IpDatabase ipDatabase, String ipAddress) {
         AsnResponse response = ipDatabase.getAsn(ipAddress);
         if (response == null) {
             return Map.of();
@@ -363,7 +360,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return geoData;
     }
 
-    private Map<String, Object> retrieveAnonymousIpGeoData(IpDatabase ipDatabase, InetAddress ipAddress) {
+    private Map<String, Object> retrieveAnonymousIpGeoData(IpDatabase ipDatabase, String ipAddress) {
         AnonymousIpResponse response = ipDatabase.getAnonymousIp(ipAddress);
         if (response == null) {
             return Map.of();
@@ -403,7 +400,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return geoData;
     }
 
-    private Map<String, Object> retrieveConnectionTypeGeoData(IpDatabase ipDatabase, InetAddress ipAddress) {
+    private Map<String, Object> retrieveConnectionTypeGeoData(IpDatabase ipDatabase, String ipAddress) {
         ConnectionTypeResponse response = ipDatabase.getConnectionType(ipAddress);
         if (response == null) {
             return Map.of();
@@ -425,7 +422,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return geoData;
     }
 
-    private Map<String, Object> retrieveDomainGeoData(IpDatabase ipDatabase, InetAddress ipAddress) {
+    private Map<String, Object> retrieveDomainGeoData(IpDatabase ipDatabase, String ipAddress) {
         DomainResponse response = ipDatabase.getDomain(ipAddress);
         if (response == null) {
             return Map.of();
@@ -447,7 +444,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return geoData;
     }
 
-    private Map<String, Object> retrieveEnterpriseGeoData(IpDatabase ipDatabase, InetAddress ipAddress) {
+    private Map<String, Object> retrieveEnterpriseGeoData(IpDatabase ipDatabase, String ipAddress) {
         EnterpriseResponse response = ipDatabase.getEnterprise(ipAddress);
         if (response == null) {
             return Map.of();
@@ -620,7 +617,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return geoData;
     }
 
-    private Map<String, Object> retrieveIspGeoData(IpDatabase ipDatabase, InetAddress ipAddress) {
+    private Map<String, Object> retrieveIspGeoData(IpDatabase ipDatabase, String ipAddress) {
         IspResponse response = ipDatabase.getIsp(ipAddress);
         if (response == null) {
             return Map.of();

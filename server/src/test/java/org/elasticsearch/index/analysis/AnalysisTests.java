@@ -129,9 +129,7 @@ public class AnalysisTests extends ESTestCase {
         }
         Environment env = TestEnvironment.newEnvironment(nodeSettings);
         List<String> wordList = Analysis.getWordList(env, nodeSettings, "foo.path", "bar.list", "soup.deduplicate", true, true);
-        assertEquals(List.of(
-            "最終契約,最終契約,最終契約,カスタム名 詞")
-            , wordList);
+        assertEquals(List.of("最終契約,最終契約,最終契約,カスタム名 詞"), wordList);
     }
 
     public void testFailOnDuplicates() throws IOException {
@@ -156,7 +154,10 @@ public class AnalysisTests extends ESTestCase {
             writer.write('\n');
         }
         Environment env = TestEnvironment.newEnvironment(nodeSettings);
-        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> Analysis.getWordList(env, nodeSettings, "foo.path", "bar.list", "soup.deduplicate", false, true));
+        IllegalArgumentException exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> Analysis.getWordList(env, nodeSettings, "foo.path", "bar.list", "soup.deduplicate", false, true)
+        );
         assertThat(exc.getMessage(), containsString("[最終契約] in user dictionary at line [5]"));
     }
 
@@ -183,10 +184,13 @@ public class AnalysisTests extends ESTestCase {
         }
         Environment env = TestEnvironment.newEnvironment(nodeSettings);
         List<String> wordList = Analysis.getWordList(env, nodeSettings, "foo.path", "bar.list", "soup.deduplicate", false, true);
-        assertEquals(List.of(
+        assertEquals(
+            List.of(
                 "# This is a test of the emergency broadcast system",
                 "最終契約,最終契約,最終契約,カスタム名 詞",
                 "# This is a test of the emergency broadcast system"
-            ), wordList);
+            ),
+            wordList
+        );
     }
 }

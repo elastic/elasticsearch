@@ -53,20 +53,22 @@ import java.util.Map;
  *   },
  *   "component_template_substitutions": {
  *     "my-template-1": {
- *       "settings": {
- *         "number_of_shards": 1
- *       },
- *       "mappings": {
- *         "_source": {
- *           "enabled": false
+ *       "template": {
+ *         "settings": {
+ *           "number_of_shards": 1
  *         },
- *         "properties": {
- *           "host_name": {
- *             "type": "keyword"
+ *         "mappings": {
+ *           "_source": {
+ *             "enabled": false
  *           },
- *           "created_at": {
- *             "type": "date",
- *             "format": "EEE MMM dd HH:mm:ss Z yyyy"
+ *           "properties": {
+ *             "host_name": {
+ *               "type": "keyword"
+ *             },
+ *             "created_at": {
+ *               "type": "date",
+ *               "format": "EEE MMM dd HH:mm:ss Z yyyy"
+ *             }
  *           }
  *         }
  *       }

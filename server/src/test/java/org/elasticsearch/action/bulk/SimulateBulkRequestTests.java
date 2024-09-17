@@ -54,19 +54,23 @@ public class SimulateBulkRequestTests extends ESTestCase {
         String substituteComponentTemplatesString = """
               {
                   "mappings_template": {
-                    "mappings": {
-                      "dynamic": "true",
-                      "properties": {
-                        "foo": {
-                          "type": "keyword"
+                    "template": {
+                      "mappings": {
+                        "dynamic": "true",
+                        "properties": {
+                          "foo": {
+                            "type": "keyword"
+                          }
                         }
                       }
                     }
                   },
                   "settings_template": {
-                    "settings": {
-                      "index": {
-                        "default_pipeline": "bar-pipeline"
+                    "template": {
+                      "settings": {
+                        "index": {
+                          "default_pipeline": "bar-pipeline"
+                        }
                       }
                     }
                   }
@@ -84,11 +88,15 @@ public class SimulateBulkRequestTests extends ESTestCase {
         assertThat(componentTemplateSubstitutions.size(), equalTo(2));
         assertThat(
             XContentHelper.convertToMap(
-                componentTemplateSubstitutions.get("mappings_template").template().mappings().uncompressed(),
+                XContentHelper.toXContent(
+                    componentTemplateSubstitutions.get("mappings_template").template(),
+                    XContentType.JSON,
+                    randomBoolean()
+                ),
                 randomBoolean(),
                 XContentType.JSON
             ).v2(),
-            equalTo(substituteComponentTemplates.get("mappings_template").get("mappings"))
+            equalTo(substituteComponentTemplates.get("mappings_template").get("template"))
         );
         assertNull(componentTemplateSubstitutions.get("mappings_template").template().settings());
         assertNull(componentTemplateSubstitutions.get("settings_template").template().mappings());
@@ -139,9 +147,12 @@ public class SimulateBulkRequestTests extends ESTestCase {
     private static Map<String, Map<String, Object>> getTestTemplateSubstitutions() {
         return Map.of(
             "template1",
-            Map.of("mappings", Map.of("_source", Map.of("enabled", false), "properties", Map.of()), "settings", Map.of()),
+            Map.of(
+                "template",
+                Map.of("mappings", Map.of("_source", Map.of("enabled", false), "properties", Map.of()), "settings", Map.of())
+            ),
             "template2",
-            Map.of("mappings", Map.of(), "settings", Map.of())
+            Map.of("template", Map.of("mappings", Map.of(), "settings", Map.of()))
         );
     }
 }

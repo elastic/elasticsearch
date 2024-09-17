@@ -183,6 +183,24 @@ public class StatelessMockRepository extends FsRepository {
             }
 
             @Override
+            public void writeBlobAtomic(
+                OperationPurpose purpose,
+                String blobName,
+                InputStream inputStream,
+                long blobSize,
+                boolean failIfAlreadyExists
+            ) throws IOException {
+                getStrategy().blobContainerWriteBlobAtomic(
+                    () -> super.writeBlobAtomic(purpose, blobName, inputStream, blobSize, failIfAlreadyExists),
+                    purpose,
+                    blobName,
+                    inputStream,
+                    blobSize,
+                    failIfAlreadyExists
+                );
+            }
+
+            @Override
             public void writeMetadataBlob(
                 OperationPurpose purpose,
                 String blobName,

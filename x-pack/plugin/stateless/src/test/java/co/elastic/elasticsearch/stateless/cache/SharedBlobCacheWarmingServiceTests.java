@@ -21,7 +21,6 @@ import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
 import co.elastic.elasticsearch.stateless.cache.reader.MutableObjectStoreUploadTracker;
 import co.elastic.elasticsearch.stateless.cache.reader.ObjectStoreCacheBlobReader;
-import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.BlobFile;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
@@ -245,17 +244,18 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             assertThat(Math.toIntExact(vbcc.getTotalSizeInBytes()), lessThan(fakeNode.sharedCacheService.getRegionSize()));
 
             // upload vbcc
-            SetOnce<BatchedCompoundCommit> bcc = new SetOnce<>();
             var indexBlobContainer = fakeNode.getShardContainer();
-            indexBlobContainer.writeMetadataBlob(
-                OperationPurpose.INDICES,
-                vbcc.getBlobName(),
-                false,
-                true,
-                out -> bcc.set(vbcc.writeToStore(out))
-            );
+            try (var vbccInputStream = vbcc.getFrozenInputStreamForUpload()) {
+                indexBlobContainer.writeBlobAtomic(
+                    OperationPurpose.INDICES,
+                    vbcc.getBlobName(),
+                    vbccInputStream,
+                    vbcc.getTotalSizeInBytes(),
+                    false
+                );
+            }
 
-            var frozenBcc = bcc.get();
+            var frozenBcc = vbcc.getFrozenBatchedCompoundCommit();
 
             // update search directory with latest commit
             fakeNode.searchDirectory.updateCommit(frozenBcc.lastCompoundCommit());

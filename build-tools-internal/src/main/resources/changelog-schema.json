@@ -32,6 +32,7 @@
             "CRUD",
             "Client",
             "Cluster Coordination",
+            "Codec",
             "Data streams",
             "DLM",
             "Discovery-Plugins",

@@ -41,12 +41,13 @@ public interface TDigestIntArray extends Releasable {
     /**
      * Copies {@code len} elements from {@code buf} to this array.
      * <p>
-     *     Copy must be made in reverse order. That is, starting from offset+len-1 to offset.
-     *     This is, because it will be used to copy an array to itself.
+     *     As this method will be used to insert elements from itself in an insertion sort,
+     *     the copy must be made in reverse order, from offset+len-1 to offset.
      * </p>
      */
     default void set(int index, TDigestIntArray buf, int offset, int len) {
         assert index >= 0 && index + len <= this.size();
+        assert buf != this || index >= offset : "To set to itself, the destination index must be greater than the source offset";
         for (int i = len - 1; i >= 0; i--) {
             this.set(index + i, buf.get(offset + i));
         }

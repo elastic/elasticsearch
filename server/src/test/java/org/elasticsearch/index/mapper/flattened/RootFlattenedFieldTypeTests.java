@@ -171,4 +171,28 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
         assertEquals(List.of(), fetchSourceValue(createDefaultFieldType(10), sourceValue));
         assertEquals(List.of(sourceValue), fetchSourceValue(createDefaultFieldType(20), sourceValue));
     }
+
+    public void testFetchSourceValueWithList() throws IOException {
+        Map<String, Object> sourceValue = Map.of("key1", List.of("one", "two", "three"));
+
+        assertEquals(List.of(Map.of("key1", List.of("one", "two"))), fetchSourceValue(createDefaultFieldType(3), sourceValue));
+    }
+
+    public void testFetchSourceValueWithMultipleFields() throws IOException {
+        Map<String, Object> sourceValue = Map.of(
+            "key1",
+            "test",
+            "key2",
+            List.of("one", "two", "three"),
+            "key3",
+            "hi",
+            "key4",
+            List.of("the quick brown fox", "jumps over the lazy dog")
+        );
+
+        assertEquals(
+            List.of(Map.of("key2", List.of("one", "two"), "key3", "hi")),
+            fetchSourceValue(createDefaultFieldType(3), sourceValue)
+        );
+    }
 }

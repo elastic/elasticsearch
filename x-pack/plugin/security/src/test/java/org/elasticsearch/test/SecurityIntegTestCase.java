@@ -385,7 +385,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     /**
      * Waits for security index to become available. Note that you must ensure index creation was triggered before calling this method,
      * by calling one of the resource creation APIs (e.g., creating a user).
-     * If you use {@link #createSecurityIndexWithWaitForActiveShards()} to create the index it's not necessary call
+     * If you use {@link #createSecurityIndexWithWaitForActiveShards()} to create the index it's not necessary to call
      * {@link #assertSecurityIndexActive} since the create method ensures the index is active.
      */
     public void assertSecurityIndexActive() throws Exception {

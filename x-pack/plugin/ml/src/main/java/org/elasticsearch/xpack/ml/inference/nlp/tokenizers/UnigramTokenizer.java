@@ -14,6 +14,7 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 
@@ -270,7 +271,7 @@ public final class UnigramTokenizer extends Tokenizer {
         byte[] bytes = maybeTokenized.toString().getBytes(StandardCharsets.UTF_8);
         int[] pieces = new int[bytes.length];
         for (int i = 0; i < bytes.length; i++) {
-            BytesRef decomposedToken = new BytesRef(String.format("<0x%02X>", bytes[i]));
+            BytesRef decomposedToken = new BytesRef(Strings.format("<0x%02X>", bytes[i]));
             Integer piece = vocabToId.get(decomposedToken);
             if (piece == null) {
                 piece = unknownTokenId;
@@ -365,7 +366,7 @@ public final class UnigramTokenizer extends Tokenizer {
                 for (int i = pieces.length - 1; i >= 0; i--) {
                     results.add(
                         new DelimitedToken.Encoded(
-                            String.format("<0x%02X>", bytes[i]),
+                            Strings.format("<0x%02X>", bytes[i]),
                             pieces[i],
                             offsetCorrection.apply(node.startsAtCharPos),
                             offsetCorrection.apply(startsAtBytes + i)

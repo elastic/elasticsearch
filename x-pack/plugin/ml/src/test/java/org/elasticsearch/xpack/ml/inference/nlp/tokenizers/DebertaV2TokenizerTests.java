@@ -108,7 +108,6 @@ public class DebertaV2TokenizerTests extends ESTestCase {
                 null
             ).get(0);
             assertArrayEquals(new int[] { 4, 5, 20, 21, 6, 16, 20, 21, 8 }, tokenization.tokenIds());
-            System.out.println(tokenization.tokens().get(0));
             assertThat(
                 tokenStrings(tokenization.tokens().get(0)),
                 contains("▁Ela", "stic", "<0xC2>", "<0xAD>", "search", "▁\uD83D\uDE00", "<0xC2>", "<0xAD>", "▁fun")

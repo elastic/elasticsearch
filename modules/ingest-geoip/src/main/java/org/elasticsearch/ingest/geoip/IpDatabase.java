@@ -24,9 +24,9 @@ import java.io.IOException;
 import java.net.InetAddress;
 
 /**
- * Provides a uniform interface for interacting with various GeoIP databases.
+ * Provides a uniform interface for interacting with various ip databases.
  */
-public interface GeoIpDatabase {
+public interface IpDatabase {
 
     /**
      * @return the database type as it is detailed in the database file metadata

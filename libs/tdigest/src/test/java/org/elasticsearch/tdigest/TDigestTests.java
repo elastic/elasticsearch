@@ -21,6 +21,8 @@
 
 package org.elasticsearch.tdigest;
 
+import org.elasticsearch.tdigest.arrays.TDigestArrays;
+import org.elasticsearch.tdigest.arrays.WrapperTDigestArrays;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -541,5 +543,9 @@ public abstract class TDigestTests extends ESTestCase {
             assertTrue("Q: " + z, Double.compare(q, lastQuantile) >= 0);
             lastQuantile = q;
         }
+    }
+
+    protected static TDigestArrays arrays() {
+        return WrapperTDigestArrays.INSTANCE;
     }
 }

@@ -94,7 +94,7 @@ public class ShardSnapshotsService {
         logger.debug("Searching for peer recovery compatible snapshots in [{}]", repositories);
 
         GetShardSnapshotRequest request = GetShardSnapshotRequest.latestSnapshotInRepositories(
-            MasterNodeRequest.infiniteMasterNodeTimeout(clusterService.state().getMinTransportVersion()),
+            MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
             shardId,
             repositories
         );

@@ -10,13 +10,29 @@ package org.elasticsearch.xpack.esql.expression.function.grouping;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BytesRefHash;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.aggregation.GroupingAggregator;
+import org.elasticsearch.compute.aggregation.GroupingKey;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
@@ -31,6 +47,8 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.ml.aggs.categorization.CategorizationBytesRefHash;
 import org.elasticsearch.xpack.ml.aggs.categorization.CategorizationPartOfSpeechDictionary;
+import org.elasticsearch.xpack.ml.aggs.categorization.InternalCategorizationAggregation;
+import org.elasticsearch.xpack.ml.aggs.categorization.SerializableTokenListCategory;
 import org.elasticsearch.xpack.ml.aggs.categorization.TokenListCategorizer;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 
@@ -135,7 +153,7 @@ public class Categorize extends GroupingFunction implements Validatable {
 
     @Override
     public DataType dataType() {
-        return DataType.INTEGER;
+        return DataType.KEYWORD;
     }
 
     @Override
@@ -155,5 +173,178 @@ public class Categorize extends GroupingFunction implements Validatable {
     @Override
     public String toString() {
         return "Categorize{field=" + field + "}";
+    }
+
+    public GroupingKey.Supplier groupingKey(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+        return mode -> new GroupingKeyFactory(source(), toEvaluator.apply(field), mode);
+    }
+
+    record GroupingKeyFactory(Source source, ExpressionEvaluator.Factory field, AggregatorMode mode) implements GroupingKey.Factory {
+        @Override
+        public GroupingKey apply(DriverContext context, int resultOffset) {
+            ExpressionEvaluator field = this.field.get(context);
+            CategorizeEvaluator evaluator = null;
+            TokenListCategorizer.CloseableTokenListCategorizer categorizer = null;
+            try {
+                categorizer = new TokenListCategorizer.CloseableTokenListCategorizer(
+                    new CategorizationBytesRefHash(new BytesRefHash(2048, context.bigArrays())),
+                    CategorizationPartOfSpeechDictionary.getInstance(),
+                    0.70f
+                );
+                evaluator = new CategorizeEvaluator(
+                    source,
+                    field,
+                    new CategorizationAnalyzer(
+                        // TODO(jan): get the correct analyzer in here, see
+                        // CategorizationAnalyzerConfig::buildStandardCategorizationAnalyzer
+                        new CustomAnalyzer(
+                            TokenizerFactory.newFactory("whitespace", WhitespaceTokenizer::new),
+                            new CharFilterFactory[0],
+                            new TokenFilterFactory[0]
+                        ),
+                        true
+                    ),
+                    categorizer,
+                    context
+                );
+                field = null;
+                GroupingKey result = new GroupingKey(mode, new GroupingKeyThing(resultOffset, evaluator, categorizer));
+                categorizer = null;
+                evaluator = null;
+                return result;
+            } finally {
+                Releasables.close(field, evaluator, categorizer);
+            }
+
+        }
+
+        @Override
+        public ElementType intermediateElementType() {
+            return ElementType.INT;
+        }
+
+        @Override
+        public GroupingAggregator.Factory valuesAggregatorForGroupingsInTimeSeries(int timeBucketChannel) {
+            throw new UnsupportedOperationException("not supported in time series");
+        }
+    }
+
+    private static class GroupingKeyThing implements GroupingKey.Thing {
+        private final int resultOffset;
+        private final CategorizeEvaluator evaluator;
+        private final TokenListCategorizer.CloseableTokenListCategorizer categorizer;
+
+        private GroupingKeyThing(
+            int resultOffset,
+            CategorizeEvaluator evaluator,
+            TokenListCategorizer.CloseableTokenListCategorizer categorizer
+        ) {
+            this.resultOffset = resultOffset;
+            this.evaluator = evaluator;
+            this.categorizer = categorizer;
+        }
+
+        @Override
+        public Block evalRawInput(Page page) {
+            return evaluator.eval(page);
+        }
+
+        @Override
+        public int extraIntermediateBlocks() {
+            return 1;
+        }
+
+        @Override
+        public void fetchIntermediateState(BlockFactory blockFactory, Block[] blocks, int positionCount) {
+            blocks[resultOffset + 1] = buildIntermediateBlock(blockFactory, positionCount);
+        }
+
+        @Override
+        public Block evalIntermediateInput(Page page) {
+            BytesRefBlock intermediate = page.getBlock(resultOffset + 1);
+            if (intermediate.areAllValuesNull() == false) {
+                readIntermediate(intermediate.getBytesRef(0, new BytesRef()));
+            }
+            // NOCOMMIT this should remap the ints in the input block to whatever the *new* ids are
+            Block result = page.getBlock(resultOffset);
+            result.incRef();
+            return result;
+        }
+
+        @Override
+        public void replaceIntermediateKeys(BlockFactory blockFactory, Block[] blocks) {
+            // NOCOMMIT this offset can't be the same in the result array and intermediate array
+            IntBlock keys = (IntBlock) blocks[resultOffset];
+            blocks[resultOffset] = finalKeys(blockFactory, keys);
+            System.err.println(blocks[resultOffset]);
+        }
+
+        @Override
+        public void close() {
+            evaluator.close();
+        }
+
+        private Block buildIntermediateBlock(BlockFactory blockFactory, int positionCount) {
+            if (categorizer.getCategoryCount() == 0) {
+                return blockFactory.newConstantNullBlock(positionCount);
+            }
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                // TODO be more careful here.
+                out.writeVInt(categorizer.getCategoryCount());
+                for (SerializableTokenListCategory category : categorizer.toCategories(categorizer.getCategoryCount())) {
+                    category.writeTo(out);
+                }
+                return blockFactory.newConstantBytesRefBlockWith(out.bytes().toBytesRef(), positionCount);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        private void readIntermediate(BytesRef bytes) {
+            try (StreamInput in = new BytesArray(bytes).streamInput()) {
+                int count = in.readVInt();
+                for (int i = 0; i < count; i++) {
+                    SerializableTokenListCategory category = new SerializableTokenListCategory(in);
+                    categorizer.mergeWireCategory(category);
+                }
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        private OrdinalBytesRefBlock finalKeys(BlockFactory blockFactory, IntBlock keys) {
+            keys.incRef();
+            return new OrdinalBytesRefBlock(keys, finalBytes(blockFactory));
+        }
+
+        /**
+         * A lookup table containing the category names.
+         */
+        private BytesRefVector finalBytes(BlockFactory blockFactory) {
+            try (BytesRefVector.Builder result = blockFactory.newBytesRefVectorBuilder(categorizer.getCategoryCount())) {
+                BytesRefBuilder scratch = new BytesRefBuilder();
+                for (SerializableTokenListCategory category : categorizer.toCategories(categorizer.getCategoryCount())) {
+                    // NOCOMMIT build tokens properly
+                    BytesRef[] tokens = category.getKeyTokens();
+                    if (tokens.length == 0) {
+                        scratch.append((byte) '*');
+                        result.appendBytesRef(scratch.get());
+                        scratch.clear();
+                        continue;
+                    }
+                    scratch.append(tokens[0]);
+                    for (int i = 1; i < tokens.length; i++) {
+                        scratch.append((byte) ' ');
+                        scratch.append(tokens[i]);
+                    }
+                    scratch.append((byte) ' ');
+                    scratch.append((byte) '.');
+                    scratch.append((byte) '*');
+                    result.appendBytesRef(scratch.get());
+                    scratch.clear();
+                }
+                return result.build();
+            }
+        }
     }
 }

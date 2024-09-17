@@ -206,7 +206,7 @@ public class TokenListCategorizer implements Accountable {
         return mergedCategory;
     }
 
-    private synchronized TokenListCategory computeCategory(
+    private synchronized TokenListCategory computeCategory( // NOCOMMIT why synchronized? in ESQL at least there are no threads around
         List<TokenAndWeight> weightedTokenIds,
         List<TokenAndWeight> workTokenUniqueIds,
         int workWeight,
@@ -422,6 +422,13 @@ public class TokenListCategorizer implements Accountable {
                 )
             )
             .toArray(InternalCategorizationAggregation.Bucket[]::new);
+    }
+
+    public List<SerializableTokenListCategory> toCategories(int size) {
+        return categoriesByNumMatches.stream()
+            .limit(size)
+            .map(category -> new SerializableTokenListCategory(category, bytesRefHash))
+            .toList();
     }
 
     public InternalCategorizationAggregation.Bucket[] toOrderedBuckets(

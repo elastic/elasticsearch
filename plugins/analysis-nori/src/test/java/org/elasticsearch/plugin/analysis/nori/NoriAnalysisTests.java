@@ -127,7 +127,7 @@ public class NoriAnalysisTests extends ESTokenStreamTestCase {
             .build();
 
         final IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> createTestAnalysis(settings));
-        assertThat(exc.getMessage(), containsString("[세종] in user dictionary at line [3]"));
+        assertThat(exc.getMessage(), containsString("[세종] in user dictionary at line [4]"));
     }
 
     public void testNoriAnalyzerDuplicateUserDictRuleWithLegacyVersion() throws IOException {

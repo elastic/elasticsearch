@@ -445,7 +445,7 @@ public class KuromojiAnalysisTests extends ESTestCase {
             )
             .build();
         IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> createTestAnalysis(settings));
-        assertThat(exc.getMessage(), containsString("[制限スピード] in user dictionary at line [3]"));
+        assertThat(exc.getMessage(), containsString("[制限スピード] in user dictionary at line [4]"));
     }
 
     public void testKuromojiAnalyzerDuplicateUserDictRuleDeduplication() throws Exception {

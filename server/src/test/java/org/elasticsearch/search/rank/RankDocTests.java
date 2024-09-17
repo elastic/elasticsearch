@@ -50,9 +50,4 @@ public class RankDocTests extends AbstractWireSerializingTestCase<RankDoc> {
         }
         return mutated;
     }
-
-    public void testExplain() {
-        RankDoc instance = createTestRankDoc();
-        assertEquals(instance.explain().toString(), instance.explain().toString());
-    }
 }

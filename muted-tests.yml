@@ -223,6 +223,27 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testCreateJob_WithClashingFieldMappingsFails
   issue: https://github.com/elastic/elasticsearch/issues/113046
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {categorize.Categorize SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/113054
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {categorize.Categorize ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/113055
+- class: org.elasticsearch.upgrades.MultiVersionRepositoryAccessIT
+  method: testCreateAndRestoreSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/113058
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testRollupAfterRestart {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/113059
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testRollupAfterRestart {cluster=OLD}
+  issue: https://github.com/elastic/elasticsearch/issues/113061
+- class: org.elasticsearch.upgrades.MultiVersionRepositoryAccessIT
+  method: testUpgradeMovesRepoToNewMetaVersion
+  issue: https://github.com/elastic/elasticsearch/issues/113062
+- class: org.elasticsearch.upgrades.MultiVersionRepositoryAccessIT
+  method: testReadOnlyRepo
+  issue: https://github.com/elastic/elasticsearch/issues/113060
 
 # Examples:
 #

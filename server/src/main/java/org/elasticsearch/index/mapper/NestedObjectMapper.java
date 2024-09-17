@@ -18,6 +18,7 @@ import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
@@ -46,11 +47,18 @@ public class NestedObjectMapper extends ObjectMapper {
         private Explicit<Boolean> includeInParent = Explicit.IMPLICIT_FALSE;
         private final IndexVersion indexCreatedVersion;
         private final Function<Query, BitSetProducer> bitSetProducer;
+        private final IndexSettings indexSettings;
 
-        public Builder(String name, IndexVersion indexCreatedVersion, Function<Query, BitSetProducer> bitSetProducer) {
+        public Builder(
+            String name,
+            IndexVersion indexCreatedVersion,
+            Function<Query, BitSetProducer> bitSetProducer,
+            IndexSettings indexSettings
+        ) {
             super(name, Explicit.IMPLICIT_TRUE);
             this.indexCreatedVersion = indexCreatedVersion;
             this.bitSetProducer = bitSetProducer;
+            this.indexSettings = indexSettings;
         }
 
         Builder includeInRoot(boolean includeInRoot) {
@@ -111,7 +119,8 @@ public class NestedObjectMapper extends ObjectMapper {
                 parentTypeFilter,
                 nestedTypePath,
                 nestedTypeFilter,
-                bitSetProducer
+                bitSetProducer,
+                indexSettings
             );
         }
     }
@@ -126,7 +135,8 @@ public class NestedObjectMapper extends ObjectMapper {
             NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder(
                 name,
                 parserContext.indexVersionCreated(),
-                parserContext::bitSetProducer
+                parserContext::bitSetProducer,
+                parserContext.getIndexSettings()
             );
             parseNested(name, node, builder);
             parseObjectFields(node, parserContext, builder);
@@ -193,6 +203,7 @@ public class NestedObjectMapper extends ObjectMapper {
     private final Query nestedTypeFilter;
     // Function to create a bitset for identifying parent documents
     private final Function<Query, BitSetProducer> bitsetProducer;
+    private final IndexSettings indexSettings;
 
     NestedObjectMapper(
         String name,
@@ -206,7 +217,8 @@ public class NestedObjectMapper extends ObjectMapper {
         Query parentTypeFilter,
         String nestedTypePath,
         Query nestedTypeFilter,
-        Function<Query, BitSetProducer> bitsetProducer
+        Function<Query, BitSetProducer> bitsetProducer,
+        IndexSettings indexSettings
     ) {
         super(name, fullPath, enabled, Explicit.IMPLICIT_TRUE, storeArraySource, dynamic, mappers);
         this.parentTypeFilter = parentTypeFilter;
@@ -215,6 +227,7 @@ public class NestedObjectMapper extends ObjectMapper {
         this.includeInParent = includeInParent;
         this.includeInRoot = includeInRoot;
         this.bitsetProducer = bitsetProducer;
+        this.indexSettings = indexSettings;
     }
 
     public Query parentTypeFilter() {
@@ -252,7 +265,7 @@ public class NestedObjectMapper extends ObjectMapper {
 
     @Override
     public ObjectMapper.Builder newBuilder(IndexVersion indexVersionCreated) {
-        NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder(leafName(), indexVersionCreated, bitsetProducer);
+        NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder(leafName(), indexVersionCreated, bitsetProducer, indexSettings);
         builder.enabled = enabled;
         builder.dynamic = dynamic;
         builder.includeInRoot = includeInRoot;
@@ -274,7 +287,8 @@ public class NestedObjectMapper extends ObjectMapper {
             parentTypeFilter,
             nestedTypePath,
             nestedTypeFilter,
-            bitsetProducer
+            bitsetProducer,
+            indexSettings
         );
     }
 
@@ -349,7 +363,8 @@ public class NestedObjectMapper extends ObjectMapper {
             parentTypeFilter,
             nestedTypePath,
             nestedTypeFilter,
-            bitsetProducer
+            bitsetProducer,
+            indexSettings
         );
     }
 
@@ -382,7 +397,9 @@ public class NestedObjectMapper extends ObjectMapper {
         }
 
         SourceLoader sourceLoader = new SourceLoader.Synthetic(() -> super.syntheticFieldLoader(mappers.values().stream(), true), NOOP);
-        var storedFieldLoader = org.elasticsearch.index.fieldvisitor.StoredFieldLoader.create(false, sourceLoader.requiredStoredFields());
+        // Some synthetic source use cases require using _ignored_source field
+        var requiredStoredFields = IgnoredSourceFieldMapper.ensureLoaded(sourceLoader.requiredStoredFields(), indexSettings);
+        var storedFieldLoader = org.elasticsearch.index.fieldvisitor.StoredFieldLoader.create(false, requiredStoredFields);
         return new NestedSyntheticFieldLoader(
             storedFieldLoader,
             sourceLoader,

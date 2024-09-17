@@ -151,6 +151,19 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         Setting.Property.NodeScope
     );
 
+    /**
+     * Enables the lucene files headers/footers replication feature in order to speedup recovery.
+     *
+     * NOTE: once this is enabled, the project produces CC files in a new format.
+     * This format can not be interpreted by the old readers.
+     * Hence, all nodes must be upgraded to a new enough version understanding the new format prior to enabling this flag.
+     */
+    public static final Setting<Boolean> STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT = Setting.boolSetting(
+        "stateless.commit.use_internal_files_replicated_content",
+        false,
+        Setting.Property.NodeScope
+    );
+
     public static final String BCC_TOTAL_SIZE_HISTOGRAM_METRIC = "es.bcc.total_size_in_megabytes.histogram";
     public static final String BCC_NUMBER_COMMITS_HISTOGRAM_METRIC = "es.bcc.number_of_commits.histogram";
     public static final String BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC = "es.bcc.elapsed_time_before_freeze.histogram";
@@ -176,9 +189,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     private Scheduler.Cancellable scheduledShardInactivityMonitorFuture;
     private final TimeValue virtualBccUploadMaxAge;
     private final ScheduledUploadMonitor scheduledUploadMonitor;
-
     private final int bccMaxAmountOfCommits;
     private final long bccUploadMaxSizeInBytes;
+    private final boolean useInternalFilesReplicatedContent;
     private final LongHistogram bccSizeInMegabytesHistogram;
     private final LongHistogram bccNumberCommitsHistogram;
     private final LongHistogram bccAgeHistogram;
@@ -237,6 +250,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         );
         this.bccMaxAmountOfCommits = STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.get(settings);
         this.bccUploadMaxSizeInBytes = STATELESS_UPLOAD_MAX_SIZE.get(settings).getBytes();
+        this.useInternalFilesReplicatedContent = STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.get(settings);
         this.bccSizeInMegabytesHistogram = telemetryProvider.getMeterRegistry()
             .registerLongHistogram(
                 BCC_TOTAL_SIZE_HISTOGRAM_METRIC,
@@ -1032,7 +1046,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     fileName -> getBlobLocation(shardId, fileName),
                     threadPool::relativeTimeInMillis
                 );
-                final boolean appended = newVirtualBcc.appendCommit(reference);
+                final boolean appended = newVirtualBcc.appendCommit(reference, useInternalFilesReplicatedContent);
                 assert appended : "append must be successful since the VBCC is new and empty";
                 logger.trace(
                     () -> Strings.format(
@@ -1043,7 +1057,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 );
                 currentVirtualBcc = newVirtualBcc;
             } else {
-                final boolean appended = currentVirtualBcc.appendCommit(reference);
+                final boolean appended = currentVirtualBcc.appendCommit(reference, useInternalFilesReplicatedContent);
                 assert appended : "append must be successful since append and freeze have exclusive access";
                 logger.trace(
                     () -> Strings.format(

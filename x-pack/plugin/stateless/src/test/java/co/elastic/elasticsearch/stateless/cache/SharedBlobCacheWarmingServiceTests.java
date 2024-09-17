@@ -101,7 +101,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             );
 
             for (StatelessCommitRef ref : indexCommits) {
-                assertTrue(vbcc.appendCommit(ref));
+                assertTrue(vbcc.appendCommit(ref, randomBoolean()));
             }
 
             vbcc.freeze();
@@ -146,7 +146,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             );
 
             for (StatelessCommitRef ref : indexCommits) {
-                assertTrue(vbcc.appendCommit(ref));
+                assertTrue(vbcc.appendCommit(ref, randomBoolean()));
             }
 
             vbcc.freeze();
@@ -236,7 +236,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             );
 
             for (StatelessCommitRef ref : indexCommits) {
-                assertTrue(vbcc.appendCommit(ref));
+                assertTrue(vbcc.appendCommit(ref, randomBoolean()));
             }
 
             vbcc.freeze();

@@ -70,7 +70,7 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                     ESTestCase::randomNonNegativeLong
                 );
                 for (StatelessCommitRef statelessCommitRef : indexCommits) {
-                    assertTrue(virtualBatchedCompoundCommit.appendCommit(statelessCommitRef));
+                    assertTrue(virtualBatchedCompoundCommit.appendCommit(statelessCommitRef, randomBoolean()));
                 }
                 virtualBatchedCompoundCommit.freeze();
 
@@ -143,7 +143,7 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
             );
 
             for (StatelessCommitRef commit : commits) {
-                assertTrue(virtualBatchedCompoundCommit.appendCommit(commit));
+                assertTrue(virtualBatchedCompoundCommit.appendCommit(commit, randomBoolean()));
             }
 
             assertThat(closedCommitRefGenerations, is(empty()));
@@ -177,7 +177,7 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                 ESTestCase::randomNonNegativeLong
             );
             for (StatelessCommitRef statelessCommitRef : commits) {
-                assertTrue(virtualBatchedCompoundCommit.appendCommit(statelessCommitRef));
+                assertTrue(virtualBatchedCompoundCommit.appendCommit(statelessCommitRef, randomBoolean()));
             }
             virtualBatchedCompoundCommit.freeze();
 
@@ -281,7 +281,7 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
 
             if (randomBoolean()) {
                 StatelessCommitRef firstCommit = commits.get(0);
-                assertTrue(virtualBatchedCompoundCommit.appendCommit(firstCommit));
+                assertTrue(virtualBatchedCompoundCommit.appendCommit(firstCommit, randomBoolean()));
                 commits.remove(0);
             }
 
@@ -290,7 +290,7 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                 try {
                     for (StatelessCommitRef statelessCommitRef : commits) {
                         appendBlock.acquire(); // wait on the slow validator thread to reach the point that it calls getBytesByRange
-                        assertTrue(virtualBatchedCompoundCommit.appendCommit(statelessCommitRef));
+                        assertTrue(virtualBatchedCompoundCommit.appendCommit(statelessCommitRef, randomBoolean()));
                     }
                 } catch (Exception e) {
                     assert false : "Unexpected exception: " + e.getMessage();
@@ -348,7 +348,7 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
             );
 
             for (StatelessCommitRef commit : commits) {
-                assertTrue(virtualBatchedCompoundCommit.appendCommit(commit));
+                assertTrue(virtualBatchedCompoundCommit.appendCommit(commit, randomBoolean()));
             }
 
             try (BytesStreamOutput output = new BytesStreamOutput()) {
@@ -361,7 +361,7 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
             }
 
             final StatelessCommitRef newCommitRef = fakeNode.generateIndexCommits(1).get(0);
-            assertFalse(virtualBatchedCompoundCommit.appendCommit(newCommitRef));
+            assertFalse(virtualBatchedCompoundCommit.appendCommit(newCommitRef, randomBoolean()));
         }
     }
 

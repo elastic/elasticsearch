@@ -45,6 +45,7 @@ import java.util.stream.IntStream;
 
 import static co.elastic.elasticsearch.stateless.commits.BlobLocationTestUtils.createBlobLocation;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCase<StatelessCompoundCommit> {
 
@@ -258,8 +259,10 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
                 0,
                 commitFiles,
                 List.of(),
+                InternalFilesReplicatedRanges.EMPTY,
                 StatelessCompoundCommit.CURRENT_VERSION,
-                new PositionTrackingOutputStreamStreamOutput(output)
+                new PositionTrackingOutputStreamStreamOutput(output),
+                false
             );
             // flip one byte anywhere
             byte[] bytes = BytesReference.toBytes(output.bytes());
@@ -275,6 +278,41 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
                     assertThat(e.getMessage(), containsString("(offset + file) length is greater than blobLength"));
                 }
             }
+        }
+    }
+
+    public void testShouldReadHeaderRegardlessFeatureFlagState() throws IOException {
+        StatelessCompoundCommit testInstance = createTestInstance();
+        var writerFeatureFlag = randomBoolean();
+
+        byte[] bytes;
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            StatelessCompoundCommit.writeXContentHeader(
+                testInstance.shardId(),
+                testInstance.generation(),
+                testInstance.primaryTerm(),
+                testInstance.nodeEphemeralId(),
+                testInstance.translogRecoveryStartFile(),
+                testInstance.commitFiles(),
+                List.of(),
+                InternalFilesReplicatedRanges.EMPTY,
+                StatelessCompoundCommit.CURRENT_VERSION,
+                new PositionTrackingOutputStreamStreamOutput(output),
+                writerFeatureFlag
+            );
+            bytes = BytesReference.toBytes(output.bytes());
+        }
+
+        try (StreamInput in = new ByteArrayStreamInput(bytes)) {
+            var copy = StatelessCompoundCommit.readFromStore(in);
+
+            assertThat(copy.shardId(), equalTo(testInstance.shardId()));
+            assertThat(copy.generation(), equalTo(testInstance.generation()));
+            assertThat(copy.primaryTerm(), equalTo(testInstance.primaryTerm()));
+            assertThat(copy.nodeEphemeralId(), equalTo(testInstance.nodeEphemeralId()));
+            assertThat(copy.translogRecoveryStartFile(), equalTo(testInstance.translogRecoveryStartFile()));
+            assertThat(copy.commitFiles(), equalTo(testInstance.commitFiles()));
         }
     }
 

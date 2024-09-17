@@ -201,8 +201,10 @@ public record StatelessCompoundCommit(
         long translogRecoveryStartFile,
         Map<String, BlobLocation> referencedBlobFiles,
         Iterable<InternalFile> internalFiles,
+        InternalFilesReplicatedRanges internalFilesReplicatedRanges,
         int version,
-        PositionTrackingOutputStreamStreamOutput positionTracking
+        PositionTrackingOutputStreamStreamOutput positionTracking,
+        boolean useInternalFilesReplicatedContent
     ) throws IOException {
         assert version == CURRENT_VERSION
             : "writing to object store must use the current version [" + CURRENT_VERSION + "], got [" + version + "]";
@@ -235,6 +237,9 @@ public record StatelessCompoundCommit(
                     }
                 }
                 b.endArray();
+                if (useInternalFilesReplicatedContent) {
+                    internalFilesReplicatedRanges.toXContent(b, ToXContent.EMPTY_PARAMS);
+                }
             }
             b.endObject();
         }
@@ -368,7 +373,8 @@ public record StatelessCompoundCommit(
             long translogRecoveryStartFile,
             String nodeEphemeralId,
             Map<String, BlobLocation> referencedBlobLocations,
-            List<InternalFile> internalFiles
+            List<InternalFile> internalFiles,
+            InternalFilesReplicatedRanges replicatedContentMetadata
         ) {
             @SuppressWarnings("unchecked")
             private static final ConstructingObjectParser<XContentStatelessCompoundCommit, Void> PARSER = new ConstructingObjectParser<>(
@@ -381,7 +387,9 @@ public record StatelessCompoundCommit(
                     args[3] == null ? 0 : (long) args[3],
                     (String) args[4],
                     (Map<String, BlobLocation>) args[5],
-                    (List<InternalFile>) args[6]
+                    (List<InternalFile>) args[6],
+                    // args[7] is null if the xcontent does not contain replicated ranges
+                    InternalFilesReplicatedRanges.from((List<InternalFilesReplicatedRanges.InternalFileReplicatedRange>) args[7])
                 )
             );
             static {
@@ -396,6 +404,11 @@ public record StatelessCompoundCommit(
                     new ParseField("commit_files")
                 );
                 PARSER.declareObjectArray(constructorArg(), InternalFile.PARSER, new ParseField("internal_files"));
+                PARSER.declareObjectArray(
+                    optionalConstructorArg(),
+                    InternalFilesReplicatedRanges.InternalFileReplicatedRange.PARSER,
+                    new ParseField("internal_files_replicated_ranges")
+                );
             }
         }
 

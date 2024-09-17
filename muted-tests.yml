@@ -218,6 +218,8 @@ tests:
 - class: org.elasticsearch.datastreams.logsdb.qa.StandardVersusLogsIndexModeRandomDataChallengeRestIT
   method: testTermsQuery
   issue: https://github.com/elastic/elasticsearch/issues/112462
+- class: org.elasticsearch.repositories.blobstore.testkit.analyze.HdfsRepositoryAnalysisRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/112889
 
 # Examples:
 #

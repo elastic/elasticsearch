@@ -60,7 +60,8 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     static final NodeFeature TRACK_IGNORED_SOURCE = new NodeFeature("mapper.track_ignored_source");
 
     /*
-
+        Setting to disable encoding and writing values for this field.
+        This is needed to unblock index functionality in case there is a bug on this code path.
      */
     public static final Setting<Boolean> SKIP_IGNORED_SOURCE_WRITE_SETTING = Setting.boolSetting(
         "index.mapping.synthetic_source.skip_ignored_source_write",
@@ -70,7 +71,8 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     );
 
     /*
-
+        Setting to disable reading and decoding values stored in this field.
+        This is needed to unblock search functionality in case there is a bug on this code path.
      */
     public static final Setting<Boolean> SKIP_IGNORED_SOURCE_READ_SETTING = Setting.boolSetting(
         "index.mapping.synthetic_source.skip_ignored_source_read",

@@ -108,7 +108,7 @@ public class IgnoredSourceFieldMapperConfigurationTests extends MapperServiceTes
         String syntheticSource = syntheticSource(mapperService.documentMapper(), inputDocument);
         // Values are not loaded.
         assertEquals("{}", syntheticSource);
-        
+
         mapperService.getIndexSettings()
             .getScopedSettings()
             .applySettings(Settings.builder().put(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING.getKey(), false).build());

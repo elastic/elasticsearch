@@ -994,26 +994,31 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         }
 
         // Creating AllocationService instance and the services it depends on...
-        AllocationService strategy = createAllocationService(clusterInfo, diskThresholdDecider, new AllocationDecider() {
-            @Override
-            public Decision canAllocate(IndexMetadata indexMetadata, RoutingNode node, RoutingAllocation allocation) {
-                return cannotAllocateFooShards(indexMetadata.getIndex());
-            }
+        AllocationService strategy = createAllocationService(
+            clusterInfo,
+            diskThresholdDecider,
+            // fake allocation decider to block allocation of the `foo` shard
+            new AllocationDecider() {
+                @Override
+                public Decision canAllocate(IndexMetadata indexMetadata, RoutingNode node, RoutingAllocation allocation) {
+                    return cannotAllocateFooShards(indexMetadata.getIndex());
+                }
 
-            @Override
-            public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-                return cannotAllocateFooShards(shardRouting.index());
-            }
+                @Override
+                public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                    return cannotAllocateFooShards(shardRouting.index());
+                }
 
-            @Override
-            public Decision canForceAllocatePrimary(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-                return cannotAllocateFooShards(shardRouting.index());
-            }
+                @Override
+                public Decision canForceAllocatePrimary(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                    return cannotAllocateFooShards(shardRouting.index());
+                }
 
-            private Decision cannotAllocateFooShards(Index index) {
-                return index.getName().equals("foo") ? Decision.NO : Decision.YES;
+                private Decision cannotAllocateFooShards(Index index) {
+                    return index.getName().equals("foo") ? Decision.NO : Decision.YES;
+                }
             }
-        });
+        );
 
         // Populate the in-sync allocation IDs so that the overall cluster state is valid enough to run reroute()
         final var metadataBuilder = Metadata.builder(clusterState.metadata());

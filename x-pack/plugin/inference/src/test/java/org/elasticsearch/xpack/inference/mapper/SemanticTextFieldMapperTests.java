@@ -23,6 +23,7 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -318,6 +319,39 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                     )
                 );
             }
+        }
+    }
+
+    public void testUpdateSearchInferenceId() throws IOException {
+        final String inferenceId = "test_inference_id";
+        final String searchInferenceId1 = "test_search_inference_id_1";
+        final String searchInferenceId2 = "test_search_inference_id_2";
+
+        CheckedBiFunction<String, String, XContentBuilder, IOException> buildMapping = (f, sid) -> mapping(b -> {
+            b.startObject(f).field("type", "semantic_text").field("inference_id", inferenceId);
+            if (sid != null) {
+                b.field("search_inference_id", sid);
+            }
+            b.endObject();
+        });
+
+        for (int depth = 1; depth < 5; depth++) {
+            String fieldName = randomFieldName(depth);
+            MapperService mapperService = createMapperService(buildMapping.apply(fieldName, null));
+            assertSemanticTextField(mapperService, fieldName, false);
+            assertSearchInferenceId(mapperService, fieldName, inferenceId);
+
+            merge(mapperService, buildMapping.apply(fieldName, searchInferenceId1));
+            assertSemanticTextField(mapperService, fieldName, false);
+            assertSearchInferenceId(mapperService, fieldName, searchInferenceId1);
+
+            merge(mapperService, buildMapping.apply(fieldName, searchInferenceId2));
+            assertSemanticTextField(mapperService, fieldName, false);
+            assertSearchInferenceId(mapperService, fieldName, searchInferenceId2);
+
+            merge(mapperService, buildMapping.apply(fieldName, null));
+            assertSemanticTextField(mapperService, fieldName, false);
+            assertSearchInferenceId(mapperService, fieldName, inferenceId);
         }
     }
 

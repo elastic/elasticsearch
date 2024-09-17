@@ -188,7 +188,7 @@ public final class DocumentParser {
     }
 
     /**
-     * Simplified parsing version for retrieving the source of a given
+     * Simplified parsing version for retrieving the source of a given set of fields.
      */
     private static List<IgnoredSourceFieldMapper.NameValue> parseDocForMissingValues(
         DocumentParserContext context,

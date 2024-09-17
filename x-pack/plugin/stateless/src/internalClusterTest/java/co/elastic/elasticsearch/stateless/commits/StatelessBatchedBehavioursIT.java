@@ -35,7 +35,6 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
@@ -49,7 +48,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.io.IOException;
-import java.io.OutputStream;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -301,18 +300,18 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessIntegTestCase
         final CountDownLatch latch = new CountDownLatch(1);
         final String indexNode = startMasterAndIndexNode(Settings.EMPTY, new StatelessMockRepositoryStrategy() {
             @Override
-            public void blobContainerWriteMetadataBlob(
-                CheckedRunnable<IOException> original,
+            public void blobContainerWriteBlobAtomic(
+                CheckedRunnable<IOException> originalRunnable,
                 OperationPurpose purpose,
                 String blobName,
-                boolean failIfAlreadyExists,
-                boolean atomic,
-                CheckedConsumer<OutputStream, IOException> writer
+                InputStream inputStream,
+                long blobSize,
+                boolean failIfAlreadyExists
             ) throws IOException {
                 if (shouldBlock.get() && StatelessCompoundCommit.startsWithBlobPrefix(blobName)) {
                     safeAwait(latch);
                 }
-                super.blobContainerWriteMetadataBlob(original, purpose, blobName, failIfAlreadyExists, atomic, writer);
+                super.blobContainerWriteBlobAtomic(originalRunnable, purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
             }
         });
         startSearchNode();

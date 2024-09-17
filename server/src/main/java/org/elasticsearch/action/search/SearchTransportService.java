@@ -667,14 +667,14 @@ public class SearchTransportService {
     ) {
         var threadPool = transportService.getThreadPool();
         var latencies = searchTransportMetrics.getActionLatencies();
-        Map<String, Object> attributes = Map.of(
-            ACTION_ATTRIBUTE_NAME,
-            actionQualifier,
-            SYSTEM_THREAD_ATTRIBUTE_NAME,
-            ThreadPool.isSystemThreadPool()
-        );
         return (request, channel, task) -> {
             var startTime = threadPool.relativeTimeInMillis();
+            Map<String, Object> attributes = Map.of(
+                ACTION_ATTRIBUTE_NAME,
+                actionQualifier,
+                SYSTEM_THREAD_ATTRIBUTE_NAME,
+                ThreadPool.isSystemThreadPool()
+            );
             try {
                 transportRequestHandler.messageReceived(request, channel, task);
             } finally {

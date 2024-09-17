@@ -21,11 +21,7 @@
 
 package org.elasticsearch.tdigest;
 
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.search.aggregations.metrics.WrapperTDigestArrays;
-import org.elasticsearch.tdigest.arrays.TDigestArrays;
-import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 
 import java.util.Arrays;

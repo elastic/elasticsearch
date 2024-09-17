@@ -21,10 +21,6 @@
 
 package org.elasticsearch.tdigest;
 
-import org.elasticsearch.search.aggregations.metrics.WrapperTDigestArrays;
-import org.elasticsearch.tdigest.arrays.TDigestArrays;
-import org.elasticsearch.test.ESTestCase;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;

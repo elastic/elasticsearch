@@ -134,6 +134,7 @@ Defaults to `""` (syncs all bucket objects).
 
 ]
 ----
+// NOTCONSOLE
 
 *Example*: Fetch files/folder starting with `folder1`.
 
@@ -146,6 +147,7 @@ Defaults to `""` (syncs all bucket objects).
   }
 ]
 ----
+// NOTCONSOLE
 
 *Fetching files and folders by specifying extensions*
 
@@ -161,6 +163,7 @@ Defaults to `""` (syncs all bucket objects).
   }
 ]
 ----
+// NOTCONSOLE
 
 [discrete#es-connectors-s3-content-extraction]
 ===== Content extraction
@@ -349,6 +352,7 @@ Defaults to `""` (syncs all bucket objects).
 
 ]
 ----
+// NOTCONSOLE
 
 *Example*: Fetch files/folder starting with `folder1`.
 
@@ -361,6 +365,7 @@ Defaults to `""` (syncs all bucket objects).
   }
 ]
 ----
+// NOTCONSOLE
 
 *Fetching files and folders by specifying extensions*
 
@@ -376,6 +381,7 @@ Defaults to `""` (syncs all bucket objects).
   }
 ]
 ----
+// NOTCONSOLE
 
 [discrete#es-connectors-s3-client-content-extraction]
 ===== Content extraction

@@ -84,6 +84,7 @@ query getUser($id: ID!) {
     }
 }
 ----
+// NOTCONSOLE
 
 `graphql_variables`::
 A JSON object of key/value pairs containing variables used in the GraphQL query.
@@ -113,6 +114,7 @@ To index every user as a separate document configure this field as below.
     "organization.users": "user_id"
 }
 ----
+// NOTCONSOLE
 +
 In this example `user_id` is unique in every user document. Therefore, we set `user_id` as the value for `organization.users`.
 +
@@ -130,6 +132,7 @@ JSON object containing custom headers to be sent with each GraphQL request:
     "content-type": "Application/json"
 }
 ----
+// NOTCONSOLE
 
 `pagination_model` (required)::
 This field specifies the pagination model to be used by the connector.
@@ -159,6 +162,7 @@ query getUsers($cursor: String!) {
     } 
 }
 ----
+// NOTCONSOLE
 +
 The value of `pagination_key` is `sampleData.users` so it must contain:
 +

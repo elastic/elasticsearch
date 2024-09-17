@@ -164,6 +164,7 @@ The following sections provide examples of advanced sync rules for this connecto
   }
 ]
 ----
+// NOTCONSOLE
 
 [discrete#es-connectors-network-drive-indexing-files-and-folders-directly-inside-folder]
 ======= Indexing files and folders directly inside folder
@@ -176,6 +177,7 @@ The following sections provide examples of advanced sync rules for this connecto
   }
 ]
 ----
+// NOTCONSOLE
 
 [discrete#es-connectors-network-drive-indexing-files-and-folders-directly-inside-a-set-of-folders]
 ======= Indexing files and folders directly inside a set of folders
@@ -188,6 +190,7 @@ The following sections provide examples of advanced sync rules for this connecto
   }
 ]
 ----
+// NOTCONSOLE
 
 [discrete#es-connectors-network-drive-excluding-files-and-folders-that-match-a-pattern]
 ======= Excluding files and folders that match a pattern
@@ -200,6 +203,7 @@ The following sections provide examples of advanced sync rules for this connecto
   }
 ]
 ----
+// NOTCONSOLE
 
 [discrete#es-connectors-network-drive-content-extraction]
 ===== Content extraction
@@ -398,6 +402,7 @@ The following sections provide examples of advanced sync rules for this connecto
   }
 ]
 ----
+// NOTCONSOLE
 
 [discrete#es-connectors-network-drive-client-indexing-files-and-folders-directly-inside-folder]
 ======= Indexing files and folders directly inside folder
@@ -410,6 +415,7 @@ The following sections provide examples of advanced sync rules for this connecto
   }
 ]
 ----
+// NOTCONSOLE
 
 [discrete#es-connectors-network-drive-client-indexing-files-and-folders-directly-inside-a-set-of-folders]
 ======= Indexing files and folders directly inside a set of folders
@@ -422,6 +428,7 @@ The following sections provide examples of advanced sync rules for this connecto
   }
 ]
 ----
+// NOTCONSOLE
 
 [discrete#es-connectors-network-drive-client-excluding-files-and-folders-that-match-a-pattern]
 ======= Excluding files and folders that match a pattern
@@ -434,6 +441,7 @@ The following sections provide examples of advanced sync rules for this connecto
   }
 ]
 ----
+// NOTCONSOLE
 
 [discrete#es-connectors-network-drive-client-content-extraction]
 ===== Content extraction

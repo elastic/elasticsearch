@@ -223,6 +223,7 @@ The following sections provide examples of advanced sync rules for this connecto
   }
 ]
 ----
+// NOTCONSOLE
 
 [discrete#es-connectors-github-sync-rules-advanced-issue-key]
 ======= Indexing document based on issue query related to bugs via issue key
@@ -238,6 +239,7 @@ The following sections provide examples of advanced sync rules for this connecto
   }
 ]
 ----
+// NOTCONSOLE
 
 [discrete#es-connectors-github-sync-rules-advanced-pr-key]
 ======= Indexing document based on PR query related to open PR's via PR key
@@ -253,6 +255,7 @@ The following sections provide examples of advanced sync rules for this connecto
   }
 ]
 ----
+// NOTCONSOLE
 
 [discrete#es-connectors-github-sync-rules-advanced-issue-query-branch-name]
 ======= Indexing document and files based on queries and branch name
@@ -270,6 +273,7 @@ The following sections provide examples of advanced sync rules for this connecto
   }
 ]
 ----
+// NOTCONSOLE
 
 [NOTE]
 ====
@@ -298,6 +302,7 @@ Check the Elasticsearch index for the actual document count.
   }
 ]
 ----
+// NOTCONSOLE
 
 [NOTE]
 ====
@@ -558,6 +563,7 @@ The following sections provide examples of advanced sync rules for this connecto
   }
 ]
 ----
+// NOTCONSOLE
 
 [discrete#es-connectors-github-client-sync-rules-advanced-issue-key]
 ======= Indexing document based on issue query related to bugs via issue key
@@ -573,6 +579,7 @@ The following sections provide examples of advanced sync rules for this connecto
   }
 ]
 ----
+// NOTCONSOLE
 
 [discrete#es-connectors-github-client-sync-rules-advanced-pr-key]
 ======= Indexing document based on PR query related to open PR's via PR key
@@ -588,6 +595,7 @@ The following sections provide examples of advanced sync rules for this connecto
   }
 ]
 ----
+// NOTCONSOLE
 
 [discrete#es-connectors-github-client-sync-rules-advanced-issue-query-branch-name]
 ======= Indexing document and files based on queries and branch name
@@ -605,6 +613,7 @@ The following sections provide examples of advanced sync rules for this connecto
   }
 ]
 ----
+// NOTCONSOLE
 
 [NOTE]
 ====
@@ -633,6 +642,7 @@ Check the Elasticsearch index for the actual document count.
   }
 ]
 ----
+// NOTCONSOLE
 
 [NOTE]
 ====

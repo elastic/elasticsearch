@@ -50,7 +50,7 @@ public class IbmWatsonxEmbeddingsRequest implements IbmWatsonxRequest {
         httpPost.setEntity(byteEntity);
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
 
-        IbmWatsonxRequest.decorateWithBearerToken(httpPost, model.getSecretSettings());
+        IbmWatsonxRequest.decorateWithBearerToken(httpPost, model.getSecretSettings(), model.getInferenceEntityId());
 
         return new HttpRequest(httpPost, getInferenceEntityId());
     }

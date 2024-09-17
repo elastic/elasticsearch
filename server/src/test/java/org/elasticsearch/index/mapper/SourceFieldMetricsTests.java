@@ -37,17 +37,16 @@ public class SourceFieldMetricsTests extends MapperServiceTestCase {
 
     public void testSyntheticSourceLoadLatency() throws IOException {
         var mapping = syntheticSourceMapping(b -> b.startObject("kwd").field("type", "keyword").endObject());
-        var mapperService = createMapperService(mapping);
+        var mapper = createDocumentMapper(mapping);
 
         try (Directory directory = newDirectory()) {
             RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
-            LuceneDocument doc = mapperService.documentMapper().parse(source(b -> b.field("kwd", "foo"))).rootDoc();
+            LuceneDocument doc = mapper.parse(source(b -> b.field("kwd", "foo"))).rootDoc();
             iw.addDocument(doc);
             iw.close();
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 SourceProvider provider = SourceProvider.fromSyntheticSource(
-                    mapperService.documentMapper().mapping(),
-                    mapperService.getIndexSettings(),
+                    mapper.mapping(),
                     createTestMapperMetrics().sourceFieldMetrics()
                 );
                 Source synthetic = provider.getSource(getOnlyLeafReader(reader).getContext(), 0);

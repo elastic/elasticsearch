@@ -384,7 +384,7 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
     }
 
     protected Source getSourceFor(CheckedConsumer<XContentBuilder, IOException> mapping, List<?> inputValues) throws IOException {
-        var mapperService = createMapperService(syntheticSourceMapping(mapping));
+        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(mapping));
 
         CheckedConsumer<XContentBuilder, IOException> input = b -> {
             b.field("field");
@@ -401,15 +401,11 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
 
         try (Directory directory = newDirectory()) {
             RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
-            LuceneDocument doc = mapperService.documentMapper().parse(source(input)).rootDoc();
+            LuceneDocument doc = mapper.parse(source(input)).rootDoc();
             iw.addDocument(doc);
             iw.close();
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
-                SourceProvider provider = SourceProvider.fromSyntheticSource(
-                    mapperService.documentMapper().mapping(),
-                    mapperService.getIndexSettings(),
-                    SourceFieldMetrics.NOOP
-                );
+                SourceProvider provider = SourceProvider.fromSyntheticSource(mapper.mapping(), SourceFieldMetrics.NOOP);
                 Source syntheticSource = provider.getSource(getOnlyLeafReader(reader).getContext(), 0);
 
                 return syntheticSource;

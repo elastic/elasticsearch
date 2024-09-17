@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Setting;
@@ -29,6 +30,8 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Stream;
 
 /**
 
@@ -56,6 +59,9 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
 
     static final NodeFeature TRACK_IGNORED_SOURCE = new NodeFeature("mapper.track_ignored_source");
 
+    /*
+
+     */
     public static final Setting<Boolean> SKIP_IGNORED_SOURCE_WRITE_SETTING = Setting.boolSetting(
         "index.mapping.synthetic_source.skip_ignored_source_write",
         false,
@@ -63,6 +69,9 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         Setting.Property.IndexScope
     );
 
+    /*
+
+     */
     public static final Setting<Boolean> SKIP_IGNORED_SOURCE_READ_SETTING = Setting.boolSetting(
         "index.mapping.synthetic_source.skip_ignored_source_read",
         false,
@@ -165,6 +174,64 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         String name = new String(bytes, 4, nameSize, StandardCharsets.UTF_8);
         BytesRef value = new BytesRef(bytes, 4 + nameSize, bytes.length - nameSize - 4);
         return new NameValue(name, parentOffset, value, null);
+    }
+
+    // In rare cases decoding values stored in this field can fail leading to entire source
+    // not being available.
+    // We would like to have an option to lose some values in synthetic source
+    // but have search not fail.
+    public static Set<String> ensureLoaded(Set<String> fieldsToLoadForSyntheticSource, IndexSettings indexSettings) {
+        if (indexSettings.getSkipIgnoredSourceRead() == false) {
+            fieldsToLoadForSyntheticSource.add(NAME);
+        }
+
+        return fieldsToLoadForSyntheticSource;
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        // This loader controls if this field is loaded in scope of synthetic source constructions.
+        // In rare cases decoding values stored in this field can fail leading to entire source
+        // not being available.
+        // We would like to have an option to lose some values in synthetic source
+        // but have search not fail.
+        return new SyntheticSourceSupport.Native(new SourceLoader.SyntheticFieldLoader() {
+            @Override
+            public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
+                if (indexSettings.getSkipIgnoredSourceRead()) {
+                    return Stream.empty();
+                }
+
+                // Values are handled in `SourceLoader`.
+                return Stream.of(Map.entry(NAME, (v) -> {}));
+            }
+
+            @Override
+            public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
+                return null;
+            }
+
+            @Override
+            public boolean hasValue() {
+                return false;
+            }
+
+            @Override
+            public void write(XContentBuilder b) throws IOException {
+
+            }
+
+            @Override
+            public String fieldName() {
+                // Does not really matter.
+                return NAME;
+            }
+
+            @Override
+            public void reset() {
+
+            }
+        });
     }
 
     public record MappedNameValue(NameValue nameValue, XContentType type, Map<String, Object> map) {}

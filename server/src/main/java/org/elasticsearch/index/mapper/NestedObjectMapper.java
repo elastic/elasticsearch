@@ -398,12 +398,10 @@ public class NestedObjectMapper extends ObjectMapper {
             return SourceLoader.SyntheticFieldLoader.NOTHING;
         }
 
-        SourceLoader sourceLoader = new SourceLoader.Synthetic(
-            () -> super.syntheticFieldLoader(mappers.values().stream(), true),
-            indexSettings,
-            NOOP
-        );
-        var storedFieldLoader = org.elasticsearch.index.fieldvisitor.StoredFieldLoader.create(false, sourceLoader.requiredStoredFields());
+        SourceLoader sourceLoader = new SourceLoader.Synthetic(() -> super.syntheticFieldLoader(mappers.values().stream(), true), NOOP);
+        // Some synthetic source use cases require using _ignored_source field
+        var requiredStoredFields = IgnoredSourceFieldMapper.ensureLoaded(sourceLoader.requiredStoredFields(), indexSettings);
+        var storedFieldLoader = org.elasticsearch.index.fieldvisitor.StoredFieldLoader.create(false, requiredStoredFields);
         return new NestedSyntheticFieldLoader(
             storedFieldLoader,
             sourceLoader,

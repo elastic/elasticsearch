@@ -53,9 +53,21 @@ public class IgnoredSourceFieldMapperConfigurationTests extends MapperServiceTes
         // Field was written.
         assertNotNull(doc.docs().get(0).getField(IgnoredSourceFieldMapper.NAME));
 
-        String syntheticSource = syntheticSource(mapperService, inputDocument);
+        String syntheticSource = syntheticSource(mapperService.documentMapper(), inputDocument);
         // Values are not loaded.
         assertEquals("{}", syntheticSource);
+
+        mapperService.getIndexSettings()
+            .getScopedSettings()
+            .applySettings(Settings.builder().put(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING.getKey(), false).build());
+
+        doc = mapperService.documentMapper().parse(source(inputDocument));
+        // Field was written.
+        assertNotNull(doc.docs().get(0).getField(IgnoredSourceFieldMapper.NAME));
+
+        syntheticSource = syntheticSource(mapperService.documentMapper(), inputDocument);
+        // Values are loaded.
+        assertEquals("{\"disabled_object\":{\"field\":\"hey\"},\"fallback_field\":111}", syntheticSource);
     }
 
     public void testDisableIgnoredSourceWrite() throws IOException {
@@ -93,9 +105,21 @@ public class IgnoredSourceFieldMapperConfigurationTests extends MapperServiceTes
         // Field is not written.
         assertNull(doc.docs().get(0).getField(IgnoredSourceFieldMapper.NAME));
 
-        String syntheticSource = syntheticSource(mapperService, inputDocument);
+        String syntheticSource = syntheticSource(mapperService.documentMapper(), inputDocument);
         // Values are not loaded.
         assertEquals("{}", syntheticSource);
+        
+        mapperService.getIndexSettings()
+            .getScopedSettings()
+            .applySettings(Settings.builder().put(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING.getKey(), false).build());
+
+        doc = mapperService.documentMapper().parse(source(inputDocument));
+        // Field was written.
+        assertNotNull(doc.docs().get(0).getField(IgnoredSourceFieldMapper.NAME));
+
+        syntheticSource = syntheticSource(mapperService.documentMapper(), inputDocument);
+        // Values are loaded.
+        assertEquals("{\"disabled_object\":{\"field\":\"hey\"},\"fallback_field\":111}", syntheticSource);
     }
 
     private MapperService mapperServiceWithCustomSettings(

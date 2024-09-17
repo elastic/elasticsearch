@@ -948,7 +948,7 @@
             text:     absenţa
             analyzer: romanian
     - length: { tokens: 1 }
-    - match:  { tokens.0.token: absenţ }
+    - match:  { tokens.0.token: absenț }
 
     - do:
         indices.analyze:
@@ -957,7 +957,7 @@
             text:     absenţa
             analyzer: my_analyzer
     - length: { tokens: 1 }
-    - match:  { tokens.0.token: absenţ }
+    - match:  { tokens.0.token: absenț }
 
 ---
 "russian":

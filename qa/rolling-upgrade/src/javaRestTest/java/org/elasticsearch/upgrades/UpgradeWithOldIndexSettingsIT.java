@@ -23,8 +23,6 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class UpgradeWithOldIndexSettingsIT extends AbstractRollingUpgradeTestCase {

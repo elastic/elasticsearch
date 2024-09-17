@@ -60,7 +60,7 @@ final class GeoIpCache {
     }
 
     @SuppressWarnings("unchecked")
-    <T> T putIfAbsent(String ip, String databasePath, Function<String, Object> retrieveFunction) {
+    <T> T putIfAbsent(String ip, String databasePath, Function<String, T> retrieveFunction) {
         // can't use cache.computeIfAbsent due to the elevated permissions for the jackson (run via the cache loader)
         CacheKey cacheKey = new CacheKey(ip, databasePath);
         long cacheStart = relativeNanoTimeProvider.getAsLong();

@@ -46,7 +46,7 @@ public class GeoIpCacheTests extends ESTestCase {
     public void testCachesNoResult() {
         GeoIpCache cache = new GeoIpCache(1);
         final AtomicInteger count = new AtomicInteger(0);
-        Function<String, Object> countAndReturnNull = (ip) -> {
+        Function<String, AbstractResponse> countAndReturnNull = (ip) -> {
             count.incrementAndGet();
             return null;
         };

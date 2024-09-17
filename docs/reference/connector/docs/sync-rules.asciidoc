@@ -216,7 +216,7 @@ In the following example we want to filter a data set containing apartments to o
 We'll use basic and advanced sync rules throughout the example.
 
 A sample apartment looks like this in the `.json` format:
-[source, json]
+[source, js]
 ----
     {
         "id": 1234,
@@ -282,7 +282,7 @@ We need to use advanced sync rules here, because we're dealing with deeply neste
 Let's assume that the apartment data is stored inside a MongoDB instance.
 For MongoDB we support https://www.mongodb.com/docs/manual/core/aggregation-pipeline/[aggregation pipelines^] in our advanced sync rules among other things.
 An aggregation pipeline to only select properties located in Portugal or Spain looks like this:
-[source, json]
+[source, js]
 ----
     [
       {

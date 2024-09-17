@@ -151,6 +151,11 @@ public class EsqlCapabilities {
         SPATIAL_FUNCTIONS_FIX_CRSTYPE_FOLDING,
 
         /**
+         * Enable spatial predicate functions to support multi-values. Done in #112063.
+         */
+        SPATIAL_PREDICATES_SUPPORT_MULTIVALUES,
+
+        /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
          * https://github.com/elastic/elasticsearch/issues/110184
          */
@@ -197,6 +202,11 @@ public class EsqlCapabilities {
          * Fix for union-types when some indexes are missing the required field. Done in #111932.
          */
         UNION_TYPES_MISSING_FIELD,
+
+        /**
+         * Fix for widening of short numeric types in union-types. Done in #112610
+         */
+        UNION_TYPES_NUMERIC_WIDENING,
 
         /**
          * Fix a parsing issue where numbers below Long.MIN_VALUE threw an exception instead of parsing as doubles.

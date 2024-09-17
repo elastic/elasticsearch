@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunct
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 
@@ -201,6 +202,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         entries.addAll(EsqlScalarFunction.getNamedWriteables());
         entries.addAll(AggregateFunction.getNamedWriteables());
         entries.addAll(LogicalPlan.getNamedWriteables());
+        entries.addAll(PhysicalPlan.getNamedWriteables());
         entries.addAll(FullTextFunction.getNamedWriteables());
         return entries;
     }

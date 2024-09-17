@@ -9,9 +9,10 @@
 
 package org.elasticsearch.ingest.geoip;
 
+import com.maxmind.db.DatabaseRecord;
+import com.maxmind.db.Network;
 import com.maxmind.db.NoCache;
 import com.maxmind.db.Reader;
-import com.maxmind.geoip2.DatabaseReader;
 import com.maxmind.geoip2.model.AbstractResponse;
 import com.maxmind.geoip2.model.AnonymousIpResponse;
 import com.maxmind.geoip2.model.AsnResponse;
@@ -27,16 +28,19 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.Closeable;
+import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -54,8 +58,8 @@ class DatabaseReaderLazyLoader implements IpDatabase, Closeable {
     private final String md5;
     private final GeoIpCache cache;
     private final Path databasePath;
-    private final CheckedSupplier<DatabaseReader, IOException> loader;
-    final SetOnce<DatabaseReader> databaseReader;
+    private final CheckedSupplier<Reader, IOException> loader;
+    final SetOnce<Reader> databaseReader;
 
     // cache the database type so that we do not re-read it on every pipeline execution
     final SetOnce<String> databaseType;
@@ -93,49 +97,89 @@ class DatabaseReaderLazyLoader implements IpDatabase, Closeable {
     @Nullable
     @Override
     public CityResponse getCity(InetAddress ipAddress) {
-        return getResponse(ipAddress, DatabaseReader::tryCity);
+        return getResponse(ipAddress, (reader, ip) -> lookup(reader, ip, CityResponse.class, CityResponse::new));
     }
 
     @Nullable
     @Override
     public CountryResponse getCountry(InetAddress ipAddress) {
-        return getResponse(ipAddress, DatabaseReader::tryCountry);
+        return getResponse(ipAddress, (reader, ip) -> lookup(reader, ip, CountryResponse.class, CountryResponse::new));
     }
 
     @Nullable
     @Override
     public AsnResponse getAsn(InetAddress ipAddress) {
-        return getResponse(ipAddress, DatabaseReader::tryAsn);
+        return getResponse(
+            ipAddress,
+            (reader, ip) -> lookup(
+                reader,
+                ip,
+                AsnResponse.class,
+                (response, responseIp, network, locales) -> new AsnResponse(response, responseIp, network)
+            )
+        );
     }
 
     @Nullable
     @Override
     public AnonymousIpResponse getAnonymousIp(InetAddress ipAddress) {
-        return getResponse(ipAddress, DatabaseReader::tryAnonymousIp);
+        return getResponse(
+            ipAddress,
+            (reader, ip) -> lookup(
+                reader,
+                ip,
+                AnonymousIpResponse.class,
+                (response, responseIp, network, locales) -> new AnonymousIpResponse(response, responseIp, network)
+            )
+        );
     }
 
     @Nullable
     @Override
     public ConnectionTypeResponse getConnectionType(InetAddress ipAddress) {
-        return getResponse(ipAddress, DatabaseReader::tryConnectionType);
+        return getResponse(
+            ipAddress,
+            (reader, ip) -> lookup(
+                reader,
+                ip,
+                ConnectionTypeResponse.class,
+                (response, responseIp, network, locales) -> new ConnectionTypeResponse(response, responseIp, network)
+            )
+        );
     }
 
     @Nullable
     @Override
     public DomainResponse getDomain(InetAddress ipAddress) {
-        return getResponse(ipAddress, DatabaseReader::tryDomain);
+        return getResponse(
+            ipAddress,
+            (reader, ip) -> lookup(
+                reader,
+                ip,
+                DomainResponse.class,
+                (response, responseIp, network, locales) -> new DomainResponse(response, responseIp, network)
+            )
+        );
     }
 
     @Nullable
     @Override
     public EnterpriseResponse getEnterprise(InetAddress ipAddress) {
-        return getResponse(ipAddress, DatabaseReader::tryEnterprise);
+        return getResponse(ipAddress, (reader, ip) -> lookup(reader, ip, EnterpriseResponse.class, EnterpriseResponse::new));
     }
 
     @Nullable
     @Override
     public IspResponse getIsp(InetAddress ipAddress) {
-        return getResponse(ipAddress, DatabaseReader::tryIsp);
+        return getResponse(
+            ipAddress,
+            (reader, ip) -> lookup(
+                reader,
+                ip,
+                IspResponse.class,
+                (response, responseIp, network, locales) -> new IspResponse(response, responseIp, network)
+            )
+        );
     }
 
     boolean preLookup() {
@@ -156,7 +200,7 @@ class DatabaseReaderLazyLoader implements IpDatabase, Closeable {
     @Nullable
     private <T extends AbstractResponse> T getResponse(
         InetAddress ipAddress,
-        CheckedBiFunction<DatabaseReader, InetAddress, Optional<T>, Exception> responseProvider
+        CheckedBiFunction<Reader, InetAddress, Optional<T>, Exception> responseProvider
     ) {
         return cache.putIfAbsent(ipAddress, databasePath.toString(), ip -> {
             try {
@@ -167,7 +211,7 @@ class DatabaseReaderLazyLoader implements IpDatabase, Closeable {
         });
     }
 
-    DatabaseReader get() throws IOException {
+    Reader get() throws IOException {
         if (databaseReader.get() == null) {
             synchronized (databaseReader) {
                 if (databaseReader.get() == null) {
@@ -206,21 +250,31 @@ class DatabaseReaderLazyLoader implements IpDatabase, Closeable {
         }
     }
 
-    private static CheckedSupplier<DatabaseReader, IOException> createDatabaseLoader(Path databasePath) {
+    private static CheckedSupplier<Reader, IOException> createDatabaseLoader(Path databasePath) {
         return () -> {
-            DatabaseReader.Builder builder = createDatabaseBuilder(databasePath).withCache(NoCache.getInstance());
-            if (LOAD_DATABASE_ON_HEAP) {
-                builder.fileMode(Reader.FileMode.MEMORY);
-            } else {
-                builder.fileMode(Reader.FileMode.MEMORY_MAPPED);
-            }
-            return builder.build();
+            Reader.FileMode mode = LOAD_DATABASE_ON_HEAP ? Reader.FileMode.MEMORY : Reader.FileMode.MEMORY_MAPPED;
+            return new Reader(pathToFile(databasePath), mode, NoCache.getInstance());
         };
     }
 
     @SuppressForbidden(reason = "Maxmind API requires java.io.File")
-    private static DatabaseReader.Builder createDatabaseBuilder(Path databasePath) {
-        return new DatabaseReader.Builder(databasePath.toFile());
+    private static File pathToFile(Path databasePath) {
+        return databasePath.toFile();
     }
 
+    @FunctionalInterface
+    private interface ResponseBuilder<RESPONSE> {
+        RESPONSE build(RESPONSE response, String responseIp, Network network, List<String> locales);
+    }
+
+    private <RESPONSE> Optional<RESPONSE> lookup(Reader reader, InetAddress ip, Class<RESPONSE> clazz, ResponseBuilder<RESPONSE> builder)
+        throws IOException {
+        DatabaseRecord<RESPONSE> record = reader.getRecord(ip, clazz);
+        RESPONSE result = record.getData();
+        if (result == null) {
+            return Optional.empty();
+        } else {
+            return Optional.of(builder.build(result, NetworkAddress.format(ip), record.getNetwork(), List.of("en")));
+        }
+    }
 }

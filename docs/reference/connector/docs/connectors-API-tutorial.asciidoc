@@ -75,6 +75,7 @@ Let's test that we can access {es}:
 ----
 curl -s -X GET -u elastic:$ELASTIC_PASSWORD http://localhost:9200
 ----
+// NOTCONSOLE
 
 Note: With {es} running locally, you will need to pass the username and password to authenticate against {es} in the configuration file for the connector service.
 
@@ -100,6 +101,7 @@ curl -s -X PUT http://localhost:9200/_connector/my-connector-id \
   "service_type": "postgresql"
 }'
 ----
+// NOTCONSOLE
 
 Refer to connectors-tutorial-api-create-api-key for instructions on creating an API key.
 ****
@@ -140,6 +142,7 @@ Run the following command to download the file to the `~/data` directory:
 ----
 curl -L https://raw.githubusercontent.com/lerocha/chinook-database/master/ChinookDatabase/DataSources/Chinook_PostgreSql.sql -o ~/data/Chinook_PostgreSql.sql
 ----
+// NOTCONSOLE
 
 Now we need to import the example data into the PostgreSQL container and create the tables.
 

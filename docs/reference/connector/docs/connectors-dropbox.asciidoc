@@ -89,6 +89,7 @@ An authorization code *can only be used once* to create a refresh token.
 ----
 curl -X POST "https://api.dropboxapi.com/oauth2/token?code=<AUTHORIZATION_CODE>&grant_type=authorization_code" -u "<APP_KEY>:<APP_SECRET>"
 ----
+// NOTCONSOLE
 Store the refresh token from the response to be used in the connector configuration.
 +
 Make sure the response has a list of the following scopes:
@@ -344,6 +345,7 @@ An authorization code *can only be used once* to create a refresh token.
 ----
 curl -X POST "https://api.dropboxapi.com/oauth2/token?code=<AUTHORIZATION_CODE>&grant_type=authorization_code" -u "<APP_KEY>:<APP_SECRET>"
 ----
+// NOTCONSOLE
 Store the refresh token from the response to be used in the connector configuration.
 +
 Make sure the response has a list of the following scopes:

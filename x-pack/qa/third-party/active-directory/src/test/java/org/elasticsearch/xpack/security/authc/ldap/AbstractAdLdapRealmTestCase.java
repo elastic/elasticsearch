@@ -181,6 +181,7 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
 
     @Before
     public void setupRoleMappings() throws Exception {
+        createSecurityIndex();
         assertSecurityIndexActive();
 
         List<String> content = getRoleMappingContent(RoleMappingEntry::nativeContent);

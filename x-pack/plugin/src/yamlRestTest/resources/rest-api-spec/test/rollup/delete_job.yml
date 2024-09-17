@@ -1,6 +1,6 @@
 setup:
   - requires:
-    test_runner_features: [ "allowed_warnings" ]
+      test_runner_features: [ "allowed_warnings" ]
   - skip:
       features: ["allowed_warnings", "headers"]
   - do:
@@ -56,7 +56,7 @@ setup:
 ---
 "Test basic delete_job":
   - requires:
-    test_runner_features: ["allowed_warnings"]
+      test_runner_features: ["allowed_warnings"]
   - do:
       allowed_warnings:
         - "The rollup functionality will be removed in in Elasticsearch 9.0. See docs for more information."

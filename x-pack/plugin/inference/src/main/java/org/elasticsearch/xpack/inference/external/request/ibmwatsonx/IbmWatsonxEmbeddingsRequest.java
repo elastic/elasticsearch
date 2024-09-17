@@ -50,9 +50,25 @@ public class IbmWatsonxEmbeddingsRequest implements IbmWatsonxRequest {
         httpPost.setEntity(byteEntity);
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
 
-        IbmWatsonxRequest.decorateWithBearerToken(httpPost, model.getSecretSettings(), model.getInferenceEntityId());
+        decorateWithAuth(httpPost);
 
         return new HttpRequest(httpPost, getInferenceEntityId());
+    }
+
+    public void decorateWithAuth(HttpPost httpPost) {
+        IbmWatsonxRequest.decorateWithBearerToken(httpPost, model.getSecretSettings(), model.getInferenceEntityId());
+    }
+
+    public Truncator truncator() {
+        return truncator;
+    }
+
+    public Truncator.TruncationResult truncationResult() {
+        return truncationResult;
+    }
+
+    public IbmWatsonxEmbeddingsModel model() {
+        return model;
     }
 
     @Override

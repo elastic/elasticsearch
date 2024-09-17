@@ -15,7 +15,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
+import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.request.ibmwatsonx.IbmWatsonxEmbeddingsRequest;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModelTests;
 
 import java.io.IOException;
@@ -30,6 +32,8 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class IbmWatsonxEmbeddingsRequestTests extends ESTestCase {
+    private static final String AUTH_HEADER_VALUE = "foo";
+
     public void testCreateRequest() throws IOException {
         var model = "model";
         var projectId = "project_id";
@@ -125,10 +129,31 @@ public class IbmWatsonxEmbeddingsRequestTests extends ESTestCase {
     ) {
         var embeddingsModel = IbmWatsonxEmbeddingsModelTests.createModel(model, projectId, uri, apiVersion, apiKey, maxTokens, dimensions);
 
-        return new IbmWatsonxEmbeddingsRequest(
+        return new IbmWatsonxEmbeddingsWithoutAuthRequest(
             TruncatorTests.createTruncator(),
             new Truncator.TruncationResult(List.of(input), new boolean[] { false }),
             embeddingsModel
         );
+    }
+
+    private static class IbmWatsonxEmbeddingsWithoutAuthRequest extends IbmWatsonxEmbeddingsRequest {
+        IbmWatsonxEmbeddingsWithoutAuthRequest(Truncator truncator, Truncator.TruncationResult input, IbmWatsonxEmbeddingsModel model) {
+            super(truncator, input, model);
+        }
+
+        @Override
+        public void decorateWithAuth(HttpPost httpPost) {
+            httpPost.setHeader(HttpHeaders.AUTHORIZATION, AUTH_HEADER_VALUE);
+        }
+
+        @Override
+        public Request truncate() {
+            IbmWatsonxEmbeddingsRequest embeddingsRequest = (IbmWatsonxEmbeddingsRequest) super.truncate();
+            return new IbmWatsonxEmbeddingsWithoutAuthRequest(
+                embeddingsRequest.truncator(),
+                embeddingsRequest.truncationResult(),
+                embeddingsRequest.model()
+            );
+        }
     }
 }

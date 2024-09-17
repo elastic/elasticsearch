@@ -44,7 +44,7 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
     private XContentBuilder contenderMappings;
     private Settings.Builder baselineSettings;
     private Settings.Builder contenderSettings;
-    private RestClient client;
+    protected RestClient client;
 
     @ClassRule()
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()

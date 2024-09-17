@@ -1,5 +1,5 @@
 pr: 112768
 summary: Deduplicate Kuromoji User Dictionary
 area: Search
-type: bug
+type: enhancement
 issues: []

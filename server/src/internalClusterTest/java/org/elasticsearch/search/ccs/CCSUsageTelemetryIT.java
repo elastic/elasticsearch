@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.ccs;
@@ -62,6 +63,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.ASYNC_FEATURE;
 import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.MRT_FEATURE;
+import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.PIT_FEATURE;
 import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.WILDCARD_FEATURE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
@@ -621,6 +623,7 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
 
         assertThat(telemetry.getTotalCount(), equalTo(2L));
         assertThat(telemetry.getSuccessCount(), equalTo(2L));
+        assertThat(telemetry.getFeatureCounts().get(PIT_FEATURE), equalTo(2L));
     }
 
     public void testCompoundRetrieverSearch() throws ExecutionException, InterruptedException {

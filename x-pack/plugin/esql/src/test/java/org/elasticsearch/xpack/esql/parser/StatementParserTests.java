@@ -76,6 +76,8 @@ import static org.hamcrest.Matchers.is;
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class StatementParserTests extends AbstractStatementParserTests {
 
+    private static final LogicalPlan PROCESSING_CMD_INPUT = new Row(EMPTY, List.of(new Alias(EMPTY, "a", integer(1))));
+
     public void testRowCommand() {
         assertEquals(
             new Row(EMPTY, List.of(new Alias(EMPTY, "a", integer(1)), new Alias(EMPTY, "b", integer(2)))),
@@ -313,7 +315,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInlineStatsWithGroups() {
-        assumeTrue("INLINESTATS requires snapshot builds", Build.current().isSnapshot());
+        var query = "inlinestats b = min(a) by c, d.e";
+        if (Build.current().isSnapshot() == false) {
+            var e = expectThrows(ParsingException.class, () -> processingCommand(query));
+            assertThat(e.getMessage(), containsString("line 1:13: mismatched input 'inlinestats' expecting {"));
+            return;
+        }
         assertEquals(
             new InlineStats(
                 EMPTY,
@@ -325,12 +332,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     attribute("d.e")
                 )
             ),
-            processingCommand("inlinestats b = min(a) by c, d.e")
+            processingCommand(query)
         );
     }
 
     public void testInlineStatsWithoutGroups() {
-        assumeTrue("INLINESTATS requires snapshot builds", Build.current().isSnapshot());
+        var query = "inlinestats min(a), c = 1";
+        if (Build.current().isSnapshot() == false) {
+            var e = expectThrows(ParsingException.class, () -> processingCommand(query));
+            assertThat(e.getMessage(), containsString("line 1:13: mismatched input 'inlinestats' expecting {"));
+            return;
+        }
         assertEquals(
             new InlineStats(
                 EMPTY,
@@ -341,7 +353,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     new Alias(EMPTY, "c", integer(1))
                 )
             ),
-            processingCommand("inlinestats min(a), c = 1")
+            processingCommand(query)
         );
     }
 
@@ -389,6 +401,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testStringAsLookupIndexPattern() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
         assertStringAsLookupIndexPattern("foo", "ROW x = 1 | LOOKUP \"foo\" ON j");
         assertStringAsLookupIndexPattern("test-*", """
             ROW x = 1 | LOOKUP "test-*" ON j
@@ -440,6 +453,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidQuotingAsMetricsIndexPattern() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
         expectError("METRICS \"foo", ": token recognition error at: '\"foo'");
         expectError("METRICS \"foo | LIMIT 1", ": token recognition error at: '\"foo | LIMIT 1'");
         expectError("METRICS \"\"\"foo", ": token recognition error at: '\"'");
@@ -456,6 +470,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidQuotingAsLookupIndexPattern() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
         expectError("ROW x = 1 | LOOKUP \"foo ON j", ": token recognition error at: '\"foo ON j'");
         expectError("ROW x = 1 | LOOKUP \"\"\"foo ON j", ": token recognition error at: '\"foo ON j'");
 
@@ -1453,9 +1468,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     private void assertStringAsIndexPattern(String string, String statement) {
-        if (Build.current().isProductionRelease() && statement.contains("METRIC")) {
-            var e = expectThrows(IllegalArgumentException.class, () -> statement(statement));
-            assertThat(e.getMessage(), containsString("METRICS command currently requires a snapshot build"));
+        if (Build.current().isSnapshot() == false && statement.contains("METRIC")) {
+            var e = expectThrows(ParsingException.class, () -> statement(statement));
+            assertThat(e.getMessage(), containsString("mismatched input 'METRICS' expecting {"));
             return;
         }
         LogicalPlan from = statement(statement);
@@ -1465,7 +1480,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     private void assertStringAsLookupIndexPattern(String string, String statement) {
-        if (Build.current().isProductionRelease()) {
+        if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> statement(statement));
             assertThat(e.getMessage(), containsString("line 1:14: LOOKUP is in preview and only available in SNAPSHOT build"));
             return;
@@ -1533,9 +1548,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testLookup() {
         String query = "ROW a = 1 | LOOKUP t ON j";
-        if (Build.current().isProductionRelease()) {
+        if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> statement(query));
-            assertThat(e.getMessage(), containsString("line 1:14: LOOKUP is in preview and only available in SNAPSHOT build"));
+            assertThat(e.getMessage(), containsString("line 1:13: mismatched input 'LOOKUP' expecting {"));
             return;
         }
         var plan = statement(query);
@@ -1715,7 +1730,4 @@ public class StatementParserTests extends AbstractStatementParserTests {
             expectVerificationError(query, "grouping key [a] already specified in the STATS BY clause");
         }
     }
-
-    private static final LogicalPlan PROCESSING_CMD_INPUT = new Row(EMPTY, List.of(new Alias(EMPTY, "a", integer(1))));
-
 }

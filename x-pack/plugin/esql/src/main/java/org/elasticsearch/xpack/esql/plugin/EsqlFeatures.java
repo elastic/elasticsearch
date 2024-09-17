@@ -179,9 +179,14 @@ public class EsqlFeatures implements FeatureSpecification {
      */
     public static final NodeFeature RESOLVE_FIELDS_API = new NodeFeature("esql.resolve_fields_api");
 
+    /**
+     * Support categorize
+     */
+    public static final NodeFeature CATEGORIZE = new NodeFeature("esql.categorize");
+
     private Set<NodeFeature> snapshotBuildFeatures() {
         assert Build.current().isSnapshot() : Build.current();
-        return Set.of(METRICS_SYNTAX);
+        return Set.of(METRICS_SYNTAX, CATEGORIZE);
     }
 
     @Override

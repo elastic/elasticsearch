@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -26,8 +28,6 @@ import org.elasticsearch.index.mapper.FieldMapper.Parameter;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptCompiler;
-import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -547,37 +547,6 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             {"field":{"type":"test_mapper","fixed2":true,"required":"value"}}""", Strings.toString(mapper));
     }
 
-    /**
-     * test parsing mapping from dynamic templates, should ignore unknown parameters for bwc and log warning before 8.0.0
-     */
-    public void testBWCunknownParametersfromDynamicTemplates() {
-        String mapping = """
-            {"type":"test_mapper","some_unknown_parameter":true,"required":"value"}""";
-        TestMapper mapper = fromMapping(
-            mapping,
-            IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0),
-            TransportVersionUtils.randomVersionBetween(
-                random(),
-                TransportVersions.V_7_0_0,
-                TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_0_0)
-            ),
-            true
-        );
-        assertNotNull(mapper);
-        assertWarnings(
-            "Parameter [some_unknown_parameter] is used in a dynamic template mapping and has no effect on type [test_mapper]. "
-                + "Usage will result in an error in future major versions and should be removed."
-        );
-        assertEquals("""
-            {"field":{"type":"test_mapper","required":"value"}}""", Strings.toString(mapper));
-
-        MapperParsingException ex = expectThrows(
-            MapperParsingException.class,
-            () -> fromMapping(mapping, IndexVersions.V_8_0_0, TransportVersions.V_8_0_0, true)
-        );
-        assertEquals("unknown parameter [some_unknown_parameter] on mapper [field] of type [test_mapper]", ex.getMessage());
-    }
-
     public void testAnalyzers() {
         String mapping = """
             {"type":"test_mapper","analyzer":"_standard","required":"value"}""";
@@ -609,6 +578,8 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         );
     }
 
+    @UpdateForV9
+    @AwaitsFix(bugUrl = "this is testing legacy functionality so can likely be removed in 9.0")
     public void testDeprecatedParameters() {
         // 'index' is declared explicitly, 'store' is not, but is one of the previously always-accepted params
         String mapping = """

@@ -29,14 +29,10 @@ artifacts {
 tasks.named('yamlRestTest') {
   usesDefaultDistribution()
 }
-tasks.named('yamlRestTestV7CompatTest') {
+tasks.named('yamlRestCompatTest') {
   usesDefaultDistribution()
 }
 if (BuildParams.inFipsJvm){
   // This test cluster is using a BASIC license and FIPS 140 mode is not supported in BASIC
   tasks.named("yamlRestTest").configure{enabled = false }
-}
-
-tasks.named("yamlRestTestV7CompatTransform").configure { task ->
-  task.skipTest("rollup/10_basic/Rollup index", "Downsample for TSDB changed the configuration")
 }

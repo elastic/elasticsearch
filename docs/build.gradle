@@ -853,9 +853,6 @@ buildRestTests.setups['library'] = '''
 
 '''
 buildRestTests.setups['sensor_rollup_job'] = '''
-  - requires:
-      test_runner_features: [ "allowed_warnings" ]
-
   - do:
       indices.create:
         index: dummy-rollup-index
@@ -886,10 +883,9 @@ buildRestTests.setups['sensor_rollup_job'] = '''
               node:
                 type: keyword
   - do:
-      allowed_warnings:
-        - "The rollup functionality will be removed in in Elasticsearch 9.0. See docs for more information."
-      rollup.put_job:
-        id: sensor
+      raw:
+        method: PUT
+        path: _rollup/job/sensor
         body:  >
             {
                 "index_pattern": "sensor-*",
@@ -919,9 +915,6 @@ buildRestTests.setups['sensor_rollup_job'] = '''
             }
 '''
 buildRestTests.setups['sensor_started_rollup_job'] = '''
-  - requires:
-      test_runner_features: [ "allowed_warnings" ]
-
   - do:
       indices.create:
         index: dummy-rollup-index
@@ -971,10 +964,9 @@ buildRestTests.setups['sensor_started_rollup_job'] = '''
           {"timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c"}
 
   - do:
-      allowed_warnings:
-        - "The rollup functionality will be removed in in Elasticsearch 9.0. See docs for more information."
-      rollup.put_job:
-        id: sensor
+      raw:
+        method: PUT
+        path: _rollup/job/sensor
         body:  >
             {
                 "index_pattern": "sensor-*",
@@ -1003,10 +995,9 @@ buildRestTests.setups['sensor_started_rollup_job'] = '''
                 ]
             }
   - do:
-      allowed_warnings:
-        - "The rollup functionality will be removed in in Elasticsearch 9.0. See docs for more information."
-      rollup.start_job:
-        id: sensor
+      raw:
+        method: POST
+        path: _rollup/job/sensor/_start
 '''
 
 buildRestTests.setups['sensor_index'] = '''

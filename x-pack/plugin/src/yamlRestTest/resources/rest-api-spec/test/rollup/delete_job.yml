@@ -1,8 +1,6 @@
 setup:
-  - requires:
-    test_runner_features: [ "allowed_warnings" ]
   - skip:
-      features: ["allowed_warnings", "headers"]
+      features: headers
   - do:
       indices.create:
         index: foo
@@ -50,16 +48,11 @@ setup:
               }
             ]
           }
-      allowed_warnings:
-        - "The rollup functionality will be removed in in Elasticsearch 9.0. See docs for more information."
 
 ---
 "Test basic delete_job":
-  - requires:
-    test_runner_features: ["allowed_warnings"]
+
   - do:
-      allowed_warnings:
-        - "The rollup functionality will be removed in in Elasticsearch 9.0. See docs for more information."
       rollup.get_jobs:
         id: foo
 
@@ -100,15 +93,11 @@ setup:
             job_state: "stopped"
 
   - do:
-      allowed_warnings:
-        - "The rollup functionality will be removed in in Elasticsearch 9.0. See docs for more information."
       rollup.delete_job:
         id: foo
   - is_true: acknowledged
 
   - do:
-      allowed_warnings:
-        - "The rollup functionality will be removed in in Elasticsearch 9.0. See docs for more information."
       rollup.get_jobs:
         id: foo
   - match:
@@ -118,8 +107,6 @@ setup:
 "Test delete job twice":
 
   - do:
-      allowed_warnings:
-        - "The rollup functionality will be removed in in Elasticsearch 9.0. See docs for more information."
       rollup.get_jobs:
         id: foo
 
@@ -160,15 +147,11 @@ setup:
             job_state: "stopped"
 
   - do:
-      allowed_warnings:
-        - "The rollup functionality will be removed in in Elasticsearch 9.0. See docs for more information."
       rollup.delete_job:
         id: foo
   - is_true: acknowledged
 
   - do:
-      allowed_warnings:
-        - The rollup functionality will be removed in in Elasticsearch 9.0. See docs for more information.
       rollup.get_jobs:
         id: foo
   - match:
@@ -178,8 +161,6 @@ setup:
 "Test delete running job":
 
   - do:
-      allowed_warnings:
-        - "The rollup functionality will be removed in in Elasticsearch 9.0. See docs for more information."
       rollup.get_jobs:
         id: foo
 
@@ -220,15 +201,11 @@ setup:
             job_state: "stopped"
 
   - do:
-      allowed_warnings:
-        - "The rollup functionality will be removed in in Elasticsearch 9.0. See docs for more information."
       rollup.start_job:
         id: foo
   - is_true: started
 
   - do:
-      allowed_warnings:
-        - "The rollup functionality will be removed in in Elasticsearch 9.0. See docs for more information."
       catch: request
       rollup.delete_job:
         id: foo
@@ -240,8 +217,6 @@ setup:
 "Test delete non-existent job":
 
   - do:
-      allowed_warnings:
-        - "The rollup functionality will be removed in in Elasticsearch 9.0. See docs for more information."
       catch: /the task with id \[does_not_exist\] doesn't exist/
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser

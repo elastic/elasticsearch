@@ -19,4 +19,5 @@
 
 module org.elasticsearch.tdigest {
     exports org.elasticsearch.tdigest;
+    exports org.elasticsearch.tdigest.arrays;
 }

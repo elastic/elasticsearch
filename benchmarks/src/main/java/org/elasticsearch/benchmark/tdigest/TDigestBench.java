@@ -21,9 +21,9 @@
 
 package org.elasticsearch.benchmark.tdigest;
 
-import org.elasticsearch.tdigest.AVLTreeDigest;
 import org.elasticsearch.tdigest.MergingDigest;
 import org.elasticsearch.tdigest.TDigest;
+import org.elasticsearch.tdigest.arrays.WrapperTDigestArrays;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -61,13 +61,19 @@ public class TDigestBench {
         MERGE {
             @Override
             TDigest create(double compression) {
-                return new MergingDigest(compression, (int) (10 * compression));
+                return new MergingDigest(WrapperTDigestArrays.INSTANCE, compression, (int) (10 * compression));
             }
         },
         AVL_TREE {
             @Override
             TDigest create(double compression) {
-                return new AVLTreeDigest(compression);
+                return TDigest.createAvlTreeDigest(WrapperTDigestArrays.INSTANCE, compression);
+            }
+        },
+        HYBRID {
+            @Override
+            TDigest create(double compression) {
+                return TDigest.createHybridDigest(WrapperTDigestArrays.INSTANCE, compression);
             }
         };
 
@@ -77,7 +83,7 @@ public class TDigestBench {
     @Param({ "100", "300" })
     double compression;
 
-    @Param({ "MERGE", "AVL_TREE" })
+    @Param({ "MERGE", "AVL_TREE", "HYBRID" })
     TDigestFactory tdigestFactory;
 
     @Param({ "NORMAL", "GAUSSIAN" })

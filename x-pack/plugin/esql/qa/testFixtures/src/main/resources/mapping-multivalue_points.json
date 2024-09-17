@@ -1,0 +1,22 @@
+{
+  "properties": {
+    "id": {
+      "type": "long"
+    },
+    "intersects": {
+      "type": "boolean"
+    },
+    "within": {
+      "type": "boolean"
+    },
+    "centroid": {
+      "type": "geo_point"
+    },
+    "location": {
+      "type": "geo_point"
+    },
+    "subset": {
+      "type": "geo_point"
+    }
+  }
+}

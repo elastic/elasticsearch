@@ -1,0 +1,12 @@
+pr: 113000
+summary: Remove `index.mapper.dynamic` setting
+area: Mapping
+type: breaking
+issues: []
+breaking:
+  title: Remove `index.mapper.dynamic` setting
+  area: Mapping
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.mapper;
 
@@ -152,6 +153,9 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             assertThat(codec, instanceOf(PerFieldMapperCodec.class));
             assertThat(((PerFieldMapperCodec) codec).getPostingsFormatForField("field"), instanceOf(Completion99PostingsFormat.class));
         } else {
+            if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
+                codec = deduplicateFieldInfosCodec.delegate();
+            }
             assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
             assertThat(
                 ((LegacyPerFieldMapperCodec) codec).getPostingsFormatForField("field"),
@@ -248,7 +252,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         Mapper fieldMapper = defaultMapper.mappers().getMapper("field");
 
         ParsedDocument parsedDocument = defaultMapper.parse(source(b -> b.field("field", "suggestion")));
-        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.fullPath());
         assertFieldsOfType(fields);
     }
 
@@ -495,7 +499,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
 
         ParsedDocument parsedDocument = defaultMapper.parse(source(b -> b.array("field", "suggestion1", "suggestion2")));
 
-        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.fullPath());
         assertThat(fields, containsInAnyOrder(suggestField("suggestion1"), suggestField("suggestion2")));
     }
 
@@ -512,7 +516,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             b.endObject();
         }));
 
-        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.fullPath());
         assertThat(fields, containsInAnyOrder(suggestField("suggestion")));
     }
 
@@ -529,7 +533,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             b.endObject();
         }));
 
-        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.fullPath());
         assertThat(fields, containsInAnyOrder(suggestField("suggestion1"), suggestField("suggestion2"), suggestField("suggestion3")));
     }
 
@@ -566,7 +570,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             b.endObject();
         }));
 
-        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.fullPath());
         assertFieldsOfType(fields);
     }
 
@@ -584,7 +588,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             b.endArray();
         }));
 
-        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.fullPath());
         assertThat(fields, containsInAnyOrder(suggestField("suggestion1"), suggestField("suggestion2"), suggestField("suggestion3")));
     }
 
@@ -617,7 +621,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             b.endArray();
         }));
 
-        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.fullPath());
         assertThat(
             fields,
             containsInAnyOrder(

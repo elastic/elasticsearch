@@ -784,7 +784,7 @@ public class EvaluatorImplementer {
 
         @Override
         public void buildInvocation(StringBuilder pattern, List<Object> args, boolean blockStyle) {
-            pattern.append("$L");
+            pattern.append("this.$L");
             args.add(name);
         }
 

@@ -1,0 +1,6 @@
+pr: 111215
+summary: Make `SnapshotLifecycleStats` immutable so `SnapshotLifecycleMetadata.EMPTY`
+  isn't changed as side-effect
+area: ILM+SLM
+type: bug
+issues: []

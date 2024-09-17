@@ -46,13 +46,13 @@ public class CohereCompletionRequestManager extends CohereRequestManager {
 
     @Override
     public void execute(
-        String query,
-        List<String> input,
+        InferenceInputs inferenceInputs,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        CohereCompletionRequest request = new CohereCompletionRequest(input, model);
+        List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
+        CohereCompletionRequest request = new CohereCompletionRequest(docsInput, model);
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }

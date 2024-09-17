@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
@@ -27,6 +29,13 @@ public class DataStreamFailureStoreDefinition {
     public static final Settings DATA_STREAM_FAILURE_STORE_SETTINGS;
     public static final CompressedXContent DATA_STREAM_FAILURE_STORE_MAPPING;
 
+    public static final int FAILURE_STORE_DEFINITION_VERSION = 1;
+    public static final Setting<Integer> FAILURE_STORE_DEFINITION_VERSION_SETTING = Setting.intSetting(
+        "index.failure_store.version",
+        0,
+        Setting.Property.IndexScope
+    );
+
     static {
         DATA_STREAM_FAILURE_STORE_SETTINGS = Settings.builder()
             // Always start with the hidden settings for a backing index.
@@ -36,6 +45,7 @@ public class DataStreamFailureStoreDefinition {
             // meant for the backing indices only.
             .putNull(IndexSettings.DEFAULT_PIPELINE.getKey())
             .putNull(IndexSettings.FINAL_PIPELINE.getKey())
+            .put(FAILURE_STORE_DEFINITION_VERSION_SETTING.getKey(), FAILURE_STORE_DEFINITION_VERSION)
             .build();
 
         try {

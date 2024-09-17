@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.index;
 
@@ -216,22 +217,6 @@ public class IndexRequestTests extends ESTestCase {
             in.setTransportVersion(ver);
             IndexRequest serialized = new IndexRequest(in);
             assertThat(serialized.getDynamicTemplates(), anEmptyMap());
-        }
-        // old version
-        {
-            Map<String, String> dynamicTemplates = IntStream.range(0, randomIntBetween(1, 10))
-                .boxed()
-                .collect(Collectors.toMap(n -> "field-" + n, n -> "name-" + n));
-            indexRequest.setDynamicTemplates(dynamicTemplates);
-            TransportVersion ver = TransportVersionUtils.randomVersionBetween(
-                random(),
-                TransportVersions.V_7_0_0,
-                TransportVersionUtils.getPreviousVersion(TransportVersions.V_7_13_0)
-            );
-            BytesStreamOutput out = new BytesStreamOutput();
-            out.setTransportVersion(ver);
-            IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> indexRequest.writeTo(out));
-            assertThat(error.getMessage(), equalTo("[dynamic_templates] parameter requires all nodes on 7.13.0 or later"));
         }
         // new version
         {

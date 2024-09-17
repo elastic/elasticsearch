@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.flattened;
@@ -53,7 +54,6 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextParams;
@@ -202,13 +202,13 @@ public final class FlattenedFieldMapper extends FieldMapper {
         public FlattenedFieldMapper build(MapperBuilderContext context) {
             MultiFields multiFields = multiFieldsBuilder.build(this, context);
             if (multiFields.iterator().hasNext()) {
-                throw new IllegalArgumentException(CONTENT_TYPE + " field [" + name() + "] does not support [fields]");
+                throw new IllegalArgumentException(CONTENT_TYPE + " field [" + leafName() + "] does not support [fields]");
             }
             if (copyTo.copyToFields().isEmpty() == false) {
-                throw new IllegalArgumentException(CONTENT_TYPE + " field [" + name() + "] does not support [copy_to]");
+                throw new IllegalArgumentException(CONTENT_TYPE + " field [" + leafName() + "] does not support [copy_to]");
             }
             MappedFieldType ft = new RootFlattenedFieldType(
-                context.buildFullName(name()),
+                context.buildFullName(leafName()),
                 indexed.get(),
                 hasDocValues.get(),
                 meta.get(),
@@ -216,7 +216,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 eagerGlobalOrdinals.get(),
                 dimensions.get()
             );
-            return new FlattenedFieldMapper(name(), ft, this);
+            return new FlattenedFieldMapper(leafName(), ft, builderParams(this, context), this);
         }
     }
 
@@ -273,6 +273,10 @@ public final class FlattenedFieldMapper extends FieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        public String rootName() {
+            return this.rootName;
         }
 
         public String key() {
@@ -733,8 +737,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
     private final FlattenedFieldParser fieldParser;
     private final Builder builder;
 
-    private FlattenedFieldMapper(String simpleName, MappedFieldType mappedFieldType, Builder builder) {
-        super(simpleName, mappedFieldType, MultiFields.empty(), CopyTo.empty());
+    private FlattenedFieldMapper(String leafName, MappedFieldType mappedFieldType, BuilderParams builderParams, Builder builder) {
+        super(leafName, mappedFieldType, builderParams);
         this.builder = builder;
         this.fieldParser = new FlattenedFieldParser(
             mappedFieldType.name(),
@@ -801,25 +805,17 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName()).init(this);
+        return new Builder(leafName()).init(this);
     }
 
     @Override
-    protected SyntheticSourceMode syntheticSourceMode() {
-        return SyntheticSourceMode.NATIVE;
-    }
-
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        if (hasScript()) {
-            return SourceLoader.SyntheticFieldLoader.NOTHING;
-        }
+    protected SyntheticSourceSupport syntheticSourceSupport() {
         if (fieldType().hasDocValues()) {
-            return new FlattenedSortedSetDocValuesSyntheticFieldLoader(name() + "._keyed", simpleName());
+            var loader = new FlattenedSortedSetDocValuesSyntheticFieldLoader(fullPath(), fullPath() + "._keyed", leafName());
+
+            return new SyntheticSourceSupport.Native(loader);
         }
 
-        throw new IllegalArgumentException(
-            "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
-        );
+        return super.syntheticSourceSupport();
     }
 }

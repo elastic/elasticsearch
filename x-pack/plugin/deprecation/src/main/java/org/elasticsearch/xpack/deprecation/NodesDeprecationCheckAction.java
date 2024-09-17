@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.deprecation;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -40,17 +39,11 @@ public class NodesDeprecationCheckAction extends ActionType<NodesDeprecationChec
 
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
-            if (in.getTransportVersion().before(TransportVersions.DROP_UNUSED_NODES_REQUESTS)) {
-                new NodesDeprecationCheckRequest(in);
-            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getTransportVersion().before(TransportVersions.DROP_UNUSED_NODES_REQUESTS)) {
-                new NodesDeprecationCheckRequest().writeTo(out);
-            }
         }
     }
 

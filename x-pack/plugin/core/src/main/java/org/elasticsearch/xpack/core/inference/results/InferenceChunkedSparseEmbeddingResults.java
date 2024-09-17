@@ -10,12 +10,13 @@ package org.elasticsearch.xpack.core.inference.results;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceChunkedTextExpansionResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextExpansionResults;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 
 import java.io.IOException;
@@ -33,7 +34,7 @@ public class InferenceChunkedSparseEmbeddingResults implements ChunkedInferenceS
     public static final String NAME = "chunked_sparse_embedding_results";
     public static final String FIELD_NAME = "sparse_embedding_chunk";
 
-    public static InferenceChunkedSparseEmbeddingResults ofMlResult(InferenceChunkedTextExpansionResults mlInferenceResults) {
+    public static InferenceChunkedSparseEmbeddingResults ofMlResult(MlChunkedTextExpansionResults mlInferenceResults) {
         return new InferenceChunkedSparseEmbeddingResults(mlInferenceResults.getChunks());
     }
 
@@ -59,33 +60,26 @@ public class InferenceChunkedSparseEmbeddingResults implements ChunkedInferenceS
             .map(weightedToken -> new WeightedToken(weightedToken.token(), weightedToken.weight()))
             .toList();
 
-        return new InferenceChunkedSparseEmbeddingResults(
-            List.of(new InferenceChunkedTextExpansionResults.ChunkedResult(input, weightedTokens))
-        );
+        return new InferenceChunkedSparseEmbeddingResults(List.of(new MlChunkedTextExpansionResults.ChunkedResult(input, weightedTokens)));
     }
 
-    private final List<InferenceChunkedTextExpansionResults.ChunkedResult> chunkedResults;
+    private final List<MlChunkedTextExpansionResults.ChunkedResult> chunkedResults;
 
-    public InferenceChunkedSparseEmbeddingResults(List<InferenceChunkedTextExpansionResults.ChunkedResult> chunks) {
+    public InferenceChunkedSparseEmbeddingResults(List<MlChunkedTextExpansionResults.ChunkedResult> chunks) {
         this.chunkedResults = chunks;
     }
 
     public InferenceChunkedSparseEmbeddingResults(StreamInput in) throws IOException {
-        this.chunkedResults = in.readCollectionAsList(InferenceChunkedTextExpansionResults.ChunkedResult::new);
+        this.chunkedResults = in.readCollectionAsList(MlChunkedTextExpansionResults.ChunkedResult::new);
     }
 
-    public List<InferenceChunkedTextExpansionResults.ChunkedResult> getChunkedResults() {
+    public List<MlChunkedTextExpansionResults.ChunkedResult> getChunkedResults() {
         return chunkedResults;
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray(FIELD_NAME);
-        for (InferenceChunkedTextExpansionResults.ChunkedResult chunk : chunkedResults) {
-            chunk.toXContent(builder, params);
-        }
-        builder.endArray();
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return ChunkedToXContentHelper.array(FIELD_NAME, chunkedResults.iterator());
     }
 
     @Override
@@ -112,7 +106,7 @@ public class InferenceChunkedSparseEmbeddingResults implements ChunkedInferenceS
     public Map<String, Object> asMap() {
         return Map.of(
             FIELD_NAME,
-            chunkedResults.stream().map(InferenceChunkedTextExpansionResults.ChunkedResult::asMap).collect(Collectors.toList())
+            chunkedResults.stream().map(MlChunkedTextExpansionResults.ChunkedResult::asMap).collect(Collectors.toList())
         );
     }
 

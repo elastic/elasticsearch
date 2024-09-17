@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.snapshots;
@@ -19,7 +20,6 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.support.ActionTestUtils;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -88,18 +88,16 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         });
         addUnassignedShardsWatcher(clusterService, indexName);
 
-        PlainActionFuture.<Void, RuntimeException>get(
-            fut -> putShutdownMetadata(
+        safeAwait(
+            (ActionListener<Void> listener) -> putShutdownMetadata(
                 clusterService,
                 SingleNodeShutdownMetadata.builder()
                     .setType(SingleNodeShutdownMetadata.Type.RESTART)
                     .setStartedAtMillis(clusterService.threadPool().absoluteTimeInMillis())
                     .setReason("test"),
                 originalNode,
-                fut
-            ),
-            10,
-            TimeUnit.SECONDS
+                listener
+            )
         );
         assertFalse(snapshotCompletesWithoutPausingListener.isDone());
         unblockAllDataNodes(repoName); // lets the shard snapshot continue so the snapshot can succeed
@@ -180,7 +178,12 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
             SubscribableListener.<ActionResponse.Empty>newForked(
                 l -> client().execute(
                     TransportAddVotingConfigExclusionsAction.TYPE,
-                    new AddVotingConfigExclusionsRequest(Strings.EMPTY_ARRAY, new String[] { masterName }, TimeValue.timeValueSeconds(10)),
+                    new AddVotingConfigExclusionsRequest(
+                        TEST_REQUEST_TIMEOUT,
+                        Strings.EMPTY_ARRAY,
+                        new String[] { masterName },
+                        TimeValue.timeValueSeconds(10)
+                    ),
                     l
                 )
             )
@@ -215,14 +218,14 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         // flush master queue to ensure the completion is applied everywhere
         safeAwait(
             SubscribableListener.<ClusterHealthResponse>newForked(
-                l -> client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).execute(l)
+                l -> client().admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).execute(l)
             )
         );
 
         // and succeeds
         final var snapshots = safeAwait(
             SubscribableListener.<GetSnapshotsResponse>newForked(
-                l -> client().admin().cluster().getSnapshots(new GetSnapshotsRequest(repoName), l)
+                l -> client().admin().cluster().getSnapshots(new GetSnapshotsRequest(TEST_REQUEST_TIMEOUT, repoName), l)
             )
         ).getSnapshots();
         assertThat(snapshots, hasSize(1));
@@ -233,7 +236,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         }
 
         safeAwait(SubscribableListener.<ActionResponse.Empty>newForked(l -> {
-            final var clearVotingConfigExclusionsRequest = new ClearVotingConfigExclusionsRequest();
+            final var clearVotingConfigExclusionsRequest = new ClearVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT);
             clearVotingConfigExclusionsRequest.setWaitForRemoval(false);
             client().execute(TransportClearVotingConfigExclusionsAction.TYPE, clearVotingConfigExclusionsRequest, l);
         }));
@@ -451,11 +454,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
     }
 
     private static void putShutdownForRemovalMetadata(String nodeName, ClusterService clusterService) {
-        PlainActionFuture.<Void, RuntimeException>get(
-            fut -> putShutdownForRemovalMetadata(clusterService, nodeName, fut),
-            10,
-            TimeUnit.SECONDS
-        );
+        safeAwait((ActionListener<Void> listener) -> putShutdownForRemovalMetadata(clusterService, nodeName, listener));
     }
 
     private static void flushMasterQueue(ClusterService clusterService, ActionListener<Void> listener) {
@@ -490,7 +489,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         SubscribableListener
 
             .<Void>newForked(l -> putShutdownMetadata(clusterService, shutdownMetadata, nodeName, l))
-            .<Void>andThen((l, ignored) -> flushMasterQueue(clusterService, l))
+            .<Void>andThen(l -> flushMasterQueue(clusterService, l))
             .addListener(listener);
     }
 
@@ -525,7 +524,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
     }
 
     private static void clearShutdownMetadata(ClusterService clusterService) {
-        PlainActionFuture.get(fut -> clusterService.submitUnbatchedStateUpdateTask("remove restart marker", new ClusterStateUpdateTask() {
+        safeAwait(listener -> clusterService.submitUnbatchedStateUpdateTask("remove restart marker", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 return currentState.copyAndUpdateMetadata(mdb -> mdb.putCustom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY));
@@ -538,8 +537,8 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
 
             @Override
             public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
-                fut.onResponse(null);
+                listener.onResponse(null);
             }
-        }), 10, TimeUnit.SECONDS);
+        }));
     }
 }

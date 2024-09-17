@@ -21,7 +21,6 @@ given {es} version.
 * <<update-license>>
 * <<autoscaling-put-autoscaling-policy>>
 * <<autoscaling-delete-autoscaling-policy>>
-* <<repo-analysis-api>>
 * <<update-desired-nodes>>
 * <<get-desired-nodes>>
 * <<delete-desired-nodes>>

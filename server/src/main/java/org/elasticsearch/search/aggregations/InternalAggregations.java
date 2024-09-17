@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations;
 
@@ -34,7 +35,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.unmodifiableList;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.parseTypedKeysObject;
 
@@ -71,20 +71,10 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
      * The list of {@link InternalAggregation}s.
      */
     public List<InternalAggregation> asList() {
-        return unmodifiableList(aggregations);
+        return aggregations;
     }
 
-    /**
-     * Returns the {@link InternalAggregation}s keyed by aggregation name.
-     */
-    public Map<String, InternalAggregation> asMap() {
-        return getAsMap();
-    }
-
-    /**
-     * Returns the {@link InternalAggregation}s keyed by aggregation name.
-     */
-    public Map<String, InternalAggregation> getAsMap() {
+    private Map<String, InternalAggregation> asMap() {
         if (aggregationsAsMap == null) {
             Map<String, InternalAggregation> newAggregationsAsMap = Maps.newMapWithExpectedSize(aggregations.size());
             for (InternalAggregation aggregation : aggregations) {
@@ -263,7 +253,7 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
         }
         // handle special case when there is just one aggregation
         if (aggregationsList.size() == 1) {
-            final List<InternalAggregation> internalAggregations = aggregationsList.iterator().next().asList();
+            final List<InternalAggregation> internalAggregations = aggregationsList.get(0).asList();
             final List<InternalAggregation> reduced = new ArrayList<>(internalAggregations.size());
             for (InternalAggregation aggregation : internalAggregations) {
                 if (aggregation.mustReduceOnSingleInternalAgg()) {

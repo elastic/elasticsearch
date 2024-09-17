@@ -1,0 +1,5 @@
+pr: 110520
+summary: Add protection for OOM during aggregations partial reduction
+area: Aggregations
+type: enhancement
+issues: []

@@ -7,18 +7,27 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 
 import java.time.ZoneId;
 import java.util.Map;
 
 public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison> {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "Equals",
+        EsqlBinaryComparison::readFrom
+    );
+
     private static final Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap = Map.ofEntries(
         Map.entry(DataType.BOOLEAN, EqualsBoolsEvaluator.Factory::new),
         Map.entry(DataType.INTEGER, EqualsIntsEvaluator.Factory::new),
@@ -26,6 +35,7 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
         Map.entry(DataType.LONG, EqualsLongsEvaluator.Factory::new),
         Map.entry(DataType.UNSIGNED_LONG, EqualsLongsEvaluator.Factory::new),
         Map.entry(DataType.DATETIME, EqualsLongsEvaluator.Factory::new),
+        Map.entry(DataType.DATE_NANOS, EqualsLongsEvaluator.Factory::new),
         Map.entry(DataType.GEO_POINT, EqualsGeometriesEvaluator.Factory::new),
         Map.entry(DataType.CARTESIAN_POINT, EqualsGeometriesEvaluator.Factory::new),
         Map.entry(DataType.GEO_SHAPE, EqualsGeometriesEvaluator.Factory::new),
@@ -36,12 +46,64 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
         Map.entry(DataType.IP, EqualsKeywordsEvaluator.Factory::new)
     );
 
-    public Equals(Source source, Expression left, Expression right) {
+    @FunctionInfo(
+        returnType = { "boolean" },
+        description = "Check if two fields are equal. "
+            + "If either field is <<esql-multivalued-fields,multivalued>> then the result is `null`.",
+        note = "This is pushed to the underlying search index if one side of the comparison is constant "
+            + "and the other side is a field in the index that has both an <<mapping-index>> and <<doc-values>>."
+    )
+    public Equals(
+        Source source,
+        @Param(
+            name = "lhs",
+            type = {
+                "boolean",
+                "cartesian_point",
+                "cartesian_shape",
+                "date",
+                "double",
+                "geo_point",
+                "geo_shape",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "unsigned_long",
+                "version" },
+            description = "An expression."
+        ) Expression left,
+        @Param(
+            name = "rhs",
+            type = {
+                "boolean",
+                "cartesian_point",
+                "cartesian_shape",
+                "date",
+                "double",
+                "geo_point",
+                "geo_shape",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "unsigned_long",
+                "version" },
+            description = "An expression."
+        ) Expression right
+    ) {
         super(source, left, right, BinaryComparisonOperation.EQ, evaluatorMap);
     }
 
     public Equals(Source source, Expression left, Expression right, ZoneId zoneId) {
         super(source, left, right, BinaryComparisonOperation.EQ, zoneId, evaluatorMap);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override

@@ -278,6 +278,7 @@ public class PrivilegeTests extends ESTestCase {
             ProfileHasPrivilegesAction.NAME,
             SuggestProfilesAction.NAME,
             GetRolesAction.NAME,
+            ActionTypes.QUERY_ROLE_ACTION.name(),
             GetRoleMappingsAction.NAME,
             GetServiceAccountAction.NAME,
             GetServiceAccountCredentialsAction.NAME,
@@ -297,6 +298,7 @@ public class PrivilegeTests extends ESTestCase {
             PutUserAction.NAME,
             DeleteUserAction.NAME,
             PutRoleAction.NAME,
+            ActionTypes.BULK_PUT_ROLES.name(),
             DeleteRoleAction.NAME,
             PutRoleMappingAction.NAME,
             DeleteRoleMappingAction.NAME,
@@ -339,6 +341,7 @@ public class PrivilegeTests extends ESTestCase {
             ClusterPrivilegeResolver.MANAGE_USER_PROFILE,
             "cluster:admin/xpack/security/role/put",
             "cluster:admin/xpack/security/role/get",
+            "cluster:admin/xpack/security/role/query",
             "cluster:admin/xpack/security/role/delete"
         );
         verifyClusterActionDenied(

@@ -67,7 +67,7 @@ public final class SubDatetimesEvaluator implements EvalOperator.ExpressionEvalu
           continue position;
         }
         try {
-          result.appendLong(Sub.processDatetimes(datetimeBlock.getLong(datetimeBlock.getFirstValueIndex(p)), temporalAmount));
+          result.appendLong(Sub.processDatetimes(datetimeBlock.getLong(datetimeBlock.getFirstValueIndex(p)), this.temporalAmount));
         } catch (ArithmeticException | DateTimeException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -81,7 +81,7 @@ public final class SubDatetimesEvaluator implements EvalOperator.ExpressionEvalu
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendLong(Sub.processDatetimes(datetimeVector.getLong(p), temporalAmount));
+          result.appendLong(Sub.processDatetimes(datetimeVector.getLong(p), this.temporalAmount));
         } catch (ArithmeticException | DateTimeException e) {
           warnings.registerException(e);
           result.appendNull();

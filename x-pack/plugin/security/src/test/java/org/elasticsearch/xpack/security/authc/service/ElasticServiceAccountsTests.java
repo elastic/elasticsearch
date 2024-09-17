@@ -8,18 +8,30 @@
 package org.elasticsearch.xpack.security.authc.service;
 
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
+import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
+import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.TransportDeleteSnapshotAction;
+import org.elasticsearch.action.admin.cluster.snapshots.get.TransportGetSnapshotsAction;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.TransportRestoreSnapshotAction;
+import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
 import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.get.GetComponentTemplateAction;
+import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutIndexTemplateAction;
 import org.elasticsearch.action.bulk.TransportBulkAction;
+import org.elasticsearch.action.datastreams.DataStreamsStatsAction;
+import org.elasticsearch.action.datastreams.lifecycle.GetDataStreamLifecycleAction;
 import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.get.TransportMultiGetAction;
@@ -52,6 +64,11 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.slm.action.DeleteSnapshotLifecycleAction;
+import org.elasticsearch.xpack.core.slm.action.ExecuteSnapshotLifecycleAction;
+import org.elasticsearch.xpack.core.slm.action.GetSLMStatusAction;
+import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleAction;
+import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
 import org.elasticsearch.xpack.security.authc.service.ElasticServiceAccounts.ElasticServiceAccount;
 
 import java.util.List;
@@ -66,6 +83,79 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class ElasticServiceAccountsTests extends ESTestCase {
+
+    public void testAutoOpsPrivileges() {
+        final Role role = Role.buildFromRoleDescriptor(
+            ElasticServiceAccounts.ACCOUNTS.get("elastic/auto-ops").roleDescriptor(),
+            new FieldPermissionsCache(Settings.EMPTY),
+            RESTRICTED_INDICES
+        );
+
+        final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build();
+        final TransportRequest request = mock(TransportRequest.class);
+
+        // monitor
+        assertThat(role.cluster().check(GetComponentTemplateAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetComposableIndexTemplateAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetIndexTemplatesAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(TransportClusterHealthAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(TransportNodesStatsAction.TYPE.name(), request, authentication), is(true));
+
+        assertThat(role.cluster().check(ClusterUpdateSettingsAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(TransportPutIndexTemplateAction.TYPE.name(), request, authentication), is(false));
+        assertThat(role.cluster().check(TransportDeleteIndexTemplateAction.TYPE.name(), request, authentication), is(false));
+
+        // read_ilm
+        assertThat(role.cluster().check(GetLifecycleAction.NAME, request, authentication), is(true));
+
+        assertThat(role.cluster().check(ILMActions.STOP.name(), request, authentication), is(false));
+        assertThat(role.cluster().check(ILMActions.PUT.name(), request, authentication), is(false));
+
+        // read_slm
+        assertThat(role.cluster().check(GetSLMStatusAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetSnapshotLifecycleAction.NAME, request, authentication), is(true));
+
+        assertThat(role.cluster().check(DeleteSnapshotLifecycleAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(ExecuteSnapshotLifecycleAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(PutSnapshotLifecycleAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(TransportGetSnapshotsAction.TYPE.name(), request, authentication), is(false));
+        assertThat(role.cluster().check(TransportCreateSnapshotAction.TYPE.name(), request, authentication), is(false));
+        assertThat(role.cluster().check(TransportDeleteSnapshotAction.TYPE.name(), request, authentication), is(false));
+        assertThat(role.cluster().check(TransportRestoreSnapshotAction.TYPE.name(), request, authentication), is(false));
+
+        // index monitor
+        List.of(
+            "search-" + randomAlphaOfLengthBetween(1, 20),
+            ".kibana-" + randomAlphaOfLengthBetween(1, 20),
+            ".elastic-analytics-collections",
+            "logs-" + randomAlphaOfLengthBetween(1, 20),
+            "my-index-" + randomAlphaOfLengthBetween(1, 20),
+            ".internal.alerts-default.alerts-default-" + randomAlphaOfLengthBetween(1, 20)
+        ).forEach(index -> {
+            final IndexAbstraction anyIndex = mockIndexAbstraction(index);
+
+            assertThat(role.indices().allowedIndicesMatcher(IndicesStatsAction.NAME).test(anyIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(DataStreamsStatsAction.NAME).test(anyIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(GetAliasesAction.NAME).test(anyIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(GetSettingsAction.NAME).test(anyIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(GetDataStreamLifecycleAction.INSTANCE.name()).test(anyIndex), is(true));
+
+            assertThat(role.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(anyIndex), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(anyIndex), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(anyIndex), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(anyIndex), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(anyIndex), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(TransportIndicesAliasesAction.NAME).test(anyIndex), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(TransportBulkAction.NAME).test(anyIndex), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(anyIndex), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(TransportMultiGetAction.NAME).test(anyIndex), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(anyIndex), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(anyIndex), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(anyIndex), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(RefreshAction.NAME).test(anyIndex), is(false));
+            assertThat(role.indices().allowedIndicesMatcher("indices:foo").test(anyIndex), is(false));
+        });
+    }
 
     public void testKibanaSystemPrivileges() {
         final RoleDescriptor serviceAccountRoleDescriptor = ElasticServiceAccounts.ACCOUNTS.get("elastic/kibana").roleDescriptor();

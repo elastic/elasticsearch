@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.cat;
@@ -38,6 +39,7 @@ import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.shard.SparseVectorStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.rest.RestRequest;
@@ -83,8 +85,7 @@ public class RestShardsAction extends AbstractCatAction {
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
 
-        final var clusterStateRequest = new ClusterStateRequest();
-        clusterStateRequest.masterNodeTimeout(getMasterNodeTimeout(request));
+        final var clusterStateRequest = new ClusterStateRequest(getMasterNodeTimeout(request));
         clusterStateRequest.clear().nodes(true).routingTable(true).indices(indices).indicesOptions(IndicesOptions.strictExpandHidden());
 
         return channel -> {
@@ -253,7 +254,11 @@ public class RestShardsAction extends AbstractCatAction {
         );
         table.addCell(
             "dense_vector.value_count",
-            "alias:dvc,denseVectorCount;default:false;text-align:right;desc:total count of indexed dense vector"
+            "alias:dvc,denseVectorCount;default:false;text-align:right;desc:number of indexed dense vectors in shard"
+        );
+        table.addCell(
+            "sparse_vector.value_count",
+            "alias:svc,sparseVectorCount;default:false;text-align:right;desc:number of indexed sparse vectors in shard"
         );
 
         table.endHeaders();
@@ -420,6 +425,7 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(getOrNull(commonStats, CommonStats::getBulk, BulkStats::getAvgSizeInBytes));
 
             table.addCell(getOrNull(commonStats, CommonStats::getDenseVectorStats, DenseVectorStats::getValueCount));
+            table.addCell(getOrNull(commonStats, CommonStats::getSparseVectorStats, SparseVectorStats::getValueCount));
 
             table.endRow();
         }

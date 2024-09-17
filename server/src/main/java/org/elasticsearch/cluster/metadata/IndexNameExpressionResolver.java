@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -422,7 +423,7 @@ public class IndexNameExpressionResolver {
                 }
             }
         }
-        if (shouldIncludeFailureIndices(context.getOptions(), dataStream)) {
+        if (shouldIncludeFailureIndices(context.getOptions())) {
             // We short-circuit here, if failure indices are not allowed and they can be skipped
             if (context.getOptions().allowFailureIndices() || context.getOptions().ignoreUnavailable() == false) {
                 for (Index index : dataStream.getFailureIndices().getIndices()) {
@@ -441,7 +442,7 @@ public class IndexNameExpressionResolver {
                 concreteIndicesResult.add(writeIndex);
             }
         }
-        if (shouldIncludeFailureIndices(context.getOptions(), dataStream)) {
+        if (shouldIncludeFailureIndices(context.getOptions())) {
             Index failureStoreWriteIndex = dataStream.getFailureStoreWriteIndex();
             if (failureStoreWriteIndex != null && addIndex(failureStoreWriteIndex, null, context)) {
                 if (context.options.allowFailureIndices() == false) {
@@ -456,10 +457,9 @@ public class IndexNameExpressionResolver {
         return DataStream.isFailureStoreFeatureFlagEnabled() == false || indicesOptions.includeRegularIndices();
     }
 
-    private static boolean shouldIncludeFailureIndices(IndicesOptions indicesOptions, DataStream dataStream) {
-        return DataStream.isFailureStoreFeatureFlagEnabled()
-            && indicesOptions.includeFailureIndices()
-            && dataStream.isFailureStoreEnabled();
+    private static boolean shouldIncludeFailureIndices(IndicesOptions indicesOptions) {
+        // We return failure indices regardless of whether the data stream actually has the `failureStoreEnabled` flag set to true.
+        return DataStream.isFailureStoreFeatureFlagEnabled() && indicesOptions.includeFailureIndices();
     }
 
     private static boolean resolvesToMoreThanOneIndex(IndexAbstraction indexAbstraction, Context context) {
@@ -469,7 +469,7 @@ public class IndexNameExpressionResolver {
             if (shouldIncludeRegularIndices(context.getOptions())) {
                 count += dataStream.getIndices().size();
             }
-            if (shouldIncludeFailureIndices(context.getOptions(), dataStream)) {
+            if (shouldIncludeFailureIndices(context.getOptions())) {
                 count += dataStream.getFailureIndices().getIndices().size();
             }
             return count > 1;
@@ -568,17 +568,14 @@ public class IndexNameExpressionResolver {
             // Exclude this one as it's a net-new system index, and we explicitly don't want those.
             return false;
         }
-        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-            IndexAbstraction indexAbstraction = context.getState().metadata().getIndicesLookup().get(index.getName());
-            if (context.options.allowFailureIndices() == false) {
-                DataStream parentDataStream = indexAbstraction.getParentDataStream();
-                if (parentDataStream != null && parentDataStream.isFailureStoreEnabled()) {
-                    if (parentDataStream.isFailureStoreIndex(index.getName())) {
-                        if (options.ignoreUnavailable()) {
-                            return false;
-                        } else {
-                            throw new FailureIndexNotSupportedException(index);
-                        }
+        if (DataStream.isFailureStoreFeatureFlagEnabled() && context.options.allowFailureIndices() == false) {
+            DataStream parentDataStream = context.getState().metadata().getIndicesLookup().get(index.getName()).getParentDataStream();
+            if (parentDataStream != null && parentDataStream.isFailureStoreEnabled()) {
+                if (parentDataStream.isFailureStoreIndex(index.getName())) {
+                    if (options.ignoreUnavailable()) {
+                        return false;
+                    } else {
+                        throw new FailureIndexNotSupportedException(index);
                     }
                 }
             }
@@ -1426,8 +1423,7 @@ public class IndexNameExpressionResolver {
                     if (shouldIncludeRegularIndices(context.getOptions())) {
                         indicesStateStream = indexAbstraction.getIndices().stream().map(context.state.metadata()::index);
                     }
-                    if (indexAbstraction.getType() == Type.DATA_STREAM
-                        && shouldIncludeFailureIndices(context.getOptions(), (DataStream) indexAbstraction)) {
+                    if (indexAbstraction.getType() == Type.DATA_STREAM && shouldIncludeFailureIndices(context.getOptions())) {
                         DataStream dataStream = (DataStream) indexAbstraction;
                         indicesStateStream = Stream.concat(
                             indicesStateStream,

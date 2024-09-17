@@ -30,7 +30,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAssignmentAction;
-import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentRoutingInfoAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
@@ -85,10 +84,10 @@ public class TrainedModelAssignmentService {
     }
 
     public void createNewModelAssignment(
-        StartTrainedModelDeploymentAction.TaskParams taskParams,
+        CreateTrainedModelAssignmentAction.Request request,
         ActionListener<CreateTrainedModelAssignmentAction.Response> listener
     ) {
-        client.execute(CreateTrainedModelAssignmentAction.INSTANCE, new CreateTrainedModelAssignmentAction.Request(taskParams), listener);
+        client.execute(CreateTrainedModelAssignmentAction.INSTANCE, request, listener);
     }
 
     public void deleteModelAssignment(String modelId, ActionListener<AcknowledgedResponse> listener) {

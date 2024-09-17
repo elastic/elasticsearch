@@ -1,0 +1,5 @@
+pr: 111519
+summary: "ESQL: Don't mutate the `BoolQueryBuilder` in plan"
+area: ES|QL
+type: bug
+issues: []

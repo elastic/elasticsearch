@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.bootstrap;
@@ -19,7 +20,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ReleaseVersions;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.ReferenceDocs;
-import org.elasticsearch.common.filesystem.FileSystemNatives;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.network.IfConfig;
@@ -293,7 +293,7 @@ class Elasticsearch {
              *
              * TODO: should we fail hard here if system call filters fail to install, or remain lenient in non-production environments?
              */
-            Natives.tryInstallSystemCallFilter(tmpFile);
+            nativeAccess.tryInstallExecSandbox();
         }
 
         // mlockall if requested
@@ -316,18 +316,8 @@ class Elasticsearch {
             }
         }
 
-        // force remainder of JNA to be loaded (if available).
-        try {
-            JNAKernel32Library.getInstance();
-        } catch (Exception ignored) {
-            // we've already logged this.
-        }
-
         // init lucene random seed. it will use /dev/urandom where available:
         StringHelper.randomId();
-
-        // init filesystem natives
-        FileSystemNatives.init();
     }
 
     static void initializeProbes() {

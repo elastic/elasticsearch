@@ -16,6 +16,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -32,6 +33,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticTextInput;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
@@ -45,7 +47,9 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
             client(),
             randomIntBetween(1, 100),
             // dot product means that we need normalized vectors; it's not worth doing that in this test
-            randomValueOtherThan(SimilarityMeasure.DOT_PRODUCT, () -> randomFrom(SimilarityMeasure.values()))
+            randomValueOtherThan(SimilarityMeasure.DOT_PRODUCT, () -> randomFrom(SimilarityMeasure.values())),
+            // TODO: Allow element type BIT once TestDenseInferenceServiceExtension supports it
+            randomValueOtherThan(DenseVectorFieldMapper.ElementType.BIT, () -> randomFrom(DenseVectorFieldMapper.ElementType.values()))
         );
     }
 
@@ -90,8 +94,8 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
                 String id = Long.toString(totalDocs);
                 boolean isIndexRequest = randomBoolean();
                 Map<String, Object> source = new HashMap<>();
-                source.put("sparse_field", isIndexRequest && rarely() ? null : randomAlphaOfLengthBetween(0, 1000));
-                source.put("dense_field", isIndexRequest && rarely() ? null : randomAlphaOfLengthBetween(0, 1000));
+                source.put("sparse_field", isIndexRequest && rarely() ? null : randomSemanticTextInput());
+                source.put("dense_field", isIndexRequest && rarely() ? null : randomSemanticTextInput());
                 if (isIndexRequest) {
                     bulkReqBuilder.add(new IndexRequestBuilder(client()).setIndex(INDEX_NAME).setId(id).setSource(source));
                     totalDocs++;

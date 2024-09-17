@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.codec.tsdb;
@@ -342,14 +343,10 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         @Override
         public int lookupTerm(BytesRef key) throws IOException {
             TermsEnum.SeekStatus status = termsEnum.seekCeil(key);
-            switch (status) {
-                case FOUND:
-                    return Math.toIntExact(termsEnum.ord());
-                case NOT_FOUND:
-                case END:
-                default:
-                    return Math.toIntExact(-1L - termsEnum.ord());
-            }
+            return switch (status) {
+                case FOUND -> Math.toIntExact(termsEnum.ord());
+                default -> Math.toIntExact(-1L - termsEnum.ord());
+            };
         }
 
         @Override
@@ -384,14 +381,10 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         @Override
         public long lookupTerm(BytesRef key) throws IOException {
             TermsEnum.SeekStatus status = termsEnum.seekCeil(key);
-            switch (status) {
-                case FOUND:
-                    return termsEnum.ord();
-                case NOT_FOUND:
-                case END:
-                default:
-                    return -1L - termsEnum.ord();
-            }
+            return switch (status) {
+                case FOUND -> termsEnum.ord();
+                default -> -1L - termsEnum.ord();
+            };
         }
 
         @Override
@@ -400,7 +393,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    private class TermsDict extends BaseTermsEnum {
+    private static class TermsDict extends BaseTermsEnum {
         static final int LZ4_DECOMPRESSOR_PADDING = 7;
 
         final TermsDictEntry entry;

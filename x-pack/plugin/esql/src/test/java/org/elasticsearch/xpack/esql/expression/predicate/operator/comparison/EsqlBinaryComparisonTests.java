@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparisonProcessor;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation;
 
 import java.io.IOException;
@@ -40,16 +39,34 @@ public class EsqlBinaryComparisonTests extends ESTestCase {
      * {@link BinaryComparisonOperation}
      */
     public void testCompatibleWithQLBinaryComparisonOperation() throws IOException {
-        validateCompatibility(BinaryComparisonProcessor.BinaryComparisonOperation.EQ, BinaryComparisonOperation.EQ);
-        validateCompatibility(BinaryComparisonProcessor.BinaryComparisonOperation.NEQ, BinaryComparisonOperation.NEQ);
-        validateCompatibility(BinaryComparisonProcessor.BinaryComparisonOperation.GT, BinaryComparisonOperation.GT);
-        validateCompatibility(BinaryComparisonProcessor.BinaryComparisonOperation.GTE, BinaryComparisonOperation.GTE);
-        validateCompatibility(BinaryComparisonProcessor.BinaryComparisonOperation.LT, BinaryComparisonOperation.LT);
-        validateCompatibility(BinaryComparisonProcessor.BinaryComparisonOperation.LTE, BinaryComparisonOperation.LTE);
+        validateCompatibility(
+            org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparisonOperation.EQ,
+            BinaryComparisonOperation.EQ
+        );
+        validateCompatibility(
+            org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparisonOperation.NEQ,
+            BinaryComparisonOperation.NEQ
+        );
+        validateCompatibility(
+            org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparisonOperation.GT,
+            BinaryComparisonOperation.GT
+        );
+        validateCompatibility(
+            org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparisonOperation.GTE,
+            BinaryComparisonOperation.GTE
+        );
+        validateCompatibility(
+            org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparisonOperation.LT,
+            BinaryComparisonOperation.LT
+        );
+        validateCompatibility(
+            org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparisonOperation.LTE,
+            BinaryComparisonOperation.LTE
+        );
     }
 
     private static void validateCompatibility(
-        BinaryComparisonProcessor.BinaryComparisonOperation original,
+        org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparisonOperation original,
         BinaryComparisonOperation expected
     ) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {

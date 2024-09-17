@@ -11,7 +11,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.esql.core.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
@@ -69,12 +68,7 @@ public abstract class RegexMatch<T extends StringPattern> extends UnaryScalarFun
         if (val instanceof BytesRef br) {
             val = br.utf8ToString();
         }
-        return RegexProcessor.RegexOperation.match(val, pattern().asJavaRegex());
-    }
-
-    @Override
-    protected Processor makeProcessor() {
-        return new RegexProcessor(pattern().asJavaRegex());
+        return RegexOperation.match(val, pattern().asJavaRegex());
     }
 
     @Override

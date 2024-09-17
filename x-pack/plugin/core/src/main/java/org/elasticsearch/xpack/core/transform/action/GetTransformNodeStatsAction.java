@@ -42,14 +42,8 @@ public class GetTransformNodeStatsAction extends ActionType<GetTransformNodeStat
     }
 
     public static class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
-
         public NodesStatsRequest() {
             super(Strings.EMPTY_ARRAY);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            TransportAction.localOnly();
         }
     }
 

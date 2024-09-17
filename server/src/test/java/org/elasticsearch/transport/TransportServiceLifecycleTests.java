@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
@@ -77,7 +78,7 @@ public class TransportServiceLifecycleTests extends ESTestCase {
                             nodeB.transportService.sendRequest(
                                 randomFrom(random, nodeA, nodeB).transportService.getLocalNode(),
                                 TestNode.randomActionName(random),
-                                TransportRequest.Empty.INSTANCE,
+                                new EmptyRequest(),
                                 new TransportResponseHandler<TransportResponse.Empty>() {
 
                                     final AtomicBoolean completed = new AtomicBoolean();
@@ -120,7 +121,7 @@ public class TransportServiceLifecycleTests extends ESTestCase {
             // every handler is completed even if the request or response are being handled concurrently with shutdown
 
             keepGoing.set(false);
-            assertTrue(requestPermits.tryAcquire(Integer.MAX_VALUE, 10, TimeUnit.SECONDS));
+            safeAcquire(Integer.MAX_VALUE, requestPermits);
             for (final var thread : threads) {
                 thread.join();
             }
@@ -135,7 +136,7 @@ public class TransportServiceLifecycleTests extends ESTestCase {
             nodeA.transportService.sendRequest(
                 nodeA.getThrowingConnection(),
                 TestNode.randomActionName(random()),
-                new TransportRequest.Empty(),
+                new EmptyRequest(),
                 TransportRequestOptions.EMPTY,
                 new ActionListenerResponseHandler<>(future, unusedReader(), deterministicTaskQueue::scheduleNow)
             );
@@ -154,7 +155,7 @@ public class TransportServiceLifecycleTests extends ESTestCase {
             nodeA.transportService.sendRequest(
                 nodeA.getThrowingConnection(),
                 TestNode.randomActionName(random()),
-                new TransportRequest.Empty(),
+                new EmptyRequest(),
                 TransportRequestOptions.EMPTY,
                 new ActionListenerResponseHandler<>(future.delegateResponse((l, e) -> {
                     assertThat(Thread.currentThread().getName(), containsString("[" + ThreadPool.Names.GENERIC + "]"));
@@ -183,7 +184,7 @@ public class TransportServiceLifecycleTests extends ESTestCase {
                 nodeA.transportService.sendRequest(
                     nodeA.getThrowingConnection(),
                     TestNode.randomActionName(random()),
-                    new TransportRequest.Empty(),
+                    new EmptyRequest(),
                     TransportRequestOptions.EMPTY,
                     new ActionListenerResponseHandler<>(future.delegateResponse((l, e) -> {
                         assertThat(Thread.currentThread().getName(), containsString("[" + Executors.FIXED_BOUNDED_QUEUE + "]"));
@@ -209,7 +210,7 @@ public class TransportServiceLifecycleTests extends ESTestCase {
         nodeA.transportService.sendRequest(
             nodeA.getThrowingConnection(),
             TestNode.randomActionName(random()),
-            new TransportRequest.Empty(),
+            new EmptyRequest(),
             TransportRequestOptions.EMPTY,
             new ActionListenerResponseHandler<>(future.delegateResponse((l, e) -> {
                 assertSame(testThread, Thread.currentThread());
@@ -256,7 +257,7 @@ public class TransportServiceLifecycleTests extends ESTestCase {
             nodeA.transportService.sendRequest(
                 connection,
                 TestNode.randomActionName(random()),
-                new TransportRequest.Empty(),
+                new EmptyRequest(),
                 TransportRequestOptions.EMPTY,
                 new ActionListenerResponseHandler<>(
                     ActionListener.assertOnce(ActionTestUtils.assertNoSuccessListener(future::onResponse).delegateResponse((l, e) -> {
@@ -361,7 +362,7 @@ public class TransportServiceLifecycleTests extends ESTestCase {
                 transportService.registerRequestHandler(
                     ACTION_NAME_PREFIX + executorName,
                     getExecutor(executorName),
-                    TransportRequest.Empty::new,
+                    EmptyRequest::new,
                     (request, channel, task) -> {
                         if (randomBoolean()) {
                             channel.sendResponse(TransportResponse.Empty.INSTANCE);

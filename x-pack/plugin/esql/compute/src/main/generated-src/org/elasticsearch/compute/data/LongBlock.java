@@ -41,6 +41,9 @@ public sealed interface LongBlock extends Block permits LongArrayBlock, LongVect
     LongBlock filter(int... positions);
 
     @Override
+    LongBlock keepMask(BooleanVector mask);
+
+    @Override
     ReleasableIterator<? extends LongBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 
     @Override
@@ -97,10 +100,10 @@ public sealed interface LongBlock extends Block permits LongArrayBlock, LongVect
         if (vector != null) {
             out.writeByte(SERIALIZE_BLOCK_VECTOR);
             vector.writeTo(out);
-        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_ARRAY_BLOCK) && this instanceof LongArrayBlock b) {
+        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof LongArrayBlock b) {
             out.writeByte(SERIALIZE_BLOCK_ARRAY);
             b.writeArrayBlock(out);
-        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_BIG_ARRAY) && this instanceof LongBigArrayBlock b) {
+        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof LongBigArrayBlock b) {
             out.writeByte(SERIALIZE_BLOCK_BIG_ARRAY);
             b.writeArrayBlock(out);
         } else {

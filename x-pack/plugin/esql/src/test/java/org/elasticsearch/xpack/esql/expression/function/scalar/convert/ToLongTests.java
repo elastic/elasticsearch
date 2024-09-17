@@ -11,11 +11,12 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.math.BigInteger;
@@ -25,7 +26,7 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-public class ToLongTests extends AbstractFunctionTestCase {
+public class ToLongTests extends AbstractScalarFunctionTestCase {
     public ToLongTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -43,6 +44,7 @@ public class ToLongTests extends AbstractFunctionTestCase {
 
         // datetimes
         TestCaseSupplier.forUnaryDatetime(suppliers, read, DataType.LONG, Instant::toEpochMilli, List.of());
+        TestCaseSupplier.forUnaryDateNanos(suppliers, read, DataType.LONG, DateUtils::toLong, List.of());
         // random strings that don't look like a long
         TestCaseSupplier.forUnaryStrings(
             suppliers,
@@ -227,7 +229,11 @@ public class ToLongTests extends AbstractFunctionTestCase {
             l -> ((Integer) l).longValue(),
             List.of()
         );
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        return parameterSuppliersFromTypedDataWithDefaultChecks(
+            true,
+            suppliers,
+            (v, p) -> "boolean or counter_integer or counter_long or date_nanos or datetime or numeric or string"
+        );
     }
 
     @Override

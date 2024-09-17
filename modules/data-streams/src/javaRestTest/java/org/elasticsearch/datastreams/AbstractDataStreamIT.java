@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.datastreams;
@@ -25,6 +26,7 @@ import org.junit.ClassRule;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * This base class provides the boilerplate to simplify the development of integration tests.
@@ -53,7 +55,7 @@ public abstract class AbstractDataStreamIT extends ESRestTestCase {
             } catch (ResponseException e) {
                 fail(e.getMessage());
             }
-        });
+        }, 15, TimeUnit.SECONDS);
     }
 
     static void createDataStream(RestClient client, String name) throws IOException {

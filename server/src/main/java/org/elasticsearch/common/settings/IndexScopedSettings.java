@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.common.settings;
 
+import org.elasticsearch.cluster.metadata.DataStreamFailureStoreDefinition;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -179,6 +181,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING,
         IndexSettings.TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING,
         IndexSettings.PREFER_ILM_SETTING,
+        DataStreamFailureStoreDefinition.FAILURE_STORE_DEFINITION_VERSION_SETTING,
+        FieldMapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING,
 
         // validate that built-in similarities don't get redefined
         Setting.groupSetting("index.similarity.", (s) -> {

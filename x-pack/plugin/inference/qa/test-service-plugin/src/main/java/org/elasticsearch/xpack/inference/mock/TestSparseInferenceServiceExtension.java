@@ -30,7 +30,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceChunkedTextExpansionResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextExpansionResults;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 
 import java.io.IOException;
@@ -147,7 +147,7 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
                 }
                 results.add(
                     new InferenceChunkedSparseEmbeddingResults(
-                        List.of(new InferenceChunkedTextExpansionResults.ChunkedResult(input.get(i), tokens))
+                        List.of(new MlChunkedTextExpansionResults.ChunkedResult(input.get(i), tokens))
                     )
                 );
             }
@@ -222,6 +222,11 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
             out.writeString(model);
             out.writeOptionalString(hiddenField);
             out.writeBoolean(shouldReturnHiddenField);
+        }
+
+        @Override
+        public String modelId() {
+            return model;
         }
 
         @Override

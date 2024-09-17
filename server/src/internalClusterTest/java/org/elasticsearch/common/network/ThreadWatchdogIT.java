@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.network;
@@ -35,7 +36,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.EmptyRequest;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
@@ -137,7 +138,7 @@ public class ThreadWatchdogIT extends ESIntegTestCase {
         targetTransportService.registerRequestHandler(
             "internal:slow",
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            TransportRequest.Empty::new,
+            EmptyRequest::new,
             (request, channel, task) -> {
                 blockAndWaitForWatchdogLogs();
                 channel.sendResponse(TransportResponse.Empty.INSTANCE);
@@ -149,7 +150,7 @@ public class ThreadWatchdogIT extends ESIntegTestCase {
                 l -> sourceTransportService.sendRequest(
                     targetTransportService.getLocalNode(),
                     "internal:slow",
-                    new TransportRequest.Empty(),
+                    new EmptyRequest(),
                     new ActionListenerResponseHandler<TransportResponse>(
                         l,
                         in -> TransportResponse.Empty.INSTANCE,

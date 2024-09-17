@@ -7,21 +7,16 @@
 
 package org.elasticsearch.xpack.application.connector.action;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.connector.Connector;
 
 import java.io.IOException;
@@ -99,18 +94,6 @@ public class UpdateConnectorNameAction {
         static {
             PARSER.declareStringOrNull(optionalConstructorArg(), Connector.NAME_FIELD);
             PARSER.declareStringOrNull(optionalConstructorArg(), Connector.DESCRIPTION_FIELD);
-        }
-
-        public static UpdateConnectorNameAction.Request fromXContentBytes(
-            String connectorId,
-            BytesReference source,
-            XContentType xContentType
-        ) {
-            try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, xContentType)) {
-                return UpdateConnectorNameAction.Request.fromXContent(parser, connectorId);
-            } catch (IOException e) {
-                throw new ElasticsearchParseException("Failed to parse: " + source.utf8ToString(), e);
-            }
         }
 
         public static UpdateConnectorNameAction.Request fromXContent(XContentParser parser, String connectorId) throws IOException {

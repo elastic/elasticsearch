@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations;
 
@@ -89,7 +90,6 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldAliasMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
-import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -198,7 +198,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
     // A list of field types that should not be tested, or are not currently supported
     private static final List<String> TYPE_TEST_BLACKLIST = List.of(
         ObjectMapper.CONTENT_TYPE, // Cannot aggregate objects
-        GeoShapeFieldMapper.CONTENT_TYPE, // Cannot aggregate geoshapes (yet)
         DenseVectorFieldMapper.CONTENT_TYPE, // Cannot aggregate dense vectors
         SparseVectorFieldMapper.CONTENT_TYPE, // Sparse vectors are no longer supported
 
@@ -356,6 +355,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             .fielddataBuilder(
                 new FieldDataContext(
                     indexSettings.getIndex().getName(),
+                    indexSettings,
                     context.lookupSupplier(),
                     context.sourcePathsLookup(),
                     context.fielddataOperation()
@@ -644,7 +644,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                         bigArraysForReduction,
                         getMockScriptService(),
                         () -> false,
-                        builder
+                        builder,
+                        b -> {}
                     );
                     AggregatorCollectorManager aggregatorCollectorManager = new AggregatorCollectorManager(
                         aggregatorSupplier,
@@ -669,7 +670,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     bigArraysForReduction,
                     getMockScriptService(),
                     () -> false,
-                    builder
+                    builder,
+                    b -> {}
                 );
                 internalAggs = new ArrayList<>(internalAggs.subList(r, toReduceSize));
                 internalAggs.add(InternalAggregations.topLevelReduce(toReduce, reduceContext));

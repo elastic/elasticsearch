@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -28,6 +29,7 @@ import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
@@ -54,7 +56,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         Settings settings = Settings.builder().put("node.name", TransportMultiSearchActionTests.class.getSimpleName()).build();
         ActionFilters actionFilters = mock(ActionFilters.class);
         when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
-        ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP);
+        ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
         try {
             TransportService transportService = new TransportService(
                 Settings.EMPTY,
@@ -99,7 +101,6 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                 }
             };
             TransportMultiSearchAction action = new TransportMultiSearchAction(
-                threadPool,
                 actionFilters,
                 transportService,
                 clusterService,
@@ -122,7 +123,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         Settings settings = Settings.builder().put("node.name", TransportMultiSearchActionTests.class.getSimpleName()).build();
         ActionFilters actionFilters = mock(ActionFilters.class);
         when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
-        ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP);
+        ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
         TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),
@@ -192,7 +193,6 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         };
 
         TransportMultiSearchAction action = new TransportMultiSearchAction(
-            threadPool,
             actionFilters,
             transportService,
             clusterService,

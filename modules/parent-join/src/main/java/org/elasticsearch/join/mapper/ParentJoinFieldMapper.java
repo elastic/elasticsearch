@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.join.mapper;
@@ -123,16 +124,16 @@ public final class ParentJoinFieldMapper extends FieldMapper {
                     "Adding multifields to [" + CONTENT_TYPE + "] mappers has no effect and will be forbidden in future"
                 );
             }
-            checkObjectOrNested(context, name());
+            checkObjectOrNested(context, leafName());
             final Map<String, ParentIdFieldMapper> parentIdFields = new HashMap<>();
             relations.get()
                 .stream()
-                .map(relation -> new ParentIdFieldMapper(name() + "#" + relation.parent(), eagerGlobalOrdinals.get()))
-                .forEach(mapper -> parentIdFields.put(mapper.name(), mapper));
-            Joiner joiner = new Joiner(name(), relations.get());
+                .map(relation -> new ParentIdFieldMapper(leafName() + "#" + relation.parent(), eagerGlobalOrdinals.get()))
+                .forEach(mapper -> parentIdFields.put(mapper.fullPath(), mapper));
+            Joiner joiner = new Joiner(leafName(), relations.get());
             return new ParentJoinFieldMapper(
-                name(),
-                new JoinFieldType(context.buildFullName(name()), joiner, meta.get()),
+                leafName(),
+                new JoinFieldType(context.buildFullName(leafName()), joiner, meta.get()),
                 Collections.unmodifiableMap(parentIdFields),
                 eagerGlobalOrdinals.get(),
                 relations.get()
@@ -210,7 +211,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         boolean eagerGlobalOrdinals,
         List<Relations> relations
     ) {
-        super(simpleName, mappedFieldType, MultiFields.empty(), CopyTo.empty(), false, null);
+        super(simpleName, mappedFieldType, BuilderParams.empty());
         this.parentIdFields = parentIdFields;
         this.eagerGlobalOrdinals = eagerGlobalOrdinals;
         this.relations = relations;
@@ -249,7 +250,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
 
     @Override
     public void parse(DocumentParserContext context) throws IOException {
-        context.path().add(simpleName());
+        context.path().add(leafName());
         XContentParser.Token token = context.parser().currentToken();
         String name = null;
         String parent = null;
@@ -264,13 +265,17 @@ public final class ParentJoinFieldMapper extends FieldMapper {
                     } else if ("parent".equals(currentFieldName)) {
                         parent = context.parser().text();
                     } else {
-                        throw new IllegalArgumentException("unknown field name [" + currentFieldName + "] in join field [" + name() + "]");
+                        throw new IllegalArgumentException(
+                            "unknown field name [" + currentFieldName + "] in join field [" + fullPath() + "]"
+                        );
                     }
                 } else if (token == XContentParser.Token.VALUE_NUMBER) {
                     if ("parent".equals(currentFieldName)) {
                         parent = context.parser().numberValue().toString();
                     } else {
-                        throw new IllegalArgumentException("unknown field name [" + currentFieldName + "] in join field [" + name() + "]");
+                        throw new IllegalArgumentException(
+                            "unknown field name [" + currentFieldName + "] in join field [" + fullPath() + "]"
+                        );
                     }
                 }
             }
@@ -278,23 +283,23 @@ public final class ParentJoinFieldMapper extends FieldMapper {
             name = context.parser().text();
             parent = null;
         } else {
-            throw new IllegalStateException("[" + name() + "] expected START_OBJECT or VALUE_STRING but was: " + token);
+            throw new IllegalStateException("[" + fullPath() + "] expected START_OBJECT or VALUE_STRING but was: " + token);
         }
 
         if (name == null) {
-            throw new IllegalArgumentException("null join name in field [" + name() + "]");
+            throw new IllegalArgumentException("null join name in field [" + fullPath() + "]");
         }
 
         if (fieldType().joiner.knownRelation(name) == false) {
-            throw new IllegalArgumentException("unknown join name [" + name + "] for field [" + name() + "]");
+            throw new IllegalArgumentException("unknown join name [" + name + "] for field [" + fullPath() + "]");
         }
         if (fieldType().joiner.childTypeExists(name)) {
             // Index the document as a child
             if (parent == null) {
-                throw new IllegalArgumentException("[parent] is missing for join field [" + name() + "]");
+                throw new IllegalArgumentException("[parent] is missing for join field [" + fullPath() + "]");
             }
             if (context.routing() == null) {
-                throw new IllegalArgumentException("[routing] is missing for join field [" + name() + "]");
+                throw new IllegalArgumentException("[routing] is missing for join field [" + fullPath() + "]");
             }
             String fieldName = fieldType().joiner.parentJoinField(name);
             parentIdFields.get(fieldName).indexValue(context, parent);
@@ -329,7 +334,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName()).init(this);
+        return new Builder(leafName()).init(this);
     }
 
     @Override

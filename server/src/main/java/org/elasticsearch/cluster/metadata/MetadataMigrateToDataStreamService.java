@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -165,7 +167,9 @@ public class MetadataMigrateToDataStreamService {
             req,
             backingIndices,
             currentState.metadata().index(writeIndex),
-            listener
+            listener,
+            // No need to initialize the failure store when migrating to a data stream.
+            false
         );
     }
 
@@ -221,7 +225,7 @@ public class MetadataMigrateToDataStreamService {
         Settings nodeSettings
     ) throws IOException {
         MappingMetadata mm = im.mapping();
-        if (mm == null) {
+        if (mm == null || mm.equals(MappingMetadata.EMPTY_MAPPINGS)) {
             throw new IllegalArgumentException("backing index [" + im.getIndex().getName() + "] must have mappings for a timestamp field");
         }
 
@@ -244,6 +248,7 @@ public class MetadataMigrateToDataStreamService {
         imb.settings(settingsUpdate.build())
             .settingsVersion(im.getSettingsVersion() + 1)
             .mappingVersion(im.getMappingVersion() + 1)
+            .mappingsUpdatedVersion(IndexVersion.current())
             .putMapping(new MappingMetadata(mapper));
         b.put(imb);
     }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search;
 
@@ -47,7 +48,10 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -108,9 +112,9 @@ import org.elasticsearch.search.query.NonCountingTermQuery;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.RankBuilder;
+import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.rank.TestRankBuilder;
-import org.elasticsearch.search.rank.TestRankDoc;
 import org.elasticsearch.search.rank.TestRankShardResult;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
@@ -151,6 +155,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntConsumer;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
@@ -500,9 +505,9 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                         // we know we have just 1 query, so return all the docs from it
                                         return new TestRankShardResult(
                                             Arrays.stream(rankResults.get(0).scoreDocs)
-                                                .map(x -> new TestRankDoc(x.doc, x.score, x.shardIndex))
+                                                .map(x -> new RankDoc(x.doc, x.score, x.shardIndex))
                                                 .limit(rankWindowSize())
-                                                .toArray(TestRankDoc[]::new)
+                                                .toArray(RankDoc[]::new)
                                         );
                                     }
                                 };
@@ -549,7 +554,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             queryResult = (QuerySearchResult) queryPhaseResults.get();
 
             // these are the matched docs from the query phase
-            final TestRankDoc[] queryRankDocs = ((TestRankShardResult) queryResult.getRankShardResult()).testRankDocs;
+            final RankDoc[] queryRankDocs = ((TestRankShardResult) queryResult.getRankShardResult()).testRankDocs;
 
             // assume that we have cut down to these from the coordinator node as the top-docs to run the rank feature phase upon
             List<Integer> topRankWindowSizeDocs = randomNonEmptySubsetOf(Arrays.stream(queryRankDocs).map(x -> x.doc).toList());
@@ -596,7 +601,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             // execute fetch phase and perform any validations once we retrieve the response
             // the difference in how we do assertions here is needed because once the transport service sends back the response
             // it decrements the reference to the FetchSearchResult (through the ActionListener#respondAndRelease) and sets hits to null
-            service.executeFetchPhase(fetchRequest, searchTask, new ActionListener<>() {
+            PlainActionFuture<FetchSearchResult> fetchListener = new PlainActionFuture<>() {
                 @Override
                 public void onResponse(FetchSearchResult fetchSearchResult) {
                     assertNotNull(fetchSearchResult);
@@ -610,13 +615,17 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                         assertNotNull(hit.getFields().get(fetchFieldName));
                         assertEquals(hit.getFields().get(fetchFieldName).getValue(), fetchFieldValue + "_" + hit.docId());
                     }
+                    super.onResponse(fetchSearchResult);
                 }
 
                 @Override
                 public void onFailure(Exception e) {
+                    super.onFailure(e);
                     throw new AssertionError("No failure should have been raised", e);
                 }
-            });
+            };
+            service.executeFetchPhase(fetchRequest, searchTask, fetchListener);
+            fetchListener.get();
         } catch (Exception ex) {
             if (queryResult != null) {
                 if (queryResult.hasReferences()) {
@@ -701,18 +710,18 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                             List<QuerySearchResult> querySearchResults,
                                             SearchPhaseController.TopDocsStats topDocStats
                                         ) {
-                                            List<TestRankDoc> rankDocs = new ArrayList<>();
+                                            List<RankDoc> rankDocs = new ArrayList<>();
                                             for (int i = 0; i < querySearchResults.size(); i++) {
                                                 QuerySearchResult querySearchResult = querySearchResults.get(i);
                                                 TestRankShardResult shardResult = (TestRankShardResult) querySearchResult
                                                     .getRankShardResult();
-                                                for (TestRankDoc trd : shardResult.testRankDocs) {
+                                                for (RankDoc trd : shardResult.testRankDocs) {
                                                     trd.shardIndex = i;
                                                     rankDocs.add(trd);
                                                 }
                                             }
-                                            rankDocs.sort(Comparator.comparing((TestRankDoc doc) -> doc.score).reversed());
-                                            TestRankDoc[] topResults = rankDocs.stream().limit(rankWindowSize).toArray(TestRankDoc[]::new);
+                                            rankDocs.sort(Comparator.comparing((RankDoc doc) -> doc.score).reversed());
+                                            RankDoc[] topResults = rankDocs.stream().limit(rankWindowSize).toArray(RankDoc[]::new);
                                             topDocStats.fetchHits = topResults.length;
                                             return topResults;
                                         }
@@ -733,9 +742,9 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                             // we know we have just 1 query, so return all the docs from it
                                             return new TestRankShardResult(
                                                 Arrays.stream(rankResults.get(0).scoreDocs)
-                                                    .map(x -> new TestRankDoc(x.doc, x.score, x.shardIndex))
+                                                    .map(x -> new RankDoc(x.doc, x.score, x.shardIndex))
                                                     .limit(rankWindowSize())
-                                                    .toArray(TestRankDoc[]::new)
+                                                    .toArray(RankDoc[]::new)
                                             );
                                         }
                                     };
@@ -860,9 +869,9 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                         // we know we have just 1 query, so return all the docs from it
                                         return new TestRankShardResult(
                                             Arrays.stream(rankResults.get(0).scoreDocs)
-                                                .map(x -> new TestRankDoc(x.doc, x.score, x.shardIndex))
+                                                .map(x -> new RankDoc(x.doc, x.score, x.shardIndex))
                                                 .limit(rankWindowSize())
-                                                .toArray(TestRankDoc[]::new)
+                                                .toArray(RankDoc[]::new)
                                         );
                                     }
                                 };
@@ -961,18 +970,18 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                             List<QuerySearchResult> querySearchResults,
                                             SearchPhaseController.TopDocsStats topDocStats
                                         ) {
-                                            List<TestRankDoc> rankDocs = new ArrayList<>();
+                                            List<RankDoc> rankDocs = new ArrayList<>();
                                             for (int i = 0; i < querySearchResults.size(); i++) {
                                                 QuerySearchResult querySearchResult = querySearchResults.get(i);
                                                 TestRankShardResult shardResult = (TestRankShardResult) querySearchResult
                                                     .getRankShardResult();
-                                                for (TestRankDoc trd : shardResult.testRankDocs) {
+                                                for (RankDoc trd : shardResult.testRankDocs) {
                                                     trd.shardIndex = i;
                                                     rankDocs.add(trd);
                                                 }
                                             }
-                                            rankDocs.sort(Comparator.comparing((TestRankDoc doc) -> doc.score).reversed());
-                                            TestRankDoc[] topResults = rankDocs.stream().limit(rankWindowSize).toArray(TestRankDoc[]::new);
+                                            rankDocs.sort(Comparator.comparing((RankDoc doc) -> doc.score).reversed());
+                                            RankDoc[] topResults = rankDocs.stream().limit(rankWindowSize).toArray(RankDoc[]::new);
                                             topDocStats.fetchHits = topResults.length;
                                             return topResults;
                                         }
@@ -993,9 +1002,9 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                             // we know we have just 1 query, so return all the docs from it
                                             return new TestRankShardResult(
                                                 Arrays.stream(rankResults.get(0).scoreDocs)
-                                                    .map(x -> new TestRankDoc(x.doc, x.score, x.shardIndex))
+                                                    .map(x -> new RankDoc(x.doc, x.score, x.shardIndex))
                                                     .limit(rankWindowSize())
-                                                    .toArray(TestRankDoc[]::new)
+                                                    .toArray(RankDoc[]::new)
                                             );
                                         }
                                     };
@@ -1089,18 +1098,18 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                             List<QuerySearchResult> querySearchResults,
                                             SearchPhaseController.TopDocsStats topDocStats
                                         ) {
-                                            List<TestRankDoc> rankDocs = new ArrayList<>();
+                                            List<RankDoc> rankDocs = new ArrayList<>();
                                             for (int i = 0; i < querySearchResults.size(); i++) {
                                                 QuerySearchResult querySearchResult = querySearchResults.get(i);
                                                 TestRankShardResult shardResult = (TestRankShardResult) querySearchResult
                                                     .getRankShardResult();
-                                                for (TestRankDoc trd : shardResult.testRankDocs) {
+                                                for (RankDoc trd : shardResult.testRankDocs) {
                                                     trd.shardIndex = i;
                                                     rankDocs.add(trd);
                                                 }
                                             }
-                                            rankDocs.sort(Comparator.comparing((TestRankDoc doc) -> doc.score).reversed());
-                                            TestRankDoc[] topResults = rankDocs.stream().limit(rankWindowSize).toArray(TestRankDoc[]::new);
+                                            rankDocs.sort(Comparator.comparing((RankDoc doc) -> doc.score).reversed());
+                                            RankDoc[] topResults = rankDocs.stream().limit(rankWindowSize).toArray(RankDoc[]::new);
                                             topDocStats.fetchHits = topResults.length;
                                             return topResults;
                                         }
@@ -1121,9 +1130,9 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                             // we know we have just 1 query, so return all the docs from it
                                             return new TestRankShardResult(
                                                 Arrays.stream(rankResults.get(0).scoreDocs)
-                                                    .map(x -> new TestRankDoc(x.doc, x.score, x.shardIndex))
+                                                    .map(x -> new RankDoc(x.doc, x.score, x.shardIndex))
                                                     .limit(rankWindowSize())
-                                                    .toArray(TestRankDoc[]::new)
+                                                    .toArray(RankDoc[]::new)
                                             );
                                         }
                                     };
@@ -1540,7 +1549,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
         clearScrollRequest.setScrollIds(clearScrollIds);
-        client().clearScroll(clearScrollRequest);
+        client().clearScroll(clearScrollRequest).get();
 
         for (int i = 0; i < clearScrollIds.size(); i++) {
             client().prepareSearch("index").setSize(1).setScroll(TimeValue.timeValueMinutes(1)).get().decRef();
@@ -1978,6 +1987,38 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         {
             AggregationReduceContext reduceContext = reduceContextBuilder.forPartialReduction();
             reduceContext.consumeBucketsAndMaybeBreak(MultiBucketConsumerService.DEFAULT_MAX_BUCKETS + 1);
+        }
+    }
+
+    public void testMultiBucketConsumerServiceCB() {
+        MultiBucketConsumerService service = new MultiBucketConsumerService(
+            getInstanceFromNode(ClusterService.class),
+            Settings.EMPTY,
+            new NoopCircuitBreaker("test") {
+
+                @Override
+                public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+                    throw new CircuitBreakingException("tripped", getDurability());
+                }
+            }
+        );
+        // for partial
+        {
+            IntConsumer consumer = service.createForPartial();
+            for (int i = 0; i < 1023; i++) {
+                consumer.accept(0);
+            }
+            CircuitBreakingException ex = expectThrows(CircuitBreakingException.class, () -> consumer.accept(0));
+            assertThat(ex.getMessage(), equalTo("tripped"));
+        }
+        // for final
+        {
+            IntConsumer consumer = service.createForFinal();
+            for (int i = 0; i < 1023; i++) {
+                consumer.accept(0);
+            }
+            CircuitBreakingException ex = expectThrows(CircuitBreakingException.class, () -> consumer.accept(0));
+            assertThat(ex.getMessage(), equalTo("tripped"));
         }
     }
 
@@ -2679,7 +2720,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             try {
                 ClusterUpdateSettingsResponse response = client().admin()
                     .cluster()
-                    .prepareUpdateSettings()
+                    .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                     .setPersistentSettings(Settings.builder().put(SEARCH_WORKER_THREADS_ENABLED.getKey(), false).build())
                     .get();
                 assertTrue(response.isAcknowledged());
@@ -2690,7 +2731,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 // reset original default setting
                 client().admin()
                     .cluster()
-                    .prepareUpdateSettings()
+                    .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                     .setPersistentSettings(Settings.builder().putNull(SEARCH_WORKER_THREADS_ENABLED.getKey()).build())
                     .get();
                 try (SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.DFS, randomBoolean())) {
@@ -2828,7 +2869,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             try {
                 ClusterUpdateSettingsResponse response = client().admin()
                     .cluster()
-                    .prepareUpdateSettings()
+                    .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                     .setPersistentSettings(Settings.builder().put(QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.getKey(), false).build())
                     .get();
                 assertTrue(response.isAcknowledged());
@@ -2851,7 +2892,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 // Reset to the original default setting and check to ensure it takes effect.
                 client().admin()
                     .cluster()
-                    .prepareUpdateSettings()
+                    .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                     .setPersistentSettings(Settings.builder().putNull(QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.getKey()).build())
                     .get();
                 {

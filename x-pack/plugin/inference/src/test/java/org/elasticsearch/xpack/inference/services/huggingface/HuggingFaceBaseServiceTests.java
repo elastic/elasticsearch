@@ -90,7 +90,7 @@ public class HuggingFaceBaseServiceTests extends ESTestCase {
         verifyNoMoreInteractions(sender);
     }
 
-    private static final class TestService extends HuggingFaceBaseService {
+    private static final class TestService extends HuggingFaceService {
         TestService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
             super(factory, serviceComponents);
         }

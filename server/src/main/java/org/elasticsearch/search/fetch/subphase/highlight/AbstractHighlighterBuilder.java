@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch.subphase.highlight;
@@ -141,7 +142,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         postTags(in.readOptionalStringArray());
         fragmentSize(in.readOptionalVInt());
         numOfFragments(in.readOptionalVInt());
-        if (in.getTransportVersion().onOrAfter(TransportVersions.HIGHLIGHTERS_TAGS_ON_FIELD_LEVEL)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             encoder(in.readOptionalString());
         }
         highlighterType(in.readOptionalString());
@@ -180,7 +181,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         out.writeOptionalStringArray(postTags);
         out.writeOptionalVInt(fragmentSize);
         out.writeOptionalVInt(numOfFragments);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.HIGHLIGHTERS_TAGS_ON_FIELD_LEVEL)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             out.writeOptionalString(encoder);
         }
         out.writeOptionalString(highlighterType);

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.cat;
@@ -127,13 +128,12 @@ public class RestIndicesAction extends AbstractCatAction {
 
                 client.admin()
                     .cluster()
-                    .prepareState()
+                    .prepareState(masterNodeTimeout)
                     .clear()
                     .setMetadata(true)
                     .setRoutingTable(true)
                     .setIndices(indices)
                     .setIndicesOptions(subRequestIndicesOptions)
-                    .setMasterNodeTimeout(masterNodeTimeout)
                     .execute(listeners.acquire(clusterStateRef::set));
 
                 client.admin()
@@ -514,6 +514,12 @@ public class RestIndicesAction extends AbstractCatAction {
         );
         table.addCell("pri.dense_vector.value_count", "default:false;text-align:right;desc:total count of indexed dense vector");
 
+        table.addCell(
+            "sparse_vector.value_count",
+            "sibling:pri;alias:svc,sparseVectorCount;default:false;text-align:right;desc:total count of indexed sparse vectors"
+        );
+        table.addCell("pri.sparse_vector.value_count", "default:false;text-align:right;desc:total count of indexed sparse vectors");
+
         table.endHeaders();
         return table;
     }
@@ -790,6 +796,9 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(totalStats.getDenseVectorStats() == null ? null : totalStats.getDenseVectorStats().getValueCount());
             table.addCell(primaryStats.getDenseVectorStats() == null ? null : primaryStats.getDenseVectorStats().getValueCount());
+
+            table.addCell(totalStats.getSparseVectorStats() == null ? null : totalStats.getSparseVectorStats().getValueCount());
+            table.addCell(primaryStats.getSparseVectorStats() == null ? null : primaryStats.getSparseVectorStats().getValueCount());
 
             table.endRow();
         });

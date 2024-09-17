@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.Instant;
 import java.time.ZonedDateTime;
@@ -39,56 +39,57 @@ public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(
-            errorsForCasesWithoutExamples(
-                anyNullIsNull(
-                    true,
-                    List.of(
-                        new TestCaseSupplier(
-                            List.of(DataType.KEYWORD, DataType.DATETIME),
-                            () -> new TestCaseSupplier.TestCase(
-                                List.of(
-                                    new TestCaseSupplier.TypedData(new BytesRef("YeAr"), DataType.KEYWORD, "chrono"),
-                                    new TestCaseSupplier.TypedData(1687944333000L, DataType.DATETIME, "date")
-                                ),
-                                "DateExtractEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=Z]",
-                                DataType.LONG,
-                                equalTo(2023L)
-                            )
+        return parameterSuppliersFromTypedDataWithDefaultChecks(
+            true,
+            List.of(
+                new TestCaseSupplier(
+                    List.of(DataType.KEYWORD, DataType.DATETIME),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(new BytesRef("YeAr"), DataType.KEYWORD, "chrono"),
+                            new TestCaseSupplier.TypedData(1687944333000L, DataType.DATETIME, "date")
                         ),
-                        new TestCaseSupplier(
-                            List.of(DataType.TEXT, DataType.DATETIME),
-                            () -> new TestCaseSupplier.TestCase(
-                                List.of(
-                                    new TestCaseSupplier.TypedData(new BytesRef("YeAr"), DataType.TEXT, "chrono"),
-                                    new TestCaseSupplier.TypedData(1687944333000L, DataType.DATETIME, "date")
-                                ),
-                                "DateExtractEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=Z]",
-                                DataType.LONG,
-                                equalTo(2023L)
-                            )
-                        ),
-                        new TestCaseSupplier(
-                            List.of(DataType.KEYWORD, DataType.DATETIME),
-                            () -> new TestCaseSupplier.TestCase(
-                                List.of(
-                                    new TestCaseSupplier.TypedData(new BytesRef("not a unit"), DataType.KEYWORD, "chrono"),
-                                    new TestCaseSupplier.TypedData(0L, DataType.DATETIME, "date")
-
-                                ),
-                                "DateExtractEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=Z]",
-                                DataType.LONG,
-                                is(nullValue())
-                            ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
-                                .withWarning(
-                                    "Line -1:-1: java.lang.IllegalArgumentException: "
-                                        + "No enum constant java.time.temporal.ChronoField.NOT A UNIT"
-                                )
-                                .withFoldingException(InvalidArgumentException.class, "invalid date field for []: not a unit")
-                        )
+                        "DateExtractEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=Z]",
+                        DataType.LONG,
+                        equalTo(2023L)
                     )
+                ),
+                new TestCaseSupplier(
+                    List.of(DataType.TEXT, DataType.DATETIME),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(new BytesRef("YeAr"), DataType.TEXT, "chrono"),
+                            new TestCaseSupplier.TypedData(1687944333000L, DataType.DATETIME, "date")
+                        ),
+                        "DateExtractEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=Z]",
+                        DataType.LONG,
+                        equalTo(2023L)
+                    )
+                ),
+                new TestCaseSupplier(
+                    List.of(DataType.KEYWORD, DataType.DATETIME),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(new BytesRef("not a unit"), DataType.KEYWORD, "chrono"),
+                            new TestCaseSupplier.TypedData(0L, DataType.DATETIME, "date")
+
+                        ),
+                        "DateExtractEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=Z]",
+                        DataType.LONG,
+                        is(nullValue())
+                    ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                        .withWarning(
+                            "Line -1:-1: java.lang.IllegalArgumentException: "
+                                + "No enum constant java.time.temporal.ChronoField.NOT A UNIT"
+                        )
+                        .withFoldingException(InvalidArgumentException.class, "invalid date field for []: not a unit")
                 )
-            )
+            ),
+            (v, p) -> switch (p) {
+                case 0 -> "string";
+                case 1 -> "datetime";
+                default -> "";
+            }
         );
     }
 
@@ -129,7 +130,7 @@ public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
     }
 
     @Override
-    protected Expression buildWithConfiguration(Source source, List<Expression> args, EsqlConfiguration configuration) {
+    protected Expression buildWithConfiguration(Source source, List<Expression> args, Configuration configuration) {
         return new DateExtract(source, args.get(0), args.get(1), configuration);
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.cat;
@@ -49,15 +50,17 @@ public class RestSnapshotAction extends AbstractCatAction {
         return "cat_snapshot_action";
     }
 
+    private static final String[] MATCH_ALL_PATTERNS = { ResolvedRepositories.ALL_PATTERN };
+
     @Override
     protected RestChannelConsumer doCatRequest(final RestRequest request, NodeClient client) {
-        final String[] matchAll = { ResolvedRepositories.ALL_PATTERN };
-        GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest().repositories(request.paramAsStringArray("repository", matchAll))
-            .snapshots(matchAll);
+        final var getSnapshotsRequest = new GetSnapshotsRequest(
+            getMasterNodeTimeout(request),
+            request.paramAsStringArray("repository", MATCH_ALL_PATTERNS),
+            MATCH_ALL_PATTERNS
+        );
 
         getSnapshotsRequest.ignoreUnavailable(request.paramAsBoolean("ignore_unavailable", getSnapshotsRequest.ignoreUnavailable()));
-
-        getSnapshotsRequest.masterNodeTimeout(getMasterNodeTimeout(request));
 
         return channel -> client.admin().cluster().getSnapshots(getSnapshotsRequest, new RestResponseListener<>(channel) {
             @Override

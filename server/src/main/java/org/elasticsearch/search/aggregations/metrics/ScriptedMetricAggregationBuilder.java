@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -193,11 +194,11 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
         validateScript(REDUCE_SCRIPT_FIELD.getPreferredName(), name, reduceScript, settings);
 
         if (combineScript == null) {
-            throw new IllegalArgumentException("[combineScript] must not be null: [" + name + "]");
+            throw new IllegalArgumentException("[" + COMBINE_SCRIPT_FIELD.getPreferredName() + "] must not be null: [" + name + "]");
         }
 
         if (reduceScript == null) {
-            throw new IllegalArgumentException("[reduceScript] must not be null: [" + name + "]");
+            throw new IllegalArgumentException("[" + REDUCE_SCRIPT_FIELD.getPreferredName() + "] must not be null: [" + name + "]");
         }
 
         // Extract params from scripts and pass them along to ScriptedMetricAggregatorFactory, since it won't have

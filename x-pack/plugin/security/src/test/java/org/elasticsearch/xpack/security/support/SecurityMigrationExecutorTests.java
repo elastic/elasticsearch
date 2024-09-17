@@ -43,6 +43,8 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
 
     private boolean clientShouldThrowException = false;
 
+    private AllocatedPersistentTask mockTask = mock(AllocatedPersistentTask.class);
+
     @Before
     public void setUpMocks() {
         threadPool = mock(ThreadPool.class);
@@ -78,8 +80,8 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
             client,
             new TreeMap<>(Map.of(1, generateMigration(migrateInvocations, true), 2, generateMigration(migrateInvocations, true)))
         );
-        AllocatedPersistentTask mockTask = mock(AllocatedPersistentTask.class);
-        securityMigrationExecutor.nodeOperation(mockTask, mock(SecurityMigrationTaskParams.class), mock(PersistentTaskState.class));
+
+        securityMigrationExecutor.nodeOperation(mockTask, new SecurityMigrationTaskParams(0, true), mock(PersistentTaskState.class));
         verify(mockTask, times(1)).markAsCompleted();
         verify(mockTask, times(0)).markAsFailed(any());
         assertEquals(2, updateIndexMigrationVersionActionInvocations);
@@ -105,8 +107,7 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
             )
         );
 
-        AllocatedPersistentTask mockTask = mock(AllocatedPersistentTask.class);
-        securityMigrationExecutor.nodeOperation(mockTask, mock(SecurityMigrationTaskParams.class), mock(PersistentTaskState.class));
+        securityMigrationExecutor.nodeOperation(mockTask, new SecurityMigrationTaskParams(0, true), mock(PersistentTaskState.class));
         verify(mockTask, times(1)).markAsCompleted();
         verify(mockTask, times(0)).markAsFailed(any());
         assertEquals(0, updateIndexMigrationVersionActionInvocations);
@@ -136,8 +137,7 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
             )
         );
 
-        AllocatedPersistentTask mockTask = mock(AllocatedPersistentTask.class);
-        securityMigrationExecutor.nodeOperation(mockTask, mock(SecurityMigrationTaskParams.class), mock(PersistentTaskState.class));
+        securityMigrationExecutor.nodeOperation(mockTask, new SecurityMigrationTaskParams(0, true), mock(PersistentTaskState.class));
         verify(mockTask, times(1)).markAsCompleted();
         verify(mockTask, times(0)).markAsFailed(any());
         assertEquals(2, updateIndexMigrationVersionActionInvocations);
@@ -154,11 +154,7 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
             new TreeMap<>(Map.of(1, generateMigration(migrateInvocations, true), 2, generateMigration(migrateInvocations, true)))
         );
 
-        AllocatedPersistentTask mockTask = mock(AllocatedPersistentTask.class);
-        SecurityMigrationTaskParams taskParams = mock(SecurityMigrationTaskParams.class);
-        when(taskParams.getMigrationVersion()).thenReturn(7);
-
-        securityMigrationExecutor.nodeOperation(mockTask, taskParams, mock(PersistentTaskState.class));
+        securityMigrationExecutor.nodeOperation(mockTask, new SecurityMigrationTaskParams(7, true), mock(PersistentTaskState.class));
         verify(mockTask, times(1)).markAsCompleted();
         verify(mockTask, times(0)).markAsFailed(any());
         assertEquals(0, updateIndexMigrationVersionActionInvocations);
@@ -190,13 +186,11 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
             }))
         );
 
-        AllocatedPersistentTask mockTask = mock(AllocatedPersistentTask.class);
-
         assertThrows(
             IllegalStateException.class,
             () -> securityMigrationExecutor.nodeOperation(
                 mockTask,
-                mock(SecurityMigrationTaskParams.class),
+                new SecurityMigrationTaskParams(0, true),
                 mock(PersistentTaskState.class)
             )
         );
@@ -212,8 +206,7 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
             new TreeMap<>(Map.of(1, generateMigration(migrateInvocations, true), 2, generateMigration(migrateInvocations, true)))
         );
         clientShouldThrowException = true;
-        AllocatedPersistentTask mockTask = mock(AllocatedPersistentTask.class);
-        securityMigrationExecutor.nodeOperation(mockTask, mock(SecurityMigrationTaskParams.class), mock(PersistentTaskState.class));
+        securityMigrationExecutor.nodeOperation(mockTask, new SecurityMigrationTaskParams(0, true), mock(PersistentTaskState.class));
         verify(mockTask, times(1)).markAsFailed(any());
         verify(mockTask, times(0)).markAsCompleted();
     }

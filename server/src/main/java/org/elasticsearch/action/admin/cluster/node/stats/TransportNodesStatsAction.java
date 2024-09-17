@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.node.stats;
@@ -13,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.allocation.TransportGetAllocationStatsAction;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -21,9 +23,9 @@ import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStats;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.NodeService;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.tasks.CancellableTask;
@@ -39,7 +41,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 public class TransportNodesStatsAction extends TransportNodesAction<
     NodesStatsRequest,
@@ -57,8 +58,8 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         ThreadPool threadPool,
         ClusterService clusterService,
         TransportService transportService,
-        NodeService nodeService,
         ActionFilters actionFilters,
+        NodeService nodeService,
         NodeClient client
     ) {
         super(
@@ -86,21 +87,21 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         List<FailedNodeException> failures,
         ActionListener<NodesStatsResponse> listener
     ) {
-        Set<String> metrics = request.getNodesStatsRequestParameters().requestedMetrics();
-        if (NodesStatsRequestParameters.Metric.ALLOCATIONS.containedIn(metrics)
-            || NodesStatsRequestParameters.Metric.FS.containedIn(metrics)) {
+        var metrics = request.getNodesStatsRequestParameters().requestedMetrics();
+        if (metrics.contains(Metric.FS) || metrics.contains(Metric.ALLOCATIONS)) {
             client.execute(
                 TransportGetAllocationStatsAction.TYPE,
                 new TransportGetAllocationStatsAction.Request(
                     Objects.requireNonNullElse(request.timeout(), RestUtils.REST_MASTER_TIMEOUT_DEFAULT),
-                    new TaskId(clusterService.localNode().getId(), task.getId())
+                    new TaskId(clusterService.localNode().getId(), task.getId()),
+                    metrics
                 ),
-                listener.delegateFailure((l, r) -> {
-                    ActionListener.respondAndRelease(
+                listener.delegateFailure(
+                    (l, r) -> ActionListener.respondAndRelease(
                         l,
                         newResponse(request, merge(responses, r.getNodeAllocationStats(), r.getDiskThresholdSettings()), failures)
-                    );
-                })
+                    )
+                )
             );
         } else {
             ActionListener.run(listener, l -> ActionListener.respondAndRelease(l, newResponse(request, responses, failures)));
@@ -132,26 +133,27 @@ public class TransportNodesStatsAction extends TransportNodesAction<
     protected NodeStats nodeOperation(NodeStatsRequest request, Task task) {
         assert task instanceof CancellableTask;
 
-        final NodesStatsRequestParameters nodesStatsRequestParameters = request.getNodesStatsRequestParameters();
-        Set<String> metrics = nodesStatsRequestParameters.requestedMetrics();
+        final var nodesStatsRequestParameters = request.getNodesStatsRequestParameters();
+        final var metrics = nodesStatsRequestParameters.requestedMetrics();
+
         return nodeService.stats(
             nodesStatsRequestParameters.indices(),
             nodesStatsRequestParameters.includeShardsStats(),
-            NodesStatsRequestParameters.Metric.OS.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.PROCESS.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.JVM.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.THREAD_POOL.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.FS.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.TRANSPORT.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.HTTP.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.BREAKER.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.SCRIPT.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.DISCOVERY.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.INGEST.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.ADAPTIVE_SELECTION.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.SCRIPT_CACHE.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.INDEXING_PRESSURE.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.REPOSITORIES.containedIn(metrics)
+            metrics.contains(Metric.OS),
+            metrics.contains(Metric.PROCESS),
+            metrics.contains(Metric.JVM),
+            metrics.contains(Metric.THREAD_POOL),
+            metrics.contains(Metric.FS),
+            metrics.contains(Metric.TRANSPORT),
+            metrics.contains(Metric.HTTP),
+            metrics.contains(Metric.BREAKER),
+            metrics.contains(Metric.SCRIPT),
+            metrics.contains(Metric.DISCOVERY),
+            metrics.contains(Metric.INGEST),
+            metrics.contains(Metric.ADAPTIVE_SELECTION),
+            metrics.contains(Metric.SCRIPT_CACHE),
+            metrics.contains(Metric.INDEXING_PRESSURE),
+            metrics.contains(Metric.REPOSITORIES)
         );
     }
 
@@ -161,13 +163,10 @@ public class TransportNodesStatsAction extends TransportNodesAction<
 
         public NodeStatsRequest(StreamInput in) throws IOException {
             super(in);
-            if (in.getTransportVersion().before(TransportVersions.V_8_13_0)) {
-                this.nodesStatsRequestParameters = new NodesStatsRequest(in).getNodesStatsRequestParameters();
-            } else {
-                this.nodesStatsRequestParameters = new NodesStatsRequestParameters(in);
-                if (in.getTransportVersion().before(TransportVersions.DROP_UNUSED_NODES_IDS)) {
-                    in.readStringArray(); // formerly nodeIds, now unused
-                }
+            this.nodesStatsRequestParameters = new NodesStatsRequestParameters(in);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)
+                && in.getTransportVersion().before(TransportVersions.DROP_UNUSED_NODES_IDS)) {
+                in.readStringArray(); // formerly nodeIds, now unused
             }
         }
 
@@ -192,13 +191,10 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getTransportVersion().before(TransportVersions.V_8_13_0)) {
-                new NodesStatsRequest(nodesStatsRequestParameters, Strings.EMPTY_ARRAY).writeTo(out);
-            } else {
-                nodesStatsRequestParameters.writeTo(out);
-                if (out.getTransportVersion().before(TransportVersions.DROP_UNUSED_NODES_IDS)) {
-                    out.writeStringArray(Strings.EMPTY_ARRAY); // formerly nodeIds, now unused
-                }
+            nodesStatsRequestParameters.writeTo(out);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)
+                && out.getTransportVersion().before(TransportVersions.DROP_UNUSED_NODES_IDS)) {
+                out.writeStringArray(Strings.EMPTY_ARRAY); // formerly nodeIds, now unused
             }
         }
 

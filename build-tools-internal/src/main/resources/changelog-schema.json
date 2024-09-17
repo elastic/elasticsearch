@@ -28,9 +28,11 @@
             "Autoscaling",
             "CAT APIs",
             "CCR",
+            "CCS",
             "CRUD",
             "Client",
             "Cluster Coordination",
+            "Codec",
             "Data streams",
             "DLM",
             "Discovery-Plugins",
@@ -277,6 +279,7 @@
     "compatibilityChangeArea": {
       "type": "string",
       "enum": [
+        "Analysis",
         "Authorization",
         "Cluster and node setting",
         "Command line tool",

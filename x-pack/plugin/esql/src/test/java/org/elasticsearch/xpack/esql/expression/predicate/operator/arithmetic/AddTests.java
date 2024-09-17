@@ -13,7 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.math.BigInteger;
@@ -27,16 +27,15 @@ import java.util.function.BiFunction;
 import java.util.function.BinaryOperator;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.esql.core.type.DateUtils.asDateTime;
-import static org.elasticsearch.xpack.esql.core.type.DateUtils.asMillis;
+import static org.elasticsearch.xpack.esql.core.util.DateUtils.asDateTime;
+import static org.elasticsearch.xpack.esql.core.util.DateUtils.asMillis;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
-import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.AbstractArithmeticTestCase.arithmeticExceptionOverflowCase;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-public class AddTests extends AbstractFunctionTestCase {
+public class AddTests extends AbstractScalarFunctionTestCase {
     public AddTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -70,6 +69,38 @@ public class AddTests extends AbstractFunctionTestCase {
                 "rhs",
                 (lhs, rhs) -> List.of(),
                 true
+            )
+        );
+
+        // Double overflows
+        suppliers.addAll(
+            List.of(
+                new TestCaseSupplier(
+                    List.of(DataType.DOUBLE, DataType.DOUBLE),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(Double.MAX_VALUE, DataType.DOUBLE, "lhs"),
+                            new TestCaseSupplier.TypedData(Double.MAX_VALUE, DataType.DOUBLE, "rhs")
+                        ),
+                        "AddDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                        DataType.DOUBLE,
+                        equalTo(null)
+                    ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                        .withWarning("Line -1:-1: java.lang.ArithmeticException: not a finite double number: Infinity")
+                ),
+                new TestCaseSupplier(
+                    List.of(DataType.DOUBLE, DataType.DOUBLE),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(-Double.MAX_VALUE, DataType.DOUBLE, "lhs"),
+                            new TestCaseSupplier.TypedData(-Double.MAX_VALUE, DataType.DOUBLE, "rhs")
+                        ),
+                        "AddDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                        DataType.DOUBLE,
+                        equalTo(null)
+                    ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                        .withWarning("Line -1:-1: java.lang.ArithmeticException: not a finite double number: -Infinity")
+                )
             )
         );
 
@@ -190,7 +221,7 @@ public class AddTests extends AbstractFunctionTestCase {
         suppliers = errorsForCasesWithoutExamples(suppliers, AddTests::addErrorMessageString);
 
         // Cases that should generate warnings
-        suppliers.addAll(List.of(new TestCaseSupplier("MV", () -> {
+        suppliers.add(new TestCaseSupplier("MV", List.of(DataType.INTEGER, DataType.INTEGER), () -> {
             // Ensure we don't have an overflow
             int rhs = randomIntBetween((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1);
             int lhs = randomIntBetween((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1);
@@ -205,7 +236,7 @@ public class AddTests extends AbstractFunctionTestCase {
                 is(nullValue())
             ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
                 .withWarning("Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value");
-        })));
+        }));
         // exact math arithmetic exceptions
         suppliers.add(
             arithmeticExceptionOverflowCase(
@@ -253,7 +284,7 @@ public class AddTests extends AbstractFunctionTestCase {
 
     private static String addErrorMessageString(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types) {
         try {
-            return typeErrorMessage(includeOrdinal, validPerPosition, types);
+            return typeErrorMessage(includeOrdinal, validPerPosition, types, (a, b) -> "datetime or numeric");
         } catch (IllegalStateException e) {
             // This means all the positional args were okay, so the expected error is from the combination
             return "[+] has arguments with incompatible types [" + types.get(0).typeName() + "] and [" + types.get(1).typeName() + "]";

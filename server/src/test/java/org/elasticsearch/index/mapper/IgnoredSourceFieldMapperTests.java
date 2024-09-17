@@ -1,26 +1,33 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.test.FieldMaskingReader;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.Base64;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
 
-    private String getSyntheticSourceWithFieldLimit(CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
-        DocumentMapper documentMapper = createMapperService(
+    private DocumentMapper getDocumentMapperWithFieldLimit() throws IOException {
+        return createMapperService(
             Settings.builder()
                 .put("index.mapping.total_fields.limit", 2)
                 .put("index.mapping.total_fields.ignore_dynamic_beyond_limit", true)
@@ -30,7 +37,24 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
                 b.startObject("bar").field("type", "object").endObject();
             })
         ).documentMapper();
+    }
+
+    private ParsedDocument getParsedDocumentWithFieldLimit(CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
+        DocumentMapper mapper = getDocumentMapperWithFieldLimit();
+        return mapper.parse(source(build));
+    }
+
+    private String getSyntheticSourceWithFieldLimit(CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
+        DocumentMapper documentMapper = getDocumentMapperWithFieldLimit();
         return syntheticSource(documentMapper, build);
+    }
+
+    private MapperService createMapperServiceWithStoredArraySource(XContentBuilder mappings) throws IOException {
+        Settings settings = Settings.builder()
+            .put(getIndexSettings())
+            .put(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING.getKey(), "arrays")
+            .build();
+        return createMapperService(settings, mappings);
     }
 
     public void testIgnoredBoolean() throws IOException {
@@ -78,7 +102,54 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
 
     public void testIgnoredObjectBoolean() throws IOException {
         boolean value = randomBoolean();
-        assertEquals("{\"my_value\":" + value + "}", getSyntheticSourceWithFieldLimit(b -> b.field("my_value", value)));
+        assertEquals("{\"my_object\":{\"my_value\":" + value + "}}", getSyntheticSourceWithFieldLimit(b -> {
+            b.startObject("my_object").field("my_value", value).endObject();
+        }));
+    }
+
+    public void testIgnoredArray() throws IOException {
+        assertEquals("{\"my_array\":[{\"int_value\":10},{\"int_value\":20}]}", getSyntheticSourceWithFieldLimit(b -> {
+            b.startArray("my_array");
+            b.startObject().field("int_value", 10).endObject();
+            b.startObject().field("int_value", 20).endObject();
+            b.endArray();
+        }));
+    }
+
+    public void testEncodeFieldToMap() throws IOException {
+        String value = randomAlphaOfLength(5);
+        ParsedDocument parsedDocument = getParsedDocumentWithFieldLimit(b -> b.field("my_value", value));
+        byte[] bytes = parsedDocument.rootDoc().getField(IgnoredSourceFieldMapper.NAME).binaryValue().bytes;
+        IgnoredSourceFieldMapper.MappedNameValue mappedNameValue = IgnoredSourceFieldMapper.decodeAsMap(bytes);
+        assertEquals("my_value", mappedNameValue.nameValue().name());
+        assertEquals(value, mappedNameValue.map().get("my_value"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testEncodeObjectToMapAndDecode() throws IOException {
+        String value = randomAlphaOfLength(5);
+        ParsedDocument parsedDocument = getParsedDocumentWithFieldLimit(
+            b -> { b.startObject("my_object").field("my_value", value).endObject(); }
+        );
+        byte[] bytes = parsedDocument.rootDoc().getField(IgnoredSourceFieldMapper.NAME).binaryValue().bytes;
+        IgnoredSourceFieldMapper.MappedNameValue mappedNameValue = IgnoredSourceFieldMapper.decodeAsMap(bytes);
+        assertEquals("my_object", mappedNameValue.nameValue().name());
+        assertEquals(value, ((Map<String, ?>) mappedNameValue.map().get("my_object")).get("my_value"));
+        assertArrayEquals(bytes, IgnoredSourceFieldMapper.encodeFromMap(mappedNameValue, mappedNameValue.map()));
+    }
+
+    public void testEncodeArrayToMapAndDecode() throws IOException {
+        ParsedDocument parsedDocument = getParsedDocumentWithFieldLimit(b -> {
+            b.startArray("my_array");
+            b.startObject().field("int_value", 10).endObject();
+            b.startObject().field("int_value", 20).endObject();
+            b.endArray();
+        });
+        byte[] bytes = parsedDocument.rootDoc().getField(IgnoredSourceFieldMapper.NAME).binaryValue().bytes;
+        IgnoredSourceFieldMapper.MappedNameValue mappedNameValue = IgnoredSourceFieldMapper.decodeAsMap(bytes);
+        assertEquals("my_array", mappedNameValue.nameValue().name());
+        assertThat((List<?>) mappedNameValue.map().get("my_array"), Matchers.contains(Map.of("int_value", 10), Map.of("int_value", 20)));
+        assertArrayEquals(bytes, IgnoredSourceFieldMapper.encodeFromMap(mappedNameValue, mappedNameValue.map()));
     }
 
     public void testMultipleIgnoredFieldsRootObject() throws IOException {
@@ -87,8 +158,8 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         String stringValue = randomAlphaOfLength(20);
         String syntheticSource = getSyntheticSourceWithFieldLimit(b -> {
             b.field("boolean_value", booleanValue);
-            b.field("string_value", stringValue);
             b.field("int_value", intValue);
+            b.field("string_value", stringValue);
         });
         assertEquals(String.format(Locale.ROOT, """
             {"boolean_value":%s,"int_value":%s,"string_value":"%s"}""", booleanValue, intValue, stringValue), syntheticSource);
@@ -149,6 +220,18 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             ),
             syntheticSource
         );
+    }
+
+    public void testIgnoredDynamicArrayNestedInObject() throws IOException {
+        int intValue = randomInt();
+
+        String syntheticSource = getSyntheticSourceWithFieldLimit(b -> {
+            b.startObject("bar");
+            b.field("a", List.of(intValue, intValue));
+            b.endObject();
+        });
+        assertEquals(String.format(Locale.ROOT, """
+            {"bar":{"a":[%s,%s]}}""", intValue, intValue), syntheticSource);
     }
 
     public void testDisabledRootObjectSingleField() throws IOException {
@@ -423,6 +506,108 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         );
     }
 
+    public void testIndexStoredArraySourceRootValueArray() throws IOException {
+        DocumentMapper documentMapper = createMapperServiceWithStoredArraySource(syntheticSourceMapping(b -> {
+            b.startObject("int_value").field("type", "integer").endObject();
+            b.startObject("bool_value").field("type", "boolean").endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.array("int_value", new int[] { 30, 20, 10 });
+            b.field("bool_value", true);
+        });
+        assertEquals("""
+            {"bool_value":true,"int_value":[30,20,10]}""", syntheticSource);
+    }
+
+    public void testIndexStoredArraySourceRootObjectArray() throws IOException {
+        DocumentMapper documentMapper = createMapperServiceWithStoredArraySource(syntheticSourceMapping(b -> {
+            b.startObject("path");
+            {
+                b.field("type", "object");
+                b.startObject("properties");
+                {
+                    b.startObject("int_value").field("type", "integer").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+            b.startObject("bool_value").field("type", "boolean").endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startArray("path");
+            b.startObject().field("int_value", 10).endObject();
+            b.startObject().field("int_value", 20).endObject();
+            b.endArray();
+            b.field("bool_value", true);
+        });
+        assertEquals("""
+            {"bool_value":true,"path":[{"int_value":10},{"int_value":20}]}""", syntheticSource);
+    }
+
+    public void testIndexStoredArraySourceNestedValueArray() throws IOException {
+        DocumentMapper documentMapper = createMapperServiceWithStoredArraySource(syntheticSourceMapping(b -> {
+            b.startObject("path");
+            {
+                b.field("type", "object");
+                b.startObject("properties");
+                {
+                    b.startObject("int_value").field("type", "integer").endObject();
+                    b.startObject("bool_value").field("type", "boolean").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startObject("path");
+            {
+                b.array("int_value", new int[] { 30, 20, 10 });
+                b.field("bool_value", true);
+            }
+            b.endObject();
+        });
+        assertEquals("""
+            {"path":{"bool_value":true,"int_value":[30,20,10]}}""", syntheticSource);
+    }
+
+    public void testIndexStoredArraySourceNestedObjectArray() throws IOException {
+        DocumentMapper documentMapper = createMapperServiceWithStoredArraySource(syntheticSourceMapping(b -> {
+            b.startObject("path");
+            {
+                b.field("type", "object");
+                b.startObject("properties");
+                {
+                    b.startObject("to");
+                    {
+                        b.field("type", "object");
+                        b.startObject("properties");
+                        {
+                            b.startObject("int_value").field("type", "integer").endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                    b.startObject("bool_value").field("type", "boolean").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startObject("path");
+            {
+                b.startArray("to");
+                b.startObject().field("int_value", 10).endObject();
+                b.startObject().field("int_value", 20).endObject();
+                b.endArray();
+                b.field("bool_value", true);
+            }
+            b.endObject();
+        });
+        assertEquals("""
+            {"path":{"bool_value":true,"to":[{"int_value":10},{"int_value":20}]}}""", syntheticSource);
+    }
+
     public void testRootArray() throws IOException {
         DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
             b.startObject("path");
@@ -574,6 +759,132 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             {"path":[{"to":[{"name":"A"},{"name":"B"}]},{"to":[{"name":"C"},{"name":"D"}]}]}""", booleanValue), syntheticSource);
     }
 
+    public void testDisabledObjectWithinHigherLevelArray() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path");
+            {
+                b.field("type", "object");
+                b.startObject("properties");
+                {
+                    b.startObject("to").field("type", "object").field("enabled", false);
+                    {
+                        b.startObject("properties");
+                        {
+                            b.startObject("name").field("type", "keyword").endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+
+        boolean booleanValue = randomBoolean();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startArray("path");
+            {
+                b.startObject();
+                {
+                    b.startObject("to").field("name", "A").endObject();
+                }
+                b.endObject();
+                b.startObject();
+                {
+                    b.startObject("to").field("name", "B").endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        });
+        assertEquals(String.format(Locale.ROOT, """
+            {"path":{"to":[{"name":"A"},{"name":"B"}]}}""", booleanValue), syntheticSource);
+    }
+
+    public void testStoredArrayWithinHigherLevelArray() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path");
+            {
+                b.field("type", "object");
+                b.startObject("properties");
+                {
+                    b.startObject("to").field("type", "object").field("store_array_source", true);
+                    {
+                        b.startObject("properties");
+                        {
+                            b.startObject("name").field("type", "keyword").endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+
+        boolean booleanValue = randomBoolean();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startArray("path");
+            {
+                b.startObject();
+                {
+                    b.startArray("to");
+                    {
+                        b.startObject().field("name", "A").endObject();
+                        b.startObject().field("name", "B").endObject();
+                    }
+                    b.endArray();
+                }
+                b.endObject();
+                b.startObject();
+                {
+                    b.startArray("to");
+                    {
+                        b.startObject().field("name", "C").endObject();
+                        b.startObject().field("name", "D").endObject();
+                    }
+                    b.endArray();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        });
+        assertEquals(String.format(Locale.ROOT, """
+            {"path":{"to":[{"name":"A"},{"name":"B"},{"name":"C"},{"name":"D"}]}}""", booleanValue), syntheticSource);
+    }
+
+    public void testFallbackFieldWithinHigherLevelArray() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path");
+            {
+                b.field("type", "object");
+                b.startObject("properties");
+                {
+                    b.startObject("name").field("type", "keyword").field("doc_values", false).endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+
+        boolean booleanValue = randomBoolean();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startArray("path");
+            {
+
+                b.startObject().field("name", "A").endObject();
+                b.startObject().field("name", "B").endObject();
+                b.startObject().field("name", "C").endObject();
+                b.startObject().field("name", "D").endObject();
+            }
+            b.endArray();
+        });
+        assertEquals(String.format(Locale.ROOT, """
+            {"path":{"name":["A","B","C","D"]}}""", booleanValue), syntheticSource);
+    }
+
     public void testFieldOrdering() throws IOException {
         DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
             b.startObject("A").field("type", "integer").endObject();
@@ -626,6 +937,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
             b.startObject("path").field("type", "nested");
             {
+                b.field("store_array_source", true);
                 b.startObject("properties");
                 {
                     b.startObject("foo").field("type", "keyword").endObject();
@@ -647,6 +959,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
             b.startObject("path").field("type", "nested");
             {
+                b.field("store_array_source", true);
                 b.startObject("properties");
                 {
                     b.startObject("foo").field("type", "keyword").endObject();
@@ -679,6 +992,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
                     b.startObject("int_value").field("type", "integer").endObject();
                     b.startObject("to").field("type", "nested");
                     {
+                        b.field("store_array_source", true);
                         b.startObject("properties");
                         {
                             b.startObject("foo").field("type", "keyword").endObject();
@@ -719,6 +1033,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
                     b.startObject("int_value").field("type", "integer").endObject();
                     b.startObject("to").field("type", "nested");
                     {
+                        b.field("store_array_source", true);
                         b.startObject("properties");
                         {
                             b.startObject("foo").field("type", "keyword").endObject();
@@ -758,7 +1073,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
 
     public void testNestedObjectIncludeInRoot() throws IOException {
         DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
-            b.startObject("path").field("type", "nested").field("include_in_root", true);
+            b.startObject("path").field("type", "nested").field("store_array_source", true).field("include_in_root", true);
             {
                 b.startObject("properties");
                 {
@@ -991,5 +1306,59 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         });
         assertEquals("""
             {"path":[{"to":{"foo":"A","bar":"B"}},{"to":{"foo":"C","bar":"D"}}]}""", syntheticSource);
+    }
+
+    public void testDisabledSubObjectWithNameOverlappingParentName() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path");
+            b.startObject("properties");
+            {
+                b.startObject("at").field("type", "object").field("enabled", "false").endObject();
+            }
+            b.endObject();
+            b.endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startObject("path");
+            {
+                b.startObject("at").field("foo", "A").endObject();
+            }
+            b.endObject();
+        });
+        assertEquals("""
+            {"path":{"at":{"foo":"A"}}}""", syntheticSource);
+    }
+
+    public void testStoredNestedSubObjectWithNameOverlappingParentName() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path");
+            b.startObject("properties");
+            {
+                b.startObject("at").field("type", "nested").field("store_array_source", "true").endObject();
+            }
+            b.endObject();
+            b.endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startObject("path");
+            {
+                b.startObject("at").field("foo", "A").endObject();
+            }
+            b.endObject();
+        });
+        assertEquals("""
+            {"path":{"at":{"foo":"A"}}}""", syntheticSource);
+    }
+
+    protected void validateRoundTripReader(String syntheticSource, DirectoryReader reader, DirectoryReader roundTripReader)
+        throws IOException {
+        // We exclude ignored source field since in some cases it contains an exact copy of a part of document source.
+        // Sometime synthetic source is different in this case (structurally but not logically)
+        // and since the copy is exact, contents of ignored source are different.
+        assertReaderEquals(
+            "round trip " + syntheticSource,
+            new FieldMaskingReader(Set.of(SourceFieldMapper.RECOVERY_SOURCE_NAME, IgnoredSourceFieldMapper.NAME), reader),
+            new FieldMaskingReader(Set.of(SourceFieldMapper.RECOVERY_SOURCE_NAME, IgnoredSourceFieldMapper.NAME), roundTripReader)
+        );
     }
 }

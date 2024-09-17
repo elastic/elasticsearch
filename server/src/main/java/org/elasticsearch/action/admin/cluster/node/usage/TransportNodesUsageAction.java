@@ -1,23 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.node.usage;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -91,14 +91,8 @@ public class TransportNodesUsageAction extends TransportNodesAction<
 
         public NodeUsageRequest(StreamInput in) throws IOException {
             super(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.MORE_LIGHTER_NODES_REQUESTS)) {
-                restActions = in.readBoolean();
-                aggregations = in.readBoolean();
-            } else {
-                final var request = new NodesUsageRequest(in);
-                restActions = request.restActions();
-                aggregations = request.aggregations();
-            }
+            restActions = in.readBoolean();
+            aggregations = in.readBoolean();
         }
 
         NodeUsageRequest(NodesUsageRequest request) {
@@ -109,12 +103,8 @@ public class TransportNodesUsageAction extends TransportNodesAction<
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.MORE_LIGHTER_NODES_REQUESTS)) {
-                out.writeBoolean(restActions);
-                out.writeBoolean(aggregations);
-            } else {
-                new NodesUsageRequest().restActions(restActions).aggregations(aggregations).writeTo(out);
-            }
+            out.writeBoolean(restActions);
+            out.writeBoolean(aggregations);
         }
     }
 }

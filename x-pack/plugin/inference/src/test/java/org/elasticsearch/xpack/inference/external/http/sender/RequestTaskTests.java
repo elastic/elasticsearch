@@ -59,7 +59,7 @@ public class RequestTaskTests extends ESTestCase {
         ActionListener<InferenceServiceResults> listener = mock(ActionListener.class);
 
         var requestTask = new RequestTask(
-            OpenAiEmbeddingsExecutableRequestCreatorTests.makeCreator("url", null, "key", "model", null, "id", threadPool),
+            OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, "id", threadPool),
             new DocumentsOnlyInput(List.of("abc")),
             TimeValue.timeValueMillis(1),
             mockThreadPool,
@@ -79,7 +79,7 @@ public class RequestTaskTests extends ESTestCase {
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         var requestTask = new RequestTask(
-            OpenAiEmbeddingsExecutableRequestCreatorTests.makeCreator("url", null, "key", "model", null, "id", threadPool),
+            OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, "id", threadPool),
             new DocumentsOnlyInput(List.of("abc")),
             TimeValue.timeValueMillis(1),
             threadPool,
@@ -105,7 +105,7 @@ public class RequestTaskTests extends ESTestCase {
         }).when(listener).onFailure(any());
 
         var requestTask = new RequestTask(
-            OpenAiEmbeddingsExecutableRequestCreatorTests.makeCreator("url", null, "key", "model", null, "id", threadPool),
+            OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, "id", threadPool),
             new DocumentsOnlyInput(List.of("abc")),
             TimeValue.timeValueMillis(1),
             threadPool,
@@ -137,7 +137,7 @@ public class RequestTaskTests extends ESTestCase {
         }).when(listener).onFailure(any());
 
         var requestTask = new RequestTask(
-            OpenAiEmbeddingsExecutableRequestCreatorTests.makeCreator("url", null, "key", "model", null, "id", threadPool),
+            OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, "id", threadPool),
             new DocumentsOnlyInput(List.of("abc")),
             TimeValue.timeValueMillis(1),
             threadPool,
@@ -167,7 +167,7 @@ public class RequestTaskTests extends ESTestCase {
         ActionListener<InferenceServiceResults> listener = mock(ActionListener.class);
 
         var requestTask = new RequestTask(
-            OpenAiEmbeddingsExecutableRequestCreatorTests.makeCreator("url", null, "key", "model", null, "id", threadPool),
+            OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, "id", threadPool),
             new DocumentsOnlyInput(List.of("abc")),
             TimeValue.timeValueMillis(1),
             mockThreadPool,

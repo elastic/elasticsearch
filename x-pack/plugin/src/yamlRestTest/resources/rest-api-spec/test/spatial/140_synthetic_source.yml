@@ -412,6 +412,86 @@
   - match: { _source.point.lat: 41.119999922811985 }
 
 ---
+"geo_point with ignore_malformed":
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: introduced in 8.15.0
+      test_runner_features: close_to
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              geo_point:
+                type: geo_point
+                ignore_malformed: true
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          geo_point:
+            - string: "string"
+              array: [{ "a": 1 }, { "b": 2 }]
+              object: { "foo": "bar" }
+            - lat: 41.12
+              lon: -71.34
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          geo_point: ["POINT (-71.34 41.12)", "potato", "POINT (-77.03653 38.897676)"]
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body:
+          geo_point: ["POINT (-77.03653 1000)", "POINT (-71.34 41.12)"]
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      get:
+        index: test
+        id: "1"
+
+  - close_to: { _source.geo_point.0.lon: { value: -71.34, error: 0.001 } }
+  - close_to: { _source.geo_point.0.lat: { value: 41.12, error: 0.001 } }
+  - match: { _source.geo_point.1.string: "string" }
+  - match: { _source.geo_point.1.array: [{ "a": 1 }, { "b": 2 }] }
+  - match: { _source.geo_point.1.object: { "foo": "bar" } }
+
+  - do:
+      get:
+        index: test
+        id: "2"
+
+  - close_to: { _source.geo_point.0.lon: { value: -77.03653, error: 0.0001 } }
+  - close_to: { _source.geo_point.0.lat: { value: 38.897676, error: 0.0001 } }
+  - close_to: { _source.geo_point.1.lon: { value: -71.34, error: 0.001 } }
+  - close_to: { _source.geo_point.1.lat: { value: 41.12, error: 0.001 } }
+  - match: { _source.geo_point.2: "potato" }
+
+  - do:
+      get:
+        index: test
+        id: "3"
+
+  - close_to: { _source.geo_point.0.lon: { value: -71.34, error: 0.001 } }
+  - close_to: { _source.geo_point.0.lat: { value: 41.12, error: 0.001 } }
+  - match: { _source.geo_point.1: "POINT (-77.03653 1000)" }
+
+
+---
 "point":
   - requires:
       cluster_features: ["mapper.source.synthetic_source_fallback"]

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 /**
@@ -98,13 +99,13 @@
  * <ol>
  *     <li>First, {@link org.elasticsearch.snapshots.SnapshotsService#cloneSnapshot} is invoked which will place a placeholder entry into
  *     {@code SnapshotsInProgress} that does not yet contain any shard clone assignments. Note that unlike in the case of snapshot
- *     creation, the shard level clone tasks in {@link org.elasticsearch.cluster.SnapshotsInProgress.Entry#shardsByRepoShardId()} are not
- *     created in the initial cluster state update as is done for shard snapshot assignments in
- *     {@link org.elasticsearch.cluster.SnapshotsInProgress.Entry#shards}. This is due to the fact that shard snapshot assignments are
- *     computed purely from information in the current cluster state while shard clone assignments require information to be read from the
- *     repository, which is too slow of a process to be done inside a cluster state update. Loading this information ahead of creating a
- *     task in the cluster state, runs the risk of race conditions where the source snapshot is being deleted before the clone task is
- *     enqueued in the cluster state.</li>
+ *     creation, the shard level clone tasks in
+ *     {@link org.elasticsearch.cluster.SnapshotsInProgress.Entry#shardSnapshotStatusByRepoShardId()} are not created in the initial cluster
+ *     state update as is done for shard snapshot assignments in {@link org.elasticsearch.cluster.SnapshotsInProgress.Entry#shards}. This is
+ *     due to the fact that shard snapshot assignments are computed purely from information in the current cluster state while shard clone
+ *     assignments require information to be read from the repository, which is too slow of a process to be done inside a cluster state
+ *     update. Loading this information ahead of creating a task in the cluster state, runs the risk of race conditions where the source
+ *     snapshot is being deleted before the clone task is enqueued in the cluster state.</li>
  *     <li>Once a placeholder task for the clone operation is put into the cluster state, we must determine the number of shards in each
  *     index that is to be cloned as well as ensure the health of the index snapshots in the source snapshot. In order to determine the
  *     shard count for each index that is to be cloned, we load the index metadata for each such index using the repository's

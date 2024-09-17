@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -29,6 +30,7 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
+import java.util.function.ToLongBiFunction;
 
 /**
  * A simple cache for enrich that uses {@link Cache}. There is one instance of this cache and
@@ -50,20 +52,40 @@ import java.util.function.LongSupplier;
  */
 public final class EnrichCache {
 
-    private final Cache<CacheKey, List<Map<?, ?>>> cache;
+    private final Cache<CacheKey, CacheValue> cache;
     private final LongSupplier relativeNanoTimeProvider;
     private final AtomicLong hitsTimeInNanos = new AtomicLong(0);
     private final AtomicLong missesTimeInNanos = new AtomicLong(0);
+    private final AtomicLong sizeInBytes = new AtomicLong(0);
     private volatile Metadata metadata;
 
     EnrichCache(long maxSize) {
         this(maxSize, System::nanoTime);
     }
 
+    EnrichCache(ByteSizeValue maxByteSize) {
+        this(maxByteSize, System::nanoTime);
+    }
+
     // non-private for unit testing only
     EnrichCache(long maxSize, LongSupplier relativeNanoTimeProvider) {
         this.relativeNanoTimeProvider = relativeNanoTimeProvider;
-        this.cache = CacheBuilder.<CacheKey, List<Map<?, ?>>>builder().setMaximumWeight(maxSize).build();
+        this.cache = createCache(maxSize, null);
+    }
+
+    EnrichCache(ByteSizeValue maxByteSize, LongSupplier relativeNanoTimeProvider) {
+        this.relativeNanoTimeProvider = relativeNanoTimeProvider;
+        this.cache = createCache(maxByteSize.getBytes(), (key, value) -> value.sizeInBytes);
+    }
+
+    private Cache<CacheKey, CacheValue> createCache(long maxWeight, ToLongBiFunction<CacheKey, CacheValue> weigher) {
+        var builder = CacheBuilder.<CacheKey, CacheValue>builder().setMaximumWeight(maxWeight).removalListener(notification -> {
+            sizeInBytes.getAndAdd(-1 * notification.getValue().sizeInBytes);
+        });
+        if (weigher != null) {
+            builder.weigher(weigher);
+        }
+        return builder.build();
     }
 
     /**
@@ -86,12 +108,11 @@ public final class EnrichCache {
             hitsTimeInNanos.addAndGet(cacheRequestTime);
             listener.onResponse(response);
         } else {
-
             final long retrieveStart = relativeNanoTimeProvider.getAsLong();
             searchResponseFetcher.accept(searchRequest, ActionListener.wrap(resp -> {
-                List<Map<?, ?>> value = toCacheValue(resp);
+                CacheValue value = toCacheValue(resp);
                 put(searchRequest, value);
-                List<Map<?, ?>> copy = deepCopy(value, false);
+                List<Map<?, ?>> copy = deepCopy(value.hits, false);
                 long databaseQueryAndCachePutTime = relativeNanoTimeProvider.getAsLong() - retrieveStart;
                 missesTimeInNanos.addAndGet(cacheRequestTime + databaseQueryAndCachePutTime);
                 listener.onResponse(copy);
@@ -104,20 +125,21 @@ public final class EnrichCache {
         String enrichIndex = getEnrichIndexKey(searchRequest);
         CacheKey cacheKey = new CacheKey(enrichIndex, searchRequest);
 
-        List<Map<?, ?>> response = cache.get(cacheKey);
+        CacheValue response = cache.get(cacheKey);
         if (response != null) {
-            return deepCopy(response, false);
+            return deepCopy(response.hits, false);
         } else {
             return null;
         }
     }
 
     // non-private for unit testing only
-    void put(SearchRequest searchRequest, List<Map<?, ?>> response) {
+    void put(SearchRequest searchRequest, CacheValue cacheValue) {
         String enrichIndex = getEnrichIndexKey(searchRequest);
         CacheKey cacheKey = new CacheKey(enrichIndex, searchRequest);
 
-        cache.put(cacheKey, response);
+        cache.put(cacheKey, cacheValue);
+        sizeInBytes.addAndGet(cacheValue.sizeInBytes);
     }
 
     void setMetadata(Metadata metadata) {
@@ -133,7 +155,8 @@ public final class EnrichCache {
             cacheStats.getMisses(),
             cacheStats.getEvictions(),
             TimeValue.nsecToMSec(hitsTimeInNanos.get()),
-            TimeValue.nsecToMSec(missesTimeInNanos.get())
+            TimeValue.nsecToMSec(missesTimeInNanos.get()),
+            sizeInBytes.get()
         );
     }
 
@@ -146,12 +169,14 @@ public final class EnrichCache {
         return ia.getIndices().get(0).getName();
     }
 
-    static List<Map<?, ?>> toCacheValue(SearchResponse response) {
+    static CacheValue toCacheValue(SearchResponse response) {
         List<Map<?, ?>> result = new ArrayList<>(response.getHits().getHits().length);
+        long size = 0;
         for (SearchHit hit : response.getHits()) {
             result.add(deepCopy(hit.getSourceAsMap(), true));
+            size += hit.getSourceRef() != null ? hit.getSourceRef().ramBytesUsed() : 0;
         }
-        return Collections.unmodifiableList(result);
+        return new CacheValue(Collections.unmodifiableList(result), size);
     }
 
     @SuppressWarnings("unchecked")
@@ -205,4 +230,6 @@ public final class EnrichCache {
         }
     }
 
+    // Visibility for testing
+    record CacheValue(List<Map<?, ?>> hits, Long sizeInBytes) {}
 }

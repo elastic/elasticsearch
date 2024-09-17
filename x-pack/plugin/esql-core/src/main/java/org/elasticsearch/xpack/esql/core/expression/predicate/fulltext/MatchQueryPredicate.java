@@ -6,10 +6,13 @@
  */
 package org.elasticsearch.xpack.esql.core.expression.predicate.fulltext;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
@@ -17,11 +20,23 @@ import static java.util.Collections.singletonList;
 
 public class MatchQueryPredicate extends FullTextPredicate {
 
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "MatchQueryPredicate",
+        MatchQueryPredicate::new
+    );
+
     private final Expression field;
 
     public MatchQueryPredicate(Source source, Expression field, String query, String options) {
         super(source, query, options, singletonList(field));
         this.field = field;
+    }
+
+    MatchQueryPredicate(StreamInput in) throws IOException {
+        super(in);
+        assert super.children().size() == 1;
+        field = super.children().get(0);
     }
 
     @Override
@@ -50,5 +65,10 @@ public class MatchQueryPredicate extends FullTextPredicate {
             return Objects.equals(field, other.field);
         }
         return false;
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 }

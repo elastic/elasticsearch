@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -318,7 +319,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
                     searchAndReduce(indexReader, new AggTestConfig(aggregationBuilder));
                 });
-                assertEquals(exception.getMessage(), "[combineScript] must not be null: [scriptedMetric]");
+                assertEquals(exception.getMessage(), "[combine_script] must not be null: [scriptedMetric]");
             }
         }
     }
@@ -337,7 +338,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
                     searchAndReduce(indexReader, new AggTestConfig(aggregationBuilder));
                 });
-                assertEquals(exception.getMessage(), "[reduceScript] must not be null: [scriptedMetric]");
+                assertEquals(exception.getMessage(), "[reduce_script] must not be null: [scriptedMetric]");
             }
         }
     }

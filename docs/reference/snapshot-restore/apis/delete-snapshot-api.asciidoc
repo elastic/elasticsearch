@@ -58,6 +58,11 @@ Comma-separated list of snapshot names to delete. Also accepts wildcards (`*`).
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
+`wait_for_completion`::
+(Optional, Boolean) If `true`, the request returns a response when the matching
+snapshots are all deleted. If `false`, the request returns a response as soon as
+the deletes are scheduled. Defaults to `true`.
+
 [[delete-snapshot-api-example]]
 ==== {api-example-title}
 

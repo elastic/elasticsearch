@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata;
@@ -141,7 +142,10 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             return (IndexFieldData.Builder) (cache, breakerService) -> null;
         });
         SearchLookup searchLookup = new SearchLookup(null, null, (ctx, doc) -> null);
-        ifdService.getForField(ft, new FieldDataContext("qualified", () -> searchLookup, null, MappedFieldType.FielddataOperation.SEARCH));
+        ifdService.getForField(
+            ft,
+            new FieldDataContext("qualified", null, () -> searchLookup, null, MappedFieldType.FielddataOperation.SEARCH)
+        );
         assertSame(searchLookup, searchLookupSetOnce.get().get());
     }
 
@@ -355,7 +359,9 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
 
     public void testRequireDocValuesOnBools() {
         doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType("field"));
-        doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType("field", true, false, false, null, null, Collections.emptyMap()));
+        doTestRequireDocValues(
+            new BooleanFieldMapper.BooleanFieldType("field", true, false, false, null, null, Collections.emptyMap(), false)
+        );
     }
 
     public void testFieldDataCacheExpire() {

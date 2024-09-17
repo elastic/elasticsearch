@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index;
 
@@ -24,6 +25,7 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.Node;
@@ -294,6 +296,12 @@ public final class IndexSettings {
     }, new RefreshIntervalValidator(), Property.Dynamic, Property.IndexScope, Property.ServerlessPublic);
 
     static class RefreshIntervalValidator implements Setting.Validator<TimeValue> {
+
+        static final String STATELESS_ALLOW_INDEX_REFRESH_INTERVAL_OVERRIDE = "es.stateless.allow.index.refresh_interval.override";
+        private static final boolean IS_OVERRIDE_ALLOWED = Boolean.parseBoolean(
+            System.getProperty(STATELESS_ALLOW_INDEX_REFRESH_INTERVAL_OVERRIDE, "false")
+        );
+
         @Override
         public void validate(TimeValue value) {}
 
@@ -308,16 +316,19 @@ public final class IndexSettings {
                 && value.compareTo(TimeValue.ZERO) > 0
                 && value.compareTo(STATELESS_MIN_NON_FAST_REFRESH_INTERVAL) < 0
                 && indexVersion.after(IndexVersions.V_8_10_0)) {
-                throw new IllegalArgumentException(
-                    "index setting ["
-                        + IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()
-                        + "="
-                        + value
-                        + "] should be either "
-                        + TimeValue.MINUS_ONE
-                        + " or equal to or greater than "
-                        + STATELESS_MIN_NON_FAST_REFRESH_INTERVAL
-                );
+
+                if (IS_OVERRIDE_ALLOWED == false) {
+                    throw new IllegalArgumentException(
+                        "index setting ["
+                            + IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()
+                            + "="
+                            + value
+                            + "] should be either "
+                            + TimeValue.MINUS_ONE
+                            + " or equal to or greater than "
+                            + STATELESS_MIN_NON_FAST_REFRESH_INTERVAL
+                    );
+                }
             }
         }
 
@@ -607,16 +618,25 @@ public final class IndexSettings {
 
             @Override
             public void validate(Instant value, Map<Setting<?>, Object> settings) {
-                @SuppressWarnings("unchecked")
                 Instant startTime = (Instant) settings.get(TIME_SERIES_START_TIME);
                 if (startTime.toEpochMilli() > value.toEpochMilli()) {
                     throw new IllegalArgumentException("index.time_series.end_time must be larger than index.time_series.start_time");
+                }
+
+                // The index.time_series.end_time setting can only be specified if the index.mode setting has been set to time_series
+                // This check here is specifically needed because in case of updating index settings the validation the gets executed
+                // in IndexSettings constructor when reading the index.mode setting doesn't get executed.
+                IndexMode indexMode = (IndexMode) settings.get(MODE);
+                if (indexMode != IndexMode.TIME_SERIES) {
+                    throw new IllegalArgumentException(
+                        "[" + TIME_SERIES_END_TIME.getKey() + "] requires [index.mode=" + IndexMode.TIME_SERIES + "]"
+                    );
                 }
             }
 
             @Override
             public Iterator<Setting<?>> settings() {
-                List<Setting<?>> settings = List.of(TIME_SERIES_START_TIME);
+                List<Setting<?>> settings = List.of(TIME_SERIES_START_TIME, MODE);
                 return settings.iterator();
             }
         },
@@ -776,6 +796,16 @@ public final class IndexSettings {
     private final IndexRouting indexRouting;
 
     /**
+     * The default mode for storing source, for all mappers not overriding this setting.
+     * This is only relevant for indexes configured with synthetic-source code.
+     */
+    public Mapper.SourceKeepMode sourceKeepMode() {
+        return sourceKeepMode;
+    }
+
+    private final Mapper.SourceKeepMode sourceKeepMode;
+
+    /**
      * Returns the default search fields for this index.
      */
     public List<String> getDefaultFields() {
@@ -904,6 +934,7 @@ public final class IndexSettings {
         mappingFieldNameLengthLimit = scopedSettings.get(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING);
         mappingDimensionFieldsLimit = scopedSettings.get(INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING);
         indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
+        sourceKeepMode = scopedSettings.get(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING);
         es87TSDBCodecEnabled = scopedSettings.get(TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING);
 
         scopedSettings.addSettingsUpdateConsumer(

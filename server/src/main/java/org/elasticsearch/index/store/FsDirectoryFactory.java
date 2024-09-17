@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.store;
@@ -21,7 +22,6 @@ import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.SimpleFSLockFactory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -35,8 +35,6 @@ import java.util.HashSet;
 import java.util.Set;
 
 public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
-
-    private static final FeatureFlag MADV_RANDOM_FEATURE_FLAG = new FeatureFlag("madv_random");
 
     public static final Setting<LockFactory> INDEX_LOCK_FACTOR_SETTING = new Setting<>("index.store.fs.fs_lock", "native", (s) -> {
         return switch (s) {
@@ -69,20 +67,12 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 // Use Lucene defaults
                 final FSDirectory primaryDirectory = FSDirectory.open(location, lockFactory);
                 if (primaryDirectory instanceof MMapDirectory mMapDirectory) {
-                    Directory dir = new HybridDirectory(lockFactory, setPreload(mMapDirectory, lockFactory, preLoadExtensions));
-                    if (MADV_RANDOM_FEATURE_FLAG.isEnabled() == false) {
-                        dir = disableRandomAdvice(dir);
-                    }
-                    return dir;
+                    return new HybridDirectory(lockFactory, setPreload(mMapDirectory, lockFactory, preLoadExtensions));
                 } else {
                     return primaryDirectory;
                 }
             case MMAPFS:
-                Directory dir = setPreload(new MMapDirectory(location, lockFactory), lockFactory, preLoadExtensions);
-                if (MADV_RANDOM_FEATURE_FLAG.isEnabled() == false) {
-                    dir = disableRandomAdvice(dir);
-                }
-                return dir;
+                return setPreload(new MMapDirectory(location, lockFactory), lockFactory, preLoadExtensions);
             case SIMPLEFS:
             case NIOFS:
                 return new NIOFSDirectory(location, lockFactory);
@@ -102,23 +92,6 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             }
         }
         return mMapDirectory;
-    }
-
-    /**
-     * Return a {@link FilterDirectory} around the provided {@link Directory} that forcefully disables {@link IOContext#RANDOM random
-     * access}.
-     */
-    static Directory disableRandomAdvice(Directory dir) {
-        return new FilterDirectory(dir) {
-            @Override
-            public IndexInput openInput(String name, IOContext context) throws IOException {
-                if (context.randomAccess) {
-                    context = IOContext.READ;
-                }
-                assert context.randomAccess == false;
-                return super.openInput(name, context);
-            }
-        };
     }
 
     /**

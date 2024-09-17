@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.tree;
 
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 
 import java.util.ArrayList;
@@ -32,7 +33,7 @@ import static java.util.Collections.emptyList;
  *
  * @param <T> node type
  */
-public abstract class Node<T extends Node<T>> {
+public abstract class Node<T extends Node<T>> implements NamedWriteable {
     private static final int TO_STRING_MAX_PROP = 10;
     private static final int TO_STRING_MAX_WIDTH = 110;
 
@@ -254,7 +255,7 @@ public abstract class Node<T extends Node<T>> {
      * This always returns something of the same type as the current
      * node but since {@link Node} doesn't have a {@code SelfT} parameter
      * we return the closest thing we do have: {@code T}, which is the
-     * root of the hierarchy for the this node.
+     * root of the hierarchy for this node.
      */
     protected final <E> T transformNodeProps(Class<E> typeToken, Function<? super E, ? extends E> rule) {
         return info().transform(rule, typeToken);
@@ -262,6 +263,15 @@ public abstract class Node<T extends Node<T>> {
 
     /**
      * Return the information about this node.
+     * <p>
+     * Normally, you want to use one of the static {@code create} methods to implement this.
+     * <p>
+     * For {@code QueryPlan}s, it is very important that
+     * the properties contain all of the expressions and references relevant to this node, and
+     * that all of the properties are used in the provided constructor; otherwise query plan
+     * transformations like
+     * {@code QueryPlan#transformExpressionsOnly(Function)}
+     * will not have an effect.
      */
     protected abstract NodeInfo<? extends T> info();
 

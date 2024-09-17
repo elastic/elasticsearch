@@ -22,6 +22,25 @@ final class ElasticServiceAccounts {
 
     static final String NAMESPACE = "elastic";
 
+    private static final ServiceAccount AUTO_OPS_ACCOUNT = new ElasticServiceAccount(
+        "auto-ops",
+        new RoleDescriptor(
+            NAMESPACE + "/auto-ops",
+            new String[] { "monitor", "read_ilm", "read_slm" },
+            new RoleDescriptor.IndicesPrivileges[] {
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .allowRestrictedIndices(true)
+                    .indices("*")
+                    .privileges("monitor", "view_index_metadata")
+                    .build(), },
+            null,
+            null,
+            null,
+            null,
+            null
+        )
+    );
+
     private static final ServiceAccount ENTERPRISE_SEARCH_ACCOUNT = new ElasticServiceAccount(
         "enterprise-search-server",
         new RoleDescriptor(
@@ -173,6 +192,7 @@ final class ElasticServiceAccounts {
     );
 
     static final Map<String, ServiceAccount> ACCOUNTS = Stream.of(
+        AUTO_OPS_ACCOUNT,
         ENTERPRISE_SEARCH_ACCOUNT,
         FLEET_ACCOUNT,
         FLEET_REMOTE_ACCOUNT,

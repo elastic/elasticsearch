@@ -6,12 +6,13 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.plan.TableIdentifier;
-import org.elasticsearch.xpack.esql.core.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.TableIdentifier;
 
 import java.util.Collections;
 import java.util.List;
@@ -23,32 +24,51 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable {
 
     private final TableIdentifier table;
     private final boolean frozen;
-    private final String alias;
+    private final List<Attribute> metadataFields;
+    private final IndexMode indexMode;
     private final String unresolvedMsg;
 
-    public UnresolvedRelation(Source source, TableIdentifier table, String alias, boolean frozen) {
-        this(source, table, alias, frozen, null);
-    }
+    /**
+     * Used by telemetry to say if this is the result of a FROM command
+     * or a METRICS command (or maybe something else in the future)
+     */
+    private final String commandName;
 
-    public UnresolvedRelation(Source source, TableIdentifier table, String alias, boolean frozen, String unresolvedMessage) {
+    public UnresolvedRelation(
+        Source source,
+        TableIdentifier table,
+        boolean frozen,
+        List<Attribute> metadataFields,
+        IndexMode indexMode,
+        String unresolvedMessage,
+        String commandName
+    ) {
         super(source);
         this.table = table;
-        this.alias = alias;
         this.frozen = frozen;
+        this.metadataFields = metadataFields;
+        this.indexMode = indexMode;
         this.unresolvedMsg = unresolvedMessage == null ? "Unknown index [" + table.index() + "]" : unresolvedMessage;
+        this.commandName = commandName;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) {
+        throw new UnsupportedOperationException("not serialized");
+    }
+
+    @Override
+    public String getWriteableName() {
+        throw new UnsupportedOperationException("not serialized");
     }
 
     @Override
     protected NodeInfo<UnresolvedRelation> info() {
-        return NodeInfo.create(this, UnresolvedRelation::new, table, alias, frozen, unresolvedMsg);
+        return NodeInfo.create(this, UnresolvedRelation::new, table, frozen, metadataFields, indexMode, unresolvedMsg, commandName);
     }
 
     public TableIdentifier table() {
         return table;
-    }
-
-    public String alias() {
-        return alias;
     }
 
     public boolean frozen() {
@@ -58,6 +78,21 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable {
     @Override
     public boolean resolved() {
         return false;
+    }
+
+    /**
+     *
+     * This is used by {@link org.elasticsearch.xpack.esql.stats.PlanningMetrics} to collect query statistics
+     * It can return
+     * <ul>
+     *     <li>"FROM" if this a <code>|FROM idx</code> command</li>
+     *     <li>"FROM TS" if it is the result of a <code>| METRICS idx some_aggs() BY fields</code> command</li>
+     *     <li>"METRICS" if it is the result of a <code>| METRICS idx</code> (no aggs, no groupings)</li>
+     * </ul>
+     */
+    @Override
+    public String commandName() {
+        return commandName;
     }
 
     @Override
@@ -70,6 +105,14 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable {
         return Collections.emptyList();
     }
 
+    public List<Attribute> metadataFields() {
+        return metadataFields;
+    }
+
+    public IndexMode indexMode() {
+        return indexMode;
+    }
+
     @Override
     public String unresolvedMessage() {
         return unresolvedMsg;
@@ -77,7 +120,7 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(source(), table, alias, unresolvedMsg);
+        return Objects.hash(source(), table, metadataFields, indexMode, unresolvedMsg);
     }
 
     @Override
@@ -92,8 +135,9 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable {
 
         UnresolvedRelation other = (UnresolvedRelation) obj;
         return Objects.equals(table, other.table)
-            && Objects.equals(alias, other.alias)
             && Objects.equals(frozen, other.frozen)
+            && Objects.equals(metadataFields, other.metadataFields)
+            && indexMode == other.indexMode
             && Objects.equals(unresolvedMsg, other.unresolvedMsg);
     }
 

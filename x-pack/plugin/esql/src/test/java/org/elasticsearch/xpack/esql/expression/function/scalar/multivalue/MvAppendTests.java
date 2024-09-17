@@ -13,33 +13,22 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
-import org.elasticsearch.geometry.Circle;
-import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.GeometryCollection;
-import org.elasticsearch.geometry.GeometryVisitor;
-import org.elasticsearch.geometry.Line;
-import org.elasticsearch.geometry.LinearRing;
-import org.elasticsearch.geometry.MultiLine;
-import org.elasticsearch.geometry.MultiPoint;
-import org.elasticsearch.geometry.MultiPolygon;
-import org.elasticsearch.geometry.Point;
-import org.elasticsearch.geometry.Polygon;
-import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.equalTo;
 
-public class MvAppendTests extends AbstractFunctionTestCase {
+public class MvAppendTests extends AbstractScalarFunctionTestCase {
     public MvAppendTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -247,25 +236,8 @@ public class MvAppendTests extends AbstractFunctionTestCase {
         }));
 
         suppliers.add(new TestCaseSupplier(List.of(DataType.GEO_SHAPE, DataType.GEO_SHAPE), () -> {
-            GeometryPointCountVisitor pointCounter = new GeometryPointCountVisitor();
-            List<Object> field1 = randomList(
-                1,
-                3,
-                () -> new BytesRef(
-                    GEO.asWkt(
-                        randomValueOtherThanMany(g -> g.visit(pointCounter) > 500, () -> GeometryTestUtils.randomGeometry(randomBoolean()))
-                    )
-                )
-            );
-            List<Object> field2 = randomList(
-                1,
-                3,
-                () -> new BytesRef(
-                    GEO.asWkt(
-                        randomValueOtherThanMany(g -> g.visit(pointCounter) > 500, () -> GeometryTestUtils.randomGeometry(randomBoolean()))
-                    )
-                )
-            );
+            var field1 = randomList(1, 3, () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomGeometry(randomBoolean(), 500))));
+            var field2 = randomList(1, 3, () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomGeometry(randomBoolean(), 500))));
             var result = new ArrayList<>(field1);
             result.addAll(field2);
             return new TestCaseSupplier.TestCase(
@@ -280,25 +252,8 @@ public class MvAppendTests extends AbstractFunctionTestCase {
         }));
 
         suppliers.add(new TestCaseSupplier(List.of(DataType.CARTESIAN_SHAPE, DataType.CARTESIAN_SHAPE), () -> {
-            GeometryPointCountVisitor pointCounter = new GeometryPointCountVisitor();
-            List<Object> field1 = randomList(
-                1,
-                3,
-                () -> new BytesRef(
-                    GEO.asWkt(
-                        randomValueOtherThanMany(g -> g.visit(pointCounter) > 500, () -> ShapeTestUtils.randomGeometry(randomBoolean()))
-                    )
-                )
-            );
-            List<Object> field2 = randomList(
-                1,
-                3,
-                () -> new BytesRef(
-                    GEO.asWkt(
-                        randomValueOtherThanMany(g -> g.visit(pointCounter) > 500, () -> ShapeTestUtils.randomGeometry(randomBoolean()))
-                    )
-                )
-            );
+            var field1 = randomList(1, 3, () -> new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomGeometry(randomBoolean(), 500))));
+            var field2 = randomList(1, 3, () -> new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomGeometry(randomBoolean(), 500))));
             var result = new ArrayList<>(field1);
             result.addAll(field2);
             return new TestCaseSupplier.TestCase(
@@ -338,66 +293,5 @@ public class MvAppendTests extends AbstractFunctionTestCase {
                 equalTo(null)
             );
         }));
-    }
-
-    public static class GeometryPointCountVisitor implements GeometryVisitor<Integer, RuntimeException> {
-
-        @Override
-        public Integer visit(Circle circle) throws RuntimeException {
-            return 2;
-        }
-
-        @Override
-        public Integer visit(GeometryCollection<?> collection) throws RuntimeException {
-            int size = 0;
-            for (Geometry geometry : collection) {
-                size += geometry.visit(this);
-            }
-            return size;
-        }
-
-        @Override
-        public Integer visit(Line line) throws RuntimeException {
-            return line.length();
-        }
-
-        @Override
-        public Integer visit(LinearRing ring) throws RuntimeException {
-            return ring.length();
-        }
-
-        @Override
-        public Integer visit(MultiLine multiLine) throws RuntimeException {
-            return visit((GeometryCollection<Line>) multiLine);
-        }
-
-        @Override
-        public Integer visit(MultiPoint multiPoint) throws RuntimeException {
-            return multiPoint.size();
-        }
-
-        @Override
-        public Integer visit(MultiPolygon multiPolygon) throws RuntimeException {
-            return visit((GeometryCollection<Polygon>) multiPolygon);
-        }
-
-        @Override
-        public Integer visit(Point point) throws RuntimeException {
-            return 1;
-        }
-
-        @Override
-        public Integer visit(Polygon polygon) throws RuntimeException {
-            int size = polygon.getPolygon().length();
-            for (int i = 0; i < polygon.getNumberOfHoles(); i++) {
-                size += polygon.getHole(i).length();
-            }
-            return size;
-        }
-
-        @Override
-        public Integer visit(Rectangle rectangle) throws RuntimeException {
-            return 4;
-        }
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index;
@@ -41,12 +42,17 @@ public final class SearchSlowLog implements SearchOperationListener {
     private long fetchDebugThreshold;
     private long fetchTraceThreshold;
 
-    private final Logger queryLogger;
-    private final Logger fetchLogger;
+    static final String INDEX_SEARCH_SLOWLOG_PREFIX = "index.search.slowlog";
+
+    private static final Logger queryLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".query");
+    private static final Logger fetchLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".fetch");
+
+    static {
+        Loggers.setLevel(queryLogger, Level.TRACE);
+        Loggers.setLevel(fetchLogger, Level.TRACE);
+    }
 
     private final SlowLogFieldProvider slowLogFieldProvider;
-
-    static final String INDEX_SEARCH_SLOWLOG_PREFIX = "index.search.slowlog";
 
     public static final Setting<Boolean> INDEX_SEARCH_SLOWLOG_INCLUDE_USER_SETTING = Setting.boolSetting(
         INDEX_SEARCH_SLOWLOG_PREFIX + ".include.user",
@@ -130,12 +136,6 @@ public final class SearchSlowLog implements SearchOperationListener {
     public SearchSlowLog(IndexSettings indexSettings, SlowLogFieldProvider slowLogFieldProvider) {
         slowLogFieldProvider.init(indexSettings);
         this.slowLogFieldProvider = slowLogFieldProvider;
-
-        this.queryLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".query");
-        this.fetchLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".fetch");
-        Loggers.setLevel(this.fetchLogger, Level.TRACE);
-        Loggers.setLevel(this.queryLogger, Level.TRACE);
-
         indexSettings.getScopedSettings()
             .addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING, this::setQueryWarnThreshold);
         this.queryWarnThreshold = indexSettings.getValue(INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING).nanos();

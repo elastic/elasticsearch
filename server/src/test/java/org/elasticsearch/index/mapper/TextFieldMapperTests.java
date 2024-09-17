@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -294,7 +295,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         var source = source(TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE, b -> {
             b.field("field", "1234");
             if (timeSeriesIndexMode) {
-                b.field("@timestamp", randomMillisUpToYear9999());
+                b.field("@timestamp", "2000-10-10T23:40:53.384Z");
                 b.field("dimension", "dimension1");
             }
         }, null);
@@ -599,7 +600,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         Exception e = expectThrows(
             IllegalArgumentException.class,
             () -> disabledMapper.fieldType("field")
-                .fielddataBuilder(new FieldDataContext("index", null, null, MappedFieldType.FielddataOperation.SEARCH))
+                .fielddataBuilder(new FieldDataContext("index", null, null, null, MappedFieldType.FielddataOperation.SEARCH))
         );
         assertThat(
             e.getMessage(),
@@ -1309,7 +1310,7 @@ public class TextFieldMapperTests extends MapperTestCase {
             } : SourceProvider.fromStoredFields();
             SearchLookup searchLookup = new SearchLookup(null, null, sourceProvider);
             IndexFieldData<?> sfd = ft.fielddataBuilder(
-                new FieldDataContext("", () -> searchLookup, Set::of, MappedFieldType.FielddataOperation.SCRIPT)
+                new FieldDataContext("", null, () -> searchLookup, Set::of, MappedFieldType.FielddataOperation.SCRIPT)
             ).build(null, null);
             LeafFieldData lfd = sfd.load(getOnlyLeafReader(searcher.getIndexReader()).getContext());
             TextDocValuesField scriptDV = (TextDocValuesField) lfd.getScriptFieldFactory("field");
@@ -1336,12 +1337,7 @@ public class TextFieldMapperTests extends MapperTestCase {
 
     private void testBlockLoaderFromParent(boolean columnReader, boolean syntheticSource) throws IOException {
         boolean storeParent = randomBoolean();
-        KeywordFieldSyntheticSourceSupport kwdSupport = new KeywordFieldSyntheticSourceSupport(
-            null,
-            storeParent,
-            null,
-            false == storeParent
-        );
+        KeywordFieldSyntheticSourceSupport kwdSupport = new KeywordFieldSyntheticSourceSupport(null, storeParent, null, false);
         SyntheticSourceExample example = kwdSupport.example(5);
         CheckedConsumer<XContentBuilder, IOException> buildFields = b -> {
             b.startObject("field");

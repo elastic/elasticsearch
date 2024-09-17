@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -46,13 +47,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
     private static final long SEED = 0;
 
     public static void createField(DocumentParserContext context, IndexRouting.ExtractFromSource.Builder routingBuilder, BytesRef tsid) {
-        final IndexableField timestampField = context.rootDoc().getField(DataStreamTimestampFieldMapper.DEFAULT_PATH);
-        if (timestampField == null) {
-            throw new IllegalArgumentException(
-                "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] is missing"
-            );
-        }
-        long timestamp = timestampField.numericValue().longValue();
+        final long timestamp = DataStreamTimestampFieldMapper.extractTimestampValue(context.doc());
         String id;
         if (routingBuilder != null) {
             byte[] suffix = new byte[16];

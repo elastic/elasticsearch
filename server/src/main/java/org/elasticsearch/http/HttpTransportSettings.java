@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http;
@@ -30,26 +31,26 @@ public final class HttpTransportSettings {
     public static final Setting<String> SETTING_CORS_ALLOW_ORIGIN = new Setting<>(
         "http.cors.allow-origin",
         "",
-        (value) -> value,
+        Function.identity(),
         Property.NodeScope
     );
     public static final Setting<Integer> SETTING_CORS_MAX_AGE = intSetting("http.cors.max-age", 1728000, Property.NodeScope);
     public static final Setting<String> SETTING_CORS_ALLOW_METHODS = new Setting<>(
         "http.cors.allow-methods",
         "OPTIONS,HEAD,GET,POST,PUT,DELETE",
-        (value) -> value,
+        Function.identity(),
         Property.NodeScope
     );
     public static final Setting<String> SETTING_CORS_ALLOW_HEADERS = new Setting<>(
         "http.cors.allow-headers",
         "X-Requested-With,Content-Type,Content-Length,Authorization,Accept,User-Agent,X-Elastic-Client-Meta",
-        (value) -> value,
+        Function.identity(),
         Property.NodeScope
     );
     public static final Setting<String> SETTING_CORS_EXPOSE_HEADERS = new Setting<>(
         "http.cors.expose-headers",
         "X-elastic-product",
-        (value) -> value,
+        Function.identity(),
         Property.NodeScope
     );
     public static final Setting<Boolean> SETTING_CORS_ALLOW_CREDENTIALS = Setting.boolSetting(

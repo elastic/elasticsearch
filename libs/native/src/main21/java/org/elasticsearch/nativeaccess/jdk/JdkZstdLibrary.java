@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.nativeaccess.jdk;
 
 import org.elasticsearch.nativeaccess.CloseableByteBuffer;
+import org.elasticsearch.nativeaccess.lib.LoaderHelper;
 import org.elasticsearch.nativeaccess.lib.ZstdLibrary;
 
 import java.lang.foreign.FunctionDescriptor;
@@ -24,7 +26,7 @@ import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
 class JdkZstdLibrary implements ZstdLibrary {
 
     static {
-        System.loadLibrary("zstd");
+        LoaderHelper.loadLibrary("zstd");
     }
 
     private static final MethodHandle compressBound$mh = downcallHandle("ZSTD_compressBound", FunctionDescriptor.of(JAVA_LONG, JAVA_INT));

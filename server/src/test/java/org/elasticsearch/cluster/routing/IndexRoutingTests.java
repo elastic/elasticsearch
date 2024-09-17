@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.routing;
 
@@ -587,6 +588,14 @@ public class IndexRoutingTests extends ESTestCase {
         double randomDouble = randomDouble();
         assertIndexShard(routing, Map.of("foo", randomDouble), Math.floorMod(hash(List.of("foo", Double.toString(randomDouble))), shards));
         assertIndexShard(routing, Map.of("foo", 123), Math.floorMod(hash(List.of("foo", "123")), shards));
+    }
+
+    public void testRoutingPathBooleansInSource() throws IOException {
+        int shards = between(2, 1000);
+        IndexRouting routing = indexRoutingForPath(shards, "foo");
+        assertIndexShard(routing, Map.of("foo", true), Math.floorMod(hash(List.of("foo", "true")), shards));
+        assertIndexShard(routing, Map.of("foo", false), Math.floorMod(hash(List.of("foo", "false")), shards));
+
     }
 
     public void testRoutingPathBwc() throws IOException {

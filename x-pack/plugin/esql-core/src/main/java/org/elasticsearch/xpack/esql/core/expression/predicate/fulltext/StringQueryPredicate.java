@@ -6,16 +6,25 @@
  */
 package org.elasticsearch.xpack.esql.core.expression.predicate.fulltext;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
 
 public final class StringQueryPredicate extends FullTextPredicate {
+
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "StringQueryPredicate",
+        StringQueryPredicate::new
+    );
 
     private final Map<String, Float> fields;
 
@@ -24,6 +33,12 @@ public final class StringQueryPredicate extends FullTextPredicate {
 
         // inferred
         this.fields = FullTextUtils.parseFields(optionMap(), source);
+    }
+
+    StringQueryPredicate(StreamInput in) throws IOException {
+        super(in);
+        assert super.children().isEmpty();
+        this.fields = FullTextUtils.parseFields(optionMap(), source());
     }
 
     @Override
@@ -38,5 +53,10 @@ public final class StringQueryPredicate extends FullTextPredicate {
 
     public Map<String, Float> fields() {
         return fields;
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 }

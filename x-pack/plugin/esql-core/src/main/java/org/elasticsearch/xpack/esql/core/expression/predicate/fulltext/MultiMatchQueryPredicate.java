@@ -6,10 +6,14 @@
  */
 package org.elasticsearch.xpack.esql.core.expression.predicate.fulltext;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -17,6 +21,12 @@ import java.util.Objects;
 import static java.util.Collections.emptyList;
 
 public class MultiMatchQueryPredicate extends FullTextPredicate {
+
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "MultiMatchQueryPredicate",
+        MultiMatchQueryPredicate::new
+    );
 
     private final String fieldString;
     private final Map<String, Float> fields;
@@ -26,6 +36,14 @@ public class MultiMatchQueryPredicate extends FullTextPredicate {
         this.fieldString = fieldString;
         // inferred
         this.fields = FullTextUtils.parseFields(fieldString, source);
+    }
+
+    MultiMatchQueryPredicate(StreamInput in) throws IOException {
+        super(in);
+        assert super.children().isEmpty();
+        fieldString = in.readString();
+        // inferred
+        this.fields = FullTextUtils.parseFields(fieldString, source());
     }
 
     @Override
@@ -47,6 +65,12 @@ public class MultiMatchQueryPredicate extends FullTextPredicate {
     }
 
     @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(fieldString);
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(fieldString, super.hashCode());
     }
@@ -58,5 +82,10 @@ public class MultiMatchQueryPredicate extends FullTextPredicate {
             return Objects.equals(fieldString, other.fieldString);
         }
         return false;
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 }

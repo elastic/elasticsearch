@@ -107,32 +107,30 @@
  *         This links it into the language and {@code META FUNCTIONS}.
  *     </li>
  *     <li>
- *         Register your function for serialization. We're in the process of migrating this serialization
- *         from an older way to the more common, {@link org.elasticsearch.common.io.stream.NamedWriteable}.
- *         <p>
- *             All subclasses of {@link org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction}
- *             are migrated and should include a "getWriteableName", "writeTo", and a deserializing constructor.
- *             They should also include a {@link org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry}
- *             and it should be linked in {@link org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction}.
- *         </p>
- *         <p>
- *             Other functions serialized in {@link org.elasticsearch.xpack.esql.io.stream.PlanNamedTypes}
- *             and you should copy what's done there.
- *         </p>
+ *         Implement serialization for your function by implementing
+ *         {@link org.elasticsearch.common.io.stream.NamedWriteable#getWriteableName},
+ *         {@link org.elasticsearch.common.io.stream.NamedWriteable#writeTo},
+ *         and a deserializing constructor. Then add an {@link org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry}
+ *         constant and register it. To register it, look for a method like
+ *         {@link org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction#getNamedWriteables()}
+ *         in your function's class hierarchy. Keep going up until you hit a function with that name.
+ *         Then add your new "ENTRY" constant to the list it returns.
  *     </li>
  *     <li>
  *         Rerun the {@code CsvTests}. They should find your function and maybe even pass. Add a
  *         few more tests in the csv-spec tests. They run quickly so it isn't a big deal having
  *         half a dozen of them per function. In fact, it's useful to add more complex combinations
- *         of things here, just to catch any accidental strange interactions. For example, it is
- *         probably a good idea to have your function passes as a parameter to another function
+ *         of things here, just to catch any accidental strange interactions. For example, have
+ *         your function take its input from an index like {@code FROM employees | EVAL foo=MY_FUNCTION(emp_no)}.
+ *         It's probably a good idea to have your function passed as a parameter to another function
  *         like {@code EVAL foo=MOST(0, MY_FUNCTION(emp_no))}. And likely useful to try the reverse
  *         like {@code EVAL foo=MY_FUNCTION(MOST(languages + 10000, emp_no)}.
  *     </li>
  *     <li>
  *         Now it's time to make a unit test! The infrastructure for these is under some flux at
- *         the moment, but it's good to extend from {@code AbstractScalarFunctionTestCase}. All of
+ *         the moment, but it's good to extend {@code AbstractScalarFunctionTestCase}. All of
  *         these tests are parameterized and expect to spend some time finding good parameters.
+ *         Also add serialization tests that extend {@code AbstractExpressionSerializationTests<>}.
  *     </li>
  *     <li>
  *         Once you are happy with the tests run the auto formatter:
@@ -186,6 +184,16 @@
  *         <a href="http://localhost:8000/guide/esql-functions.html">functions page</a> to see your
  *         function in the list and follow it's link to get to the page you built. Make sure it
  *         looks ok.
+ *     </li>
+ *     <li>
+ *         Let's finish up the code by making the tests backwards compatible. Since this is a new
+ *         feature we just have to convince the tests not to run in a cluster that includes older
+ *         versions of Elasticsearch. We do that with a {@link org.elasticsearch.rest.RestHandler#supportedCapabilities capability}
+ *         on the REST handler. ESQL has a <strong>ton</strong> of capabilities so we list them
+ *         all in {@link org.elasticsearch.xpack.esql.action.EsqlCapabilities}. Add a new one
+ *         for your function. Now add something like {@code required_capability: my_function}
+ *         to all of your csv-spec tests. Run those csv-spec tests as integration tests to double
+ *         check that they run on the main branch.
  *     </li>
  *     <li>
  *         Open the PR. The subject and description of the PR are important because those'll turn

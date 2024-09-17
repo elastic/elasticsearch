@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script;
@@ -15,6 +16,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType
 import org.elasticsearch.index.mapper.vectors.KnnDenseVectorScriptDocValuesTests;
 import org.elasticsearch.script.VectorScoreScriptUtils.CosineSimilarity;
 import org.elasticsearch.script.VectorScoreScriptUtils.DotProduct;
+import org.elasticsearch.script.VectorScoreScriptUtils.Hamming;
 import org.elasticsearch.script.VectorScoreScriptUtils.L1Norm;
 import org.elasticsearch.script.VectorScoreScriptUtils.L2Norm;
 import org.elasticsearch.script.field.vectors.BinaryDenseVectorDocValuesField;
@@ -44,11 +46,15 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
 
         List<DenseVectorDocValuesField> fields = List.of(
             new BinaryDenseVectorDocValuesField(
-                BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.FLOAT, IndexVersions.V_7_4_0),
+                BinaryDenseVectorScriptDocValuesTests.wrap(
+                    new float[][] { docVector },
+                    ElementType.FLOAT,
+                    IndexVersions.MINIMUM_COMPATIBLE
+                ),
                 "test",
                 ElementType.FLOAT,
                 dims,
-                IndexVersions.V_7_4_0
+                IndexVersions.MINIMUM_COMPATIBLE
             ),
             new BinaryDenseVectorDocValuesField(
                 BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.FLOAT, IndexVersion.current()),
@@ -111,6 +117,12 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
                 e.getMessage(),
                 containsString("query vector has a different number of dimensions [2] than the document vectors [5]")
             );
+
+            e = expectThrows(IllegalArgumentException.class, () -> new Hamming(scoreScript, queryVector, fieldName));
+            assertThat(e.getMessage(), containsString("hamming distance is only supported for byte or bit vectors"));
+
+            e = expectThrows(IllegalArgumentException.class, () -> new Hamming(scoreScript, invalidQueryVector, fieldName));
+            assertThat(e.getMessage(), containsString("hamming distance is only supported for byte or bit vectors"));
 
             // Check scripting infrastructure integration
             DotProduct dotProduct = new DotProduct(scoreScript, queryVector, fieldName);
@@ -199,6 +211,11 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
                 e.getMessage(),
                 containsString("query vector has a different number of dimensions [2] than the document vectors [5]")
             );
+            e = expectThrows(IllegalArgumentException.class, () -> new Hamming(scoreScript, invalidQueryVector, fieldName));
+            assertThat(
+                e.getMessage(),
+                containsString("query vector has a different number of dimensions [2] than the document vectors [5]")
+            );
 
             // Check scripting infrastructure integration
             assertEquals(17382.0, new DotProduct(scoreScript, queryVector, fieldName).dotProduct(), 0.001);
@@ -207,6 +224,8 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
             assertEquals(135.0, new L1Norm(scoreScript, hexidecimalString, fieldName).l1norm(), 0.001);
             assertEquals(116.897, new L2Norm(scoreScript, queryVector, fieldName).l2norm(), 0.001);
             assertEquals(116.897, new L2Norm(scoreScript, hexidecimalString, fieldName).l2norm(), 0.001);
+            assertEquals(13.0, new Hamming(scoreScript, queryVector, fieldName).hamming(), 0.001);
+            assertEquals(13.0, new Hamming(scoreScript, hexidecimalString, fieldName).hamming(), 0.001);
             DotProduct dotProduct = new DotProduct(scoreScript, queryVector, fieldName);
             when(scoreScript._getDocId()).thenReturn(1);
             e = expectThrows(IllegalArgumentException.class, dotProduct::dotProduct);
@@ -224,11 +243,15 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
 
         List<DenseVectorDocValuesField> fields = List.of(
             new BinaryDenseVectorDocValuesField(
-                BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.FLOAT, IndexVersions.V_7_4_0),
+                BinaryDenseVectorScriptDocValuesTests.wrap(
+                    new float[][] { docVector },
+                    ElementType.FLOAT,
+                    IndexVersions.MINIMUM_COMPATIBLE
+                ),
                 "field0",
                 ElementType.FLOAT,
                 dims,
-                IndexVersions.V_7_4_0
+                IndexVersions.MINIMUM_COMPATIBLE
             ),
             new BinaryDenseVectorDocValuesField(
                 BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.FLOAT, IndexVersion.current()),

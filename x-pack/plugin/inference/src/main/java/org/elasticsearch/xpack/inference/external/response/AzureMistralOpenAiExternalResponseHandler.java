@@ -116,7 +116,7 @@ public class AzureMistralOpenAiExternalResponseHandler extends BaseResponseHandl
         }
 
         if (statusCode == 400) {
-            var errorEntity = AzureMistralOpenAiErrorResponseEntity.fromResponse(result);
+            var errorEntity = ErrorMessageResponseEntity.fromResponse(result);
             return errorEntity != null && errorEntity.getErrorMessage().contains(CONTENT_TOO_LARGE_MESSAGE);
         }
 

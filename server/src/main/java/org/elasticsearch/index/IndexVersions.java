@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index;
@@ -108,7 +109,11 @@ public class IndexVersions {
     public static final IndexVersion SOURCE_MAPPER_LOSSY_PARAMS_CHECK = def(8_506_00_0, Version.LUCENE_9_10_0);
     public static final IndexVersion SEMANTIC_TEXT_FIELD_TYPE = def(8_507_00_0, Version.LUCENE_9_10_0);
     public static final IndexVersion UPGRADE_TO_LUCENE_9_11 = def(8_508_00_0, Version.LUCENE_9_11_0);
-
+    public static final IndexVersion UNIQUE_TOKEN_FILTER_POS_FIX = def(8_509_00_0, Version.LUCENE_9_11_0);
+    public static final IndexVersion ADD_SECURITY_MIGRATION = def(8_510_00_0, Version.LUCENE_9_11_0);
+    public static final IndexVersion UPGRADE_TO_LUCENE_9_11_1 = def(8_511_00_0, Version.LUCENE_9_11_1);
+    public static final IndexVersion INDEX_SORTING_ON_NESTED = def(8_512_00_0, Version.LUCENE_9_11_1);
+    public static final IndexVersion LENIENT_UPDATEABLE_SYNONYMS = def(8_513_00_0, Version.LUCENE_9_11_1);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _
@@ -162,7 +167,7 @@ public class IndexVersions {
      * In branches 8.7-8.11 see server/src/main/java/org/elasticsearch/index/IndexVersion.java for the equivalent definitions.
      */
 
-    public static final IndexVersion MINIMUM_COMPATIBLE = V_7_0_0;
+    public static final IndexVersion MINIMUM_COMPATIBLE = V_8_0_0;
 
     static final NavigableMap<Integer, IndexVersion> VERSION_IDS = getAllVersionIds(IndexVersions.class);
     static final IndexVersion LATEST_DEFINED;
@@ -213,11 +218,13 @@ public class IndexVersions {
         return Collections.unmodifiableNavigableMap(builder);
     }
 
+    @UpdateForV9
+    // We can simplify this once we've removed all references to index versions earlier than MINIMUM_COMPATIBLE
     static Collection<IndexVersion> getAllVersions() {
-        return VERSION_IDS.values();
+        return VERSION_IDS.values().stream().filter(v -> v.onOrAfter(MINIMUM_COMPATIBLE)).toList();
     }
 
-    static final IntFunction<String> VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(IndexVersions.class);
+    static final IntFunction<String> VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(IndexVersions.class, LATEST_DEFINED.id());
 
     // no instance
     private IndexVersions() {}

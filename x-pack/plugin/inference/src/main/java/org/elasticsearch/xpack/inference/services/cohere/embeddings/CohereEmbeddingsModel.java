@@ -28,7 +28,7 @@ public class CohereEmbeddingsModel extends CohereModel {
     }
 
     public CohereEmbeddingsModel(
-        String modelId,
+        String inferenceId,
         TaskType taskType,
         String service,
         Map<String, Object> serviceSettings,
@@ -37,7 +37,7 @@ public class CohereEmbeddingsModel extends CohereModel {
         ConfigurationParseContext context
     ) {
         this(
-            modelId,
+            inferenceId,
             taskType,
             service,
             CohereEmbeddingsServiceSettings.fromMap(serviceSettings, context),

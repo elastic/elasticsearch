@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -156,11 +157,6 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return SourceLoader.SyntheticFieldLoader.NOTHING;
     }
 
     /**
@@ -345,6 +341,18 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public DocumentDimensions addBoolean(String fieldName, boolean value) {
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                out.write((byte) 'b');
+                out.write(value ? 't' : 'f');
+                add(fieldName, out.bytes());
+            } catch (IOException e) {
+                throw new IllegalArgumentException("Dimension field cannot be serialized.", e);
+            }
+            return this;
+        }
+
+        @Override
         public DocumentDimensions validate(final IndexSettings settings) {
             if (settings.getIndexVersionCreated().before(IndexVersions.TIME_SERIES_ID_HASHING)
                 && dimensions.size() > settings.getValue(MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING)) {
@@ -415,6 +423,8 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
                     }
                     case (byte) 'd' -> // parse a double
                         result.put(name, in.readDouble());
+                    case (byte) 'b' -> // parse a boolean
+                        result.put(name, in.read() == 't');
                     default -> throw new IllegalArgumentException("Cannot parse [" + name + "]: Unknown type [" + type + "]");
                 }
             }

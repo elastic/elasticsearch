@@ -1,0 +1,37 @@
+---
+"case insensitive term query on blank keyword is consistent":
+  - requires:
+      cluster_features: [ "gte_v8.16.0" ]
+      reason: "query consistency bug fix in 8.16.0"
+  - do:
+      indices.create:
+          index: index_with_blank_keyword
+          body:
+              settings:
+                  number_of_shards: 1
+              mappings:
+                  properties:
+                      keyword_field:
+                          type: keyword
+  - do:
+      bulk:
+          refresh: true
+          body:
+              - '{"index": {"_index": "index_with_blank_keyword", "_id": "1"}}'
+              - '{"keyword_field": ""}'
+
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: index_with_blank_keyword
+          body: {"query" : {"term" : {"keyword_field" : {"value":  ""}}}}
+
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: index_with_blank_keyword
+        body: { "query": { "term": { "keyword_field": {"value": "", "case_insensitive": true } } } }
+
+  - match: { hits.total: 1 }

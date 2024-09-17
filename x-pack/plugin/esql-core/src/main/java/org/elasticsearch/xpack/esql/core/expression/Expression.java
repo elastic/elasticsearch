@@ -6,8 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
-import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvable;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
@@ -16,7 +15,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 
-import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -29,7 +28,15 @@ import java.util.function.Supplier;
  * a, b, ABS(c), and i are all Expressions, with ABS(c) being a Function
  * (which is a type of expression) with a single child, c.
  */
-public abstract class Expression extends Node<Expression> implements Resolvable, NamedWriteable {
+public abstract class Expression extends Node<Expression> implements Resolvable {
+    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
+        for (NamedWriteableRegistry.Entry e : NamedExpression.getNamedWriteables()) {
+            entries.add(new NamedWriteableRegistry.Entry(Expression.class, e.name, in -> (NamedExpression) e.reader.read(in)));
+        }
+        entries.add(Literal.ENTRY);
+        return entries;
+    }
 
     public static class TypeResolution {
         private final boolean failed;
@@ -79,18 +86,6 @@ public abstract class Expression extends Node<Expression> implements Resolvable,
 
     public Expression(Source source, List<Expression> children) {
         super(source, children);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        // TODO remove this function entirely once all subclasses implement it
-        throw new UnsupportedOperationException("todo unsupported");
-    }
-
-    @Override
-    public String getWriteableName() {
-        // TODO remove this function entirely once all subclasses implement it
-        throw new UnsupportedOperationException("todo unsupported");
     }
 
     // whether the expression can be evaluated statically (folded) or not

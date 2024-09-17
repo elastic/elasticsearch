@@ -30,8 +30,8 @@ import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceChunkedTextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceChunkedTextExpansionResultsTests;
+import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
 import org.junit.After;
 import org.junit.Before;
@@ -108,7 +108,7 @@ public class ElserInternalServiceTests extends ESTestCase {
             "foo",
             TaskType.SPARSE_EMBEDDING,
             ElserInternalService.NAME,
-            new ElserInternalServiceSettings(1, 4, ".elser_model_1"),
+            new ElserInternalServiceSettings(1, 4, ".elser_model_1", null),
             ElserMlNodeTaskSettings.DEFAULT
         );
 
@@ -141,7 +141,7 @@ public class ElserInternalServiceTests extends ESTestCase {
             "foo",
             TaskType.SPARSE_EMBEDDING,
             ElserInternalService.NAME,
-            new ElserInternalServiceSettings(1, 4, ".elser_model_1"),
+            new ElserInternalServiceSettings(1, 4, ".elser_model_1", null),
             ElserMlNodeTaskSettings.DEFAULT
         );
 
@@ -171,7 +171,7 @@ public class ElserInternalServiceTests extends ESTestCase {
             "foo",
             TaskType.SPARSE_EMBEDDING,
             ElserInternalService.NAME,
-            new ElserInternalServiceSettings(1, 4, ElserInternalService.ELSER_V2_MODEL),
+            new ElserInternalServiceSettings(1, 4, ElserModels.ELSER_V2_MODEL, null),
             ElserMlNodeTaskSettings.DEFAULT
         );
 
@@ -332,7 +332,7 @@ public class ElserInternalServiceTests extends ESTestCase {
             );
 
             ActionListener<Model> modelActionListener = ActionListener.<Model>wrap((model) -> {
-                assertEquals(".elser_model_2", ((ElserInternalModel) model).getServiceSettings().getModelId());
+                assertEquals(".elser_model_2", ((ElserInternalModel) model).getServiceSettings().modelId());
             }, (e) -> { fail("Model verification should not fail"); });
 
             service.parseRequestConfig("foo", TaskType.SPARSE_EMBEDDING, settings, Set.of(), modelActionListener);
@@ -345,7 +345,7 @@ public class ElserInternalServiceTests extends ESTestCase {
             );
 
             ActionListener<Model> modelActionListener = ActionListener.<Model>wrap((model) -> {
-                assertEquals(".elser_model_2_linux-x86_64", ((ElserInternalModel) model).getServiceSettings().getModelId());
+                assertEquals(".elser_model_2_linux-x86_64", ((ElserInternalModel) model).getServiceSettings().modelId());
             }, (e) -> { fail("Model verification should not fail"); });
 
             service.parseRequestConfig("foo", TaskType.SPARSE_EMBEDDING, settings, Set.of("linux-x86_64"), modelActionListener);
@@ -373,7 +373,7 @@ public class ElserInternalServiceTests extends ESTestCase {
             "foo",
             TaskType.SPARSE_EMBEDDING,
             "elser",
-            new ElserInternalServiceSettings(1, 1, "elser"),
+            new ElserInternalServiceSettings(1, 1, "elser", null),
             new ElserMlNodeTaskSettings()
         );
         var service = createService(client);
@@ -383,10 +383,10 @@ public class ElserInternalServiceTests extends ESTestCase {
             assertThat(chunkedResponse, hasSize(3));
             assertThat(chunkedResponse.get(0), instanceOf(InferenceChunkedSparseEmbeddingResults.class));
             var result1 = (InferenceChunkedSparseEmbeddingResults) chunkedResponse.get(0);
-            assertEquals(((InferenceChunkedTextExpansionResults) mlTrainedModelResults.get(0)).getChunks(), result1.getChunkedResults());
+            assertEquals(((MlChunkedTextExpansionResults) mlTrainedModelResults.get(0)).getChunks(), result1.getChunkedResults());
             assertThat(chunkedResponse.get(1), instanceOf(InferenceChunkedSparseEmbeddingResults.class));
             var result2 = (InferenceChunkedSparseEmbeddingResults) chunkedResponse.get(1);
-            assertEquals(((InferenceChunkedTextExpansionResults) mlTrainedModelResults.get(1)).getChunks(), result2.getChunkedResults());
+            assertEquals(((MlChunkedTextExpansionResults) mlTrainedModelResults.get(1)).getChunks(), result2.getChunkedResults());
             var result3 = (ErrorChunkedInferenceResults) chunkedResponse.get(2);
             assertThat(result3.getException(), instanceOf(RuntimeException.class));
             assertThat(result3.getException().getMessage(), containsString("boom"));
@@ -437,7 +437,7 @@ public class ElserInternalServiceTests extends ESTestCase {
                 "foo",
                 TaskType.SPARSE_EMBEDDING,
                 "elser",
-                new ElserInternalServiceSettings(1, 1, "elser"),
+                new ElserInternalServiceSettings(1, 1, "elser", null),
                 new ElserMlNodeTaskSettings()
             );
             var service = createService(client);
@@ -489,7 +489,7 @@ public class ElserInternalServiceTests extends ESTestCase {
             "my-elser",
             TaskType.SPARSE_EMBEDDING,
             "elser",
-            new ElserInternalServiceSettings(1, 1, ".elser_model_2"),
+            new ElserInternalServiceSettings(1, 1, ".elser_model_2", null),
             ElserMlNodeTaskSettings.DEFAULT
         );
 

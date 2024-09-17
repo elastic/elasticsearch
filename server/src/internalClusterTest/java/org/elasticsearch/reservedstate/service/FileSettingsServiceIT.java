@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reservedstate.service;
@@ -42,15 +43,16 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
 public class FileSettingsServiceIT extends ESIntegTestCase {
 
-    private static AtomicLong versionCounter = new AtomicLong(1);
+    private static final AtomicLong versionCounter = new AtomicLong(1);
 
-    private static String testJSON = """
+    private static final String testJSON = """
         {
              "metadata": {
                  "version": "%s",
@@ -63,7 +65,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
              }
         }""";
 
-    private static String testJSON43mb = """
+    private static final String testJSON43mb = """
         {
              "metadata": {
                  "version": "%s",
@@ -76,7 +78,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
              }
         }""";
 
-    private static String testCleanupJSON = """
+    private static final String testCleanupJSON = """
         {
              "metadata": {
                  "version": "%s",
@@ -87,7 +89,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
              }
         }""";
 
-    private static String testErrorJSON = """
+    private static final String testErrorJSON = """
         {
              "metadata": {
                  "version": "%s",
@@ -101,7 +103,10 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         }""";
 
     private void assertMasterNode(Client client, String node) {
-        assertThat(client.admin().cluster().prepareState().get().getState().nodes().getMasterNode().getName(), equalTo(node));
+        assertThat(
+            client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getMasterNode().getName(),
+            equalTo(node)
+        );
     }
 
     public static void writeJSONFile(String node, String json, AtomicLong versionCounter, Logger logger) throws Exception {
@@ -165,11 +170,10 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
 
     private void assertClusterStateSaveOK(CountDownLatch savedClusterState, AtomicLong metadataVersion, String expectedBytesPerSec)
         throws Exception {
-        boolean awaitSuccessful = savedClusterState.await(20, TimeUnit.SECONDS);
-        assertTrue(awaitSuccessful);
+        assertTrue(savedClusterState.await(20, TimeUnit.SECONDS));
 
         final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
-            new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get())
+            new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(metadataVersion.get())
         ).actionGet();
 
         assertThat(
@@ -177,14 +181,16 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
             equalTo(expectedBytesPerSec)
         );
 
-        ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest().persistentSettings(
+        ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).persistentSettings(
             Settings.builder().put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "1234kb")
         );
-        assertEquals(
-            "java.lang.IllegalArgumentException: Failed to process request "
-                + "[org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest/unset] "
-                + "with errors: [[indices.recovery.max_bytes_per_sec] set as read-only by [file_settings]]",
-            expectThrows(ExecutionException.class, () -> clusterAdmin().updateSettings(req).get()).getMessage()
+        assertThat(
+            expectThrows(ExecutionException.class, () -> clusterAdmin().updateSettings(req).get()).getMessage(),
+            is(
+                "java.lang.IllegalArgumentException: Failed to process request "
+                    + "[org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest/unset] "
+                    + "with errors: [[indices.recovery.max_bytes_per_sec] set as read-only by [file_settings]]"
+            )
         );
     }
 
@@ -255,17 +261,16 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         logger.info("--> restart master");
         internalCluster().restartNode(masterNode);
 
-        final ClusterStateResponse clusterStateResponse = clusterAdmin().state(new ClusterStateRequest()).actionGet();
-        assertEquals(
-            1,
+        final ClusterStateResponse clusterStateResponse = clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT)).actionGet();
+        assertThat(
             clusterStateResponse.getState()
                 .metadata()
                 .reservedStateMetadata()
                 .get(FileSettingsService.NAMESPACE)
                 .handlers()
                 .get(ReservedClusterSettingsAction.NAME)
-                .keys()
-                .size()
+                .keys(),
+            hasSize(1)
         );
     }
 
@@ -299,7 +304,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         assertTrue(awaitSuccessful);
 
         final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
-            new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get())
+            new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(metadataVersion.get())
         ).actionGet();
 
         assertThat(clusterStateResponse.getState().metadata().persistentSettings().get("search.allow_expensive_queries"), nullValue());

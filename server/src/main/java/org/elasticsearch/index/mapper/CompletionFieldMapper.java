@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.mapper;
 
@@ -82,7 +83,7 @@ public class CompletionFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), builder.defaultAnalyzer, builder.indexVersionCreated).init(this);
+        return new Builder(leafName(), builder.defaultAnalyzer, builder.indexVersionCreated).init(this);
     }
 
     public static class Defaults {
@@ -205,9 +206,9 @@ public class CompletionFieldMapper extends FieldMapper {
                 new CompletionAnalyzer(this.searchAnalyzer.getValue(), preserveSeparators.getValue(), preservePosInc.getValue())
             );
 
-            CompletionFieldType ft = new CompletionFieldType(context.buildFullName(name()), completionAnalyzer, meta.getValue());
+            CompletionFieldType ft = new CompletionFieldType(context.buildFullName(leafName()), completionAnalyzer, meta.getValue());
             ft.setContextMappings(contexts.getValue());
-            return new CompletionFieldMapper(name(), ft, multiFieldsBuilder.build(this, context), copyTo, this);
+            return new CompletionFieldMapper(leafName(), ft, builderParams(this, context), this);
         }
 
         private void checkCompletionContextsLimit() {
@@ -224,7 +225,7 @@ public class CompletionFieldMapper extends FieldMapper {
                             + COMPLETION_CONTEXTS_LIMIT
                             + "] completion contexts"
                             + " in the mapping for field ["
-                            + name()
+                            + leafName()
                             + "]. "
                             + "The maximum allowed number of completion contexts in a mapping will be limited to "
                             + "["
@@ -346,14 +347,8 @@ public class CompletionFieldMapper extends FieldMapper {
 
     private final NamedAnalyzer indexAnalyzer;
 
-    public CompletionFieldMapper(
-        String simpleName,
-        MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
-        Builder builder
-    ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+    public CompletionFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams, Builder builder) {
+        super(simpleName, mappedFieldType, builderParams);
         this.builder = builder;
         this.maxInputLength = builder.maxInputLength.getValue();
         this.indexAnalyzer = builder.buildAnalyzer();
@@ -443,7 +438,7 @@ public class CompletionFieldMapper extends FieldMapper {
 
         context.addToFieldNames(fieldType().name());
         for (CompletionInputMetadata metadata : inputMap.values()) {
-            multiFields.parse(
+            multiFields().parse(
                 this,
                 context,
                 () -> context.switchParser(new MultiFieldParser(metadata, fieldType().name(), context.parser().getTokenLocation()))

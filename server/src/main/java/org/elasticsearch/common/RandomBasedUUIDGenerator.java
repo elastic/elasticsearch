@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common;
@@ -56,8 +57,10 @@ class RandomBasedUUIDGenerator implements UUIDGenerator {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(getUUIDBytes(random));
     }
 
+    static final int SIZE_IN_BYTES = 16;
+
     private static byte[] getUUIDBytes(Random random) {
-        final byte[] randomBytes = new byte[16];
+        final byte[] randomBytes = new byte[SIZE_IN_BYTES];
         random.nextBytes(randomBytes);
         /* Set the version to version 4 (see http://www.ietf.org/rfc/rfc4122.txt)
          * The randomly or pseudo-randomly generated version.

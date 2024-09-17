@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
@@ -31,7 +32,6 @@ import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -44,6 +44,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.injection.guice.Inject;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -68,7 +69,7 @@ import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClu
  *     <li>even shard count across nodes (weighted by cluster.routing.allocation.balance.shard)</li>
  *     <li>spread shards of the same index across different nodes (weighted by cluster.routing.allocation.balance.index)</li>
  *     <li>even write load of the data streams write indices across nodes (weighted by cluster.routing.allocation.balance.write_load)</li>
- *     <li>even disk usage across nodes (weighted by cluster.routing.allocation.balance.write_load)</li>
+ *     <li>even disk usage across nodes (weighted by cluster.routing.allocation.balance.disk_usage)</li>
  * </ul>
  * The sensitivity of the algorithm is defined by cluster.routing.allocation.balance.threshold.
  * Allocator takes into account constraints set by {@code AllocationDeciders} when allocating and balancing shards.
@@ -203,8 +204,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         } else {
             moveDecision = balancer.decideMove(shard);
             if (moveDecision.isDecisionTaken() && moveDecision.canRemain()) {
-                MoveDecision rebalanceDecision = balancer.decideRebalance(shard);
-                moveDecision = rebalanceDecision.withRemainDecision(moveDecision.getCanRemainDecision());
+                moveDecision = balancer.decideRebalance(shard, moveDecision.getCanRemainDecision());
             }
         }
         return new ShardAllocationDecision(allocateUnassignedDecision, moveDecision);
@@ -414,6 +414,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         private float maxShardSizeBytes(String index) {
             final var indexMetadata = metadata.index(index);
+            if (indexMetadata.ignoreDiskWatermarks()) {
+                // disk watermarks are ignored for partial searchable snapshots
+                // and is equivalent to indexMetadata.isPartialSearchableSnapshot()
+                return 0;
+            }
             var maxShardSizeBytes = indexMetadata.getForecastedShardSizeInBytes().orElse(0L);
             for (int shard = 0; shard < indexMetadata.getNumberOfShards(); shard++) {
                 final var shardId = new ShardId(indexMetadata.getIndex(), shard);
@@ -520,7 +525,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * optimally balanced cluster. This method is invoked from the cluster allocation
          * explain API only.
          */
-        private MoveDecision decideRebalance(final ShardRouting shard) {
+        private MoveDecision decideRebalance(final ShardRouting shard, Decision canRemain) {
             if (shard.started() == false) {
                 // we can only rebalance started shards
                 return MoveDecision.NOT_TAKEN;
@@ -546,7 +551,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             final float currentWeight = weight.weight(this, currentNode, idxName);
             final AllocationDeciders deciders = allocation.deciders();
             Type rebalanceDecisionType = Type.NO;
-            ModelNode assignedNode = null;
+            ModelNode targetNode = null;
             List<Tuple<ModelNode, Decision>> betterBalanceNodes = new ArrayList<>();
             List<Tuple<ModelNode, Decision>> sameBalanceNodes = new ArrayList<>();
             List<Tuple<ModelNode, Decision>> worseBalanceNodes = new ArrayList<>();
@@ -585,7 +590,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         // rebalance to the node, only will get overwritten if the decision here is to
                         // THROTTLE and we get a decision with YES on another node
                         rebalanceDecisionType = canAllocate.type();
-                        assignedNode = node;
+                        targetNode = node;
                     }
                 }
                 Tuple<ModelNode, Decision> nodeResult = Tuple.tuple(node, canAllocate);
@@ -623,15 +628,23 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             }
 
             if (canRebalance.type() != Type.YES || allocation.hasPendingAsyncFetch()) {
-                AllocationDecision allocationDecision = allocation.hasPendingAsyncFetch()
-                    ? AllocationDecision.AWAITING_INFO
-                    : AllocationDecision.fromDecisionType(canRebalance.type());
-                return MoveDecision.cannotRebalance(canRebalance, allocationDecision, currentNodeWeightRanking, nodeDecisions);
+                // can not rebalance
+                return MoveDecision.rebalance(
+                    canRemain,
+                    canRebalance,
+                    allocation.hasPendingAsyncFetch()
+                        ? AllocationDecision.AWAITING_INFO
+                        : AllocationDecision.fromDecisionType(canRebalance.type()),
+                    null,
+                    currentNodeWeightRanking,
+                    nodeDecisions
+                );
             } else {
                 return MoveDecision.rebalance(
+                    canRemain,
                     canRebalance,
                     AllocationDecision.fromDecisionType(rebalanceDecisionType),
-                    assignedNode != null ? assignedNode.routingNode.node() : null,
+                    targetNode != null ? targetNode.routingNode.node() : null,
                     currentNodeWeightRanking,
                     nodeDecisions
                 );
@@ -885,7 +898,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             RoutingNode routingNode = sourceNode.getRoutingNode();
             Decision canRemain = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
             if (canRemain.type() != Decision.Type.NO) {
-                return MoveDecision.stay(canRemain);
+                return MoveDecision.remain(canRemain);
             }
 
             sorter.reset(shardRouting.getIndexName());
@@ -914,16 +927,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             final boolean explain = allocation.debugDecision();
             Type bestDecision = Type.NO;
             RoutingNode targetNode = null;
-            final List<NodeAllocationResult> nodeExplanationMap = explain ? new ArrayList<>() : null;
+            final List<NodeAllocationResult> nodeResults = explain ? new ArrayList<>() : null;
             int weightRanking = 0;
             for (ModelNode currentNode : sorter.modelNodes) {
                 if (currentNode != sourceNode) {
                     RoutingNode target = currentNode.getRoutingNode();
                     Decision allocationDecision = decider.apply(shardRouting, target);
                     if (explain) {
-                        nodeExplanationMap.add(
-                            new NodeAllocationResult(currentNode.getRoutingNode().node(), allocationDecision, ++weightRanking)
-                        );
+                        nodeResults.add(new NodeAllocationResult(currentNode.getRoutingNode().node(), allocationDecision, ++weightRanking));
                     }
                     // TODO maybe we can respect throttling here too?
                     if (allocationDecision.type().higherThan(bestDecision)) {
@@ -940,11 +951,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 }
             }
 
-            return MoveDecision.cannotRemain(
+            return MoveDecision.move(
                 remainDecision,
                 AllocationDecision.fromDecisionType(bestDecision),
                 targetNode != null ? targetNode.node() : null,
-                nodeExplanationMap
+                nodeResults
             );
         }
 

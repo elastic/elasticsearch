@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.mapper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -20,7 +21,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceChunkedTextExpansionResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextExpansionResults;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.elasticsearch.xpack.core.utils.FloatConversionUtils;
 import org.elasticsearch.xpack.inference.model.TestModel;
@@ -85,7 +86,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
 
     @Override
     protected SemanticTextField createTestInstance() {
-        List<String> rawValues = randomList(1, 5, () -> randomAlphaOfLengthBetween(10, 20));
+        List<String> rawValues = randomList(1, 5, () -> randomSemanticTextInput().toString());
         try { // try catch required for override
             return randomSemanticText(NAME, TestModel.createRandomInstance(), rawValues, randomFrom(XContentType.values()));
         } catch (IOException e) {
@@ -106,36 +107,55 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
 
     public void testModelSettingsValidation() {
         NullPointerException npe = expectThrows(NullPointerException.class, () -> {
-            new SemanticTextField.ModelSettings(null, 10, SimilarityMeasure.COSINE);
+            new SemanticTextField.ModelSettings(null, 10, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT);
         });
         assertThat(npe.getMessage(), equalTo("task type must not be null"));
 
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> {
-            new SemanticTextField.ModelSettings(TaskType.COMPLETION, 10, SimilarityMeasure.COSINE);
+            new SemanticTextField.ModelSettings(
+                TaskType.COMPLETION,
+                10,
+                SimilarityMeasure.COSINE,
+                DenseVectorFieldMapper.ElementType.FLOAT
+            );
         });
         assertThat(ex.getMessage(), containsString("Wrong [task_type]"));
 
         ex = expectThrows(
             IllegalArgumentException.class,
-            () -> { new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, 10, null); }
+            () -> { new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, 10, null, null); }
         );
         assertThat(ex.getMessage(), containsString("[dimensions] is not allowed"));
 
         ex = expectThrows(IllegalArgumentException.class, () -> {
-            new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, null, SimilarityMeasure.COSINE);
+            new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, null, SimilarityMeasure.COSINE, null);
         });
         assertThat(ex.getMessage(), containsString("[similarity] is not allowed"));
 
         ex = expectThrows(IllegalArgumentException.class, () -> {
-            new SemanticTextField.ModelSettings(TaskType.TEXT_EMBEDDING, null, SimilarityMeasure.COSINE);
+            new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, null, null, DenseVectorFieldMapper.ElementType.FLOAT);
+        });
+        assertThat(ex.getMessage(), containsString("[element_type] is not allowed"));
+
+        ex = expectThrows(IllegalArgumentException.class, () -> {
+            new SemanticTextField.ModelSettings(
+                TaskType.TEXT_EMBEDDING,
+                null,
+                SimilarityMeasure.COSINE,
+                DenseVectorFieldMapper.ElementType.FLOAT
+            );
         });
         assertThat(ex.getMessage(), containsString("required [dimensions] field is missing"));
 
-        ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> { new SemanticTextField.ModelSettings(TaskType.TEXT_EMBEDDING, 10, null); }
-        );
+        ex = expectThrows(IllegalArgumentException.class, () -> {
+            new SemanticTextField.ModelSettings(TaskType.TEXT_EMBEDDING, 10, null, DenseVectorFieldMapper.ElementType.FLOAT);
+        });
         assertThat(ex.getMessage(), containsString("required [similarity] field is missing"));
+
+        ex = expectThrows(IllegalArgumentException.class, () -> {
+            new SemanticTextField.ModelSettings(TaskType.TEXT_EMBEDDING, 10, SimilarityMeasure.COSINE, null);
+        });
+        assertThat(ex.getMessage(), containsString("required [element_type] field is missing"));
     }
 
     public static InferenceChunkedTextEmbeddingFloatResults randomInferenceChunkedTextEmbeddingFloatResults(
@@ -154,13 +174,13 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
     }
 
     public static InferenceChunkedSparseEmbeddingResults randomSparseEmbeddings(List<String> inputs) {
-        List<InferenceChunkedTextExpansionResults.ChunkedResult> chunks = new ArrayList<>();
+        List<MlChunkedTextExpansionResults.ChunkedResult> chunks = new ArrayList<>();
         for (String input : inputs) {
             var tokens = new ArrayList<WeightedToken>();
             for (var token : input.split("\\s+")) {
                 tokens.add(new WeightedToken(token, randomFloat()));
             }
-            chunks.add(new InferenceChunkedTextExpansionResults.ChunkedResult(input, tokens));
+            chunks.add(new MlChunkedTextExpansionResults.ChunkedResult(input, tokens));
         }
         return new InferenceChunkedSparseEmbeddingResults(chunks);
     }
@@ -172,25 +192,53 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             case SPARSE_EMBEDDING -> randomSparseEmbeddings(inputs);
             default -> throw new AssertionError("invalid task type: " + model.getTaskType().name());
         };
+        return semanticTextFieldFromChunkedInferenceResults(fieldName, model, inputs, results, contentType);
+    }
+
+    public static SemanticTextField semanticTextFieldFromChunkedInferenceResults(
+        String fieldName,
+        Model model,
+        List<String> inputs,
+        ChunkedInferenceServiceResults results,
+        XContentType contentType
+    ) {
         return new SemanticTextField(
             fieldName,
             inputs,
             new SemanticTextField.InferenceResult(
                 model.getInferenceEntityId(),
                 new SemanticTextField.ModelSettings(model),
-                toSemanticTextFieldChunks(fieldName, model.getInferenceEntityId(), List.of(results), contentType)
+                toSemanticTextFieldChunks(List.of(results), contentType)
             ),
             contentType
         );
     }
 
+    /**
+     * Returns a randomly generated object for Semantic Text tests purpose.
+     */
+    public static Object randomSemanticTextInput() {
+        if (rarely()) {
+            return switch (randomIntBetween(0, 4)) {
+                case 0 -> randomInt();
+                case 1 -> randomLong();
+                case 2 -> randomFloat();
+                case 3 -> randomBoolean();
+                case 4 -> randomDouble();
+                default -> throw new IllegalStateException("Illegal state while generating random semantic text input");
+            };
+        } else {
+            return randomAlphaOfLengthBetween(10, 20);
+        }
+    }
+
     public static ChunkedInferenceServiceResults toChunkedResult(SemanticTextField field) throws IOException {
         switch (field.inference().modelSettings().taskType()) {
             case SPARSE_EMBEDDING -> {
-                List<InferenceChunkedTextExpansionResults.ChunkedResult> chunks = new ArrayList<>();
+                List<MlChunkedTextExpansionResults.ChunkedResult> chunks = new ArrayList<>();
                 for (var chunk : field.inference().chunks()) {
                     var tokens = parseWeightedTokens(chunk.rawEmbeddings(), field.contentType());
-                    chunks.add(new InferenceChunkedTextExpansionResults.ChunkedResult(chunk.text(), tokens));
+                    chunks.add(new MlChunkedTextExpansionResults.ChunkedResult(chunk.text(), tokens));
                 }
                 return new InferenceChunkedSparseEmbeddingResults(chunks);
             }

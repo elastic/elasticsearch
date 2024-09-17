@@ -12,12 +12,13 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.function.LongConsumer;
-import java.util.function.Supplier;
 
 /**
  * An {@link ActionFuture} that listeners can be attached to. Listeners are executed when the future is completed
@@ -200,7 +201,23 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
         assert invariant();
     }
 
-    private static void executeListener(final ActionListener<Long> listener, final Supplier<Long> result) {
+    /**
+     * Return the result of this future, if it has been completed successfully, or unwrap and throw the exception with which it was
+     * completed exceptionally. It is not valid to call this method if the future is incomplete.
+     */
+    private Long actionResult() throws Exception {
+        try {
+            return result();
+        } catch (ExecutionException e) {
+            if (e.getCause() instanceof Exception exCause) {
+                throw exCause;
+            } else {
+                throw e;
+            }
+        }
+    }
+
+    private static void executeListener(final ActionListener<Long> listener, final CheckedSupplier<Long, ?> result) {
         try {
             listener.onResponse(result.get());
         } catch (Exception e) {

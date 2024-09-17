@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.indices.rollover;
 
@@ -14,6 +15,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.RestApiVersion;
@@ -115,7 +117,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         } else {
             lazy = false;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_ROLLOVER)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             indicesOptions = IndicesOptions.readIndicesOptions(in);
         }
     }
@@ -167,7 +169,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeBoolean(lazy);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_ROLLOVER)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             indicesOptions.writeIndicesOptions(out);
         }
     }
@@ -182,6 +184,13 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         return indicesOptions;
     }
 
+    /**
+     * @return true of the rollover request targets the failure store, false otherwise.
+     */
+    public boolean targetsFailureStore() {
+        return DataStream.isFailureStoreFeatureFlagEnabled() && indicesOptions.failureStoreOptions().includeFailureIndices();
+    }
+
     public void setIndicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
     }
@@ -192,14 +201,14 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     }
 
     /**
-     * Sets the rollover target to rollover to another index
+     * Sets the rollover target to roll over to another index
      */
     public void setRolloverTarget(String rolloverTarget) {
         this.rolloverTarget = rolloverTarget;
     }
 
     /**
-     * Sets the alias to rollover to another index
+     * Sets the alias to roll over to another index
      */
     public void setNewIndexName(String newIndexName) {
         this.newIndexName = newIndexName;

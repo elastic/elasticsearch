@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.action.shard;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterState;
@@ -69,7 +71,14 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
     public void testNonExistentIndexMarkedAsSuccessful() throws Exception {
         final ClusterState clusterState = stateWithNoShard();
         final StartedShardUpdateTask entry = new StartedShardUpdateTask(
-            new StartedShardEntry(new ShardId("test", "_na", 0), "aId", randomNonNegativeLong(), "test", ShardLongFieldRange.UNKNOWN),
+            new StartedShardEntry(
+                new ShardId("test", "_na", 0),
+                "aId",
+                randomNonNegativeLong(),
+                "test",
+                ShardLongFieldRange.UNKNOWN,
+                ShardLongFieldRange.UNKNOWN
+            ),
             createTestListener()
         );
 
@@ -91,6 +100,7 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
                             String.valueOf(i),
                             0L,
                             "allocation id",
+                            ShardLongFieldRange.UNKNOWN,
                             ShardLongFieldRange.UNKNOWN
                         ),
                         createTestListener()
@@ -105,6 +115,7 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
                             String.valueOf(i),
                             0L,
                             "shard id",
+                            ShardLongFieldRange.UNKNOWN,
                             ShardLongFieldRange.UNKNOWN
                         ),
                         createTestListener()
@@ -133,7 +144,14 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
                 }
                 final long primaryTerm = indexMetadata.primaryTerm(shardId.id());
                 return new StartedShardUpdateTask(
-                    new StartedShardEntry(shardId, allocationId, primaryTerm, "test", ShardLongFieldRange.UNKNOWN),
+                    new StartedShardEntry(
+                        shardId,
+                        allocationId,
+                        primaryTerm,
+                        "test",
+                        ShardLongFieldRange.UNKNOWN,
+                        ShardLongFieldRange.UNKNOWN
+                    ),
                     createTestListener()
                 );
             })
@@ -153,7 +171,14 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
         final String primaryAllocationId = primaryShard.allocationId().getId();
 
         final var task = new StartedShardUpdateTask(
-            new StartedShardEntry(shardId, primaryAllocationId, primaryTerm, "test", ShardLongFieldRange.UNKNOWN),
+            new StartedShardEntry(
+                shardId,
+                primaryAllocationId,
+                primaryTerm,
+                "test",
+                ShardLongFieldRange.UNKNOWN,
+                ShardLongFieldRange.UNKNOWN
+            ),
             createTestListener()
         );
 
@@ -180,7 +205,14 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
         final ShardRouting replicaShard = clusterState.routingTable().shardRoutingTable(shardId).replicaShards().iterator().next();
         final String replicaAllocationId = replicaShard.allocationId().getId();
         final var task = new StartedShardUpdateTask(
-            new StartedShardEntry(shardId, replicaAllocationId, primaryTerm, "test", ShardLongFieldRange.UNKNOWN),
+            new StartedShardEntry(
+                shardId,
+                replicaAllocationId,
+                primaryTerm,
+                "test",
+                ShardLongFieldRange.UNKNOWN,
+                ShardLongFieldRange.UNKNOWN
+            ),
             createTestListener()
         );
 
@@ -208,7 +240,14 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
         final List<StartedShardUpdateTask> tasks = IntStream.range(0, randomIntBetween(2, 10))
             .mapToObj(
                 i -> new StartedShardUpdateTask(
-                    new StartedShardEntry(shardId, allocationId, primaryTerm, "test", ShardLongFieldRange.UNKNOWN),
+                    new StartedShardEntry(
+                        shardId,
+                        allocationId,
+                        primaryTerm,
+                        "test",
+                        ShardLongFieldRange.UNKNOWN,
+                        ShardLongFieldRange.UNKNOWN
+                    ),
                     createTestListener()
                 )
             )
@@ -249,6 +288,7 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
                     primaryAllocationId,
                     primaryTerm - 1,
                     "primary terms does not match on primary",
+                    ShardLongFieldRange.UNKNOWN,
                     ShardLongFieldRange.UNKNOWN
                 ),
                 createTestListener()
@@ -270,6 +310,7 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
                     primaryAllocationId,
                     primaryTerm,
                     "primary terms match on primary",
+                    ShardLongFieldRange.UNKNOWN,
                     ShardLongFieldRange.UNKNOWN
                 ),
                 createTestListener()
@@ -312,7 +353,14 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
                 .getId();
 
             final StartedShardUpdateTask task = new StartedShardUpdateTask(
-                new StartedShardEntry(shardId, replicaAllocationId, replicaPrimaryTerm, "test on replica", ShardLongFieldRange.UNKNOWN),
+                new StartedShardEntry(
+                    shardId,
+                    replicaAllocationId,
+                    replicaPrimaryTerm,
+                    "test on replica",
+                    ShardLongFieldRange.UNKNOWN,
+                    ShardLongFieldRange.UNKNOWN
+                ),
                 createTestListener()
             );
 
@@ -339,13 +387,18 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
         final String primaryAllocationId = primaryShard.allocationId().getId();
 
         assertThat(indexMetadata.getTimestampRange(), sameInstance(IndexLongFieldRange.NO_SHARDS));
+        assertThat(indexMetadata.getEventIngestedRange(), sameInstance(IndexLongFieldRange.NO_SHARDS));
 
         final ShardLongFieldRange shardTimestampRange = randomBoolean() ? ShardLongFieldRange.UNKNOWN
             : randomBoolean() ? ShardLongFieldRange.EMPTY
             : ShardLongFieldRange.of(1606407943000L, 1606407944000L);
 
+        final ShardLongFieldRange shardEventIngestedRange = randomBoolean() ? ShardLongFieldRange.UNKNOWN
+            : randomBoolean() ? ShardLongFieldRange.EMPTY
+            : ShardLongFieldRange.of(1606407943000L, 1606407944000L);
+
         final var task = new StartedShardUpdateTask(
-            new StartedShardEntry(shardId, primaryAllocationId, primaryTerm, "test", shardTimestampRange),
+            new StartedShardEntry(shardId, primaryAllocationId, primaryTerm, "test", shardTimestampRange, shardEventIngestedRange),
             createTestListener()
         );
 
@@ -369,6 +422,21 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
             assertThat(timestampRange.getMin(), equalTo(shardTimestampRange.getMin()));
             assertThat(timestampRange.getMax(), equalTo(shardTimestampRange.getMax()));
         }
+
+        final var eventIngestedRange = resultingState.metadata().index(indexName).getEventIngestedRange();
+        if (clusterState.getMinTransportVersion().before(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
+            assertThat(eventIngestedRange, sameInstance(IndexLongFieldRange.UNKNOWN));
+        } else {
+            if (shardEventIngestedRange == ShardLongFieldRange.UNKNOWN) {
+                assertThat(eventIngestedRange, sameInstance(IndexLongFieldRange.UNKNOWN));
+            } else if (shardEventIngestedRange == ShardLongFieldRange.EMPTY) {
+                assertThat(eventIngestedRange, sameInstance(IndexLongFieldRange.EMPTY));
+            } else {
+                assertTrue(eventIngestedRange.isComplete());
+                assertThat(eventIngestedRange.getMin(), equalTo(shardEventIngestedRange.getMin()));
+                assertThat(eventIngestedRange.getMax(), equalTo(shardEventIngestedRange.getMax()));
+            }
+        }
     }
 
     public void testExpandsTimestampRangeForReplica() throws Exception {
@@ -380,15 +448,20 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
         final long primaryTerm = indexMetadata.primaryTerm(shardId.id());
 
         assertThat(indexMetadata.getTimestampRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
+        assertThat(indexMetadata.getEventIngestedRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
 
         final ShardLongFieldRange shardTimestampRange = randomBoolean() ? ShardLongFieldRange.UNKNOWN
             : randomBoolean() ? ShardLongFieldRange.EMPTY
             : ShardLongFieldRange.of(1606407943000L, 1606407944000L);
 
+        final ShardLongFieldRange shardEventIngestedRange = randomBoolean() ? ShardLongFieldRange.UNKNOWN
+            : randomBoolean() ? ShardLongFieldRange.EMPTY
+            : ShardLongFieldRange.of(1606407888888L, 1606407999999L);
+
         final ShardRouting replicaShard = clusterState.routingTable().shardRoutingTable(shardId).replicaShards().iterator().next();
         final String replicaAllocationId = replicaShard.allocationId().getId();
         final var task = new StartedShardUpdateTask(
-            new StartedShardEntry(shardId, replicaAllocationId, primaryTerm, "test", shardTimestampRange),
+            new StartedShardEntry(shardId, replicaAllocationId, primaryTerm, "test", shardTimestampRange, shardEventIngestedRange),
             createTestListener()
         );
         final var resultingState = executeTasks(clusterState, List.of(task));
@@ -401,7 +474,9 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
             is(ShardRoutingState.STARTED)
         );
 
-        assertThat(resultingState.metadata().index(indexName).getTimestampRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
+        final IndexMetadata latestIndexMetadata = resultingState.metadata().index(indexName);
+        assertThat(latestIndexMetadata.getTimestampRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
+        assertThat(latestIndexMetadata.getEventIngestedRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
     }
 
     private ClusterState executeTasks(final ClusterState state, final List<StartedShardUpdateTask> tasks) throws Exception {

@@ -1,5 +1,0 @@
-org.elasticsearch.xpack.esql.core.plan.logical.Aggregate @ use @org.elasticsearch.xpack.esql.plan.logical.Aggregate instead
-org.elasticsearch.xpack.esql.core.plan.logical.EsRelation @ use @org.elasticsearch.xpack.esql.plan.logical.EsRelation instead
-org.elasticsearch.xpack.esql.core.plan.logical.Project @ use @org.elasticsearch.xpack.esql.plan.logical.Project instead
-org.elasticsearch.xpack.esql.core.plan.logical.UnresolvedRelation @ use @org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation instead
-org.elasticsearch.xpack.esql.core.expression.function.Functions @ use @org.elasticsearch.xpack.esql.expression.function.Functions instead

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.codec.vectors;
@@ -54,11 +55,11 @@ public class ES813FlatVectorFormat extends KnnVectorsFormat {
         return new ES813FlatVectorReader(format.fieldsReader(state));
     }
 
-    public static class ES813FlatVectorWriter extends KnnVectorsWriter {
+    static class ES813FlatVectorWriter extends KnnVectorsWriter {
 
         private final FlatVectorsWriter writer;
 
-        public ES813FlatVectorWriter(FlatVectorsWriter writer) {
+        ES813FlatVectorWriter(FlatVectorsWriter writer) {
             super();
             this.writer = writer;
         }
@@ -94,11 +95,11 @@ public class ES813FlatVectorFormat extends KnnVectorsFormat {
         }
     }
 
-    public static class ES813FlatVectorReader extends KnnVectorsReader {
+    static class ES813FlatVectorReader extends KnnVectorsReader {
 
         private final FlatVectorsReader reader;
 
-        public ES813FlatVectorReader(FlatVectorsReader reader) {
+        ES813FlatVectorReader(FlatVectorsReader reader) {
             super();
             this.reader = reader;
         }

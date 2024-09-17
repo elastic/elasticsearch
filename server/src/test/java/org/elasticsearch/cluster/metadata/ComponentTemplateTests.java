@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -24,6 +25,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -294,9 +296,9 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
             template.toXContent(builder, withEffectiveRetention, rolloverConfiguration);
             String serialized = Strings.toString(builder);
             assertThat(serialized, containsString("rollover"));
-            for (String label : rolloverConfiguration.resolveRolloverConditions(lifecycle.getEffectiveDataRetention(globalRetention))
-                .getConditions()
-                .keySet()) {
+            for (String label : rolloverConfiguration.resolveRolloverConditions(
+                lifecycle.getEffectiveDataRetention(globalRetention, randomBoolean())
+            ).getConditions().keySet()) {
                 assertThat(serialized, containsString(label));
             }
             /*
@@ -305,6 +307,24 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
              */
             assertThat(serialized, not(containsString("data_retention")));
             assertThat(serialized, not(containsString("effective_retention")));
+        }
+    }
+
+    public void testHangingParsing() throws IOException {
+        String cutDown = """
+            {
+              "template": {
+                "aliases": {
+                  "foo": "bar"
+                },
+                "food": "eggplant"
+              },
+              "potato": true
+            }
+            """;
+
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, cutDown)) {
+            expectThrows(Exception.class, () -> ComponentTemplate.parse(parser));
         }
     }
 }

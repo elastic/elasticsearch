@@ -17,7 +17,14 @@ import java.io.IOException;
 /**
  * This vector is never instantiated. This class serves as a type holder for {@link ConstantNullBlock#asVector()}.
  */
-public final class ConstantNullVector extends AbstractVector implements BooleanVector, IntVector, LongVector, DoubleVector, BytesRefVector {
+public final class ConstantNullVector extends AbstractVector
+    implements
+        BooleanVector,
+        BytesRefVector,
+        DoubleVector,
+        FloatVector,
+        IntVector,
+        LongVector {
 
     private ConstantNullVector(int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
@@ -48,6 +55,12 @@ public final class ConstantNullVector extends AbstractVector implements BooleanV
     }
 
     @Override
+    public ConstantNullBlock keepMask(BooleanVector mask) {
+        assert false : "null vector";
+        throw new UnsupportedOperationException("null vector");
+    }
+
+    @Override
     public ReleasableIterator<ConstantNullBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
         assert false : "null vector";
         throw new UnsupportedOperationException("null vector");
@@ -61,6 +74,12 @@ public final class ConstantNullVector extends AbstractVector implements BooleanV
 
     @Override
     public BytesRef getBytesRef(int position, BytesRef dest) {
+        assert false : "null vector";
+        throw new UnsupportedOperationException("null vector");
+    }
+
+    @Override
+    public float getFloat(int position) {
         assert false : "null vector";
         throw new UnsupportedOperationException("null vector");
     }

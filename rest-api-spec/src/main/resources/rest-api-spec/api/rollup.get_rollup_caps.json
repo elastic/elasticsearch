@@ -24,7 +24,7 @@
           }
         },
         {
-          "path":"/_rollup/data/",
+          "path":"/_rollup/data",
           "methods":[
             "GET"
           ]

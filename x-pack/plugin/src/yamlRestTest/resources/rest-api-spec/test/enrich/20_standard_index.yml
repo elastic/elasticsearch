@@ -187,3 +187,61 @@ enrich documents over _bulk via an alias:
   - do:
       enrich.delete_policy:
         name: test_alias_policy
+
+---
+enrich stats REST response structure:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: GET
+          path: /_enrich/stats
+          capabilities:
+            - size-in-bytes
+      reason: "Capability required to run test"
+
+  - do:
+      ingest.simulate:
+        id: test_pipeline
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "enrich-cache-stats-index",
+                "_id": "1",
+                "_source": {"baz": "quick", "c": 1}
+              },
+              {
+                "_index": "enrich-cache-stats-index",
+                "_id": "2",
+                "_source": {"baz": "lazy", "c": 2}
+              },
+              {
+                "_index": "enrich-cache-stats-index",
+                "_id": "3",
+                "_source": {"baz": "slow", "c": 3}
+              }
+            ]
+          }
+  - length: { docs: 3 }
+
+  # This test's main purpose is to verify the REST response structure.
+  # So, rather than assessing specific values, we only assess the existence of fields.
+  - do:
+      enrich.stats: {}
+  - exists: executing_policies
+  - is_true: coordinator_stats
+  # We know there will be at least one node, but we don't want to be dependent on the exact number of nodes.
+  - is_true: coordinator_stats.0.node_id
+  - exists: coordinator_stats.0.queue_size
+  - exists: coordinator_stats.0.remote_requests_current
+  - exists: coordinator_stats.0.remote_requests_total
+  - exists: coordinator_stats.0.executed_searches_total
+  - is_true: cache_stats
+  - is_true: cache_stats.0.node_id
+  - exists: cache_stats.0.count
+  - exists: cache_stats.0.hits
+  - exists: cache_stats.0.misses
+  - exists: cache_stats.0.evictions
+  - exists: cache_stats.0.hits_time_in_millis
+  - exists: cache_stats.0.misses_time_in_millis
+  - exists: cache_stats.0.size_in_bytes

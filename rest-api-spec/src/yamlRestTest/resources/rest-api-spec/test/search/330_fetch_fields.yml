@@ -1125,3 +1125,55 @@ fetch geo_point:
   - match: { hits.hits.0.fields.root\.keyword.0: 'parent' }
   - match: { hits.hits.0.fields.root\.subfield.0: 'child' }
   - match: { hits.hits.0.fields.root\.subfield\.keyword.0: 'child' }
+
+---
+"Test with subobjects: auto":
+  - requires:
+      cluster_features: "mapper.subobjects_auto"
+      reason: requires support for subobjects auto setting
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            subobjects: auto
+            properties:
+              message:
+                type: object
+                subobjects: auto
+                enabled: false
+
+  - do:
+      index:
+        index: test
+        refresh: true
+        body: >
+          {
+            "root": "parent",
+            "root.subfield": "child",
+            "message": {
+              "foo": 10,
+              "foo.bar": 20
+            }
+          }
+  - match: {result: "created"}
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              root.subfield:
+                value: 'child'
+          fields:
+            - field: 'root*'
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields.root.0: 'parent' }
+  - match: { hits.hits.0.fields.root\.keyword.0: 'parent' }
+  - match: { hits.hits.0.fields.root\.subfield.0: 'child' }
+  - match: { hits.hits.0.fields.root\.subfield\.keyword.0: 'child' }
+  - is_false: hits.hits.0.fields.message
+  - match: { hits.hits.0._source.message.foo: 10 }
+  - match: { hits.hits.0._source.message.foo\.bar: 20 }

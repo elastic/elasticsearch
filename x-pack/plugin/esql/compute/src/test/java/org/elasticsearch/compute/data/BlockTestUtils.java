@@ -17,6 +17,7 @@ import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomDouble;
+import static org.elasticsearch.test.ESTestCase.randomFloat;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomLong;
 import static org.elasticsearch.test.ESTestCase.randomRealisticUnicodeOfCodepointLengthBetween;
@@ -31,6 +32,7 @@ public class BlockTestUtils {
         return switch (e) {
             case INT -> randomInt();
             case LONG -> randomLong();
+            case FLOAT -> randomFloat();
             case DOUBLE -> randomDouble();
             case BYTES_REF -> new BytesRef(randomRealisticUnicodeOfCodepointLengthBetween(0, 5));   // TODO: also test spatial WKB
             case BOOLEAN -> randomBoolean();
@@ -83,6 +85,26 @@ public class BlockTestUtils {
                         b.beginPositionEntry();
                         for (Object o : l) {
                             b.appendLong((Long) o);
+                        }
+                        b.endPositionEntry();
+                    }
+                }
+                return;
+            }
+        }
+        if (builder instanceof FloatBlock.Builder b) {
+            if (value instanceof Float v) {
+                b.appendFloat(v);
+                return;
+            }
+            if (value instanceof List<?> l) {
+                switch (l.size()) {
+                    case 0 -> b.appendNull();
+                    case 1 -> b.appendFloat((Float) l.get(0));
+                    default -> {
+                        b.beginPositionEntry();
+                        for (Object o : l) {
+                            b.appendFloat((Float) o);
                         }
                         b.endPositionEntry();
                     }

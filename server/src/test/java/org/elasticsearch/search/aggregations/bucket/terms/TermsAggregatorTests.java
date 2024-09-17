@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
@@ -326,6 +327,65 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 assertEquals("d", result.getBuckets().get(1).getKeyAsString());
                 assertEquals(2L, result.getBuckets().get(1).getDocCount());
             }, new AggTestConfig(aggregationBuilder, fieldType));
+        }
+    }
+
+    public void testStringShardZeroMinDocCount() throws IOException {
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("string", true, true, Collections.emptyMap());
+        for (TermsAggregatorFactory.ExecutionMode executionMode : TermsAggregatorFactory.ExecutionMode.values()) {
+            TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").field("string")
+                .executionHint(executionMode.toString())
+                .size(2)
+                .minDocCount(0)
+                .executionHint("map")
+                .excludeDeletedDocs(true)
+                .order(BucketOrder.key(true));
+
+            {
+                boolean delete = randomBoolean();
+                // force single shard/segment
+                testCase(iw -> {
+                    // force single shard/segment
+                    iw.addDocuments(Arrays.asList(doc(fieldType, "a"), doc(fieldType, "b"), doc(fieldType, "c"), doc(fieldType, "d")));
+                    if (delete) {
+                        iw.deleteDocuments(new TermQuery(new Term("string", "b")));
+                    }
+                }, (InternalTerms<?, ?> result) -> {
+                    assertEquals(2, result.getBuckets().size());
+                    assertEquals("a", result.getBuckets().get(0).getKeyAsString());
+                    assertEquals(0L, result.getBuckets().get(0).getDocCount());
+                    if (delete) {
+                        assertEquals("c", result.getBuckets().get(1).getKeyAsString());
+                    } else {
+                        assertEquals("b", result.getBuckets().get(1).getKeyAsString());
+                    }
+                    assertEquals(0L, result.getBuckets().get(1).getDocCount());
+                }, new AggTestConfig(aggregationBuilder, fieldType).withQuery(new TermQuery(new Term("string", "e"))));
+            }
+
+            {
+                boolean delete = randomBoolean();
+                // force single shard/segment
+                testCase(iw -> {
+                    // force single shard/segment
+                    iw.addDocuments(
+                        Arrays.asList(doc(fieldType, "a"), doc(fieldType, "c", "d"), doc(fieldType, "b", "d"), doc(fieldType, "b"))
+                    );
+                    if (delete) {
+                        iw.deleteDocuments(new TermQuery(new Term("string", "b")));
+                    }
+                }, (InternalTerms<?, ?> result) -> {
+                    assertEquals(2, result.getBuckets().size());
+                    assertEquals("a", result.getBuckets().get(0).getKeyAsString());
+                    assertEquals(0L, result.getBuckets().get(0).getDocCount());
+                    if (delete) {
+                        assertEquals("c", result.getBuckets().get(1).getKeyAsString());
+                    } else {
+                        assertEquals("b", result.getBuckets().get(1).getKeyAsString());
+                    }
+                    assertEquals(0L, result.getBuckets().get(1).getDocCount());
+                }, new AggTestConfig(aggregationBuilder, fieldType).withQuery(new TermQuery(new Term("string", "e"))));
+            }
         }
     }
 

@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -70,6 +69,7 @@ final class RequestXContent {
     private static final ParseField PARAMS_FIELD = new ParseField("params");
     private static final ParseField LOCALE_FIELD = new ParseField("locale");
     private static final ParseField PROFILE_FIELD = new ParseField("profile");
+    private static final ParseField ACCEPT_PRAGMA_RISKS = new ParseField("accept_pragma_risks");
     static final ParseField TABLES_FIELD = new ParseField("tables");
 
     static final ParseField WAIT_FOR_COMPLETION_TIMEOUT = new ParseField("wait_for_completion_timeout");
@@ -93,6 +93,7 @@ final class RequestXContent {
         parser.declareString(EsqlQueryRequest::query, QUERY_FIELD);
         parser.declareBoolean(EsqlQueryRequest::columnar, COLUMNAR_FIELD);
         parser.declareObject(EsqlQueryRequest::filter, (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p), FILTER_FIELD);
+        parser.declareBoolean(EsqlQueryRequest::acceptedPragmaRisks, ACCEPT_PRAGMA_RISKS);
         parser.declareObject(
             EsqlQueryRequest::pragmas,
             (p, c) -> new QueryPragmas(Settings.builder().loadFromMap(p.map()).build()),
@@ -154,22 +155,24 @@ final class RequestXContent {
                         );
                     }
                     for (Map.Entry<String, Object> entry : param.fields.entrySet()) {
-                        if (isValidParamName(entry.getKey()) == false) {
+                        String name = entry.getKey();
+                        if (isValidParamName(name) == false) {
                             errors.add(
                                 new XContentParseException(
                                     loc,
                                     "["
-                                        + entry.getKey()
+                                        + name
                                         + "] is not a valid parameter name, "
-                                        + "a valid parameter name starts with a letter and contains letters, digits and underscores only"
+                                        + "a valid parameter name starts with a letter or underscore, "
+                                        + "and contains letters, digits and underscores only"
                                 )
                             );
                         }
-                        type = EsqlDataTypes.fromJava(entry.getValue());
+                        type = DataType.fromJava(entry.getValue());
                         if (type == null) {
                             errors.add(new XContentParseException(loc, entry + " is not supported as a parameter"));
                         }
-                        currentParam = new QueryParam(entry.getKey(), entry.getValue(), type);
+                        currentParam = new QueryParam(name, entry.getValue(), type);
                         namedParams.add(currentParam);
                     }
                 } else {
@@ -202,6 +205,7 @@ final class RequestXContent {
                 }
             }
         }
+        // don't allow mixed named and unnamed parameters
         if (namedParams.isEmpty() == false && unNamedParams.isEmpty() == false) {
             errors.add(
                 new XContentParseException(

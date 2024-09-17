@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.util.List;
 import java.util.Random;
@@ -323,7 +322,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
     }
 
     private boolean shouldMapToDocValues(DataType dataType, MappedFieldType.FieldExtractPreference extractPreference) {
-        return extractPreference == DOC_VALUES && EsqlDataTypes.isSpatialPoint(dataType);
+        return extractPreference == DOC_VALUES && DataType.isSpatialPoint(dataType);
     }
 
     private static class TestBlockCopier {
@@ -373,8 +372,14 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
                     if (count == 0) {
                         builder.appendNull();
                     } else {
+                        if (count > 1) {
+                            builder.beginPositionEntry();
+                        }
                         for (int v = 0; v < count; v++) {
-                            builder.appendLong(encode(bytesRefBlock.getBytesRef(i, scratch)));
+                            builder.appendLong(encode(bytesRefBlock.getBytesRef(i + v, scratch)));
+                        }
+                        if (count > 1) {
+                            builder.endPositionEntry();
                         }
                     }
                 }

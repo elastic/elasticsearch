@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reservedstate.service;
@@ -94,7 +95,10 @@ public class RepositoriesFileSettingsIT extends ESIntegTestCase {
         }""";
 
     private void assertMasterNode(Client client, String node) throws ExecutionException, InterruptedException {
-        assertThat(client.admin().cluster().prepareState().execute().get().getState().nodes().getMasterNode().getName(), equalTo(node));
+        assertThat(
+            client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).execute().get().getState().nodes().getMasterNode().getName(),
+            equalTo(node)
+        );
     }
 
     private void writeJSONFile(String node, String json) throws Exception {
@@ -137,7 +141,7 @@ public class RepositoriesFileSettingsIT extends ESIntegTestCase {
 
         final var reposResponse = client().execute(
             GetRepositoriesAction.INSTANCE,
-            new GetRepositoriesRequest(new String[] { "repo", "repo1" })
+            new GetRepositoriesRequest(TEST_REQUEST_TIMEOUT, new String[] { "repo", "repo1" })
         ).get();
 
         assertThat(
@@ -204,7 +208,10 @@ public class RepositoriesFileSettingsIT extends ESIntegTestCase {
             "[err-repo] missing",
             expectThrows(
                 RepositoryMissingException.class,
-                client().execute(GetRepositoriesAction.INSTANCE, new GetRepositoriesRequest(new String[] { "err-repo" }))
+                client().execute(
+                    GetRepositoriesAction.INSTANCE,
+                    new GetRepositoriesRequest(TEST_REQUEST_TIMEOUT, new String[] { "err-repo" })
+                )
             ).getMessage()
         );
 
@@ -239,7 +246,7 @@ public class RepositoriesFileSettingsIT extends ESIntegTestCase {
             var bis = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
             var parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bis)
         ) {
-            return new PutRepositoryRequest(name).source(parser.map());
+            return new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, name).source(parser.map());
         }
     }
 }

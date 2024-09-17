@@ -74,6 +74,9 @@ public class DataStreamRestIT extends ESRestTestCase {
         indexRequest = new Request("POST", "/fs/_doc");
         indexRequest.setJsonEntity("{\"@timestamp\": \"2020-01-01\"}");
         client().performRequest(indexRequest);
+        // Initialize the failure store
+        rollover = new Request("POST", "/fs/_rollover?target_failure_store=true");
+        client().performRequest(rollover);
 
         dataStreams = (Map<?, ?>) getLocation("/_xpack/usage").get("data_streams");
         assertNotNull(dataStreams);

@@ -11,26 +11,25 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-public class RLikeTests extends AbstractFunctionTestCase {
+public class RLikeTests extends AbstractScalarFunctionTestCase {
     public RLikeTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -38,7 +37,7 @@ public class RLikeTests extends AbstractFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         return parameters(str -> {
-            for (String syntax : new String[] { "\\", ".", "?", "+", "*", "|", "{", "}", "[", "]", "(", ")", "\"", "<", ">", "#" }) {
+            for (String syntax : new String[] { "\\", ".", "?", "+", "*", "|", "{", "}", "[", "]", "(", ")", "\"", "<", ">", "#", "&" }) {
                 str = str.replace(syntax, "\\" + syntax);
             }
             return str;
@@ -73,7 +72,7 @@ public class RLikeTests extends AbstractFunctionTestCase {
             if (type == DataType.KEYWORD || type == DataType.TEXT || type == DataType.NULL) {
                 continue;
             }
-            if (EsqlDataTypes.isRepresentable(type) == false) {
+            if (DataType.isRepresentable(type) == false) {
                 continue;
             }
             cases.add(
@@ -140,22 +139,32 @@ public class RLikeTests extends AbstractFunctionTestCase {
                     equalTo(expected)
                 );
             }));
+            cases.add(new TestCaseSupplier(title + " with " + type.esType(), List.of(type, type), () -> {
+                TextAndPattern v = textAndPattern.get();
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(new BytesRef(v.text), type, "e"),
+                        new TestCaseSupplier.TypedData(new BytesRef(v.pattern), type, "pattern").forceLiteral()
+                    ),
+                    startsWith("AutomataMatchEvaluator[input=Attribute[channel=0], pattern=digraph Automaton {\n"),
+                    DataType.BOOLEAN,
+                    equalTo(expected)
+                );
+            }));
         }
-    }
-
-    @Override
-    protected void assertSimpleWithNulls(List<Object> data, Block value, int nullBlock) {
-        assumeFalse("generated test cases containing nulls by hand", true);
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
         Expression expression = args.get(0);
         Literal pattern = (Literal) args.get(1);
-        Literal caseInsensitive = (Literal) args.get(2);
+        Literal caseInsensitive = args.size() > 2 ? (Literal) args.get(2) : null;
         String patternString = ((BytesRef) pattern.fold()).utf8ToString();
-        boolean caseInsensitiveBool = (boolean) caseInsensitive.fold();
+        boolean caseInsensitiveBool = caseInsensitive != null ? (boolean) caseInsensitive.fold() : false;
         logger.info("pattern={} caseInsensitive={}", patternString, caseInsensitiveBool);
-        return new RLike(source, expression, new RLikePattern(patternString), caseInsensitiveBool);
+
+        return caseInsensitiveBool
+            ? new RLike(source, expression, new RLikePattern(patternString), true)
+            : new RLike(source, expression, new RLikePattern(patternString));
     }
 }

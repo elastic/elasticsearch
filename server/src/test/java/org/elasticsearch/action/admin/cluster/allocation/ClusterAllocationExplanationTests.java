@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.allocation;
@@ -149,7 +150,9 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
             allOf(
                 // no point in asserting the precise wording of the message into this test, but we care that the note contains these bits:
                 containsString("No shard was specified in the explain API request"),
-                containsString("specify the target shard in the request")
+                containsString("specify the target shard in the request"),
+                containsString("https://www.elastic.co/guide/en/elasticsearch/reference"),
+                containsString("cluster-allocation-explain.html")
             )
         );
 
@@ -165,8 +168,7 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
         DiscoveryNode node = assignedShard ? DiscoveryNodeUtils.builder("node-0").roles(emptySet()).build() : null;
         ShardAllocationDecision shardAllocationDecision;
         if (assignedShard) {
-            MoveDecision moveDecision = MoveDecision.cannotRebalance(Decision.YES, AllocationDecision.NO, 3, null)
-                .withRemainDecision(Decision.YES);
+            MoveDecision moveDecision = MoveDecision.rebalance(Decision.YES, Decision.YES, AllocationDecision.NO, null, 3, null);
             shardAllocationDecision = new ShardAllocationDecision(AllocateUnassignedDecision.NOT_TAKEN, moveDecision);
         } else {
             AllocateUnassignedDecision allocateDecision = AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.DECIDERS_NO, null);

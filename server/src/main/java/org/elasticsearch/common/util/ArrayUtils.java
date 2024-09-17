@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
@@ -69,6 +70,21 @@ public class ArrayUtils {
     }
 
     /**
+     * Copy the given element and array into a new array of size {@code array.length + 1}.
+     * @param added first element in the newly created array
+     * @param array array to copy to the end of new returned array copy
+     * @return copy that contains added element and array
+     * @param <T> type of the array elements
+     */
+    public static <T> T[] prepend(T added, T[] array) {
+        @SuppressWarnings("unchecked")
+        T[] updated = (T[]) Array.newInstance(array.getClass().getComponentType(), array.length + 1);
+        updated[0] = added;
+        System.arraycopy(array, 0, updated, 1, array.length);
+        return updated;
+    }
+
+    /**
      * Copy the given array and the added element into a new array of size {@code array.length + 1}.
      * @param array array to copy to the beginning of new returned array copy
      * @param added last element in the newly created array
@@ -76,9 +92,7 @@ public class ArrayUtils {
      * @param <T> type of the array elements
      */
     public static <T> T[] append(T[] array, T added) {
-        @SuppressWarnings("unchecked")
-        final T[] updated = (T[]) Array.newInstance(added.getClass(), array.length + 1);
-        System.arraycopy(array, 0, updated, 0, array.length);
+        T[] updated = Arrays.copyOf(array, array.length + 1);
         updated[array.length] = added;
         return updated;
     }

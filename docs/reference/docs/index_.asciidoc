@@ -211,7 +211,7 @@ creates a dynamic mapping. By default, new fields and objects are
 automatically added to the mapping if needed. For more information about field
 mapping, see <<mapping,mapping>> and the <<indices-put-mapping,update mapping>> API.
 
-Automatic index creation is controlled by the `action.auto_create_index`
+Automatic index creation is controlled by the <<index-management-settings,`action.auto_create_index`>>
 setting. This setting defaults to `true`, which allows any index to be created
 automatically. You can modify this setting to explicitly allow or block
 automatic creation of indices that match specified patterns, or set it to

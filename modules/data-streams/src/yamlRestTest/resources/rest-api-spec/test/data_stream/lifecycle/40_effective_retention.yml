@@ -1,0 +1,104 @@
+setup:
+  - requires:
+      cluster_features: [ "gte_v8.11.0" ]
+      reason: "Data stream lifecycle was released as tech preview in 8.11"
+      test_runner_features: allowed_warnings
+  - do:
+      allowed_warnings:
+        - "index template [template-with-lifecycle] has index patterns [managed-data-stream] matching patterns from existing older templates [global] with patterns (global => [*]); this template [template-with-lifecycle] will take precedence during new index creation"
+      indices.put_index_template:
+        name: template-with-lifecycle
+        body:
+          index_patterns: [ managed-data-stream ]
+          template:
+            settings:
+              index.number_of_replicas: 0
+            lifecycle:
+              data_retention: "30d"
+          data_stream: { }
+  - do:
+      indices.create_data_stream:
+        name: managed-data-stream
+---
+teardown:
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            data_streams.lifecycle.retention.max: null
+            data_streams.lifecycle.retention.default: null
+
+---
+"Retrieve effective retention via the data stream API":
+  - requires:
+      reason: "Effective retention was exposed in 8.16+"
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: GET
+          path: /_data_stream/{index}
+          capabilities: [ 'data_stream_lifecycle_effective_retention' ]
+  - do:
+      indices.get_data_stream:
+        name: "managed-data-stream"
+  - match: { data_streams.0.name: managed-data-stream }
+  - match: { data_streams.0.lifecycle.data_retention: '30d' }
+  - match: { data_streams.0.lifecycle.effective_retention: '30d'}
+  - match: { data_streams.0.lifecycle.retention_determined_by: 'data_stream_configuration'}
+
+---
+"Retrieve effective retention with explain":
+  - requires:
+      reason: "Effective retention was exposed in 8.16+"
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: GET
+          path: /{index}/_lifecycle/explain
+          capabilities: [ 'data_stream_lifecycle_effective_retention' ]
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            data_streams.lifecycle.retention.max: "7d"
+  - is_true: acknowledged
+  - do:
+      indices.get_data_stream:
+        name: "managed-data-stream"
+  - match: { data_streams.0.name: managed-data-stream }
+  - set:
+      data_streams.0.indices.0.index_name: backing_index
+
+  - do:
+      indices.explain_data_lifecycle:
+        index: managed-data-stream
+        include_defaults: true
+  - match: { indices.$backing_index.managed_by_lifecycle: true }
+  - match: { indices.$backing_index.lifecycle.data_retention: '30d' }
+  - match: { indices.$backing_index.lifecycle.effective_retention: '7d' }
+  - match: { indices.$backing_index.lifecycle.retention_determined_by: 'max_global_retention' }
+
+---
+"Retrieve effective retention with data stream lifecycle":
+  - requires:
+      reason: "Effective retention was exposed in 8.16+"
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: GET
+          path: /_data_stream/{index}/_lifecycle
+          capabilities: [ 'data_stream_lifecycle_effective_retention' ]
+  - do:
+      indices.put_data_lifecycle:
+        name: "managed-data-stream"
+        body: {}
+  - is_true: acknowledged
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            data_streams.lifecycle.retention.default: "7d"
+  - do:
+      indices.get_data_lifecycle:
+        name: "managed-data-stream"
+  - length: { data_streams: 1}
+  - match: { data_streams.0.name: managed-data-stream }
+  - match: { data_streams.0.lifecycle.effective_retention: '7d' }
+  - match: { data_streams.0.lifecycle.retention_determined_by: 'default_global_retention' }

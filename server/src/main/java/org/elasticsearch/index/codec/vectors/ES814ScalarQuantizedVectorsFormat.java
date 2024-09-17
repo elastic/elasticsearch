@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.codec.vectors;
@@ -35,14 +36,17 @@ import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.QuantizedVectorsReader;
 import org.apache.lucene.util.quantization.RandomAccessQuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
-import org.elasticsearch.vec.VectorScorerFactory;
-import org.elasticsearch.vec.VectorSimilarityType;
+import org.elasticsearch.simdvec.VectorScorerFactory;
+import org.elasticsearch.simdvec.VectorSimilarityType;
 
 import java.io.IOException;
+
+import static org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsFormat.DYNAMIC_CONFIDENCE_INTERVAL;
 
 public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
     static final String NAME = "ES814ScalarQuantizedVectorsFormat";
+    private static final int ALLOWED_BITS = (1 << 8) | (1 << 7) | (1 << 4);
 
     private static final FlatVectorsFormat rawVectorFormat = new Lucene99FlatVectorsFormat(DefaultFlatVectorScorer.INSTANCE);
 
@@ -59,8 +63,12 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
     public final Float confidenceInterval;
     final FlatVectorsScorer flatVectorScorer;
 
-    public ES814ScalarQuantizedVectorsFormat(Float confidenceInterval) {
+    private final byte bits;
+    private final boolean compress;
+
+    public ES814ScalarQuantizedVectorsFormat(Float confidenceInterval, int bits, boolean compress) {
         if (confidenceInterval != null
+            && confidenceInterval != DYNAMIC_CONFIDENCE_INTERVAL
             && (confidenceInterval < MINIMUM_CONFIDENCE_INTERVAL || confidenceInterval > MAXIMUM_CONFIDENCE_INTERVAL)) {
             throw new IllegalArgumentException(
                 "confidenceInterval must be between "
@@ -71,19 +79,44 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
                     + confidenceInterval
             );
         }
+        if (bits < 1 || bits > 8 || (ALLOWED_BITS & (1 << bits)) == 0) {
+            throw new IllegalArgumentException("bits must be one of: 4, 7, 8; bits=" + bits);
+        }
         this.confidenceInterval = confidenceInterval;
         this.flatVectorScorer = new ESFlatVectorsScorer(new ScalarQuantizedVectorScorer(DefaultFlatVectorScorer.INSTANCE));
+        this.bits = (byte) bits;
+        this.compress = compress;
     }
 
     @Override
     public String toString() {
-        return NAME + "(name=" + NAME + ", confidenceInterval=" + confidenceInterval + ", rawVectorFormat=" + rawVectorFormat + ")";
+        return NAME
+            + "(name="
+            + NAME
+            + ", confidenceInterval="
+            + confidenceInterval
+            + ", bits="
+            + bits
+            + ", compressed="
+            + compress
+            + ", flatVectorScorer="
+            + flatVectorScorer
+            + ", rawVectorFormat="
+            + rawVectorFormat
+            + ")";
     }
 
     @Override
     public FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
         return new ES814ScalarQuantizedVectorsWriter(
-            new Lucene99ScalarQuantizedVectorsWriter(state, confidenceInterval, rawVectorFormat.fieldsWriter(state), flatVectorScorer)
+            new Lucene99ScalarQuantizedVectorsWriter(
+                state,
+                confidenceInterval,
+                bits,
+                compress,
+                rawVectorFormat.fieldsWriter(state),
+                flatVectorScorer
+            )
         );
     }
 
@@ -205,9 +238,18 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         }
 
         @Override
+        public String toString() {
+            return "ESFlatVectorsScorer(" + "delegate=" + delegate + ", factory=" + factory + ')';
+        }
+
+        @Override
         public RandomVectorScorerSupplier getRandomVectorScorerSupplier(VectorSimilarityFunction sim, RandomAccessVectorValues values)
             throws IOException {
             if (values instanceof RandomAccessQuantizedByteVectorValues qValues && values.getSlice() != null) {
+                // TODO: optimize int4 quantization
+                if (qValues.getScalarQuantizer().getBits() != 7) {
+                    return delegate.getRandomVectorScorerSupplier(sim, values);
+                }
                 if (factory != null) {
                     var scorer = factory.getInt7SQVectorScorerSupplier(
                         VectorSimilarityType.of(sim),
@@ -227,6 +269,10 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         public RandomVectorScorer getRandomVectorScorer(VectorSimilarityFunction sim, RandomAccessVectorValues values, float[] query)
             throws IOException {
             if (values instanceof RandomAccessQuantizedByteVectorValues qValues && values.getSlice() != null) {
+                // TODO: optimize int4 quantization
+                if (qValues.getScalarQuantizer().getBits() != 7) {
+                    return delegate.getRandomVectorScorer(sim, values, query);
+                }
                 if (factory != null) {
                     var scorer = factory.getInt7SQVectorScorer(sim, qValues, query);
                     if (scorer.isPresent()) {

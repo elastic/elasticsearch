@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.bulk;
@@ -290,13 +291,13 @@ public class BulkRequestTests extends ESTestCase {
                 builder.endObject();
                 builder.endObject();
             }
-            out.write(xContentType.xContent().streamSeparator());
+            out.write(xContentType.xContent().bulkSeparator());
             try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType, out)) {
                 builder.startObject();
                 builder.field("field", "value");
                 builder.endObject();
             }
-            out.write(xContentType.xContent().streamSeparator());
+            out.write(xContentType.xContent().bulkSeparator());
             data = out.bytes();
         }
 
@@ -327,7 +328,7 @@ public class BulkRequestTests extends ESTestCase {
                 builder.endObject();
                 builder.endObject();
             }
-            out.write(xContentType.xContent().streamSeparator());
+            out.write(xContentType.xContent().bulkSeparator());
             try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType, out)) {
                 builder.startObject();
                 builder.startObject("doc").endObject();
@@ -338,7 +339,7 @@ public class BulkRequestTests extends ESTestCase {
                 builder.field("upsert", values);
                 builder.endObject();
             }
-            out.write(xContentType.xContent().streamSeparator());
+            out.write(xContentType.xContent().bulkSeparator());
             data = out.bytes();
         }
         BulkRequest bulkRequest = new BulkRequest();

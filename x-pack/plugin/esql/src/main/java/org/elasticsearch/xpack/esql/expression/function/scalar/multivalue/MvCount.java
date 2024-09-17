@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -18,8 +20,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
+import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
@@ -28,6 +30,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * Reduce a multivalued field to a single valued field containing the count of values.
  */
 public class MvCount extends AbstractMultivalueFunction {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvCount", MvCount::new);
+
     @FunctionInfo(
         returnType = "integer",
         description = "Converts a multivalued expression into a single valued column containing a count of the number of values.",
@@ -42,6 +46,7 @@ public class MvCount extends AbstractMultivalueFunction {
                 "cartesian_point",
                 "cartesian_shape",
                 "date",
+                "date_nanos",
                 "double",
                 "geo_point",
                 "geo_shape",
@@ -58,9 +63,18 @@ public class MvCount extends AbstractMultivalueFunction {
         super(source, v);
     }
 
+    private MvCount(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
     @Override
     protected TypeResolution resolveFieldType() {
-        return isType(field(), EsqlDataTypes::isRepresentable, sourceText(), null, "representable");
+        return isType(field(), DataType::isRepresentable, sourceText(), null, "representable");
     }
 
     @Override

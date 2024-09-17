@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -416,7 +417,7 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         // how the action works (it builds a kNN query under the hood)
         float[] queryVector = randomVector();
         assertResponse(
-            client().prepareSearch("index1", "index2").setQuery(new KnnVectorQueryBuilder("vector", queryVector, 5, null)).setSize(2),
+            client().prepareSearch("index1", "index2").setQuery(new KnnVectorQueryBuilder("vector", queryVector, null, 5, null)).setSize(2),
             response -> {
                 // The total hits is num_cands * num_shards, since the query gathers num_cands hits from each shard
                 assertHitCount(response, 5 * 2);

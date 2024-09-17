@@ -140,7 +140,7 @@ public abstract class LuceneOperator extends SourceOperator {
             logger.trace("Starting {}", partialLeaf);
             final LeafReaderContext leaf = partialLeaf.leafReaderContext();
             if (currentScorer == null || currentScorer.leafReaderContext() != leaf) {
-                final Weight weight = currentSlice.weight().get();
+                final Weight weight = currentSlice.weight();
                 processedQueries.add(weight.getQuery());
                 currentScorer = new LuceneScorer(currentSlice.shardContext(), weight, leaf);
             }
@@ -309,7 +309,7 @@ public abstract class LuceneOperator extends SourceOperator {
                 processedQueries = Collections.emptySet();
                 processedShards = Collections.emptySet();
             }
-            processingNanos = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_TIMINGS) ? in.readVLong() : 0;
+            processingNanos = in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readVLong() : 0;
             sliceIndex = in.readVInt();
             totalSlices = in.readVInt();
             pagesEmitted = in.readVInt();
@@ -325,7 +325,7 @@ public abstract class LuceneOperator extends SourceOperator {
                 out.writeCollection(processedQueries, StreamOutput::writeString);
                 out.writeCollection(processedShards, StreamOutput::writeString);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_TIMINGS)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
                 out.writeVLong(processingNanos);
             }
             out.writeVInt(sliceIndex);

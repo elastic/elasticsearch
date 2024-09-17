@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.upgrades;
@@ -920,9 +921,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         final String indexName = "test_empty_shard";
 
         if (isRunningAgainstOldCluster()) {
-            Settings.Builder settings = Settings.builder()
-                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+            Settings.Builder settings = indexSettings(1, 1)
                 // if the node with the replica is the first to be restarted, while a replica is still recovering
                 // then delayed allocation will kick in. When the node comes back, the master will search for a copy
                 // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
@@ -1522,14 +1521,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
      */
     public void testTurnOffTranslogRetentionAfterUpgraded() throws Exception {
         if (isRunningAgainstOldCluster()) {
-            createIndex(
-                index,
-                Settings.builder()
-                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
-                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-                    .build()
-            );
+            createIndex(index, indexSettings(1, 1).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build());
             ensureGreen(index);
             int numDocs = randomIntBetween(10, 100);
             for (int i = 0; i < numDocs; i++) {
@@ -1549,9 +1541,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     public void testResize() throws Exception {
         int numDocs;
         if (isRunningAgainstOldCluster()) {
-            final Settings.Builder settings = Settings.builder()
-                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 3)
-                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1);
+            final Settings.Builder settings = indexSettings(3, 1);
             if (minimumIndexVersion().before(IndexVersions.V_8_0_0) && randomBoolean()) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false);
             }

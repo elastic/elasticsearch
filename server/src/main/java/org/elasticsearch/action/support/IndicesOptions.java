@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.support;
 
@@ -958,7 +959,7 @@ public record IndicesOptions(
         if (ignoreUnavailable()) {
             backwardsCompatibleOptions.add(Option.ALLOW_UNAVAILABLE_CONCRETE_TARGETS);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ADD_FAILURE_STORE_INDICES_OPTIONS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             if (allowFailureIndices()) {
                 backwardsCompatibleOptions.add(Option.ALLOW_FAILURE_INDICES);
             }
@@ -976,7 +977,7 @@ public record IndicesOptions(
             states.add(WildcardStates.HIDDEN);
         }
         out.writeEnumSet(states);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ADD_FAILURE_STORE_INDICES_OPTIONS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             failureStoreOptions.writeTo(out);
         }
     }
@@ -989,7 +990,7 @@ public record IndicesOptions(
             options.contains(Option.EXCLUDE_ALIASES)
         );
         boolean allowFailureIndices = true;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ADD_FAILURE_STORE_INDICES_OPTIONS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             allowFailureIndices = options.contains(Option.ALLOW_FAILURE_INDICES);
         }
         GatekeeperOptions gatekeeperOptions = GatekeeperOptions.builder()
@@ -998,7 +999,7 @@ public record IndicesOptions(
             .allowFailureIndices(allowFailureIndices)
             .ignoreThrottled(options.contains(Option.IGNORE_THROTTLED))
             .build();
-        FailureStoreOptions failureStoreOptions = in.getTransportVersion().onOrAfter(TransportVersions.ADD_FAILURE_STORE_INDICES_OPTIONS)
+        FailureStoreOptions failureStoreOptions = in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)
             ? FailureStoreOptions.read(in)
             : FailureStoreOptions.DEFAULT;
         return new IndicesOptions(

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.master;
@@ -240,13 +241,20 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                     if (nodes.getMasterNode() == null) {
                         logger.debug("no known master node, scheduling a retry");
                         retryOnNextState(currentStateVersion, null);
+                    } else if (clusterState.term() < request.masterTerm()) {
+                        logger.debug(
+                            "request routed to master in term [{}] but local term is [{}], waiting for local term bump",
+                            request.masterTerm(),
+                            clusterState.term()
+                        );
+                        retry(currentStateVersion, null, cs -> request.masterTerm() <= cs.term());
                     } else {
                         DiscoveryNode masterNode = nodes.getMasterNode();
                         logger.trace("forwarding request [{}] to master [{}]", actionName, masterNode);
                         transportService.sendRequest(
                             masterNode,
                             actionName,
-                            request,
+                            new TermOverridingMasterNodeRequest(request, clusterState.term()),
                             new ActionListenerResponseHandler<>(listener, responseReader, executor) {
                                 @Override
                                 public void handleException(final TransportException exp) {

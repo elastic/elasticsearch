@@ -55,8 +55,7 @@ public class RestPutRoleAction extends NativeRoleBaseRestHandler {
 
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
-        final boolean restrictRequest = request.hasParam(RestRequest.PATH_RESTRICTED);
-        final PutRoleRequestBuilder requestBuilder = builderFactory.create(client, restrictRequest)
+        final PutRoleRequestBuilder requestBuilder = builderFactory.create(client)
             .source(request.param("name"), request.requiredContent(), request.getXContentType())
             .setRefreshPolicy(request.param("refresh"));
         return channel -> requestBuilder.execute(new RestBuilderListener<>(channel) {

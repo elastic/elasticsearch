@@ -47,6 +47,19 @@ abstract class AbstractArrayBlock extends AbstractNonThreadSafeRefCounted implem
     }
 
     @Override
+    public boolean doesHaveMultivaluedFields() {
+        if (false == mayHaveMultivaluedFields()) {
+            return false;
+        }
+        for (int p = 0; p < getPositionCount(); p++) {
+            if (getValueCount(p) > 1) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
     public final MvOrdering mvOrdering() {
         return mvOrdering;
     }
@@ -64,7 +77,7 @@ abstract class AbstractArrayBlock extends AbstractNonThreadSafeRefCounted implem
         if (firstValueIndexes != null) {
             assert firstValueIndexes.length >= getPositionCount() + 1 : firstValueIndexes.length + " < " + positionCount;
             for (int i = 0; i < getPositionCount(); i++) {
-                assert firstValueIndexes[i + 1] >= firstValueIndexes[i] : firstValueIndexes[i + 1] + " < " + firstValueIndexes[i];
+                assert firstValueIndexes[i + 1] > firstValueIndexes[i] : firstValueIndexes[i + 1] + " <= " + firstValueIndexes[i];
             }
         }
         if (nullsMask != null) {

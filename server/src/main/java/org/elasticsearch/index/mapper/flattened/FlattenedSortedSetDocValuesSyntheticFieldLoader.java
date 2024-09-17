@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.flattened;
@@ -12,31 +13,38 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.mapper.SortedSetDocValuesSyntheticFieldLoader;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class FlattenedSortedSetDocValuesSyntheticFieldLoader extends SortedSetDocValuesSyntheticFieldLoader {
+public class FlattenedSortedSetDocValuesSyntheticFieldLoader extends SourceLoader.DocValuesBasedSyntheticFieldLoader {
     private DocValuesFieldValues docValues = NO_VALUES;
-    private final String name;
-    private final String simpleName;
+    private final String fieldFullPath;
+    private final String keyedFieldFullPath;
+    private final String leafName;
 
     /**
      * Build a loader for flattened fields from doc values.
      *
-     * @param name                      the name of the field to load from doc values
-     * @param simpleName                the name to give the field in the rendered {@code _source}
+     * @param fieldFullPath           full path to the original field
+     * @param keyedFieldFullPath      full path to the keyed field to load doc values from
+     * @param leafName                the name of the leaf field to use in the rendered {@code _source}
      */
-    public FlattenedSortedSetDocValuesSyntheticFieldLoader(String name, String simpleName) {
-        super(name, simpleName, null, false);
-        this.name = name;
-        this.simpleName = simpleName;
+    public FlattenedSortedSetDocValuesSyntheticFieldLoader(String fieldFullPath, String keyedFieldFullPath, String leafName) {
+        this.fieldFullPath = fieldFullPath;
+        this.keyedFieldFullPath = keyedFieldFullPath;
+        this.leafName = leafName;
+    }
+
+    @Override
+    public String fieldName() {
+        return fieldFullPath;
     }
 
     @Override
     public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) throws IOException {
-        final SortedSetDocValues dv = DocValues.getSortedSet(reader, name);
+        final SortedSetDocValues dv = DocValues.getSortedSet(reader, keyedFieldFullPath);
         if (dv.getValueCount() == 0) {
             docValues = NO_VALUES;
             return null;
@@ -56,19 +64,9 @@ public class FlattenedSortedSetDocValuesSyntheticFieldLoader extends SortedSetDo
         if (docValues.count() == 0) {
             return;
         }
-        b.startObject(simpleName);
+        b.startObject(leafName);
         docValues.write(b);
         b.endObject();
-    }
-
-    @Override
-    protected BytesRef convert(BytesRef value) {
-        return value;
-    }
-
-    @Override
-    protected BytesRef preserve(BytesRef value) {
-        return BytesRef.deepCopyOf(value);
     }
 
     private interface DocValuesFieldValues {

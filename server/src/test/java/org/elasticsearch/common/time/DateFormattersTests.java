@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.time;
@@ -50,14 +51,17 @@ public class DateFormattersTests extends ESTestCase {
     }
 
     private void assertParseException(String input, String format, int errorIndex) {
-        assertParseException(input, format, equalTo(errorIndex));
+        assertParseException(input, DateFormatter.forPattern(format), equalTo(errorIndex));
     }
 
-    private void assertParseException(String input, String format, Matcher<Integer> indexMatcher) {
-        DateFormatter javaTimeFormatter = DateFormatter.forPattern(format);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> javaTimeFormatter.parse(input));
+    private void assertParseException(String input, DateFormatter formatter, int errorIndex) {
+        assertParseException(input, formatter, equalTo(errorIndex));
+    }
+
+    private void assertParseException(String input, DateFormatter formatter, Matcher<Integer> indexMatcher) {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> formatter.parse(input));
         assertThat(e.getMessage(), containsString(input));
-        assertThat(e.getMessage(), containsString(format));
+        assertThat(e.getMessage(), containsString(formatter.pattern()));
         assertThat(e.getCause(), instanceOf(DateTimeParseException.class));
         assertThat(((DateTimeParseException) e.getCause()).getErrorIndex(), indexMatcher);
     }
@@ -692,6 +696,23 @@ public class DateFormattersTests extends ESTestCase {
         assertThat(javaFormatted, equalTo("-292275055-05-16T16:47:04.192Z"));
     }
 
+    public void testMinNanos() {
+        String javaFormatted = DateFormatter.forPattern("strict_date_optional_time").formatNanos(Long.MIN_VALUE);
+        assertThat(javaFormatted, equalTo("1677-09-21T00:12:43.145Z"));
+
+        // Note - since this is a negative value, the nanoseconds are being subtracted, which is why we get this value.
+        javaFormatted = DateFormatter.forPattern("strict_date_optional_time_nanos").formatNanos(Long.MIN_VALUE);
+        assertThat(javaFormatted, equalTo("1677-09-21T00:12:43.145224192Z"));
+    }
+
+    public void testMaxNanos() {
+        String javaFormatted = DateFormatter.forPattern("strict_date_optional_time").formatNanos(Long.MAX_VALUE);
+        assertThat(javaFormatted, equalTo("2262-04-11T23:47:16.854Z"));
+
+        javaFormatted = DateFormatter.forPattern("strict_date_optional_time_nanos").formatNanos(Long.MAX_VALUE);
+        assertThat(javaFormatted, equalTo("2262-04-11T23:47:16.854775807Z"));
+    }
+
     public void testYearParsing() {
         // this one is considered a year
         assertParses("1234", "strict_date_optional_time||epoch_millis");
@@ -811,6 +832,20 @@ public class DateFormattersTests extends ESTestCase {
         assertParseException("2001-01-01T00:00:00.123,456Z", "date_optional_time", 23);
         // This should fail, but java is ok with this because the field has the same value
         // assertJavaTimeParseException("2001-01-01T00:00:00.123,123Z", "strict_date_optional_time_nanos");
+
+        // for historical reasons,
+        // despite the use of a locale with , separator these formatters still expect only . decimals
+        DateFormatter formatter = DateFormatter.forPattern("strict_date_time").withLocale(Locale.FRANCE);
+        assertParses("2020-01-01T12:00:00.0Z", formatter);
+        assertParseException("2020-01-01T12:00:00,0Z", formatter, 19);
+
+        formatter = DateFormatter.forPattern("strict_date_hour_minute_second_fraction").withLocale(Locale.GERMANY);
+        assertParses("2020-01-01T12:00:00.0", formatter);
+        assertParseException("2020-01-01T12:00:00,0", formatter, 19);
+
+        formatter = DateFormatter.forPattern("strict_date_hour_minute_second_millis").withLocale(Locale.ITALY);
+        assertParses("2020-01-01T12:00:00.0", formatter);
+        assertParseException("2020-01-01T12:00:00,0", formatter, 19);
     }
 
     public void testTimeZoneFormatting() {
@@ -846,11 +881,11 @@ public class DateFormattersTests extends ESTestCase {
 
     public void testCustomLocales() {
         // also ensure that locale based dates are the same
-        DateFormatter formatter = DateFormatter.forPattern("E, d MMM yyyy HH:mm:ss Z").withLocale(LocaleUtils.parse("de"));
-        assertParses("Di, 05 Dez 2000 02:55:00 -0800", formatter);
-        assertParses("Mi, 06 Dez 2000 02:55:00 -0800", formatter);
-        assertParses("Do, 07 Dez 2000 00:00:00 -0800", formatter);
-        assertParses("Fr, 08 Dez 2000 00:00:00 -0800", formatter);
+        DateFormatter formatter = DateFormatter.forPattern("E, d MMM yyyy HH:mm:ss Z").withLocale(LocaleUtils.parse("fr"));
+        assertParses("mar., 5 déc. 2000 02:55:00 -0800", formatter);
+        assertParses("mer., 6 déc. 2000 02:55:00 -0800", formatter);
+        assertParses("jeu., 7 déc. 2000 00:00:00 -0800", formatter);
+        assertParses("ven., 8 déc. 2000 00:00:00 -0800", formatter);
     }
 
     public void testFormatsValidParsing() {

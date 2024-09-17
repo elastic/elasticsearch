@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.rollover;
@@ -267,17 +268,6 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         assertThat(
             exception.getMessage(),
             equalTo("aliases, mappings, and index settings may not be specified when rolling over a data stream")
-        );
-
-        exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> MetadataRolloverService.validate(metadata, randomDataStream.getName(), null, req, true)
-        );
-        assertThat(
-            exception.getMessage(),
-            equalTo(
-                "unable to roll over failure store because [" + randomDataStream.getName() + "] does not have the failure store enabled"
-            )
         );
     }
 

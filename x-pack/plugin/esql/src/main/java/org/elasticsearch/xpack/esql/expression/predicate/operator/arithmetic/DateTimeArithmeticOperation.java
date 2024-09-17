@@ -7,14 +7,15 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.ExceptionUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.time.Period;
 import java.time.temporal.TemporalAmount;
@@ -25,9 +26,9 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTimeOrTemporal;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isNull;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isDateTimeOrTemporal;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isTemporalAmount;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
 
 public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
     /** Arithmetic (quad) function. */
@@ -52,11 +53,24 @@ public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperatio
         this.datetimes = datetimes;
     }
 
+    DateTimeArithmeticOperation(
+        StreamInput in,
+        OperationSymbol op,
+        BinaryEvaluator ints,
+        BinaryEvaluator longs,
+        BinaryEvaluator ulongs,
+        BinaryEvaluator doubles,
+        DatetimeArithmeticEvaluator datetimes
+    ) throws IOException {
+        super(in, op, ints, longs, ulongs, doubles);
+        this.datetimes = datetimes;
+    }
+
     @Override
     protected TypeResolution resolveInputType(Expression e, TypeResolutions.ParamOrdinal paramOrdinal) {
         return TypeResolutions.isType(
             e,
-            t -> t.isNumeric() || EsqlDataTypes.isDateTimeOrTemporal(t) || DataType.isNull(t),
+            t -> t.isNumeric() || DataType.isDateTimeOrTemporal(t) || DataType.isNull(t),
             sourceText(),
             paramOrdinal,
             "datetime",

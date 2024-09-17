@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.bulk;
@@ -264,7 +265,7 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
         id = in.readVInt();
         opType = OpType.fromId(in.readByte());
         response = readResponse(shardId, in);
-        failure = in.readBoolean() ? new Failure(in) : null;
+        failure = in.readOptionalWriteable(Failure::new);
         assertConsistent();
     }
 
@@ -272,7 +273,7 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
         id = in.readVInt();
         opType = OpType.fromId(in.readByte());
         response = readResponse(in);
-        failure = in.readBoolean() ? new Failure(in) : null;
+        failure = in.readOptionalWriteable(Failure::new);
         assertConsistent();
     }
 
@@ -384,31 +385,21 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
             writeResponseType(out);
             response.writeTo(out);
         }
-        if (failure == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            failure.writeTo(out);
-        }
+        out.writeOptionalWriteable(failure);
     }
 
-    public void writeThin(StreamOutput out) throws IOException {
-        out.writeVInt(id);
-        out.writeByte(opType.getId());
+    public static final Writer<BulkItemResponse> THIN_WRITER = (out, item) -> {
+        out.writeVInt(item.id);
+        out.writeByte(item.opType.getId());
 
-        if (response == null) {
+        if (item.response == null) {
             out.writeByte((byte) 2);
         } else {
-            writeResponseType(out);
-            response.writeThin(out);
+            item.writeResponseType(out);
+            item.response.writeThin(out);
         }
-        if (failure == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            failure.writeTo(out);
-        }
-    }
+        out.writeOptionalWriteable(item.failure);
+    };
 
     private void writeResponseType(StreamOutput out) throws IOException {
         if (response instanceof SimulateIndexResponse) {

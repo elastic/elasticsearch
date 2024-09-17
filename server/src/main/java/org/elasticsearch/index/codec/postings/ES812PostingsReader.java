@@ -874,10 +874,6 @@ final class ES812PostingsReader extends PostingsReaderBase {
         private void skipPositions() throws IOException {
             // Skip positions now:
             int toSkip = posPendingCount - freq;
-            // if (DEBUG) {
-            // System.out.println(" FPR.skipPositions: toSkip=" + toSkip);
-            // }
-
             final int leftInBlock = BLOCK_SIZE - posBufferUpto;
             if (toSkip < leftInBlock) {
                 int end = posBufferUpto + toSkip;
@@ -1010,7 +1006,7 @@ final class ES812PostingsReader extends PostingsReaderBase {
 
         final boolean indexHasFreqs;
 
-        private int docFreq; // number of docs in this posting list
+        private final int docFreq; // number of docs in this posting list
         private int blockUpto; // number of documents in or before the current block
         private int doc; // doc we last read
         private long accum; // accumulator for doc deltas
@@ -1211,8 +1207,8 @@ final class ES812PostingsReader extends PostingsReaderBase {
         final boolean indexHasOffsets;
         final boolean indexHasPayloads;
 
-        private int docFreq; // number of docs in this posting list
-        private long totalTermFreq; // number of positions in this posting list
+        private final int docFreq; // number of docs in this posting list
+        private final long totalTermFreq; // number of positions in this posting list
         private int docUpto; // how many docs we've read
         private int doc; // doc we last read
         private long accum; // accumulator for doc deltas
@@ -1228,19 +1224,19 @@ final class ES812PostingsReader extends PostingsReaderBase {
         private long posPendingFP;
 
         // Where this term's postings start in the .doc file:
-        private long docTermStartFP;
+        private final long docTermStartFP;
 
         // Where this term's postings start in the .pos file:
-        private long posTermStartFP;
+        private final long posTermStartFP;
 
         // Where this term's payloads/offsets start in the .pay
         // file:
-        private long payTermStartFP;
+        private final long payTermStartFP;
 
         // File pointer where the last (vInt encoded) pos delta
         // block is. We need this to know whether to bulk
         // decode vs vInt decode the block:
-        private long lastPosBlockFP;
+        private final long lastPosBlockFP;
 
         private int nextSkipDoc = -1;
 
@@ -1507,8 +1503,8 @@ final class ES812PostingsReader extends PostingsReaderBase {
         final boolean indexHasOffsets;
         final boolean indexHasPayloads;
 
-        private int docFreq; // number of docs in this posting list
-        private long totalTermFreq; // number of positions in this posting list
+        private final int docFreq; // number of docs in this posting list
+        private final long totalTermFreq; // number of positions in this posting list
         private int docUpto; // how many docs we've read
         private int posDocUpTo; // for how many docs we've read positions, offsets, and payloads
         private int doc; // doc we last read
@@ -1528,19 +1524,19 @@ final class ES812PostingsReader extends PostingsReaderBase {
         private long payPendingFP;
 
         // Where this term's postings start in the .doc file:
-        private long docTermStartFP;
+        private final long docTermStartFP;
 
         // Where this term's postings start in the .pos file:
-        private long posTermStartFP;
+        private final long posTermStartFP;
 
         // Where this term's payloads/offsets start in the .pay
         // file:
-        private long payTermStartFP;
+        private final long payTermStartFP;
 
         // File pointer where the last (vInt encoded) pos delta
         // block is. We need this to know whether to bulk
         // decode vs vInt decode the block:
-        private long lastPosBlockFP;
+        private final long lastPosBlockFP;
 
         private int nextSkipDoc = -1;
 
@@ -1835,10 +1831,6 @@ final class ES812PostingsReader extends PostingsReaderBase {
         private void skipPositions() throws IOException {
             // Skip positions now:
             int toSkip = posPendingCount - (int) freqBuffer[docBufferUpto - 1];
-            // if (DEBUG) {
-            // System.out.println(" FPR.skipPositions: toSkip=" + toSkip);
-            // }
-
             final int leftInBlock = BLOCK_SIZE - posBufferUpto;
             if (toSkip < leftInBlock) {
                 int end = posBufferUpto + toSkip;

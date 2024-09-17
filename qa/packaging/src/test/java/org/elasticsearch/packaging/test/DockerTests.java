@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.packaging.test;
@@ -1231,8 +1232,7 @@ public class DockerTests extends PackagingTestCase {
         assertBusy(() -> assertTrue(readinessProbe(9399)));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99508")
-    public void test600Interrupt() {
+    public void test600Interrupt() throws Exception {
         waitForElasticsearch(installation, "elastic", PASSWORD);
         final Result containerLogs = getContainerLogs();
 
@@ -1242,10 +1242,12 @@ public class DockerTests extends PackagingTestCase {
         final int maxPid = infos.stream().map(i -> i.pid()).max(Integer::compareTo).get();
 
         sh.run("bash -c 'kill -int " + maxPid + "'"); // send ctrl+c to all java processes
-        final Result containerLogsAfter = getContainerLogs();
 
-        assertThat("Container logs should contain stopping ...", containerLogsAfter.stdout(), containsString("stopping ..."));
-        assertThat("No errors stdout", containerLogsAfter.stdout(), not(containsString("java.security.AccessControlException:")));
-        assertThat("No errors stderr", containerLogsAfter.stderr(), not(containsString("java.security.AccessControlException:")));
+        assertBusy(() -> {
+            final Result containerLogsAfter = getContainerLogs();
+            assertThat("Container logs should contain stopping ...", containerLogsAfter.stdout(), containsString("stopping ..."));
+            assertThat("No errors stdout", containerLogsAfter.stdout(), not(containsString("java.security.AccessControlException:")));
+            assertThat("No errors stderr", containerLogsAfter.stderr(), not(containsString("java.security.AccessControlException:")));
+        });
     }
 }

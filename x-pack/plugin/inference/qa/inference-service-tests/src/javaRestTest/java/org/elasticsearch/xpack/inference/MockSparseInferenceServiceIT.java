@@ -24,7 +24,7 @@ public class MockSparseInferenceServiceIT extends InferenceBaseRestTest {
         var model = getModels(inferenceEntityId, TaskType.SPARSE_EMBEDDING).get(0);
 
         for (var modelMap : List.of(putModel, model)) {
-            assertEquals(inferenceEntityId, modelMap.get("model_id"));
+            assertEquals(inferenceEntityId, modelMap.get("inference_id"));
             assertEquals(TaskType.SPARSE_EMBEDDING, TaskType.fromString((String) modelMap.get("task_type")));
             assertEquals("test_service", modelMap.get("service"));
         }
@@ -77,7 +77,7 @@ public class MockSparseInferenceServiceIT extends InferenceBaseRestTest {
         var model = getModels(inferenceEntityId, TaskType.SPARSE_EMBEDDING).get(0);
 
         for (var modelMap : List.of(putModel, model)) {
-            assertEquals(inferenceEntityId, modelMap.get("model_id"));
+            assertEquals(inferenceEntityId, modelMap.get("inference_id"));
             assertThat(modelMap.get("service_settings"), is(Map.of("model", "my_model")));
             assertEquals(TaskType.SPARSE_EMBEDDING, TaskType.fromString((String) modelMap.get("task_type")));
             assertEquals("test_service", modelMap.get("service"));
@@ -95,7 +95,7 @@ public class MockSparseInferenceServiceIT extends InferenceBaseRestTest {
         var model = getModels(inferenceEntityId, TaskType.SPARSE_EMBEDDING).get(0);
 
         for (var modelMap : List.of(putModel, model)) {
-            assertEquals(inferenceEntityId, modelMap.get("model_id"));
+            assertEquals(inferenceEntityId, modelMap.get("inference_id"));
             assertThat(modelMap.get("service_settings"), is(Map.of("model", "my_model", "hidden_field", "my_hidden_value")));
             assertEquals(TaskType.SPARSE_EMBEDDING, TaskType.fromString((String) modelMap.get("task_type")));
             assertEquals("test_service", modelMap.get("service"));

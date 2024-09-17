@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.nativeaccess.jdk;
 
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.nativeaccess.lib.LoaderHelper;
 import org.elasticsearch.nativeaccess.lib.VectorLibrary;
 
 import java.lang.foreign.FunctionDescriptor;
@@ -23,17 +25,45 @@ import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
 
 public final class JdkVectorLibrary implements VectorLibrary {
 
+    static final MethodHandle dot7u$mh;
+    static final MethodHandle sqr7u$mh;
+
     static final VectorSimilarityFunctions INSTANCE;
 
     static {
-        System.loadLibrary("vec");
+        LoaderHelper.loadLibrary("vec");
         final MethodHandle vecCaps$mh = downcallHandle("vec_caps", FunctionDescriptor.of(JAVA_INT));
 
         try {
             int caps = (int) vecCaps$mh.invokeExact();
             if (caps != 0) {
+                if (caps == 2) {
+                    dot7u$mh = downcallHandle(
+                        "dot7u_2",
+                        FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT),
+                        LinkerHelperUtil.critical()
+                    );
+                    sqr7u$mh = downcallHandle(
+                        "sqr7u_2",
+                        FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT),
+                        LinkerHelperUtil.critical()
+                    );
+                } else {
+                    dot7u$mh = downcallHandle(
+                        "dot7u",
+                        FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT),
+                        LinkerHelperUtil.critical()
+                    );
+                    sqr7u$mh = downcallHandle(
+                        "sqr7u",
+                        FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT),
+                        LinkerHelperUtil.critical()
+                    );
+                }
                 INSTANCE = new JdkVectorSimilarityFunctions();
             } else {
+                dot7u$mh = null;
+                sqr7u$mh = null;
                 INSTANCE = null;
             }
         } catch (Throwable t) {
@@ -49,18 +79,6 @@ public final class JdkVectorLibrary implements VectorLibrary {
     }
 
     private static final class JdkVectorSimilarityFunctions implements VectorSimilarityFunctions {
-
-        static final MethodHandle dot7u$mh = downcallHandle(
-            "dot7u",
-            FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT),
-            LinkerHelperUtil.critical()
-        );
-        static final MethodHandle sqr7u$mh = downcallHandle(
-            "sqr7u",
-            FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT),
-            LinkerHelperUtil.critical()
-        );
-
         /**
          * Computes the dot product of given unsigned int7 byte vectors.
          *
@@ -103,7 +121,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
 
         private static int dot7u(MemorySegment a, MemorySegment b, int length) {
             try {
-                return (int) dot7u$mh.invokeExact(a, b, length);
+                return (int) JdkVectorLibrary.dot7u$mh.invokeExact(a, b, length);
             } catch (Throwable t) {
                 throw new AssertionError(t);
             }
@@ -111,7 +129,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
 
         private static int sqr7u(MemorySegment a, MemorySegment b, int length) {
             try {
-                return (int) sqr7u$mh.invokeExact(a, b, length);
+                return (int) JdkVectorLibrary.sqr7u$mh.invokeExact(a, b, length);
             } catch (Throwable t) {
                 throw new AssertionError(t);
             }

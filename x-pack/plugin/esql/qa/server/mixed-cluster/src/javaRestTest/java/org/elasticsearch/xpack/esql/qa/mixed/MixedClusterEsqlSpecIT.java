@@ -11,7 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.TestFeatureService;
-import org.elasticsearch.xpack.esql.core.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -56,14 +56,22 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
         oldClusterTestFeatureService = null;
     }
 
-    public MixedClusterEsqlSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase, Mode mode) {
-        super(fileName, groupName, testName, lineNumber, testCase, mode);
+    public MixedClusterEsqlSpecIT(
+        String fileName,
+        String groupName,
+        String testName,
+        Integer lineNumber,
+        CsvTestCase testCase,
+        String instructions,
+        Mode mode
+    ) {
+        super(fileName, groupName, testName, lineNumber, testCase, instructions, mode);
     }
 
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
         super.shouldSkipTest(testName);
-        assumeTrue("Test " + testName + " is skipped on " + bwcVersion, isEnabled(testName, bwcVersion));
+        assumeTrue("Test " + testName + " is skipped on " + bwcVersion, isEnabled(testName, instructions, bwcVersion));
         if (mode == ASYNC) {
             assumeTrue("Async is not supported on " + bwcVersion, supportsAsync());
         }
@@ -72,5 +80,10 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     @Override
     protected boolean supportsAsync() {
         return oldClusterHasFeature(ASYNC_QUERY_FEATURE_ID);
+    }
+
+    @Override
+    protected boolean enableRoundingDoubleValuesOnAsserting() {
+        return true;
     }
 }

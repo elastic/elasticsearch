@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
@@ -17,6 +18,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
@@ -518,7 +520,19 @@ public class TransportService extends AbstractLifecycleComponent
             handshake(newConnection, actualProfile.getHandshakeTimeout(), Predicates.always(), listener.map(resp -> {
                 final DiscoveryNode remote = resp.discoveryNode;
                 if (node.equals(remote) == false) {
-                    throw new ConnectTransportException(node, "handshake failed. unexpected remote node " + remote);
+                    throw new ConnectTransportException(
+                        node,
+                        Strings.format(
+                            """
+                                Connecting to [%s] failed: expected to connect to [%s] but found [%s] instead. Ensure that each node has \
+                                its own distinct publish address, and that your network is configured so that every connection to a node's \
+                                publish address is routed to the correct node. See %s for more information.""",
+                            node.getAddress(),
+                            node.descriptionWithoutAttributes(),
+                            remote.descriptionWithoutAttributes(),
+                            ReferenceDocs.NETWORK_BINDING_AND_PUBLISHING
+                        )
+                    );
                 }
                 return null;
             }));
@@ -1382,6 +1396,11 @@ public class TransportService extends AbstractLifecycleComponent
                     @Override
                     protected void doRun() {
                         handler.handleException(exception);
+                    }
+
+                    @Override
+                    public String toString() {
+                        return "onConnectionClosed/handleException[" + handler + "]";
                     }
                 });
             }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -15,6 +16,8 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.tdigest.arrays.TDigestArrays;
+import org.elasticsearch.tdigest.arrays.WrapperTDigestArrays;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
@@ -30,7 +33,7 @@ public class TDigestStateTests extends ESTestCase {
     public void testMoreThan4BValues() {
         // Regression test for #19528
         // See https://github.com/tdunning/t-digest/pull/70/files#diff-4487072cee29b939694825647928f742R439
-        TDigestState digest = TDigestState.create(100);
+        TDigestState digest = TDigestState.create(arrays(), 100);
         for (int i = 0; i < 1000; ++i) {
             digest.add(randomDouble());
         }
@@ -56,9 +59,9 @@ public class TDigestStateTests extends ESTestCase {
     public void testEqualsHashCode() {
         final TDigestState empty1 = new EmptyTDigestState();
         final TDigestState empty2 = new EmptyTDigestState();
-        final TDigestState a = TDigestState.create(200);
-        final TDigestState b = TDigestState.create(100);
-        final TDigestState c = TDigestState.create(100);
+        final TDigestState a = TDigestState.create(arrays(), 200);
+        final TDigestState b = TDigestState.create(arrays(), 100);
+        final TDigestState c = TDigestState.create(arrays(), 100);
 
         assertEquals(empty1, empty2);
         assertEquals(empty1.hashCode(), empty2.hashCode());
@@ -100,9 +103,9 @@ public class TDigestStateTests extends ESTestCase {
         final Set<TDigestState> set = new HashSet<>();
         final TDigestState empty1 = new EmptyTDigestState();
         final TDigestState empty2 = new EmptyTDigestState();
-        final TDigestState a = TDigestState.create(200);
-        final TDigestState b = TDigestState.create(100);
-        final TDigestState c = TDigestState.create(100);
+        final TDigestState a = TDigestState.create(arrays(), 200);
+        final TDigestState b = TDigestState.create(arrays(), 100);
+        final TDigestState c = TDigestState.create(arrays(), 100);
 
         a.add(randomDouble());
         b.add(randomDouble());
@@ -138,9 +141,9 @@ public class TDigestStateTests extends ESTestCase {
     }
 
     public void testFactoryMethods() {
-        TDigestState fast = TDigestState.create(100);
-        TDigestState anotherFast = TDigestState.create(100);
-        TDigestState accurate = TDigestState.createOptimizedForAccuracy(100);
+        TDigestState fast = TDigestState.create(arrays(), 100);
+        TDigestState anotherFast = TDigestState.create(arrays(), 100);
+        TDigestState accurate = TDigestState.createOptimizedForAccuracy(arrays(), 100);
         TDigestState anotherAccurate = TDigestState.createUsingParamsFrom(accurate);
 
         for (int i = 0; i < 100; i++) {
@@ -172,7 +175,7 @@ public class TDigestStateTests extends ESTestCase {
             )
         ) {
             in.setTransportVersion(version);
-            return TDigestState.read(in);
+            return TDigestState.read(arrays(), in);
 
         }
     }
@@ -187,8 +190,8 @@ public class TDigestStateTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         // Past default was the accuracy-optimized version.
-        TDigestState state = TDigestState.create(100);
-        TDigestState backwardsCompatible = TDigestState.createOptimizedForAccuracy(100);
+        TDigestState state = TDigestState.create(arrays(), 100);
+        TDigestState backwardsCompatible = TDigestState.createOptimizedForAccuracy(arrays(), 100);
         for (int i = 0; i < 1000; i++) {
             state.add(i);
             backwardsCompatible.add(i);
@@ -200,5 +203,9 @@ public class TDigestStateTests extends ESTestCase {
         TDigestState serializedBackwardsCompatible = writeToAndReadFrom(state, TransportVersions.V_8_8_1);
         assertNotEquals(serializedBackwardsCompatible, state);
         assertEquals(serializedBackwardsCompatible, backwardsCompatible);
+    }
+
+    private static TDigestArrays arrays() {
+        return WrapperTDigestArrays.INSTANCE;
     }
 }

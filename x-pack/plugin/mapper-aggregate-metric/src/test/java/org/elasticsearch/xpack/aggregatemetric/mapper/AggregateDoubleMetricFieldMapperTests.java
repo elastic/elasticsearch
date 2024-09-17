@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.aggregatemetric.mapper;
 
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -20,6 +22,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
 import org.hamcrest.Matchers;
@@ -521,6 +524,43 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
+    }
+
+    public void testArrayValueSyntheticSource() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(
+            syntheticSourceFieldMapping(
+                b -> b.field("type", CONTENT_TYPE)
+                    .array("metrics", "min", "max")
+                    .field("default_metric", "min")
+                    .field("ignore_malformed", "true")
+            )
+        );
+
+        var randomString = randomAlphaOfLength(10);
+        CheckedConsumer<XContentBuilder, IOException> arrayValue = b -> {
+            b.startArray("field");
+            {
+                b.startObject().field("max", 100).field("min", 10).endObject();
+                b.startObject().field("max", 200).field("min", 20).endObject();
+                b.value(randomString);
+            }
+            b.endArray();
+        };
+
+        var expected = JsonXContent.contentBuilder().startObject();
+        // First value comes from synthetic field loader and so is formatted in a specific format (e.g. min always come first).
+        // Other values are stored as is as part of ignore_malformed logic for synthetic source.
+        {
+            expected.startArray("field");
+            expected.startObject().field("min", 10.0).field("max", 100.0).endObject();
+            expected.startObject().field("max", 200).field("min", 20).endObject();
+            expected.value(randomString);
+            expected.endArray();
+        }
+        expected.endObject();
+
+        var syntheticSource = syntheticSource(mapper, arrayValue);
+        assertEquals(Strings.toString(expected), syntheticSource);
     }
 
     protected final class AggregateDoubleMetricSyntheticSourceSupport implements SyntheticSourceSupport {

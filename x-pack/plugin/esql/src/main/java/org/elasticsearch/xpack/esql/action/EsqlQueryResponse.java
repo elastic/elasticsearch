@@ -25,8 +25,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -45,7 +45,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
     public static final String DROP_NULL_COLUMNS_OPTION = "drop_null_columns";
 
-    private final List<ColumnInfo> columns;
+    private final List<ColumnInfoImpl> columns;
     private final List<Page> pages;
     private final Profile profile;
     private final boolean columnar;
@@ -55,7 +55,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     private final boolean isAsync;
 
     public EsqlQueryResponse(
-        List<ColumnInfo> columns,
+        List<ColumnInfoImpl> columns,
         List<Page> pages,
         @Nullable Profile profile,
         boolean columnar,
@@ -72,7 +72,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         this.isAsync = isAsync;
     }
 
-    public EsqlQueryResponse(List<ColumnInfo> columns, List<Page> pages, @Nullable Profile profile, boolean columnar, boolean isAsync) {
+    public EsqlQueryResponse(List<ColumnInfoImpl> columns, List<Page> pages, @Nullable Profile profile, boolean columnar, boolean isAsync) {
         this(columns, pages, profile, columnar, null, false, isAsync);
     }
 
@@ -97,7 +97,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             isRunning = in.readBoolean();
             isAsync = in.readBoolean();
         }
-        List<ColumnInfo> columns = in.readCollectionAsList(ColumnInfo::new);
+        List<ColumnInfoImpl> columns = in.readCollectionAsList(ColumnInfoImpl::new);
         List<Page> pages = in.readCollectionAsList(Page::new);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             profile = in.readOptionalWriteable(Profile::new);
@@ -121,7 +121,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         out.writeBoolean(columnar);
     }
 
-    public List<ColumnInfo> columns() {
+    public List<ColumnInfoImpl> columns() {
         return columns;
     }
 
@@ -130,12 +130,12 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     }
 
     public Iterator<Iterator<Object>> values() {
-        List<String> dataTypes = columns.stream().map(ColumnInfo::type).toList();
+        List<DataType> dataTypes = columns.stream().map(ColumnInfoImpl::type).toList();
         return ResponseValueUtils.pagesToValues(dataTypes, pages);
     }
 
     public Iterable<Iterable<Object>> rows() {
-        List<String> dataTypes = columns.stream().map(ColumnInfo::type).toList();
+        List<DataType> dataTypes = columns.stream().map(ColumnInfoImpl::type).toList();
         return ResponseValueUtils.valuesForRowsInPages(dataTypes, pages);
     }
 

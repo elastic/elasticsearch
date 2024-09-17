@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
@@ -132,9 +133,9 @@ public final class Int3Hash extends AbstractHash {
         final long id = id(index, -1);
         assert id >= 0;
         long keyOffset = id * 3;
-        final int key1 = keys.set(keyOffset, 0);
-        final int key2 = keys.set(keyOffset + 1, 0);
-        final int key3 = keys.set(keyOffset + 2, 0);
+        final int key1 = keys.getAndSet(keyOffset, 0);
+        final int key2 = keys.getAndSet(keyOffset + 1, 0);
+        final int key3 = keys.getAndSet(keyOffset + 2, 0);
         reset(key1, key2, key3, id);
     }
 

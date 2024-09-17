@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.benchmark.vector;
@@ -22,7 +23,7 @@ import org.apache.lucene.util.quantization.RandomAccessQuantizedByteVectorValues
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.vec.VectorScorerFactory;
+import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -41,8 +42,8 @@ import java.nio.file.Files;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.vec.VectorSimilarityType.DOT_PRODUCT;
-import static org.elasticsearch.vec.VectorSimilarityType.EUCLIDEAN;
+import static org.elasticsearch.simdvec.VectorSimilarityType.DOT_PRODUCT;
+import static org.elasticsearch.simdvec.VectorSimilarityType.EUCLIDEAN;
 
 @Fork(value = 1, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
 @Warmup(iterations = 3, time = 3)

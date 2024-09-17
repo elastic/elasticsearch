@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.service;
@@ -505,9 +506,6 @@ public class MasterService extends AbstractLifecycleComponent {
         if (previousClusterState != newClusterState) {
             // only the master controls the version numbers
             Builder builder = incrementVersion(newClusterState);
-            if (previousClusterState.routingTable() != newClusterState.routingTable()) {
-                builder.routingTable(newClusterState.routingTable().withIncrementedVersion());
-            }
             if (previousClusterState.metadata() != newClusterState.metadata()) {
                 builder.metadata(newClusterState.metadata().withIncrementedVersion());
             }
@@ -522,6 +520,20 @@ public class MasterService extends AbstractLifecycleComponent {
 
     public Builder incrementVersion(ClusterState clusterState) {
         return ClusterState.builder(clusterState).incrementVersion();
+    }
+
+    private static boolean versionNumbersPreserved(ClusterState oldState, ClusterState newState) {
+        if (oldState.nodes().getMasterNodeId() == null && newState.nodes().getMasterNodeId() != null) {
+            return true; // NodeJoinExecutor is special, we trust it to do the right thing with versions
+        }
+
+        if (oldState.version() != newState.version()) {
+            return false;
+        }
+        if (oldState.metadata().version() != newState.metadata().version()) {
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -1035,6 +1047,8 @@ public class MasterService extends AbstractLifecycleComponent {
         return true;
     }
 
+    static final String TEST_ONLY_EXECUTOR_MAY_CHANGE_VERSION_NUMBER_TRANSIENT_NAME = "test_only_executor_may_change_version_number";
+
     private static <T extends ClusterStateTaskListener> ClusterState innerExecuteTasks(
         ClusterState previousClusterState,
         List<ExecutionResult<T>> executionResults,
@@ -1047,13 +1061,23 @@ public class MasterService extends AbstractLifecycleComponent {
             // to avoid leaking headers in production that were missed by tests
 
             try {
-                return executor.execute(
+                final var updatedState = executor.execute(
                     new ClusterStateTaskExecutor.BatchExecutionContext<>(
                         previousClusterState,
                         executionResults,
                         threadContext::newStoredContext
                     )
                 );
+                if (versionNumbersPreserved(previousClusterState, updatedState) == false) {
+                    // Shenanigans! Executors mustn't meddle with version numbers. Perhaps the executor based its update on the wrong
+                    // initial state, potentially losing an intervening cluster state update. That'd be very bad!
+                    final var exception = new IllegalStateException(
+                        "cluster state update executor did not preserve version numbers: [" + summary.toString() + "]"
+                    );
+                    assert threadContext.getTransient(TEST_ONLY_EXECUTOR_MAY_CHANGE_VERSION_NUMBER_TRANSIENT_NAME) != null : exception;
+                    throw exception;
+                }
+                return updatedState;
             } catch (Exception e) {
                 logger.trace(
                     () -> format(

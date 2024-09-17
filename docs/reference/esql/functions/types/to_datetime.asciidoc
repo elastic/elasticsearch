@@ -5,11 +5,11 @@
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
 field | result
-datetime | datetime
-double | datetime
-integer | datetime
-keyword | datetime
-long | datetime
-text | datetime
-unsigned_long | datetime
+date | date
+double | date
+integer | date
+keyword | date
+long | date
+text | date
+unsigned_long | date
 |===

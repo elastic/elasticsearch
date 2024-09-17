@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -560,18 +561,25 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return doMerge(type, reason, mappingSourceAsMap);
     }
 
-    private synchronized DocumentMapper doMerge(String type, MergeReason reason, Map<String, Object> mappingSourceAsMap) {
+    private DocumentMapper doMerge(String type, MergeReason reason, Map<String, Object> mappingSourceAsMap) {
         Mapping incomingMapping = parseMapping(type, reason, mappingSourceAsMap);
-        Mapping mapping = mergeMappings(this.mapper, incomingMapping, reason, this.indexSettings);
         // TODO: In many cases the source here is equal to mappingSource so we need not serialize again.
         // We should identify these cases reliably and save expensive serialization here
-        DocumentMapper newMapper = newDocumentMapper(mapping, reason, mapping.toCompressedXContent());
         if (reason == MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT) {
-            return newMapper;
+            // only doing a merge without updating the actual #mapper field, no need to synchronize
+            Mapping mapping = mergeMappings(this.mapper, incomingMapping, MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT, this.indexSettings);
+            return newDocumentMapper(mapping, MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT, mapping.toCompressedXContent());
+        } else {
+            // synchronized concurrent mapper updates are guaranteed to set merged mappers derived from the mapper value previously read
+            // TODO: can we even have concurrent updates here?
+            synchronized (this) {
+                Mapping mapping = mergeMappings(this.mapper, incomingMapping, reason, this.indexSettings);
+                DocumentMapper newMapper = newDocumentMapper(mapping, reason, mapping.toCompressedXContent());
+                this.mapper = newMapper;
+                assert assertSerialization(newMapper, reason);
+                return newMapper;
+            }
         }
-        this.mapper = newMapper;
-        assert assertSerialization(newMapper, reason);
-        return newMapper;
     }
 
     private DocumentMapper newDocumentMapper(Mapping mapping, MergeReason reason, CompressedXContent mappingSource) {

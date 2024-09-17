@@ -305,16 +305,15 @@ public class Analysis {
             if (line.startsWith("#") == false) {
                 String[] values = CSVUtil.parse(line);
                 if (duplicateKeys.add(values[0]) == false) {
-                    if(failOnDuplicate) {
+                    if (failOnDuplicate) {
                         throw new IllegalArgumentException(
-                            "Found duplicate term [" + values[0] + "] in user dictionary " + "at line [" + (lineNum+1) + "]"
+                            "Found duplicate term [" + values[0] + "] in user dictionary " + "at line [" + (lineNum + 1) + "]"
                         );
                     }
                 } else {
                     deduplicatedList.add(line);
                 }
-            }
-            else {
+            } else {
                 deduplicatedList.add(line);
             }
         }

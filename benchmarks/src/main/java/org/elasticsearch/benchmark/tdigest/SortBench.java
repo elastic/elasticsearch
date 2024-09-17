@@ -22,6 +22,9 @@
 package org.elasticsearch.benchmark.tdigest;
 
 import org.elasticsearch.tdigest.Sort;
+import org.elasticsearch.tdigest.arrays.TDigestDoubleArray;
+import org.elasticsearch.tdigest.arrays.TDigestIntArray;
+import org.elasticsearch.tdigest.arrays.WrapperTDigestArrays;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -35,7 +38,6 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 
-import java.util.Arrays;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
@@ -49,7 +51,7 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Thread)
 public class SortBench {
     private final int size = 100000;
-    private final double[] values = new double[size];
+    private final TDigestDoubleArray values = WrapperTDigestArrays.INSTANCE.newDoubleArray(size);
 
     @Param({ "0", "1", "-1" })
     public int sortDirection;
@@ -58,22 +60,22 @@ public class SortBench {
     public void setup() {
         Random prng = new Random(999983);
         for (int i = 0; i < size; i++) {
-            values[i] = prng.nextDouble();
+            values.set(i, prng.nextDouble());
         }
         if (sortDirection > 0) {
-            Arrays.sort(values);
+            values.sort();
         } else if (sortDirection < 0) {
-            Arrays.sort(values);
-            Sort.reverse(values, 0, values.length);
+            values.sort();
+            Sort.reverse(values, 0, values.size());
         }
     }
 
     @Benchmark
-    public void quicksort() {
-        int[] order = new int[size];
+    public void stableSort() {
+        TDigestIntArray order = WrapperTDigestArrays.INSTANCE.newIntArray(size);
         for (int i = 0; i < size; i++) {
-            order[i] = i;
+            order.set(i, i);
         }
-        Sort.sort(order, values, null, values.length);
+        Sort.stableSort(order, values, values.size());
     }
 }

@@ -56,7 +56,7 @@ public class NoriTokenizerFactory extends AbstractTokenizerFactory {
             USER_DICT_PATH_OPTION,
             USER_DICT_RULES_OPTION,
             DEDUPLICATE_DICTIONARY,
-            true,
+            false,  // typically don't want to remove comments as deduplication will provide better feedback
             isSupportDuplicateCheck(indexSettings)
         );
         if (ruleList == null || ruleList.isEmpty()) {

@@ -67,6 +67,7 @@ import java.nio.file.Path;
 import java.security.AccessControlException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -274,11 +275,7 @@ public class Analysis {
         boolean deduplicateDictionary = settings.getAsBoolean(settingDeduplicate, false);
         final List<String> ruleList = getWordList(env, settings, settingPath, settingList, removeComments);
         if (ruleList != null && ruleList.isEmpty() == false && checkDuplicate) {
-            if (deduplicateDictionary) {
-                return ruleList.stream().distinct().toList();
-            } else {
-                checkDuplicateRules(ruleList);
-            }
+            return deDuplicateRules(ruleList, deduplicateDictionary == false);
         }
         return ruleList;
     }
@@ -294,24 +291,35 @@ public class Analysis {
      * If the addition to the HashSet returns false, it means that item was already present in the set, indicating a duplicate.
      * In such a case, an IllegalArgumentException is thrown specifying the duplicate term and the line number in the original list.
      *
+     * Optionally the function will return the deduplicated list
+     *
      * @param ruleList The list of rules to check for duplicates.
      * @throws IllegalArgumentException If a duplicate rule is found.
      */
-    private static void checkDuplicateRules(List<String> ruleList) {
-        Set<String> dup = new HashSet<>();
-        int lineNum = 0;
-        for (String line : ruleList) {
-            // ignore comments
+    private static List<String> deDuplicateRules(List<String> ruleList, boolean failOnDuplicate) {
+        Set<String> duplicateKeys = new HashSet<>();
+        List<String> deduplicatedList = new ArrayList<>();
+        for (int lineNum = 0; lineNum < ruleList.size(); lineNum++) {
+            String line = ruleList.get(lineNum);
+            // ignore lines beginning with # as those are comments
             if (line.startsWith("#") == false) {
                 String[] values = CSVUtil.parse(line);
-                if (dup.add(values[0]) == false) {
-                    throw new IllegalArgumentException(
-                        "Found duplicate term [" + values[0] + "] in user dictionary " + "at line [" + lineNum + "]"
-                    );
+                if (duplicateKeys.add(values[0]) == false) {
+                    if(failOnDuplicate) {
+                        throw new IllegalArgumentException(
+                            "Found duplicate term [" + values[0] + "] in user dictionary " + "at line [" + (lineNum+1) + "]"
+                        );
+                    }
+                } else {
+                    deduplicatedList.add(line);
                 }
             }
-            ++lineNum;
+            else {
+                deduplicatedList.add(line);
+            }
         }
+
+        return Collections.unmodifiableList(deduplicatedList);
     }
 
     private static List<String> loadWordList(Path path, boolean removeComments) throws IOException {

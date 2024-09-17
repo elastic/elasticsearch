@@ -149,9 +149,7 @@ public class MrjarPlugin implements Plugin<Project> {
             compileOptions.getCompilerArgs().add("--enable-preview");
             compileOptions.getCompilerArgs().add("-Xlint:-preview");
 
-            compileTask.doLast(t -> {
-                stripPreviewFromFiles(compileTask.getDestinationDirectory().getAsFile().get().toPath());
-            });
+            compileTask.doLast(t -> { stripPreviewFromFiles(compileTask.getDestinationDirectory().getAsFile().get().toPath()); });
         });
         project.getTasks().withType(Javadoc.class).named(name -> name.equals(sourceSet.getJavadocTaskName())).configureEach(javadocTask -> {
             CoreJavadocOptions options = (CoreJavadocOptions) javadocTask.getOptions();

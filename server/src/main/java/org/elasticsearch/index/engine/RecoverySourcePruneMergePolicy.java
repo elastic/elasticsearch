@@ -11,6 +11,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.codecs.StoredFieldsReader;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.FieldInfo;
@@ -19,39 +20,36 @@ import org.apache.lucene.index.FilterNumericDocValues;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.OneMergeWrappingMergePolicy;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.search.internal.FilterStoredFieldVisitor;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
-import java.util.function.Supplier;
+import java.util.function.LongSupplier;
 
 final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
     RecoverySourcePruneMergePolicy(
         String recoverySourceField,
         boolean pruneIdField,
-        Supplier<Query> retainSourceQuerySupplier,
+        LongSupplier minRetainingSeqNo,
         MergePolicy in
     ) {
         super(in, toWrap -> new OneMerge(toWrap.segments) {
             @Override
             public CodecReader wrapForMerge(CodecReader reader) throws IOException {
                 CodecReader wrapped = toWrap.wrapForMerge(reader);
-                return wrapReader(recoverySourceField, pruneIdField, wrapped, retainSourceQuerySupplier);
+                return wrapReader(recoverySourceField, pruneIdField, wrapped, minRetainingSeqNo.getAsLong());
             }
         });
     }
@@ -60,26 +58,19 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
         String recoverySourceField,
         boolean pruneIdField,
         CodecReader reader,
-        Supplier<Query> retainSourceQuerySupplier
+        long minRetainingSeqNo
     ) throws IOException {
         NumericDocValues recoverySource = reader.getNumericDocValues(recoverySourceField);
         if (recoverySource == null || recoverySource.nextDoc() == DocIdSetIterator.NO_MORE_DOCS) {
             return reader; // early terminate - nothing to do here since non of the docs has a recovery source anymore.
         }
-        IndexSearcher s = new IndexSearcher(reader);
-        s.setQueryCache(null);
-        Weight weight = s.createWeight(s.rewrite(retainSourceQuerySupplier.get()), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
-        Scorer scorer = weight.scorer(reader.getContext());
-        if (scorer != null) {
-            BitSet recoverySourceToKeep = BitSet.of(scorer.iterator(), reader.maxDoc());
-            // calculating the cardinality is significantly cheaper than skipping all bulk-merging we might do
-            // if retentions are high we keep most of it
-            if (recoverySourceToKeep.cardinality() == reader.maxDoc()) {
-                return reader; // keep all source
-            }
-            return new SourcePruningFilterCodecReader(recoverySourceField, pruneIdField, reader, recoverySourceToKeep);
-        } else {
+        PointValues pointValues = reader.getPointsReader().getValues(SeqNoFieldMapper.NAME);
+        long maxSeqNo = LongPoint.decodeDimension(pointValues.getMaxPackedValue(), 0);
+        if (maxSeqNo < minRetainingSeqNo) {
+            // ready to drop everything
             return new SourcePruningFilterCodecReader(recoverySourceField, pruneIdField, reader, null);
+        } else {
+            return reader;
         }
     }
 

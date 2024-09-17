@@ -104,6 +104,10 @@ public class SimulateBulkRequestTests extends ESTestCase {
         simulateBulkRequest.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
         simulateBulkRequest.waitForActiveShards(randomIntBetween(1, 10));
         simulateBulkRequest.timeout(randomTimeValue());
+        simulateBulkRequest.pipeline(randomBoolean() ? null : randomAlphaOfLength(10));
+        simulateBulkRequest.routing(randomBoolean() ? null : randomAlphaOfLength(10));
+        simulateBulkRequest.requireAlias(randomBoolean());
+        simulateBulkRequest.requireDataStream(randomBoolean());
         BulkRequest shallowCopy = simulateBulkRequest.shallowClone();
         assertThat(shallowCopy, instanceOf(SimulateBulkRequest.class));
         SimulateBulkRequest simulateBulkRequestCopy = (SimulateBulkRequest) shallowCopy;
@@ -116,6 +120,11 @@ public class SimulateBulkRequestTests extends ESTestCase {
         assertThat(simulateBulkRequestCopy.getRefreshPolicy(), equalTo(simulateBulkRequest.getRefreshPolicy()));
         assertThat(simulateBulkRequestCopy.waitForActiveShards(), equalTo(simulateBulkRequest.waitForActiveShards()));
         assertThat(simulateBulkRequestCopy.timeout(), equalTo(simulateBulkRequest.timeout()));
+        assertThat(shallowCopy.pipeline(), equalTo(simulateBulkRequest.pipeline()));
+        assertThat(shallowCopy.routing(), equalTo(simulateBulkRequest.routing()));
+        assertThat(shallowCopy.requireAlias(), equalTo(simulateBulkRequest.requireAlias()));
+        assertThat(shallowCopy.requireDataStream(), equalTo(simulateBulkRequest.requireDataStream()));
+
     }
 
     private static Map<String, Map<String, Object>> getTestPipelineSubstitutions() {

@@ -154,6 +154,10 @@ public class SimulateBulkRequest extends BulkRequest {
         bulkRequest.setRefreshPolicy(getRefreshPolicy());
         bulkRequest.waitForActiveShards(waitForActiveShards());
         bulkRequest.timeout(timeout());
+        bulkRequest.pipeline(pipeline());
+        bulkRequest.routing(routing());
+        bulkRequest.requireAlias(requireAlias());
+        bulkRequest.requireDataStream(requireDataStream());
         return bulkRequest;
     }
 }

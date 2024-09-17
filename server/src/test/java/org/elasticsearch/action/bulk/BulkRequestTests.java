@@ -477,14 +477,22 @@ public class BulkRequestTests extends ESTestCase {
     }
 
     public void testShallowClone() {
-        BulkRequest simulateBulkRequest = new BulkRequest();
-        simulateBulkRequest.setRefreshPolicy(randomFrom(RefreshPolicy.values()));
-        simulateBulkRequest.waitForActiveShards(randomIntBetween(1, 10));
-        simulateBulkRequest.timeout(randomTimeValue());
-        BulkRequest shallowCopy = simulateBulkRequest.shallowClone();
+        BulkRequest bulkRequest = new BulkRequest(randomBoolean() ? null : randomAlphaOfLength(10));
+        bulkRequest.setRefreshPolicy(randomFrom(RefreshPolicy.values()));
+        bulkRequest.waitForActiveShards(randomIntBetween(1, 10));
+        bulkRequest.timeout(randomTimeValue());
+        bulkRequest.pipeline(randomBoolean() ? null : randomAlphaOfLength(10));
+        bulkRequest.routing(randomBoolean() ? null : randomAlphaOfLength(10));
+        bulkRequest.requireAlias(randomBoolean());
+        bulkRequest.requireDataStream(randomBoolean());
+        BulkRequest shallowCopy = bulkRequest.shallowClone();
         assertThat(shallowCopy.requests, equalTo(List.of()));
-        assertThat(shallowCopy.getRefreshPolicy(), equalTo(simulateBulkRequest.getRefreshPolicy()));
-        assertThat(shallowCopy.waitForActiveShards(), equalTo(simulateBulkRequest.waitForActiveShards()));
-        assertThat(shallowCopy.timeout(), equalTo(simulateBulkRequest.timeout()));
+        assertThat(shallowCopy.getRefreshPolicy(), equalTo(bulkRequest.getRefreshPolicy()));
+        assertThat(shallowCopy.waitForActiveShards(), equalTo(bulkRequest.waitForActiveShards()));
+        assertThat(shallowCopy.timeout(), equalTo(bulkRequest.timeout()));
+        assertThat(shallowCopy.pipeline(), equalTo(bulkRequest.pipeline()));
+        assertThat(shallowCopy.routing(), equalTo(bulkRequest.routing()));
+        assertThat(shallowCopy.requireAlias(), equalTo(bulkRequest.requireAlias()));
+        assertThat(shallowCopy.requireDataStream(), equalTo(bulkRequest.requireDataStream()));
     }
 }

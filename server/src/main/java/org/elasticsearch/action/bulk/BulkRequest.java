@@ -487,13 +487,17 @@ public class BulkRequest extends ActionRequest
     }
 
     /*
-     * This copies this bulk request, but without all of its inner requests
+     * This copies this bulk request, but without all of its inner requests or the set of indices found in those requests
      */
     public BulkRequest shallowClone() {
-        BulkRequest bulkRequest = new BulkRequest();
+        BulkRequest bulkRequest = new BulkRequest(globalIndex);
         bulkRequest.setRefreshPolicy(getRefreshPolicy());
         bulkRequest.waitForActiveShards(waitForActiveShards());
         bulkRequest.timeout(timeout());
+        bulkRequest.pipeline(pipeline());
+        bulkRequest.routing(routing());
+        bulkRequest.requireAlias(requireAlias());
+        bulkRequest.requireDataStream(requireDataStream());
         return bulkRequest;
     }
 }

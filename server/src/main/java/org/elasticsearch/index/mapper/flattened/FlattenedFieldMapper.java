@@ -768,8 +768,9 @@ public final class FlattenedFieldMapper extends FieldMapper {
                         if (valueAsString.length() <= ignoreAbove) {
                             return valueAsString;
                         }
+                        return null;
                     }
-                    return null;
+                    return entryValue;
                 }
             };
         }

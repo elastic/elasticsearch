@@ -403,19 +403,23 @@ setup:
             ],
             "component_template_substitutions": {
               "mappings_template": {
-                "mappings": {
-                  "dynamic": "true",
-                  "properties": {
-                    "foo": {
-                      "type": "keyword"
+                "template": {
+                  "mappings": {
+                    "dynamic": "true",
+                    "properties": {
+                      "foo": {
+                        "type": "keyword"
+                      }
                     }
                   }
                 }
               },
               "settings_template": {
-                "settings": {
-                  "index": {
-                    "default_pipeline": "bar-pipeline"
+                "template": {
+                  "settings": {
+                    "index": {
+                      "default_pipeline": "bar-pipeline"
+                    }
                   }
                 }
               }
@@ -452,19 +456,23 @@ setup:
             ],
             "component_template_substitutions": {
               "mappings_template": {
-                "mappings": {
-                  "dynamic": "true",
-                  "properties": {
-                    "foo": {
-                      "type": "keyword"
+                "template": {
+                  "mappings": {
+                    "dynamic": "true",
+                    "properties": {
+                      "foo": {
+                        "type": "keyword"
+                      }
                     }
                   }
                 }
               },
               "settings_template": {
-                "settings": {
-                  "index": {
-                    "default_pipeline": "bar-pipeline"
+                "template": {
+                  "settings": {
+                    "index": {
+                      "default_pipeline": "bar-pipeline"
+                    }
                   }
                 }
               }
@@ -545,9 +553,11 @@ setup:
             ],
             "component_template_substitutions": {
               "settings_template": {
-                "settings": {
-                  "index": {
-                    "default_pipeline": null
+                "template": {
+                  "settings": {
+                    "index": {
+                      "default_pipeline": null
+                    }
                   }
                 }
               }
@@ -581,9 +591,11 @@ setup:
             ],
             "component_template_substitutions": {
               "settings_template": {
-                "settings": {
-                  "index": {
-                    "default_pipeline": null
+                "template": {
+                  "settings": {
+                    "index": {
+                      "default_pipeline": null
+                    }
                   }
                 }
               }

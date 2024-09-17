@@ -86,17 +86,19 @@ POST /_ingest/_simulate
   },
   "component_template_substitutions": { <2>
     "my-component-template": {
-      "mappings": {
-        "dynamic": "true",
-        "properties": {
-          "field3": {
-            "type": "keyword"
+      "template": {
+        "mappings": {
+          "dynamic": "true",
+          "properties": {
+            "field3": {
+              "type": "keyword"
+            }
           }
-        }
-      },
-      "settings": {
-        "index": {
-          "default_pipeline": "my-pipeline"
+        },
+        "settings": {
+          "index": {
+            "default_pipeline": "my-pipeline"
+          }
         }
       }
     }
@@ -410,14 +412,16 @@ POST /_ingest/_simulate
   ],
   "component_template_substitutions": {
     "my-mappings_template": {
-      "mappings": {
-        "dynamic": "strict",
-        "properties": {
-          "foo": {
-            "type": "keyword"
-          },
-          "bar": {
-            "type": "keyword"
+      "template": {
+        "mappings": {
+          "dynamic": "strict",
+          "properties": {
+            "foo": {
+              "type": "keyword"
+            },
+            "bar": {
+              "type": "keyword"
+            }
           }
         }
       }

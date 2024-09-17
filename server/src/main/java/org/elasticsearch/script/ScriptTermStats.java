@@ -218,8 +218,8 @@ public class ScriptTermStats {
                         postings[i] = leafReaderContext.reader().postings(terms[i], PostingsEnum.POSITIONS);
                     }
 
-                    while (postings[i].docID() < targetDocId && postings[i].docID() != DocIdSetIterator.NO_MORE_DOCS) {
-                        postings[i].nextDoc();
+                    if (postings[i].docID() < targetDocId && postings[i].docID() != DocIdSetIterator.NO_MORE_DOCS) {
+                        postings[i].advance(targetDocId);
                     }
                 }
             }

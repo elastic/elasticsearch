@@ -349,7 +349,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                     )
                 ) {
                     for (StatelessCommitRef statelessCommitRef : indexCommits) {
-                        assertTrue(virtualBatchedCompoundCommit.appendCommit(statelessCommitRef));
+                        assertTrue(virtualBatchedCompoundCommit.appendCommit(statelessCommitRef, randomBoolean()));
                     }
                     virtualBatchedCompoundCommit.freeze();
                     shardBlobContainer.writeMetadataBlob(

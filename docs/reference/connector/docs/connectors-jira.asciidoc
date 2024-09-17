@@ -181,6 +181,7 @@ Advanced sync rules are defined through a source-specific DSL JSON snippet.
   }
 ]
 ----
+// NOTCONSOLE
 
 *Example 2*: Query to index data based on priority of issues for given projects.
 
@@ -192,6 +193,7 @@ Advanced sync rules are defined through a source-specific DSL JSON snippet.
   }
 ]
 ----
+// NOTCONSOLE
 
 *Example 3*: Query to index data based on assignee and created time.
 
@@ -203,6 +205,7 @@ Advanced sync rules are defined through a source-specific DSL JSON snippet.
   }
 ]
 ----
+// NOTCONSOLE
 
 [discrete#es-connectors-jira-document-level-security]
 ===== Document level security
@@ -442,6 +445,7 @@ Advanced sync rules are defined through a source-specific DSL JSON snippet.
   }
 ]
 ----
+// NOTCONSOLE
 
 *Example 2*: Query to index data based on priority of issues for given projects.
 
@@ -453,6 +457,7 @@ Advanced sync rules are defined through a source-specific DSL JSON snippet.
   }
 ]
 ----
+// NOTCONSOLE
 
 *Example 3*: Query to index data based on assignee and created time.
 
@@ -464,6 +469,7 @@ Advanced sync rules are defined through a source-specific DSL JSON snippet.
   }
 ]
 ----
+// NOTCONSOLE
 
 [discrete#es-connectors-jira-client-document-level-security]
 ===== Document level security
@@ -507,6 +513,7 @@ To perform E2E testing for the Jira connector, run the following command:
 ----
 $ make ftest NAME=jira
 ----
+// NOTCONSOLE
 
 For faster tests, add the `DATA_SIZE=small` flag:
 
@@ -514,6 +521,7 @@ For faster tests, add the `DATA_SIZE=small` flag:
 ----
 make ftest NAME=jira DATA_SIZE=small
 ----
+// NOTCONSOLE
 
 [discrete#es-connectors-jira-client-known-issues]
 ===== Known issues

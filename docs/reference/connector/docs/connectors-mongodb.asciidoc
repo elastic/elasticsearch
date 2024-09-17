@@ -152,6 +152,7 @@ Incorrect (`new Date()` will be interpreted as string):
     }
 }
 ----
+// NOTCONSOLE
 
 Correct (usage of https://www.mongodb.com/docs/manual/reference/aggregation-variables/#mongodb-variable-variable.NOW[$$NOW]):
 [source,js]
@@ -180,6 +181,7 @@ Correct (usage of https://www.mongodb.com/docs/manual/reference/aggregation-vari
   }
 }
 ----
+// NOTCONSOLE
 
 [discrete#es-connectors-mongodb-known-issues-tls-with-invalid-cert]
 ====== Connecting with self-signed or custom CA TLS Cert
@@ -277,6 +279,7 @@ For `find` queries, the structure of this JSON DSL should look like:
 }
 
 ----
+// NOTCONSOLE
 
 For example:
 
@@ -295,6 +298,7 @@ For example:
 	}
 }
 ----
+// NOTCONSOLE
 
 `find` queries also support additional options, for example the `projection` object:
 
@@ -316,6 +320,7 @@ For example:
   }
 }
 ----
+// NOTCONSOLE
 Where the available options are:
 
 * `allow_disk_use` (true, false) — When set to true, the server can write temporary data to disk while executing the find operation. This option is only available on MongoDB server versions 4.4 and newer.
@@ -348,6 +353,7 @@ Similarly, for aggregation pipelines, the structure of the JSON DSL should look 
     }
 }
 ----
+// NOTCONSOLE
 
 Where the available options are:
 
@@ -526,6 +532,7 @@ Incorrect (`new Date()` will be interpreted as string):
     }
 }
 ----
+// NOTCONSOLE
 
 Correct (usage of https://www.mongodb.com/docs/manual/reference/aggregation-variables/#mongodb-variable-variable.NOW[$$NOW]):
 [source,js]
@@ -554,6 +561,7 @@ Correct (usage of https://www.mongodb.com/docs/manual/reference/aggregation-vari
   }
 }
 ----
+// NOTCONSOLE
 
 [discrete#es-connectors-mongodb-client-known-issues-tls-with-invalid-cert]
 ====== Connecting with self-signed or custom CA TLS Cert
@@ -664,6 +672,7 @@ For `find` queries, the structure of this JSON DSL should look like:
 }
 
 ----
+// NOTCONSOLE
 
 For example:
 
@@ -682,6 +691,7 @@ For example:
 	}
 }
 ----
+// NOTCONSOLE
 
 `find` queries also support additional options, for example the `projection` object:
 
@@ -703,6 +713,7 @@ For example:
   }
 }
 ----
+// NOTCONSOLE
 Where the available options are:
 
 * `allow_disk_use` (true, false) — When set to true, the server can write temporary data to disk while executing the find operation. This option is only available on MongoDB server versions 4.4 and newer.
@@ -735,6 +746,7 @@ Similarly, for aggregation pipelines, the structure of the JSON DSL should look 
     }
 }
 ----
+// NOTCONSOLE
 
 Where the available options are:
 

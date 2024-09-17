@@ -181,6 +181,7 @@ PUT _connector/my-connector-id
   "service_type": "postgresql"
 }
 ----
+// TEST[skip:TODO]
 
 [TIP]
 ====
@@ -246,6 +247,7 @@ POST /_security/api_key
   }
 }
 ----
+// TEST[skip:TODO]
 
 You'll need to use the `encoded` value from the response as the `elasticsearch.api_key` in your configuration file.
 
@@ -307,6 +309,7 @@ The `last_seen` field indicates that the connector successfully connected to {es
 ----
 GET _connector/my-connector-id
 ----
+// TEST[skip:TODO]
 
 [discrete#es-connectors-tutorial-api-update-connector-configuration]
 ==== Configure connector
@@ -345,6 +348,7 @@ PUT _connector/my-connector-id/_configuration
   }
 }
 ----
+// TEST[skip:TODO]
 
 [NOTE]
 ====
@@ -374,6 +378,7 @@ POST _connector/_sync_job
     "job_type": "full"
 }
 ----
+// TEST[skip:TODO]
 
 To store data in {es}, the connector needs to create an index.
 When we created the connector, we specified the `music` index.
@@ -397,6 +402,7 @@ Run the following API call to check the status of the sync job:
 ----
 GET _connector/_sync_job?connector_id=my-connector-id&size=1
 ----
+// TEST[skip:TODO]
 
 The job document will be updated as the sync progresses, you can check it as often as you'd like to poll for updates.
 
@@ -408,6 +414,7 @@ Verify that data is present in the `music` index with the following API call:
 ----
 GET music/_count
 ----
+// TEST[skip:TODO]
 
 {es} stores data in documents, which are JSON objects.
 List the individual documents with the following API call:
@@ -416,6 +423,7 @@ List the individual documents with the following API call:
 ----
 GET music/_search
 ----
+// TEST[skip:TODO]
 
 [discrete#es-connectors-tutorial-api-troubleshooting]
 === Troubleshooting
@@ -426,6 +434,7 @@ Use the following command to inspect the latest sync job's status:
 ----
 GET _connector/_sync_job?connector_id=my-connector-id&size=1
 ----
+// TEST[skip:TODO]
 
 If the connector encountered any errors during the sync, you'll find these in the `error` field.
 
@@ -438,6 +447,7 @@ To delete the connector and its associated sync jobs run this command:
 ----
 DELETE _connector/my-connector-id&delete_sync_jobs=true
 ----
+// TEST[skip:TODO]
 
 This won't delete the Elasticsearch index that was created by the connector to store the data.
 Delete the `music` index by running the following command:
@@ -446,6 +456,7 @@ Delete the `music` index by running the following command:
 ----
 DELETE music
 ----
+// TEST[skip:TODO]
 
 To remove the PostgreSQL container, run the following commands:
 

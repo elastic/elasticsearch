@@ -234,6 +234,7 @@ Here is some example data that will be used in the following examples.
   }
 ]
 ----
+// NOTCONSOLE
 
 [discrete#es-connectors-postgresql-client-sync-rules-advanced-examples-1-id-columns]
 ======== Multiple table queries with `id_columns`
@@ -260,6 +261,7 @@ Use the `id_columns` field to ingest tables which do not have a primary key. Inc
   }
 ]
 ----
+// NOTCONSOLE
 
 This example uses the `id_columns` field to specify the unique fields `emp_id` and `c_id` for the `employee` and `customer` tables, respectively.
 
@@ -275,6 +277,7 @@ This example uses the `id_columns` field to specify the unique fields `emp_id` a
   }
 ]
 ----
+// NOTCONSOLE
 
 [discrete#es-connectors-postgresql-client-sync-rules-advanced-examples-3]
 ======== `JOIN` operations
@@ -288,6 +291,7 @@ This example uses the `id_columns` field to specify the unique fields `emp_id` a
   }
 ]
 ----
+// NOTCONSOLE
 
 [WARNING]
 ====
@@ -308,6 +312,7 @@ To perform E2E testing for the PostgreSQL connector, run the following command:
 ----
 $ make ftest NAME=postgresql
 ----
+// NOTCONSOLE
 
 For faster tests, add the `DATA_SIZE=small` flag:
 
@@ -315,6 +320,7 @@ For faster tests, add the `DATA_SIZE=small` flag:
 ----
 make ftest NAME=postgresql DATA_SIZE=small
 ----
+// NOTCONSOLE
 
 [discrete#es-connectors-postgresql-client-known-issues]
 ===== Known issues

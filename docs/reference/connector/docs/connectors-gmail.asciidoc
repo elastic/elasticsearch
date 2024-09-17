@@ -143,6 +143,7 @@ For example:
   ]
 }
 ----
+// NOTCONSOLE
 
 [discrete#es-connectors-gmail-document-level-security]
 ===== Document level security
@@ -324,6 +325,7 @@ For example:
   ]
 }
 ----
+// NOTCONSOLE
 
 [discrete#es-connectors-gmail-client-document-level-security]
 ===== Document level security

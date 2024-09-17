@@ -191,6 +191,7 @@ POST /.elastic-connectors/_update/<connector_id>
   }
 }
 ----
+// TEST[skip:TODO]
 +
 * *Upgrading to 8.8 does not migrate MySQL sync rules.*
 +
@@ -254,6 +255,7 @@ For example:
     }
 ]
 ----
+// NOTCONSOLE
 
 [WARNING]
 ====
@@ -451,6 +453,7 @@ POST /.elastic-connectors/_update/<connector_id>
   }
 }
 ----
+// TEST[skip:TODO]
 +
 * *Upgrading to 8.8 does not migrate MySQL sync rules.*
 +
@@ -512,6 +515,7 @@ For example:
     }
 ]
 ----
+// NOTCONSOLE
 
 [WARNING]
 ====

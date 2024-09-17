@@ -350,6 +350,7 @@ To perform E2E testing for the Box connector, run the following command:
 ----
 $ make ftest NAME=box
 ----
+// NOTCONSOLE
 
 For faster tests, add the `DATA_SIZE=small` flag:
 
@@ -357,6 +358,7 @@ For faster tests, add the `DATA_SIZE=small` flag:
 ----
 make ftest NAME=box DATA_SIZE=small
 ----
+// NOTCONSOLE
 
 [discrete#es-connectors-box-client-known-issues]
 ===== Known issues

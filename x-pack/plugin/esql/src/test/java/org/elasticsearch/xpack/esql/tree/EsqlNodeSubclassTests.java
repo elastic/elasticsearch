@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.tree;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.PathUtils;
@@ -659,13 +660,16 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         return randomFrom(Set.of("%{a} %{b}", "%{b} %{c}", "%{a} %{b} %{c}", "%{b} %{c} %{d}", "%{x}"));
     }
 
-    static String randomGrokPattern() {
+    public static String randomGrokPattern() {
         return randomFrom(
             Set.of("%{NUMBER:b:int} %{NUMBER:c:float} %{NUMBER:d:double} %{WORD:e:boolean}", "[a-zA-Z0-9._-]+", "%{LOGLEVEL}")
         );
     }
 
-    static List<DataType> DATA_TYPES = DataType.types().stream().toList();
+    static List<DataType> DATA_TYPES = DataType.types()
+        .stream()
+        .filter(d -> DataType.UNDER_CONSTRUCTION.containsKey(d) == false || Build.current().isSnapshot())
+        .toList();
 
     static EsQueryExec.FieldSort randomFieldSort() {
         return new EsQueryExec.FieldSort(

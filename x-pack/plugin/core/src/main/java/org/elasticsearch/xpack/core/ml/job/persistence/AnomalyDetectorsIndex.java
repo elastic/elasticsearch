@@ -103,9 +103,10 @@ public final class AnomalyDetectorsIndex {
         final ActionListener<Boolean> finalListener
     ) {
         final ActionListener<Boolean> stateIndexAndAliasCreated = finalListener.delegateFailureAndWrap((delegate, success) -> {
-            final ClusterHealthRequest request = new ClusterHealthRequest(AnomalyDetectorsIndex.jobStateIndexWriteAlias())
-                .waitForYellowStatus()
-                .masterNodeTimeout(masterNodeTimeout);
+            final ClusterHealthRequest request = new ClusterHealthRequest(
+                masterNodeTimeout,
+                AnomalyDetectorsIndex.jobStateIndexWriteAlias()
+            ).waitForYellowStatus();
             executeAsyncWithOrigin(
                 client,
                 ML_ORIGIN,

@@ -21,7 +21,17 @@ public record FilteredAggregatorFunctionSupplier(AggregatorFunctionSupplier next
 
     @Override
     public AggregatorFunction aggregator(DriverContext driverContext) {
-        throw new UnsupportedOperationException("TODO");
+        AggregatorFunction next = this.next.aggregator(driverContext);
+        EvalOperator.ExpressionEvaluator filter = null;
+        try {
+            filter = this.filter.get(driverContext);
+            AggregatorFunction result = new FilteredAggregatorFunction(next, filter);
+            next = null;
+            filter = null;
+            return result;
+        } finally {
+            Releasables.closeExpectNoException(next, filter);
+        }
     }
 
     @Override

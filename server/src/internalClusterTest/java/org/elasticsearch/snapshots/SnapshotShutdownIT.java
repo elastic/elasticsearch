@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.snapshots;
@@ -177,7 +178,12 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
             SubscribableListener.<ActionResponse.Empty>newForked(
                 l -> client().execute(
                     TransportAddVotingConfigExclusionsAction.TYPE,
-                    new AddVotingConfigExclusionsRequest(Strings.EMPTY_ARRAY, new String[] { masterName }, TimeValue.timeValueSeconds(10)),
+                    new AddVotingConfigExclusionsRequest(
+                        TEST_REQUEST_TIMEOUT,
+                        Strings.EMPTY_ARRAY,
+                        new String[] { masterName },
+                        TimeValue.timeValueSeconds(10)
+                    ),
                     l
                 )
             )
@@ -212,7 +218,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         // flush master queue to ensure the completion is applied everywhere
         safeAwait(
             SubscribableListener.<ClusterHealthResponse>newForked(
-                l -> client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).execute(l)
+                l -> client().admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).execute(l)
             )
         );
 
@@ -230,7 +236,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         }
 
         safeAwait(SubscribableListener.<ActionResponse.Empty>newForked(l -> {
-            final var clearVotingConfigExclusionsRequest = new ClearVotingConfigExclusionsRequest();
+            final var clearVotingConfigExclusionsRequest = new ClearVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT);
             clearVotingConfigExclusionsRequest.setWaitForRemoval(false);
             client().execute(TransportClearVotingConfigExclusionsAction.TYPE, clearVotingConfigExclusionsRequest, l);
         }));

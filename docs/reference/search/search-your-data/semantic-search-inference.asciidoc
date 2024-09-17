@@ -39,6 +39,7 @@ Create an {infer} endpoint by using the <<put-inference-api>>:
 
 include::{es-ref-dir}/tab-widgets/inference-api/infer-api-task-widget.asciidoc[]
 
+
 [discrete]
 [[infer-service-mappings]]
 ==== Create the index mapping

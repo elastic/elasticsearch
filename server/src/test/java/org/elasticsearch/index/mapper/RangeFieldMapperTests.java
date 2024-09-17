@@ -384,7 +384,7 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
     }
 
     protected Source getSourceFor(CheckedConsumer<XContentBuilder, IOException> mapping, List<?> inputValues) throws IOException {
-        MapperService mapperService = createMapperService(syntheticSourceMapping(mapping));
+        var mapperService = createMapperService(syntheticSourceMapping(mapping));
 
         CheckedConsumer<XContentBuilder, IOException> input = b -> {
             b.field("field");

@@ -666,7 +666,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             )
         );
         String value = randomAlphaOfLengthBetween(1, 20);
-        assertEquals("{\"field\":\"" + value + "\"}", syntheticSource(mapper, b -> b.field("field", value)));
+        assertEquals("{\"field\":\"" + value + "\"}", syntheticSource(mapper.documentMapper(), b -> b.field("field", value)));
     }
 
     @Override

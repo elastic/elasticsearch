@@ -12,7 +12,6 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -375,7 +374,7 @@ public class HistogramFieldMapperTests extends MapperTestCase {
     }
 
     public void testArrayValueSyntheticSource() throws Exception {
-        MapperService mapperService = createMapperService(
+        DocumentMapper mapper = createDocumentMapper(
             syntheticSourceFieldMapping(b -> b.field("type", "histogram").field("ignore_malformed", "true"))
         );
 
@@ -402,7 +401,7 @@ public class HistogramFieldMapperTests extends MapperTestCase {
         }
         expected.endObject();
 
-        var syntheticSource = syntheticSource(mapperService, arrayValue);
+        var syntheticSource = syntheticSource(mapper, arrayValue);
         assertEquals(Strings.toString(expected), syntheticSource);
     }
 

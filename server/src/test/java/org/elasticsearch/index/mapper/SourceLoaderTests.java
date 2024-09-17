@@ -25,25 +25,25 @@ public class SourceLoaderTests extends MapperServiceTestCase {
     }
 
     public void testEmptyObject() throws IOException {
-        MapperService mapperService = createMapperService(syntheticSourceMapping(b -> {
+        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
             b.startObject("o").field("type", "object").endObject();
             b.startObject("kwd").field("type", "keyword").endObject();
         }));
-        assertTrue(mapperService.documentMapper().mappers().newSourceLoader(SourceFieldMetrics.NOOP).reordersFieldValues());
-        assertThat(syntheticSource(mapperService, b -> b.field("kwd", "foo")), equalTo("""
+        assertTrue(mapper.mappers().newSourceLoader(SourceFieldMetrics.NOOP).reordersFieldValues());
+        assertThat(syntheticSource(mapper, b -> b.field("kwd", "foo")), equalTo("""
             {"kwd":"foo"}"""));
     }
 
     public void testDotsInFieldName() throws IOException {
-        MapperService mapperService = createMapperService(
+        DocumentMapper mapper = createDocumentMapper(
             syntheticSourceMapping(b -> b.startObject("foo.bar.baz").field("type", "keyword").endObject())
         );
-        assertThat(syntheticSource(mapperService, b -> b.field("foo.bar.baz", "aaa")), equalTo("""
+        assertThat(syntheticSource(mapper, b -> b.field("foo.bar.baz", "aaa")), equalTo("""
             {"foo":{"bar":{"baz":"aaa"}}}"""));
     }
 
     public void testNoSubobjectsIntermediateObject() throws IOException {
-        MapperService mapperService = createMapperService(syntheticSourceMapping(b -> {
+        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
             b.startObject("foo");
             {
                 b.field("type", "object").field("subobjects", false);
@@ -55,7 +55,7 @@ public class SourceLoaderTests extends MapperServiceTestCase {
             }
             b.endObject();
         }));
-        assertThat(syntheticSource(mapperService, b -> b.field("foo.bar.baz", "aaa")), equalTo("""
+        assertThat(syntheticSource(mapper, b -> b.field("foo.bar.baz", "aaa")), equalTo("""
             {"foo":{"bar.baz":"aaa"}}"""));
     }
 
@@ -67,35 +67,32 @@ public class SourceLoaderTests extends MapperServiceTestCase {
             b.startObject("foo.bar.baz").field("type", "keyword").endObject();
             b.endObject();
         });
-        MapperService mapperService = createMapperService(mappings);
-        assertThat(syntheticSource(mapperService, b -> b.field("foo.bar.baz", "aaa")), equalTo("""
+        DocumentMapper mapper = createDocumentMapper(mappings);
+        assertThat(syntheticSource(mapper, b -> b.field("foo.bar.baz", "aaa")), equalTo("""
             {"foo.bar.baz":"aaa"}"""));
     }
 
     public void testSorted() throws IOException {
-        MapperService mapperService = createMapperService(syntheticSourceMapping(b -> {
+        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
             b.startObject("foo").field("type", "keyword").endObject();
             b.startObject("bar").field("type", "keyword").endObject();
             b.startObject("baz").field("type", "keyword").endObject();
         }));
         assertThat(
-            syntheticSource(
-                mapperService,
-                b -> b.field("foo", "over the lazy dog").field("bar", "the quick").field("baz", "brown fox jumped")
-            ),
+            syntheticSource(mapper, b -> b.field("foo", "over the lazy dog").field("bar", "the quick").field("baz", "brown fox jumped")),
             equalTo("""
                 {"bar":"the quick","baz":"brown fox jumped","foo":"over the lazy dog"}""")
         );
     }
 
     public void testArraysPushedToLeaves() throws IOException {
-        MapperService mapperService = createMapperService(syntheticSourceMapping(b -> {
+        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
             b.startObject("o").startObject("properties");
             b.startObject("foo").field("type", "keyword").endObject();
             b.startObject("bar").field("type", "keyword").endObject();
             b.endObject().endObject();
         }));
-        assertThat(syntheticSource(mapperService, b -> {
+        assertThat(syntheticSource(mapper, b -> {
             b.startArray("o");
             b.startObject().field("foo", "a").endObject();
             b.startObject().field("bar", "b").endObject();

@@ -567,7 +567,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
                 XContentType.JSON
             )
         ) {
-            DocumentParserContext context = new TestDocumentParserContext(MappingLookup.EMPTY, sourceToParse) {
+            DocumentParserContext context = new TestDocumentParserContext(mapperService.mappingLookup(), sourceToParse) {
                 @Override
                 public XContentParser parser() {
                     return parser;
@@ -576,7 +576,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             var xContentLocation = new XContentLocation(0, 3);
             context.addSourceFieldPatch(fieldMapper, xContentLocation);
             var exc = expectThrows(IllegalArgumentException.class, () -> mapper.postParse(context));
-            assertThat(exc.getMessage(), containsString("Cannot find patch"));
+            assertThat(exc.getMessage(), containsString("Registered patch not found"));
         }
     }
 
@@ -594,7 +594,8 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.value(Map.of("another_field", 45));
         var sourceToParse = new SourceToParse("0", BytesReference.bytes(builder), builder.contentType());
-        FieldMapper fieldMapper = (FieldMapper) mapperService.mappingLookup().getMapper("field");
+        var fieldMapper = (FieldMapper) mapperService.mappingLookup().getMapper("field");
+        var anotherFieldMapper = (FieldMapper) mapperService.mappingLookup().getMapper("another_field");
         try (
             var parser = XContentHelper.createParserNotCompressed(
                 XContentParserConfiguration.EMPTY,
@@ -602,7 +603,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
                 XContentType.JSON
             )
         ) {
-            DocumentParserContext context = new TestDocumentParserContext(MappingLookup.EMPTY, sourceToParse) {
+            DocumentParserContext context = new TestDocumentParserContext(mapperService.mappingLookup(), sourceToParse) {
                 @Override
                 public XContentParser parser() {
                     return parser;
@@ -612,13 +613,13 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             context.addSourceFieldPatch(fieldMapper, xContentLocation1);
             {
                 var exc = expectThrows(IllegalArgumentException.class, () -> context.addSourceFieldPatch(fieldMapper, xContentLocation1));
-                assertThat(exc.getMessage(), containsString(xContentLocation1.toString()));
+                assertThat(exc.getMessage(), containsString("Field [field] does not support patching the same location "));
             }
             var xContentLocation2 = new XContentLocation(2, 6);
-            context.addSourceFieldPatch(fieldMapper, xContentLocation2);
+            context.addSourceFieldPatch(anotherFieldMapper, xContentLocation2);
 
             var exc = expectThrows(IllegalArgumentException.class, () -> mapper.postParse(context));
-            assertThat(exc.getMessage(), allOf(containsString(xContentLocation2.toString()), containsString(xContentLocation1.toString())));
+            assertThat(exc.getMessage(), containsString("Registered patch not found"));
         }
     }
 }

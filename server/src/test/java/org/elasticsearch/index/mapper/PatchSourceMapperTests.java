@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -65,6 +66,11 @@ public class PatchSourceMapperTests extends MapperServiceTestCase {
             b.startObject("another_field");
             b.field("type", "keyword");
             b.endObject();
+
+            // another_field
+            b.startObject("extra_field");
+            b.field("type", "keyword");
+            b.endObject();
         }));
         assertSourcePatch(mapperService, Map.of("field", "key1"));
     }
@@ -94,7 +100,7 @@ public class PatchSourceMapperTests extends MapperServiceTestCase {
             )
         );
         assertThat(exc.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(exc.getDetailedMessage(), containsString("doesn't support patching multiple values"));
+        assertThat(exc.getDetailedMessage(), containsString("[field] does not support patching multiple values"));
     }
 
     public void testPatchSourceObject() throws IOException {
@@ -394,7 +400,9 @@ public class PatchSourceMapperTests extends MapperServiceTestCase {
 
         @Override
         protected void parseCreateField(DocumentParserContext context) throws IOException {
-            context.addSourceFieldPatch(this, context.parser().getTokenLocation());
+            if (context.isWithinCopyTo() == false) {
+                context.addSourceFieldPatch(this, context.parser().getTokenLocation());
+            }
             XContentBuilder b = XContentBuilder.builder(context.parser().contentType().xContent());
             b.copyCurrentStructure(context.parser());
             context.doc().add(new BinaryDocValuesField(fullPath(), BytesReference.bytes(b).toBytesRef()));
@@ -426,7 +434,7 @@ public class PatchSourceMapperTests extends MapperServiceTestCase {
 
         @Override
         protected SourceLoader.PatchFieldLoader patchFieldLoader() {
-            return new SourceLoader.SyntheticPatchFieldLoader(syntheticFieldLoader());
+            return new SourceLoader.SyntheticPatchFieldLoader(syntheticSourceSupport().loader());
         }
     }
 }

@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
@@ -529,18 +531,26 @@ public class CompositeRolesStore {
                 .stream()
                 .flatMap(Collection::stream)
                 .collect(Collectors.toSet());
-            privilegeStore.getPrivileges(
-                applicationNames,
-                applicationPrivilegeNames,
-                false, // TODO revisit if we should also wait for an available security index here
-                listener.delegateFailureAndWrap((delegate, appPrivileges) -> {
-                    applicationPrivilegesMap.forEach(
-                        (key, names) -> ApplicationPrivilege.get(key.v1(), names, appPrivileges)
-                            .forEach(priv -> builder.addApplicationPrivilege(priv, key.v2()))
-                    );
-                    delegate.onResponse(builder.build());
-                })
-            );
+            privilegeStore.threadPool()
+                .generic()
+                .execute(
+                    ActionRunnable.wrap(
+                        listener,
+                        l -> privilegeStore.getPrivileges(
+                            applicationNames,
+                            applicationPrivilegeNames,
+                            false, // TODO revisit if we should also wait for an available security index here
+                            l.delegateFailureAndWrap((delegate, appPrivileges) -> {
+                                Transports.assertNotTransportThread("expensive automaton building");
+                                applicationPrivilegesMap.forEach(
+                                    (key, names) -> ApplicationPrivilege.get(key.v1(), names, appPrivileges)
+                                        .forEach(priv -> builder.addApplicationPrivilege(priv, key.v2()))
+                                );
+                                delegate.onResponse(builder.build());
+                            })
+                        )
+                    )
+                );
         }
     }
 

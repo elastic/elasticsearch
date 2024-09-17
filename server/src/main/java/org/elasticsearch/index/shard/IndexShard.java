@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.shard;
@@ -3982,12 +3983,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     engine.maybePruneDeletes(); // try to prune the deletes in the engine if we accumulated some
                     setRefreshPending(engine);
                     l.onResponse(false);
-                    return;
                 } else {
                     logger.trace("scheduledRefresh: refresh with source [schedule]");
                     engine.maybeRefresh("schedule", l.map(Engine.RefreshResult::refreshed));
-                    return;
                 }
+                return;
             }
             logger.trace("scheduledRefresh: no refresh needed");
             engine.maybePruneDeletes(); // try to prune the deletes in the engine if we accumulated some

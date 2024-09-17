@@ -140,6 +140,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             "fake-inference-id",
             null,
             null,
+            null,
             IndexVersion.current(),
             Map.of()
         );

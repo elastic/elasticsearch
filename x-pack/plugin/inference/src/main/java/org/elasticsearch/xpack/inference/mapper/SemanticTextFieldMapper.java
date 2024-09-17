@@ -99,6 +99,13 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             }
         });
 
+        private final Parameter<String> searchInferenceId = Parameter.stringParam(
+            "search_inference_id",
+            true,
+            mapper -> ((SemanticTextFieldType) mapper.fieldType()).searchInferenceId,
+            null
+        );
+
         private final Parameter<SemanticTextField.ModelSettings> modelSettings = new Parameter<>(
             "model_settings",
             true,
@@ -124,6 +131,11 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             return this;
         }
 
+        public Builder setSearchInferenceId(String id) {
+            this.searchInferenceId.setValue(id);
+            return this;
+        }
+
         public Builder setModelSettings(SemanticTextField.ModelSettings value) {
             this.modelSettings.setValue(value);
             return this;
@@ -131,7 +143,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { inferenceId, modelSettings, meta };
+            return new Parameter<?>[] { inferenceId, searchInferenceId, modelSettings, meta };
         }
 
         @Override
@@ -165,6 +177,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 new SemanticTextFieldType(
                     fullName,
                     inferenceId.getValue(),
+                    searchInferenceId.getValue(),
                     modelSettings.getValue(),
                     inferenceField,
                     indexVersionCreated,
@@ -290,7 +303,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         String[] copyFields = sourcePaths.toArray(String[]::new);
         // ensure consistent order
         Arrays.sort(copyFields);
-        return new InferenceFieldMetadata(fullPath(), fieldType().inferenceId, copyFields);
+        return new InferenceFieldMetadata(fullPath(), fieldType().getInferenceId(), fieldType().getSearchInferenceId(), copyFields);
     }
 
     @Override
@@ -309,6 +322,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
     public static class SemanticTextFieldType extends SimpleMappedFieldType {
         private final String inferenceId;
+        private final String searchInferenceId;
         private final SemanticTextField.ModelSettings modelSettings;
         private final ObjectMapper inferenceField;
         private final IndexVersion indexVersionCreated;
@@ -316,6 +330,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         public SemanticTextFieldType(
             String name,
             String inferenceId,
+            String searchInferenceId,
             SemanticTextField.ModelSettings modelSettings,
             ObjectMapper inferenceField,
             IndexVersion indexVersionCreated,
@@ -323,6 +338,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         ) {
             super(name, true, false, false, TextSearchInfo.NONE, meta);
             this.inferenceId = inferenceId;
+            this.searchInferenceId = searchInferenceId;
             this.modelSettings = modelSettings;
             this.inferenceField = inferenceField;
             this.indexVersionCreated = indexVersionCreated;
@@ -335,6 +351,10 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         public String getInferenceId() {
             return inferenceId;
+        }
+
+        public String getSearchInferenceId() {
+            return searchInferenceId == null ? inferenceId : searchInferenceId;
         }
 
         public SemanticTextField.ModelSettings getModelSettings() {
@@ -401,6 +421,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 childQueryBuilder = switch (modelSettings.taskType()) {
                     case SPARSE_EMBEDDING -> {
                         if (inferenceResults instanceof TextExpansionResults == false) {
+                            // TODO: Update exception message
                             throw new IllegalArgumentException(
                                 "Field ["
                                     + name()
@@ -427,6 +448,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     }
                     case TEXT_EMBEDDING -> {
                         if (inferenceResults instanceof MlTextEmbeddingResults == false) {
+                            // TODO: Update exception message
                             throw new IllegalArgumentException(
                                 "Field ["
                                     + name()
@@ -442,6 +464,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                         MlTextEmbeddingResults textEmbeddingResults = (MlTextEmbeddingResults) inferenceResults;
                         float[] inference = textEmbeddingResults.getInferenceAsFloat();
                         if (inference.length != modelSettings.dimensions()) {
+                            // TODO: Update exception message
                             throw new IllegalArgumentException(
                                 "Field ["
                                     + name()
@@ -455,6 +478,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
                         yield new KnnVectorQueryBuilder(inferenceResultsFieldName, inference, null, null, null);
                     }
+                    // TODO: Update exception message
                     default -> throw new IllegalStateException(
                         "Field ["
                             + name()

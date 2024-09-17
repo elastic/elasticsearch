@@ -40,8 +40,8 @@ import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.Sp
 
 public abstract class SpatialRelatesFunction extends BinarySpatialFunction
     implements
-    EvaluatorMapper,
-    SpatialEvaluatorFactory.SpatialSourceSupplier {
+        EvaluatorMapper,
+        SpatialEvaluatorFactory.SpatialSourceSupplier {
 
     protected SpatialRelatesFunction(Source source, Expression left, Expression right, boolean leftDocValues, boolean rightDocValues) {
         super(source, left, right, leftDocValues, rightDocValues, false);

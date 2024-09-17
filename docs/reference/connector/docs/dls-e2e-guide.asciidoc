@@ -267,7 +267,7 @@ GET .search-acl-filter-source2
 
 The following script exemplifies how to generate the Elasticsearch API key that combines multiple user identities:
 
-[source,javascript]
+[source,js]
 ----
 require("dotenv").config();
 const axios = require("axios");
@@ -386,7 +386,7 @@ The workflow will look something like this:
 4. When the user searches for documents, the frontend application passes the `encoded` field to your search application's {ref}/search-application-search.html[`_search` endpoint].
 For example, you might use the https://github.com/elastic/search-application-client[Search Application client^] to make the actual queries using the API key:
 +
-[source,javascript]
+[source,js]
 ----
 const client = SearchApplicationClient(applicationName, endpoint, apiKey, params);
 ----

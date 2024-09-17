@@ -20,7 +20,6 @@ import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankDoc;
-import org.elasticsearch.search.rank.RankDocsRankBuilder;
 import org.elasticsearch.search.retriever.rankdoc.RankDocsAndScoreSortBuilder;
 import org.elasticsearch.search.retriever.rankdoc.RankDocsQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -113,7 +112,6 @@ public class RankDocsRetrieverBuilderTests extends ESTestCase {
         retriever.extractToSearchSourceBuilder(source, randomBoolean());
         assertThat(source.sorts().size(), equalTo(1));
         assertThat(source.sorts().get(0), instanceOf(RankDocsAndScoreSortBuilder.class));
-        assertThat(source.rankBuilder(), instanceOf(RankDocsRankBuilder.class));
         assertThat(source.query(), instanceOf(BoolQueryBuilder.class));
         BoolQueryBuilder bq = (BoolQueryBuilder) source.query();
         if (source.aggregations() != null

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.bulk;
@@ -486,13 +487,17 @@ public class BulkRequest extends ActionRequest
     }
 
     /*
-     * This copies this bulk request, but without all of its inner requests
+     * This copies this bulk request, but without all of its inner requests or the set of indices found in those requests
      */
     public BulkRequest shallowClone() {
-        BulkRequest bulkRequest = new BulkRequest();
+        BulkRequest bulkRequest = new BulkRequest(globalIndex);
         bulkRequest.setRefreshPolicy(getRefreshPolicy());
         bulkRequest.waitForActiveShards(waitForActiveShards());
         bulkRequest.timeout(timeout());
+        bulkRequest.pipeline(pipeline());
+        bulkRequest.routing(routing());
+        bulkRequest.requireAlias(requireAlias());
+        bulkRequest.requireDataStream(requireDataStream());
         return bulkRequest;
     }
 }

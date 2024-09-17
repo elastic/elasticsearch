@@ -1,23 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
-import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
-import org.elasticsearch.cluster.metadata.Template;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -55,20 +53,22 @@ import java.util.Map;
  *   },
  *   "component_template_substitutions": {
  *     "my-template-1": {
- *       "settings": {
- *         "number_of_shards": 1
- *       },
- *       "mappings": {
- *         "_source": {
- *           "enabled": false
+ *       "template": {
+ *         "settings": {
+ *           "number_of_shards": 1
  *         },
- *         "properties": {
- *           "host_name": {
- *             "type": "keyword"
+ *         "mappings": {
+ *           "_source": {
+ *             "enabled": false
  *           },
- *           "created_at": {
- *             "type": "date",
- *             "format": "EEE MMM dd HH:mm:ss Z yyyy"
+ *           "properties": {
+ *             "host_name": {
+ *               "type": "keyword"
+ *             },
+ *             "created_at": {
+ *               "type": "date",
+ *               "format": "EEE MMM dd HH:mm:ss Z yyyy"
+ *             }
  *           }
  *         }
  *       }
@@ -140,20 +140,12 @@ public class SimulateBulkRequest extends BulkRequest {
         return result;
     }
 
-    @SuppressWarnings("unchecked")
     private static ComponentTemplate convertRawTemplateToComponentTemplate(Map<String, Object> rawTemplate) throws IOException {
-        Settings settings = null;
-        CompressedXContent mappings = null;
-        if (rawTemplate.containsKey("mappings")) {
-            mappings = new CompressedXContent((Map<String, Object>) rawTemplate.get("mappings"));
+        ComponentTemplate componentTemplate;
+        try (var parser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, rawTemplate)) {
+            componentTemplate = ComponentTemplate.parse(parser);
         }
-        if (rawTemplate.containsKey("settings")) {
-            settings = Settings.builder().loadFromMap((Map<String, ?>) rawTemplate.get("settings")).build();
-        }
-        Map<String, AliasMetadata> aliases = null;
-        DataStreamLifecycle lifecycle = null;
-        Template template = new Template(settings, mappings, aliases, lifecycle);
-        return new ComponentTemplate(template, null, null);
+        return componentTemplate;
     }
 
     @Override
@@ -162,6 +154,10 @@ public class SimulateBulkRequest extends BulkRequest {
         bulkRequest.setRefreshPolicy(getRefreshPolicy());
         bulkRequest.waitForActiveShards(waitForActiveShards());
         bulkRequest.timeout(timeout());
+        bulkRequest.pipeline(pipeline());
+        bulkRequest.routing(routing());
+        bulkRequest.requireAlias(requireAlias());
+        bulkRequest.requireDataStream(requireDataStream());
         return bulkRequest;
     }
 }

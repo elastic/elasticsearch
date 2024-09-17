@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -52,19 +54,23 @@ public class SimulateBulkRequestTests extends ESTestCase {
         String substituteComponentTemplatesString = """
               {
                   "mappings_template": {
-                    "mappings": {
-                      "dynamic": "true",
-                      "properties": {
-                        "foo": {
-                          "type": "keyword"
+                    "template": {
+                      "mappings": {
+                        "dynamic": "true",
+                        "properties": {
+                          "foo": {
+                            "type": "keyword"
+                          }
                         }
                       }
                     }
                   },
                   "settings_template": {
-                    "settings": {
-                      "index": {
-                        "default_pipeline": "bar-pipeline"
+                    "template": {
+                      "settings": {
+                        "index": {
+                          "default_pipeline": "bar-pipeline"
+                        }
                       }
                     }
                   }
@@ -82,11 +88,15 @@ public class SimulateBulkRequestTests extends ESTestCase {
         assertThat(componentTemplateSubstitutions.size(), equalTo(2));
         assertThat(
             XContentHelper.convertToMap(
-                componentTemplateSubstitutions.get("mappings_template").template().mappings().uncompressed(),
+                XContentHelper.toXContent(
+                    componentTemplateSubstitutions.get("mappings_template").template(),
+                    XContentType.JSON,
+                    randomBoolean()
+                ),
                 randomBoolean(),
                 XContentType.JSON
             ).v2(),
-            equalTo(substituteComponentTemplates.get("mappings_template").get("mappings"))
+            equalTo(substituteComponentTemplates.get("mappings_template").get("template"))
         );
         assertNull(componentTemplateSubstitutions.get("mappings_template").template().settings());
         assertNull(componentTemplateSubstitutions.get("settings_template").template().mappings());
@@ -99,6 +109,13 @@ public class SimulateBulkRequestTests extends ESTestCase {
 
     public void testShallowClone() throws IOException {
         SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(getTestPipelineSubstitutions(), getTestTemplateSubstitutions());
+        simulateBulkRequest.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
+        simulateBulkRequest.waitForActiveShards(randomIntBetween(1, 10));
+        simulateBulkRequest.timeout(randomTimeValue());
+        simulateBulkRequest.pipeline(randomBoolean() ? null : randomAlphaOfLength(10));
+        simulateBulkRequest.routing(randomBoolean() ? null : randomAlphaOfLength(10));
+        simulateBulkRequest.requireAlias(randomBoolean());
+        simulateBulkRequest.requireDataStream(randomBoolean());
         BulkRequest shallowCopy = simulateBulkRequest.shallowClone();
         assertThat(shallowCopy, instanceOf(SimulateBulkRequest.class));
         SimulateBulkRequest simulateBulkRequestCopy = (SimulateBulkRequest) shallowCopy;
@@ -111,6 +128,10 @@ public class SimulateBulkRequestTests extends ESTestCase {
         assertThat(simulateBulkRequestCopy.getRefreshPolicy(), equalTo(simulateBulkRequest.getRefreshPolicy()));
         assertThat(simulateBulkRequestCopy.waitForActiveShards(), equalTo(simulateBulkRequest.waitForActiveShards()));
         assertThat(simulateBulkRequestCopy.timeout(), equalTo(simulateBulkRequest.timeout()));
+        assertThat(shallowCopy.pipeline(), equalTo(simulateBulkRequest.pipeline()));
+        assertThat(shallowCopy.routing(), equalTo(simulateBulkRequest.routing()));
+        assertThat(shallowCopy.requireAlias(), equalTo(simulateBulkRequest.requireAlias()));
+        assertThat(shallowCopy.requireDataStream(), equalTo(simulateBulkRequest.requireDataStream()));
     }
 
     private static Map<String, Map<String, Object>> getTestPipelineSubstitutions() {
@@ -125,9 +146,12 @@ public class SimulateBulkRequestTests extends ESTestCase {
     private static Map<String, Map<String, Object>> getTestTemplateSubstitutions() {
         return Map.of(
             "template1",
-            Map.of("mappings", Map.of("_source", Map.of("enabled", false), "properties", Map.of()), "settings", Map.of()),
+            Map.of(
+                "template",
+                Map.of("mappings", Map.of("_source", Map.of("enabled", false), "properties", Map.of()), "settings", Map.of())
+            ),
             "template2",
-            Map.of("mappings", Map.of(), "settings", Map.of())
+            Map.of("template", Map.of("mappings", Map.of(), "settings", Map.of()))
         );
     }
 }

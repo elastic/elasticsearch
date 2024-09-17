@@ -161,9 +161,17 @@ public abstract class ESRestTestCase extends ESTestCase {
         "The rollup functionality will be removed in in Elasticsearch 9.0. See docs for more information.";
     public static final RequestOptions.Builder ROLLUP_REQUESTS_OPTIONS = RequestOptions.DEFAULT.toBuilder()
         .setWarningsHandler(
-            // Either no warning, because of bwc integration test OR
-            // the expected warning, because on current version
-            warnings -> warnings.isEmpty() || (warnings.size() != 1 || EXPECTED_ROLLUP_WARNING_MESSAGE.equals(warnings.get(0)) == false)
+            warnings -> {
+                // Either no warning, because of bwc integration test OR
+                // the expected warning, because on current version
+                if (warnings.isEmpty()) {
+                    return false;
+                } else if (warnings.size() == 1 && EXPECTED_ROLLUP_WARNING_MESSAGE.equals(warnings.get(0))) {
+                    return false;
+                } else {
+                    return true;
+                }
+            }
         );
 
     /**

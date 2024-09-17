@@ -21,6 +21,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedFieldType;
@@ -192,6 +193,41 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
 
         assertEquals(
             List.of(Map.of("key2", List.of("one", "two"), "key3", "hi")),
+            fetchSourceValue(createDefaultFieldType(3), sourceValue)
+        );
+    }
+
+    public void testFetchSourceValueWithMixedFieldTypes() throws IOException {
+        Map<String, Object> sourceValue = Map.of("key1", List.of("one", 1, "two", 2));
+
+        assertEquals(List.of(Map.of("key1", List.of("one", 1, "two", 2))), fetchSourceValue(createDefaultFieldType(3), sourceValue));
+    }
+
+    public void testFetchSourceValueWithNonString() throws IOException {
+        Map<String, Object> sourceValue = Map.of(
+            "key1",
+            List.of(100, 200),
+            "key2",
+            List.of(new int[] { 1, 2, 3 }, new double[] { 1.5, 1.6 }),
+            "key3",
+            50L,
+            "key4",
+            new Tuple<>(10, 100)
+        );
+
+        assertEquals(
+            List.of(
+                Map.of(
+                    "key1",
+                    List.of(100, 200),
+                    "key2",
+                    List.of(new int[] { 1, 2, 3 }, new double[] { 1.5, 1.6 }),
+                    "key3",
+                    50L,
+                    "key4",
+                    new Tuple<>(10, 100)
+                )
+            ),
             fetchSourceValue(createDefaultFieldType(3), sourceValue)
         );
     }

@@ -752,8 +752,12 @@ public final class FlattenedFieldMapper extends FieldMapper {
                     if (entryValue instanceof List<?> valueAsList) {
                         final List<Object> validValues = new ArrayList<>();
                         for (Object value : valueAsList) {
-                            if (value instanceof String valueAsString && valueAsString.length() <= ignoreAbove) {
-                                validValues.add(valueAsString);
+                            if (value instanceof String valueAsString) {
+                                if (valueAsString.length() <= ignoreAbove) {
+                                    validValues.add(valueAsString);
+                                }
+                            } else {
+                                validValues.add(value);
                             }
                         }
                         if (validValues.isEmpty()) {

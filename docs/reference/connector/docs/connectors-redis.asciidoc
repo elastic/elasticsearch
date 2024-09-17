@@ -149,7 +149,6 @@ Provide at least one of the following: `key_pattern` or `type`, or both.
     "key_pattern": "alpha*"
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-redis-connector-advanced-sync-rules-example-2]
@@ -165,7 +164,6 @@ Provide at least one of the following: `key_pattern` or `type`, or both.
     "key_pattern": "alpha"
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-redis-connector-advanced-sync-rules-example-3]
@@ -182,7 +180,6 @@ Provide at least one of the following: `key_pattern` or `type`, or both.
   }
 ]
 
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-redis-connector-advanced-sync-rules-example-4]
@@ -198,7 +195,6 @@ Provide at least one of the following: `key_pattern` or `type`, or both.
     "key_pattern": "test[^123]"
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-redis-connector-advanced-sync-rules-example-5]
@@ -214,7 +210,6 @@ Provide at least one of the following: `key_pattern` or `type`, or both.
     "key_pattern": "*"
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-redis-connector-advanced-sync-rules-example-6]
@@ -231,7 +226,6 @@ Provide at least one of the following: `key_pattern` or `type`, or both.
     "type": "SET"
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-redis-connector-advanced-sync-rules-example-7]
@@ -247,7 +241,6 @@ Provide at least one of the following: `key_pattern` or `type`, or both.
     "type": "SET"
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-redis-connector-connector-client-operations]
@@ -271,7 +264,6 @@ For faster tests, add the `DATA_SIZE=small` flag:
 [source,shell]
 ----
 make ftest NAME=redis DATA_SIZE=small
-// NOTCONSOLE
 ----
 
 By default, `DATA_SIZE=MEDIUM`.

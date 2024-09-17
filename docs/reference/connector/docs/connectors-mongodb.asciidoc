@@ -151,7 +151,6 @@ Incorrect (`new Date()` will be interpreted as string):
         ]
     }
 }
-// NOTCONSOLE
 ----
 
 Correct (usage of https://www.mongodb.com/docs/manual/reference/aggregation-variables/#mongodb-variable-variable.NOW[$$NOW]):
@@ -180,7 +179,6 @@ Correct (usage of https://www.mongodb.com/docs/manual/reference/aggregation-vari
     ]
   }
 }
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-mongodb-known-issues-tls-with-invalid-cert]
@@ -278,7 +276,6 @@ For `find` queries, the structure of this JSON DSL should look like:
 	}
 }
 
-// NOTCONSOLE
 ----
 
 For example:
@@ -297,7 +294,6 @@ For example:
 		"limit": 1000
 	}
 }
-// NOTCONSOLE
 ----
 
 `find` queries also support additional options, for example the `projection` object:
@@ -319,7 +315,6 @@ For example:
     }
   }
 }
-// NOTCONSOLE
 ----
 Where the available options are:
 
@@ -352,7 +347,6 @@ Similarly, for aggregation pipelines, the structure of the JSON DSL should look 
 		}
     }
 }
-// NOTCONSOLE
 ----
 
 Where the available options are:
@@ -531,7 +525,6 @@ Incorrect (`new Date()` will be interpreted as string):
         ]
     }
 }
-// NOTCONSOLE
 ----
 
 Correct (usage of https://www.mongodb.com/docs/manual/reference/aggregation-variables/#mongodb-variable-variable.NOW[$$NOW]):
@@ -560,7 +553,6 @@ Correct (usage of https://www.mongodb.com/docs/manual/reference/aggregation-vari
     ]
   }
 }
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-mongodb-client-known-issues-tls-with-invalid-cert]
@@ -671,7 +663,6 @@ For `find` queries, the structure of this JSON DSL should look like:
 	}
 }
 
-// NOTCONSOLE
 ----
 
 For example:
@@ -690,7 +681,6 @@ For example:
 		"limit": 1000
 	}
 }
-// NOTCONSOLE
 ----
 
 `find` queries also support additional options, for example the `projection` object:
@@ -712,7 +702,6 @@ For example:
     }
   }
 }
-// NOTCONSOLE
 ----
 Where the available options are:
 
@@ -745,7 +734,6 @@ Similarly, for aggregation pipelines, the structure of the JSON DSL should look 
 		}
     }
 }
-// NOTCONSOLE
 ----
 
 Where the available options are:

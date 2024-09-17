@@ -170,7 +170,6 @@ Advanced sync rules are defined through a source-specific DSL JSON snippet.
     "query": "space = DEV"
   }
 ]
-// NOTCONSOLE
 ----
 
 *Example 2*: Queries for indexing data based on `created` and `lastmodified` time.
@@ -185,7 +184,6 @@ Advanced sync rules are defined through a source-specific DSL JSON snippet.
     "query": "lastmodified < startOfYear()"
   }
 ]
-// NOTCONSOLE
 ----
 
 *Example 3*: Query for indexing only given types in a *Space* with key 'SD'.
@@ -197,7 +195,6 @@ Advanced sync rules are defined through a source-specific DSL JSON snippet.
     "query": "type in ('page', 'attachment') AND space.key = 'SD'"
   }
 ]
-// NOTCONSOLE
 ----
 
 [NOTE]
@@ -434,7 +431,6 @@ Advanced sync rules are defined through a source-specific DSL JSON snippet.
     "query": "space = DEV"
   }
 ]
-// NOTCONSOLE
 ----
 
 *Example 2*: Queries for indexing data based on `created` and `lastmodified` time.
@@ -449,7 +445,6 @@ Advanced sync rules are defined through a source-specific DSL JSON snippet.
     "query": "lastmodified < startOfYear()"
   }
 ]
-// NOTCONSOLE
 ----
 
 *Example 3*: Query for indexing only given types in a *Space* with key 'SD'.
@@ -461,7 +456,6 @@ Advanced sync rules are defined through a source-specific DSL JSON snippet.
     "query": "type in ('page', 'attachment') AND space.key = 'SD'"
   }
 ]
-// NOTCONSOLE
 ----
 
 [NOTE]
@@ -512,7 +506,6 @@ To perform E2E testing for the Confluence connector, run the following command:
 [source,shell]
 ----
 $ make ftest NAME=confluence
-// NOTCONSOLE
 ----
 
 For faster tests, add the `DATA_SIZE=small` flag:
@@ -520,7 +513,6 @@ For faster tests, add the `DATA_SIZE=small` flag:
 [source,shell]
 ----
 make ftest NAME=confluence DATA_SIZE=small
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-confluence-client-known-issues]

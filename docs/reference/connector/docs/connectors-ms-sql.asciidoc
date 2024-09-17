@@ -214,7 +214,6 @@ These rules fetch all records from both the `employee` and `customer` tables. Th
     "query": "SELECT * FROM customer"
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-ms-sql-sync-rules-example-one-where]
@@ -230,7 +229,6 @@ This rule fetches only the records from the `employee` table where the `emp_id` 
     "query": "SELECT * FROM employee WHERE emp_id > 5"
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-ms-sql-sync-rules-example-one-join]
@@ -246,7 +244,6 @@ This rule fetches records by performing an INNER JOIN between the `employee` and
     "query": "SELECT * FROM employee INNER JOIN customer ON employee.emp_id = customer.c_id"
   }
 ]
-// NOTCONSOLE
 ----
 
 [WARNING]
@@ -500,7 +497,6 @@ These rules fetch all records from both the `employee` and `customer` tables. Th
     "query": "SELECT * FROM customer"
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-ms-sql-client-sync-rules-example-one-where]
@@ -516,7 +512,6 @@ This rule fetches only the records from the `employee` table where the `emp_id` 
     "query": "SELECT * FROM employee WHERE emp_id > 5"
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-ms-sql-client-sync-rules-example-one-join]
@@ -532,7 +527,6 @@ This rule fetches records by performing an INNER JOIN between the `employee` and
     "query": "SELECT * FROM employee INNER JOIN customer ON employee.emp_id = customer.c_id"
   }
 ]
-// NOTCONSOLE
 ----
 
 [WARNING]
@@ -553,7 +547,6 @@ To perform E2E testing for the Microsoft SQL connector, run the following comman
 [source,shell]
 ----
 make ftest NAME=mssql
-// NOTCONSOLE
 ----
 
 For faster tests, add the `DATA_SIZE=small` flag:
@@ -561,7 +554,6 @@ For faster tests, add the `DATA_SIZE=small` flag:
 [source,shell]
 ----
 make ftest NAME=mssql DATA_SIZE=small
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-ms-sql-client-known-issues]

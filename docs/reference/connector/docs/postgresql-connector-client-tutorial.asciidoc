@@ -49,7 +49,6 @@ Enable this by running the following command on the PosgreSQL server command lin
 [source,shell]
 ----
 ALTER SYSTEM SET track_commit_timestamp = on;
-// NOTCONSOLE
 ----
 
 Then restart the PostgreSQL server.
@@ -216,7 +215,6 @@ If you navigate to the terminal window where you're running the connector servic
 ...
 [FMWK][23:22:28][INF0] [oRXQwYYBLhXTs-qYpJ9i] Sync done: 3864 indexed, 0 deleted.
 (27 seconds)
-// NOTCONSOLE
 ----
 
 This confirms the connector has fetched records from your PostgreSQL table(s) and transformed them into documents in your Elasticsearch index.

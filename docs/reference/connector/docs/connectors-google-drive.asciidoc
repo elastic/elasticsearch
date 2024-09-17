@@ -381,7 +381,6 @@ To perform E2E testing for the Google Drive connector, run the following command
 [source,shell]
 ----
 make ftest NAME=google_drive
-// NOTCONSOLE
 ----
 
 For faster tests, add the `DATA_SIZE=small` flag:
@@ -389,7 +388,6 @@ For faster tests, add the `DATA_SIZE=small` flag:
 [source,shell]
 ----
 make ftest NAME=google_drive DATA_SIZE=small
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-google-drive-client-known-issues]

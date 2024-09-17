@@ -175,7 +175,6 @@ The following sections provide examples of advanced sync rules for this connecto
     "query": "numberSTARTSWITHINC001"
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-servicenow-sync-rules-active-false-user-service]
@@ -189,7 +188,6 @@ The following sections provide examples of advanced sync rules for this connecto
     "query": "active=False"
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-servicenow-sync-rules-author-administrator-knowledge-service]
@@ -203,7 +201,6 @@ The following sections provide examples of advanced sync rules for this connecto
     "query": "author.nameSTARTSWITHSystem Administrator"
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-servicenow-known-issues]
@@ -413,7 +410,6 @@ The following sections provide examples of advanced sync rules for this connecto
     "query": "numberSTARTSWITHINC001"
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-servicenow-client-sync-rules-active-false-user-service]
@@ -427,7 +423,6 @@ The following sections provide examples of advanced sync rules for this connecto
     "query": "active=False"
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-servicenow-client-sync-rules-author-administrator-knowledge-service]
@@ -441,7 +436,6 @@ The following sections provide examples of advanced sync rules for this connecto
     "query": "author.nameSTARTSWITHSystem Administrator"
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-servicenow-client-connector-client-operations-testing]
@@ -455,7 +449,6 @@ To perform E2E testing for the ServiceNow connector, run the following command:
 [source,shell]
 ----
 $ make ftest NAME=servicenow
-// NOTCONSOLE
 ----
 
 Generate performance reports using the following flag: `PERF8=yes`.

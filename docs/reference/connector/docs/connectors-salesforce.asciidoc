@@ -239,7 +239,6 @@ Allowed values are *SOQL* and *SOSL*.
     "language": "SOQL"
   }
 ]
-// NOTCONSOLE
 ----
 
 **Example**: Fetch documents using SOSL query.
@@ -252,7 +251,6 @@ Allowed values are *SOQL* and *SOSL*.
     "language": "SOSL" 
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-salesforce-sync-rules-advanced-fetch-objects]
@@ -272,7 +270,6 @@ Allowed values are *SOQL* and *SOSL*.
     "language": "SOSL"
   }
 ]
-// NOTCONSOLE
 ----
 
 **Example**: Fetch documents for custom objects via SOQL and SOSL query.
@@ -289,7 +286,6 @@ Allowed values are *SOQL* and *SOSL*.
     "language": "SOSL"
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-salesforce-sync-rules-advanced-fetch-standard-custom-fields]
@@ -305,7 +301,6 @@ Allowed values are *SOQL* and *SOSL*.
     "language": "SOQL"
   }
 ]
-// NOTCONSOLE
 ----
 
 **Example**: Fetch documents with all custom fields for Connector object.
@@ -318,7 +313,6 @@ Allowed values are *SOQL* and *SOSL*.
     "language": "SOQL"
   }
 ]
-// NOTCONSOLE
 ----
 
 **Example**: Fetch documents with all standard fields for Account object.
@@ -331,7 +325,6 @@ Allowed values are *SOQL* and *SOSL*.
     "language": "SOQL"
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-salesforce-documents-syncs]
@@ -638,7 +631,6 @@ Allowed values are *SOQL* and *SOSL*.
     "language": "SOQL"
   }
 ]
-// NOTCONSOLE
 ----
 
 **Example**: Fetch documents using SOSL query.
@@ -651,7 +643,6 @@ Allowed values are *SOQL* and *SOSL*.
     "language": "SOSL" 
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-salesforce-client-sync-rules-advanced-fetch-objects]
@@ -671,7 +662,6 @@ Allowed values are *SOQL* and *SOSL*.
     "language": "SOSL"
   }
 ]
-// NOTCONSOLE
 ----
 
 **Example**: Fetch documents for custom objects via SOQL and SOSL query.
@@ -688,7 +678,6 @@ Allowed values are *SOQL* and *SOSL*.
     "language": "SOSL"
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-salesforce-client-sync-rules-advanced-fetch-standard-custom-fields]
@@ -704,7 +693,6 @@ Allowed values are *SOQL* and *SOSL*.
     "language": "SOQL"
   }
 ]
-// NOTCONSOLE
 ----
 
 **Example**: Fetch documents with all custom fields for Connector object.
@@ -717,7 +705,6 @@ Allowed values are *SOQL* and *SOSL*.
     "language": "SOQL"
   }
 ]
-// NOTCONSOLE
 ----
 
 **Example**: Fetch documents with all standard fields for Account object.
@@ -730,7 +717,6 @@ Allowed values are *SOQL* and *SOSL*.
     "language": "SOQL"
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-salesforce-client-documents-syncs]

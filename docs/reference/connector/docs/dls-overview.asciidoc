@@ -79,7 +79,6 @@ An example of an access control document is as follows:
         "source": "..."
     }
 }
-// NOTCONSOLE
 ----
 
 In this example, the identity object specifies the identity of the user that this document pertains to.
@@ -109,7 +108,6 @@ In the following example we'll use the field `_allow_access_control` for specify
     "example username"
   ]
 }
-// NOTCONSOLE
 ----
 
 [discrete#es-dls-overview-sync-type-comparison]
@@ -160,7 +158,6 @@ One access control document:
         "source": "..."
     }
 }
-// NOTCONSOLE
 ----
 
 Let's see which of the following example documents these permissions can access, and why.
@@ -174,7 +171,6 @@ Let's see which of the following example documents these permissions can access,
     "example username"
   ]
 }
-// NOTCONSOLE
 ----
 
 The user `example username` will have access to this document as he's part of the corresponding group and his username and email address are also explicitly part of `_allow_access_control`.
@@ -187,7 +183,6 @@ The user `example username` will have access to this document as he's part of th
     "example group"
   ]
 }
-// NOTCONSOLE
 ----
 
 The user `example username` will also have access to this document as they are part of the `example group`.
@@ -200,7 +195,6 @@ The user `example username` will also have access to this document as they are p
     "another.user@example.com"
   ]
 }
-// NOTCONSOLE
 ----
 
 The user `example username` won't have access to this document because their email does not match `another.user@example.com`.
@@ -211,7 +205,6 @@ The user `example username` won't have access to this document because their ema
   "_id": "some-unique-id-4",
   "_allow_access_control": []
 }
-// NOTCONSOLE
 ----
 
 No one will have access to this document as the `_allow_access_control` field is empty.
@@ -249,7 +242,6 @@ GET .search-acl-filter-source1
         "source": "..."
     }
 }
-// NOTCONSOLE
 ----
 
 [source,js]
@@ -272,7 +264,6 @@ GET .search-acl-filter-source2
         "source": "..."
     }
 }
-// NOTCONSOLE
 ----
 
 `.search-acl-filter-source1` and `.search-acl-filter-source2` define the access control identities for `source1` and `source2`.
@@ -324,8 +315,6 @@ POST /_security/api_key
   }
 }
 
-// TEST[skip:TODO]
-// NOTCONSOLE
 ----
 
 [discrete#es-dls-overview-multiple-connectors-workflow-guidance]

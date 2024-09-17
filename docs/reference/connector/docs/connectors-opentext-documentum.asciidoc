@@ -141,7 +141,6 @@ For faster tests, add the `DATA_SIZE=small` flag:
 [source,shell]
 ----
 make ftest NAME=opentext_documentum DATA_SIZE=small
-// NOTCONSOLE
 ----
 
 By default, `DATA_SIZE=MEDIUM`.

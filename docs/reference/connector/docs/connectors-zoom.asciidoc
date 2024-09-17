@@ -324,7 +324,6 @@ To perform E2E testing for the Zoom connector, run the following command:
 [source,shell]
 ----
 $ make ftest NAME=zoom
-// NOTCONSOLE
 ----
 
 For faster tests, add the `DATA_SIZE=small` flag:
@@ -332,7 +331,6 @@ For faster tests, add the `DATA_SIZE=small` flag:
 [source,shell]
 ----
 make ftest NAME=zoom DATA_SIZE=small
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-zoom-client-connector-known-issues]

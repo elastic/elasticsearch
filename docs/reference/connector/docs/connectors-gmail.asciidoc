@@ -142,7 +142,6 @@ For example:
     "from:amy"
   ]
 }
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-gmail-document-level-security]
@@ -324,7 +323,6 @@ For example:
     "from:amy"
   ]
 }
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-gmail-client-document-level-security]

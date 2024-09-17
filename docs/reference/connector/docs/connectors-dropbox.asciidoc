@@ -88,7 +88,6 @@ An authorization code *can only be used once* to create a refresh token.
 [source,shell]
 ----
 curl -X POST "https://api.dropboxapi.com/oauth2/token?code=<AUTHORIZATION_CODE>&grant_type=authorization_code" -u "<APP_KEY>:<APP_SECRET>"
-// NOTCONSOLE
 ----
 Store the refresh token from the response to be used in the connector configuration.
 +
@@ -202,7 +201,6 @@ We have some examples below for illustration.
     "query": "dropbox"
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-dropbox-sync-rules-advanced-example-2]
@@ -221,7 +219,6 @@ We have some examples below for illustration.
     }
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-dropbox-sync-rules-advanced-example-3]
@@ -244,7 +241,6 @@ We have some examples below for illustration.
     }
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-dropbox-sync-rules-advanced-limitations]
@@ -347,7 +343,6 @@ An authorization code *can only be used once* to create a refresh token.
 [source,shell]
 ----
 curl -X POST "https://api.dropboxapi.com/oauth2/token?code=<AUTHORIZATION_CODE>&grant_type=authorization_code" -u "<APP_KEY>:<APP_SECRET>"
-// NOTCONSOLE
 ----
 Store the refresh token from the response to be used in the connector configuration.
 +
@@ -486,7 +481,6 @@ We have some examples below for illustration.
     "query": "dropbox"
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-dropbox-client-sync-rules-advanced-example-2]
@@ -505,7 +499,6 @@ We have some examples below for illustration.
     }
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-dropbox-client-sync-rules-advanced-example-3]
@@ -528,7 +521,6 @@ We have some examples below for illustration.
     }
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-dropbox-client-sync-rules-advanced-limitations]
@@ -547,7 +539,6 @@ To perform E2E testing for the Dropbox connector, run the following command:
 [source,shell]
 ----
 $ make ftest NAME=dropbox
-// NOTCONSOLE
 ----
 
 For faster tests, add the `DATA_SIZE=small` flag:
@@ -555,7 +546,6 @@ For faster tests, add the `DATA_SIZE=small` flag:
 [source,shell]
 ----
 make ftest NAME=dropbox DATA_SIZE=small
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-dropbox-client-known-issues]

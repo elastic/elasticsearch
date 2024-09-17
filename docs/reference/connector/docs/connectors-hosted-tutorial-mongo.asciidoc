@@ -189,5 +189,6 @@ Expand a document to view its fields.
 * Refer to the <<es-connectors-mongodb, Elastic MongoDB connector reference documentation>> for detailed information about the connector, including how *sync rules* work.
 * For an overview of all managed connectors, see <<es-native-connectors>>.
 * Learn about <<es-sync-rules>> for managed connectors.
+* Learn <<es-engines-create-from-index, how to create an App Search Engine>> for your index, to quickly spin up a search engine for your data.
 * Learn about {ref}/ingest-pipeline-search.html[ingest pipelines for Search indices]
 * Refer to the official https://www.mongodb.com/docs/atlas/[MongoDB Atlas documentation^] for MongoDB-specific questions.

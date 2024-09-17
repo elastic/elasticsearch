@@ -156,7 +156,6 @@ Indexing every page where the title contains `Demo Page`:
       }
     ]
   }
-// NOTCONSOLE
 ----
 
 [discrete]
@@ -176,7 +175,6 @@ Indexing every database where the title contains `Demo Database`:
     }
   ]
 }
-// NOTCONSOLE
 ----
 
 [discrete]
@@ -202,7 +200,6 @@ Indexing every database where the title contains `Demo Database` and every page 
     }
   ]
 }
-// NOTCONSOLE
 ----
 
 [discrete]
@@ -222,7 +219,6 @@ Indexing all pages in the workspace:
     }
   ]
 }
-// NOTCONSOLE
 ----
 
 [discrete]
@@ -239,7 +235,6 @@ Indexing all the pages and databases connected to the workspace:
     }
   ]
 }
-// NOTCONSOLE
 ----
 
 [discrete]
@@ -262,7 +257,6 @@ Indexing all the rows of a database where the record is `true` for the column `T
     }
   ]
 }
-// NOTCONSOLE
 ----
 
 [discrete]
@@ -279,7 +273,6 @@ Indexing all rows of a specific database:
     }
   ]
 }
-// NOTCONSOLE
 ----
 
 [discrete]
@@ -316,7 +309,6 @@ Indexing all blocks defined in `searches` and `database_query_filters`:
     }
   ]
 }
-// NOTCONSOLE
 ----
 
 [NOTE]
@@ -514,7 +506,6 @@ Indexing every page where the title contains `Demo Page`:
       }
     ]
   }
-// NOTCONSOLE
 ----
 
 [discrete]
@@ -534,7 +525,6 @@ Indexing every database where the title contains `Demo Database`:
     }
   ]
 }
-// NOTCONSOLE
 ----
 
 [discrete]
@@ -560,7 +550,6 @@ Indexing every database where the title contains `Demo Database` and every page 
     }
   ]
 }
-// NOTCONSOLE
 ----
 
 [discrete]
@@ -580,7 +569,6 @@ Indexing all pages in the workspace:
     }
   ]
 }
-// NOTCONSOLE
 ----
 
 [discrete]
@@ -597,7 +585,6 @@ Indexing all the pages and databases connected to the workspace:
     }
   ]
 }
-// NOTCONSOLE
 ----
 
 [discrete]
@@ -620,7 +607,6 @@ Indexing all the rows of a database where the record is `true` for the column `T
     }
   ]
 }
-// NOTCONSOLE
 ----
 
 [discrete]
@@ -637,7 +623,6 @@ Indexing all rows of a specific database:
     }
   ]
 }
-// NOTCONSOLE
 ----
 
 [discrete]
@@ -674,7 +659,6 @@ Indexing all blocks defined in `searches` and `database_query_filters`:
     }
   ]
 }
-// NOTCONSOLE
 ----
 
 [NOTE]
@@ -699,7 +683,6 @@ To perform E2E testing for the Notion connector, run the following command:
 [source,shell]
 ----
 $ make ftest NAME=notion
-// NOTCONSOLE
 ----
 
 For faster tests, add the `DATA_SIZE=small` flag:
@@ -707,7 +690,6 @@ For faster tests, add the `DATA_SIZE=small` flag:
 [source,shell]
 ----
 make ftest NAME=notion DATA_SIZE=small
-// NOTCONSOLE
 ----
 
 By default, `DATA_SIZE=MEDIUM`.

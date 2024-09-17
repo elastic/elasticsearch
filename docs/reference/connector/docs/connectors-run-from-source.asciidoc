@@ -94,7 +94,6 @@ In your terminal or IDE:
 ----
 make install
 make run
-// NOTCONSOLE
 ----
 
 The connector service should now be running.

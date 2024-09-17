@@ -163,7 +163,6 @@ The following sections provide examples of advanced sync rules for this connecto
     "pattern": "Folder-shared/b/alpha/**"
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-network-drive-indexing-files-and-folders-directly-inside-folder]
@@ -176,7 +175,6 @@ The following sections provide examples of advanced sync rules for this connecto
     "pattern": "Folder-shared/a/b/test"
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-network-drive-indexing-files-and-folders-directly-inside-a-set-of-folders]
@@ -189,7 +187,6 @@ The following sections provide examples of advanced sync rules for this connecto
     "pattern": "Folder-shared/org/*/all-tests/test[135]"
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-network-drive-excluding-files-and-folders-that-match-a-pattern]
@@ -202,7 +199,6 @@ The following sections provide examples of advanced sync rules for this connecto
     "pattern": "Folder-shared/**/all-tests/test[!7]"
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-network-drive-content-extraction]
@@ -401,7 +397,6 @@ The following sections provide examples of advanced sync rules for this connecto
     "pattern": "Folder-shared/b/alpha/**"
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-network-drive-client-indexing-files-and-folders-directly-inside-folder]
@@ -414,7 +409,6 @@ The following sections provide examples of advanced sync rules for this connecto
     "pattern": "Folder-shared/a/b/test"
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-network-drive-client-indexing-files-and-folders-directly-inside-a-set-of-folders]
@@ -427,7 +421,6 @@ The following sections provide examples of advanced sync rules for this connecto
     "pattern": "Folder-shared/org/*/all-tests/test[135]"
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-network-drive-client-excluding-files-and-folders-that-match-a-pattern]
@@ -440,7 +433,6 @@ The following sections provide examples of advanced sync rules for this connecto
     "pattern": "Folder-shared/**/all-tests/test[!7]"
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-network-drive-client-content-extraction]
@@ -459,7 +451,6 @@ To execute a functional test for the Network Drive self-managed connector, run t
 [source,shell]
 ----
 $ make ftest NAME=network_drive
-// NOTCONSOLE
 ----
 
 By default, this will use a medium-sized dataset.
@@ -468,7 +459,6 @@ For faster tests add the `DATA_SIZE=small` flag:
 [source,shell]
 ----
 make ftest NAME=network_drive DATA_SIZE=small
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-network-drive-client-known-issues]

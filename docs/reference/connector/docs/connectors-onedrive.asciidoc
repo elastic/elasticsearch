@@ -172,7 +172,6 @@ All other files and folders will be indexed.
     "skipFilesWithExtensions": [".xlsx" , ".docx"]
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-onedrive-sync-rules-advanced-examples-2]
@@ -188,7 +187,6 @@ This rule focuses on indexing files and folders owned by `user1-domain@onmicroso
     "skipFilesWithExtensions": [".py"]
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-onedrive-sync-rules-advanced-examples-3]
@@ -204,7 +202,6 @@ This rule indexes only the files and folders directly inside the root folder, ex
     "parentPathPattern": "/drive/root:"
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-onedrive-sync-rules-advanced-examples-4]
@@ -221,7 +218,6 @@ This rule indexes files and folders owned by `user1-domain@onmicrosoft.com` and 
     "parentPathPattern": "/drive/root:/hello/**/abc"
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-onedrive-sync-rules-advanced-examples-5]
@@ -241,7 +237,6 @@ The second rule indexes files for all other users, but skips files with a `.py` 
     "skipFilesWithExtensions": [".py"]
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-onedrive-sync-rules-advanced-examples-6]
@@ -262,7 +257,6 @@ The second rule indexes files and folders recursively inside the `abc` folder.
     "parentPathPattern": "/drive/root:/abc/**"
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-onedrive-content-extraction]
@@ -461,7 +455,6 @@ All other files and folders will be indexed.
     "skipFilesWithExtensions": [".xlsx" , ".docx"]
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-onedrive-client-sync-rules-advanced-examples-2]
@@ -477,7 +470,6 @@ This rule focuses on indexing files and folders owned by `user1-domain@onmicroso
     "skipFilesWithExtensions": [".py"]
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-onedrive-client-sync-rules-advanced-examples-3]
@@ -493,7 +485,6 @@ This rule indexes only the files and folders directly inside the root folder, ex
     "parentPathPattern": "/drive/root:"
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-onedrive-client-sync-rules-advanced-examples-4]
@@ -510,7 +501,6 @@ This rule indexes files and folders owned by `user1-domain@onmicrosoft.com` and 
     "parentPathPattern": "/drive/root:/hello/**/abc"
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-onedrive-client-sync-rules-advanced-examples-5]
@@ -530,7 +520,6 @@ The second rule indexes files for all other users, but skips files with a `.py` 
     "skipFilesWithExtensions": [".py"]
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-onedrive-client-sync-rules-advanced-examples-6]
@@ -551,7 +540,6 @@ The second rule indexes files and folders recursively inside the `abc` folder.
     "parentPathPattern": "/drive/root:/abc/**"
   }
 ]
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-onedrive-client-content-extraction]
@@ -573,7 +561,6 @@ To perform E2E testing for the GitHub connector, run the following command:
 [source,shell]
 ----
 $ make ftest NAME=onedrive
-// NOTCONSOLE
 ----
 
 For faster tests, add the `DATA_SIZE=small` flag:
@@ -581,7 +568,6 @@ For faster tests, add the `DATA_SIZE=small` flag:
 [source,shell]
 ----
 make ftest NAME=onedrive DATA_SIZE=small
-// NOTCONSOLE
 ----
 
 [discrete#es-connectors-onedrive-client-known-issues]

@@ -542,7 +542,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                         additionalFiles,
                         primaryTerm,
                         0   // not used, stubbing value for translogRecoveryStartFile
-                    )
+                    ),
+                    randomBoolean()
                 );
 
                 vbcc.freeze();

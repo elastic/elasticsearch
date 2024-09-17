@@ -84,7 +84,7 @@ import static java.util.stream.Collectors.groupingBy;
  * </p>
  *
  * <p>
- *     This class facilitates the appending of multiple compound commits via {@link #appendCommit(StatelessCommitRef)}.
+ *     This class facilitates the appending of multiple compound commits via {@link #appendCommit(StatelessCommitRef, boolean)}.
  *     When the caller intends to write these commits to the blob store it should use {@link #writeToStore(OutputStream)}.
  *  </p>
  *
@@ -151,10 +151,10 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
      * No synchronization is needed for this method because its sole caller is itself synchronized
      * @return {@code true} if the append is successful or {@code false} if the VBCC is frozen and cannot be appended to
      */
-    public boolean appendCommit(StatelessCommitRef reference) {
+    public boolean appendCommit(StatelessCommitRef reference, boolean useInternalFilesReplicatedContent) {
         assert assertCompareAndSetFreezeOrAppendingCommitThread(null, Thread.currentThread());
         try {
-            return doAppendCommit(reference);
+            return doAppendCommit(reference, useInternalFilesReplicatedContent);
         } catch (IOException e) {
             throw new UncheckedIOException(
                 "Unable to append commit [" + reference.getPrimaryTerm() + ", " + reference.getGeneration() + "]",
@@ -169,7 +169,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         return frozen;
     }
 
-    private boolean doAppendCommit(StatelessCommitRef reference) throws IOException {
+    private boolean doAppendCommit(StatelessCommitRef reference, boolean useInternalFilesReplicatedContent) throws IOException {
         assert primaryTermAndGeneration.primaryTerm() == reference.getPrimaryTerm();
         assert (pendingCompoundCommits.isEmpty() && primaryTermAndGeneration.generation() == reference.getGeneration())
             || (pendingCompoundCommits.isEmpty() == false && primaryTermAndGeneration.generation() < reference.getGeneration());
@@ -209,7 +209,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             }
         }
 
-        var header = materializeCompoundCommitHeader(reference, internalFiles, referencedFiles);
+        var header = materializeCompoundCommitHeader(reference, internalFiles, referencedFiles, useInternalFilesReplicatedContent);
 
         if (logger.isDebugEnabled()) {
             var referencedBlobs = referencedFiles.values().stream().map(location -> location.blobFile().blobName()).distinct().count();
@@ -449,7 +449,8 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     private byte[] materializeCompoundCommitHeader(
         StatelessCommitRef reference,
         Iterable<StatelessCompoundCommit.InternalFile> internalFiles,
-        Map<String, BlobLocation> referencedFiles
+        Map<String, BlobLocation> referencedFiles,
+        boolean useInternalFilesReplicatedContent
     ) throws IOException {
         assert getBlobName() != null;
         try (ByteArrayOutputStream os = new ByteArrayOutputStream()) {
@@ -462,8 +463,10 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                 reference.getTranslogRecoveryStartFile(),
                 referencedFiles,
                 internalFiles,
+                InternalFilesReplicatedRanges.EMPTY,
                 CURRENT_VERSION,
-                positionTrackingOutputStreamStreamOutput
+                positionTrackingOutputStreamStreamOutput,
+                useInternalFilesReplicatedContent
             );
             return os.toByteArray();
         }

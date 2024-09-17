@@ -220,6 +220,9 @@ tests:
 - class: org.elasticsearch.datastreams.logsdb.qa.StandardVersusLogsIndexModeRandomDataChallengeRestIT
   method: testDateHistogramAggregation
   issue: https://github.com/elastic/elasticsearch/issues/112919
+- class: org.elasticsearch.datastreams.logsdb.qa.StandardVersusLogsIndexModeRandomDataChallengeRestIT
+  method: testTermsQuery
+  issue: https://github.com/elastic/elasticsearch/issues/112462
 
 # Examples:
 #

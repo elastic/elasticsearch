@@ -731,7 +731,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
                         final Map<String, Object> result = filterIgnoredValues((Map<String, Object>) valueAsMap);
                         return result.isEmpty() ? null : result;
                     }
-                    if (value instanceof String valueAsString && valueAsString.length() < ignoreAbove) {
+                    if (value instanceof String valueAsString && valueAsString.length() <= ignoreAbove) {
                         return valueAsString;
                     }
                     return null;
@@ -749,7 +749,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
                     if (entryValue instanceof List<?> valueAsList) {
                         final List<Object> validValues = new ArrayList<>();
                         for (Object value : valueAsList) {
-                            if (value instanceof String valueAsString && valueAsString.length() < ignoreAbove) {
+                            if (value instanceof String valueAsString && valueAsString.length() <= ignoreAbove) {
                                 validValues.add(valueAsString);
                             }
                         }
@@ -762,7 +762,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
                         }
                         return validValues;
                     } else if (entryValue instanceof String valueAsString) {
-                        if (valueAsString.length() < ignoreAbove) {
+                        if (valueAsString.length() <= ignoreAbove) {
                             return valueAsString;
                         }
                     }

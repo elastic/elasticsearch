@@ -229,6 +229,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {categorize.Categorize ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/113055
+- class: org.elasticsearch.upgrades.MultiVersionRepositoryAccessIT
+  method: testCreateAndRestoreSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/113058
 
 # Examples:
 #

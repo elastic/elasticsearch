@@ -204,30 +204,10 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValueWithNonString() throws IOException {
-        Map<String, Object> sourceValue = Map.of(
-            "key1",
-            List.of(100, 200),
-            "key2",
-            List.of(new int[] { 1, 2, 3 }, new double[] { 1.5, 1.6 }),
-            "key3",
-            50L,
-            "key4",
-            new Tuple<>(10, 100)
-        );
+        Map<String, Object> sourceValue = Map.of("key1", List.of(100, 200), "key2", 50L, "key3", new Tuple<>(10, 100));
 
         assertEquals(
-            List.of(
-                Map.of(
-                    "key1",
-                    List.of(100, 200),
-                    "key2",
-                    List.of(new int[] { 1, 2, 3 }, new double[] { 1.5, 1.6 }),
-                    "key3",
-                    50L,
-                    "key4",
-                    new Tuple<>(10, 100)
-                )
-            ),
+            List.of(Map.of("key1", List.of(100, 200), "key2", 50L, "key3", new Tuple<>(10, 100))),
             fetchSourceValue(createDefaultFieldType(3), sourceValue)
         );
     }

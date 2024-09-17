@@ -532,6 +532,7 @@ public class CompositeRolesStore {
             privilegeStore.getPrivileges(
                 applicationNames,
                 applicationPrivilegeNames,
+                false, // TODO revisit if we should also wait for an available security index here
                 listener.delegateFailureAndWrap((delegate, appPrivileges) -> {
                     applicationPrivilegesMap.forEach(
                         (key, names) -> ApplicationPrivilege.get(key.v1(), names, appPrivileges)

@@ -129,7 +129,7 @@ public class SimulateBulkRequest extends BulkRequest {
     }
 
     @Override
-    public Map<String, ComponentTemplate> getComponentTemplateSubstitutions() {
+    public Map<String, ComponentTemplate> getComponentTemplateSubstitutions() throws IOException {
         if (componentTemplateSubstitutions == null) {
             return Map.of();
         }
@@ -140,12 +140,10 @@ public class SimulateBulkRequest extends BulkRequest {
         return result;
     }
 
-    private static ComponentTemplate convertRawTemplateToComponentTemplate(Map<String, Object> rawTemplate) {
+    private static ComponentTemplate convertRawTemplateToComponentTemplate(Map<String, Object> rawTemplate) throws IOException {
         ComponentTemplate componentTemplate;
         try (var parser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, rawTemplate)) {
             componentTemplate = ComponentTemplate.parse(parser);
-        } catch (IOException e) {
-            throw new AssertionError(e);
         }
         return componentTemplate;
     }

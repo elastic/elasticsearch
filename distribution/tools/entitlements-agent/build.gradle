@@ -11,10 +11,6 @@ import static java.util.stream.Collectors.joining
 
 apply plugin: 'elasticsearch.build'
 
-base {
-  archivesName = 'elasticsearch-entitlements-agent'
-}
-
 configurations {
   entitlementRuntime
 }

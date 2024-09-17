@@ -32,9 +32,14 @@ import java.util.TreeMap;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.rollup.Rollup.DEPRECATION_KEY;
+import static org.elasticsearch.xpack.rollup.Rollup.DEPRECATION_MESSAGE;
+
 public class TransportGetRollupIndexCapsAction extends HandledTransportAction<
     GetRollupIndexCapsAction.Request,
     GetRollupIndexCapsAction.Response> {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(TransportGetRollupCapsAction.class);
 
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver resolver;
@@ -66,6 +71,7 @@ public class TransportGetRollupIndexCapsAction extends HandledTransportAction<
         GetRollupIndexCapsAction.Request request,
         ActionListener<GetRollupIndexCapsAction.Response> listener
     ) {
+        DEPRECATION_LOGGER.warn(DeprecationCategory.API, DEPRECATION_KEY, DEPRECATION_MESSAGE);
         // Workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
         managementExecutor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(request, l)));
     }

@@ -31,11 +31,16 @@ import org.elasticsearch.xpack.rollup.job.RollupJobTask;
 
 import java.util.List;
 
+import static org.elasticsearch.xpack.rollup.Rollup.DEPRECATION_KEY;
+import static org.elasticsearch.xpack.rollup.Rollup.DEPRECATION_MESSAGE;
+
 public class TransportDeleteRollupJobAction extends TransportTasksAction<
     RollupJobTask,
     DeleteRollupJobAction.Request,
     DeleteRollupJobAction.Response,
     DeleteRollupJobAction.Response> {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(TransportDeleteRollupJobAction.class);
 
     @Inject
     public TransportDeleteRollupJobAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService) {
@@ -52,6 +57,7 @@ public class TransportDeleteRollupJobAction extends TransportTasksAction<
 
     @Override
     protected void doExecute(Task task, DeleteRollupJobAction.Request request, ActionListener<DeleteRollupJobAction.Response> listener) {
+        DEPRECATION_LOGGER.warn(DeprecationCategory.API, DEPRECATION_KEY, DEPRECATION_MESSAGE);
         final ClusterState state = clusterService.state();
         final DiscoveryNodes nodes = state.nodes();
 
@@ -93,7 +99,6 @@ public class TransportDeleteRollupJobAction extends TransportTasksAction<
         RollupJobTask jobTask,
         ActionListener<DeleteRollupJobAction.Response> listener
     ) {
-
         assert jobTask.getConfig().getId().equals(request.getId());
         IndexerState state = ((RollupJobStatus) jobTask.getStatus()).getIndexerState();
         if (state.equals(IndexerState.STOPPED)) {

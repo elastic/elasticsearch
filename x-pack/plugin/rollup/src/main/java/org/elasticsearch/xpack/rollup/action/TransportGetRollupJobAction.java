@@ -34,11 +34,16 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.rollup.Rollup.DEPRECATION_KEY;
+import static org.elasticsearch.xpack.rollup.Rollup.DEPRECATION_MESSAGE;
+
 public class TransportGetRollupJobAction extends TransportTasksAction<
     RollupJobTask,
     GetRollupJobsAction.Request,
     GetRollupJobsAction.Response,
     GetRollupJobsAction.Response> {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(TransportGetRollupCapsAction.class);
 
     @Inject
     public TransportGetRollupJobAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService) {
@@ -55,6 +60,7 @@ public class TransportGetRollupJobAction extends TransportTasksAction<
 
     @Override
     protected void doExecute(Task task, GetRollupJobsAction.Request request, ActionListener<GetRollupJobsAction.Response> listener) {
+        DEPRECATION_LOGGER.warn(DeprecationCategory.API, DEPRECATION_KEY, DEPRECATION_MESSAGE);
         final ClusterState state = clusterService.state();
         final DiscoveryNodes nodes = state.nodes();
 

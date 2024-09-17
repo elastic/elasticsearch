@@ -76,6 +76,7 @@ the indexer has fully stopped. This is accomplished with the
 POST _rollup/job/sensor/_stop?wait_for_completion=true&timeout=10s
 --------------------------------------------------
 // TEST[setup:sensor_started_rollup_job]
+// TEST[warning:The rollup functionality will be removed in in Elasticsearch 9.0. See docs for more information.]
 
 The parameter blocks the API call from returning until either the job has moved
 to `STOPPED` or the specified time has elapsed. If the specified time elapses

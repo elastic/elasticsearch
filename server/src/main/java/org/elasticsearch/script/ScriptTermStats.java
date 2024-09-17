@@ -12,9 +12,8 @@ package org.elasticsearch.script;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.TermStates;
-import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.features.NodeFeature;
@@ -39,9 +38,10 @@ public class ScriptTermStats {
     private final LeafReaderContext leafReaderContext;
     private final StatsSummary statsSummary = new StatsSummary();
     private final Supplier<TermStates[]> termContextsSupplier;
-    private final Supplier<PostingsEnum[]> postingsSupplier;
     private final Supplier<StatsSummary> docFreqSupplier;
     private final Supplier<StatsSummary> totalTermFreqSupplier;
+
+    private volatile PostingsEnum[] postings;
 
     public ScriptTermStats(IndexSearcher searcher, LeafReaderContext leafReaderContext, IntSupplier docIdSupplier, Set<Term> terms) {
         this.searcher = searcher;
@@ -49,7 +49,6 @@ public class ScriptTermStats {
         this.docIdSupplier = docIdSupplier;
         this.terms = terms.toArray(new Term[0]);
         this.termContextsSupplier = CachedSupplier.wrap(this::loadTermContexts);
-        this.postingsSupplier = CachedSupplier.wrap(this::loadPostings);
         this.docFreqSupplier = CachedSupplier.wrap(this::loadDocFreq);
         this.totalTermFreqSupplier = CachedSupplier.wrap(this::loadTotalTermFreq);
     }
@@ -73,8 +72,8 @@ public class ScriptTermStats {
         int matchedTerms = 0;
 
         try {
-            for (PostingsEnum postingsEnum : postingsSupplier.get()) {
-                if (postingsEnum != null && postingsEnum.advance(docId) == docId && postingsEnum.freq() > 0) {
+            for (PostingsEnum postingsEnum : loadPostings(docId)) {
+                if (postingsEnum != null && postingsEnum.docID() == docId && postingsEnum.freq() > 0) {
                     matchedTerms++;
                 }
             }
@@ -150,8 +149,8 @@ public class ScriptTermStats {
         final int docId = docIdSupplier.getAsInt();
 
         try {
-            for (PostingsEnum postingsEnum : postingsSupplier.get()) {
-                if (postingsEnum == null || postingsEnum.advance(docId) != docId) {
+            for (PostingsEnum postingsEnum : loadPostings(docId)) {
+                if (postingsEnum == null || postingsEnum.docID() != docId) {
                     statsSummary.accept(0);
                 } else {
                     statsSummary.accept(postingsEnum.freq());
@@ -174,8 +173,8 @@ public class ScriptTermStats {
             statsSummary.reset();
             int docId = docIdSupplier.getAsInt();
 
-            for (PostingsEnum postingsEnum : postingsSupplier.get()) {
-                if (postingsEnum == null || postingsEnum.advance(docId) != docId) {
+            for (PostingsEnum postingsEnum : loadPostings(docId)) {
+                if (postingsEnum == null || postingsEnum.docID() != docId) {
                     continue;
                 }
                 for (int i = 0; i < postingsEnum.freq(); i++) {
@@ -203,28 +202,26 @@ public class ScriptTermStats {
         }
     }
 
-    private PostingsEnum[] loadPostings() {
+    private PostingsEnum[] loadPostings(int targetDocId) {
         try {
-            PostingsEnum[] postings = new PostingsEnum[terms.length];
-            TermStates[] contexts = termContextsSupplier.get();
+            if (postings == null) {
+                postings = new PostingsEnum[terms.length];
+
+                for (int i = 0; i < terms.length; i++) {
+                    postings[i] = leafReaderContext.reader().postings(terms[i], PostingsEnum.POSITIONS);
+                }
+            }
 
             for (int i = 0; i < terms.length; i++) {
-                TermStates termStates = contexts[i];
-                if (termStates.docFreq() == 0) {
-                    postings[i] = null;
-                    continue;
+                if (postings[i] != null) {
+                    if (postings[i].docID() > targetDocId) {
+                        postings[i] = leafReaderContext.reader().postings(terms[i], PostingsEnum.POSITIONS);
+                    }
+
+                    while (postings[i].docID() < targetDocId && postings[i].docID() != DocIdSetIterator.NO_MORE_DOCS) {
+                        postings[i].nextDoc();
+                    }
                 }
-
-                TermState state = termStates.get(leafReaderContext);
-                if (state == null) {
-                    postings[i] = null;
-                    continue;
-                }
-
-                TermsEnum termsEnum = leafReaderContext.reader().terms(terms[i].field()).iterator();
-                termsEnum.seekExact(terms[i].bytes(), state);
-
-                postings[i] = termsEnum.postings(null, PostingsEnum.ALL);
             }
 
             return postings;

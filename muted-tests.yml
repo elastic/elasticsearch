@@ -232,6 +232,9 @@ tests:
 - class: org.elasticsearch.upgrades.MultiVersionRepositoryAccessIT
   method: testCreateAndRestoreSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/113058
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testRollupAfterRestart {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/113059
 
 # Examples:
 #

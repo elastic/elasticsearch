@@ -62,6 +62,7 @@ public abstract class AbstractNativeProcess implements NativeProcess {
     private volatile boolean processKilled;
     private volatile boolean isReady;
     private volatile Path controlMessageFilePath;
+    private volatile Path restoreFilePath;
 
     protected AbstractNativeProcess(
         String jobId,
@@ -111,7 +112,65 @@ public abstract class AbstractNativeProcess implements NativeProcess {
             this.recordWriter.set(new LengthEncodedWriter(processInStream.get(), getControlMessageFilePath()));
         }
         processOutStream.set(processPipes.getProcessOutStream().orElse(null));
-        processRestoreStream.set(processPipes.getRestoreStream().orElse(null));
+
+        // If a restore file path is set, we need to tee the restore stream to the file
+        OutputStream fileOutputStream;
+        if (restoreFilePath != null) {
+            LOGGER.info("Opening file: {} for writing restore data.", restoreFilePath);
+            try {
+                fileOutputStream = new BufferedOutputStream(Files.newOutputStream(restoreFilePath));
+            } catch (IOException e) {
+                LOGGER.error("Failed to open file: {} for writing restore data.", restoreFilePath, e);
+                fileOutputStream = null;
+            }
+            OutputStream restoreStream = processPipes.getRestoreStream().orElse(null);
+
+            if (restoreStream != null) {
+                OutputStream finalFileOutputStream = fileOutputStream;
+                OutputStream combinedStream = new OutputStream() {
+                    @Override
+                    public void write(int b) throws IOException {
+                        restoreStream.write(b);
+                        if (finalFileOutputStream != null) {
+                            finalFileOutputStream.write(b);
+                        }
+                    }
+
+                    @Override
+                    public void write(byte[] b, int off, int len) throws IOException {
+                        restoreStream.write(b, off, len);
+                        if (finalFileOutputStream != null) {
+                            finalFileOutputStream.write(b, off, len);
+                        }
+                    }
+
+                    @Override
+                    public void flush() throws IOException {
+                        restoreStream.flush();
+                        if (finalFileOutputStream != null) {
+                            finalFileOutputStream.flush();
+                        }
+                    }
+
+                    @Override
+                    public void close() throws IOException {
+                        try {
+                            restoreStream.close();
+                        } finally {
+                            if (finalFileOutputStream != null) {
+                                finalFileOutputStream.close();
+                            }
+                        }
+                    }
+                };
+
+                processRestoreStream.set(combinedStream);
+            } else {
+                processRestoreStream.set(fileOutputStream);
+            }
+        } else {
+            processRestoreStream.set(processPipes.getRestoreStream().orElse(null));
+        }
     }
 
     /**
@@ -357,6 +416,15 @@ public abstract class AbstractNativeProcess implements NativeProcess {
 
     public void setControlMessageFilePath(Path controlMessageFilePath) {
         this.controlMessageFilePath = controlMessageFilePath;
+    }
+
+    @Nullable
+    public Path getRestoreFilePath() {
+        return restoreFilePath;
+    }
+
+    public void setRestoreFilePath(Path restoreFilePath) {
+        this.restoreFilePath = restoreFilePath;
     }
 
 }

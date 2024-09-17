@@ -64,14 +64,14 @@ public class EntitlementChecks {
     }
 
     public static void checkExitJvmEntitlement(Class<?> callerClass) {
-//        System.out.println("Checking for JVM Exit entitlement on " + callerClass.getSimpleName());
+        // System.out.println("Checking for JVM Exit entitlement on " + callerClass.getSimpleName());
         var requestingModule = requestingModule(callerClass);
         if (isTriviallyAllowed(requestingModule)) {
-//            System.out.println(" - Trivially allowed");
+            // System.out.println(" - Trivially allowed");
             return;
         }
         if (entitledToExit.contains(requestingModule)) {
-//            System.out.println(" - Granted");
+            // System.out.println(" - Granted");
             return;
         }
         throw new NotEntitledException("Missing " + EXIT_JVM + " entitlement for " + requestingModule);

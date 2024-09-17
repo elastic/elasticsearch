@@ -13,7 +13,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 
 import java.io.IOException;
@@ -31,11 +30,10 @@ class ConcurrentSegmentSourceProvider implements SourceProvider {
     private final StoredFieldLoader storedFieldLoader;
     private final Map<Object, Leaf> leaves = ConcurrentCollections.newConcurrentMap();
 
-    ConcurrentSegmentSourceProvider(SourceLoader loader) {
+    ConcurrentSegmentSourceProvider(SourceLoader loader, boolean loadSource) {
         this.sourceLoader = loader;
         var fields = sourceLoader.requiredStoredFields();
-        boolean loadSource = fields.contains(SourceFieldMapper.NAME);
-        this.storedFieldLoader = fields.isEmpty() ? StoredFieldLoader.empty() : StoredFieldLoader.create(loadSource, fields);
+        this.storedFieldLoader = StoredFieldLoader.create(loadSource, fields);
     }
 
     @Override

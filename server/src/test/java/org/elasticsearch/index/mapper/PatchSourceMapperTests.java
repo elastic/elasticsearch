@@ -50,11 +50,12 @@ public class PatchSourceMapperTests extends MapperServiceTestCase {
         }));
         assertSourcePatch(
             mapperService,
-            Map.of("field", Map.of("obj", Map.of("key1", "value1")), "another_field", randomAlphaOfLengthBetween(5, 10))
+            Map.of("field", Map.of("obj", Map.of("key1", "value1")), "another_field", randomAlphaOfLengthBetween(5, 10)),
+            true
         );
     }
 
-    public void testPatchSourceFlatWithCopyTo() throws IOException {
+    public void testPatchSourceFlatToCopyTo() throws IOException {
         var mapperService = createMapperService(mapping(b -> {
             // field
             b.startObject("field");
@@ -72,7 +73,28 @@ public class PatchSourceMapperTests extends MapperServiceTestCase {
             b.field("type", "keyword");
             b.endObject();
         }));
-        assertSourcePatch(mapperService, Map.of("field", "key1"));
+        assertSourcePatch(mapperService, Map.of("field", "key1"), true);
+    }
+
+    public void testPatchSourceFlatFromCopyTo() throws IOException {
+        var mapperService = createMapperService(mapping(b -> {
+            // field
+            b.startObject("field");
+            b.field("type", "patch");
+            b.endObject();
+
+            // another_field
+            b.startObject("another_field");
+            b.field("type", "keyword");
+            b.field("copy_to", new String[] { "field" });
+            b.endObject();
+
+            // another_field
+            b.startObject("extra_field");
+            b.field("type", "keyword");
+            b.endObject();
+        }));
+        assertSourcePatch(mapperService, Map.of("another_field", "value1", "extra_field", "value2"), false);
     }
 
     public void testPatchSourceFlatMulti() throws IOException {
@@ -96,7 +118,8 @@ public class PatchSourceMapperTests extends MapperServiceTestCase {
                     List.of(Map.of("obj", Map.of("key1", "value1")), Map.of("another", "one")),
                     "another_field",
                     randomAlphaOfLengthBetween(5, 10)
-                )
+                ),
+                true
             )
         );
         assertThat(exc.status(), equalTo(RestStatus.BAD_REQUEST));
@@ -129,7 +152,8 @@ public class PatchSourceMapperTests extends MapperServiceTestCase {
         }));
         assertSourcePatch(
             mapperService,
-            Map.of("obj", Map.of("field", Map.of("key1", "value1")), "another_field", randomAlphaOfLengthBetween(5, 10))
+            Map.of("obj", Map.of("field", Map.of("key1", "value1")), "another_field", randomAlphaOfLengthBetween(5, 10)),
+            true
         );
     }
 
@@ -157,7 +181,11 @@ public class PatchSourceMapperTests extends MapperServiceTestCase {
             b.field("type", "keyword");
             b.endObject();
         }));
-        assertSourcePatch(mapperService, Map.of("obj.field", Map.of("key1", "value1"), "another_field", randomAlphaOfLengthBetween(5, 10)));
+        assertSourcePatch(
+            mapperService,
+            Map.of("obj.field", Map.of("key1", "value1"), "another_field", randomAlphaOfLengthBetween(5, 10)),
+            true
+        );
     }
 
     public void testPatchSourceNestedObject() throws IOException {
@@ -187,7 +215,8 @@ public class PatchSourceMapperTests extends MapperServiceTestCase {
         }));
         assertSourcePatch(
             mapperService,
-            Map.of("nested", Map.of("field", Map.of("key1", "value1")), "another_field", randomAlphaOfLengthBetween(5, 10))
+            Map.of("nested", Map.of("field", Map.of("key1", "value1")), "another_field", randomAlphaOfLengthBetween(5, 10)),
+            true
         );
     }
 
@@ -228,7 +257,8 @@ public class PatchSourceMapperTests extends MapperServiceTestCase {
                 ),
                 "another_field",
                 randomAlphaOfLengthBetween(5, 10)
-            )
+            ),
+            true
         );
     }
 
@@ -290,7 +320,8 @@ public class PatchSourceMapperTests extends MapperServiceTestCase {
                 Map.of("field", Map.of("key1", "value1")),
                 "another_field",
                 randomAlphaOfLengthBetween(5, 10)
-            )
+            ),
+            true
         );
     }
 
@@ -347,18 +378,24 @@ public class PatchSourceMapperTests extends MapperServiceTestCase {
                 Map.of("key1", "value1"),
                 "another_field",
                 randomAlphaOfLengthBetween(5, 10)
-            )
+            ),
+            true
         );
     }
 
-    public static void assertSourcePatch(MapperService mapperService, Map<String, Object> source) throws IOException {
+    public static void assertSourcePatch(MapperService mapperService, Map<String, Object> source, boolean needsPatching)
+        throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.value(source);
         SourceToParse origSource = new SourceToParse("0", BytesReference.bytes(builder), builder.contentType());
         ParsedDocument doc = mapperService.documentMapper().parse(origSource);
         var storedSource = doc.rootDoc().getField(SourceFieldMapper.NAME).binaryValue();
-        assertThat(storedSource.length, lessThan(origSource.source().length()));
-        assertFalse(storedSource.utf8ToString().equals(origSource.source().utf8ToString()));
+        if (needsPatching) {
+            assertThat(storedSource.length, lessThan(origSource.source().length()));
+            assertFalse(storedSource.utf8ToString().equals(origSource.source().utf8ToString()));
+        } else {
+            assertThat(storedSource.utf8ToString(), equalTo(origSource.source().utf8ToString()));
+        }
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {
             Source actual = SourceProvider.fromLookup(mapperService.mappingLookup(), mapperService.getMapperMetrics().sourceFieldMetrics())
                 .getSource(ir.leaves().get(0), doc.docs().size() - 1);

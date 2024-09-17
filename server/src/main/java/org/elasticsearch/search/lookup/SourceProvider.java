@@ -34,6 +34,6 @@ public interface SourceProvider {
      * multiple threads.
      */
     static SourceProvider fromLookup(MappingLookup lookup, SourceFieldMetrics metrics) {
-        return new ConcurrentSegmentSourceProvider(lookup.newSourceLoader(metrics));
+        return new ConcurrentSegmentSourceProvider(lookup.newSourceLoader(metrics), lookup.isSourceSynthetic() == false);
     }
 }

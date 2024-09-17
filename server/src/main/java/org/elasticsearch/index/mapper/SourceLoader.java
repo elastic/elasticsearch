@@ -108,7 +108,7 @@ public interface SourceLoader {
 
         @Override
         public Set<String> requiredStoredFields() {
-            return Set.of(SourceFieldMapper.NAME);
+            return Set.of();
         }
     };
 

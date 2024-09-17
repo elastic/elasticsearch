@@ -209,6 +209,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         } catch (TimeExceededException e) {
             timeExceeded = true;
             return new MatchNoDocsQuery("rewrite timed out");
+        } catch (TooManyClauses e) {
+            throw new IllegalArgumentException("Query rewrite failed: too many clauses", e);
         } finally {
             if (profiler != null) {
                 profiler.stopAndAddRewriteTime(rewriteTimer);

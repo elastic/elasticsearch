@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -55,7 +56,7 @@ public interface IbmWatsonxRequest extends Request {
                 }
                 return (String) map.get("access_token");
             });
-        } catch (Exception e) {
+        } catch (IOException e) {
             throw new XContentParseException("Failed to add Bearer token to the request");
         }
 

@@ -51,7 +51,7 @@ flattened ignore_above single-value field:
   - match: { hits.hits.1._source.flat.key: "foo bar key" }
 
   - match: { hits.hits.0.fields.keyword.0: "foo" }
-  - match: { hits.hits.0.fields.flat.0.value: ["foo"] }
+  - match: { hits.hits.0.fields.flat.0.value: "foo" }
   - match: { hits.hits.1.fields.keyword.0: null }
   - match: { hits.hits.1.fields.flat.0.value: null }
 
@@ -86,7 +86,7 @@ flattened ignore_above multi-value field:
         refresh: true
         body:
           keyword: ["foobar", "foo", "bar"]
-          flat: { "value": ["foobar", "foo", "bar"], "key": ["foo key", "bar key"]}
+          flat: { "value": ["foobar", "foo"], "key": ["foo key", "bar key"]}
 
   - do:
       search:
@@ -104,12 +104,12 @@ flattened ignore_above multi-value field:
   - match: { hits.hits.0._source.flat.value: ["foo", "bar"] }
   - match: { hits.hits.0._source.flat.key: "foo bar array key" }
   - match: { hits.hits.1._source.keyword: ["foobar", "foo", "bar"] }
-  - match: { hits.hits.1._source.flat.value: ["foobar", "foo", "bar"] }
+  - match: { hits.hits.1._source.flat.value: ["foobar", "foo"] }
   - match: { hits.hits.1._source.flat.key: ["foo key", "bar key"] }
 
   - match: { hits.hits.0.fields.keyword: [ "foo", "bar" ] }
-  - match: { hits.hits.0.fields.flat.0.value: [ "foo", "bar" ] }
+  - match: { hits.hits.0.fields.flat.0.value: ["foo", "bar"] }
   - match: { hits.hits.0.fields.flat.0.key: null }
   - match: { hits.hits.1.fields.keyword: [ "foo", "bar" ] }
-  - match: { hits.hits.1.fields.flat.0.value: [ "foo", "bar" ] }
+  - match: { hits.hits.1.fields.flat.0.value: "foo" }
   - match: { hits.hits.1.fields.flat.0.key: null }

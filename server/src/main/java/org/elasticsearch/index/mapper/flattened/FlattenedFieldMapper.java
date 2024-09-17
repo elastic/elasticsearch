@@ -728,7 +728,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 @SuppressWarnings("unchecked")
                 protected Object parseSourceValue(Object value) {
                     if (value instanceof Map<?, ?> valueAsMap && valueAsMap.isEmpty() == false) {
-                        final Map<String, List<String>> result = filterIgnoredValues((Map<String, Object>) valueAsMap);
+                        final Map<String, Object> result = filterIgnoredValues((Map<String, Object>) valueAsMap);
                         return result.isEmpty() ? null : result;
                     }
                     if (value instanceof String valueAsString && valueAsString.length() < ignoreAbove) {
@@ -737,34 +737,36 @@ public final class FlattenedFieldMapper extends FieldMapper {
                     return null;
                 }
 
-                private Map<String, List<String>> filterIgnoredValues(final Map<String, Object> values) {
-                    final Map<String, List<String>> result = new HashMap<>();
+                private Map<String, Object> filterIgnoredValues(final Map<String, Object> values) {
+                    final Map<String, Object> result = new HashMap<>();
                     for (final Map.Entry<String, Object> entry : values.entrySet()) {
-                        final List<String> validValues = filterIgnoredValues(entry.getValue());
-
-                        if (validValues.isEmpty() == false) {
-                            final String flattenedFieldName = entry.getKey();
-                            result.put(flattenedFieldName, validValues);
-                        }
+                        result.put(entry.getKey(), filterIgnoredValues(entry.getValue()));
                     }
                     return result;
                 }
 
-                private List<String> filterIgnoredValues(final Object entryValue) {
-                    final List<String> validValues = new ArrayList<>();
-
+                private Object filterIgnoredValues(final Object entryValue) {
                     if (entryValue instanceof List<?> valueAsList) {
+                        final List<Object> validValues = new ArrayList<>();
                         for (Object value : valueAsList) {
                             if (value instanceof String valueAsString && valueAsString.length() < ignoreAbove) {
                                 validValues.add(valueAsString);
                             }
                         }
+                        if (validValues.isEmpty()) {
+                            return null;
+                        }
+                        if (validValues.size() == 1) {
+                            // NOTE: for single-value flattened fields do not return an array
+                            return validValues.getFirst();
+                        }
+                        return validValues;
                     } else if (entryValue instanceof String valueAsString) {
                         if (valueAsString.length() < ignoreAbove) {
-                            validValues.add(valueAsString);
+                            return valueAsString;
                         }
                     }
-                    return validValues;
+                    return null;
                 }
             };
         }

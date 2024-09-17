@@ -153,7 +153,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
     private final Integer dimensions;
     private final Boolean dimensionsSetByUser;
     private final Integer maxInputTokens;
-    private SimilarityMeasure similarity;
+    private final SimilarityMeasure similarity;
     private final RateLimitSettings rateLimitSettings;
 
     public AzureOpenAiEmbeddingsServiceSettings(
@@ -229,7 +229,6 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
         return dimensions;
     }
 
-    @Override
     public Boolean dimensionsSetByUser() {
         return dimensionsSetByUser;
     }
@@ -241,11 +240,6 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
     @Override
     public SimilarityMeasure similarity() {
         return similarity;
-    }
-
-    @Override
-    public void setSimilarity(SimilarityMeasure similarity) {
-        this.similarity = similarity;
     }
 
     @Override

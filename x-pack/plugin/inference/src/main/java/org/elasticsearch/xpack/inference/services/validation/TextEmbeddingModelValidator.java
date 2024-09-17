@@ -13,13 +13,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.ServiceSettings;
-import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbedding;
-
-import java.util.Objects;
 
 public class TextEmbeddingModelValidator implements ModelValidator {
 
@@ -32,48 +28,50 @@ public class TextEmbeddingModelValidator implements ModelValidator {
     @Override
     public void validate(InferenceService service, Model model, ActionListener<Model> listener) {
         serviceIntegrationValidator.validate(service, model, listener.delegateFailureAndWrap((delegate, r) -> {
-            delegate.onResponse(postValidate(model, r));
+            delegate.onResponse(postValidate(service, model, r));
         }));
     }
 
-    private Model postValidate(Model model, InferenceServiceResults results) {
+    private Model postValidate(InferenceService service, Model model, InferenceServiceResults results) {
         if (results instanceof TextEmbedding embeddingResults) {
-            try {
-                if (model.getServiceSettings().dimensionsSetByUser()
-                    && model.getServiceSettings().dimensions() != null
-                    && Objects.equals(model.getServiceSettings().dimensions(), embeddingResults.getFirstEmbeddingSize()) == false) {
-                    throw new ElasticsearchStatusException(
-                        Strings.format(
-                            "The retrieved embeddings size [%s] does not match the size specified in the settings [%s]. "
-                                + "Please recreate the [%s] configuration with the correct dimensions",
-                            embeddingResults.getFirstEmbeddingSize(),
-                            model.getServiceSettings().dimensions(),
-                            model.getConfigurations().getInferenceEntityId()
-                        ),
-                        RestStatus.BAD_REQUEST
-                    );
-                }
-            } catch (Exception e) {
+            var serviceSettings = model.getServiceSettings();
+            var dimensions = serviceSettings.dimensions();
+            int embeddingSize = getEmbeddingSize(embeddingResults);
+
+            if (serviceSettings.dimensionsSetByUser() && dimensions != null && dimensions.equals(embeddingSize) == false) {
                 throw new ElasticsearchStatusException(
-                    "Could not determine embedding size. "
-                        + "Expected a result of type ["
-                        + InferenceTextEmbeddingFloatResults.NAME
-                        + "] got ["
-                        + results.getWriteableName()
-                        + "]",
+                    Strings.format(
+                        "The retrieved embeddings size [%s] does not match the size specified in the settings [%s]. "
+                            + "Please recreate the [%s] configuration with the correct dimensions",
+                        embeddingResults.getFirstEmbeddingSize(),
+                        serviceSettings.dimensions(),
+                        model.getInferenceEntityId()
+                    ),
                     RestStatus.BAD_REQUEST
                 );
             }
 
-            var similarityFromModel = model.getServiceSettings().similarity();
-            var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
-
-            ServiceSettings serviceSettings = model.getServiceSettings();
-            serviceSettings.setSimilarity(similarityToUse);
-
-            return model;
+            return service.updateModelWithEmbeddingDetails(model, embeddingSize);
         } else {
-            throw new ElasticsearchStatusException("Validation call did not return text embedding response", RestStatus.BAD_REQUEST);
+            throw new ElasticsearchStatusException(
+                "Validation call did not return expected results type."
+                    + "Expected a result of type ["
+                    + InferenceTextEmbeddingFloatResults.NAME
+                    + "] got ["
+                    + (results == null ? "null" : results.getWriteableName())
+                    + "]",
+                RestStatus.BAD_REQUEST
+            );
         }
+    }
+
+    private int getEmbeddingSize(TextEmbedding embeddingResults) {
+        int embeddingSize;
+        try {
+            embeddingSize = embeddingResults.getFirstEmbeddingSize();
+        } catch (Exception e) {
+            throw new ElasticsearchStatusException("Could not determine embedding size", RestStatus.BAD_REQUEST, e);
+        }
+        return embeddingSize;
     }
 }

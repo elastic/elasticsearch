@@ -13,7 +13,6 @@ import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ServiceSettings;
-import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
@@ -24,10 +23,10 @@ import org.elasticsearch.xpack.inference.results.SparseEmbeddingResultsTests;
 import org.junit.Before;
 import org.mockito.Mock;
 
-import java.util.Arrays;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -57,8 +56,10 @@ public class TextEmbeddingModelValidatorTests extends ESTestCase {
 
         underTest = new TextEmbeddingModelValidator(mockServiceIntegrationValidator);
 
+        when(mockInferenceService.updateModelWithEmbeddingDetails(eq(mockModel), anyInt())).thenReturn(mockModel);
         when(mockActionListener.delegateFailureAndWrap(any())).thenCallRealMethod();
         when(mockModel.getServiceSettings()).thenReturn(mockServiceSettings);
+        when(mockModel.getInferenceEntityId()).thenReturn(randomAlphaOfLength(10));
     }
 
     public void testValidate_ServiceIntegrationValidatorThrowsException() {
@@ -95,60 +96,49 @@ public class TextEmbeddingModelValidatorTests extends ESTestCase {
 
         verifyCallToServiceIntegrationValidator(results);
         verify(mockActionListener).onFailure(any(ElasticsearchStatusException.class));
-        verify(mockModel, times(3)).getServiceSettings();
-        verify(mockServiceSettings).dimensionsSetByUser();
-        verify(mockServiceSettings, times(2)).dimensions();
+        verify(mockModel, times(1)).getServiceSettings();
+        verify(mockServiceSettings).dimensions();
         verifyNoMoreInteractions(mockServiceIntegrationValidator, mockInferenceService, mockModel, mockActionListener, mockServiceSettings);
     }
 
     public void testValidate_DimensionsSetByUserDoNotEqualEmbeddingSize() {
         InferenceTextEmbeddingByteResults results = InferenceTextEmbeddingByteResultsTests.createRandomResults();
-        var dimensions = randomNonNegativeInt();
-        while (dimensions == results.getFirstEmbeddingSize()) {
-            dimensions = randomNonNegativeInt();
-        }
+        var dimensions = randomValueOtherThan(results.getFirstEmbeddingSize(), ESTestCase::randomNonNegativeInt);
 
         when(mockServiceSettings.dimensionsSetByUser()).thenReturn(true);
         when(mockServiceSettings.dimensions()).thenReturn(dimensions);
 
         verifyCallToServiceIntegrationValidator(results);
         verify(mockActionListener).onFailure(any(ElasticsearchStatusException.class));
-        verify(mockModel, times(4)).getServiceSettings();
-        verify(mockModel).getConfigurations();
+        verify(mockModel).getServiceSettings();
+        verify(mockModel).getInferenceEntityId();
         verify(mockServiceSettings).dimensionsSetByUser();
-        verify(mockServiceSettings, times(3)).dimensions();
+        verify(mockServiceSettings, times(2)).dimensions();
         verifyNoMoreInteractions(mockServiceIntegrationValidator, mockInferenceService, mockModel, mockActionListener, mockServiceSettings);
     }
 
-    public void testValidate_NullSimilarityProvided() {
-        verifySimilarityUpdatedProperly(null, SimilarityMeasure.DOT_PRODUCT);
+    public void testValidate_DimensionsSetByUserEqualEmbeddingSize() {
+        verifySuccessfulValidation(true);
     }
 
-    public void testValidate_NonNullSimilarityProvided() {
-        SimilarityMeasure similarityProvided = randomFrom(
-            Arrays.stream(SimilarityMeasure.values())
-                .filter(similarityMeasure -> similarityMeasure.equals(SimilarityMeasure.DOT_PRODUCT) == false)
-                .toList()
-        );
-        verifySimilarityUpdatedProperly(similarityProvided, similarityProvided);
+    public void testValidate_DimensionsNotSetByUser() {
+        verifySuccessfulValidation(false);
     }
 
-    private void verifySimilarityUpdatedProperly(SimilarityMeasure similarityProvided, SimilarityMeasure updatedSimilarity) {
+    private void verifySuccessfulValidation(Boolean dimensionsSetByUser) {
         InferenceTextEmbeddingByteResults results = InferenceTextEmbeddingByteResultsTests.createRandomResults();
 
         when(mockModel.getConfigurations()).thenReturn(ModelConfigurationsTests.createRandomInstance());
         when(mockModel.getTaskSettings()).thenReturn(EmptyTaskSettingsTests.createRandom());
-        when(mockServiceSettings.dimensionsSetByUser()).thenReturn(true);
-        when(mockServiceSettings.dimensions()).thenReturn(results.getFirstEmbeddingSize());
-        when(mockServiceSettings.similarity()).thenReturn(similarityProvided);
+        when(mockServiceSettings.dimensionsSetByUser()).thenReturn(dimensionsSetByUser);
+        when(mockServiceSettings.dimensions()).thenReturn(dimensionsSetByUser ? results.getFirstEmbeddingSize() : null);
 
         verifyCallToServiceIntegrationValidator(results);
         verify(mockActionListener).onResponse(mockModel);
-        verify(mockModel, times(5)).getServiceSettings();
+        verify(mockModel).getServiceSettings();
         verify(mockServiceSettings).dimensionsSetByUser();
-        verify(mockServiceSettings, times(2)).dimensions();
-        verify(mockServiceSettings).similarity();
-        verify(mockServiceSettings).setSimilarity(updatedSimilarity);
+        verify(mockServiceSettings).dimensions();
+        verify(mockInferenceService).updateModelWithEmbeddingDetails(mockModel, results.getFirstEmbeddingSize());
         verifyNoMoreInteractions(mockServiceIntegrationValidator, mockInferenceService, mockModel, mockActionListener, mockServiceSettings);
     }
 
@@ -160,19 +150,6 @@ public class TextEmbeddingModelValidatorTests extends ESTestCase {
         }).when(mockServiceIntegrationValidator).validate(eq(mockInferenceService), eq(mockModel), any());
 
         underTest.validate(mockInferenceService, mockModel, mockActionListener);
-
-        verify(mockServiceIntegrationValidator).validate(eq(mockInferenceService), eq(mockModel), any());
-        verify(mockActionListener).delegateFailureAndWrap(any());
-    }
-
-    private void verifyPostValidationException(InferenceServiceResults results, Class<? extends Exception> exceptionClass) {
-        doAnswer(ans -> {
-            ActionListener<InferenceServiceResults> responseListener = ans.getArgument(2);
-            responseListener.onResponse(results);
-            return null;
-        }).when(mockServiceIntegrationValidator).validate(eq(mockInferenceService), eq(mockModel), any());
-
-        assertThrows(exceptionClass, () -> { underTest.validate(mockInferenceService, mockModel, mockActionListener); });
 
         verify(mockServiceIntegrationValidator).validate(eq(mockInferenceService), eq(mockModel), any());
         verify(mockActionListener).delegateFailureAndWrap(any());

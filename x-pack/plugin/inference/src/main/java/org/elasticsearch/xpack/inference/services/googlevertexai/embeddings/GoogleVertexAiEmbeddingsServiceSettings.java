@@ -117,7 +117,7 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
 
     private final Integer dims;
 
-    private SimilarityMeasure similarity;
+    private final SimilarityMeasure similarity;
     private final Integer maxInputTokens;
 
     private final RateLimitSettings rateLimitSettings;
@@ -169,7 +169,6 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
         return modelId;
     }
 
-    @Override
     public Boolean dimensionsSetByUser() {
         return dimensionsSetByUser;
     }
@@ -191,11 +190,6 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
     @Override
     public SimilarityMeasure similarity() {
         return similarity;
-    }
-
-    @Override
-    public void setSimilarity(SimilarityMeasure similarity) {
-        this.similarity = similarity;
     }
 
     @Override

@@ -10,7 +10,9 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
@@ -25,6 +27,11 @@ import org.elasticsearch.logging.Logger;
 
 import java.util.concurrent.Executor;
 import java.util.function.Function;
+
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE;
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_HOT_NODE_ROLE;
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_ROLE;
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.INDEX_ROLE;
 
 /**
  * Triggers a check for pending merges when a shard completes recovery.
@@ -50,8 +57,9 @@ class PostRecoveryMerger {
 
     private final ThrottledTaskRunner postRecoveryMergeRunner;
     private final Function<ShardId, IndexShard> shardFunction;
+    private final boolean enabled;
 
-    PostRecoveryMerger(Executor executor, Function<ShardId, IndexShard> shardFunction) {
+    PostRecoveryMerger(Settings settings, Executor executor, Function<ShardId, IndexShard> shardFunction) {
         this.postRecoveryMergeRunner = new ThrottledTaskRunner(
             getClass().getCanonicalName(),
             // no need to execute these at high concurrency, we just need them to run eventually, so do them one-at-a-time
@@ -59,13 +67,21 @@ class PostRecoveryMerger {
             executor
         );
         this.shardFunction = shardFunction;
+        this.enabled =
+            // enabled globally ...
+            TRIGGER_MERGE_AFTER_RECOVERY
+                // ... and we are a node that expects nontrivial amounts of indexing work
+                && (DiscoveryNode.hasRole(settings, DATA_HOT_NODE_ROLE)
+                    || DiscoveryNode.hasRole(settings, DATA_CONTENT_NODE_ROLE)
+                    || DiscoveryNode.hasRole(settings, DATA_ROLE)
+                    || DiscoveryNode.hasRole(settings, INDEX_ROLE));
     }
 
     PeerRecoveryTargetService.RecoveryListener maybeMergeAfterRecovery(
         ShardRouting shardRouting,
         PeerRecoveryTargetService.RecoveryListener recoveryListener
     ) {
-        if (TRIGGER_MERGE_AFTER_RECOVERY == false) {
+        if (enabled == false) {
             return recoveryListener;
         }
 

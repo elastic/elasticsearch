@@ -380,7 +380,7 @@ public class IndicesService extends AbstractLifecycleComponent
 
         this.timestampFieldMapperService = new TimestampFieldMapperService(settings, threadPool, this);
 
-        this.postRecoveryMerger = new PostRecoveryMerger(threadPool.executor(ThreadPool.Names.FORCE_MERGE), this::getShardOrNull);
+        this.postRecoveryMerger = new PostRecoveryMerger(settings, threadPool.executor(ThreadPool.Names.FORCE_MERGE), this::getShardOrNull);
     }
 
     private static final String DANGLING_INDICES_UPDATE_THREAD_NAME = "DanglingIndices#updateTask";

@@ -142,6 +142,7 @@ import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
@@ -151,6 +152,7 @@ import static org.elasticsearch.action.support.ActionTestUtils.assertNoFailureLi
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING;
 import static org.elasticsearch.index.MergePolicyConfig.INDEX_MERGE_ENABLED;
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
+import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 import static org.elasticsearch.node.RecoverySettingsChunkSizePlugin.CHUNK_SIZE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -1988,14 +1990,42 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         assertEquals(initialSegmentCount, searchableSegmentCountSupplier.getAsLong());
 
-        // force a recovery by restarting the node, re-enabling merges while the node is down
+        // force a recovery by restarting the node, re-enabling merges while the node is down, but configure the node not to be in the hot
+        // or content tiers so that it does not do any post-recovery merge
         internalCluster().restartNode(dataNode, new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) {
                 final var request = new UpdateSettingsRequest(Settings.builder().putNull(INDEX_MERGE_ENABLED).build(), indexName);
                 request.reopen(true);
                 safeGet(indicesAdmin().updateSettings(request));
-                return Settings.EMPTY;
+                return Settings.builder()
+                    .putList(NODE_ROLES_SETTING.getKey(), randomNonEmptySubsetOf(List.of("data_warm", "data_cold")))
+                    .build();
+            }
+        });
+
+        ensureGreen(indexName);
+        final var mergeStats = indicesAdmin().prepareStats(indexName).clear().setMerge(true).get().getIndex(indexName).getShards()[0]
+            .getStats()
+            .getMerge();
+        assertEquals(0, mergeStats.getCurrent());
+        assertEquals(0, mergeStats.getTotal());
+        assertEquals(initialSegmentCount, searchableSegmentCountSupplier.getAsLong());
+
+        // force a recovery by restarting the node again, but this time putting it into the hot or content tiers to enable post-recovery
+        // merges
+        internalCluster().restartNode(dataNode, new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) {
+                return Settings.builder()
+                    .putList(
+                        NODE_ROLES_SETTING.getKey(),
+                        Stream.concat(
+                            Stream.of(randomFrom("data", "data_content", "data_hot")),
+                            Stream.of("data", "data_content", "data_hot", "data_warm", "data_cold").filter(p -> randomBoolean())
+                        ).distinct().toList()
+                    )
+                    .build();
             }
         });
 

@@ -10,13 +10,13 @@
 package org.elasticsearch.entitlements.runtime.api;
 
 public class EntitlementChecks {
-    static boolean agentSaidHello = false;
+    static boolean isAgentBooted = false;
 
-    public static void helloFromAgent() {
-        agentSaidHello = true;
+    public static void setAgentBooted() {
+        isAgentBooted = true;
     }
 
-    public static boolean agentSaidHello() {
-        return agentSaidHello;
+    public static boolean isAgentBooted() {
+        return isAgentBooted;
     }
 }

@@ -327,10 +327,10 @@ public class OrdinalsGroupingOperator implements Operator {
     @Override
     public String toString() {
         String aggregatorDescriptions = aggregatorFactories.stream()
-            .map(GroupingAggregator.Factory::describe)
+            .map(factory -> "\"" + factory.describe() + "\"")
             .collect(Collectors.joining(", "));
 
-        return this.getClass().getSimpleName() + "[" + "aggregators=" + aggregatorDescriptions + "]";
+        return this.getClass().getSimpleName() + "[" + "aggregators=[" + aggregatorDescriptions + "]]";
     }
 
     record SegmentID(int shardIndex, int segmentIndex) {

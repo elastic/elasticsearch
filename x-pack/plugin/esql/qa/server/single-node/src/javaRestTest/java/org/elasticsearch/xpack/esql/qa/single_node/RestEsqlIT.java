@@ -349,7 +349,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
             signatures.add(sig);
         }
 
-        assertThat(signatures.get(0).get(2), equalTo("OrdinalsGroupingOperator[aggregators=sum of longs, count]"));
+        assertThat(signatures.get(0).get(2), equalTo("OrdinalsGroupingOperator[aggregators=[\"sum of longs\", \"count\"]]"));
     }
 
     public void testInlineStatsProfile() throws IOException {

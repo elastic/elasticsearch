@@ -21,6 +21,8 @@
 
 package org.elasticsearch.tdigest;
 
+import org.elasticsearch.tdigest.arrays.TDigestArrays;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
@@ -29,6 +31,8 @@ import java.util.Random;
 import static org.elasticsearch.tdigest.IntAVLTree.NIL;
 
 public class AVLTreeDigest extends AbstractTDigest {
+    private final TDigestArrays arrays;
+
     final Random gen = new Random();
     private final double compression;
     private AVLGroupTree summary;
@@ -46,9 +50,10 @@ public class AVLTreeDigest extends AbstractTDigest {
      *                    quantiles.  Conversely, you should expect to track about 5 N centroids for this
      *                    accuracy.
      */
-    public AVLTreeDigest(double compression) {
+    AVLTreeDigest(TDigestArrays arrays, double compression) {
+        this.arrays = arrays;
         this.compression = compression;
-        summary = new AVLGroupTree();
+        summary = new AVLGroupTree(arrays);
     }
 
     /**
@@ -149,7 +154,7 @@ public class AVLTreeDigest extends AbstractTDigest {
         needsCompression = false;
 
         AVLGroupTree centroids = summary;
-        this.summary = new AVLGroupTree();
+        this.summary = new AVLGroupTree(arrays);
 
         final int[] nodes = new int[centroids.size()];
         nodes[0] = centroids.first();

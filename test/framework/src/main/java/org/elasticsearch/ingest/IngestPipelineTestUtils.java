@@ -28,6 +28,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
+import static org.elasticsearch.test.ESTestCase.TEST_REQUEST_TIMEOUT;
 import static org.elasticsearch.test.ESTestCase.safeGet;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -46,7 +47,7 @@ public class IngestPipelineTestUtils {
      * @return a new {@link PutPipelineRequest} with the given {@code id} and body.
      */
     public static PutPipelineRequest putJsonPipelineRequest(String id, BytesReference source) {
-        return new PutPipelineRequest(id, source, XContentType.JSON);
+        return new PutPipelineRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, id, source, XContentType.JSON);
     }
 
     /**
@@ -103,19 +104,23 @@ public class IngestPipelineTestUtils {
     public static void deletePipelinesIgnoringExceptions(ElasticsearchClient client, Iterable<String> ids) {
         for (final var id : ids) {
             ESTestCase.safeAwait(
-                l -> client.execute(DeletePipelineTransportAction.TYPE, new DeletePipelineRequest(id), new ActionListener<>() {
-                    @Override
-                    public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                        logger.info("delete pipeline [{}] success [acknowledged={}]", id, acknowledgedResponse.isAcknowledged());
-                        l.onResponse(null);
-                    }
+                l -> client.execute(
+                    DeletePipelineTransportAction.TYPE,
+                    new DeletePipelineRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, id),
+                    new ActionListener<>() {
+                        @Override
+                        public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                            logger.info("delete pipeline [{}] success [acknowledged={}]", id, acknowledgedResponse.isAcknowledged());
+                            l.onResponse(null);
+                        }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.warn(Strings.format("delete pipeline [%s] failure", id), e);
-                        l.onResponse(null);
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.warn(Strings.format("delete pipeline [%s] failure", id), e);
+                            l.onResponse(null);
+                        }
                     }
-                })
+                )
             );
         }
     }

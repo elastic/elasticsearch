@@ -581,22 +581,22 @@ class MaxmindGeoDataLookups {
 
         @Override
         public final Map<String, Object> getGeoData(final IpDatabase ipDatabase, final String ipAddress) {
-            final RESPONSE resp = ipDatabase.getResponse(ipAddress, this::lookup);
-            if (resp == null) {
+            final RESPONSE response = ipDatabase.getResponse(ipAddress, this::lookup);
+            if (response == null) {
                 return Map.of();
             } else {
-                return transform(resp);
+                return transform(response);
             }
         }
 
         private Optional<RESPONSE> lookup(final Reader reader, final String ipAddress) throws IOException {
             final InetAddress ip = InetAddresses.forString(ipAddress);
             final DatabaseRecord<RESPONSE> record = reader.getRecord(ip, clazz);
-            final RESPONSE result = record.getData();
-            if (result == null) {
+            final RESPONSE data = record.getData();
+            if (data == null) {
                 return Optional.empty();
             } else {
-                return Optional.of(builder.build(result, NetworkAddress.format(ip), record.getNetwork(), List.of("en")));
+                return Optional.of(builder.build(data, NetworkAddress.format(ip), record.getNetwork(), List.of("en")));
             }
         }
 

@@ -236,6 +236,9 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.security.JdbcSqlSpecIT
   method: test {case-functions.testSelectInsertWithLcaseAndLengthWithOrderBy}
   issue: https://github.com/elastic/elasticsearch/issues/112642
+- class: org.elasticsearch.datastreams.logsdb.qa.StandardVersusLogsIndexModeRandomDataChallengeRestIT
+  method: testHistogramAggregation
+  issue: https://github.com/elastic/elasticsearch/issues/113109
 
 # Examples:
 #

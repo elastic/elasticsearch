@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
@@ -974,5 +975,7 @@ public class NestedIT extends ESIntegTestCase {
                 assertThat(nested.getAggregations().asList().size(), equalTo(1));
             }
         );
+
+        assertAcked(indicesAdmin().delete(new DeleteIndexRequest("scoring")).get());
     }
 }

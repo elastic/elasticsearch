@@ -9,8 +9,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import joptsimple.internal.Strings;
-
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
@@ -248,7 +246,7 @@ public final class DocumentParser {
 
     private static String getCurrentPath(List<String> path, String fieldName) {
         assert fieldName != null;
-        return path.isEmpty() ? fieldName : Strings.join(path, ".") + "." + fieldName;
+        return path.isEmpty() ? fieldName : String.join(".", path) + "." + fieldName;
     }
 
     /**

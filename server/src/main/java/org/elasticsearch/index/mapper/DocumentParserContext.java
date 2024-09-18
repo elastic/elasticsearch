@@ -152,13 +152,15 @@ public abstract class DocumentParserContext {
         Set<String> fieldsAppliedFromTemplates,
         Set<String> copyToFields,
         DynamicMapperSize dynamicMapperSize,
-        boolean clonedSource
+        boolean recordedSource
     ) {
         this.mappingLookup = mappingLookup;
         this.mappingParserContext = mappingParserContext;
         this.sourceToParse = sourceToParse;
         this.ignoredFields = ignoreFields;
         this.ignoredFieldValues = ignoredFieldValues;
+        this.ignoredFieldsMissingValues = ignoredFieldsWithNoSource;
+        this.arrayFieldMissingValue = arrayFieldWithNoSource;
         this.dynamicMappers = dynamicMappers;
         this.dynamicObjectMappers = dynamicObjectMappers;
         this.dynamicRuntimeFields = dynamicRuntimeFields;
@@ -171,7 +173,7 @@ public abstract class DocumentParserContext {
         this.fieldsAppliedFromTemplates = fieldsAppliedFromTemplates;
         this.copyToFields = copyToFields;
         this.dynamicMappersSize = dynamicMapperSize;
-        this.clonedSource = clonedSource;
+        this.recordedSource = recordedSource;
     }
 
     private DocumentParserContext(ObjectMapper parent, ObjectMapper.Dynamic dynamic, DocumentParserContext in) {
@@ -181,6 +183,8 @@ public abstract class DocumentParserContext {
             in.sourceToParse,
             in.ignoredFields,
             in.ignoredFieldValues,
+            in.ignoredFieldsMissingValues,
+            in.arrayFieldMissingValue,
             in.dynamicMappers,
             in.dynamicObjectMappers,
             in.dynamicRuntimeFields,
@@ -193,7 +197,7 @@ public abstract class DocumentParserContext {
             in.fieldsAppliedFromTemplates,
             in.copyToFields,
             in.dynamicMappersSize,
-            in.clonedSource
+            in.recordedSource
         );
     }
 
@@ -379,7 +383,7 @@ public abstract class DocumentParserContext {
     }
 
     public final boolean canAddIgnoredField() {
-        return mappingLookup.isSourceSynthetic() && recordedSource == false && indexSettings().getSkipIgnoredSourceWrite() == false;
+        return mappingLookup.isSourceSynthetic() && recordedSource == false;
     }
 
     Mapper.SourceKeepMode sourceKeepModeFromIndexSettings() {
@@ -413,7 +417,7 @@ public abstract class DocumentParserContext {
 
     public void markFieldAsCopyTo(String fieldName) {
         copyToFields.add(fieldName);
-        if (mappingLookup.isSourceSynthetic() && indexSettings().getSkipIgnoredSourceWrite() == false) {
+        if (mappingLookup.isSourceSynthetic()) {
             /*
             Mark this field as containing copied data meaning it should not be present
             in synthetic _source (to be consistent with stored _source).

@@ -3893,11 +3893,18 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     generation
                 );
             } catch (NoSuchFileException noSuchFileException) {
-                final long latestGeneration = latestIndexBlobId();
-                final RepositoryData currentRepositoryData = getRepositoryData(latestGeneration);
-                if (currentRepositoryData.shardGenerations().hasShardGen(new RepositoryShardId(indexId, shardId)) == false) {
-                    // Master has concurrently mutated the shard generation. This can happen when master fails over
-                    // which is "expected". We do not need the following workaround in this case.
+                // Master may have concurrently mutated the shard generation. This can happen when master fails over
+                // which is "expected". We do not need to apply the following workaround for missing file in this case.
+                final RepositoryData currentRepositoryData;
+                try {
+                    final long latestGeneration = latestIndexBlobId();
+                    currentRepositoryData = getRepositoryData(latestGeneration);
+                } catch (Exception e) {
+                    noSuchFileException.addSuppressed(e);
+                    throw noSuchFileException;
+                }
+                final ShardGeneration latestShardGen = currentRepositoryData.shardGenerations().getShardGen(indexId, shardId);
+                if (latestShardGen == null || latestShardGen.equals(generation) == false) {
                     throw noSuchFileException;
                 }
 

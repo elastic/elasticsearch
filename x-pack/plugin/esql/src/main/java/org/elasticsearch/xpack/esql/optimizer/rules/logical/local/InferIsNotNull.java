@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.core.rule.Rule;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
@@ -106,6 +107,6 @@ public class InferIsNotNull extends Rule<LogicalPlan, LogicalPlan> {
     }
 
     private static boolean skipExpression(Expression e) {
-        return e instanceof Coalesce;
+        return e instanceof Coalesce || e instanceof Case;
     }
 }

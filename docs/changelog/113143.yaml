@@ -1,0 +1,11 @@
+pr: 113143
+summary: Deprecate `dutch_kp` and lovins stemmer as they are removed in Lucene 10
+area: Analysis
+type: deprecation
+issues: []
+deprecation:
+  title: Deprecate `dutch_kp` and lovins stemmer as they are removed in Lucene 10
+  area: Analysis
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users

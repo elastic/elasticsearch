@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -29,7 +30,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
@@ -41,7 +41,6 @@ import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
-import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
@@ -1508,49 +1507,44 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params p) {
-        XContentContext context = XContentContext.valueOf(p.param(CONTEXT_MODE_PARAM, CONTEXT_MODE_API));
-        final Iterator<? extends ToXContent> start = context == XContentContext.API
-            ? ChunkedToXContentHelper.startObject("metadata")
-            : Iterators.single((builder, params) -> builder.startObject("meta-data").field("version", version()));
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        XContentContext context = XContentContext.valueOf(params.param(CONTEXT_MODE_PARAM, CONTEXT_MODE_API));
 
-        final Iterator<? extends ToXContent> persistentSettings = context != XContentContext.API && persistentSettings().isEmpty() == false
-            ? Iterators.single((builder, params) -> {
-                builder.startObject("settings");
-                persistentSettings().toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
-                return builder.endObject();
+        return ChunkedToXContent.builder(params)
+            .append(
+                context == XContentContext.API
+                    ? (b, p) -> b.startObject("metadata")
+                    : (b, p) -> b.startObject("meta-data").field("version", version())
+            )
+            .append((b, p) -> {
+                b.field("cluster_uuid", clusterUUID);
+                b.field("cluster_uuid_committed", clusterUUIDCommitted);
+                b.startObject("cluster_coordination");
+                coordinationMetadata().toXContent(b, p);
+                return b.endObject();
             })
-            : Collections.emptyIterator();
-
-        final Iterator<? extends ToXContent> indices = context == XContentContext.API
-            ? ChunkedToXContentHelper.wrapWithObject("indices", indices().values().iterator())
-            : Collections.emptyIterator();
-
-        return Iterators.concat(start, Iterators.single((builder, params) -> {
-            builder.field("cluster_uuid", clusterUUID);
-            builder.field("cluster_uuid_committed", clusterUUIDCommitted);
-            builder.startObject("cluster_coordination");
-            coordinationMetadata().toXContent(builder, params);
-            return builder.endObject();
-        }),
-            persistentSettings,
-            ChunkedToXContentHelper.wrapWithObject(
-                "templates",
-                Iterators.map(
-                    templates().values().iterator(),
-                    template -> (builder, params) -> IndexTemplateMetadata.Builder.toXContentWithTypes(template, builder, params)
-                )
-            ),
-            indices,
-            Iterators.flatMap(
-                customs.entrySet().iterator(),
-                entry -> entry.getValue().context().contains(context)
-                    ? ChunkedToXContentHelper.wrapWithObject(entry.getKey(), entry.getValue().toXContentChunked(p))
-                    : Collections.emptyIterator()
-            ),
-            ChunkedToXContentHelper.wrapWithObject("reserved_state", reservedStateMetadata().values().iterator()),
-            ChunkedToXContentHelper.endObject()
-        );
+            .execute(xb -> {
+                if (context != XContentContext.API && persistentSettings().isEmpty() == false) {
+                    xb.append((b, p) -> {
+                        b.startObject("settings");
+                        persistentSettings().toXContent(b, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
+                        return b.endObject();
+                    });
+                }
+            })
+            .object("templates", templates().values().iterator(), t -> (b, p) -> IndexTemplateMetadata.Builder.toXContentWithTypes(t, b, p))
+            .execute(xb -> {
+                if (context == XContentContext.API) {
+                    xb.xContentObject("indices", indices().values().iterator());
+                }
+            })
+            .forEach(customs.entrySet().iterator(), (b, e) -> {
+                if (e.getValue().context().contains(context)) {
+                    b.xContentObject(e.getKey(), e.getValue());
+                }
+            })
+            .xContentObject("reserved_state", reservedStateMetadata().values().iterator())
+            .append((b, p) -> b.endObject());
     }
 
     public Map<String, MappingMetadata> getMappingsByHash() {

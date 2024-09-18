@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http.netty4;
@@ -301,8 +302,8 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
                                 Strings.format("failed to get continuation of HTTP response body for [%s], closing connection", channel),
                                 e
                             );
-                            channel.close().addListener(ignored -> {
-                                finishingWrite.combiner().add(channel.newFailedFuture(e));
+                            Netty4Utils.addListener(channel.close(), f -> {
+                                finishingWrite.combiner().add(f.channel().newFailedFuture(e));
                                 finishingWrite.combiner().finish(finishingWrite.onDone());
                             });
                             checkShutdown();
@@ -416,7 +417,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         final boolean isPartComplete = bodyPart.isPartComplete();
         final boolean isBodyComplete = isPartComplete && bodyPart.isLastPart();
         final ChannelFuture f = ctx.write(isBodyComplete ? new DefaultLastHttpContent(content) : new DefaultHttpContent(content));
-        f.addListener(ignored -> bytes.close());
+        Netty4Utils.addListener(f, ignored -> bytes.close());
         combiner.add(f);
         return isPartComplete;
     }

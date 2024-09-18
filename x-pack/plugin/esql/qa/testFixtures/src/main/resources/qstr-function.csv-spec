@@ -13,6 +13,7 @@ from books
 | limit 5;
 // end::qstr-with-field[]
 
+// tag::qstr-with-field-result[]
 book_no:keyword | author:text
 2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
 2713            | William Faulkner
@@ -20,6 +21,7 @@ book_no:keyword | author:text
 2883            | William Faulkner
 3293            | Danny Faulkner
 ;
+// end::qstr-with-field-result[]
 
 qstrWithMultipleFields
 required_capability: qstr_function

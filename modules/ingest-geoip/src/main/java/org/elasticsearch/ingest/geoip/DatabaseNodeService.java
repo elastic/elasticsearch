@@ -36,7 +36,6 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.FileAlreadyExistsException;
@@ -86,7 +85,7 @@ import static org.elasticsearch.ingest.geoip.GeoIpTaskState.getGeoIpTaskState;
  * if there is an old instance of this database then that is closed.
  * 4) Cleanup locally loaded databases that are no longer mentioned in {@link GeoIpTaskState}.
  */
-public final class DatabaseNodeService implements IpDatabaseProvider, Closeable {
+public final class DatabaseNodeService implements IpDatabaseProvider {
 
     private static final Logger logger = LogManager.getLogger(DatabaseNodeService.class);
 
@@ -235,8 +234,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider, Closeable 
         return databases.get(key);
     }
 
-    @Override
-    public void close() throws IOException {
+    public void shutdown() throws IOException {
         IOUtils.close(databases.values());
     }
 

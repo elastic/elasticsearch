@@ -30,6 +30,7 @@ public class FeatureService {
      * A feature indicating that node features are supported.
      */
     public static final NodeFeature FEATURES_SUPPORTED = new NodeFeature("features_supported");
+    public static final NodeFeature TEST_FEATURES_ENABLED = new NodeFeature("test_features_enabled");
 
     private static final Logger logger = LogManager.getLogger(FeatureService.class);
 

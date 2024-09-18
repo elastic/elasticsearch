@@ -15,6 +15,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -26,7 +27,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -343,15 +343,12 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             );
     }
 
-    @UpdateForV9 // use MINUS_ONE once that means no timeout
-    private static final TimeValue MASTER_TIMEOUT = TimeValue.MAX_VALUE;
-
     private void startTask(Runnable onFailure) {
         persistentTasksService.sendStartRequest(
             GEOIP_DOWNLOADER,
             GEOIP_DOWNLOADER,
             new GeoIpTaskParams(),
-            MASTER_TIMEOUT,
+            MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
             ActionListener.wrap(r -> logger.debug("Started geoip downloader task"), e -> {
                 Throwable t = e instanceof RemoteTransportException ? ExceptionsHelper.unwrapCause(e) : e;
                 if (t instanceof ResourceAlreadyExistsException == false) {
@@ -373,19 +370,23 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
                 }
             }
         );
-        persistentTasksService.sendRemoveRequest(GEOIP_DOWNLOADER, MASTER_TIMEOUT, ActionListener.runAfter(listener, () -> {
-            IndexAbstraction databasesAbstraction = clusterService.state().metadata().getIndicesLookup().get(DATABASES_INDEX);
-            if (databasesAbstraction != null) {
-                // regardless of whether DATABASES_INDEX is an alias, resolve it to a concrete index
-                Index databasesIndex = databasesAbstraction.getWriteIndex();
-                client.admin().indices().prepareDelete(databasesIndex.getName()).execute(ActionListener.wrap(rr -> {}, e -> {
-                    Throwable t = e instanceof RemoteTransportException ? ExceptionsHelper.unwrapCause(e) : e;
-                    if (t instanceof ResourceNotFoundException == false) {
-                        logger.warn("failed to remove " + databasesIndex, e);
-                    }
-                }));
-            }
-        }));
+        persistentTasksService.sendRemoveRequest(
+            GEOIP_DOWNLOADER,
+            MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
+            ActionListener.runAfter(listener, () -> {
+                IndexAbstraction databasesAbstraction = clusterService.state().metadata().getIndicesLookup().get(DATABASES_INDEX);
+                if (databasesAbstraction != null) {
+                    // regardless of whether DATABASES_INDEX is an alias, resolve it to a concrete index
+                    Index databasesIndex = databasesAbstraction.getWriteIndex();
+                    client.admin().indices().prepareDelete(databasesIndex.getName()).execute(ActionListener.wrap(rr -> {}, e -> {
+                        Throwable t = e instanceof RemoteTransportException ? ExceptionsHelper.unwrapCause(e) : e;
+                        if (t instanceof ResourceNotFoundException == false) {
+                            logger.warn("failed to remove " + databasesIndex, e);
+                        }
+                    }));
+                }
+            })
+        );
     }
 
     public GeoIpDownloader getCurrentTask() {

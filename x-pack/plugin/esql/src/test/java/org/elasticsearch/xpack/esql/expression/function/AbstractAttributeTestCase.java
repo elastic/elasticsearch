@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -61,7 +60,7 @@ public abstract class AbstractAttributeTestCase<T extends Attribute> extends Abs
     @Override
     protected final Writeable.Reader<ExtraAttribute> instanceReader() {
         return in -> {
-            PlanStreamInput pin = new PlanStreamInput(in, PlanNameRegistry.INSTANCE, in.namedWriteableRegistry(), config);
+            PlanStreamInput pin = new PlanStreamInput(in, in.namedWriteableRegistry(), config);
             pin.setTransportVersion(in.getTransportVersion());
             return new ExtraAttribute(pin);
         };
@@ -84,7 +83,7 @@ public abstract class AbstractAttributeTestCase<T extends Attribute> extends Abs
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            new PlanStreamOutput(out, new PlanNameRegistry(), EsqlTestUtils.TEST_CFG).writeNamedWriteable(a);
+            new PlanStreamOutput(out, EsqlTestUtils.TEST_CFG).writeNamedWriteable(a);
         }
 
         @Override

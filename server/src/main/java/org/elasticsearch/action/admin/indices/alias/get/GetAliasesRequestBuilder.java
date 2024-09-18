@@ -9,11 +9,27 @@
 
 package org.elasticsearch.action.admin.indices.alias.get;
 
+import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 
-public class GetAliasesRequestBuilder extends BaseAliasesRequestBuilder<GetAliasesResponse, GetAliasesRequestBuilder> {
-
+public class GetAliasesRequestBuilder extends ActionRequestBuilder<GetAliasesRequest, GetAliasesResponse> {
     public GetAliasesRequestBuilder(ElasticsearchClient client, String... aliases) {
-        super(client, GetAliasesAction.INSTANCE, aliases);
+        super(client, GetAliasesAction.INSTANCE, new GetAliasesRequest(aliases));
+    }
+
+    public GetAliasesRequestBuilder setAliases(String... aliases) {
+        request.aliases(aliases);
+        return this;
+    }
+
+    public GetAliasesRequestBuilder setIndices(String... indices) {
+        request.indices(indices);
+        return this;
+    }
+
+    public GetAliasesRequestBuilder setIndicesOptions(IndicesOptions options) {
+        request.indicesOptions(options);
+        return this;
     }
 }

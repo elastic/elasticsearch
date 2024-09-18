@@ -302,8 +302,8 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
                                 Strings.format("failed to get continuation of HTTP response body for [%s], closing connection", channel),
                                 e
                             );
-                            channel.close().addListener(ignored -> {
-                                finishingWrite.combiner().add(channel.newFailedFuture(e));
+                            Netty4Utils.addListener(channel.close(), f -> {
+                                finishingWrite.combiner().add(f.channel().newFailedFuture(e));
                                 finishingWrite.combiner().finish(finishingWrite.onDone());
                             });
                             checkShutdown();
@@ -417,7 +417,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         final boolean isPartComplete = bodyPart.isPartComplete();
         final boolean isBodyComplete = isPartComplete && bodyPart.isLastPart();
         final ChannelFuture f = ctx.write(isBodyComplete ? new DefaultLastHttpContent(content) : new DefaultHttpContent(content));
-        f.addListener(ignored -> bytes.close());
+        Netty4Utils.addListener(f, ignored -> bytes.close());
         combiner.add(f);
         return isPartComplete;
     }

@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.junit.Before;
 import org.mockito.Mock;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -74,37 +73,26 @@ public class SimpleServiceIntegrationValidatorTests extends ESTestCase {
         assertThrows(ElasticsearchStatusException.class, () -> {
             underTest.validate(mockInferenceService, mockModel, mockActionListener);});
 
-        verify(mockModel).getTaskType();
-        verify(mockInferenceService).infer(
-            eq(mockModel),
-            eq(null),
-            eq(TEST_INPUT),
-            eq(Map.of()),
-            eq(InputType.INGEST),
-            eq(InferenceAction.Request.DEFAULT_TIMEOUT),
-            any()
-        );
-        verify(mockActionListener).delegateFailureAndWrap(any());
+        verifyCallToService(false);
     }
 
     public void testValidate_SuccessfulCallToServiceForNonReRankTaskType() {
-        when(mockModel.getTaskType()).thenReturn(
-            randomFrom(Arrays.stream(TaskType.values()).filter(taskType -> taskType.equals(TaskType.RERANK) == false).toList()));
+        when(mockModel.getTaskType()).thenReturn(randomValueOtherThan(TaskType.RERANK, () -> randomFrom(TaskType.values())));
 
-        verifyCallToService(null, mockInferenceServiceResults);
+        mockSuccessfulCallToService(null, mockInferenceServiceResults);
         verify(mockActionListener).onResponse(mockInferenceServiceResults);
-        verifyNoMoreInteractions(mockInferenceService, mockModel, mockActionListener, mockInferenceServiceResults);
+        verifyCallToService(false);
     }
 
     public void testValidate_SuccessfulCallToServiceForReRankTaskType() {
         when(mockModel.getTaskType()).thenReturn(TaskType.RERANK);
 
-        verifyCallToService(TEST_QUERY, mockInferenceServiceResults);
+        mockSuccessfulCallToService(TEST_QUERY, mockInferenceServiceResults);
         verify(mockActionListener).onResponse(mockInferenceServiceResults);
-        verifyNoMoreInteractions(mockInferenceService, mockModel, mockActionListener, mockInferenceServiceResults);
+        verifyCallToService(true);
     }
 
-    private void verifyCallToService(String query, InferenceServiceResults result) {
+    private void mockSuccessfulCallToService(String query, InferenceServiceResults result) {
         doAnswer(ans -> {
             ActionListener<InferenceServiceResults> responseListener = ans.getArgument(6);
             responseListener.onResponse(result);
@@ -121,11 +109,13 @@ public class SimpleServiceIntegrationValidatorTests extends ESTestCase {
             );
 
         underTest.validate(mockInferenceService, mockModel, mockActionListener);
+    }
 
+    private void verifyCallToService(boolean withQuery) {
         verify(mockModel).getTaskType();
         verify(mockInferenceService).infer(
             eq(mockModel),
-            eq(query),
+            eq(withQuery ? TEST_QUERY : null),
             eq(TEST_INPUT),
             eq(Map.of()),
             eq(InputType.INGEST),
@@ -133,5 +123,6 @@ public class SimpleServiceIntegrationValidatorTests extends ESTestCase {
             any()
         );
         verify(mockActionListener).delegateFailureAndWrap(any());
+        verifyNoMoreInteractions(mockInferenceService, mockModel, mockActionListener, mockInferenceServiceResults);
     }
 }

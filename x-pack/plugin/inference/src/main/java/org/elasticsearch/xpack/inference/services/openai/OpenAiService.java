@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
@@ -268,7 +269,10 @@ public class OpenAiService extends SenderService {
 
             return new OpenAiEmbeddingsModel(embeddingsModel, updatedServiceSettings);
         } else {
-            throw new ElasticsearchStatusException("Cannot update model with embedding details", RestStatus.BAD_REQUEST);
+            throw new ElasticsearchStatusException(
+                Strings.format("Can't update embedding details for model with unexpected type %s", model.getClass()),
+                RestStatus.BAD_REQUEST
+            );
         }
     }
 

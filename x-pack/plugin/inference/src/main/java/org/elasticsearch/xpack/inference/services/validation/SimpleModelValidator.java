@@ -7,11 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.validation;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.rest.RestStatus;
 
 public class SimpleModelValidator implements ModelValidator {
 
@@ -23,14 +21,10 @@ public class SimpleModelValidator implements ModelValidator {
 
     @Override
     public void validate(InferenceService service, Model model, ActionListener<Model> listener) {
-        serviceIntegrationValidator.validate(service, model, listener.delegateFailureAndWrap((delegate, r) -> {
-            if (r != null) {
-                delegate.onResponse(model);
-            } else {
-                delegate.onFailure(
-                    new ElasticsearchStatusException("Validation call to service returned null response", RestStatus.BAD_REQUEST)
-                );
-            }
-        }));
+        serviceIntegrationValidator.validate(
+            service,
+            model,
+            listener.delegateFailureAndWrap((delegate, r) -> { delegate.onResponse(model); })
+        );
     }
 }

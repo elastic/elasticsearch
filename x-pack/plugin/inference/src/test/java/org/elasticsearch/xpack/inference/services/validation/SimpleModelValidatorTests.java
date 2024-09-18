@@ -35,8 +35,6 @@ public class SimpleModelValidatorTests extends ESTestCase {
     private Model mockModel;
     @Mock
     private ActionListener<Model> mockActionListener;
-    @Mock
-    private InferenceServiceResults mockInferenceServiceResults;
 
     private SimpleModelValidator underTest;
 
@@ -57,37 +55,13 @@ public class SimpleModelValidatorTests extends ESTestCase {
             ElasticsearchStatusException.class,
             () -> { underTest.validate(mockInferenceService, mockModel, mockActionListener); }
         );
-
-        verify(mockServiceIntegrationValidator).validate(eq(mockInferenceService), eq(mockModel), any());
-        verify(mockActionListener).delegateFailureAndWrap(any());
-        verifyNoMoreInteractions(mockServiceIntegrationValidator, mockInferenceService, mockModel, mockActionListener);
-    }
-
-    public void testValidate_ServiceReturnsNullResults() {
-        mockCallToServiceIntegrationValidator(null);
-        verify(mockActionListener).onFailure(any(ElasticsearchStatusException.class));
-        verifyNoMoreInteractions(mockServiceIntegrationValidator, mockInferenceService, mockModel, mockActionListener);
+        verifyInteractions();
     }
 
     public void testValidate_ServiceReturnsInferenceServiceResults() {
         mockCallToServiceIntegrationValidator(SparseEmbeddingResultsTests.createRandomResults());
         verify(mockActionListener).onResponse(mockModel);
-        verifyNoMoreInteractions(mockServiceIntegrationValidator, mockInferenceService, mockModel, mockActionListener);
-    }
-
-    public void testValidate_Stuff() {
-        doAnswer(ans -> {
-            ActionListener<InferenceServiceResults> responseListener = ans.getArgument(2);
-            responseListener.onResponse(null);
-            return null;
-        }).when(mockServiceIntegrationValidator).validate(eq(mockInferenceService), eq(mockModel), any());
-
-        underTest.validate(mockInferenceService, mockModel, mockActionListener);
-
-        verify(mockServiceIntegrationValidator).validate(eq(mockInferenceService), eq(mockModel), any());
-        verify(mockActionListener).delegateFailureAndWrap(any());
-        verify(mockActionListener).onFailure(any(ElasticsearchStatusException.class));
-        verifyNoMoreInteractions(mockServiceIntegrationValidator, mockInferenceService, mockModel, mockActionListener);
+        verifyInteractions();
     }
 
     private void mockCallToServiceIntegrationValidator(InferenceServiceResults results) {
@@ -98,8 +72,11 @@ public class SimpleModelValidatorTests extends ESTestCase {
         }).when(mockServiceIntegrationValidator).validate(eq(mockInferenceService), eq(mockModel), any());
 
         underTest.validate(mockInferenceService, mockModel, mockActionListener);
+    }
 
+    private void verifyInteractions() {
         verify(mockServiceIntegrationValidator).validate(eq(mockInferenceService), eq(mockModel), any());
         verify(mockActionListener).delegateFailureAndWrap(any());
+        verifyNoMoreInteractions(mockServiceIntegrationValidator, mockInferenceService, mockModel, mockActionListener);
     }
 }

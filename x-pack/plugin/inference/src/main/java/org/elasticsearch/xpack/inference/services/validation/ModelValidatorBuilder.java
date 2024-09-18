@@ -7,12 +7,13 @@
 
 package org.elasticsearch.xpack.inference.services.validation;
 
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.TaskType;
 
 public class ModelValidatorBuilder {
     public static ModelValidator buildModelValidator(TaskType taskType) {
         if (taskType == null) {
-            throw new IllegalArgumentException("Task type cannot be null");
+            throw new IllegalArgumentException("Task type can't be null");
         }
 
         switch (taskType) {
@@ -22,7 +23,7 @@ public class ModelValidatorBuilder {
             case SPARSE_EMBEDDING, RERANK, COMPLETION, ANY -> {
                 return new SimpleModelValidator(new SimpleServiceIntegrationValidator());
             }
-            default -> throw new IllegalArgumentException("Unsupported inference model type: " + taskType);
+            default -> throw new IllegalArgumentException(Strings.format("Can't validate inference model of for task type %s ", taskType));
         }
     }
 }

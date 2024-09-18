@@ -40,7 +40,6 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
     private boolean closing = false;
     private HttpBody.ChunkHandler handler;
 
-
     public Netty4HttpRequestBodyStream(Channel channel) {
         this.channel = channel;
         Netty4Utils.addListener(channel.closeFuture(), closeListener);

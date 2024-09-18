@@ -43,7 +43,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     private static final Set<Property> ALL_PROPERTIES = Set.of(Property.values());
 
     // a temporary directory that mmdb files can be copied to and read from
-    Path tmpDir;
+    private Path tmpDir;
 
     @Before
     public void setup() {

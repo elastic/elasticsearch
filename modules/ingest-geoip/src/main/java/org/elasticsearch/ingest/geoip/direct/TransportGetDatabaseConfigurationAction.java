@@ -10,22 +10,20 @@
 package org.elasticsearch.ingest.geoip.direct;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.ingest.geoip.IngestGeoIpMetadata;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
@@ -33,37 +31,34 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class TransportGetDatabaseConfigurationAction extends TransportMasterNodeAction<
+public class TransportGetDatabaseConfigurationAction extends TransportNodesAction<
     GetDatabaseConfigurationAction.Request,
-    GetDatabaseConfigurationAction.Response> {
+    GetDatabaseConfigurationAction.Response,
+    GetDatabaseConfigurationAction.NodeRequest,
+    GetDatabaseConfigurationAction.NodeResponse> {
 
     @Inject
     public TransportGetDatabaseConfigurationAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ActionFilters actionFilters
     ) {
         super(
             GetDatabaseConfigurationAction.NAME,
-            transportService,
             clusterService,
-            threadPool,
+            transportService,
             actionFilters,
-            GetDatabaseConfigurationAction.Request::new,
-            indexNameExpressionResolver,
-            GetDatabaseConfigurationAction.Response::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            GetDatabaseConfigurationAction.NodeRequest::new,
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
     }
 
     @Override
-    protected void masterOperation(
-        final Task task,
-        final GetDatabaseConfigurationAction.Request request,
-        final ClusterState state,
-        final ActionListener<GetDatabaseConfigurationAction.Response> listener
+    protected GetDatabaseConfigurationAction.Response newResponse(
+        GetDatabaseConfigurationAction.Request request,
+        List<GetDatabaseConfigurationAction.NodeResponse> nodeResponses,
+        List<FailedNodeException> failures
     ) {
         final Set<String> ids;
         if (request.getDatabaseIds().length == 0) {
@@ -79,7 +74,7 @@ public class TransportGetDatabaseConfigurationAction extends TransportMasterNode
             );
         }
 
-        final IngestGeoIpMetadata geoIpMeta = state.metadata().custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
+        final IngestGeoIpMetadata geoIpMeta = clusterService.state().metadata().custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
         List<DatabaseConfigurationMetadata> results = new ArrayList<>();
 
         for (String id : ids) {
@@ -92,19 +87,28 @@ public class TransportGetDatabaseConfigurationAction extends TransportMasterNode
             } else {
                 DatabaseConfigurationMetadata meta = geoIpMeta.getDatabases().get(id);
                 if (meta == null) {
-                    listener.onFailure(new ResourceNotFoundException("database configuration not found: {}", id));
-                    return;
+                    throw new ResourceNotFoundException("database configuration not found: {}", id);
                 } else {
                     results.add(meta);
                 }
             }
         }
-
-        listener.onResponse(new GetDatabaseConfigurationAction.Response(results));
+        return new GetDatabaseConfigurationAction.Response(results, clusterService.getClusterName(), nodeResponses, failures);
     }
 
     @Override
-    protected ClusterBlockException checkBlock(GetDatabaseConfigurationAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+    protected GetDatabaseConfigurationAction.NodeRequest newNodeRequest(GetDatabaseConfigurationAction.Request request) {
+        return new GetDatabaseConfigurationAction.NodeRequest(request.getDatabaseIds());
     }
+
+    @Override
+    protected GetDatabaseConfigurationAction.NodeResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
+        return new GetDatabaseConfigurationAction.NodeResponse(in);
+    }
+
+    @Override
+    protected GetDatabaseConfigurationAction.NodeResponse nodeOperation(GetDatabaseConfigurationAction.NodeRequest request, Task task) {
+        return new GetDatabaseConfigurationAction.NodeResponse(transportService.getLocalNode(), List.of());
+    }
+
 }

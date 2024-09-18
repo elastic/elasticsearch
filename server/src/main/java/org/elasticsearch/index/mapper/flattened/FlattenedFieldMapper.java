@@ -152,7 +152,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             false
         );
         private final int ignoreAboveDefault;
-        private Parameter<Integer> ignoreAbove;
+        private final Parameter<Integer> ignoreAbove;
 
         private final Parameter<String> indexOptions = TextParams.keywordIndexOptions(m -> builder(m).indexOptions.get());
         private final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> builder(m).similarity.get());

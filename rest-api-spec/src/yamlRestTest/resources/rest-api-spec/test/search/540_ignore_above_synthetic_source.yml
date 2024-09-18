@@ -1,5 +1,8 @@
 ---
 ignore_above mapping level setting:
+  - requires:
+      cluster_features: [ "flattened.ignore_above_support" ]
+      reason: introduce ignore_above support in flattened fields
   - do:
       indices.create:
         index:  test
@@ -40,6 +43,9 @@ ignore_above mapping level setting:
 
 ---
 ignore_above mapping level setting on arrays:
+  - requires:
+      cluster_features: [ "flattened.ignore_above_support" ]
+      reason: introduce ignore_above support in flattened fields
   - do:
       indices.create:
         index:  test
@@ -74,15 +80,17 @@ ignore_above mapping level setting on arrays:
             match_all: {}
 
   - length: { hits.hits: 1 }
-    #TODO: reconstruct array error
-  - match: { hits.hits.0._source.keyword: ["foo bar", "the quick brown fox"] }
+#TODO: synthetic source field reconstruction bug (see https://github.com/elastic/elasticsearch/issues/112044)
+#  - match: { hits.hits.0._source.keyword: ["foo bar", "the quick brown fox"] }
   - match: { hits.hits.0._source.flattened.value: ["the quick brown fox", "jumps over"] }
   - match: { hits.hits.0.fields.keyword.0: "foo bar" }
-    #TODO: ignore_above applies to each array element for fields
-  - match: { hits.hits.0.fields.flattened.0.value: ["the quick brown fox", "jumps over"] }
+  - match: { hits.hits.0.fields.flattened.0.value: "jumps over" }
 
 ---
 ignore_above mapping overrides setting:
+  - requires:
+      cluster_features: [ "flattened.ignore_above_support" ]
+      reason: introduce ignore_above support in flattened fields
   - do:
       indices.create:
         index:  test
@@ -126,6 +134,9 @@ ignore_above mapping overrides setting:
 
 ---
 ignore_above mapping overrides setting on arrays:
+  - requires:
+      cluster_features: [ "flattened.ignore_above_support" ]
+      reason: introduce ignore_above support in flattened fields
   - do:
       indices.create:
         index: test

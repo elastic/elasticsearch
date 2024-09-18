@@ -16,7 +16,6 @@ import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.geoip.stats.CacheStats;
 
-import java.net.InetAddress;
 import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
@@ -62,11 +61,7 @@ final class GeoIpCache {
     }
 
     @SuppressWarnings("unchecked")
-    <T extends AbstractResponse> T putIfAbsent(
-        InetAddress ip,
-        String databasePath,
-        Function<InetAddress, AbstractResponse> retrieveFunction
-    ) {
+    <T extends AbstractResponse> T putIfAbsent(String ip, String databasePath, Function<String, AbstractResponse> retrieveFunction) {
         // can't use cache.computeIfAbsent due to the elevated permissions for the jackson (run via the cache loader)
         CacheKey cacheKey = new CacheKey(ip, databasePath);
         long cacheStart = relativeNanoTimeProvider.getAsLong();
@@ -98,7 +93,7 @@ final class GeoIpCache {
     }
 
     // only useful for testing
-    AbstractResponse get(InetAddress ip, String databasePath) {
+    AbstractResponse get(String ip, String databasePath) {
         CacheKey cacheKey = new CacheKey(ip, databasePath);
         return cache.get(cacheKey);
     }
@@ -141,5 +136,5 @@ final class GeoIpCache {
      * path is needed to be included in the cache key. For example, if we only used the IP address as the key the City and ASN the same
      * IP may be in both with different values and we need to cache both.
      */
-    private record CacheKey(InetAddress ip, String databasePath) {}
+    private record CacheKey(String ip, String databasePath) {}
 }

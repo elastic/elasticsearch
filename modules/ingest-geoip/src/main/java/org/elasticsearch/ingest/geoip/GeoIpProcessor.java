@@ -118,15 +118,14 @@ public final class GeoIpProcessor extends AbstractProcessor {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot extract geoip information.");
         }
 
-        IpDatabase ipDatabase = this.supplier.get();
-        if (ipDatabase == null) {
-            if (ignoreMissing == false) {
-                tag(ingestDocument, databaseFile);
+        try (IpDatabase ipDatabase = this.supplier.get()) {
+            if (ipDatabase == null) {
+                if (ignoreMissing == false) {
+                    tag(ingestDocument, databaseFile);
+                }
+                return ingestDocument;
             }
-            return ingestDocument;
-        }
 
-        try {
             if (ip instanceof String ipString) {
                 Map<String, Object> geoData = getGeoData(ipDatabase, ipString);
                 if (geoData.isEmpty() == false) {
@@ -157,9 +156,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
             } else {
                 throw new IllegalArgumentException("field [" + field + "] should contain only string or array of strings");
             }
-        } finally {
-            ipDatabase.release();
         }
+
         return ingestDocument;
     }
 
@@ -742,20 +740,16 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 deprecationLogger.warn(DeprecationCategory.OTHER, "default_databases_message", DEFAULT_DATABASES_DEPRECATION_MESSAGE);
             }
 
-            IpDatabase ipDatabase = ipDatabaseProvider.getDatabase(databaseFile);
-            if (ipDatabase == null) {
-                // It's possible that the database could be downloaded via the GeoipDownloader process and could become available
-                // at a later moment, so a processor impl is returned that tags documents instead. If a database cannot be sourced then the
-                // processor will continue to tag documents with a warning until it is remediated by providing a database or changing the
-                // pipeline.
-                return new DatabaseUnavailableProcessor(processorTag, description, databaseFile);
-            }
-
             final String databaseType;
-            try {
+            try (IpDatabase ipDatabase = ipDatabaseProvider.getDatabase(databaseFile)) {
+                if (ipDatabase == null) {
+                    // It's possible that the database could be downloaded via the GeoipDownloader process and could become available
+                    // at a later moment, so a processor impl is returned that tags documents instead. If a database cannot be sourced
+                    // then the processor will continue to tag documents with a warning until it is remediated by providing a database
+                    // or changing the pipeline.
+                    return new DatabaseUnavailableProcessor(processorTag, description, databaseFile);
+                }
                 databaseType = ipDatabase.getDatabaseType();
-            } finally {
-                ipDatabase.release();
             }
 
             final Database database;

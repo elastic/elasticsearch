@@ -1535,17 +1535,16 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             .object("templates", templates().values().iterator(), t -> (b, p) -> IndexTemplateMetadata.Builder.toXContentWithTypes(t, b, p))
             .execute(xb -> {
                 if (context == XContentContext.API) {
-                    xb.object("indices", ob -> ob.append(indices().values().iterator()));
+                    xb.xContentObject("indices", indices().values().iterator());
                 }
             })
             .forEach(customs.entrySet().iterator(), (b, e) -> {
                 if (e.getValue().context().contains(context)) {
-                    b.object(e.getKey(), ob -> ob.append(e.getValue()));
+                    b.xContentObject(e.getKey(), e.getValue());
                 }
             })
-            .object("reserved_state", b -> b.append(reservedStateMetadata().values().iterator()))
+            .xContentObject("reserved_state", reservedStateMetadata().values().iterator())
             .append((b, p) -> b.endObject());
-
     }
 
     public Map<String, MappingMetadata> getMappingsByHash() {

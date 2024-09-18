@@ -51,11 +51,21 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
     }
 
     /**
-     * Creates an object, with the contents set by {@code contents}
+     * Creates an object, with the specified {@code contents}
      */
-    public ChunkedToXContentBuilder object(Consumer<ChunkedToXContentBuilder> contents) {
+    public ChunkedToXContentBuilder xContentObject(ToXContent contents) {
         startObject();
-        execute(contents);
+        append(contents);
+        endObject();
+        return this;
+    }
+
+    /**
+     * Creates an object named {@code name}, with the specified {@code contents}
+     */
+    public ChunkedToXContentBuilder xContentObject(String name, ToXContent contents) {
+        startObject(name);
+        append(contents);
         endObject();
         return this;
     }
@@ -63,9 +73,49 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
     /**
      * Creates an object, with the specified {@code contents}
      */
-    public ChunkedToXContentBuilder object(ToXContent contents) {
+    public ChunkedToXContentBuilder xContentObject(ChunkedToXContent contents) {
         startObject();
         append(contents);
+        endObject();
+        return this;
+    }
+
+    /**
+     * Creates an object named {@code name}, with the specified {@code contents}
+     */
+    public ChunkedToXContentBuilder xContentObject(String name, ChunkedToXContent contents) {
+        startObject(name);
+        append(contents);
+        endObject();
+        return this;
+    }
+
+    /**
+     * Creates an object, with the specified {@code contents}
+     */
+    public ChunkedToXContentBuilder xContentObject(Iterator<? extends ToXContent> contents) {
+        startObject();
+        append(contents);
+        endObject();
+        return this;
+    }
+
+    /**
+     * Creates an object named {@code name}, with the specified {@code contents}
+     */
+    public ChunkedToXContentBuilder xContentObject(String name, Iterator<? extends ToXContent> contents) {
+        startObject(name);
+        append(contents);
+        endObject();
+        return this;
+    }
+
+    /**
+     * Creates an object, with the contents set by {@code contents}
+     */
+    public ChunkedToXContentBuilder object(Consumer<ChunkedToXContentBuilder> contents) {
+        startObject();
+        execute(contents);
         endObject();
         return this;
     }
@@ -253,7 +303,7 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
      * Each value in {@code map} is added to the builder as a separate object, named by its key.
      */
     public ChunkedToXContentBuilder appendXContentObjects(Map<String, ? extends ToXContent> map) {
-        return forEach(map.entrySet().iterator(), (b, e) -> b.object(e.getKey(), ob -> ob.append(e.getValue())));
+        return forEach(map.entrySet().iterator(), (b, e) -> b.xContentObject(e.getKey(), e.getValue()));
     }
 
     /**

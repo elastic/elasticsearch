@@ -1,5 +1,5 @@
 [[semantic-reranking]]
-=== Semantic reranking
+== Semantic reranking
 
 preview::[]
 
@@ -20,7 +20,7 @@ The final sections include a practical, high-level overview of how to implement 
 
 [discrete]
 [[semantic-reranking-use-cases]]
-==== Use cases
+=== Use cases
 
 Semantic reranking enables a variety of use cases:
 
@@ -41,7 +41,7 @@ Now that we've outlined the value of semantic reranking, we'll explore the speci
 
 [discrete]
 [[semantic-reranking-models]]
-==== Cross-encoder and bi-encoder models
+=== Cross-encoder and bi-encoder models
 
 At a high level, two model types are used for semantic reranking: cross-encoders and bi-encoders.
 
@@ -79,7 +79,7 @@ Note that similarity scores from bi-encoders/embedding similarities are _query-d
 
 [discrete]
 [[semantic-reranking-in-es]]
-==== Semantic reranking in {es}
+=== Semantic reranking in {es}
 
 In {es}, semantic rerankers are implemented using the {es} <<inference-apis,Inference API>> and a <<retriever,retriever>>.
 
@@ -130,7 +130,7 @@ POST _search
 
 [discrete]
 [[semantic-reranking-learn-more]]
-==== Learn more
+=== Learn more
 
 * Read the <<retriever,retriever reference documentation>> for syntax and implementation details
 * Learn more about the <<retrievers-overview,retrievers>> abstraction

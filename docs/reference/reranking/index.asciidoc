@@ -1,5 +1,5 @@
 [[reranking-overview]]
-== Reranking
+= Reranking
 
 Rerankers improve the relevance of results from earlier-stage retrieval mechanisms.
 First-stage rankers must be very fast and efficient because they process either the entire corpus, or all matching documents.
@@ -13,4 +13,4 @@ Currently, the following reranking techniques are available in {es}:
 * <<learning-to-rank>>: Train a machine learning model to build a ranking function for your search experience that updates over time. For advanced use cases.
 
 include::semantic-reranking.asciidoc[]
-include::../learning-to-rank.asciidoc[]
+include::learning-to-rank.asciidoc[]

@@ -2281,7 +2281,7 @@ public class MetadataTests extends ESTestCase {
             } else if (custom instanceof ComposableIndexTemplateMetadata composableIndexTemplateMetadata) {
                 chunkCount += 2 + composableIndexTemplateMetadata.indexTemplates().size();
             } else if (custom instanceof DataStreamMetadata dataStreamMetadata) {
-                chunkCount += 4 + dataStreamMetadata.dataStreams().size() + dataStreamMetadata.getDataStreamAliases().size();
+                chunkCount += 4 + (dataStreamMetadata.dataStreams().size() * 2L) + dataStreamMetadata.getDataStreamAliases().size();
             } else if (custom instanceof DesiredNodesMetadata) {
                 chunkCount += 1;
             } else if (custom instanceof FeatureMigrationResults featureMigrationResults) {

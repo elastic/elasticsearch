@@ -21,6 +21,8 @@
 
 package org.elasticsearch.tdigest;
 
+import org.elasticsearch.test.ESTestCase;
+
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -31,7 +33,7 @@ import static java.lang.Math.max;
 /**
  * Validate internal consistency of scale functions.
  */
-public class ScaleFunctionTests extends TDigestTestCase {
+public class ScaleFunctionTests extends ESTestCase {
 
     public void asinApproximation() {
         for (double x = 0; x < 1; x += 1e-4) {

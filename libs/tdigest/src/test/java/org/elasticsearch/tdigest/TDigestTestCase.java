@@ -36,6 +36,13 @@ import org.junit.After;
 import java.util.Collection;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Base class for TDigest tests that require {@link TDigestArrays} instances.
+ * <p>
+ *     This class provides arrays that will be automatically closed after the test.
+ *     It will also test that all memory have been freed, as the arrays use a counting CircuitBreaker.
+ * </p>
+ */
 public abstract class TDigestTestCase extends ESTestCase {
     private final Collection<Releasable> CREATED_ARRAYS = ConcurrentHashMap.newKeySet();
 

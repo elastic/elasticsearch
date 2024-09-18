@@ -21,9 +21,6 @@
 
 package org.elasticsearch.tdigest;
 
-import org.elasticsearch.core.Releasables;
-import org.junit.After;
-
 import java.util.Arrays;
 import java.util.function.Supplier;
 

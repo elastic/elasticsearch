@@ -179,7 +179,6 @@ public class EsqlFeatures implements FeatureSpecification {
      */
     public static final NodeFeature RESOLVE_FIELDS_API = new NodeFeature("esql.resolve_fields_api");
 
-
     private Set<NodeFeature> snapshotBuildFeatures() {
         assert Build.current().isSnapshot() : Build.current();
         return Set.of(METRICS_SYNTAX);

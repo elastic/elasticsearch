@@ -21,27 +21,27 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class RestInferenceActionTests extends RestActionTestCase {
+public class RestStreamInferenceActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        controller().registerHandler(new RestInferenceAction());
+        controller().registerHandler(new RestStreamInferenceAction());
     }
 
-    public void testStreamIsFalse() {
+    public void testStreamIsTrue() {
         SetOnce<Boolean> executeCalled = new SetOnce<>();
         verifyingClient.setExecuteVerifier(((actionType, actionRequest) -> {
             assertThat(actionRequest, instanceOf(InferenceAction.Request.class));
 
             var request = (InferenceAction.Request) actionRequest;
-            assertThat(request.isStreaming(), is(false));
+            assertThat(request.isStreaming(), is(true));
 
             executeCalled.set(true);
             return createResponse();
         }));
 
         RestRequest inferenceRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
-            .withPath("_inference/test")
+            .withPath("_inference/test/_stream")
             .withContent(new BytesArray("{}"), XContentType.JSON)
             .build();
         dispatchRequest(inferenceRequest);

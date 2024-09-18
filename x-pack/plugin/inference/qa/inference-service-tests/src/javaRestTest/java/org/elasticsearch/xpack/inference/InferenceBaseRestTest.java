@@ -252,6 +252,11 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return inferOnMockServiceInternal(endpoint, input);
     }
 
+    protected Map<String, Object> streamInferOnMockService(String modelId, List<String> input) throws IOException {
+        var endpoint = Strings.format("_inference/%s/_stream", modelId);
+        return inferOnMockServiceInternal(endpoint, input);
+    }
+
     protected Map<String, Object> inferOnMockService(String modelId, TaskType taskType, List<String> input) throws IOException {
         var endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
         return inferOnMockServiceInternal(endpoint, input);

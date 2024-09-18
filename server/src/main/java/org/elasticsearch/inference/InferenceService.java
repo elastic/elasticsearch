@@ -188,4 +188,12 @@ public interface InferenceService extends Closeable {
      * @return {@link TransportVersion} specifying the version
      */
     TransportVersion getMinimalSupportedVersion();
+
+    default Set<TaskType> supportedStreamingTasks() {
+        return Set.of();
+    }
+
+    default boolean canStream(TaskType taskType) {
+        return supportedStreamingTasks().contains(taskType);
+    }
 }

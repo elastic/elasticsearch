@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class InferenceCrudIT extends InferenceBaseRestTest {
@@ -221,5 +222,24 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         }
         deletePipeline(pipelineId);
         deleteIndex(indexName);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testUnsupportedStream() throws IOException {
+        String modelId = "no_task_type_in_url";
+        putModel(modelId, mockSparseServiceModelConfig(TaskType.SPARSE_EMBEDDING));
+        var singleModel = getModel(modelId);
+        assertEquals(modelId, singleModel.get("inference_id"));
+        assertEquals(TaskType.SPARSE_EMBEDDING.toString(), singleModel.get("task_type"));
+
+        try {
+            streamInferOnMockService(modelId, List.of(randomAlphaOfLength(10)));
+            fail("Expected http response 405, found 200.");
+        } catch (ResponseException e) {
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(405));
+            assertThat(e.getMessage(), containsString("Streaming is not allowed for service [test_service]."));
+        } finally {
+            deleteModel(modelId);
+        }
     }
 }

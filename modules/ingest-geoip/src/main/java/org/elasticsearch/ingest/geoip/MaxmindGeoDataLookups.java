@@ -9,8 +9,9 @@
 
 package org.elasticsearch.ingest.geoip;
 
+import com.maxmind.db.DatabaseRecord;
 import com.maxmind.db.Network;
-import com.maxmind.geoip2.DatabaseReader;
+import com.maxmind.db.Reader;
 import com.maxmind.geoip2.model.AbstractResponse;
 import com.maxmind.geoip2.model.AnonymousIpResponse;
 import com.maxmind.geoip2.model.AsnResponse;
@@ -24,11 +25,13 @@ import com.maxmind.geoip2.record.Continent;
 import com.maxmind.geoip2.record.Location;
 import com.maxmind.geoip2.record.Subdivision;
 
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -41,11 +44,15 @@ class MaxmindGeoDataLookups {
 
     static class AnonymousIp extends AbstractBase<AnonymousIpResponse> {
         AnonymousIp(final Set<Database.Property> properties) {
-            super(DatabaseReader::tryAnonymousIp, properties);
+            super(
+                properties,
+                AnonymousIpResponse.class,
+                (response, ipAddress, network, locales) -> new AnonymousIpResponse(response, ipAddress, network)
+            );
         }
 
         @Override
-        protected Map<String, Object> transformResponse(final InetAddress ipAddress, final AnonymousIpResponse response) {
+        protected Map<String, Object> transformResponse(final AnonymousIpResponse response) {
             if (response == null) {
                 return Map.of();
             }
@@ -60,7 +67,7 @@ class MaxmindGeoDataLookups {
             Map<String, Object> geoData = new HashMap<>();
             for (Database.Property property : this.properties) {
                 switch (property) {
-                    case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                    case IP -> geoData.put("ip", response.getIpAddress());
                     case HOSTING_PROVIDER -> {
                         geoData.put("hosting_provider", isHostingProvider);
                     }
@@ -87,11 +94,11 @@ class MaxmindGeoDataLookups {
 
     static class Asn extends AbstractBase<AsnResponse> {
         Asn(Set<Database.Property> properties) {
-            super(DatabaseReader::tryAsn, properties);
+            super(properties, AsnResponse.class, (response, ipAddress, network, locales) -> new AsnResponse(response, ipAddress, network));
         }
 
         @Override
-        protected Map<String, Object> transformResponse(final InetAddress ipAddress, final AsnResponse response) {
+        protected Map<String, Object> transformResponse(final AsnResponse response) {
             if (response == null) {
                 return Map.of();
             }
@@ -102,7 +109,7 @@ class MaxmindGeoDataLookups {
             Map<String, Object> geoData = new HashMap<>();
             for (Database.Property property : this.properties) {
                 switch (property) {
-                    case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                    case IP -> geoData.put("ip", response.getIpAddress());
                     case ASN -> {
                         if (asn != null) {
                             geoData.put("asn", asn);
@@ -126,11 +133,11 @@ class MaxmindGeoDataLookups {
 
     static class City extends AbstractBase<CityResponse> {
         City(final Set<Database.Property> properties) {
-            super(DatabaseReader::tryCity, properties);
+            super(properties, CityResponse.class, CityResponse::new);
         }
 
         @Override
-        protected Map<String, Object> transformResponse(final InetAddress ipAddress, final CityResponse response) {
+        protected Map<String, Object> transformResponse(final CityResponse response) {
             if (response == null) {
                 return Map.of();
             }
@@ -143,7 +150,7 @@ class MaxmindGeoDataLookups {
             Map<String, Object> geoData = new HashMap<>();
             for (Database.Property property : this.properties) {
                 switch (property) {
-                    case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                    case IP -> geoData.put("ip", response.getTraits().getIpAddress());
                     case COUNTRY_ISO_CODE -> {
                         String countryIsoCode = country.getIsoCode();
                         if (countryIsoCode != null) {
@@ -214,11 +221,15 @@ class MaxmindGeoDataLookups {
 
     static class ConnectionType extends AbstractBase<ConnectionTypeResponse> {
         ConnectionType(final Set<Database.Property> properties) {
-            super(DatabaseReader::tryConnectionType, properties);
+            super(
+                properties,
+                ConnectionTypeResponse.class,
+                (response, ipAddress, network, locales) -> new ConnectionTypeResponse(response, ipAddress, network)
+            );
         }
 
         @Override
-        protected Map<String, Object> transformResponse(final InetAddress ipAddress, final ConnectionTypeResponse response) {
+        protected Map<String, Object> transformResponse(final ConnectionTypeResponse response) {
             if (response == null) {
                 return Map.of();
             }
@@ -228,7 +239,7 @@ class MaxmindGeoDataLookups {
             Map<String, Object> geoData = new HashMap<>();
             for (Database.Property property : this.properties) {
                 switch (property) {
-                    case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                    case IP -> geoData.put("ip", response.getIpAddress());
                     case CONNECTION_TYPE -> {
                         if (connectionType != null) {
                             geoData.put("connection_type", connectionType.toString());
@@ -242,11 +253,11 @@ class MaxmindGeoDataLookups {
 
     static class Country extends AbstractBase<CountryResponse> {
         Country(final Set<Database.Property> properties) {
-            super(DatabaseReader::tryCountry, properties);
+            super(properties, CountryResponse.class, CountryResponse::new);
         }
 
         @Override
-        protected Map<String, Object> transformResponse(final InetAddress ipAddress, final CountryResponse response) {
+        protected Map<String, Object> transformResponse(final CountryResponse response) {
             if (response == null) {
                 return Map.of();
             }
@@ -256,7 +267,7 @@ class MaxmindGeoDataLookups {
             Map<String, Object> geoData = new HashMap<>();
             for (Database.Property property : this.properties) {
                 switch (property) {
-                    case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                    case IP -> geoData.put("ip", response.getTraits().getIpAddress());
                     case COUNTRY_ISO_CODE -> {
                         String countryIsoCode = country.getIsoCode();
                         if (countryIsoCode != null) {
@@ -289,11 +300,15 @@ class MaxmindGeoDataLookups {
 
     static class Domain extends AbstractBase<DomainResponse> {
         Domain(final Set<Database.Property> properties) {
-            super(DatabaseReader::tryDomain, properties);
+            super(
+                properties,
+                DomainResponse.class,
+                (response, ipAddress, network, locales) -> new DomainResponse(response, ipAddress, network)
+            );
         }
 
         @Override
-        protected Map<String, Object> transformResponse(final InetAddress ipAddress, final DomainResponse response) {
+        protected Map<String, Object> transformResponse(final DomainResponse response) {
             if (response == null) {
                 return Map.of();
             }
@@ -303,7 +318,7 @@ class MaxmindGeoDataLookups {
             Map<String, Object> geoData = new HashMap<>();
             for (Database.Property property : this.properties) {
                 switch (property) {
-                    case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                    case IP -> geoData.put("ip", response.getIpAddress());
                     case DOMAIN -> {
                         if (domain != null) {
                             geoData.put("domain", domain);
@@ -317,11 +332,11 @@ class MaxmindGeoDataLookups {
 
     static class Enterprise extends AbstractBase<EnterpriseResponse> {
         Enterprise(final Set<Database.Property> properties) {
-            super(DatabaseReader::tryEnterprise, properties);
+            super(properties, EnterpriseResponse.class, EnterpriseResponse::new);
         }
 
         @Override
-        protected Map<String, Object> transformResponse(final InetAddress ipAddress, final EnterpriseResponse response) {
+        protected Map<String, Object> transformResponse(final EnterpriseResponse response) {
             if (response == null) {
                 return Map.of();
             }
@@ -357,7 +372,7 @@ class MaxmindGeoDataLookups {
             Map<String, Object> geoData = new HashMap<>();
             for (Database.Property property : this.properties) {
                 switch (property) {
-                    case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                    case IP -> geoData.put("ip", response.getTraits().getIpAddress());
                     case COUNTRY_ISO_CODE -> {
                         String countryIsoCode = country.getIsoCode();
                         if (countryIsoCode != null) {
@@ -496,11 +511,11 @@ class MaxmindGeoDataLookups {
 
     static class Isp extends AbstractBase<IspResponse> {
         Isp(final Set<Database.Property> properties) {
-            super(DatabaseReader::tryIsp, properties);
+            super(properties, IspResponse.class, (response, ipAddress, network, locales) -> new IspResponse(response, ipAddress, network));
         }
 
         @Override
-        protected Map<String, Object> transformResponse(final InetAddress ipAddress, final IspResponse response) {
+        protected Map<String, Object> transformResponse(final IspResponse response) {
             if (response == null) {
                 return Map.of();
             }
@@ -516,7 +531,7 @@ class MaxmindGeoDataLookups {
             Map<String, Object> geoData = new HashMap<>();
             for (Database.Property property : this.properties) {
                 switch (property) {
-                    case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                    case IP -> geoData.put("ip", response.getIpAddress());
                     case ASN -> {
                         if (asn != null) {
                             geoData.put("asn", asn);
@@ -559,19 +574,33 @@ class MaxmindGeoDataLookups {
     }
 
     /**
+     * As an internal detail, the {@code com.maxmind.geoip2.model } classes that are populated by
+     * {@link Reader#getRecord(InetAddress, Class)} are kinda half-populated and need to go through a second round of construction
+     * with context from the querying caller. This method gives us a place do that additional binding. Cleverly, the signature
+     * here matches the constructor for many of these model classes exactly, so an appropriate implementation can 'just' be a method
+     * reference in some cases (in other cases it needs to be a lambda).
+     */
+    @FunctionalInterface
+    private interface ResponseBuilder<RESPONSE extends AbstractResponse> {
+        RESPONSE build(RESPONSE resp, String address, Network network, List<String> locales);
+    }
+
+    /**
      * The {@code MaxmindGeoDataLookups.AbstractBase} is an abstract base implementation of {@link GeoDataLookup} that
-     * provides common functionality for getting a specific kind of {@link AbstractResponse} from a {@link GeoIpDatabase}.
+     * provides common functionality for getting a specific kind of {@link AbstractResponse} from a {@link IpDatabase}.
      *
      * @param <RESPONSE> the intermediate type of {@link AbstractResponse}
      */
     private abstract static class AbstractBase<RESPONSE extends AbstractResponse> implements GeoDataLookup {
 
         protected final Set<Database.Property> properties;
-        private final DatabaseReaderResponseLookup<RESPONSE> databaseReaderResponseLookup;
+        protected final Class<RESPONSE> clazz;
+        protected final ResponseBuilder<RESPONSE> builder;
 
-        AbstractBase(final DatabaseReaderResponseLookup<RESPONSE> databaseReaderResponseLookup, final Set<Database.Property> properties) {
-            this.databaseReaderResponseLookup = databaseReaderResponseLookup;
+        AbstractBase(final Set<Database.Property> properties, final Class<RESPONSE> clazz, final ResponseBuilder<RESPONSE> builder) {
             this.properties = Set.copyOf(properties);
+            this.clazz = clazz;
+            this.builder = builder;
         }
 
         @Override
@@ -580,25 +609,26 @@ class MaxmindGeoDataLookups {
         }
 
         @Override
-        public final Map<String, Object> getGeoData(final GeoIpDatabase geoIpDatabase, final InetAddress ipAddress) throws IOException {
-            return transformResponse(ipAddress, geoIpDatabase.getResponse(ipAddress, databaseReaderResponseLookup::apply));
+        public final Map<String, Object> getGeoData(final IpDatabase ipDatabase, final String ipAddress) {
+            return transformResponse(ipDatabase.getResponse(ipAddress, this::lookup));
+        }
+
+        private Optional<RESPONSE> lookup(Reader reader, String ipAddress) throws IOException {
+            InetAddress ip = InetAddresses.forString(ipAddress);
+            DatabaseRecord<RESPONSE> record = reader.getRecord(ip, clazz);
+            RESPONSE result = record.getData();
+            if (result == null) {
+                return Optional.empty();
+            } else {
+                return Optional.of(builder.build(result, NetworkAddress.format(ip), record.getNetwork(), List.of("en")));
+            }
         }
 
         /**
          * Extract the configured properties from the retrieved response
-         * @param ipAddress the ip address that was used to retrieve the response
-         * @param response the response that was retrieved
+         * @param response the non-null response that was retrieved
          * @return a mapping of properties for the ip from the response
          */
-        protected abstract Map<String, Object> transformResponse(InetAddress ipAddress, RESPONSE response);
-
-        /**
-         * @apiNote typically a method reference like {@code DatabaseReader::tryCity}
-         * @param <RESPONSE> the type of response to lookup
-         */
-        @FunctionalInterface
-        interface DatabaseReaderResponseLookup<RESPONSE extends AbstractResponse> {
-            Optional<RESPONSE> apply(DatabaseReader databaseReader, InetAddress ipAddress) throws Exception;
-        }
+        protected abstract Map<String, Object> transformResponse(RESPONSE response);
     }
 }

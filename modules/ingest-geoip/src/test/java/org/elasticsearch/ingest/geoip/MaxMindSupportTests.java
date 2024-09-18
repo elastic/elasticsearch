@@ -57,7 +57,7 @@ import static org.hamcrest.Matchers.equalTo;
  * - Fail if we add support for a new mmdb file type (enterprise for example) but don't update the test with which fields we do and do not
  *   support.
  * - Fail if MaxMind adds a new mmdb file type that we don't know about
- * - Fail if we expose a MaxMind type through GeoIpDatabase, but don't update the test to know how to handle it
+ * - Fail if we expose a MaxMind type through IpDatabase, but don't update the test to know how to handle it
  */
 public class MaxMindSupportTests extends ESTestCase {
 
@@ -489,7 +489,7 @@ public class MaxMindSupportTests extends ESTestCase {
     }
 
     /*
-     * This tests that this test has a mapping in TYPE_TO_MAX_MIND_CLASS for all MaxMind classes exposed through GeoIpDatabase.
+     * This tests that this test has a mapping in TYPE_TO_MAX_MIND_CLASS for all MaxMind classes exposed through IpDatabase.
      */
     public void testUsedMaxMindResponseClassesAreAccountedFor() {
         Set<Class<? extends AbstractResponse>> usedMaxMindResponseClasses = MAX_MIND_CLASS_TO_IMPLEMENTATION_CLASS.keySet();
@@ -499,7 +499,7 @@ public class MaxMindSupportTests extends ESTestCase {
             supportedMaxMindClasses
         );
         assertThat(
-            "GeoIpDatabase exposes MaxMind response classes that this test does not know what to do with. Add mappings to "
+            "IpDatabase exposes MaxMind response classes that this test does not know what to do with. Add mappings to "
                 + "TYPE_TO_MAX_MIND_CLASS for the following: "
                 + usedButNotSupportedMaxMindResponseClasses,
             usedButNotSupportedMaxMindResponseClasses,
@@ -510,7 +510,7 @@ public class MaxMindSupportTests extends ESTestCase {
             usedMaxMindResponseClasses
         );
         assertThat(
-            "This test claims to support MaxMind response classes that are not exposed in GeoIpDatabase. Remove the following from "
+            "This test claims to support MaxMind response classes that are not exposed in IpDatabase. Remove the following from "
                 + "TYPE_TO_MAX_MIND_CLASS: "
                 + supportedButNotUsedMaxMindClasses,
             supportedButNotUsedMaxMindClasses,
@@ -559,7 +559,7 @@ public class MaxMindSupportTests extends ESTestCase {
      * terminal types is converted to a bean-property-like name using the "beanify" method.
      *
      * @param context This is a String representing where in the list of methods we are
-     * @param aClass The class whose methods we want to traverse to generate field names
+     * @param aClass  The class whose methods we want to traverse to generate field names
      * @return A sorted set of bean-property-like field names that can recursively be found from aClass
      */
     private static SortedSet<String> getFieldNamesUsedFromClass(String context, Class<?> aClass) {

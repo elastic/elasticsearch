@@ -10,7 +10,6 @@
 package org.elasticsearch.ingest.geoip;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.util.Map;
 import java.util.Set;
 
@@ -22,7 +21,7 @@ interface GeoDataLookup {
      * @return a map of geodata corresponding to the configured properties
      * @throws IOException if the implementation encounters any problem while retrieving the response
      */
-    Map<String, Object> getGeoData(GeoIpDatabase geoIpDatabase, InetAddress ip) throws IOException;
+    Map<String, Object> getGeoData(IpDatabase geoIpDatabase, String ip) throws IOException;
 
     /**
      * @return the set of properties this lookup will provide

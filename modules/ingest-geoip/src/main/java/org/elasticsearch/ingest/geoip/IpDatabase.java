@@ -9,20 +9,18 @@
 
 package org.elasticsearch.ingest.geoip;
 
-import com.maxmind.geoip2.DatabaseReader;
-import com.maxmind.geoip2.model.AbstractResponse;
+import com.maxmind.db.Reader;
 
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.util.Optional;
 
 /**
- * Provides a uniform interface for interacting with various GeoIP databases.
+ * Provides a uniform interface for interacting with various ip databases.
  */
-public interface GeoIpDatabase {
+public interface IpDatabase extends AutoCloseable {
 
     /**
      * @return the database type as it is detailed in the database file metadata
@@ -31,22 +29,22 @@ public interface GeoIpDatabase {
     String getDatabaseType() throws IOException;
 
     /**
-     * Returns a response from this database's reader for the given IP address
+     * Returns a response from this database's reader for the given IP address.
+     *
      * @param ipAddress the address to lookup
-     * @param responseProvider typically a method-reference like {@code DatabaseReader::tryCity}
+     * @param responseProvider a method for extracting a response from a {@link Reader}, usually this will be a method reference
      * @return a possibly-null response
-     * @param <RESPONSE> the subtype of {@link AbstractResponse} that will be returned
+     * @param <RESPONSE> the type of response of that will be returned
      */
     @Nullable
-    <RESPONSE extends AbstractResponse> RESPONSE getResponse(
-        InetAddress ipAddress,
-        CheckedBiFunction<DatabaseReader, InetAddress, Optional<RESPONSE>, Exception> responseProvider
-    );
+    <RESPONSE> RESPONSE getResponse(String ipAddress, CheckedBiFunction<Reader, String, Optional<RESPONSE>, Exception> responseProvider);
 
     /**
      * Releases the current database object. Called after processing a single document. Databases should be closed or returned to a
      * resource pool. No further interactions should be expected.
+     *
      * @throws IOException if the implementation encounters any problem while cleaning up
      */
-    void release() throws IOException;
+    @Override
+    void close() throws IOException;
 }

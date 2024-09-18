@@ -11,12 +11,11 @@ package org.elasticsearch.ingest.geoip;
 
 import com.maxmind.db.NoCache;
 import com.maxmind.db.Reader;
-import com.maxmind.geoip2.DatabaseReader;
-import com.maxmind.geoip2.model.AbstractResponse;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.Booleans;
@@ -24,9 +23,8 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 
-import java.io.Closeable;
+import java.io.File;
 import java.io.IOException;
-import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
@@ -37,7 +35,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Facilitates lazy loading of the database reader, so that when the geoip plugin is installed, but not used,
  * no memory is being wasted on the database reader.
  */
-class DatabaseReaderLazyLoader implements GeoIpDatabase, Closeable {
+class DatabaseReaderLazyLoader implements IpDatabase {
 
     private static final boolean LOAD_DATABASE_ON_HEAP = Booleans.parseBoolean(System.getProperty("es.geoip.load_db_on_heap", "false"));
 
@@ -46,13 +44,13 @@ class DatabaseReaderLazyLoader implements GeoIpDatabase, Closeable {
     private final String md5;
     private final GeoIpCache cache;
     private final Path databasePath;
-    private final CheckedSupplier<DatabaseReader, IOException> loader;
-    final SetOnce<DatabaseReader> databaseReader;
+    private final CheckedSupplier<Reader, IOException> loader;
+    final SetOnce<Reader> databaseReader;
 
     // cache the database type so that we do not re-read it on every pipeline execution
     final SetOnce<String> databaseType;
 
-    private volatile boolean deleteDatabaseFileOnClose;
+    private volatile boolean deleteDatabaseFileOnShutdown;
     private final AtomicInteger currentUsages = new AtomicInteger(0);
 
     DatabaseReaderLazyLoader(GeoIpCache cache, Path databasePath, String md5) {
@@ -87,9 +85,9 @@ class DatabaseReaderLazyLoader implements GeoIpDatabase, Closeable {
     }
 
     @Override
-    public void release() throws IOException {
+    public void close() throws IOException {
         if (currentUsages.updateAndGet(current -> current > 0 ? current - 1 : current + 1) == -1) {
-            doClose();
+            doShutdown();
         }
     }
 
@@ -97,21 +95,22 @@ class DatabaseReaderLazyLoader implements GeoIpDatabase, Closeable {
         return currentUsages.get();
     }
 
+    @Override
     @Nullable
-    public <T extends AbstractResponse> T getResponse(
-        InetAddress ipAddress,
-        CheckedBiFunction<DatabaseReader, InetAddress, Optional<T>, Exception> responseProvider
+    public <RESPONSE> RESPONSE getResponse(
+        String ipAddress,
+        CheckedBiFunction<Reader, String, Optional<RESPONSE>, Exception> responseProvider
     ) {
         return cache.putIfAbsent(ipAddress, databasePath.toString(), ip -> {
             try {
                 return responseProvider.apply(get(), ipAddress).orElse(null);
             } catch (Exception e) {
-                throw new RuntimeException(e);
+                throw ExceptionsHelper.convertToRuntime(e);
             }
         });
     }
 
-    DatabaseReader get() throws IOException {
+    Reader get() throws IOException {
         if (databaseReader.get() == null) {
             synchronized (databaseReader) {
                 if (databaseReader.get() == null) {
@@ -127,44 +126,37 @@ class DatabaseReaderLazyLoader implements GeoIpDatabase, Closeable {
         return md5;
     }
 
-    public void close(boolean shouldDeleteDatabaseFileOnClose) throws IOException {
-        this.deleteDatabaseFileOnClose = shouldDeleteDatabaseFileOnClose;
-        close();
+    public void shutdown(boolean shouldDeleteDatabaseFileOnShutdown) throws IOException {
+        this.deleteDatabaseFileOnShutdown = shouldDeleteDatabaseFileOnShutdown;
+        shutdown();
     }
 
-    @Override
-    public void close() throws IOException {
+    public void shutdown() throws IOException {
         if (currentUsages.updateAndGet(u -> -1 - u) == -1) {
-            doClose();
+            doShutdown();
         }
     }
 
     // Visible for Testing
-    protected void doClose() throws IOException {
+    protected void doShutdown() throws IOException {
         IOUtils.close(databaseReader.get());
         int numEntriesEvicted = cache.purgeCacheEntriesForDatabase(databasePath);
         logger.info("evicted [{}] entries from cache after reloading database [{}]", numEntriesEvicted, databasePath);
-        if (deleteDatabaseFileOnClose) {
+        if (deleteDatabaseFileOnShutdown) {
             logger.info("deleting [{}]", databasePath);
             Files.delete(databasePath);
         }
     }
 
-    private static CheckedSupplier<DatabaseReader, IOException> createDatabaseLoader(Path databasePath) {
+    private static CheckedSupplier<Reader, IOException> createDatabaseLoader(Path databasePath) {
         return () -> {
-            DatabaseReader.Builder builder = createDatabaseBuilder(databasePath).withCache(NoCache.getInstance());
-            if (LOAD_DATABASE_ON_HEAP) {
-                builder.fileMode(Reader.FileMode.MEMORY);
-            } else {
-                builder.fileMode(Reader.FileMode.MEMORY_MAPPED);
-            }
-            return builder.build();
+            Reader.FileMode mode = LOAD_DATABASE_ON_HEAP ? Reader.FileMode.MEMORY : Reader.FileMode.MEMORY_MAPPED;
+            return new Reader(pathToFile(databasePath), mode, NoCache.getInstance());
         };
     }
 
     @SuppressForbidden(reason = "Maxmind API requires java.io.File")
-    private static DatabaseReader.Builder createDatabaseBuilder(Path databasePath) {
-        return new DatabaseReader.Builder(databasePath.toFile());
+    private static File pathToFile(Path databasePath) {
+        return databasePath.toFile();
     }
-
 }

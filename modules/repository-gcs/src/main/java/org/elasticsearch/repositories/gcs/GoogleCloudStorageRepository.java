@@ -25,7 +25,6 @@ import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.Map;
-import java.util.function.Function;
 
 import static org.elasticsearch.common.settings.Setting.Property;
 import static org.elasticsearch.common.settings.Setting.byteSizeSetting;
@@ -55,7 +54,7 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         Property.NodeScope,
         Property.Dynamic
     );
-    static final Setting<String> CLIENT_NAME = new Setting<>("client", "default", Function.identity());
+    static final Setting<String> CLIENT_NAME = Setting.simpleString("client", "default");
 
     private final GoogleCloudStorageService storageService;
     private final ByteSizeValue chunkSize;

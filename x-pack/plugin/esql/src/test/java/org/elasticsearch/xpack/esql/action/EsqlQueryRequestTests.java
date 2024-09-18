@@ -35,7 +35,6 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
@@ -49,6 +48,11 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -116,13 +120,13 @@ public class EsqlQueryRequestTests extends ESTestCase {
         params.add(new QueryParam("n5", "esql", NULL, true));
         params.add(new QueryParam("n_6", "null", NULL, true));
         params.add(new QueryParam("n7_", "f.1.1", NULL, true));
-        params.add(new QueryParam("_n1", "8.15.0", DataType.KEYWORD));
-        params.add(new QueryParam("__n2", 0.05, DataType.DOUBLE));
-        params.add(new QueryParam("__3", -799810013, DataType.INTEGER));
-        params.add(new QueryParam("__4n", "127.0.0.1", DataType.KEYWORD));
-        params.add(new QueryParam("_n5", "esql", DataType.KEYWORD));
+        params.add(new QueryParam("_n1", "8.15.0", KEYWORD));
+        params.add(new QueryParam("__n2", 0.05, DOUBLE));
+        params.add(new QueryParam("__3", -799810013, INTEGER));
+        params.add(new QueryParam("__4n", "127.0.0.1", KEYWORD));
+        params.add(new QueryParam("_n5", "esql", KEYWORD));
         params.add(new QueryParam("_n6", null, NULL));
-        params.add(new QueryParam("_n7", false, DataType.BOOLEAN));
+        params.add(new QueryParam("_n7", false, BOOLEAN));
         String json = String.format(Locale.ROOT, """
             {
                 "query": "%s",
@@ -257,7 +261,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         var paramName = randomAlphaOfLength(5);
         var paramValue = randomAlphaOfLength(5);
         request1.params().addParsingError(new ParsingException(Source.EMPTY, exceptionMessage));
-        request1.params().addTokenParam(null, new QueryParam(paramName, paramValue, DataType.KEYWORD));
+        request1.params().addTokenParam(null, new QueryParam(paramName, paramValue, KEYWORD));
 
         EsqlQueryRequest request2 = new EsqlQueryRequest();
         assertThat(request2.params(), equalTo(new QueryParams()));
@@ -380,7 +384,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
             """;
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         Column c = request.tables().get("a").get("c");
-        assertThat(c.type(), equalTo(DataType.KEYWORD));
+        assertThat(c.type(), equalTo(KEYWORD));
         try (
             BytesRefBlock.Builder builder = new BlockFactory(
                 new NoopCircuitBreaker(CircuitBreaker.REQUEST),
@@ -412,7 +416,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         Column c = request.tables().get("a").get("c");
-        assertThat(c.type(), equalTo(DataType.INTEGER));
+        assertThat(c.type(), equalTo(INTEGER));
         try (
             IntBlock.Builder builder = new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
                 .newIntBlockBuilder(10)
@@ -440,7 +444,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         Column c = request.tables().get("a").get("c");
-        assertThat(c.type(), equalTo(DataType.LONG));
+        assertThat(c.type(), equalTo(LONG));
         try (
             LongBlock.Builder builder = new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
                 .newLongBlockBuilder(10)
@@ -468,7 +472,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         Column c = request.tables().get("a").get("c");
-        assertThat(c.type(), equalTo(DataType.DOUBLE));
+        assertThat(c.type(), equalTo(DOUBLE));
         try (
             DoubleBlock.Builder builder = new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
                 .newDoubleBlockBuilder(10)
@@ -510,15 +514,15 @@ public class EsqlQueryRequestTests extends ESTestCase {
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         assertThat(request.tables().keySet(), hasSize(2));
         Map<String, Column> t1 = request.tables().get("t1");
-        assertThat(t1.get("a").type(), equalTo(DataType.LONG));
-        assertThat(t1.get("b").type(), equalTo(DataType.LONG));
-        assertThat(t1.get("c").type(), equalTo(DataType.KEYWORD));
-        assertThat(t1.get("d").type(), equalTo(DataType.LONG));
+        assertThat(t1.get("a").type(), equalTo(LONG));
+        assertThat(t1.get("b").type(), equalTo(LONG));
+        assertThat(t1.get("c").type(), equalTo(KEYWORD));
+        assertThat(t1.get("d").type(), equalTo(LONG));
         Map<String, Column> t2 = request.tables().get("t2");
-        assertThat(t2.get("a").type(), equalTo(DataType.LONG));
-        assertThat(t2.get("b").type(), equalTo(DataType.INTEGER));
-        assertThat(t2.get("c").type(), equalTo(DataType.LONG));
-        assertThat(t2.get("d").type(), equalTo(DataType.LONG));
+        assertThat(t2.get("a").type(), equalTo(LONG));
+        assertThat(t2.get("b").type(), equalTo(INTEGER));
+        assertThat(t2.get("c").type(), equalTo(LONG));
+        assertThat(t2.get("d").type(), equalTo(LONG));
         assertTablesOnlyValidOnSnapshot(request);
     }
 
@@ -570,12 +574,12 @@ public class EsqlQueryRequestTests extends ESTestCase {
             for (int i = 0; i < len; i++) {
                 @SuppressWarnings("unchecked")
                 Supplier<QueryParam> supplier = randomFrom(
-                    () -> new QueryParam(null, randomBoolean(), DataType.BOOLEAN),
-                    () -> new QueryParam(null, randomInt(), DataType.INTEGER),
-                    () -> new QueryParam(null, randomLong(), DataType.LONG),
-                    () -> new QueryParam(null, randomDouble(), DataType.DOUBLE),
+                    () -> new QueryParam(null, randomBoolean(), BOOLEAN),
+                    () -> new QueryParam(null, randomInt(), INTEGER),
+                    () -> new QueryParam(null, randomLong(), LONG),
+                    () -> new QueryParam(null, randomDouble(), DOUBLE),
                     () -> new QueryParam(null, null, NULL),
-                    () -> new QueryParam(null, randomAlphaOfLength(10), DataType.KEYWORD)
+                    () -> new QueryParam(null, randomAlphaOfLength(10), KEYWORD)
                 );
                 arr.add(supplier.get());
             }
@@ -593,11 +597,11 @@ public class EsqlQueryRequestTests extends ESTestCase {
                     paramsString.append(", ");
                 }
                 first = false;
-                if (param.type() == DataType.KEYWORD) {
+                if (param.type() == KEYWORD) {
                     paramsString.append("\"");
                     paramsString.append(param.value());
                     paramsString.append("\"");
-                } else if (param.type().isNumeric() || param.type() == DataType.BOOLEAN || param.type() == NULL) {
+                } else if (param.type().isNumeric() || param.type() == BOOLEAN || param.type() == NULL) {
                     paramsString.append(param.value());
                 }
             }

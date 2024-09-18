@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.IdentifierContext;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.IndexStringContext;
 
@@ -26,22 +27,27 @@ abstract class IdentifierBuilder extends AbstractBuilder {
 
     @Override
     public String visitIdentifier(IdentifierContext ctx) {
+        String errorUnsupported = "Unsupported query parameter [{}][{}]";
+        String errorUnsupportedOrUnknown = "Unsupported or unknown query parameter [{}]";
         if (ctx == null) {
             return null;
         } else if (ctx.QUOTED_IDENTIFIER() != null || ctx.UNQUOTED_IDENTIFIER() != null) {
             return unquoteIdentifier(ctx.QUOTED_IDENTIFIER(), ctx.UNQUOTED_IDENTIFIER());
         } else {
             Expression exp = typedParsing(this, ctx.params(), Expression.class);
-            if (exp instanceof Literal lit) {
-                return (String) lit.value();
-            } else if (exp instanceof UnresolvedAttribute ua) {
-                if (ua.customMessage()) { // an identifier pattern is not allowed as an identifier
-                    throw new ParsingException(source(ctx), "Field name pattern [{}] is not supported", ua.name());
-                } else {
-                    return ua.name();
+            switch (exp) {
+                case Literal lit -> throw new ParsingException(source(ctx), errorUnsupportedOrUnknown, ctx.getText());
+                case UnresolvedNamePattern up -> throw new ParsingException(source(ctx), errorUnsupported, ctx.getText(), up.name());
+                case UnresolvedAttribute ua -> {
+                    if (ua.name() != null) {
+                        return ua.name();
+                    } else {
+                        throw new ParsingException(source(ctx), errorUnsupported, ctx.getText());
+                    }
                 }
-            } else {
-                return null;
+                default -> {
+                    return null;
+                }
             }
         }
     }

@@ -1822,19 +1822,24 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testInvalidParamPosition() {
         // param for pattern is not supported in eval/where/stats/sort/rename/dissect/grok/enrich/mvexpand
         // where/stats/sort/dissect/grok are in RestEsqlTestCase
-        expectError("""
-            from test | eval ?f1 = 1
-            """, List.of(new QueryParam("f1", "f1*", NULL, false, true)), "Field name pattern [f1*] is not supported");
-        expectError(
-            """
-                from test | rename ?f1 as ?f2
-                """,
-            List.of(new QueryParam("f1", "f1*", NULL, false, true), new QueryParam("f2", "f*2", NULL, false, true)),
-            "Using wildcards [*] in RENAME is not allowed [?f1 as ?f2]"
-        );
+        for (String invalidParamPosition : List.of("eval ?f1 = 1", "stats x = ?f1(*)", "mv_expand ?f1", "rename ?f1 as ?f2")) {
+            for (String pattern : List.of("f1*", "*")) {
+                expectError(
+                    "from test | " + invalidParamPosition,
+                    List.of(
+                        new QueryParam("f1", pattern, NULL, false, true),
+                        new QueryParam("f2", "f*2", NULL, false, true),
+                        new QueryParam("f3", "f.3*", NULL, false, true)
+                    ),
+                    invalidParamPosition.contains("rename")
+                        ? "Using wildcards [*] in RENAME is not allowed [?f1 as ?f2]"
+                        : "Unsupported query parameter [?f1][" + pattern + "]"
+                );
+            }
+        }
+
         expectError(
             "from idx1 | ENRICH idx2 ON ?f1 WITH ?f2 = ?f3",
-
             List.of(
                 new QueryParam("f1", "f.1.*", NULL, false, true),
                 new QueryParam("f2", "f.2", NULL, true),
@@ -1843,10 +1848,56 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "Using wildcards [*] in ENRICH WITH projections is not allowed [f.1.*]"
         );
         expectError(
-            "from test | mv_expand ?n1",
-            List.of(new QueryParam("n1", "f1*", NULL, false, true)),
-            "Field name pattern [f1*] is not supported"
+            "from idx1 | ENRICH idx2 ON ?f1 WITH ?f2 = ?f3",
+            List.of(new QueryParam("f1", "f.1.*", NULL),
+                new QueryParam("f2", "f.2", NULL, true),
+                new QueryParam("f3", "f.3*", NULL, true)),
+            "Constant [f.1.*] is unsupported for [?f1]"
         );
+        expectError(
+            "from idx1 | ENRICH idx2 ON ?f1 WITH ?f2 = ?f3",
+            List.of(
+                new QueryParam("f1", "*", NULL, false, true),
+                new QueryParam("f2", "*", NULL, true),
+                new QueryParam("f3", "*", NULL, true)
+            ),
+            "Using wildcards [*] in ENRICH WITH projections is not allowed [?*]"
+        );
+    }
+
+    public void testMissingParam() {
+        // eval/where/stats/sort/rename/dissect/grok/enrich/mvexpand/keep/drop
+        String error = "Unknown query parameter [n1], did you mean [n4]?";
+        String errorMvExpand = "Unsupported or unknown query parameter [?n1]";
+        for (String missingParam : List.of(
+            "eval x = ?n1",
+            "where ?n1 == \"a\"",
+            "stats x = count(?n1)",
+            "sort ?n1",
+            "rename ?n1 as ?n2",
+            "dissect ?n1 \"%{bar}\"",
+            "grok ?n1 \"%{WORD:foo}\"",
+            "enrich idx2 ON ?n1 WITH ?n2 = ?n3",
+            "mv_expand ?n1",
+            "keep ?n1",
+            "drop ?n1"
+        )) {
+            for (String identifierOrPattern : List.of("identifier", "identifierpattern")) {
+                expectError(
+                    "from test | " + missingParam,
+                    List.of(
+                        new QueryParam(
+                            "n4",
+                            "f1*",
+                            NULL,
+                            identifierOrPattern.equals("identifier"),
+                            identifierOrPattern.equals("identifierpattern")
+                        )
+                    ),
+                    missingParam.contains("mv_expand") ? errorMvExpand : error
+                );
+            }
+        }
     }
 
     public void testFieldContainingDotsAndNumbers() {

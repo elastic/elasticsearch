@@ -36,7 +36,6 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.AbstractDisruptionTestCase;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshotsIntegritySuppressor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryConflictException;
@@ -1109,28 +1108,23 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         waitForBlock(masterName, repoName);
 
         final String snapshotOne = snapshotNames.get(0);
-        // Suppress assertion error on missing shard generation file since the new master may delete it
-        // while the old master still tries access it. This is OK since the old master will ultimately
-        // find out the failover and abort its operations.
-        try (var ignored = new BlobStoreIndexShardSnapshotsIntegritySuppressor()) {
-            final ActionFuture<AcknowledgedResponse> deleteSnapshotOne = startDeleteSnapshot(repoName, snapshotOne);
-            awaitNDeletionsInProgress(1);
-            networkDisruption.startDisrupting();
-            ensureStableCluster(3, dataNode);
+        final ActionFuture<AcknowledgedResponse> deleteSnapshotOne = startDeleteSnapshot(repoName, snapshotOne);
+        awaitNDeletionsInProgress(1);
+        networkDisruption.startDisrupting();
+        ensureStableCluster(3, dataNode);
 
-            unblockNode(repoName, masterName);
-            networkDisruption.stopDisrupting();
-            ensureStableCluster(4);
+        unblockNode(repoName, masterName);
+        networkDisruption.stopDisrupting();
+        ensureStableCluster(4);
 
-            assertSuccessful(snapshotOther);
-            try {
-                deleteSnapshotOne.actionGet();
-            } catch (RepositoryException re) {
-                // ignored
-            } catch (SnapshotMissingException re) {
-                // When master node is isolated during this test, the newly elected master takes over and executes the snapshot deletion. In
-                // this case the retried delete snapshot operation on the new master can fail with SnapshotMissingException
-            }
+        assertSuccessful(snapshotOther);
+        try {
+            deleteSnapshotOne.actionGet();
+        } catch (RepositoryException re) {
+            // ignored
+        } catch (SnapshotMissingException re) {
+            // When master node is isolated during this test, the newly elected master takes over and executes the snapshot deletion. In
+            // this case the retried delete snapshot operation on the new master can fail with SnapshotMissingException
         }
         awaitNoMoreRunningOperations();
     }

@@ -29,8 +29,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
@@ -38,7 +36,6 @@ import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.geoip.Database.Property;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -62,7 +59,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
     private final String field;
     private final Supplier<Boolean> isValid;
     private final String targetField;
-    private final CheckedSupplier<GeoIpDatabase, IOException> supplier;
+    private final CheckedSupplier<IpDatabase, IOException> supplier;
     private final Set<Property> properties;
     private final boolean ignoreMissing;
     private final boolean firstOnly;
@@ -85,7 +82,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         final String tag,
         final String description,
         final String field,
-        final CheckedSupplier<GeoIpDatabase, IOException> supplier,
+        final CheckedSupplier<IpDatabase, IOException> supplier,
         final Supplier<Boolean> isValid,
         final String targetField,
         final Set<Property> properties,
@@ -121,8 +118,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot extract geoip information.");
         }
 
-        GeoIpDatabase geoIpDatabase = this.supplier.get();
-        if (geoIpDatabase == null) {
+        IpDatabase ipDatabase = this.supplier.get();
+        if (ipDatabase == null) {
             if (ignoreMissing == false) {
                 tag(ingestDocument, databaseFile);
             }
@@ -131,7 +128,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
         try {
             if (ip instanceof String ipString) {
-                Map<String, Object> geoData = getGeoData(geoIpDatabase, ipString);
+                Map<String, Object> geoData = getGeoData(ipDatabase, ipString);
                 if (geoData.isEmpty() == false) {
                     ingestDocument.setFieldValue(targetField, geoData);
                 }
@@ -142,7 +139,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     if (ipAddr instanceof String == false) {
                         throw new IllegalArgumentException("array in field [" + field + "] should only contain strings");
                     }
-                    Map<String, Object> geoData = getGeoData(geoIpDatabase, (String) ipAddr);
+                    Map<String, Object> geoData = getGeoData(ipDatabase, (String) ipAddr);
                     if (geoData.isEmpty()) {
                         geoDataList.add(null);
                         continue;
@@ -161,29 +158,28 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 throw new IllegalArgumentException("field [" + field + "] should contain only string or array of strings");
             }
         } finally {
-            geoIpDatabase.release();
+            ipDatabase.release();
         }
         return ingestDocument;
     }
 
-    private Map<String, Object> getGeoData(GeoIpDatabase geoIpDatabase, String ip) throws IOException {
-        final String databaseType = geoIpDatabase.getDatabaseType();
+    private Map<String, Object> getGeoData(IpDatabase ipDatabase, String ipAddress) throws IOException {
+        final String databaseType = ipDatabase.getDatabaseType();
         final Database database;
         try {
             database = Database.getDatabase(databaseType, databaseFile);
         } catch (IllegalArgumentException e) {
             throw new ElasticsearchParseException(e.getMessage(), e);
         }
-        final InetAddress ipAddress = InetAddresses.forString(ip);
         return switch (database) {
-            case City -> retrieveCityGeoData(geoIpDatabase, ipAddress);
-            case Country -> retrieveCountryGeoData(geoIpDatabase, ipAddress);
-            case Asn -> retrieveAsnGeoData(geoIpDatabase, ipAddress);
-            case AnonymousIp -> retrieveAnonymousIpGeoData(geoIpDatabase, ipAddress);
-            case ConnectionType -> retrieveConnectionTypeGeoData(geoIpDatabase, ipAddress);
-            case Domain -> retrieveDomainGeoData(geoIpDatabase, ipAddress);
-            case Enterprise -> retrieveEnterpriseGeoData(geoIpDatabase, ipAddress);
-            case Isp -> retrieveIspGeoData(geoIpDatabase, ipAddress);
+            case City -> retrieveCityGeoData(ipDatabase, ipAddress);
+            case Country -> retrieveCountryGeoData(ipDatabase, ipAddress);
+            case Asn -> retrieveAsnGeoData(ipDatabase, ipAddress);
+            case AnonymousIp -> retrieveAnonymousIpGeoData(ipDatabase, ipAddress);
+            case ConnectionType -> retrieveConnectionTypeGeoData(ipDatabase, ipAddress);
+            case Domain -> retrieveDomainGeoData(ipDatabase, ipAddress);
+            case Enterprise -> retrieveEnterpriseGeoData(ipDatabase, ipAddress);
+            case Isp -> retrieveIspGeoData(ipDatabase, ipAddress);
         };
     }
 
@@ -208,8 +204,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return properties;
     }
 
-    private Map<String, Object> retrieveCityGeoData(GeoIpDatabase geoIpDatabase, InetAddress ipAddress) {
-        CityResponse response = geoIpDatabase.getCity(ipAddress);
+    private Map<String, Object> retrieveCityGeoData(IpDatabase ipDatabase, String ipAddress) {
+        CityResponse response = ipDatabase.getCity(ipAddress);
         if (response == null) {
             return Map.of();
         }
@@ -222,7 +218,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         Map<String, Object> geoData = new HashMap<>();
         for (Property property : this.properties) {
             switch (property) {
-                case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                case IP -> geoData.put("ip", response.getTraits().getIpAddress());
                 case COUNTRY_ISO_CODE -> {
                     String countryIsoCode = country.getIsoCode();
                     if (countryIsoCode != null) {
@@ -290,8 +286,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return geoData;
     }
 
-    private Map<String, Object> retrieveCountryGeoData(GeoIpDatabase geoIpDatabase, InetAddress ipAddress) {
-        CountryResponse response = geoIpDatabase.getCountry(ipAddress);
+    private Map<String, Object> retrieveCountryGeoData(IpDatabase ipDatabase, String ipAddress) {
+        CountryResponse response = ipDatabase.getCountry(ipAddress);
         if (response == null) {
             return Map.of();
         }
@@ -301,7 +297,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         Map<String, Object> geoData = new HashMap<>();
         for (Property property : this.properties) {
             switch (property) {
-                case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                case IP -> geoData.put("ip", response.getTraits().getIpAddress());
                 case COUNTRY_ISO_CODE -> {
                     String countryIsoCode = country.getIsoCode();
                     if (countryIsoCode != null) {
@@ -331,8 +327,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return geoData;
     }
 
-    private Map<String, Object> retrieveAsnGeoData(GeoIpDatabase geoIpDatabase, InetAddress ipAddress) {
-        AsnResponse response = geoIpDatabase.getAsn(ipAddress);
+    private Map<String, Object> retrieveAsnGeoData(IpDatabase ipDatabase, String ipAddress) {
+        AsnResponse response = ipDatabase.getAsn(ipAddress);
         if (response == null) {
             return Map.of();
         }
@@ -343,7 +339,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         Map<String, Object> geoData = new HashMap<>();
         for (Property property : this.properties) {
             switch (property) {
-                case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                case IP -> geoData.put("ip", response.getIpAddress());
                 case ASN -> {
                     if (asn != null) {
                         geoData.put("asn", asn);
@@ -364,8 +360,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return geoData;
     }
 
-    private Map<String, Object> retrieveAnonymousIpGeoData(GeoIpDatabase geoIpDatabase, InetAddress ipAddress) {
-        AnonymousIpResponse response = geoIpDatabase.getAnonymousIp(ipAddress);
+    private Map<String, Object> retrieveAnonymousIpGeoData(IpDatabase ipDatabase, String ipAddress) {
+        AnonymousIpResponse response = ipDatabase.getAnonymousIp(ipAddress);
         if (response == null) {
             return Map.of();
         }
@@ -380,7 +376,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         Map<String, Object> geoData = new HashMap<>();
         for (Property property : this.properties) {
             switch (property) {
-                case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                case IP -> geoData.put("ip", response.getIpAddress());
                 case HOSTING_PROVIDER -> {
                     geoData.put("hosting_provider", isHostingProvider);
                 }
@@ -404,8 +400,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return geoData;
     }
 
-    private Map<String, Object> retrieveConnectionTypeGeoData(GeoIpDatabase geoIpDatabase, InetAddress ipAddress) {
-        ConnectionTypeResponse response = geoIpDatabase.getConnectionType(ipAddress);
+    private Map<String, Object> retrieveConnectionTypeGeoData(IpDatabase ipDatabase, String ipAddress) {
+        ConnectionTypeResponse response = ipDatabase.getConnectionType(ipAddress);
         if (response == null) {
             return Map.of();
         }
@@ -415,7 +411,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         Map<String, Object> geoData = new HashMap<>();
         for (Property property : this.properties) {
             switch (property) {
-                case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                case IP -> geoData.put("ip", response.getIpAddress());
                 case CONNECTION_TYPE -> {
                     if (connectionType != null) {
                         geoData.put("connection_type", connectionType.toString());
@@ -426,8 +422,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return geoData;
     }
 
-    private Map<String, Object> retrieveDomainGeoData(GeoIpDatabase geoIpDatabase, InetAddress ipAddress) {
-        DomainResponse response = geoIpDatabase.getDomain(ipAddress);
+    private Map<String, Object> retrieveDomainGeoData(IpDatabase ipDatabase, String ipAddress) {
+        DomainResponse response = ipDatabase.getDomain(ipAddress);
         if (response == null) {
             return Map.of();
         }
@@ -437,7 +433,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         Map<String, Object> geoData = new HashMap<>();
         for (Property property : this.properties) {
             switch (property) {
-                case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                case IP -> geoData.put("ip", response.getIpAddress());
                 case DOMAIN -> {
                     if (domain != null) {
                         geoData.put("domain", domain);
@@ -448,8 +444,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return geoData;
     }
 
-    private Map<String, Object> retrieveEnterpriseGeoData(GeoIpDatabase geoIpDatabase, InetAddress ipAddress) {
-        EnterpriseResponse response = geoIpDatabase.getEnterprise(ipAddress);
+    private Map<String, Object> retrieveEnterpriseGeoData(IpDatabase ipDatabase, String ipAddress) {
+        EnterpriseResponse response = ipDatabase.getEnterprise(ipAddress);
         if (response == null) {
             return Map.of();
         }
@@ -485,7 +481,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         Map<String, Object> geoData = new HashMap<>();
         for (Property property : this.properties) {
             switch (property) {
-                case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                case IP -> geoData.put("ip", response.getTraits().getIpAddress());
                 case COUNTRY_ISO_CODE -> {
                     String countryIsoCode = country.getIsoCode();
                     if (countryIsoCode != null) {
@@ -621,8 +617,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return geoData;
     }
 
-    private Map<String, Object> retrieveIspGeoData(GeoIpDatabase geoIpDatabase, InetAddress ipAddress) {
-        IspResponse response = geoIpDatabase.getIsp(ipAddress);
+    private Map<String, Object> retrieveIspGeoData(IpDatabase ipDatabase, String ipAddress) {
+        IspResponse response = ipDatabase.getIsp(ipAddress);
         if (response == null) {
             return Map.of();
         }
@@ -638,7 +634,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         Map<String, Object> geoData = new HashMap<>();
         for (Property property : this.properties) {
             switch (property) {
-                case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                case IP -> geoData.put("ip", response.getIpAddress());
                 case ASN -> {
                     if (asn != null) {
                         geoData.put("asn", asn);
@@ -680,23 +676,23 @@ public final class GeoIpProcessor extends AbstractProcessor {
     }
 
     /**
-     * Retrieves and verifies a {@link GeoIpDatabase} instance for each execution of the {@link GeoIpProcessor}. Guards against missing
+     * Retrieves and verifies a {@link IpDatabase} instance for each execution of the {@link GeoIpProcessor}. Guards against missing
      * custom databases, and ensures that database instances are of the proper type before use.
      */
-    public static final class DatabaseVerifyingSupplier implements CheckedSupplier<GeoIpDatabase, IOException> {
-        private final GeoIpDatabaseProvider geoIpDatabaseProvider;
+    public static final class DatabaseVerifyingSupplier implements CheckedSupplier<IpDatabase, IOException> {
+        private final IpDatabaseProvider ipDatabaseProvider;
         private final String databaseFile;
         private final String databaseType;
 
-        public DatabaseVerifyingSupplier(GeoIpDatabaseProvider geoIpDatabaseProvider, String databaseFile, String databaseType) {
-            this.geoIpDatabaseProvider = geoIpDatabaseProvider;
+        public DatabaseVerifyingSupplier(IpDatabaseProvider ipDatabaseProvider, String databaseFile, String databaseType) {
+            this.ipDatabaseProvider = ipDatabaseProvider;
             this.databaseFile = databaseFile;
             this.databaseType = databaseType;
         }
 
         @Override
-        public GeoIpDatabase get() throws IOException {
-            GeoIpDatabase loader = geoIpDatabaseProvider.getDatabase(databaseFile);
+        public IpDatabase get() throws IOException {
+            IpDatabase loader = ipDatabaseProvider.getDatabase(databaseFile);
             if (loader == null) {
                 return null;
             }
@@ -716,10 +712,10 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory {
 
-        private final GeoIpDatabaseProvider geoIpDatabaseProvider;
+        private final IpDatabaseProvider ipDatabaseProvider;
 
-        public Factory(GeoIpDatabaseProvider geoIpDatabaseProvider) {
-            this.geoIpDatabaseProvider = geoIpDatabaseProvider;
+        public Factory(IpDatabaseProvider ipDatabaseProvider) {
+            this.ipDatabaseProvider = ipDatabaseProvider;
         }
 
         @Override
@@ -746,8 +742,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 deprecationLogger.warn(DeprecationCategory.OTHER, "default_databases_message", DEFAULT_DATABASES_DEPRECATION_MESSAGE);
             }
 
-            GeoIpDatabase geoIpDatabase = geoIpDatabaseProvider.getDatabase(databaseFile);
-            if (geoIpDatabase == null) {
+            IpDatabase ipDatabase = ipDatabaseProvider.getDatabase(databaseFile);
+            if (ipDatabase == null) {
                 // It's possible that the database could be downloaded via the GeoipDownloader process and could become available
                 // at a later moment, so a processor impl is returned that tags documents instead. If a database cannot be sourced then the
                 // processor will continue to tag documents with a warning until it is remediated by providing a database or changing the
@@ -757,9 +753,9 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
             final String databaseType;
             try {
-                databaseType = geoIpDatabase.getDatabaseType();
+                databaseType = ipDatabase.getDatabaseType();
             } finally {
-                geoIpDatabase.release();
+                ipDatabase.release();
             }
 
             final Database database;
@@ -779,8 +775,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 processorTag,
                 description,
                 ipField,
-                new DatabaseVerifyingSupplier(geoIpDatabaseProvider, databaseFile, databaseType),
-                () -> geoIpDatabaseProvider.isValid(databaseFile),
+                new DatabaseVerifyingSupplier(ipDatabaseProvider, databaseFile, databaseType),
+                () -> ipDatabaseProvider.isValid(databaseFile),
                 targetField,
                 properties,
                 ignoreMissing,

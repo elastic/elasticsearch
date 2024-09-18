@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster;
@@ -140,11 +141,10 @@ public class ClusterFeatures implements Diffable<ClusterFeatures>, ChunkedToXCon
         out.writeMap(nodeFeatureSetIndexes, StreamOutput::writeVInt);
     }
 
+    @SuppressWarnings("unchecked")
     private static Map<String, Set<String>> readCanonicalSets(StreamInput in) throws IOException {
-        List<Set<String>> featureSets = in.readCollectionAsList(i -> i.readCollectionAsImmutableSet(StreamInput::readString));
-        Map<String, Integer> nodeIndexes = in.readMap(StreamInput::readVInt);
-
-        return nodeIndexes.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> featureSets.get(e.getValue())));
+        Set<String>[] featureSets = in.readArray(i -> i.readCollectionAsImmutableSet(StreamInput::readString), Set[]::new);
+        return in.readImmutableMap(streamInput -> featureSets[streamInput.readVInt()]);
     }
 
     public static ClusterFeatures readFrom(StreamInput in) throws IOException {

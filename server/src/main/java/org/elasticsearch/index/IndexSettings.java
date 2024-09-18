@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index;
 
@@ -24,6 +25,8 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.Node;
@@ -776,6 +779,8 @@ public final class IndexSettings {
     private volatile long mappingDepthLimit;
     private volatile long mappingFieldNameLengthLimit;
     private volatile long mappingDimensionFieldsLimit;
+    private volatile boolean skipIgnoredSourceWrite;
+    private volatile boolean skipIgnoredSourceRead;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -792,6 +797,16 @@ public final class IndexSettings {
     private volatile int maxRegexLength;
 
     private final IndexRouting indexRouting;
+
+    /**
+     * The default mode for storing source, for all mappers not overriding this setting.
+     * This is only relevant for indexes configured with synthetic-source code.
+     */
+    public Mapper.SourceKeepMode sourceKeepMode() {
+        return sourceKeepMode;
+    }
+
+    private final Mapper.SourceKeepMode sourceKeepMode;
 
     /**
      * Returns the default search fields for this index.
@@ -922,7 +937,10 @@ public final class IndexSettings {
         mappingFieldNameLengthLimit = scopedSettings.get(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING);
         mappingDimensionFieldsLimit = scopedSettings.get(INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING);
         indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
+        sourceKeepMode = scopedSettings.get(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING);
         es87TSDBCodecEnabled = scopedSettings.get(TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING);
+        skipIgnoredSourceWrite = scopedSettings.get(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING);
+        skipIgnoredSourceRead = scopedSettings.get(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING);
 
         scopedSettings.addSettingsUpdateConsumer(
             MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
@@ -1005,6 +1023,11 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_DEPTH_LIMIT_SETTING, this::setMappingDepthLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING, this::setMappingFieldNameLengthLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING, this::setMappingDimensionFieldsLimit);
+        scopedSettings.addSettingsUpdateConsumer(
+            IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING,
+            this::setSkipIgnoredSourceWrite
+        );
+        scopedSettings.addSettingsUpdateConsumer(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING, this::setSkipIgnoredSourceRead);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -1579,6 +1602,22 @@ public final class IndexSettings {
 
     private void setMappingDimensionFieldsLimit(long value) {
         this.mappingDimensionFieldsLimit = value;
+    }
+
+    public boolean getSkipIgnoredSourceWrite() {
+        return skipIgnoredSourceWrite;
+    }
+
+    private void setSkipIgnoredSourceWrite(boolean value) {
+        this.skipIgnoredSourceWrite = value;
+    }
+
+    public boolean getSkipIgnoredSourceRead() {
+        return skipIgnoredSourceRead;
+    }
+
+    private void setSkipIgnoredSourceRead(boolean value) {
+        this.skipIgnoredSourceRead = value;
     }
 
     /**

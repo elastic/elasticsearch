@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest;
@@ -83,7 +84,14 @@ public abstract class BaseRestHandler implements RestHandler {
         // check if the query has any parameters that are not in the supported set (if declared)
         Set<String> supported = allSupportedParameters();
         if (supported != null) {
-            var allSupported = Sets.union(RestResponse.RESPONSE_PARAMS, ALWAYS_SUPPORTED, supported);
+            var allSupported = Sets.union(
+                RestResponse.RESPONSE_PARAMS,
+                ALWAYS_SUPPORTED,
+                // these internal parameters cannot be set by end-users, but are used by Elasticsearch internally.
+                // they must be accepted by all handlers
+                RestRequest.INTERNAL_MARKER_REQUEST_PARAMETERS,
+                supported
+            );
             if (allSupported.containsAll(request.params().keySet()) == false) {
                 Set<String> unsupported = Sets.difference(request.params().keySet(), allSupported);
                 throw new IllegalArgumentException(unrecognized(request, unsupported, allSupported, "parameter"));

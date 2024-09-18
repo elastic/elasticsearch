@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest;
@@ -480,6 +481,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
             } else {
                 threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.TRUE.toString());
             }
+
+            if (apiProtections.isEnabled()) {
+                // API protections are only enabled in serverless; therefore we can use this as an indicator to mark the
+                // request as a serverless mode request here, so downstream handlers can use the marker
+                request.markAsServerlessRequest();
+                logger.trace("Marked request for uri [{}] as serverless request", request.uri());
+            }
+
             final var finalChannel = responseChannel;
             this.interceptor.intercept(request, responseChannel, handler.getConcreteRestHandler(), new ActionListener<>() {
                 @Override

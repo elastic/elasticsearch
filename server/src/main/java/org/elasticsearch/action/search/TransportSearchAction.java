@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -127,7 +128,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     public static final String FROZEN_INDICES_DEPRECATION_MESSAGE = "Searching frozen indices [{}] is deprecated."
         + " Consider cold or frozen tiers in place of frozen indices. The frozen feature will be removed in a feature release.";
 
-    private static final FeatureFlag CCS_TELEMETRY_FEATURE_FLAG = new FeatureFlag("ccs_telemetry");
+    public static final FeatureFlag CCS_TELEMETRY_FEATURE_FLAG = new FeatureFlag("ccs_telemetry");
 
     /** The maximum number of shards for a single search request. */
     public static final Setting<Long> SHARD_COUNT_LIMIT_SETTING = Setting.longSetting(
@@ -312,8 +313,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-        ActionListener<SearchResponse> loggingAndMetrics = new SearchResponseActionListener((SearchTask) task, listener);
-        executeRequest((SearchTask) task, searchRequest, loggingAndMetrics, AsyncSearchActionProvider::new);
+        executeRequest(
+            (SearchTask) task,
+            searchRequest,
+            new SearchResponseActionListener((SearchTask) task, listener),
+            AsyncSearchActionProvider::new
+        );
     }
 
     void executeRequest(
@@ -371,6 +376,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     tl.setRemotes(resolvedIndices.getRemoteClusterIndices().size());
                     if (task.isAsync()) {
                         tl.setFeature(CCSUsageTelemetry.ASYNC_FEATURE);
+                    }
+                    if (original.pointInTimeBuilder() != null) {
+                        tl.setFeature(CCSUsageTelemetry.PIT_FEATURE);
                     }
                     String client = task.getHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
                     if (client != null) {
@@ -498,7 +506,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 // We set the keep alive to -1 to indicate that we don't need the pit id in the response.
                 // This is needed since we delete the pit prior to sending the response so the id doesn't exist anymore.
                 source.pointInTimeBuilder(new PointInTimeBuilder(resp.getPointInTimeId()).setKeepAlive(TimeValue.MINUS_ONE));
-                executeRequest(task, original, new ActionListener<>() {
+                var pitListener = new SearchResponseActionListener(task, listener) {
                     @Override
                     public void onResponse(SearchResponse response) {
                         // we need to close the PIT first so we delay the release of the response to after the closing
@@ -514,7 +522,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     public void onFailure(Exception e) {
                         closePIT(client, original.source().pointInTimeBuilder(), () -> listener.onFailure(e));
                     }
-                }, searchPhaseProvider);
+                };
+                executeRequest(task, original, pitListener, searchPhaseProvider);
             }));
         } else {
             Rewriteable.rewriteAndFetch(
@@ -847,7 +856,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     } else {
                         // does not do a can-match
                         ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(
-                            MasterNodeRequest.infiniteMasterNodeTimeout(connection.getTransportVersion()),
+                            MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
                             indices
                         ).indicesOptions(indicesOptions).local(true).preference(preference).routing(routing);
                         transportService.sendRequest(
@@ -1285,16 +1294,27 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     Executor asyncSearchExecutor(final String[] indices) {
-        final List<String> executorsForIndices = Arrays.stream(indices).map(executorSelector::executorForSearch).toList();
-        if (executorsForIndices.size() == 1) { // all indices have same executor
-            return threadPool.executor(executorsForIndices.get(0));
+        boolean seenSystem = false;
+        boolean seenCritical = false;
+        for (String index : indices) {
+            final String executorName = executorSelector.executorForSearch(index);
+            switch (executorName) {
+                case SYSTEM_READ -> seenSystem = true;
+                case SYSTEM_CRITICAL_READ -> seenCritical = true;
+                default -> {
+                    return threadPool.executor(executorName);
+                }
+            }
         }
-        if (executorsForIndices.size() == 2
-            && executorsForIndices.contains(SYSTEM_READ)
-            && executorsForIndices.contains(SYSTEM_CRITICAL_READ)) { // mix of critical and non critical system indices
-            return threadPool.executor(SYSTEM_READ);
+        final String executor;
+        if (seenSystem == false && seenCritical) {
+            executor = SYSTEM_CRITICAL_READ;
+        } else if (seenSystem) {
+            executor = SYSTEM_READ;
+        } else {
+            executor = ThreadPool.Names.SEARCH;
         }
-        return threadPool.executor(ThreadPool.Names.SEARCH);
+        return threadPool.executor(executor);
     }
 
     static BiFunction<String, String, Transport.Connection> buildConnectionLookup(
@@ -1835,7 +1855,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchResponseActionListener(SearchTask task, ActionListener<SearchResponse> listener) {
             this.task = task;
             this.listener = listener;
-            usageBuilder = new CCSUsage.Builder();
+            if (listener instanceof SearchResponseActionListener srListener) {
+                usageBuilder = srListener.usageBuilder;
+            } else {
+                usageBuilder = new CCSUsage.Builder();
+            }
         }
 
         /**

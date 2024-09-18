@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.time;
@@ -880,11 +881,11 @@ public class DateFormattersTests extends ESTestCase {
 
     public void testCustomLocales() {
         // also ensure that locale based dates are the same
-        DateFormatter formatter = DateFormatter.forPattern("E, d MMM yyyy HH:mm:ss Z").withLocale(LocaleUtils.parse("de"));
-        assertParses("Di, 05 Dez 2000 02:55:00 -0800", formatter);
-        assertParses("Mi, 06 Dez 2000 02:55:00 -0800", formatter);
-        assertParses("Do, 07 Dez 2000 00:00:00 -0800", formatter);
-        assertParses("Fr, 08 Dez 2000 00:00:00 -0800", formatter);
+        DateFormatter formatter = DateFormatter.forPattern("E, d MMM yyyy HH:mm:ss Z").withLocale(LocaleUtils.parse("fr"));
+        assertParses("mar., 5 déc. 2000 02:55:00 -0800", formatter);
+        assertParses("mer., 6 déc. 2000 02:55:00 -0800", formatter);
+        assertParses("jeu., 7 déc. 2000 00:00:00 -0800", formatter);
+        assertParses("ven., 8 déc. 2000 00:00:00 -0800", formatter);
     }
 
     public void testFormatsValidParsing() {

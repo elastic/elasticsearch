@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.transport;
 
@@ -148,7 +149,10 @@ final class RemoteClusterConnection implements Closeable {
                         }), RemoteClusterNodesAction.Response::new, TransportResponseHandler.TRANSPORT_WORKER)
                     );
                 } else {
-                    final ClusterStateRequest request = new ClusterStateRequest();
+                    final ClusterStateRequest request = new ClusterStateRequest(
+                        /* Timeout doesn't really matter with .local(true) */
+                        TimeValue.THIRTY_SECONDS
+                    );
                     request.clear();
                     request.nodes(true);
                     request.local(true); // run this on the node that gets the request it's as good as any other

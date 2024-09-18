@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport.netty4;
@@ -13,10 +14,10 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import io.netty.util.concurrent.Future;
-import io.netty.util.concurrent.GenericFutureListener;
 import io.netty.util.concurrent.PromiseCombiner;
 
 import org.apache.lucene.util.BytesRef;
@@ -93,13 +94,13 @@ public final class Netty4WriteThrottlingHandler extends ChannelDuplexHandler {
             final int bufferSize = Math.min(readableBytes, MAX_BYTES_PER_WRITE);
             if (readableBytes == bufferSize) {
                 // last write for this chunk we're done
-                ctx.write(buf).addListener(forwardResultListener(ctx, promise));
+                Netty4Utils.addListener(ctx.write(buf), forwardResultListener(promise));
                 return;
             }
             final int readerIndex = buf.readerIndex();
             final ByteBuf writeBuffer = buf.retainedSlice(readerIndex, bufferSize);
             buf.readerIndex(readerIndex + bufferSize);
-            ctx.write(writeBuffer).addListener(forwardFailureListener(ctx, promise));
+            Netty4Utils.addListener(ctx.write(writeBuffer), forwardFailureListener(promise));
             if (ctx.channel().isWritable() == false) {
                 // channel isn't writable any longer -> move to queuing
                 queueWrite(buf, promise);
@@ -163,9 +164,9 @@ public final class Netty4WriteThrottlingHandler extends ChannelDuplexHandler {
             final ChannelFuture writeFuture = ctx.write(writeBuffer);
             if (sliced == false) {
                 currentWrite = null;
-                writeFuture.addListener(forwardResultListener(ctx, write.promise));
+                Netty4Utils.addListener(writeFuture, forwardResultListener(write.promise));
             } else {
-                writeFuture.addListener(forwardFailureListener(ctx, write.promise));
+                Netty4Utils.addListener(writeFuture, forwardFailureListener(write.promise));
             }
         }
         ctx.flush();
@@ -175,18 +176,18 @@ public final class Netty4WriteThrottlingHandler extends ChannelDuplexHandler {
         return true;
     }
 
-    private static GenericFutureListener<Future<Void>> forwardFailureListener(ChannelHandlerContext ctx, ChannelPromise promise) {
+    private static ChannelFutureListener forwardFailureListener(ChannelPromise promise) {
         return future -> {
-            assert ctx.executor().inEventLoop();
+            assert future.channel().eventLoop().inEventLoop();
             if (future.isSuccess() == false) {
                 promise.tryFailure(future.cause());
             }
         };
     }
 
-    private static GenericFutureListener<Future<Void>> forwardResultListener(ChannelHandlerContext ctx, ChannelPromise promise) {
+    private static ChannelFutureListener forwardResultListener(ChannelPromise promise) {
         return future -> {
-            assert ctx.executor().inEventLoop();
+            assert future.channel().eventLoop().inEventLoop();
             if (future.isSuccess()) {
                 promise.trySuccess();
             } else {

@@ -38,6 +38,11 @@ public class EsqlCapabilities {
         FN_MV_APPEND,
 
         /**
+         * Support for {@code MV_MEDIAN_ABSOLUTE_DEVIATION} function.
+         */
+        FN_MV_MEDIAN_ABSOLUTE_DEVIATION,
+
+        /**
          * Support for {@code MV_PERCENTILE} function.
          */
         FN_MV_PERCENTILE,
@@ -93,6 +98,11 @@ public class EsqlCapabilities {
         AGG_TOP_IP_SUPPORT,
 
         /**
+         * {@code CASE} properly handling multivalue conditions.
+         */
+        CASE_MV,
+
+        /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
          */
         ST_CENTROID_AGG_OPTIMIZED,
@@ -141,6 +151,11 @@ public class EsqlCapabilities {
         SPATIAL_FUNCTIONS_FIX_CRSTYPE_FOLDING,
 
         /**
+         * Enable spatial predicate functions to support multi-values. Done in #112063.
+         */
+        SPATIAL_PREDICATES_SUPPORT_MULTIVALUES,
+
+        /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
          * https://github.com/elastic/elasticsearch/issues/110184
          */
@@ -187,6 +202,11 @@ public class EsqlCapabilities {
          * Fix for union-types when some indexes are missing the required field. Done in #111932.
          */
         UNION_TYPES_MISSING_FIELD,
+
+        /**
+         * Fix for widening of short numeric types in union-types. Done in #112610
+         */
+        UNION_TYPES_NUMERIC_WIDENING,
 
         /**
          * Fix a parsing issue where numbers below Long.MIN_VALUE threw an exception instead of parsing as doubles.
@@ -274,7 +294,17 @@ public class EsqlCapabilities {
         /**
          * Allow mixed numeric types in coalesce
          */
-        MIXED_NUMERIC_TYPES_IN_COALESCE;
+        MIXED_NUMERIC_TYPES_IN_COALESCE,
+
+        /**
+         * Support for requesting the "SPACE" function.
+         */
+        SPACE,
+
+        /**
+         * Support explicit casting from string literal to DATE_PERIOD or TIME_DURATION.
+         */
+        CAST_STRING_LITERAL_TO_TEMPORAL_AMOUNT;
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

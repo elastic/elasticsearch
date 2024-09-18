@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.transport;
 
@@ -104,7 +105,7 @@ public class RemoteClusterClientTests extends ESTestCase {
                 ClusterStateResponse clusterStateResponse = safeAwait(
                     listener -> client.execute(
                         ClusterStateAction.REMOTE_TYPE,
-                        new ClusterStateRequest(),
+                        new ClusterStateRequest(TEST_REQUEST_TIMEOUT),
                         ActionListener.runBefore(
                             listener,
                             () -> assertTrue(Thread.currentThread().getName().contains('[' + TEST_THREAD_POOL_NAME + ']'))
@@ -184,7 +185,7 @@ public class RemoteClusterClientTests extends ESTestCase {
                         )
                     );
                     ClusterStateResponse clusterStateResponse = safeAwait(
-                        listener -> client.execute(ClusterStateAction.REMOTE_TYPE, new ClusterStateRequest(), listener)
+                        listener -> client.execute(ClusterStateAction.REMOTE_TYPE, new ClusterStateRequest(TEST_REQUEST_TIMEOUT), listener)
                     );
                     assertNotNull(clusterStateResponse);
                     assertEquals("foo_bar_cluster", clusterStateResponse.getState().getClusterName().value());
@@ -273,7 +274,11 @@ public class RemoteClusterClientTests extends ESTestCase {
                     ESTestCase.assertThat(
                         safeAwaitFailure(
                             ClusterStateResponse.class,
-                            listener -> client.execute(ClusterStateAction.REMOTE_TYPE, new ClusterStateRequest(), listener)
+                            listener -> client.execute(
+                                ClusterStateAction.REMOTE_TYPE,
+                                new ClusterStateRequest(TEST_REQUEST_TIMEOUT),
+                                listener
+                            )
                         ),
                         instanceOf(ConnectTransportException.class)
                     );
@@ -284,7 +289,7 @@ public class RemoteClusterClientTests extends ESTestCase {
 
                 assertBusy(() -> {
                     ClusterStateResponse ignored = safeAwait(
-                        listener -> client.execute(ClusterStateAction.REMOTE_TYPE, new ClusterStateRequest(), listener)
+                        listener -> client.execute(ClusterStateAction.REMOTE_TYPE, new ClusterStateRequest(TEST_REQUEST_TIMEOUT), listener)
                     );
                     // keep retrying on an exception, the goal is to check that we eventually reconnect
                 });

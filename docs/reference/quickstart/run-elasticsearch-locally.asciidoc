@@ -114,6 +114,8 @@ docker run -p 127.0.0.1:5601:5601 -d --name kibana --network elastic-net \
   {kib-docker-image}
 ----
 
+When you access {kib}, use `elastic` as the username and the password you set earlier for the `ELASTIC_PASSWORD` environment variable.
+
 [NOTE]
 ====
 The service is started with a trial license. The trial license enables all features of Elasticsearch for a trial period of 30 days. After the trial period expires, the license is downgraded to a basic license, which is free forever. If you prefer to skip the trial and use the basic license, set the value of the `xpack.license.self_generated.type` variable to basic instead. For a detailed feature comparison between the different licenses, refer to our https://www.elastic.co/subscriptions[subscriptions page].
@@ -124,6 +126,10 @@ The service is started with a trial license. The trial license enables all featu
 == Connecting to {es} with language clients
 
 To connect to the {es} cluster from a language client, you can use basic authentication with the `elastic` username and the password you set in the environment variable.
+
+.*Expand* for details
+[%collapsible]
+==============
 
 You'll use the following connection details:
 
@@ -159,6 +165,8 @@ curl -u elastic:$ELASTIC_PASSWORD \
   -H 'Content-Type: application/json'
 ----
 // NOTCONSOLE
+
+==============
 
 [discrete]
 [[local-dev-next-steps]]

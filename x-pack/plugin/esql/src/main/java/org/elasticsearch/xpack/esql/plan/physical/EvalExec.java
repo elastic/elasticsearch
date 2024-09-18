@@ -12,10 +12,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 
 import java.io.IOException;
 import java.util.List;
@@ -38,13 +39,13 @@ public class EvalExec extends UnaryExec implements EstimatesRowSize {
     }
 
     private EvalExec(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), ((PlanStreamInput) in).readPhysicalPlanNode(), in.readCollectionAsList(Alias::new));
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(PhysicalPlan.class), in.readCollectionAsList(Alias::new));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
-        ((PlanStreamOutput) out).writePhysicalPlanNode(child());
+        out.writeNamedWriteable(child());
         out.writeCollection(fields());
     }
 
@@ -60,6 +61,11 @@ public class EvalExec extends UnaryExec implements EstimatesRowSize {
     @Override
     public List<Attribute> output() {
         return mergeOutputAttributes(fields, child().output());
+    }
+
+    @Override
+    protected AttributeSet computeReferences() {
+        return Eval.computeReferences(fields);
     }
 
     @Override

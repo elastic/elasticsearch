@@ -38,6 +38,7 @@ import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -73,9 +74,12 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -104,6 +108,8 @@ import java.util.function.Function;
  *  character (see {@link FlattenedFieldParser#SEPARATOR}).
  */
 public final class FlattenedFieldMapper extends FieldMapper {
+
+    public static final NodeFeature IGNORE_ABOVE_SUPPORT = new NodeFeature("flattened.ignore_above_support");
 
     public static final String CONTENT_TYPE = "flattened";
     public static final String KEYED_FIELD_SUFFIX = "._keyed";
@@ -214,7 +220,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 meta.get(),
                 splitQueriesOnWhitespace.get(),
                 eagerGlobalOrdinals.get(),
-                dimensions.get()
+                dimensions.get(),
+                ignoreAbove.getValue()
             );
             return new FlattenedFieldMapper(leafName(), ft, builderParams(this, context), this);
         }
@@ -642,6 +649,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         private final boolean eagerGlobalOrdinals;
         private final List<String> dimensions;
         private final boolean isDimension;
+        private final int ignoreAbove;
 
         public RootFlattenedFieldType(
             String name,
@@ -649,9 +657,10 @@ public final class FlattenedFieldMapper extends FieldMapper {
             boolean hasDocValues,
             Map<String, String> meta,
             boolean splitQueriesOnWhitespace,
-            boolean eagerGlobalOrdinals
+            boolean eagerGlobalOrdinals,
+            int ignoreAbove
         ) {
-            this(name, indexed, hasDocValues, meta, splitQueriesOnWhitespace, eagerGlobalOrdinals, Collections.emptyList());
+            this(name, indexed, hasDocValues, meta, splitQueriesOnWhitespace, eagerGlobalOrdinals, Collections.emptyList(), ignoreAbove);
         }
 
         public RootFlattenedFieldType(
@@ -661,7 +670,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
             Map<String, String> meta,
             boolean splitQueriesOnWhitespace,
             boolean eagerGlobalOrdinals,
-            List<String> dimensions
+            List<String> dimensions,
+            int ignoreAbove
         ) {
             super(
                 name,
@@ -675,6 +685,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             this.eagerGlobalOrdinals = eagerGlobalOrdinals;
             this.dimensions = dimensions;
             this.isDimension = dimensions.isEmpty() == false;
+            this.ignoreAbove = ignoreAbove;
         }
 
         @Override
@@ -708,7 +719,67 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return SourceValueFetcher.identity(name(), context, format);
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+            }
+            return sourceValueFetcher(context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet());
+        }
+
+        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
+            return new SourceValueFetcher(sourcePaths, null) {
+                @Override
+                @SuppressWarnings("unchecked")
+                protected Object parseSourceValue(Object value) {
+                    if (value instanceof Map<?, ?> valueAsMap && valueAsMap.isEmpty() == false) {
+                        final Map<String, Object> result = filterIgnoredValues((Map<String, Object>) valueAsMap);
+                        return result.isEmpty() ? null : result;
+                    }
+                    if (value instanceof String valueAsString && valueAsString.length() <= ignoreAbove) {
+                        return valueAsString;
+                    }
+                    return null;
+                }
+
+                private Map<String, Object> filterIgnoredValues(final Map<String, Object> values) {
+                    final Map<String, Object> result = new HashMap<>();
+                    for (final Map.Entry<String, Object> entry : values.entrySet()) {
+                        Object value = filterIgnoredValues(entry.getValue());
+                        if (value != null) {
+                            result.put(entry.getKey(), value);
+                        }
+                    }
+                    return result;
+                }
+
+                private Object filterIgnoredValues(final Object entryValue) {
+                    if (entryValue instanceof List<?> valueAsList) {
+                        final List<Object> validValues = new ArrayList<>();
+                        for (Object value : valueAsList) {
+                            if (value instanceof String valueAsString) {
+                                if (valueAsString.length() <= ignoreAbove) {
+                                    validValues.add(valueAsString);
+                                }
+                            } else {
+                                validValues.add(value);
+                            }
+                        }
+                        if (validValues.isEmpty()) {
+                            return null;
+                        }
+                        if (validValues.size() == 1) {
+                            // NOTE: for single-value flattened fields do not return an array
+                            return validValues.getFirst();
+                        }
+                        return validValues;
+                    } else if (entryValue instanceof String valueAsString) {
+                        if (valueAsString.length() <= ignoreAbove) {
+                            return valueAsString;
+                        }
+                        return null;
+                    }
+                    return entryValue;
+                }
+            };
         }
 
         @Override

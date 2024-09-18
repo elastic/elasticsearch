@@ -104,18 +104,14 @@ public final class IndexModule {
 
     private static final IndexStorePlugin.RecoveryStateFactory DEFAULT_RECOVERY_STATE_FACTORY = RecoveryState::new;
 
-    public static final Setting<String> INDEX_STORE_TYPE_SETTING = new Setting<>(
+    public static final Setting<String> INDEX_STORE_TYPE_SETTING = Setting.simpleString(
         "index.store.type",
-        "",
-        Function.identity(),
         Property.IndexScope,
         Property.NodeScope
     );
 
-    public static final Setting<String> INDEX_RECOVERY_TYPE_SETTING = new Setting<>(
+    public static final Setting<String> INDEX_RECOVERY_TYPE_SETTING = Setting.simpleString(
         "index.recovery.type",
-        "",
-        Function.identity(),
         Property.IndexScope,
         Property.NodeScope
     );

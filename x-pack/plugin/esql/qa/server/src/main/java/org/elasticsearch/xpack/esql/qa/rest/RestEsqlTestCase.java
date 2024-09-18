@@ -693,7 +693,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertThat(error, containsString(": Unknown query parameter [n1]"));
 
         // field name pattern is not supported in where/stats/sort/dissect/grok
-        // eval/rename/enrich/mvexpand are tested in StatementParserTests
+        // eval/rename/enrich/mvexpand are covered in StatementParserTests
         for (String invalidParamPosition : List.of(
             "where ?n1 == \"a\"",
             "stats x = count(?n1)",
@@ -715,27 +715,19 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             }
         }
 
-        re = expectThrows(
-            ResponseException.class,
-            () -> runEsqlSync(
-                requestObjectBuilder().query(format(null, "from {} | stats x = ?n1(*)", testIndexName()))
-                    .params("[{\"n1\" : {\"value\" : \"count*\" , \"identifier\" : true}}]")
-            )
-        );
-        error = re.getMessage();
-        assertThat(error, containsString("VerificationException"));
-        assertThat(error, containsString("Unknown function [count*], did you mean any of [count, round, mv_count]"));
-
-        re = expectThrows(
-            ResponseException.class,
-            () -> runEsqlSync(
-                requestObjectBuilder().query(format(null, "from {} | stats x = ?n1(*)", testIndexName()))
-                    .params("[{\"n1\" : {\"value\" : \"*\" , \"identifier\" : true}}]")
-            )
-        );
-        error = re.getMessage();
-        assertThat(error, containsString("VerificationException"));
-        assertThat(error, containsString("Unknown function [*]"));
+        // pattern and constant for function are covered in StatementParserTests
+        for (String pattern : List.of("count*", "*")) {
+            re = expectThrows(
+                ResponseException.class,
+                () -> runEsqlSync(
+                    requestObjectBuilder().query(format(null, "from {} | stats x = ?n1(*)", testIndexName()))
+                        .params("[{\"n1\" : {\"value\" : \"" + pattern + "\" , \"identifier\" : true}}]")
+                )
+            );
+            error = re.getMessage();
+            assertThat(error, containsString("VerificationException"));
+            assertThat(error, containsString("Unknown function [" + pattern + "]"));
+        }
     }
 
     public void testErrorMessageForLiteralDateMathOverflow() throws IOException {

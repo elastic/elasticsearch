@@ -1821,48 +1821,50 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testInvalidParamPosition() {
         // param for pattern is not supported in eval/where/stats/sort/rename/dissect/grok/enrich/mvexpand
-        // where/stats/sort/dissect/grok are in RestEsqlTestCase
+        // where/stats/sort/dissect/grok are covered in RestEsqlTestCase
         for (String invalidParamPosition : List.of("eval ?f1 = 1", "stats x = ?f1(*)", "mv_expand ?f1", "rename ?f1 as ?f2")) {
             for (String pattern : List.of("f1*", "*")) {
+                // pattern is not supported
                 expectError(
                     "from test | " + invalidParamPosition,
-                    List.of(
-                        new QueryParam("f1", pattern, NULL, false, true),
-                        new QueryParam("f2", "f*2", NULL, false, true),
-                        new QueryParam("f3", "f.3*", NULL, false, true)
-                    ),
+                    List.of(new QueryParam("f1", pattern, NULL, false, true), new QueryParam("f2", "f*2", NULL, false, true)),
                     invalidParamPosition.contains("rename")
                         ? "Using wildcards [*] in RENAME is not allowed [?f1 as ?f2]"
                         : "Unsupported query parameter [?f1][" + pattern + "]"
                 );
+                // constant is not supported
+                expectError(
+                    "from test | " + invalidParamPosition,
+                    List.of(new QueryParam("f1", pattern, KEYWORD), new QueryParam("f2", "f*2", KEYWORD)),
+                    invalidParamPosition.contains("rename")
+                        ? "Constant [f*2] is unsupported for [?f2]"
+                        : "Unsupported or unknown query parameter [?f1]"
+                );
             }
-        }
 
-        expectError(
-            "from idx1 | ENRICH idx2 ON ?f1 WITH ?f2 = ?f3",
-            List.of(
-                new QueryParam("f1", "f.1.*", NULL, false, true),
-                new QueryParam("f2", "f.2", NULL, true),
-                new QueryParam("f3", "f.3*", NULL, true)
-            ),
-            "Using wildcards [*] in ENRICH WITH projections is not allowed [f.1.*]"
-        );
-        expectError(
-            "from idx1 | ENRICH idx2 ON ?f1 WITH ?f2 = ?f3",
-            List.of(new QueryParam("f1", "f.1.*", NULL),
-                new QueryParam("f2", "f.2", NULL, true),
-                new QueryParam("f3", "f.3*", NULL, true)),
-            "Constant [f.1.*] is unsupported for [?f1]"
-        );
-        expectError(
-            "from idx1 | ENRICH idx2 ON ?f1 WITH ?f2 = ?f3",
-            List.of(
-                new QueryParam("f1", "*", NULL, false, true),
-                new QueryParam("f2", "*", NULL, true),
-                new QueryParam("f3", "*", NULL, true)
-            ),
-            "Using wildcards [*] in ENRICH WITH projections is not allowed [?*]"
-        );
+        }
+        // enrich with wildcard as pattern or constant is not supported
+        String enrich = "ENRICH idx2 ON ?f1 WITH ?f2 = ?f3";
+        for (String pattern : List.of("f.1.*", "*")) {
+            expectError(
+                "from idx1 | " + enrich,
+                List.of(
+                    new QueryParam("f1", pattern, NULL, false, true),
+                    new QueryParam("f2", "f.2", NULL, true),
+                    new QueryParam("f3", "f.3*", NULL, true)
+                ),
+                "Using wildcards [*] in ENRICH WITH projections is not allowed [" + (pattern.equals("*") ? "?" : "") + pattern + "]"
+            );
+            expectError(
+                "from idx1 | " + enrich,
+                List.of(
+                    new QueryParam("f1", pattern, KEYWORD),
+                    new QueryParam("f2", "f.2", NULL, true),
+                    new QueryParam("f3", "f.3*", NULL, true)
+                ),
+                "Constant [" + pattern + "] is unsupported for [?f1]"
+            );
+        }
     }
 
     public void testMissingParam() {

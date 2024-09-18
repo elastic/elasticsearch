@@ -253,6 +253,9 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.security.JdbcSqlSpecIT
   method: test {case-functions.testUpperCasingTheSecondLetterFromTheRightFromFirstName}
   issue: https://github.com/elastic/elasticsearch/issues/112640
+- class: org.elasticsearch.xpack.sql.qa.security.JdbcSqlSpecIT
+  method: test {case-functions.testSelectInsertWithLcaseAndLengthWithOrderBy}
+  issue: https://github.com/elastic/elasticsearch/issues/112642
 
 # Examples:
 #

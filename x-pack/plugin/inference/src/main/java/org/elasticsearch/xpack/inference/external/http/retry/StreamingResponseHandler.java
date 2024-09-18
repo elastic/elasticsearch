@@ -119,7 +119,7 @@ class StreamingResponseHandler implements Flow.Processor<HttpResult, HttpResult>
             if (downstream != null) {
                 downstream.onError(throwable);
             } else {
-                log.debug(
+                log.warn(
                     "Flow failed before the InferenceServiceResults were generated.  The error should go to the listener directly.",
                     throwable
                 );

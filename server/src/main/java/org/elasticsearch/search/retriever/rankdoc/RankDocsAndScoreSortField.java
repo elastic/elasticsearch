@@ -77,7 +77,7 @@ public class RankDocsAndScoreSortField extends SortField {
 
         @Override
         public int compare(int slot1, int slot2) {
-            return Integer.compare(decodeRank(values[slot1]), decodeRank(values[slot2]));
+            return Long.compare(values[slot1], values[slot2]);
         }
 
         @Override

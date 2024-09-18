@@ -11,6 +11,7 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -46,6 +47,7 @@ public abstract class AbstractBulkByScrollRequestTestCase<R extends AbstractBulk
 
         TaskId slicingTask = new TaskId(randomAlphaOfLength(5), randomLong());
         SearchRequest sliceRequest = new SearchRequest();
+        sliceRequest.source(SearchSourceBuilder.searchSource());
         R forSliced = original.forSlice(slicingTask, sliceRequest, actualSlices);
         assertEquals(original.isAbortOnVersionConflict(), forSliced.isAbortOnVersionConflict());
         assertEquals(original.isRefresh(), forSliced.isRefresh());

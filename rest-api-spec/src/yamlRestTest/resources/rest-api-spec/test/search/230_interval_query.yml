@@ -479,8 +479,12 @@ setup:
 ---
 "Test regexp":
   - requires:
-      cluster_features: "gte_v8.16.0"
-      reason: "Implemented in 8.16"
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ range_regexp_interval_queries ]
+      reason: "Support for range and regexp interval queries capability required"
   - do:
       search:
         index: test
@@ -500,8 +504,12 @@ setup:
 ---
 "Test range":
   - requires:
-      cluster_features: "gte_v8.16.0"
-      reason: "Implemented in 8.16"
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ range_regexp_interval_queries ]
+      reason: "Support for range and regexp interval queries capability required"
   - do:
       search:
         index: test

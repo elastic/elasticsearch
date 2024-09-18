@@ -823,6 +823,14 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            if (out.getTransportVersion().before(TransportVersions.REGEX_AND_RANGE_INTERVAL_QUERIES)) {
+                throw new UnsupportedOperationException(
+                    "regex interval requires at least version "
+                        + TransportVersions.REGEX_AND_RANGE_INTERVAL_QUERIES
+                        + " but was "
+                        + out.getTransportVersion()
+                );
+            }
             out.writeString(pattern);
             out.writeOptionalString(analyzer);
             out.writeOptionalString(useField);
@@ -1122,6 +1130,14 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            if (out.getTransportVersion().before(TransportVersions.REGEX_AND_RANGE_INTERVAL_QUERIES)) {
+                throw new UnsupportedOperationException(
+                    "range interval requires at least version "
+                        + TransportVersions.REGEX_AND_RANGE_INTERVAL_QUERIES
+                        + " but was "
+                        + out.getTransportVersion()
+                );
+            }
             out.writeString(lowerTerm);
             out.writeString(upperTerm);
             out.writeBoolean(includeLower);

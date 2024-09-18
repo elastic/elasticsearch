@@ -74,9 +74,6 @@ class PostRecoveryMerger {
         }
 
         final var shardId = shardRouting.shardId();
-
-        logger.trace(Strings.format("wrapping listener for post-recovery merge of [%s]", shardId));
-
         return new PeerRecoveryTargetService.RecoveryListener() {
             @Override
             public void onRecoveryDone(
@@ -84,7 +81,6 @@ class PostRecoveryMerger {
                 ShardLongFieldRange timestampMillisFieldRange,
                 ShardLongFieldRange eventIngestedMillisFieldRange
             ) {
-                logger.trace(Strings.format("enqueueing post-recovery merge of [%s]", shardId));
                 postRecoveryMergeRunner.enqueueTask(new PostRecoveryMerge(shardId));
                 recoveryListener.onRecoveryDone(state, timestampMillisFieldRange, eventIngestedMillisFieldRange);
             }
@@ -105,7 +101,6 @@ class PostRecoveryMerger {
 
         @Override
         public void onResponse(Releasable releasable) {
-            logger.trace(Strings.format("attempting post-recovery merge of [%s]", shardId));
             try (releasable) {
                 final var indexShard = shardFunction.apply(shardId);
                 if (indexShard == null) {
@@ -125,7 +120,7 @@ class PostRecoveryMerger {
 
         private void logFailure(Exception e) {
             // post-recovery merge is a best-effort thing, failure needs no special handling
-            logger.debug(Strings.format("failed to execute post-recovery merge of [%s]", shardId), e);
+            logger.debug(() -> Strings.format("failed to execute post-recovery merge of [%s]", shardId), e);
         }
     }
 }

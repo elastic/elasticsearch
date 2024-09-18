@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.bulk;
@@ -44,6 +45,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.node.NodeClosedException;
@@ -478,7 +480,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             }
 
             private void processFailure(BulkItemRequest bulkItemRequest, Exception cause) {
-                var errorType = ElasticsearchException.getExceptionName(ExceptionsHelper.unwrapCause(cause));
+                var error = ExceptionsHelper.unwrapCause(cause);
+                var errorType = ElasticsearchException.getExceptionName(error);
                 DocWriteRequest<?> docWriteRequest = bulkItemRequest.request();
                 DataStream failureStoreCandidate = getRedirectTargetCandidate(docWriteRequest, getClusterState().metadata());
                 // If the candidate is not null, the BulkItemRequest targets a data stream, but we'll still have to check if
@@ -486,7 +489,9 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 if (failureStoreCandidate != null) {
                     // Do not redirect documents to a failure store that were already headed to one.
                     var isFailureStoreDoc = docWriteRequest instanceof IndexRequest indexRequest && indexRequest.isWriteToFailureStore();
-                    if (isFailureStoreDoc == false && failureStoreCandidate.isFailureStoreEnabled()) {
+                    if (isFailureStoreDoc == false
+                        && failureStoreCandidate.isFailureStoreEnabled()
+                        && error instanceof VersionConflictEngineException == false) {
                         // Redirect to failure store.
                         maybeMarkFailureStoreForRollover(failureStoreCandidate);
                         addDocumentToRedirectRequests(bulkItemRequest, cause, failureStoreCandidate.getName());

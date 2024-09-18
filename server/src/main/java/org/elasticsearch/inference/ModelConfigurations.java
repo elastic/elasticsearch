@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.inference;
@@ -126,7 +127,6 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         if (params.paramAsBoolean(USE_ID_FOR_INDEX, false)) {
             builder.field(INDEX_ONLY_ID_FIELD_NAME, inferenceEntityId);
         } else {
-            builder.field(INDEX_ONLY_ID_FIELD_NAME, inferenceEntityId);
             builder.field(INFERENCE_ID_FIELD_NAME, inferenceEntityId);
         }
         builder.field(TaskType.NAME, taskType.toString());
@@ -143,7 +143,6 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         if (params.paramAsBoolean(USE_ID_FOR_INDEX, false)) {
             builder.field(INDEX_ONLY_ID_FIELD_NAME, inferenceEntityId);
         } else {
-            builder.field(INDEX_ONLY_ID_FIELD_NAME, inferenceEntityId);
             builder.field(INFERENCE_ID_FIELD_NAME, inferenceEntityId);
         }
         builder.field(TaskType.NAME, taskType.toString());

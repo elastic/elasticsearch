@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -297,7 +298,7 @@ public final class DocumentParser {
 
         if (context.parent().isNested()) {
             // Handle a nested object that doesn't contain an array. Arrays are handled in #parseNonDynamicArray.
-            if (context.parent().storeArraySource() && context.mappingLookup().isSourceSynthetic() && context.getClonedSource() == false) {
+            if (context.parent().storeArraySource() && context.canAddIgnoredField()) {
                 Tuple<DocumentParserContext, XContentBuilder> tuple = XContentDataHelper.cloneSubContext(context);
                 context.addIgnoredField(
                     new IgnoredSourceFieldMapper.NameValue(
@@ -441,7 +442,9 @@ public final class DocumentParser {
                 parseObjectOrNested(context.createFlattenContext(currentFieldName));
                 context.path().add(currentFieldName);
             } else {
-                if (context.canAddIgnoredField() && fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK) {
+                if (context.canAddIgnoredField()
+                    && (fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK
+                        || (context.isWithinCopyTo() == false && context.isCopyToDestinationField(mapper.fullPath())))) {
                     Tuple<DocumentParserContext, XContentBuilder> contextWithSourceToStore = XContentDataHelper.cloneSubContext(context);
 
                     context.addIgnoredField(
@@ -646,7 +649,7 @@ public final class DocumentParser {
                         context.addIgnoredField(
                             IgnoredSourceFieldMapper.NameValue.fromContext(
                                 context,
-                                currentFieldName,
+                                context.path().pathAsText(currentFieldName),
                                 XContentDataHelper.encodeToken(context.parser())
                             )
                         );
@@ -685,29 +688,33 @@ public final class DocumentParser {
     ) throws IOException {
         // Check if we need to record the array source. This only applies to synthetic source.
         if (context.canAddIgnoredField()) {
+            String fullPath = context.path().pathAsText(arrayFieldName);
+
             boolean objectRequiresStoringSource = mapper instanceof ObjectMapper objectMapper
-                && (objectMapper.storeArraySource() || objectMapper.dynamic == ObjectMapper.Dynamic.RUNTIME);
+                && (objectMapper.storeArraySource()
+                    || (context.sourceKeepModeFromIndexSettings() == Mapper.SourceKeepMode.ARRAYS
+                        && objectMapper instanceof NestedObjectMapper == false)
+                    || objectMapper.dynamic == ObjectMapper.Dynamic.RUNTIME);
             boolean fieldWithFallbackSyntheticSource = mapper instanceof FieldMapper fieldMapper
                 && fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK;
+            boolean fieldWithStoredArraySource = mapper instanceof FieldMapper
+                && context.sourceKeepModeFromIndexSettings() == Mapper.SourceKeepMode.ARRAYS;
             boolean dynamicRuntimeContext = context.dynamic() == ObjectMapper.Dynamic.RUNTIME;
-            if (objectRequiresStoringSource || fieldWithFallbackSyntheticSource || dynamicRuntimeContext) {
+            boolean copyToFieldHasValuesInDocument = context.isWithinCopyTo() == false && context.isCopyToDestinationField(fullPath);
+            if (objectRequiresStoringSource
+                || fieldWithFallbackSyntheticSource
+                || dynamicRuntimeContext
+                || fieldWithStoredArraySource
+                || copyToFieldHasValuesInDocument) {
                 Tuple<DocumentParserContext, XContentBuilder> tuple = XContentDataHelper.cloneSubContext(context);
                 context.addIgnoredField(
-                    IgnoredSourceFieldMapper.NameValue.fromContext(
-                        context,
-                        context.path().pathAsText(arrayFieldName),
-                        XContentDataHelper.encodeXContentBuilder(tuple.v2())
-                    )
+                    IgnoredSourceFieldMapper.NameValue.fromContext(context, fullPath, XContentDataHelper.encodeXContentBuilder(tuple.v2()))
                 );
                 context = tuple.v1();
             } else if (mapper instanceof ObjectMapper objectMapper
                 && (objectMapper.isEnabled() == false || objectMapper.dynamic == ObjectMapper.Dynamic.FALSE)) {
                     context.addIgnoredField(
-                        IgnoredSourceFieldMapper.NameValue.fromContext(
-                            context,
-                            context.path().pathAsText(arrayFieldName),
-                            XContentDataHelper.encodeToken(context.parser())
-                        )
+                        IgnoredSourceFieldMapper.NameValue.fromContext(context, fullPath, XContentDataHelper.encodeToken(context.parser()))
                     );
                     return;
                 }
@@ -742,7 +749,7 @@ public final class DocumentParser {
             final List<Mapper> mappers = context.getDynamicMappers(fullFieldName);
             if (mappers == null
                 || context.isFieldAppliedFromTemplate(fullFieldName)
-                || context.isCopyToField(fullFieldName)
+                || context.isCopyToDestinationField(fullFieldName)
                 || mappers.size() < MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING
                 || mappers.size() > MAX_DIMS_COUNT
                 // Anything that is NOT a number or anything that IS a number but not mapped to `float` should NOT be mapped to dense_vector
@@ -865,6 +872,7 @@ public final class DocumentParser {
                 // ignore copy_to that targets inference fields, values are already extracted in the coordinating node to perform inference.
                 continue;
             }
+
             // In case of a hierarchy of nested documents, we need to figure out
             // which document the field should go to
             LuceneDocument targetDoc = null;
@@ -897,14 +905,13 @@ public final class DocumentParser {
         if (fieldType != null) {
             // we haven't found a mapper with this name above, which means if a field type is found it is for sure a runtime field.
             assert fieldType.hasDocValues() == false && fieldType.isAggregatable() && fieldType.isSearchable();
-            return NO_OP_FIELDMAPPER;
+            return noopFieldMapper(fieldPath);
         }
         return null;
     }
 
-    private static final FieldMapper NO_OP_FIELDMAPPER = new FieldMapper(
-        "no-op",
-        new MappedFieldType("no-op", false, false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
+    private static FieldMapper noopFieldMapper(String path) {
+        return new FieldMapper("no-op", new MappedFieldType("no-op", false, false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
             @Override
             public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
                 throw new UnsupportedOperationException();
@@ -919,93 +926,84 @@ public final class DocumentParser {
             public Query termQuery(Object value, SearchExecutionContext context) {
                 throw new UnsupportedOperationException();
             }
-        },
-        FieldMapper.MultiFields.empty(),
-        FieldMapper.CopyTo.empty()
-    ) {
+        }, FieldMapper.BuilderParams.empty()) {
 
-        @Override
-        protected void parseCreateField(DocumentParserContext context) {
-            // Run-time fields are mapped to this mapper, so it needs to handle storing values for use in synthetic source.
-            // #parseValue calls this method once the run-time field is created.
-            if (context.dynamic() == ObjectMapper.Dynamic.RUNTIME && context.canAddIgnoredField()) {
-                try {
-                    context.addIgnoredField(
-                        IgnoredSourceFieldMapper.NameValue.fromContext(
-                            context,
-                            context.path().pathAsText(context.parser().currentName()),
-                            XContentDataHelper.encodeToken(context.parser())
-                        )
-                    );
-                } catch (IOException e) {
-                    throw new IllegalArgumentException("failed to parse run-time field under [" + context.path().pathAsText("") + " ]", e);
+            @Override
+            protected void parseCreateField(DocumentParserContext context) {
+                // Run-time fields are mapped to this mapper, so it needs to handle storing values for use in synthetic source.
+                // #parseValue calls this method once the run-time field is created.
+                if (context.dynamic() == ObjectMapper.Dynamic.RUNTIME && context.canAddIgnoredField()) {
+                    try {
+                        context.addIgnoredField(
+                            IgnoredSourceFieldMapper.NameValue.fromContext(context, path, XContentDataHelper.encodeToken(context.parser()))
+                        );
+                    } catch (IOException e) {
+                        throw new IllegalArgumentException(
+                            "failed to parse run-time field under [" + context.path().pathAsText("") + " ]",
+                            e
+                        );
+                    }
                 }
             }
-        }
 
-        @Override
-        public String fullPath() {
-            throw new UnsupportedOperationException();
-        }
+            @Override
+            public String fullPath() {
+                return path;
+            }
 
-        @Override
-        public String typeName() {
-            throw new UnsupportedOperationException();
-        }
+            @Override
+            public String typeName() {
+                throw new UnsupportedOperationException();
+            }
 
-        @Override
-        public MappedFieldType fieldType() {
-            throw new UnsupportedOperationException();
-        }
+            @Override
+            public MappedFieldType fieldType() {
+                throw new UnsupportedOperationException();
+            }
 
-        @Override
-        public MultiFields multiFields() {
-            throw new UnsupportedOperationException();
-        }
+            @Override
+            public MultiFields multiFields() {
+                throw new UnsupportedOperationException();
+            }
 
-        @Override
-        public Iterator<Mapper> iterator() {
-            throw new UnsupportedOperationException();
-        }
+            @Override
+            public Iterator<Mapper> iterator() {
+                throw new UnsupportedOperationException();
+            }
 
-        @Override
-        protected void doValidate(MappingLookup mappers) {
-            throw new UnsupportedOperationException();
-        }
+            @Override
+            protected void doValidate(MappingLookup mappers) {
+                throw new UnsupportedOperationException();
+            }
 
-        @Override
-        protected void checkIncomingMergeType(FieldMapper mergeWith) {
-            throw new UnsupportedOperationException();
-        }
+            @Override
+            protected void checkIncomingMergeType(FieldMapper mergeWith) {
+                throw new UnsupportedOperationException();
+            }
 
-        @Override
-        public Builder getMergeBuilder() {
-            throw new UnsupportedOperationException();
-        }
+            @Override
+            public Builder getMergeBuilder() {
+                throw new UnsupportedOperationException();
+            }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) {
-            throw new UnsupportedOperationException();
-        }
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) {
+                throw new UnsupportedOperationException();
+            }
 
-        @Override
-        protected String contentType() {
-            throw new UnsupportedOperationException();
-        }
+            @Override
+            protected String contentType() {
+                throw new UnsupportedOperationException();
+            }
 
-        @Override
-        protected SyntheticSourceMode syntheticSourceMode() {
-            // Opt out of fallback synthetic source implementation
-            // since there is custom logic in #parseCreateField()
-            return SyntheticSourceMode.NATIVE;
-        }
-
-        @Override
-        public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-            // Handled via IgnoredSourceFieldMapper infrastructure
-            return SourceLoader.SyntheticFieldLoader.NOTHING;
-        }
-    };
+            @Override
+            protected SyntheticSourceSupport syntheticSourceSupport() {
+                // Opt out of fallback synthetic source implementation
+                // since there is custom logic in #parseCreateField().
+                return new SyntheticSourceSupport.Native(SourceLoader.SyntheticFieldLoader.NOTHING);
+            }
+        };
+    }
 
     private static class NoOpObjectMapper extends ObjectMapper {
         NoOpObjectMapper(String name, String fullPath) {

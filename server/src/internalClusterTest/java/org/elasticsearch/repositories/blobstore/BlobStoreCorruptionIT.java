@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.blobstore;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -22,9 +24,11 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.Before;
 
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -65,17 +69,51 @@ public class BlobStoreCorruptionIT extends AbstractSnapshotIntegTestCase {
 
         // detect corruption by taking another snapshot
         if (corruptedFileType == RepositoryFileType.SHARD_GENERATION) {
-            corruptionDetectors.add(exceptionListener -> {
-                logger.info("--> taking another snapshot");
-                client().admin()
-                    .cluster()
-                    .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, randomIdentifier())
-                    .setWaitForCompletion(true)
-                    .execute(exceptionListener.map(createSnapshotResponse -> {
-                        assertNotEquals(SnapshotState.SUCCESS, createSnapshotResponse.getSnapshotInfo().state());
-                        return new ElasticsearchException("create-snapshot failed as expected");
-                    }));
-            });
+            if (Files.exists(corruptedFile)) {
+                corruptionDetectors.add(exceptionListener -> {
+                    logger.info("--> taking another snapshot");
+                    client().admin()
+                        .cluster()
+                        .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, randomIdentifier())
+                        .setWaitForCompletion(true)
+                        .execute(exceptionListener.map(createSnapshotResponse -> {
+                            assertNotEquals(SnapshotState.SUCCESS, createSnapshotResponse.getSnapshotInfo().state());
+                            return new ElasticsearchException("create-snapshot failed as expected");
+                        }));
+                });
+            } else {
+                corruptionDetectors.add(exceptionListener -> {
+                    logger.info("--> taking another snapshot");
+                    final var mockLog = MockLog.capture(BlobStoreRepository.class);
+                    mockLog.addExpectation(
+                        new MockLog.SeenEventExpectation(
+                            "fallback message",
+                            "org.elasticsearch.repositories.blobstore.BlobStoreRepository",
+                            Level.ERROR,
+                            "index [*] shard generation [*] in ["
+                                + repositoryName
+                                + "][*] not found - falling back to reading all shard snapshots"
+                        )
+                    );
+                    mockLog.addExpectation(
+                        new MockLog.SeenEventExpectation(
+                            "shard blobs list",
+                            "org.elasticsearch.repositories.blobstore.BlobStoreRepository",
+                            Level.ERROR,
+                            "read shard snapshots [*] due to missing shard generation [*] for index [*] in [" + repositoryName + "][*]"
+                        )
+                    );
+                    client().admin()
+                        .cluster()
+                        .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, randomIdentifier())
+                        .setWaitForCompletion(true)
+                        .execute(ActionListener.releaseAfter(exceptionListener.map(createSnapshotResponse -> {
+                            assertEquals(SnapshotState.SUCCESS, createSnapshotResponse.getSnapshotInfo().state());
+                            mockLog.assertAllExpectationsMatched();
+                            return new ElasticsearchException("create-snapshot logged errors as expected");
+                        }), mockLog));
+                });
+            }
         }
 
         // detect corruption by restoring the snapshot

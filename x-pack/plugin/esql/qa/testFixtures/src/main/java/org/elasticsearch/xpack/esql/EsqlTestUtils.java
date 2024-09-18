@@ -39,11 +39,15 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Range;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -667,5 +671,13 @@ public final class EsqlTestUtils {
             case 2 -> new Version(between(0, 100) + "." + between(0, 100) + "." + between(0, 100));
             default -> throw new IllegalArgumentException();
         };
+    }
+
+    public static WildcardLike wildcardLike(Expression left, String exp) {
+        return new WildcardLike(EMPTY, left, new WildcardPattern(exp));
+    }
+
+    public static RLike rlike(Expression left, String exp) {
+        return new RLike(EMPTY, left, new RLikePattern(exp));
     }
 }

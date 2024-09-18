@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.stats;
@@ -64,6 +65,7 @@ public class CCSUsageTelemetry {
     public static final String MRT_FEATURE = "mrt_on";
     public static final String ASYNC_FEATURE = "async";
     public static final String WILDCARD_FEATURE = "wildcards";
+    public static final String PIT_FEATURE = "pit";
 
     // The list of known Elastic clients. May be incomplete.
     public static final Set<String> KNOWN_CLIENTS = Set.of(
@@ -175,7 +177,7 @@ public class CCSUsageTelemetry {
         // The number of successful (not skipped) requests to this cluster.
         private final LongAdder count;
         private final LongAdder skippedCount;
-        // This is only over the successful requetss, skipped ones do not count here.
+        // This is only over the successful requests, skipped ones do not count here.
         private final LongMetric took;
 
         PerClusterCCSTelemetry(String clusterAlias) {

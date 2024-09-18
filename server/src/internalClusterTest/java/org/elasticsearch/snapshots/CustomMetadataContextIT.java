@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.snapshots;
 
@@ -106,7 +107,7 @@ public class CustomMetadataContextIT extends AbstractSnapshotIntegTestCase {
             .setWaitForCompletion(true)
             .get();
 
-        var metadata = clusterAdmin().prepareState().get().getState().getMetadata();
+        var metadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().getMetadata();
         logger.info("check that custom persistent metadata [{}] is correctly restored", metadata);
         if (isSnapshotMetadataSet) {
             assertThat(metadata.<SnapshotMetadata>custom(SnapshotMetadata.TYPE).getData(), equalTo("before_snapshot_s"));
@@ -127,7 +128,7 @@ public class CustomMetadataContextIT extends AbstractSnapshotIntegTestCase {
         internalCluster().fullRestart();
         ensureYellow();
 
-        var metadata = clusterAdmin().prepareState().get().getState().getMetadata();
+        var metadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().getMetadata();
         logger.info("check that gateway custom metadata [{}] survived full cluster restart", metadata);
         assertThat(metadata.<GatewayMetadata>custom(GatewayMetadata.TYPE).getData(), equalTo("before_restart_s_gw"));
         assertThat(metadata.<ApiMetadata>custom(ApiMetadata.TYPE), nullValue());
@@ -140,7 +141,7 @@ public class CustomMetadataContextIT extends AbstractSnapshotIntegTestCase {
             metadataBuilder.putCustom(NonApiMetadata.TYPE, new NonApiMetadata("before_restart_ns"));
         }));
 
-        var metadata = clusterAdmin().prepareState().get().getState().getMetadata();
+        var metadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().getMetadata();
         logger.info("check that api custom metadata [{}] is visible via api", metadata);
         assertThat(metadata.<ApiMetadata>custom(ApiMetadata.TYPE).getData(), equalTo("before_restart_s_gw"));
         assertThat(metadata.<NonApiMetadata>custom(NonApiMetadata.TYPE), nullValue());

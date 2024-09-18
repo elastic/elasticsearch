@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -841,18 +842,9 @@ public class ObjectMapper extends Mapper {
         public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
             return fields.stream()
                 .flatMap(SourceLoader.SyntheticFieldLoader::storedFieldLoaders)
-                .map(e -> Map.entry(e.getKey(), new StoredFieldLoader() {
-                    @Override
-                    public void advanceToDoc(int docId) {
-                        storedFieldLoadersHaveValues = false;
-                        e.getValue().advanceToDoc(docId);
-                    }
-
-                    @Override
-                    public void load(List<Object> newValues) {
-                        storedFieldLoadersHaveValues = true;
-                        e.getValue().load(newValues);
-                    }
+                .map(e -> Map.entry(e.getKey(), newValues -> {
+                    storedFieldLoadersHaveValues = true;
+                    e.getValue().load(newValues);
                 }));
         }
 
@@ -880,8 +872,6 @@ public class ObjectMapper extends Mapper {
 
             @Override
             public boolean advanceToDoc(int docId) throws IOException {
-                docValuesLoadersHaveValues = false;
-
                 boolean anyLeafHasDocValues = false;
                 for (DocValuesLoader docValueLoader : loaders) {
                     boolean leafHasValue = docValueLoader.advanceToDoc(docId);
@@ -930,8 +920,14 @@ public class ObjectMapper extends Mapper {
                 }
                 for (SourceLoader.SyntheticFieldLoader field : fields) {
                     if (field.hasValue()) {
-                        // Skip if the field source is stored separately, to avoid double-printing.
-                        orderedFields.computeIfAbsent(field.fieldName(), k -> new FieldWriter.FieldLoader(field));
+                        if (orderedFields.containsKey(field.fieldName()) == false) {
+                            orderedFields.put(field.fieldName(), new FieldWriter.FieldLoader(field));
+                        } else {
+                            // Skip if the field source is stored separately, to avoid double-printing.
+                            // Make sure to reset the state of loader so that values stored inside will not
+                            // be used after this document is finished.
+                            field.reset();
+                        }
                     }
                 }
 
@@ -947,12 +943,30 @@ public class ObjectMapper extends Mapper {
                 }
             }
             b.endObject();
+            softReset();
+        }
+
+        /**
+         * reset() is expensive since it will descend the hierarchy and reset the loader
+         * of every field.
+         * We perform a reset of a child field inside write() only when it is needed.
+         * We know that either write() or reset() was called for every field,
+         * so in the end of write() we can do this soft reset only.
+         */
+        private void softReset() {
+            storedFieldLoadersHaveValues = false;
+            docValuesLoadersHaveValues = false;
+            ignoredValuesPresent = false;
+        }
+
+        @Override
+        public void reset() {
+            softReset();
+            fields.forEach(SourceLoader.SyntheticFieldLoader::reset);
         }
 
         @Override
         public boolean setIgnoredValues(Map<String, List<IgnoredSourceFieldMapper.NameValue>> objectsWithIgnoredFields) {
-            ignoredValuesPresent = false;
-
             if (objectsWithIgnoredFields == null || objectsWithIgnoredFields.isEmpty()) {
                 return false;
             }

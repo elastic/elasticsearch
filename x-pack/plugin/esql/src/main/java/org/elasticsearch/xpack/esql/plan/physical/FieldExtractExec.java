@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -60,7 +59,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
     private FieldExtractExec(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
-            ((PlanStreamInput) in).readPhysicalPlanNode(),
+            in.readNamedWriteable(PhysicalPlan.class),
             in.readNamedWriteableCollectionAsList(Attribute.class)
         );
         // docValueAttributes are only used on the data node and never serialized.
@@ -69,7 +68,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
-        ((PlanStreamOutput) out).writePhysicalPlanNode(child());
+        out.writeNamedWriteable(child());
         out.writeNamedWriteableCollection(attributesToExtract());
         // docValueAttributes are only used on the data node and never serialized.
     }

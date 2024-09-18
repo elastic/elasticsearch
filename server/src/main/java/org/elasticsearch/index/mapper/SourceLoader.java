@@ -131,7 +131,6 @@ public interface SourceLoader {
                 .storedFieldLoaders()
                 .map(Map.Entry::getKey)
                 .collect(Collectors.toSet());
-            this.requiredStoredFields.add(IgnoredSourceFieldMapper.NAME);
             this.metrics = metrics;
         }
 

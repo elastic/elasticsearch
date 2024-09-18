@@ -1,0 +1,21 @@
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+
+esplugin {
+  name 'x-pack-kql'
+  description 'Elasticsearch Expanded Pack Plugin - KQL query'
+  classname 'org.elasticsearch.xpack.kql.KqlPlugin'
+  extendedPlugins = ['x-pack-core']
+}
+base {
+  archivesName = 'x-pack-kql'
+}
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+  compileOnly project(xpackModule('ql'))
+
+  testImplementation project(':test:framework')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+}
+

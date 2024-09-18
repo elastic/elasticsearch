@@ -132,7 +132,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
         var query = """
             FROM test
             METADATA _score
-            | WHERE qstr("content: fox")
+            | WHERE content MATCH "fox"
             | KEEP id, _score
             """;
 

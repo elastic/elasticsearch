@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -11,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.collect.Iterators;
@@ -21,6 +23,8 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -59,12 +63,15 @@ import static org.elasticsearch.core.Strings.format;
 public abstract class FieldMapper extends Mapper {
     private static final Logger logger = LogManager.getLogger(FieldMapper.class);
 
-    public static final Setting<Boolean> IGNORE_MALFORMED_SETTING = Setting.boolSetting(
-        "index.mapping.ignore_malformed",
-        false,
-        Property.IndexScope,
-        Property.ServerlessPublic
-    );
+    public static final Setting<Boolean> IGNORE_MALFORMED_SETTING = Setting.boolSetting("index.mapping.ignore_malformed", settings -> {
+        if (IndexSettings.MODE.get(settings) == IndexMode.LOGSDB
+            && IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.ENABLE_IGNORE_MALFORMED_LOGSDB)) {
+            return "true";
+        } else {
+            return "false";
+        }
+    }, Property.IndexScope, Property.ServerlessPublic);
+
     public static final Setting<Boolean> COERCE_SETTING = Setting.boolSetting(
         "index.mapping.coerce",
         false,
@@ -444,6 +451,80 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
+     * <p>
+     * Specifies the mode of synthetic source support by the mapper.
+     * <br>
+     * This is used to determine if a field mapper has support for
+     * constructing synthetic source.
+     * In case it doesn't (meaning {@link SyntheticSourceMode#FALLBACK}),
+     * we will store raw source data for this field as is
+     * and then use it for synthetic source.
+     * </p>
+     * <p>
+     * This method is final in order to support common use cases like fallback synthetic source and copy_to.
+     * Mappers that need custom support of synthetic source should override {@link #syntheticSourceSupport()}.
+     * </p>
+     * @return {@link SyntheticSourceMode}
+     */
+    final SyntheticSourceMode syntheticSourceMode() {
+        if (hasScript()) {
+            return SyntheticSourceMode.NATIVE;
+        }
+
+        if (builderParams.copyTo.copyToFields().isEmpty() == false) {
+            // When copy_to is used, we need to use fallback logic to store source of the field exactly.
+            // Otherwise, due to possible differences between synthetic source and stored source,
+            // values of fields that are destinations of copy_to would be different after reindexing.
+            return SyntheticSourceMode.FALLBACK;
+        }
+
+        return syntheticSourceSupport().mode();
+    }
+
+    /**
+     * Returns synthetic field loader for the mapper.
+     * If mapper does not support synthetic source, it is handled using generic implementation
+     * in {@link DocumentParser#parseObjectOrField} and {@link ObjectMapper#syntheticFieldLoader()}.
+     * <br>
+     *
+     * This method is final in order to support common use cases like fallback synthetic source.
+     * Mappers that need custom support of synthetic source should override {@link #syntheticSourceSupport()}.
+     *
+     * @return implementation of {@link SourceLoader.SyntheticFieldLoader}
+     */
+    @Override
+    public final SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        if (hasScript()) {
+            return SourceLoader.SyntheticFieldLoader.NOTHING;
+        }
+
+        if (syntheticSourceMode() == SyntheticSourceMode.FALLBACK) {
+            // Nothing because it is handled at `DocumentParser/ObjectMapper` level.
+            return SourceLoader.SyntheticFieldLoader.NOTHING;
+        }
+
+        return syntheticSourceSupport().loader();
+    }
+
+    /**
+     * <p>
+     * Returns implementation of synthetic source support for the mapper.
+     * <br>
+     * By default (meaning {@link SyntheticSourceSupport.Fallback}),
+     * an exact full copy of parsed field value is stored separately
+     * and used for synthetic source.
+     * </p>
+     * <p>
+     * Field mappers must override this method if they provide
+     * a more efficient field-specific implementation of synthetic source.
+     * </p>
+     * @return {@link SyntheticSourceMode}
+     */
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        return SyntheticSourceSupport.FALLBACK;
+    }
+
+    /**
      * Specifies the mode of synthetic source support by the mapper.
      *
      * <pre>
@@ -459,48 +540,33 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
-     * <p>
-     * Specifies the mode of synthetic source support by the mapper.
-     * <br>
-     * This is used to determine if a field mapper has support for
-     * constructing synthetic source.
-     * In case it doesn't (meaning {@link SyntheticSourceMode#FALLBACK}),
-     * we will store raw source data for this field as is
-     * and then use it for synthetic source.
-     * </p>
-     * <p>
-     * Field mappers must override this method if they provide
-     * a custom implementation of {@link #syntheticFieldLoader()}
-     * in order to use a more efficient field-specific implementation.
-     * </p>
-     * @return {@link SyntheticSourceMode}
+     * Interface that defines how a field supports synthetic source.
      */
-    protected SyntheticSourceMode syntheticSourceMode() {
-        return SyntheticSourceMode.FALLBACK;
-    }
-
-    /**
-     * Mappers override this method with native synthetic source support.
-     * If mapper does not support synthetic source, it is generated using generic implementation
-     * in {@link DocumentParser#parseObjectOrField} and {@link ObjectMapper#syntheticFieldLoader()}.
-     *
-     * @return implementation of {@link SourceLoader.SyntheticFieldLoader}
-     */
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        // If mapper supports synthetic source natively, it overrides this method,
-        // so we won't see those here.
-        if (syntheticSourceMode() == SyntheticSourceMode.FALLBACK) {
-            if (builderParams.copyTo.copyToFields().isEmpty() != true) {
-                throw new IllegalArgumentException(
-                    "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
-                );
+    protected sealed interface SyntheticSourceSupport permits SyntheticSourceSupport.Fallback, SyntheticSourceSupport.Native {
+        final class Fallback implements SyntheticSourceSupport {
+            @Override
+            public SyntheticSourceMode mode() {
+                return SyntheticSourceMode.FALLBACK;
             }
-            // Nothing because it is handled at `ObjectMapper` level.
-            return SourceLoader.SyntheticFieldLoader.NOTHING;
+
+            @Override
+            public SourceLoader.SyntheticFieldLoader loader() {
+                return null;
+            }
         }
 
-        return super.syntheticFieldLoader();
+        SyntheticSourceSupport FALLBACK = new Fallback();
+
+        record Native(SourceLoader.SyntheticFieldLoader loader) implements SyntheticSourceSupport {
+            @Override
+            public SyntheticSourceMode mode() {
+                return SyntheticSourceMode.NATIVE;
+            }
+        }
+
+        SyntheticSourceMode mode();
+
+        SourceLoader.SyntheticFieldLoader loader();
     }
 
     public static final class MultiFields implements Iterable<FieldMapper>, ToXContent {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.ingest.geoip;
 
@@ -35,7 +36,6 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
-import java.io.BufferedInputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -86,7 +86,7 @@ import static org.elasticsearch.ingest.geoip.GeoIpTaskState.getGeoIpTaskState;
  * if there is an old instance of this database then that is closed.
  * 4) Cleanup locally loaded databases that are no longer mentioned in {@link GeoIpTaskState}.
  */
-public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeable {
+public final class DatabaseNodeService implements IpDatabaseProvider, Closeable {
 
     private static final Logger logger = LogManager.getLogger(DatabaseNodeService.class);
 
@@ -220,7 +220,7 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
     }
 
     @Override
-    public GeoIpDatabase getDatabase(String name) {
+    public IpDatabase getDatabase(String name) {
         return getDatabaseReaderLazyLoader(name);
     }
 
@@ -379,11 +379,7 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
                 Path databaseFile = geoipTmpDirectory.resolve(databaseName);
                 // tarball contains <database_name>.mmdb, LICENSE.txt, COPYRIGHTS.txt and optional README.txt files.
                 // we store mmdb file as is and prepend database name to all other entries to avoid conflicts
-                try (
-                    TarInputStream is = new TarInputStream(
-                        new GZIPInputStream(new BufferedInputStream(Files.newInputStream(databaseTmpGzFile)), 8192)
-                    )
-                ) {
+                try (TarInputStream is = new TarInputStream(new GZIPInputStream(Files.newInputStream(databaseTmpGzFile), 8192))) {
                     TarInputStream.TarEntry entry;
                     while ((entry = is.getNextEntry()) != null) {
                         // there might be ./ entry in tar, we should skip it

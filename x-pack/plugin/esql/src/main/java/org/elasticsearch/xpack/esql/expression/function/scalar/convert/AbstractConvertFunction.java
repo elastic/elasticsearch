@@ -63,7 +63,7 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
      * Build the evaluator given the evaluator a multivalued field.
      */
     protected final ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
-        DataType sourceType = field().dataType();
+        DataType sourceType = field().dataType().widenSmallNumeric();
         var factory = factories().get(sourceType);
         if (factory == null) {
             throw EsqlIllegalArgumentException.illegalDataType(sourceType);
@@ -72,7 +72,7 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
     }
 
     @Override
-    protected final TypeResolution resolveType() {
+    protected TypeResolution resolveType() {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }

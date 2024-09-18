@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -248,7 +249,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         List<Throwable> errors = putTemplateDetail(request);
         assertThat(errors, is(empty()));
 
-        final Metadata metadata = clusterAdmin().prepareState().get().getState().metadata();
+        final Metadata metadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata();
         IndexTemplateMetadata template = metadata.templates().get(templateName);
         Map<String, AliasMetadata> aliasMap = template.getAliases();
         assertThat(aliasMap.size(), equalTo(1));
@@ -266,7 +267,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         putTemplateDetail(new PutRequest("test", "foo-1").patterns(singletonList("foo-*")).order(1));
         putTemplateDetail(new PutRequest("test", "foo-2").patterns(singletonList("foo-*")).order(2));
         putTemplateDetail(new PutRequest("test", "bar").patterns(singletonList("bar-*")).order(between(0, 100)));
-        final ClusterState state = clusterAdmin().prepareState().get().getState();
+        final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         assertThat(
             MetadataIndexTemplateService.findV1Templates(state.metadata(), "foo-1234", randomBoolean())
                 .stream()
@@ -296,7 +297,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             new PutRequest("testFindTemplatesWithHiddenIndices", "sneaky-hidden").patterns(singletonList("sneaky*"))
                 .settings(Settings.builder().put("index.hidden", true).build())
         );
-        final ClusterState state = clusterAdmin().prepareState().get().getState();
+        final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
 
         // hidden
         assertThat(
@@ -380,7 +381,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     public void testFindTemplatesWithDateMathIndex() throws Exception {
         client().admin().indices().prepareDeleteTemplate("*").get(); // Delete all existing templates
         putTemplateDetail(new PutRequest("testFindTemplatesWithDateMathIndex", "foo-1").patterns(singletonList("test-*")).order(1));
-        final ClusterState state = clusterAdmin().prepareState().get().getState();
+        final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
 
         assertThat(
             MetadataIndexTemplateService.findV1Templates(state.metadata(), "<test-{now/d}>", false)

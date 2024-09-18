@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.upgrades;
 
@@ -419,7 +420,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
         }
 
         final IndexVersion indexVersionCreated = indexVersionCreated(indexName);
-        if (indexVersionCreated.onOrAfter(IndexVersions.V_7_2_0)) {
+        if (indexVersionCreated.onOrAfter(IndexVersions.V_8_0_0)) {
             // index was created on a version that supports the replication of closed indices,
             // so we expect the index to be closed and replicated
             ensureGreen(indexName);
@@ -448,7 +449,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
             closeIndex(indexName);
         }
 
-        if (minimumIndexVersion().onOrAfter(IndexVersions.V_7_2_0)) {
+        if (minimumIndexVersion().onOrAfter(IndexVersions.V_8_0_0)) {
             // index is created on a version that supports the replication of closed indices,
             // so we expect the index to be closed and replicated
             ensureGreen(indexName);
@@ -483,9 +484,9 @@ public class RecoveryIT extends AbstractRollingTestCase {
             closeIndex(indexName);
         }
 
-        if (indexVersionCreated(indexName).onOrAfter(IndexVersions.V_7_2_0)) {
+        if (indexVersionCreated(indexName).onOrAfter(IndexVersions.V_8_0_0)) {
             // index was created on a version that supports the replication of closed indices, so we expect it to be closed and replicated
-            assertTrue(minimumIndexVersion().onOrAfter(IndexVersions.V_7_2_0));
+            assertTrue(minimumIndexVersion().onOrAfter(IndexVersions.V_8_0_0));
             ensureGreen(indexName);
             assertClosedIndex(indexName, true);
             if (CLUSTER_TYPE != ClusterType.OLD) {

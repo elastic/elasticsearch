@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -23,8 +24,6 @@ import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
@@ -34,7 +33,6 @@ import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
@@ -77,7 +75,6 @@ import static org.elasticsearch.common.time.DateUtils.toLong;
 /** A {@link FieldMapper} for dates. */
 public final class DateFieldMapper extends FieldMapper {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(DateFieldMapper.class);
     private static final Logger logger = LogManager.getLogger(DateFieldMapper.class);
 
     public static final String CONTENT_TYPE = "date";
@@ -339,20 +336,7 @@ public final class DateFieldMapper extends FieldMapper {
             try {
                 return fieldType.parse(nullValue.getValue());
             } catch (Exception e) {
-                if (indexCreatedVersion.onOrAfter(IndexVersions.V_8_0_0)) {
-                    throw new MapperParsingException("Error parsing [null_value] on field [" + leafName() + "]: " + e.getMessage(), e);
-                } else {
-                    DEPRECATION_LOGGER.warn(
-                        DeprecationCategory.MAPPINGS,
-                        "date_mapper_null_field",
-                        "Error parsing ["
-                            + nullValue.getValue()
-                            + "] as date in [null_value] on field ["
-                            + leafName()
-                            + "]); [null_value] will be ignored"
-                    );
-                    return null;
-                }
+                throw new MapperParsingException("Error parsing [null_value] on field [" + leafName() + "]: " + e.getMessage(), e);
             }
         }
 
@@ -1004,34 +988,18 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected SyntheticSourceMode syntheticSourceMode() {
-        return SyntheticSourceMode.NATIVE;
-    }
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        if (hasDocValues) {
+            var loader = new SortedNumericDocValuesSyntheticFieldLoader(fullPath(), leafName(), ignoreMalformed) {
+                @Override
+                protected void writeValue(XContentBuilder b, long value) throws IOException {
+                    b.value(fieldType().format(value, fieldType().dateTimeFormatter()));
+                }
+            };
 
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        if (hasScript()) {
-            return SourceLoader.SyntheticFieldLoader.NOTHING;
+            return new SyntheticSourceSupport.Native(loader);
         }
-        if (hasDocValues == false) {
-            throw new IllegalArgumentException(
-                "field ["
-                    + fullPath()
-                    + "] of type ["
-                    + typeName()
-                    + "] doesn't support synthetic source because it doesn't have doc values"
-            );
-        }
-        if (copyTo().copyToFields().isEmpty() != true) {
-            throw new IllegalArgumentException(
-                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
-            );
-        }
-        return new SortedNumericDocValuesSyntheticFieldLoader(fullPath(), leafName(), ignoreMalformed) {
-            @Override
-            protected void writeValue(XContentBuilder b, long value) throws IOException {
-                b.value(fieldType().format(value, fieldType().dateTimeFormatter()));
-            }
-        };
+
+        return super.syntheticSourceSupport();
     }
 }

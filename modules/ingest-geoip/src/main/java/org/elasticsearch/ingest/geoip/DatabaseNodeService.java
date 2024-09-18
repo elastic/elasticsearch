@@ -86,7 +86,7 @@ import static org.elasticsearch.ingest.geoip.GeoIpTaskState.getGeoIpTaskState;
  * if there is an old instance of this database then that is closed.
  * 4) Cleanup locally loaded databases that are no longer mentioned in {@link GeoIpTaskState}.
  */
-public final class DatabaseNodeService implements IpDatabaseProvider, Closeable {
+public final class DatabaseNodeService implements IpDatabaseProvider {
 
     private static final Logger logger = LogManager.getLogger(DatabaseNodeService.class);
 
@@ -235,9 +235,21 @@ public final class DatabaseNodeService implements IpDatabaseProvider, Closeable 
         return databases.get(key);
     }
 
-    @Override
-    public void close() throws IOException {
-        IOUtils.close(databases.values());
+    public void shutdown() throws IOException {
+        // this is a little 'fun' looking, but it's just adapting IOUtils.close() into something
+        // that can call a bunch of shutdown methods (rather than close methods)
+        final var loadersToShutdown = databases.values().stream().map(ShutdownCloseable::new).toList();
+        databases.clear();
+        IOUtils.close(loadersToShutdown);
+    }
+
+    private record ShutdownCloseable(DatabaseReaderLazyLoader loader) implements Closeable {
+        @Override
+        public void close() throws IOException {
+            if (loader != null) {
+                loader.shutdown();
+            }
+        }
     }
 
     void checkDatabases(ClusterState state) {
@@ -420,7 +432,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider, Closeable 
             DatabaseReaderLazyLoader loader = new DatabaseReaderLazyLoader(cache, file, recordedMd5);
             DatabaseReaderLazyLoader existing = databases.put(databaseFileName, loader);
             if (existing != null) {
-                existing.close();
+                existing.shutdown();
             } else {
                 // Loaded a database for the first time, so reload pipelines for which a database was not available:
                 Predicate<GeoIpProcessor.DatabaseUnavailableProcessor> predicate = p -> databaseFileName.equals(p.getDatabaseName());
@@ -458,7 +470,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider, Closeable 
                 logger.debug("database [{}] no longer exists, cleaning up...", staleEntry);
                 DatabaseReaderLazyLoader existing = databases.remove(staleEntry);
                 assert existing != null;
-                existing.close(true);
+                existing.shutdown(true);
             } catch (Exception e) {
                 logger.error(() -> "failed to clean database [" + staleEntry + "]", e);
             }

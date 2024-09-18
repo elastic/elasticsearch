@@ -785,7 +785,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertIngestDocument(originalIngestDocument, ingestDocument);
     }
 
-    private CheckedSupplier<GeoIpDatabase, IOException> loader(final String path) {
+    private CheckedSupplier<IpDatabase, IOException> loader(final String path) {
         var loader = loader(path, null);
         return () -> loader;
     }

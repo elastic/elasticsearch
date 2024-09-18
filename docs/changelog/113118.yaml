@@ -1,0 +1,5 @@
+pr: 113118
+summary: Adding `allowShardReordering` option to `SearchRequest`
+area: Search
+type: enhancement
+issues: []

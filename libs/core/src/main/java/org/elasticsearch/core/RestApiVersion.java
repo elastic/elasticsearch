@@ -22,14 +22,13 @@ public enum RestApiVersion {
 
     V_8(8),
 
+    @UpdateForV9 //remove all references to V_7 then delete this annotation
     V_7(7);
 
     public final byte major;
 
-    @UpdateForV9
-    // We need to bump current and previous to V_9 and V_8, respectively
-    private static final RestApiVersion CURRENT = V_8;
-    private static final RestApiVersion PREVIOUS = V_7;
+    private static final RestApiVersion CURRENT = V_9;
+    private static final RestApiVersion PREVIOUS = V_8;
 
     RestApiVersion(int major) {
         this.major = (byte) major;

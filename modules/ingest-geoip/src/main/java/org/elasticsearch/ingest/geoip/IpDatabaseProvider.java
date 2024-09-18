@@ -10,9 +10,9 @@
 package org.elasticsearch.ingest.geoip;
 
 /**
- * Provides construction and initialization logic for {@link GeoIpDatabase} instances.
+ * Provides construction and initialization logic for {@link IpDatabase} instances.
  */
-public interface GeoIpDatabaseProvider {
+public interface IpDatabaseProvider {
 
     /**
      * Determines if the given database name corresponds to an expired database. Expired databases will not be loaded.
@@ -30,5 +30,5 @@ public interface GeoIpDatabaseProvider {
      * @param name the name of the database to provide.
      * @return a ready-to-use database instance, or <code>null</code> if no database could be loaded.
      */
-    GeoIpDatabase getDatabase(String name);
+    IpDatabase getDatabase(String name);
 }

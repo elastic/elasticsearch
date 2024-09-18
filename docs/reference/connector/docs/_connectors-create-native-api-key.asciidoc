@@ -43,7 +43,7 @@ POST /_security/api_key
 ----
 POST _connector/_secret
 {
-  "value": encoded_api_key
+  "value": "encoded_api_key"
 }
 ----
 // TEST[skip:need to retrieve ids from the response]

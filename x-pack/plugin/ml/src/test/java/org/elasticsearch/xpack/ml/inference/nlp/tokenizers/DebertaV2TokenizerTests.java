@@ -28,7 +28,6 @@ public class DebertaV2TokenizerTests extends ESTestCase {
         DebertaV2Tokenizer.PAD_TOKEN,
         DebertaV2Tokenizer.SEPARATOR_TOKEN,
         DebertaV2Tokenizer.UNKNOWN_TOKEN,
-        "▁",
         "▁Ela",
         "stic",
         "search",
@@ -46,14 +45,14 @@ public class DebertaV2TokenizerTests extends ESTestCase {
         MASK_TOKEN,
         ".",
         "<0xC2>",
-        "<0xAD>"
+        "<0xAD>",
+        "▁"
     );
     private static final List<Double> TEST_CASE_SCORES = List.of(
         0.0,
         0.0,
         0.0,
         0.0,
-        -7.97025,
         -12.535264015197754,
         -12.300995826721191,
         -13.255199432373047,
@@ -71,7 +70,8 @@ public class DebertaV2TokenizerTests extends ESTestCase {
         0.0,
         -3.0,
         1.0,
-        2.0
+        2.0,
+        -7.97025
     );
 
     private List<String> tokenStrings(List<? extends DelimitedToken> tokens) {
@@ -140,8 +140,8 @@ public class DebertaV2TokenizerTests extends ESTestCase {
             assertThat(tokenization.tokenIds()[0], not(equalTo(3))); // not the unknown token
 
             tokenization = tokenizer.tokenize("🏁", Tokenization.Truncate.NONE, -1, 0, null).get(0);
-            assertThat(tokenStrings(tokenization.tokens().get(0)), contains("<0xE2>"));
-            assertThat(tokenization.tokenIds()[0], equalTo(3)); // the unknown token (not in the vocabulary)
+            assertThat(tokenStrings(tokenization.tokens().get(0)), contains("▁", "<0xF0>", "<0x9F>", "<0x8F>", "<0x81>"));
+            // contains the 4-byte sequence representing the emoji which is not in the vocab, due to byteFallback enabled
         }
     }
 

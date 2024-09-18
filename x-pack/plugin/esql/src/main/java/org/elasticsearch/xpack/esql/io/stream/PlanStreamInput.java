@@ -62,11 +62,11 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
 
     private final Map<Integer, Block> cachedBlocks = new HashMap<>();
 
-    private Attribute[] attributesCache = new Attribute[64];
+    private Attribute[] attributesCache = new Attribute[1024];
 
-    private EsField[] esFieldsCache = new EsField[64];
+    private EsField[] esFieldsCache = new EsField[1024];
 
-    private String[] stringCache = new String[64];
+    private String[] stringCache = new String[1024];
 
     // hook for nameId, where can cache and map, for now just return a NameId of the same long value.
     private final LongFunction<NameId> nameIdFunction;
@@ -279,10 +279,11 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
     }
 
     private String stringFromCache(int id) throws IOException {
-        if (stringCache[id] == null) {
+        String value = stringCache[id];
+        if (value == null) {
             throw new IOException("String not found in serialization cache [" + id + "]");
         }
-        return stringCache[id];
+        return value;
     }
 
     private void cacheString(int id, String string) {

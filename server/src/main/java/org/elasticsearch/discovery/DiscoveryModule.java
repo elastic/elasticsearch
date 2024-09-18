@@ -54,7 +54,6 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
@@ -68,10 +67,9 @@ public class DiscoveryModule extends AbstractModule {
     public static final String MULTI_NODE_DISCOVERY_TYPE = "multi-node";
     public static final String SINGLE_NODE_DISCOVERY_TYPE = "single-node";
 
-    public static final Setting<String> DISCOVERY_TYPE_SETTING = new Setting<>(
+    public static final Setting<String> DISCOVERY_TYPE_SETTING = Setting.simpleString(
         "discovery.type",
         MULTI_NODE_DISCOVERY_TYPE,
-        Function.identity(),
         Property.NodeScope
     );
 
@@ -82,10 +80,9 @@ public class DiscoveryModule extends AbstractModule {
 
     public static final String DEFAULT_ELECTION_STRATEGY = "default";
 
-    public static final Setting<String> ELECTION_STRATEGY_SETTING = new Setting<>(
+    public static final Setting<String> ELECTION_STRATEGY_SETTING = Setting.simpleString(
         "cluster.election.strategy",
         DEFAULT_ELECTION_STRATEGY,
-        Function.identity(),
         Property.NodeScope
     );
 

@@ -45,7 +45,7 @@ public class NodesStatsResponse extends BaseNodesXContentResponse<NodeStats> {
             .object(
                 "nodes",
                 getNodes().iterator(),
-                (ns, b) -> b.object(ns.getNode().getId(), ob -> ob.field("timestamp", ns.getTimestamp()).append(ns))
+                (b, ns) -> b.object(ns.getNode().getId(), ob -> ob.field("timestamp", ns.getTimestamp()).append(ns))
             );
     }
 

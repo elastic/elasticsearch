@@ -61,6 +61,16 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
     }
 
     /**
+     * Creates an object, with the specified {@code contents}
+     */
+    public ChunkedToXContentBuilder object(ToXContent contents) {
+        startObject();
+        append(contents);
+        endObject();
+        return this;
+    }
+
+    /**
      * Creates an object named {@code name}, with the contents set by {@code contents}
      */
     public ChunkedToXContentBuilder object(String name, Consumer<ChunkedToXContentBuilder> contents) {
@@ -73,7 +83,7 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
     /**
      * Creates an object, with the contents set by calling {@code create} on each item returned by {@code items}
      */
-    public <T> ChunkedToXContentBuilder object(Iterator<T> items, BiConsumer<? super T, ChunkedToXContentBuilder> create) {
+    public <T> ChunkedToXContentBuilder object(Iterator<T> items, BiConsumer<ChunkedToXContentBuilder, ? super T> create) {
         startObject();
         forEach(items, create);
         endObject();
@@ -94,7 +104,7 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
     /**
      * Creates an object named {@code name}, with the contents set by calling {@code create} on each item returned by {@code items}
      */
-    public <T> ChunkedToXContentBuilder object(String name, Iterator<T> items, BiConsumer<? super T, ChunkedToXContentBuilder> create) {
+    public <T> ChunkedToXContentBuilder object(String name, Iterator<T> items, BiConsumer<ChunkedToXContentBuilder, ? super T> create) {
         startObject(name);
         forEach(items, create);
         endObject();
@@ -132,7 +142,7 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
     /**
      * Creates an array, with the contents set by calling {@code create} on each item returned by {@code items}
      */
-    public <T> ChunkedToXContentBuilder array(Iterator<T> items, BiConsumer<? super T, ChunkedToXContentBuilder> create) {
+    public <T> ChunkedToXContentBuilder array(Iterator<T> items, BiConsumer<ChunkedToXContentBuilder, ? super T> create) {
         startArray();
         forEach(items, create);
         endArray();
@@ -153,9 +163,19 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
     /**
      * Creates an array named {@code name}, with the contents set by calling {@code create} on each item returned by {@code items}
      */
-    public <T> ChunkedToXContentBuilder array(String name, Iterator<T> items, BiConsumer<? super T, ChunkedToXContentBuilder> create) {
+    public <T> ChunkedToXContentBuilder array(String name, Iterator<T> items, BiConsumer<ChunkedToXContentBuilder, ? super T> create) {
         startArray(name);
         forEach(items, create);
+        endArray();
+        return this;
+    }
+
+    /**
+     * Creates an array named {@code name}, with the contents set by appending together the contents of {@code items}
+     */
+    public <T> ChunkedToXContentBuilder array(String name, Iterator<? extends ToXContent> items) {
+        startArray(name);
+        items.forEachRemaining(this::append);
         endArray();
         return this;
     }
@@ -205,8 +225,8 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
     /**
      * Adds chunks from an iterator. Each item is passed to {@code create} to add chunks to this builder.
      */
-    public <T> ChunkedToXContentBuilder forEach(Iterator<T> items, BiConsumer<? super T, ChunkedToXContentBuilder> create) {
-        items.forEachRemaining(t -> create.accept(t, this));
+    public <T> ChunkedToXContentBuilder forEach(Iterator<T> items, BiConsumer<ChunkedToXContentBuilder, ? super T> create) {
+        items.forEachRemaining(t -> create.accept(this, t));
         return this;
     }
 
@@ -226,21 +246,21 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
      * rather than the {@code params} given to this builder in the constructor.
      */
     public ChunkedToXContentBuilder appendEntries(Map<String, ?> map) {
-        return forEach(map.entrySet().iterator(), (e, b) -> b.field(e.getKey(), e.getValue()));
+        return forEach(map.entrySet().iterator(), (b, e) -> b.field(e.getKey(), e.getValue()));
     }
 
     /**
      * Each value in {@code map} is added to the builder as a separate object, named by its key.
      */
     public ChunkedToXContentBuilder appendXContentObjects(Map<String, ? extends ToXContent> map) {
-        return forEach(map.entrySet().iterator(), (e, b) -> b.object(e.getKey(), ob -> ob.append(e.getValue())));
+        return forEach(map.entrySet().iterator(), (b, e) -> b.object(e.getKey(), ob -> ob.append(e.getValue())));
     }
 
     /**
      * Each value in {@code map} is added to the builder as a separate field, named by its key.
      */
     public ChunkedToXContentBuilder appendXContentFields(Map<String, ? extends ToXContent> map) {
-        return forEach(map.entrySet().iterator(), (e, b) -> b.field(e.getKey()).append(e.getValue()));
+        return forEach(map.entrySet().iterator(), (b, e) -> b.field(e.getKey()).append(e.getValue()));
     }
 
     public ChunkedToXContentBuilder append(ToXContent xContent) {

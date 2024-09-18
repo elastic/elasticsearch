@@ -12,6 +12,7 @@ package org.elasticsearch.action.support.nodes;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentBuilder;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.xcontent.ToXContent;

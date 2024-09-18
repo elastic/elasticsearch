@@ -1538,7 +1538,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                     xb.object("indices", ob -> ob.append(indices().values().iterator()));
                 }
             })
-            .forEach(customs.entrySet().iterator(), (e, b) -> {
+            .forEach(customs.entrySet().iterator(), (b, e) -> {
                 if (e.getValue().context().contains(context)) {
                     b.object(e.getKey(), ob -> ob.append(e.getValue()));
                 }

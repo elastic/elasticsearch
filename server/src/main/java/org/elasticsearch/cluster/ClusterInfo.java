@@ -172,7 +172,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
                     ByteSizeValue.ofBytes(c.getValue())
                 )
             )
-            .object("shard_paths", dataPath.entrySet().iterator(), (c, xb) -> xb.field(c.getKey().toString(), c.getValue()))
+            .object("shard_paths", dataPath.entrySet().iterator(), (xb, c) -> xb.field(c.getKey().toString(), c.getValue()))
             .array("reserved_sizes", reservedSpace.entrySet().iterator(), c -> (builder, p) -> {
                 builder.startObject();
                 {

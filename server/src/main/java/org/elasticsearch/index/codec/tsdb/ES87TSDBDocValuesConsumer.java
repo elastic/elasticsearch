@@ -15,6 +15,7 @@ import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.codecs.lucene90.IndexedDISI;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.EmptyDocValuesProducer;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexFileNames;
@@ -106,7 +107,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
                 return DocValues.singleton(valuesProducer.getNumeric(field));
             }
         };
-        if (field.hasDocValuesSkipIndex()) {
+        if (field.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE) {
             writeSkipIndex(field, producer);
         }
 
@@ -322,7 +323,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
                 return DocValues.singleton(sortedOrds);
             }
         };
-        if (field.hasDocValuesSkipIndex()) {
+        if (field.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE) {
             writeSkipIndex(field, producer);
         }
         if (addTypeByte) {
@@ -483,7 +484,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
     }
 
     private void writeSortedNumericField(FieldInfo field, DocValuesProducer valuesProducer, long maxOrd) throws IOException {
-        if (field.hasDocValuesSkipIndex()) {
+        if (field.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE) {
             writeSkipIndex(field, valuesProducer);
         }
         if (maxOrd > -1) {
@@ -685,7 +686,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
     }
 
     private void writeSkipIndex(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
-        assert field.hasDocValuesSkipIndex();
+        assert field.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE;
         final long start = data.getFilePointer();
         final SortedNumericDocValues values = valuesProducer.getSortedNumeric(field);
         long globalMaxValue = Long.MIN_VALUE;

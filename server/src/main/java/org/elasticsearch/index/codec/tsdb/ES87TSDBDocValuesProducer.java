@@ -16,6 +16,7 @@ import org.apache.lucene.index.BaseTermsEnum;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
@@ -831,7 +832,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
                 throw new CorruptIndexException("Invalid field number: " + fieldNumber, meta);
             }
             byte type = meta.readByte();
-            if (info.hasDocValuesSkipIndex()) {
+            if (info.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE) {
                 skippers.put(info.name, readDocValueSkipperMeta(meta));
             }
             if (type == ES87TSDBDocValuesFormat.NUMERIC) {

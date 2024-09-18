@@ -54,7 +54,7 @@ public final class DeduplicatingFieldInfosFormat extends FieldInfosFormat {
                 fi.hasPayloads(),
                 fi.getIndexOptions(),
                 fi.getDocValuesType(),
-                fi.hasDocValuesSkipIndex(),
+                fi.docValuesSkipIndexType(),
                 fi.getDocValuesGen(),
                 internStringStringMap(fi.attributes()),
                 fi.getPointDimensionCount(),

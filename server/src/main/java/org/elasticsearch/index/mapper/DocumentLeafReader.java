@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
+import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
@@ -279,7 +280,7 @@ class DocumentLeafReader extends LeafReader {
             false,
             IndexOptions.NONE,
             DocValuesType.NONE,
-            false,
+            DocValuesSkipIndexType.NONE,
             -1,
             Collections.emptyMap(),
             0,

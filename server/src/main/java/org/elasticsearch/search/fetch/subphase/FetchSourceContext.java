@@ -345,7 +345,9 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
             builder.startObject();
             builder.array(INCLUDES_FIELD.getPreferredName(), includes);
             builder.array(EXCLUDES_FIELD.getPreferredName(), excludes);
-            builder.field(INCLUDE_VECTORS.getPreferredName(), includeVectors);
+            if (includeVectors != null) {
+                builder.field(INCLUDE_VECTORS.getPreferredName(), includeVectors);
+            }
             builder.endObject();
         } else {
             builder.value(false);

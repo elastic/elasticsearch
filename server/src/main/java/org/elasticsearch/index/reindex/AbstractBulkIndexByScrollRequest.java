@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
@@ -41,6 +42,18 @@ public abstract class AbstractBulkIndexByScrollRequest<Self extends AbstractBulk
      */
     protected AbstractBulkIndexByScrollRequest(SearchRequest searchRequest, boolean setDefaults) {
         super(searchRequest, setDefaults);
+        FetchSourceContext fetchSourceContext = searchRequest.source().fetchSource();
+        if (fetchSourceContext != null && fetchSourceContext.includeVectors() == null) {
+            searchRequest.source()
+                .fetchSource(
+                    FetchSourceContext.of(
+                        fetchSourceContext.fetchSource(),
+                        fetchSourceContext.includes(),
+                        fetchSourceContext.excludes(),
+                        true
+                    )
+                );
+        }
     }
 
     /**

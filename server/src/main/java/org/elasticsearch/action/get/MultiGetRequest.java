@@ -476,10 +476,10 @@ public class MultiGetRequest extends ActionRequest
                                 fetchSourceContext = fetchSourceContext == null
                                     ? FetchSourceContext.of(parser.booleanValue())
                                     : FetchSourceContext.of(
-                                    parser.booleanValue(),
-                                    fetchSourceContext.includes(),
-                                    fetchSourceContext.excludes()
-                                );
+                                        parser.booleanValue(),
+                                        fetchSourceContext.includes(),
+                                        fetchSourceContext.excludes()
+                                    );
                             } else if (token == Token.VALUE_STRING) {
                                 fetchSourceContext = FetchSourceContext.of(
                                     fetchSourceContext == null || fetchSourceContext.fetchSource(),

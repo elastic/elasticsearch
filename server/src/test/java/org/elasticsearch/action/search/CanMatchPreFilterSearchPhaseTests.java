@@ -557,7 +557,6 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             latch.await();
             ShardId[] expected = IntStream.range(0, shardIds.size()).boxed().map(shardIds::get).toArray(ShardId[]::new);
             if (shardToSkip.size() == expected.length) {
-                // we need at least one shard to produce the empty result for aggs
                 shardToSkip.remove(new ShardId("logs", "_na_", 0));
             }
             int shardId = 0;

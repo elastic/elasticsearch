@@ -340,7 +340,6 @@ Additionally, if the user's permission changes, you'll need to update or recreat
 [discrete#es-dls-overview-search-time-learn-more]
 ===== Learn more
 
-* <<es-dls-connectors-app-search>>
 * <<es-dls-e2e-guide>>
 * {ref}/document-level-security.html[Elasticsearch Document Level Security^]
 

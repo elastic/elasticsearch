@@ -21,7 +21,7 @@ import java.util.Map;
 /**
  * A {@link SourceProvider} that loads _source from a concurrent search.
  *
- * @warning: This is written under the assumption that individual segments are accessed by a single
+ * NOTE: This is written under the assumption that individual segments are accessed by a single
  * thread, even if separate segments may be searched concurrently. If we ever implement
  * within-segment concurrency this will have to work entirely differently.
  * **/

@@ -70,10 +70,14 @@ public abstract class LogsIndexModeRestTestIT extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     protected static Object getSetting(final RestClient client, final String indexName, final String setting) throws IOException {
         final Request request = new Request("GET", "/" + indexName + "/_settings?flat_settings=true&include_defaults=true");
-        final Map<String, Object> settings = ((Map<String, Map<String, Object>>) entityAsMap(client.performRequest(request)).get(indexName))
-            .get("settings");
-
-        return settings.get(setting);
+        Map<String, Object> response = entityAsMap(client.performRequest(request));
+        final Map<String, Object> settings = ((Map<String, Map<String, Object>>) response.get(indexName)).get("settings");
+        final Map<String, Object> defaults = ((Map<String, Map<String, Object>>) response.get(indexName)).get("defaults");
+        Object val = settings.get(setting);
+        if (val == null) {
+            val = defaults.get(setting);
+        }
+        return val;
     }
 
     protected static Response bulkIndex(final RestClient client, final String dataStreamName, final Supplier<String> bulkSupplier)

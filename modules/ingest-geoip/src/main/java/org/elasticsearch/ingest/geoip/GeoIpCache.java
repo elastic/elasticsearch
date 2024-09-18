@@ -9,7 +9,6 @@
 package org.elasticsearch.ingest.geoip;
 
 import com.maxmind.db.NodeCache;
-import com.maxmind.geoip2.model.AbstractResponse;
 
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
@@ -35,15 +34,15 @@ final class GeoIpCache {
      * something not being in the cache because the data doesn't exist in the database.
      */
     // visible for testing
-    static final AbstractResponse NO_RESULT = new AbstractResponse() {
+    static final Object NO_RESULT = new Object() {
         @Override
         public String toString() {
-            return "AbstractResponse[NO_RESULT]";
+            return "NO_RESULT";
         }
     };
 
     private final LongSupplier relativeNanoTimeProvider;
-    private final Cache<CacheKey, AbstractResponse> cache;
+    private final Cache<CacheKey, Object> cache;
     private final AtomicLong hitsTimeInNanos = new AtomicLong(0);
     private final AtomicLong missesTimeInNanos = new AtomicLong(0);
 
@@ -53,7 +52,7 @@ final class GeoIpCache {
             throw new IllegalArgumentException("geoip max cache size must be 0 or greater");
         }
         this.relativeNanoTimeProvider = relativeNanoTimeProvider;
-        this.cache = CacheBuilder.<CacheKey, AbstractResponse>builder().setMaximumWeight(maxSize).build();
+        this.cache = CacheBuilder.<CacheKey, Object>builder().setMaximumWeight(maxSize).build();
     }
 
     GeoIpCache(long maxSize) {
@@ -61,12 +60,12 @@ final class GeoIpCache {
     }
 
     @SuppressWarnings("unchecked")
-    <T extends AbstractResponse> T putIfAbsent(String ip, String databasePath, Function<String, AbstractResponse> retrieveFunction) {
+    <T> T putIfAbsent(String ip, String databasePath, Function<String, T> retrieveFunction) {
         // can't use cache.computeIfAbsent due to the elevated permissions for the jackson (run via the cache loader)
         CacheKey cacheKey = new CacheKey(ip, databasePath);
         long cacheStart = relativeNanoTimeProvider.getAsLong();
         // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
-        AbstractResponse response = cache.get(cacheKey);
+        Object response = cache.get(cacheKey);
         long cacheRequestTime = relativeNanoTimeProvider.getAsLong() - cacheStart;
 
         // populate the cache for this key, if necessary
@@ -93,7 +92,7 @@ final class GeoIpCache {
     }
 
     // only useful for testing
-    AbstractResponse get(String ip, String databasePath) {
+    Object get(String ip, String databasePath) {
         CacheKey cacheKey = new CacheKey(ip, databasePath);
         return cache.get(cacheKey);
     }

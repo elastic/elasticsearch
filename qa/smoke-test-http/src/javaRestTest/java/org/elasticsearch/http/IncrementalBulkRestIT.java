@@ -29,6 +29,14 @@ import static org.hamcrest.Matchers.equalTo;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 2, numClientNodes = 0)
 public class IncrementalBulkRestIT extends HttpSmokeTestCase {
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(IncrementalBulkService.INCREMENTAL_BULK.getKey(), true)
+            .build();
+    }
+
     public void testBulkMissingBody() throws IOException {
         Request request = new Request(randomBoolean() ? "POST" : "PUT", "/_bulk");
         request.setJsonEntity("");

@@ -195,9 +195,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testGetJob_GivenNoSuchJob
   issue: https://github.com/elastic/elasticsearch/issues/112730
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  method: test {yaml=reference/cluster/stats/line_1450}
-  issue: https://github.com/elastic/elasticsearch/issues/112732
 - class: org.elasticsearch.script.StatsSummaryTests
   method: testEqualsAndHashCode
   issue: https://github.com/elastic/elasticsearch/issues/112439

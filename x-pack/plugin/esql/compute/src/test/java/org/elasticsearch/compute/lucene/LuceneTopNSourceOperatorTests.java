@@ -13,6 +13,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSelector;
@@ -105,7 +106,8 @@ public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
             taskConcurrency,
             maxPageSize,
             limit,
-            sorts
+            sorts,
+            ScoreMode.TOP_DOCS
         );
     }
 

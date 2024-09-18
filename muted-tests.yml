@@ -247,6 +247,9 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.security.JdbcSqlSpecIT
   method: test {case-functions.testUcaseInline1}
   issue: https://github.com/elastic/elasticsearch/issues/112641
+- class: org.elasticsearch.xpack.sql.qa.security.JdbcSqlSpecIT
+  method: test {case-functions.testUcaseInline3}
+  issue: https://github.com/elastic/elasticsearch/issues/112643
 
 # Examples:
 #

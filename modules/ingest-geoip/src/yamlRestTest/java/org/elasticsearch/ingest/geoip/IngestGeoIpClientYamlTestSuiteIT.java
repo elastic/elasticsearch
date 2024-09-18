@@ -42,7 +42,6 @@ public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
     static final boolean useFixture = Booleans.parseBoolean(System.getProperty("geoip_use_service", "false")) == false;
 
     static GeoIpHttpFixture fixture = new GeoIpHttpFixture(useFixture);
-    static int clusterSize = 1;
 
     private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("reindex")
@@ -73,6 +72,10 @@ public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
         return ESClientYamlSuiteTestCase.createParameters();
     }
 
+    int getClusterSize() {
+        return cluster.getNumNodes();
+    }
+
     @Before
     @SuppressWarnings("unchecked")
     public void waitForDatabases() throws Exception {
@@ -85,7 +88,7 @@ public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
             assertThat(downloadStats.get("databases_count"), equalTo(4));
 
             Map<?, Map<?, ?>> nodes = (Map<?, Map<?, ?>>) response.get("nodes");
-            assertThat(nodes.size(), equalTo(clusterSize));
+            assertThat(nodes.size(), equalTo(getClusterSize()));
             for (Map<?, ?> node : nodes.values()) {
                 List<?> databases = ((List<?>) node.get("databases"));
                 assertThat(databases, notNullValue());

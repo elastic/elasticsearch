@@ -40,10 +40,6 @@ public class IngestGeoIpMixedClusterYamlTestSuiteIT extends IngestGeoIpClientYam
         .systemProperty("ingest.geoip.downloader.maxmind.endpoint.default", () -> fixture.getAddress(), s -> useFixture)
         .build();
 
-    static {
-        clusterSize = mixedCluster.getNumNodes();
-    }
-
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(fixture).around(mixedCluster);
 
@@ -54,6 +50,11 @@ public class IngestGeoIpMixedClusterYamlTestSuiteIT extends IngestGeoIpClientYam
     @Override
     protected String getTestRestCluster() {
         return mixedCluster.getHttpAddresses();
+    }
+
+    @Override
+    int getClusterSize() {
+        return mixedCluster.getNumNodes();
     }
 
     public IngestGeoIpMixedClusterYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

@@ -44,7 +44,7 @@ teardown:
             index.hidden: true
 
 ---
-"Reject auto-creation of dot-prefixed indices":
+"Deprecated auto-creation of dot-prefixed indices":
   - requires:
       test_runner_features: ["warnings", "headers"]
 
@@ -77,7 +77,7 @@ teardown:
           - message: foo
 
 ---
-"Reject auto-creation of dot-prefixed indices through pipelines":
+"Deprecated auto-creation of dot-prefixed indices through pipelines":
   - requires:
       test_runner_features: ["warnings", "headers"]
 
@@ -162,7 +162,7 @@ teardown:
         id: mypipeline
 
 ---
-"Reject index template that has a dot prefix index pattern":
+"Deprecated index template with a dot prefix index pattern":
   - requires:
       test_runner_features: ["warnings", "headers"]
 

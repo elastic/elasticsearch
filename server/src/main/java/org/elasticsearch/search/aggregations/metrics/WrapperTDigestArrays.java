@@ -29,6 +29,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class WrapperTDigestArrays implements TDigestArrays {
 
+    /**
+     * Default no-op CB instance of the wrapper.
+     *
+     * @deprecated This instance shouldn't be used, and will be removed after all usages are replaced.
+     */
+    @Deprecated
     public static final WrapperTDigestArrays INSTANCE = new WrapperTDigestArrays(new NoopCircuitBreaker("default-wrapper-tdigest-arrays"));
 
     private final CircuitBreaker breaker;

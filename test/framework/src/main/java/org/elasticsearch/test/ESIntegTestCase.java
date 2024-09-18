@@ -1864,7 +1864,15 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
         while (inFlightAsyncOperations.size() > MAX_IN_FLIGHT_ASYNC_INDEXES) {
             int waitFor = between(0, inFlightAsyncOperations.size() - 1);
-            safeAwait(inFlightAsyncOperations.remove(waitFor));
+            try {
+                assertTrue(
+                    "operation did not complete within timeout",
+                    inFlightAsyncOperations.remove(waitFor).await(60, TimeUnit.SECONDS)
+                );
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                fail(e, "interrupted while waiting for operation to complete");
+            }
         }
     }
 
@@ -2657,13 +2665,20 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * @return the result of running the {@link GetPipelineAction} on the given IDs, using the default {@link ESIntegTestCase#client()}.
      */
     protected static GetPipelineResponse getPipelines(String... ids) {
-        return safeGet(client().execute(GetPipelineAction.INSTANCE, new GetPipelineRequest(ids)));
+        return safeGet(client().execute(GetPipelineAction.INSTANCE, new GetPipelineRequest(TEST_REQUEST_TIMEOUT, ids)));
     }
 
     /**
      * Delete the ingest pipeline with the given {@code id}, the default {@link ESIntegTestCase#client()}.
      */
     protected static void deletePipeline(String id) {
-        assertAcked(safeGet(client().execute(DeletePipelineTransportAction.TYPE, new DeletePipelineRequest(id))));
+        assertAcked(
+            safeGet(
+                client().execute(
+                    DeletePipelineTransportAction.TYPE,
+                    new DeletePipelineRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, id)
+                )
+            )
+        );
     }
 }

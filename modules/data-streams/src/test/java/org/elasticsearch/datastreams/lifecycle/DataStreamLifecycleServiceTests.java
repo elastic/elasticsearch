@@ -365,10 +365,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         TransportRequest updateSettingsRequest = clientSeenRequests.get(1);
         assertThat(updateSettingsRequest, instanceOf(UpdateSettingsRequest.class));
         // Only the first generation index should be eligible for merging. The other have end dates in the future.
-        assertThat(
-            ((UpdateSettingsRequest) updateSettingsRequest).indices(),
-            arrayContaining(dataStream.getIndices().get(0).getName())
-        );
+        assertThat(((UpdateSettingsRequest) updateSettingsRequest).indices(), arrayContaining(dataStream.getIndices().get(0).getName()));
         assertThat(
             ((UpdateSettingsRequest) updateSettingsRequest).settings().keySet(),
             containsInAnyOrder(

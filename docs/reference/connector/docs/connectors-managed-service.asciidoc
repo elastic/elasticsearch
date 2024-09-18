@@ -170,7 +170,7 @@ POST .elastic-connectors/_update/connector_id
   }
 }
 ----
-// // TEST[skip:requires connector_id]
+// TEST[skip:requires connector_id]
 +
 . Go back to the Connectors page and navigate to the *Configuration* tab.
 . Scroll down to *Manage API key* and select *Generate API key*.

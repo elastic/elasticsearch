@@ -49,7 +49,7 @@ Number of segments to merge to. To fully merge the index, set to `1`.
 `index_codec`::
 (Optional, string)
 Codec used to compress the document store. The only accepted value is
-`best_compression`, which uses {wikipedia}/DEFLATE[DEFLATE] for a higher
+`best_compression`, which uses {wikipedia}/Zstd[ZSTD] for a higher
 compression ratio but slower stored fields performance. To use the default LZ4
 codec, omit this argument.
 +

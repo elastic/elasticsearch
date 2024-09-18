@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
@@ -301,6 +302,15 @@ public class Verifier {
         Set<Failure> failures,
         int level
     ) {
+        // unwrap filtered expression
+        if (e instanceof FilteredExpression fe) {
+            e = fe.delegate();
+            if (e.anyMatch(AggregateFunction.class::isInstance) == false) {
+                Expression filter = fe.filter();
+                failures.add(fail(filter, "WHERE clause allowed only for aggregate functions, none found in [{}]", e.sourceText()));
+            }
+            // TODO add verification for filter clause
+        }
         // found an aggregate, constant or a group, bail out
         if (e instanceof AggregateFunction af) {
             af.field().forEachDown(AggregateFunction.class, f -> {

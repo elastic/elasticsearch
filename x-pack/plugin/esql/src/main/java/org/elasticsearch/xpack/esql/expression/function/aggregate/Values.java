@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import java.io.IOException;
 import java.util.List;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 
@@ -59,6 +60,10 @@ public class Values extends AggregateFunction implements ToAggregator {
         super(source, v);
     }
 
+    private Values(Source source, Expression field, Expression filter) {
+        super(source, field, filter, emptyList());
+    }
+
     private Values(StreamInput in) throws IOException {
         super(in);
     }
@@ -70,12 +75,17 @@ public class Values extends AggregateFunction implements ToAggregator {
 
     @Override
     protected NodeInfo<Values> info() {
-        return NodeInfo.create(this, Values::new, field());
+        return NodeInfo.create(this, Values::new, field(), filter());
     }
 
     @Override
     public Values replaceChildren(List<Expression> newChildren) {
-        return new Values(source(), newChildren.get(0));
+        return new Values(source(), newChildren.get(0), newChildren.get(1));
+    }
+
+    @Override
+    public Values withFilter(Expression filter) {
+        return new Values(source(), field(), filter);
     }
 
     @Override

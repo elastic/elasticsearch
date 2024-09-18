@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -17,6 +18,7 @@ import org.elasticsearch.compute.aggregation.RateLongAggregatorFunctionSupplier;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -31,6 +33,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
 
+import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
@@ -53,7 +56,16 @@ public class Rate extends AggregateFunction implements OptionalArgument, ToAggre
         Expression timestamp,
         @Param(optional = true, name = "unit", type = { "time_duration" }, description = "the unit") Expression unit
     ) {
-        super(source, field, unit != null ? List.of(timestamp, unit) : List.of(timestamp));
+        this(source, field, Literal.TRUE, timestamp, unit);
+    }
+
+    // compatibility constructor used when reading from the stream
+    private Rate(Source source, Expression field, Expression filter, List<Expression> children) {
+        this(source, field, filter, children.get(0), children.get(1));
+    }
+
+    private Rate(Source source, Expression field, Expression filter, Expression timestamp, Expression unit) {
+        super(source, field, filter, unit != null ? List.of(timestamp, unit) : List.of(timestamp));
         this.timestamp = timestamp;
         this.unit = unit;
     }
@@ -62,15 +74,17 @@ public class Rate extends AggregateFunction implements OptionalArgument, ToAggre
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
-            in.readOptionalNamedWriteable(Expression.class)
+            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PER_AGGREGATE_FILTER)
+                ? in.readNamedWriteable(Expression.class)
+                : Literal.TRUE,
+            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PER_AGGREGATE_FILTER)
+                ? in.readNamedWriteableCollectionAsList(Expression.class)
+                : asList(in.readNamedWriteable(Expression.class), in.readOptionalNamedWriteable(Expression.class))
         );
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        source().writeTo(out);
-        out.writeNamedWriteable(field());
+    protected void deprecatedWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(timestamp);
         out.writeOptionalNamedWriteable(unit);
     }
@@ -92,18 +106,23 @@ public class Rate extends AggregateFunction implements OptionalArgument, ToAggre
     @Override
     public Rate replaceChildren(List<Expression> newChildren) {
         if (unit != null) {
+            if (newChildren.size() == 4) {
+                return new Rate(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
+            }
+            assert false : "expected 4 children for field, filter, @timestamp, and unit; got " + newChildren;
+            throw new IllegalArgumentException("expected 3 children for field, @timestamp, and unit; got " + newChildren);
+        } else {
             if (newChildren.size() == 3) {
                 return new Rate(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
             }
-            assert false : "expected 3 children for field, @timestamp, and unit; got " + newChildren;
-            throw new IllegalArgumentException("expected 3 children for field, @timestamp, and unit; got " + newChildren);
-        } else {
-            if (newChildren.size() == 2) {
-                return new Rate(source(), newChildren.get(0), newChildren.get(1), null);
-            }
-            assert false : "expected 2 children for field and @timestamp; got " + newChildren;
-            throw new IllegalArgumentException("expected 2 children for field and @timestamp; got " + newChildren);
+            assert false : "expected 3 children for field, filter and @timestamp; got " + newChildren;
+            throw new IllegalArgumentException("expected 3 children for field, filter and @timestamp; got " + newChildren);
         }
+    }
+
+    @Override
+    public Rate withFilter(Expression filter) {
+        return new Rate(source(), field(), filter, timestamp, unit);
     }
 
     @Override

@@ -212,6 +212,7 @@ PERCENT : '%';
 
 // move it in the main section if the feature gets promoted
 DEV_MATCH_OP : {this.isDevVersion()}? DEV_MATCH -> type(DEV_MATCH);
+NESTED_WHERE : {this.isDevVersion()}? WHERE -> type(WHERE);
 
 NAMED_OR_POSITIONAL_PARAM
     : PARAM (LETTER | UNDERSCORE) UNQUOTED_ID_BODY*

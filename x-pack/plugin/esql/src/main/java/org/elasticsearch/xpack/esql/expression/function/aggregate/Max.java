@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import java.io.IOException;
 import java.util.List;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
@@ -64,6 +65,10 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
         super(source, field);
     }
 
+    private Max(Source source, Expression field, Expression filter) {
+        super(source, field, filter, emptyList());
+    }
+
     private Max(StreamInput in) throws IOException {
         super(in);
     }
@@ -74,13 +79,18 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
     }
 
     @Override
+    public Max withFilter(Expression filter) {
+        return new Max(source(), field(), filter);
+    }
+
+    @Override
     protected NodeInfo<Max> info() {
-        return NodeInfo.create(this, Max::new, field());
+        return NodeInfo.create(this, Max::new, field(), filter());
     }
 
     @Override
     public Max replaceChildren(List<Expression> newChildren) {
-        return new Max(source(), newChildren.get(0));
+        return new Max(source(), newChildren.get(0), newChildren.get(1));
     }
 
     @Override

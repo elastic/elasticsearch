@@ -356,6 +356,18 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+
+    public void testAggFilterOnNonAggregates() {
+        assertEquals(
+            "1:36: WHERE clause allowed only for aggregate functions, none found in [emp_no + 1]",
+            error("from test | stats emp_no + 1 where languages > 1 by emp_no")
+        );
+        assertEquals(
+            "1:53: WHERE clause allowed only for aggregate functions, none found in [abs(emp_no + languages) % 2]",
+            error("from test | stats abs(emp_no + languages) % 2 WHERE languages > 1 by emp_no, languages")
+        );
+    }
+
     public void testGroupingInsideAggsAsAgg() {
         assertEquals(
             "1:18: can only use grouping function [bucket(emp_no, 5.)] part of the BY clause",

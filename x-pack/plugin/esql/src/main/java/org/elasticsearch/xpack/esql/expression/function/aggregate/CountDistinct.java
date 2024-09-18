@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -112,22 +113,33 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
                 + "same effect as a threshold of 40000. The default value is 3000."
         ) Expression precision
     ) {
-        super(source, field, precision != null ? List.of(precision) : List.of());
-        this.precision = precision;
+        this(source, field, Literal.TRUE, precision);
+    }
+
+    private CountDistinct(Source source, Expression field, Expression filter, Expression precision) {
+        this(source, field, filter, precision != null ? List.of(precision) : List.of());
+    }
+
+    private CountDistinct(Source source, Expression field, Expression filter, List<Expression> params) {
+        super(source, field, filter, params);
+        this.precision = params.size() > 0 ? params.get(0) : null;
     }
 
     private CountDistinct(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
-            in.readOptionalNamedWriteable(Expression.class)
+            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PER_AGGREGATE_FILTER)
+                ? in.readNamedWriteable(Expression.class)
+                : Literal.TRUE,
+            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PER_AGGREGATE_FILTER)
+                ? in.readNamedWriteableCollectionAsList(Expression.class)
+                : List.of(in.readOptionalNamedWriteable(Expression.class))
         );
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeNamedWriteable(field());
+    protected void deprecatedWriteTo(StreamOutput out) throws IOException {
         out.writeOptionalNamedWriteable(precision);
     }
 
@@ -138,12 +150,17 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
 
     @Override
     protected NodeInfo<CountDistinct> info() {
-        return NodeInfo.create(this, CountDistinct::new, field(), precision);
+        return NodeInfo.create(this, CountDistinct::new, field(), filter(), precision);
     }
 
     @Override
     public CountDistinct replaceChildren(List<Expression> newChildren) {
-        return new CountDistinct(source(), newChildren.get(0), newChildren.size() > 1 ? newChildren.get(1) : null);
+        return new CountDistinct(source(), newChildren.get(0), newChildren.get(1), newChildren.size() > 2 ? newChildren.get(2) : null);
+    }
+
+    @Override
+    public CountDistinct withFilter(Expression filter) {
+        return new CountDistinct(source(), field(), filter, precision);
     }
 
     @Override

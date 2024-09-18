@@ -15,6 +15,7 @@ import org.elasticsearch.compute.aggregation.spatial.SpatialCentroidGeoPointDocV
 import org.elasticsearch.compute.aggregation.spatial.SpatialCentroidGeoPointSourceValuesAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -46,11 +47,11 @@ public class SpatialCentroid extends SpatialAggregateFunction implements ToAggre
         examples = @Example(file = "spatial", tag = "st_centroid_agg-airports")
     )
     public SpatialCentroid(Source source, @Param(name = "field", type = { "geo_point", "cartesian_point" }) Expression field) {
-        super(source, field, false);
+        this(source, field, Literal.TRUE, false);
     }
 
-    private SpatialCentroid(Source source, Expression field, boolean useDocValues) {
-        super(source, field, useDocValues);
+    private SpatialCentroid(Source source, Expression field, Expression filter, boolean useDocValues) {
+        super(source, field, filter, useDocValues);
     }
 
     private SpatialCentroid(StreamInput in) throws IOException {
@@ -63,8 +64,13 @@ public class SpatialCentroid extends SpatialAggregateFunction implements ToAggre
     }
 
     @Override
+    public SpatialCentroid withFilter(Expression filter) {
+        return new SpatialCentroid(source(), field(), filter, useDocValues);
+    }
+
+    @Override
     public SpatialCentroid withDocValues() {
-        return new SpatialCentroid(source(), field(), true);
+        return new SpatialCentroid(source(), field(), filter(), true);
     }
 
     @Override

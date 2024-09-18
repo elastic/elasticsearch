@@ -2290,3 +2290,60 @@ from employees
 m:integer |a:double |x:integer
 74999     |48249.0  |0
 ;
+
+
+statsWithFiltering#[skip:-8.16.0,reason:implemented in 8.16]
+from employees
+| stats max = max(salary), max_f = max(salary) where salary < 50000, max_a = max(salary) where salary > 100,
+        min = min(salary), min_f = min(salary) where salary > 50000, min_a = min(salary) where salary > 100  
+;
+
+max:integer |max_f:integer |max_a:integer | min:integer | min_f:integer | min_a:integer
+74999       |49818         |74999         | 25324       | 50064         | 25324
+;
+
+statsWithEverythingFiltered#[skip:-8.16.0,reason:implemented in 8.16]
+from employees
+| stats max = max(salary), max_a = max(salary) where salary < 100,
+        min = min(salary), min_a = min(salary) where salary > 99999  
+;
+
+max:integer |max_a:integer|min:integer | min_a:integer
+74999       |null         |25324       | null        
+;
+
+statsWithBasicExpressionFiltered#[skip:-8.16.0,reason:implemented in 8.16]
+from employees
+| stats max = max(salary), max_f = max(salary) where salary < 50000,
+        min = min(salary), min_f = min(salary) where salary > 50000,
+        exp_p = max(salary) + 10000 where salary < 50000,
+        exp_m = min(salary) % 10000 where salary > 50000  
+;
+
+max:integer |max_f:integer|min:integer | min_f:integer|exp_p:integer | exp_m:integer
+74999       |49818        |25324       | 50064        |59818         | 64
+;
+
+statsWithExpressionOverFilters#[skip:-8.16.0,reason:implemented in 8.16]
+from employees
+| stats max = max(salary), max_f = max(salary) where salary < 50000,
+        min = min(salary), min_f = min(salary) where salary > 50000,
+        exp_gt = max(salary) - min(salary) where salary > 50000,
+        exp_lt = max(salary) - min(salary) where salary < 50000
+          
+;
+
+max:integer |max_f:integer | min:integer | min_f:integer |exp_gt:integer | exp_lt:integer
+74999       |49818         | 25324       | 50064         |24935          | 24494        
+;
+
+statsWithSubstitutedExpressionOverFilters#[skip:-8.16.0,reason:implemented in 8.16]
+from employees
+| stats sum = sum(salary), s_l = sum(salary) where salary < 50000, s_u = sum(salary) where salary > 50000,
+        count = count(salary), c_l = count(salary) where salary < 50000, c_u = count(salary) where salary > 50000, 
+        avg = round(avg(salary), 2), a_l = round(avg(salary), 2) where salary < 50000, a_u = round(avg(salary),2) where salary > 50000
+;
+
+sum:l   |s_l:l   | s_u:l   | count:l |c_l:l |c_u:l |avg:double |a_l:double | a_u:double
+4824855 |2220951 | 2603904 | 100     |58    |42    |48248.55   |38292.26   | 61997.71
+;

@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import java.io.IOException;
 import java.util.List;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
@@ -64,6 +65,10 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
         super(source, field);
     }
 
+    private Min(Source source, Expression field, Expression filter) {
+        super(source, field, filter, emptyList());
+    }
+
     private Min(StreamInput in) throws IOException {
         super(in);
     }
@@ -75,12 +80,17 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
 
     @Override
     protected NodeInfo<Min> info() {
-        return NodeInfo.create(this, Min::new, field());
+        return NodeInfo.create(this, Min::new, field(), filter());
     }
 
     @Override
     public Min replaceChildren(List<Expression> newChildren) {
-        return new Min(source(), newChildren.get(0));
+        return new Min(source(), newChildren.get(0), newChildren.get(1));
+    }
+
+    @Override
+    public Min withFilter(Expression filter) {
+        return new Min(source(), field(), filter);
     }
 
     @Override

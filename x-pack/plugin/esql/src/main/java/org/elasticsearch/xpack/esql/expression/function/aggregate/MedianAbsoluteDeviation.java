@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedi
 import java.io.IOException;
 import java.util.List;
 
+import static java.util.Collections.emptyList;
+
 public class MedianAbsoluteDeviation extends NumericAggregate implements SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -67,6 +69,10 @@ public class MedianAbsoluteDeviation extends NumericAggregate implements Surroga
         super(source, field);
     }
 
+    protected MedianAbsoluteDeviation(Source source, Expression field, Expression filter) {
+        super(source, field, filter, emptyList());
+    }
+
     private MedianAbsoluteDeviation(StreamInput in) throws IOException {
         super(in);
     }
@@ -78,12 +84,17 @@ public class MedianAbsoluteDeviation extends NumericAggregate implements Surroga
 
     @Override
     protected NodeInfo<MedianAbsoluteDeviation> info() {
-        return NodeInfo.create(this, MedianAbsoluteDeviation::new, field());
+        return NodeInfo.create(this, MedianAbsoluteDeviation::new, field(), filter());
     }
 
     @Override
     public MedianAbsoluteDeviation replaceChildren(List<Expression> newChildren) {
-        return new MedianAbsoluteDeviation(source(), newChildren.get(0));
+        return new MedianAbsoluteDeviation(source(), newChildren.get(0), newChildren.get(1));
+    }
+
+    @Override
+    public MedianAbsoluteDeviation withFilter(Expression filter) {
+        return new MedianAbsoluteDeviation(source(), field(), filter);
     }
 
     @Override

@@ -49,9 +49,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/110949
 - class: org.elasticsearch.multi_node.GlobalCheckpointSyncActionIT
   issue: https://github.com/elastic/elasticsearch/issues/111124
-- class: org.elasticsearch.cluster.PrevalidateShardPathIT
-  method: testCheckShards
-  issue: https://github.com/elastic/elasticsearch/issues/111134
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test021InstallPlugin
   issue: https://github.com/elastic/elasticsearch/issues/110343

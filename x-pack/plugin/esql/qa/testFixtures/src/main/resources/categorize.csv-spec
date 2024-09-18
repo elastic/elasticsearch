@@ -1,13 +1,15 @@
 categorize
 required_capability: categorize
 
+# Drop the category ID, because it's non-deterministic
 FROM sample_data
-  | STATS count=COUNT(), values=VALUES(message) BY category=CATEGORIZE(message)
+  | STATS count=COUNT(), values=MV_SORT(VALUES(message)) BY category=CATEGORIZE(message)
   | SORT count DESC, category ASC
+  | DROP category
 ;
 
-count:long | values:keyword                                                        | category:integer
-3          | [Connected to 10.1.0.1, Connected to 10.1.0.2, Connected to 10.1.0.3] | 0
-3          | [Connection error]                                                    | 1
-1          | [Disconnected]                                                        | 2
+count:long | values:keyword
+3          | [Connected to 10.1.0.1, Connected to 10.1.0.2, Connected to 10.1.0.3]
+3          | [Connection error]
+1          | [Disconnected]
 ;

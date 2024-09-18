@@ -84,7 +84,10 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeReadA
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
         Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(state, request.routing(), request.indices());
         Map<String, AliasFilter> indicesAndFilters = new HashMap<>();
-        Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(clusterState, request.indices());
+        Set<IndexNameExpressionResolver.ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(
+            clusterState,
+            request.indices()
+        );
         for (String index : concreteIndices) {
             final AliasFilter aliasFilter = indicesService.buildAliasFilter(clusterState, index, indicesAndAliases);
             final String[] aliases = indexNameExpressionResolver.indexAliases(

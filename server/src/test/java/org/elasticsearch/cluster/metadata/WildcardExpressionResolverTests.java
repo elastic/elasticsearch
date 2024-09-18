@@ -469,11 +469,11 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         );
         assertThat(
             newHashSet(IndexNameExpressionResolver.resolveExpressions(context, "_all")),
-            equalTo(newHashSet("testXXX", "testXYY", "testYYY"))
+            equalTo(newHashSet(new ResolvedExpression("testXXX", DATA), new ResolvedExpression("testXYY", DATA), new ResolvedExpression("testYYY", DATA)))
         );
         assertThat(
             newHashSet(IndexNameExpressionResolver.resolveExpressions(context, "_all$data")),
-            equalTo(newHashSet("testXXX", "testXYY", "testYYY"))
+            equalTo(newHashSet(new ResolvedExpression("testXXX", DATA), new ResolvedExpression("testXYY", DATA), new ResolvedExpression("testYYY", DATA)))
         );
         assertThat(
             newHashSet(IndexNameExpressionResolver.resolveExpressions(context, "_all$failures")),

@@ -23,6 +23,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -35,6 +38,8 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializingTestCase<IndexLifecycleExplainResponse> {
+    private static final Clock clock = Clock.systemUTC();
+    private static final Clock fixedClock = Clock.fixed(Instant.now(), ZoneOffset.UTC);
 
     static IndexLifecycleExplainResponse randomIndexExplainResponse() {
         final IndexLifecycleExplainResponse indexLifecycleExplainResponse;
@@ -43,9 +48,8 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
         } else {
             indexLifecycleExplainResponse = randomUnmanagedIndexExplainResponse();
         }
-        long now = System.currentTimeMillis();
         // So that now is the same for the duration of the test. See #84352
-        indexLifecycleExplainResponse.nowSupplier = () -> now;
+        indexLifecycleExplainResponse.clock = fixedClock;
         return indexLifecycleExplainResponse;
     }
 
@@ -109,10 +113,10 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
     public void testIndexAges() {
         IndexLifecycleExplainResponse unmanagedExplainResponse = randomUnmanagedIndexExplainResponse();
         assertThat(unmanagedExplainResponse.getLifecycleDate(), is(nullValue()));
-        assertThat(unmanagedExplainResponse.getAge(System::currentTimeMillis), is(TimeValue.MINUS_ONE));
+        assertThat(unmanagedExplainResponse.getAge(clock), is(TimeValue.MINUS_ONE));
 
         assertThat(unmanagedExplainResponse.getIndexCreationDate(), is(nullValue()));
-        assertThat(unmanagedExplainResponse.getTimeSinceIndexCreation(System::currentTimeMillis), is(nullValue()));
+        assertThat(unmanagedExplainResponse.getTimeSinceIndexCreation(clock), is(nullValue()));
 
         IndexLifecycleExplainResponse managedExplainResponse = IndexLifecycleExplainResponse.newManagedIndexResponse(
             "indexName",
@@ -136,19 +140,22 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
         );
         assertThat(managedExplainResponse.getLifecycleDate(), is(notNullValue()));
         Long now = 1_000_000L;
-        assertThat(managedExplainResponse.getAge(() -> now), is(notNullValue()));
+        assertThat(managedExplainResponse.getAge(clock), is(notNullValue()));
         assertThat(
-            managedExplainResponse.getAge(() -> now),
+            managedExplainResponse.getAge(clock),
             is(equalTo(TimeValue.timeValueMillis(now - managedExplainResponse.getLifecycleDate())))
         );
-        assertThat(managedExplainResponse.getAge(() -> 0L), is(equalTo(TimeValue.ZERO)));
+
+        Clock epochClock = Clock.fixed(Instant.EPOCH, ZoneOffset.UTC);
+
+        assertThat(managedExplainResponse.getAge(epochClock), is(equalTo(TimeValue.ZERO)));
         assertThat(managedExplainResponse.getIndexCreationDate(), is(notNullValue()));
-        assertThat(managedExplainResponse.getTimeSinceIndexCreation(() -> now), is(notNullValue()));
+        assertThat(managedExplainResponse.getTimeSinceIndexCreation(clock), is(notNullValue()));
         assertThat(
-            managedExplainResponse.getTimeSinceIndexCreation(() -> now),
+            managedExplainResponse.getTimeSinceIndexCreation(clock),
             is(equalTo(TimeValue.timeValueMillis(now - managedExplainResponse.getIndexCreationDate())))
         );
-        assertThat(managedExplainResponse.getTimeSinceIndexCreation(() -> 0L), is(equalTo(TimeValue.ZERO)));
+        assertThat(managedExplainResponse.getTimeSinceIndexCreation(epochClock), is(equalTo(TimeValue.ZERO)));
     }
 
     @Override

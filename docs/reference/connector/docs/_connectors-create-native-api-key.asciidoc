@@ -43,7 +43,7 @@ POST /_security/api_key
 ----
 POST _connector/_secret
 {
-  "value": <encoded_api_key>
+  "value": encoded_api_key
 }
 ----
 // TEST[skip:need to retrieve ids from the response]
@@ -52,10 +52,10 @@ POST _connector/_secret
 +
 [source, console,subs="+attributes"]
 ----
-PUT /_connector/<connector_id>/_api_key_id
+PUT /_connector/my_connector_id>/_api_key_id
 {
-  "api_key_id": "<API key id>",
-  "api_key_secret_id": "<secret id>"
+  "api_key_id": "API key_id",
+  "api_key_secret_id": "secret_id"
 }
 ----
 // TEST[skip:need to retrieve ids from the response]

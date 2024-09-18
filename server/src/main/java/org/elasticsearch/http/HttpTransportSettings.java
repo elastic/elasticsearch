@@ -28,29 +28,21 @@ import static org.elasticsearch.common.settings.Setting.stringListSetting;
 public final class HttpTransportSettings {
 
     public static final Setting<Boolean> SETTING_CORS_ENABLED = Setting.boolSetting("http.cors.enabled", false, Property.NodeScope);
-    public static final Setting<String> SETTING_CORS_ALLOW_ORIGIN = new Setting<>(
-        "http.cors.allow-origin",
-        "",
-        Function.identity(),
-        Property.NodeScope
-    );
+    public static final Setting<String> SETTING_CORS_ALLOW_ORIGIN = Setting.simpleString("http.cors.allow-origin", Property.NodeScope);
     public static final Setting<Integer> SETTING_CORS_MAX_AGE = intSetting("http.cors.max-age", 1728000, Property.NodeScope);
-    public static final Setting<String> SETTING_CORS_ALLOW_METHODS = new Setting<>(
+    public static final Setting<String> SETTING_CORS_ALLOW_METHODS = Setting.simpleString(
         "http.cors.allow-methods",
         "OPTIONS,HEAD,GET,POST,PUT,DELETE",
-        Function.identity(),
         Property.NodeScope
     );
-    public static final Setting<String> SETTING_CORS_ALLOW_HEADERS = new Setting<>(
+    public static final Setting<String> SETTING_CORS_ALLOW_HEADERS = Setting.simpleString(
         "http.cors.allow-headers",
         "X-Requested-With,Content-Type,Content-Length,Authorization,Accept,User-Agent,X-Elastic-Client-Meta",
-        Function.identity(),
         Property.NodeScope
     );
-    public static final Setting<String> SETTING_CORS_EXPOSE_HEADERS = new Setting<>(
+    public static final Setting<String> SETTING_CORS_EXPOSE_HEADERS = Setting.simpleString(
         "http.cors.expose-headers",
         "X-elastic-product",
-        Function.identity(),
         Property.NodeScope
     );
     public static final Setting<Boolean> SETTING_CORS_ALLOW_CREDENTIALS = Setting.boolSetting(

@@ -251,6 +251,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         this.bccMaxAmountOfCommits = STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.get(settings);
         this.bccUploadMaxSizeInBytes = STATELESS_UPLOAD_MAX_SIZE.get(settings).getBytes();
         this.useInternalFilesReplicatedContent = STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.get(settings);
+        logger.info("Lucene files headers/footers replication feature is {}", useInternalFilesReplicatedContent ? "enabled" : "disabled");
         this.bccSizeInMegabytesHistogram = telemetryProvider.getMeterRegistry()
             .registerLongHistogram(
                 BCC_TOTAL_SIZE_HISTOGRAM_METRIC,

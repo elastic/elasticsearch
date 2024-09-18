@@ -101,7 +101,7 @@ After your data is analyzed, click **Override settings**.
 Under **Edit field names**, assign `id` to the first column and `content` to the second.
 Click **Apply**, then **Import**.
 Name the index `test-data`, and click **Import**.
-Once the upload is complete, you will see an index named `test-data` with 182,469 documents.
+After the upload is complete, you will see an index named `test-data` with 182,469 documents.
 
 
 [discrete]
@@ -138,8 +138,9 @@ GET _tasks/<task_id>
 ------------------------------------------------------------
 // TEST[skip:TBD]
 
-Following this tutorial, it is recommended to cancel the reindexing process if you don't want to wait until it is fully complete which might take a long time for an inference endpoint with few assigned resources.
-You can test the feature even if you reindex only a subset of the data set - a few thousand data points for example - and generate embeddings for the subset.
+Reindexing large datasets can take a long time.
+You can test this workflow using only a subset of the dataset.
+Do this by cancelling the reindexing process, and only generating embeddings for the subset that was reindexed.
 The following API request will cancel the reindexing task:
 
 [source,console]

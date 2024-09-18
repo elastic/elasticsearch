@@ -161,9 +161,9 @@ GET _tasks/<task_id>
 
 You can also open the Trained Models UI, select the Pipelines tab under ELSER to follow the progress.
 
-Reindexing large datasets can take a long time. You can test this workflow using
-only a subset of the dataset. Do this by cancelling the reindexing process, and
-only generating embeddings for the subset that was reindexed.
+Reindexing large datasets can take a long time.
+You can test this workflow using only a subset of the dataset.
+Do this by cancelling the reindexing process, and only generating embeddings for the subset that was reindexed.
 The following API request will cancel the reindexing task:
 
 [source,console]

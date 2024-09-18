@@ -98,15 +98,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.kerberos.KerberosTicketValidatorTests
   method: testWhenKeyTabWithInvalidContentFailsValidation
   issue: https://github.com/elastic/elasticsearch/issues/112631
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=data_stream/10_data_stream_resolvability/Verify data stream resolvability in rollup search}
-  issue: https://github.com/elastic/elasticsearch/issues/113069
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=data_stream/10_data_stream_resolvability/Verify data stream resolvability rollup}
-  issue: https://github.com/elastic/elasticsearch/issues/113070
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: initializationError
-  issue: https://github.com/elastic/elasticsearch/issues/113071
 
 # Examples:
 #

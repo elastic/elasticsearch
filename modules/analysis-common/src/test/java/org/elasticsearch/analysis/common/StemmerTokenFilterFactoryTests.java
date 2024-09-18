@@ -13,7 +13,9 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.en.PorterStemFilter;
 import org.apache.lucene.analysis.snowball.SnowballFilter;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalysisTestsHelper;
@@ -23,15 +25,32 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.io.StringReader;
+import java.util.List;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.scaledRandomIntBetween;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
+
+    private ThreadContext threadContext;
+
+    @Before
+    public final void before() {
+        this.threadContext = new ThreadContext(Settings.EMPTY);
+        HeaderWarning.setThreadContext(threadContext);
+    }
+
+    @After
+    public final void after() {
+        HeaderWarning.removeThreadContext(threadContext);
+        threadContext = null;
+    }
 
     private static final CommonAnalysisPlugin PLUGIN = new CommonAnalysisPlugin();
 
@@ -102,5 +121,33 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
             () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings, PLUGIN)
         );
         assertEquals("Invalid stemmer class specified: [english, light_english]", e.getMessage());
+    }
+
+    public void testKpDeprecation() throws IOException {
+        IndexVersion v = IndexVersionUtils.randomVersion(random());
+        Settings settings = Settings.builder()
+            .put("index.analysis.filter.my_kp.type", "stemmer")
+            .put("index.analysis.filter.my_kp.language", "kp")
+            .put(SETTING_VERSION_CREATED, v)
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .build();
+
+        AnalysisTestsHelper.createTestAnalysisFromSettings(settings, PLUGIN);
+        final List<String> actualWarningStrings = threadContext.getResponseHeaders().get("Warning");
+        assertTrue(actualWarningStrings.stream().anyMatch(warning -> warning.contains("The [dutch_kp] stemmer is deprecated")));
+    }
+
+    public void testLovinsDeprecation() throws IOException {
+        IndexVersion v = IndexVersionUtils.randomVersion(random());
+        Settings settings = Settings.builder()
+            .put("index.analysis.filter.my_lovins.type", "stemmer")
+            .put("index.analysis.filter.my_lovins.language", "lovins")
+            .put(SETTING_VERSION_CREATED, v)
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .build();
+
+        AnalysisTestsHelper.createTestAnalysisFromSettings(settings, PLUGIN);
+        final List<String> actualWarningStrings = threadContext.getResponseHeaders().get("Warning");
+        assertTrue(actualWarningStrings.stream().anyMatch(warning -> warning.contains("The [lovins] stemmer is deprecated")));
     }
 }

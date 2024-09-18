@@ -247,7 +247,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         Map<String, String> originHeaders,
         AsyncExecutionId asyncExecutionId
     ) {
-        // MP TODO: add EsqlExecutionInfo here?
         return new EsqlQueryTask(
             id,
             type,
@@ -274,7 +273,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             asyncExecutionId,
             true, // is_running
             true, // isAsync
-            null  // MP TODO: is this what we want here? test this
+            null
         );
     }
 

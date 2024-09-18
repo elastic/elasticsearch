@@ -255,11 +255,10 @@ Which returns:
 ----
 // TEST[skip: cross-cluster testing env not set up]
 
-<1> How the long the entire search (across all clusters) took, in milliseconds.
+<1> How long the entire search (across all clusters) took, in milliseconds.
 <2> This section of counters shows all possible cluster search states and how many cluster
-searches are currently in that state. The clusters can be one of the following statuses: *running*,
-*successful* (searches on all shards were successful), *partial* (searches on at least
-one shard of the cluster was successful and at least one failed), *skipped* (the search
+searches are currently in that state. The clusters can have one of the following statuses: *running*,
+*successful* (searches on all shards were successful), *skipped* (the search
 failed on a cluster marked with `skip_unavailable`=`true`) or *failed* (the search
 failed on a cluster marked with `skip_unavailable`=`false`).
 <3> The `_clusters/details` section shows metadata about the search on each cluster.
@@ -269,7 +268,7 @@ it is identified as "(local)".
 which clusters have slower response times than others.
 <6> The shard details for the search on that cluster, including a count of shards that were
 skipped due to the can-match phase indicating it had no matching data so it did not need
-to be included in the full ESQL query.
+to be included in the full ES|QL query.
 <7> The index expression supplied by the user. If you provide a wildcard such as `my-index*`,
 this section will show the resolved index name(s) here, unless no matching indices could
 be found on that cluster, in which case the wildcard expression will be retained here.

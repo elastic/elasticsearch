@@ -21,9 +21,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.NoSeedNodeLeftException;
-import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
@@ -229,7 +226,7 @@ public class IndexResolver {
         if (failures != null) {
             Set<String> unavailableClusters = new HashSet<>();
             for (FieldCapabilitiesFailure failure : failures) {
-                if (isRemoteUnavailableException(failure.getException())) {
+                if (ExceptionsHelper.isRemoteUnavailableException(failure.getException())) {
                     for (String indexExpression : failure.getIndices()) {
                         if (indexExpression.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR) > 0) {
                             unavailableClusters.add(parseClusterAlias(indexExpression));
@@ -270,25 +267,6 @@ public class IndexResolver {
                 "Unable to parse one single valid index name from the provided index expression: [" + indexExpression + "]"
             );
         }
-    }
-
-    // MP TODO: - copied from TransportResolveClusterAction and CCSUsage - probably needs to go into ExceptionHelper?
-    private static boolean isRemoteUnavailableException(Exception e) {
-        Throwable unwrap = ExceptionsHelper.unwrap(
-            e,
-            ConnectTransportException.class,
-            NoSuchRemoteClusterException.class,
-            NoSeedNodeLeftException.class
-        );
-        if (unwrap != null) {
-            return true;
-        }
-        Throwable ill = ExceptionsHelper.unwrap(e, IllegalStateException.class, IllegalArgumentException.class);
-        if (ill != null && (ill.getMessage().contains("Unable to open any connections") || ill.getMessage().contains("unknown host"))) {
-            return true;
-        }
-        // doesn't look like any of the known remote exceptions
-        return false;
     }
 
     private boolean allNested(List<IndexFieldCapabilities> caps) {

@@ -110,6 +110,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         }
 
         NameValue cloneWithValue(BytesRef value) {
+            assert value() == null;
             return new NameValue(name, parentOffset, value, doc);
         }
     }

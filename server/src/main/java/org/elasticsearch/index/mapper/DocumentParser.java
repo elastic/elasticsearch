@@ -165,6 +165,7 @@ public final class DocumentParser {
             return;
         }
 
+        assert context.mappingLookup().isSourceSynthetic();
         try (
             XContentParser parser = XContentHelper.createParser(
                 parserConfiguration,

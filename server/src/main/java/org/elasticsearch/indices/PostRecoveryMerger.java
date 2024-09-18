@@ -10,6 +10,7 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
@@ -61,12 +62,18 @@ class PostRecoveryMerger {
     }
 
     PeerRecoveryTargetService.RecoveryListener maybeMergeAfterRecovery(
-        ShardId shardId,
+        ShardRouting shardRouting,
         PeerRecoveryTargetService.RecoveryListener recoveryListener
     ) {
         if (TRIGGER_MERGE_AFTER_RECOVERY == false) {
             return recoveryListener;
         }
+
+        if (shardRouting.isPromotableToPrimary() == false) {
+            return recoveryListener;
+        }
+
+        final var shardId = shardRouting.shardId();
 
         logger.trace(Strings.format("wrapping listener for post-recovery merge of [%s]", shardId));
 

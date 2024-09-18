@@ -52,7 +52,7 @@ class MaxmindGeoDataLookups {
         }
 
         @Override
-        protected Map<String, Object> transformResponse(final AnonymousIpResponse response) {
+        protected Map<String, Object> transform(final AnonymousIpResponse response) {
             boolean isHostingProvider = response.isHostingProvider();
             boolean isTorExitNode = response.isTorExitNode();
             boolean isAnonymousVpn = response.isAnonymousVpn();
@@ -94,7 +94,7 @@ class MaxmindGeoDataLookups {
         }
 
         @Override
-        protected Map<String, Object> transformResponse(final AsnResponse response) {
+        protected Map<String, Object> transform(final AsnResponse response) {
             Long asn = response.getAutonomousSystemNumber();
             String organizationName = response.getAutonomousSystemOrganization();
             Network network = response.getNetwork();
@@ -130,7 +130,7 @@ class MaxmindGeoDataLookups {
         }
 
         @Override
-        protected Map<String, Object> transformResponse(final CityResponse response) {
+        protected Map<String, Object> transform(final CityResponse response) {
             com.maxmind.geoip2.record.Country country = response.getCountry();
             com.maxmind.geoip2.record.City city = response.getCity();
             Location location = response.getLocation();
@@ -219,7 +219,7 @@ class MaxmindGeoDataLookups {
         }
 
         @Override
-        protected Map<String, Object> transformResponse(final ConnectionTypeResponse response) {
+        protected Map<String, Object> transform(final ConnectionTypeResponse response) {
             ConnectionTypeResponse.ConnectionType connectionType = response.getConnectionType();
 
             Map<String, Object> geoData = new HashMap<>();
@@ -243,7 +243,7 @@ class MaxmindGeoDataLookups {
         }
 
         @Override
-        protected Map<String, Object> transformResponse(final CountryResponse response) {
+        protected Map<String, Object> transform(final CountryResponse response) {
             com.maxmind.geoip2.record.Country country = response.getCountry();
             Continent continent = response.getContinent();
 
@@ -291,7 +291,7 @@ class MaxmindGeoDataLookups {
         }
 
         @Override
-        protected Map<String, Object> transformResponse(final DomainResponse response) {
+        protected Map<String, Object> transform(final DomainResponse response) {
             String domain = response.getDomain();
 
             Map<String, Object> geoData = new HashMap<>();
@@ -315,7 +315,7 @@ class MaxmindGeoDataLookups {
         }
 
         @Override
-        protected Map<String, Object> transformResponse(final EnterpriseResponse response) {
+        protected Map<String, Object> transform(final EnterpriseResponse response) {
             com.maxmind.geoip2.record.Country country = response.getCountry();
             com.maxmind.geoip2.record.City city = response.getCity();
             Location location = response.getLocation();
@@ -490,7 +490,7 @@ class MaxmindGeoDataLookups {
         }
 
         @Override
-        protected Map<String, Object> transformResponse(final IspResponse response) {
+        protected Map<String, Object> transform(final IspResponse response) {
             String isp = response.getIsp();
             String ispOrganization = response.getOrganization();
             String mobileNetworkCode = response.getMobileNetworkCode();
@@ -585,7 +585,7 @@ class MaxmindGeoDataLookups {
             if (resp == null) {
                 return Map.of();
             } else {
-                return transformResponse(resp);
+                return transform(resp);
             }
         }
 
@@ -605,6 +605,6 @@ class MaxmindGeoDataLookups {
          * @param response the non-null response that was retrieved
          * @return a mapping of properties for the ip from the response
          */
-        protected abstract Map<String, Object> transformResponse(RESPONSE response);
+        protected abstract Map<String, Object> transform(RESPONSE response);
     }
 }

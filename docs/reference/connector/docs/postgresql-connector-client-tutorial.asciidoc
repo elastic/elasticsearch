@@ -17,7 +17,7 @@ Refer to the list of available <<es-build-connector,self-managed connectors>>.
 
 [TIP]
 ====
-Want to get started quickly testing a self-managed self-managed connector using Docker Compose?
+Want to get started quickly testing a self-managed connector using Docker Compose?
 Refer to this https://github.com/elastic/connectors/tree/main/scripts/stack#readme[README] in the `elastic/connectors` repo for more information.
 ====
 
@@ -27,7 +27,7 @@ Refer to this https://github.com/elastic/connectors/tree/main/scripts/stack#read
 [discrete#es-postgresql-connector-client-tutorial-prerequisites-elastic]
 ===== Elastic prerequisites
 
-First, ensure you satisfy the <<es-build-connector-prerequisites, prerequisites>> for self-managed self-managed connectors.
+First, ensure you satisfy the <<es-build-connector-prerequisites, prerequisites>> for self-managed connectors.
 
 [discrete#es-postgresql-connector-client-tutorial-postgresql-prerequisites]
 ===== PostgreSQL prerequisites

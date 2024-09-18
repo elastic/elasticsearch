@@ -9,7 +9,7 @@ The following section provides a high-level overview of common architecture appr
 [discrete#es-connectors-overview-architecture-hybrid]
 === Hybrid architecture
 
-Data is synced to an Elastic Cloud deployment through managed connectors and/or self-managed self-managed connectors. 
+Data is synced to an Elastic Cloud deployment through managed connectors and/or self-managed connectors. 
 A self-managed search application exposes the relevant data that your end users are authorized to see in a search experience.
 
 Summary:
@@ -28,7 +28,7 @@ image::images/hybrid-architecture.png[align="center",width="50%"]
 [discrete#es-connectors-overview-architecture-self-managed]
 === Self-managed architecture
 
-Data is synced to an Elastic deployment through self-managed self-managed connectors. 
+Data is synced to an Elastic deployment through self-managed connectors. 
 A self-managed search application exposes the relevant data that your end users are authorized to see in a search experience.
 
 Summary:

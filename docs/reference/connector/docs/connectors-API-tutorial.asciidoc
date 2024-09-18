@@ -4,7 +4,7 @@
 <titleabbrev>API tutorial</titleabbrev>
 ++++
 
-Learn how to set up a self-managed self-managed connector using the {ref}/connector-apis.html[{es} Connector APIs].
+Learn how to set up a self-managed connector using the {ref}/connector-apis.html[{es} Connector APIs].
 
 For this example we'll use the connectors-postgresql,PostgreSQL connector to sync data from a PostgreSQL database to {es}.
 We'll spin up a simple PostgreSQL instance in Docker with some example data, create a connector, and sync the data to {es}.

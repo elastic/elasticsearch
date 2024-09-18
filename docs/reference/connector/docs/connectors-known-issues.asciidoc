@@ -7,7 +7,7 @@
 [discrete#es-connectors-known-issues-enterprie-search-service]
 === Enterprise Search service: self-managed connectors
 
-As of *8.10.0* self-managed self-managed connectors no longer require the Enterprise Search service to be running on your Elastic deployment.
+As of *8.10.0* self-managed connectors no longer require the Enterprise Search service to be running on your Elastic deployment.
 However, if you are upgrading connectors from versions _earlier than 8.9_, you'll need to run Enterprise Search once to migrate your connectors to the new format.
 
 Some points to note about this migration:
@@ -62,7 +62,7 @@ The following table shows the estimated RAM usage for loading IDs into memory.
 ** *Optimize* <<es-sync-rules,*sync rules*>>:
 *** Review and optimize sync rules to filter and reduce data retrieved from the source before syncing.
 +
-** *Use a self-managed self-managed connector* instead of a managed connector:
+** *Use a self-managed connector* instead of a managed connector:
 *** Because self-managed connectors run on your infrastructure, they are not subject to the same RAM limitations of the Enterprise Search node.
 
 * *Upgrades from deployments running on versions earlier than 8.9.0 can cause sync job failures*
@@ -153,7 +153,7 @@ POST /.elastic-connectors/_update/connector_id
 As a result, true document volume will be under-reported by a factor of 1024.
 +
 * *The following managed connectors will not run correctly on Elastic Cloud in 8.9.0.*
-They are still available as self-managed self-managed connectors.
+They are still available as self-managed connectors.
 ** Azure Blob Storage
 ** Confluence Cloud & Server
 ** Jira Cloud & Server

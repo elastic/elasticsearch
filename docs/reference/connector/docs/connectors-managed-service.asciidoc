@@ -191,10 +191,10 @@ The following example demonstrates how to use a managed connector on Elastic Clo
 [discrete#es-native-connectors-convert]
 === Convert a managed connector
 
-You can convert a managed connector to a self-managed self-managed connector to be run on your own infrastructure.
+You can convert a managed connector to a self-managed connector to be run on your own infrastructure.
 You'll find instructions in the UI on the connector index's overview page.
 
 [WARNING]
 ====
-Converting a managed connector to a self-managed self-managed connector is an irreversible operation!
+Converting a managed connector to a self-managed connector is an irreversible operation!
 ====

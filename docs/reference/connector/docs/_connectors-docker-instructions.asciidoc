@@ -1,4 +1,4 @@
-You can deploy the {service-name} connector as a self-managed self-managed connector using Docker.
+You can deploy the {service-name} connector as a self-managed connector using Docker.
 Follow these instructions.
 
 .*Step 1: Download sample configuration file*

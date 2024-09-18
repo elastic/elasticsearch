@@ -20,7 +20,7 @@ Once enabled, <<es-connectors-logs-view, you can view logs in Kibana>>.
 Configure the `log_level` user setting for Enterprise Search. See {cloud}/ec-manage-enterprise-search-settings.html[Add Enterprise Search user settings^] in the Elastic Cloud documentation.
 
 [discrete#es-connectors-logs-enable-self-managed]
-===== Self-managed self-managed connectors
+===== self-managed connectors
 
 Note that self-managed deployments and self-managed connector logs are written to `STDOUT`.
 

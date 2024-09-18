@@ -54,7 +54,7 @@ Expand the archive file and make individual uncompressed files available for the
 
 [NOTE]
 ====
-Currently, content extraction from large files via the Extraction Service is available for a subset of our **self-managed self-managed connectors**.
+Currently, content extraction from large files via the Extraction Service is available for a subset of our **self-managed connectors**.
 It is not available for managed connectors running on Elastic Cloud.
 This feature is in *beta*.
 ====
@@ -80,7 +80,7 @@ The data extraction service code is now available in this public repository: htt
 [discrete#es-connectors-content-extraction-available-connectors]
 ===== Available connectors
 
-Local content extraction is available for the following self-managed self-managed connectors:
+Local content extraction is available for the following self-managed connectors:
 
 include::_connectors-list-local-content-extraction.asciidoc[]
 

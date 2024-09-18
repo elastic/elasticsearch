@@ -13,7 +13,6 @@ import com.maxmind.db.DatabaseRecord;
 import com.maxmind.db.Network;
 import com.maxmind.db.NoCache;
 import com.maxmind.db.Reader;
-import com.maxmind.geoip2.model.AbstractResponse;
 import com.maxmind.geoip2.model.AnonymousIpResponse;
 import com.maxmind.geoip2.model.AsnResponse;
 import com.maxmind.geoip2.model.CityResponse;
@@ -200,10 +199,7 @@ class DatabaseReaderLazyLoader implements IpDatabase, Closeable {
     }
 
     @Nullable
-    private <T extends AbstractResponse> T getResponse(
-        String ipAddress,
-        CheckedBiFunction<Reader, String, Optional<T>, Exception> responseProvider
-    ) {
+    private <T> T getResponse(String ipAddress, CheckedBiFunction<Reader, String, Optional<T>, Exception> responseProvider) {
         return cache.putIfAbsent(ipAddress, databasePath.toString(), ip -> {
             try {
                 return responseProvider.apply(get(), ipAddress).orElse(null);

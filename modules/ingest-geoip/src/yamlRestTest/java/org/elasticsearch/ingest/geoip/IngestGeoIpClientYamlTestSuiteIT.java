@@ -39,9 +39,10 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
-    private static final boolean useFixture = Booleans.parseBoolean(System.getProperty("geoip_use_service", "false")) == false;
+    static final boolean useFixture = Booleans.parseBoolean(System.getProperty("geoip_use_service", "false")) == false;
 
-    private static GeoIpHttpFixture fixture = new GeoIpHttpFixture(useFixture);
+    static GeoIpHttpFixture fixture = new GeoIpHttpFixture(useFixture);
+    static int clusterSize = 1;
 
     private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("reindex")
@@ -73,6 +74,7 @@ public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
     }
 
     @Before
+    @SuppressWarnings("unchecked")
     public void waitForDatabases() throws Exception {
         putGeoipPipeline();
         assertBusy(() -> {
@@ -82,16 +84,17 @@ public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
             Map<?, ?> downloadStats = (Map<?, ?>) response.get("stats");
             assertThat(downloadStats.get("databases_count"), equalTo(4));
 
-            Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
-            assertThat(nodes.size(), equalTo(1));
-            Map<?, ?> node = (Map<?, ?>) nodes.values().iterator().next();
-            List<?> databases = ((List<?>) node.get("databases"));
-            assertThat(databases, notNullValue());
-            List<String> databaseNames = databases.stream().map(o -> (String) ((Map<?, ?>) o).get("name")).toList();
-            assertThat(
-                databaseNames,
-                containsInAnyOrder("GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "GeoLite2-ASN.mmdb", "MyCustomGeoLite2-City.mmdb")
-            );
+            Map<?, Map<?, ?>> nodes = (Map<?, Map<?, ?>>) response.get("nodes");
+            assertThat(nodes.size(), equalTo(clusterSize));
+            for (Map<?, ?> node : nodes.values()) {
+                List<?> databases = ((List<?>) node.get("databases"));
+                assertThat(databases, notNullValue());
+                List<String> databaseNames = databases.stream().map(o -> (String) ((Map<?, ?>) o).get("name")).toList();
+                assertThat(
+                    databaseNames,
+                    containsInAnyOrder("GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "GeoLite2-ASN.mmdb", "MyCustomGeoLite2-City.mmdb")
+                );
+            }
         });
     }
 

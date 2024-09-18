@@ -5844,6 +5844,32 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertEquals("Invalid order value in [mv_sort(v, o)], expected one of [ASC, DESC] but got [dsc]", iae.getMessage());
     }
 
+    public void testCheckPercentileFoldableSecondArgument() {
+        VerificationException e = expectThrows(VerificationException.class, () -> plan("""
+            from test
+            | stats x = percentile(languages, languages) by emp_no
+            """));
+        assertTrue(e.getMessage().startsWith("Found "));
+        final String header = "Found 1 problem\nline ";
+        assertEquals(
+            "2:35: second argument of [percentile(languages, languages)] must be a constant, received [languages]",
+            e.getMessage().substring(header.length())
+        );
+    }
+
+    public void testCheckCountDistinctFoldableSecondArgument() {
+        VerificationException e = expectThrows(VerificationException.class, () -> plan("""
+            from test
+            | stats x = count_distinct(languages, languages) by emp_no
+            """));
+        assertTrue(e.getMessage().startsWith("Found "));
+        final String header = "Found 1 problem\nline ";
+        assertEquals(
+            "2:39: second argument of [count_distinct(languages, languages)] must be a constant, received [languages]",
+            e.getMessage().substring(header.length())
+        );
+    }
+
     private Literal nullOf(DataType dataType) {
         return new Literal(Source.EMPTY, null, dataType);
     }

@@ -799,7 +799,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             b.endArray();
         });
         assertEquals("""
-            {"path":[{"stored":[{"leaf":10}]},{"stored":{"leaf":20}}]}""", syntheticSource);
+            {"path":{"stored":[{"leaf":10},{"leaf":20}]}}""", syntheticSource);
     }
 
     public void testDisabledObjectWithinHigherLevelArray() throws IOException {
@@ -895,7 +895,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             b.endArray();
         });
         assertEquals(String.format(Locale.ROOT, """
-            {"path":[{"to":[{"name":"A"},{"name":"B"}]},{"to":[{"name":"C"},{"name":"D"}]}]}""", booleanValue), syntheticSource);
+            {"path":{"to":[{"name":"A"},{"name":"B"},{"name":"C"},{"name":"D"}]}}""", booleanValue), syntheticSource);
     }
 
     public void testFallbackFieldWithinHigherLevelArray() throws IOException {
@@ -925,7 +925,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             b.endArray();
         });
         assertEquals(String.format(Locale.ROOT, """
-            {"path":[{"name":"A"},{"name":"B"},{"name":"C"},{"name":"D"}]}""", booleanValue), syntheticSource);
+            {"path":{"name":["A","B","C","D"]}}""", booleanValue), syntheticSource);
     }
 
     public void testFieldOrdering() throws IOException {

@@ -232,13 +232,12 @@ public final class DocumentParser {
             }
             fieldName = parser.currentName();
             String fullName = getCurrentPath(path, fieldName);
-            var leaf = fields.remove(fullName);
+            var leaf = fields.get(fullName);
             if (leaf != null) {
                 parser.nextToken();  // Advance the parser to the value to be read.
                 result.add(leaf.cloneWithValue(XContentDataHelper.encodeToken(parser)));
-            }
-            if (fields.isEmpty()) {
-                break;
+                parser.nextToken();  // Skip the token ending the value.
+                fieldName = null;
             }
             currentToken = parser.nextToken();
         }
@@ -792,16 +791,16 @@ public final class DocumentParser {
         final String lastFieldName,
         String arrayFieldName
     ) throws IOException {
+        String fullPath = context.path().pathAsText(arrayFieldName);
+
         // In synthetic source, if any array element requires storing its source as-is, it takes precedence over
         // other elements that are then skipped from the synthesized array source.
         // To prevent this, we pre-emptively track the top array (may contain more arrays in its elements),
         // and store it as a whole when any sub-object or sub-array requires storing its source.
-        context = context.maybeCloneForArray(arrayFieldName);
+        context = context.maybeCloneForArray(fullPath);
 
         // Check if we need to record the array source. This only applies to synthetic source.
         if (context.canAddIgnoredField()) {
-            String fullPath = context.path().pathAsText(arrayFieldName);
-
             boolean objectRequiresStoringSource = mapper instanceof ObjectMapper objectMapper
                 && (objectMapper.storeArraySource()
                     || (context.sourceKeepModeFromIndexSettings() == Mapper.SourceKeepMode.ARRAYS

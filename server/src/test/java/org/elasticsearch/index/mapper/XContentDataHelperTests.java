@@ -170,6 +170,11 @@ public class XContentDataHelperTests extends ESTestCase {
         xContentParser.nextToken();
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
         assertFalse(context.getRecordedSource());
+        var tuple = XContentDataHelper.cloneSubContextWithParser(context);
+        assertEquals(data, dataInParser(tuple.v1().parser()));
+        assertEquals(data, dataInParser(tuple.v2()));
+        assertTrue(tuple.v1().getRecordedSource());
+        assertFalse(context.getRecordedSource());
         DocumentParserContext parser = XContentDataHelper.cloneSubContextWithRecordedSource(context);
         assertTrue(parser.getRecordedSource());
     }

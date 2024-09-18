@@ -110,7 +110,7 @@ public abstract class DocumentParserContext {
     private final Set<String> ignoredFields;
     private final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues;
     private final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldsMissingValues;
-    private IgnoredSourceFieldMapper.NameValue arrayFieldMissingValue;
+    private String parentArrayField;
 
     private final Map<String, List<Mapper>> dynamicMappers;
     private final DynamicMapperSize dynamicMappersSize;
@@ -141,7 +141,7 @@ public abstract class DocumentParserContext {
         Set<String> ignoreFields,
         List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues,
         List<IgnoredSourceFieldMapper.NameValue> ignoredFieldsWithNoSource,
-        IgnoredSourceFieldMapper.NameValue arrayFieldWithNoSource,
+        String parentArrayField,
         Map<String, List<Mapper>> dynamicMappers,
         Map<String, ObjectMapper> dynamicObjectMappers,
         Map<String, List<RuntimeField>> dynamicRuntimeFields,
@@ -162,7 +162,7 @@ public abstract class DocumentParserContext {
         this.ignoredFields = ignoreFields;
         this.ignoredFieldValues = ignoredFieldValues;
         this.ignoredFieldsMissingValues = ignoredFieldsWithNoSource;
-        this.arrayFieldMissingValue = arrayFieldWithNoSource;
+        this.parentArrayField = parentArrayField;
         this.dynamicMappers = dynamicMappers;
         this.dynamicObjectMappers = dynamicObjectMappers;
         this.dynamicRuntimeFields = dynamicRuntimeFields;
@@ -186,7 +186,7 @@ public abstract class DocumentParserContext {
             in.ignoredFields,
             in.ignoredFieldValues,
             in.ignoredFieldsMissingValues,
-            in.arrayFieldMissingValue,
+            in.parentArrayField,
             in.dynamicMappers,
             in.dynamicObjectMappers,
             in.dynamicRuntimeFields,
@@ -305,21 +305,23 @@ public abstract class DocumentParserContext {
      * Adds an ignored field from the parser context, capturing an object or an array.
      *
      * In case of nested arrays, i.e. capturing an array within an array, elements tracked as ignored fields may interfere with
-     * the rest, as _ignored_source contents take precedence over regular field contents with the same leaf name. To prevent
-     * missing array elements from synthetic source, the top-level array gets captured as ignored field in this case, and
-     * the current parsing context is returned as-is, as it has been cloned earlier through {@link #maybeCloneForArray}.
+     * the rest, as ignored source contents take precedence over regular field contents with the same leaf name. To prevent
+     * missing array elements from synthetic source, all array elements get recorded in ignored source. Otherwise, just the value in
+     * current parsing context gets captured.
      *
-     * Otherwise, the current parsing context gets captured. A new parser sub-context gets created from the current
-     * {@link DocumentParserContext} and returned, indicating that the source for the sub-context has been captured, to avoid
-     * double-storing.
+     * In both cases, a new parser sub-context gets created from the current {@link DocumentParserContext} and returned, indicating
+     * that the source for the sub-context has been captured, to avoid double-storing parts of its contents to ignored source.
      */
     public final DocumentParserContext addIgnoredFieldFromContext(IgnoredSourceFieldMapper.NameValue ignoredFieldWithNoSource)
         throws IOException {
         if (canAddIgnoredField()) {
-            if (arrayFieldMissingValue != null && arrayFieldMissingValue.name().equals(ignoredFieldWithNoSource.name()) == false) {
-                // The field is within an array, store the full array instead.
-                ignoredFieldsMissingValues.add(arrayFieldMissingValue);
-                recordedSource = true;
+            if (parentArrayField != null
+                && parent != null
+                && parentArrayField.equals(parent.fullPath())
+                && parent instanceof NestedObjectMapper == false) {
+                // The field is an array element, store all the array elements.
+                ignoredFieldsMissingValues.add(ignoredFieldWithNoSource);
+                return XContentDataHelper.cloneSubContextWithRecordedSource(this);
             } else {
                 assert ignoredFieldWithNoSource != null;
                 assert ignoredFieldWithNoSource.value() == null;
@@ -340,13 +342,13 @@ public abstract class DocumentParserContext {
 
     /**
      * Clones the current context if this is the first array in the stack.
-     * Records the information for retrieving and storing the array source if needed.
+     * Records the full name of the array field, to check for sub-arrays.
      * Applies to synthetic source only.
      */
-    public final DocumentParserContext maybeCloneForArray(String leafName) throws IOException {
-        if (canAddIgnoredField() && arrayFieldMissingValue == null) {
+    public final DocumentParserContext maybeCloneForArray(String fullName) throws IOException {
+        if (canAddIgnoredField() && parentArrayField == null) {
             DocumentParserContext subcontext = switchParser(parser());
-            subcontext.arrayFieldMissingValue = IgnoredSourceFieldMapper.NameValue.fromContext(this, path().pathAsText(leafName), null);
+            subcontext.parentArrayField = fullName;
             return subcontext;
         }
         return this;

@@ -901,10 +901,9 @@ public class IndicesService extends AbstractLifecycleComponent
             (mapping, listener) -> {
                 assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
                     : "mapping update consumer only required by local shards recovery";
-                AcknowledgedRequest<PutMappingRequest> putMappingRequestAcknowledgedRequest = new PutMappingRequest().setConcreteIndex(
-                    shardRouting.index()
-                )
-                    .setConcreteIndex(shardRouting.index()) // concrete index - no name clash, it uses uuid
+                AcknowledgedRequest<PutMappingRequest> putMappingRequestAcknowledgedRequest = new PutMappingRequest()
+                    // concrete index - no name clash, it uses uuid
+                    .setConcreteIndex(shardRouting.index())
                     .source(mapping.source().string(), XContentType.JSON);
                 // concrete index - no name clash, it uses uuid
                 client.execute(

@@ -3373,6 +3373,11 @@ public class InternalEngine extends Engine {
         return ShardLongFieldRange.UNKNOWN;
     }
 
+    /**
+     * Add a listener for the translog location. The listener is notified when a commit covering the translog location
+     * is flushed (see also {@link #flushHoldingLock}). NOTE that flush does _not_ imply commit durability.
+     * If commit durability is desired, the caller must handle it separately.
+     */
     @Override
     public void addFlushListener(Translog.Location location, ActionListener<Long> listener) {
         this.flushListener.addOrNotify(location, new ActionListener<>() {
@@ -3381,7 +3386,7 @@ public class InternalEngine extends Engine {
                 // No need to wait for commit durability since the ONLY caller is PostWriteRefresh which
                 // requires the commit generation to be visible to search shards. Visibility does not require
                 // special logic for durability since nodes can talk to each other directly (RCO).
-                notWaitForCommitDurability(generation, listener.map(v -> generation));
+                checkGenerationFlushed(generation, listener.map(v -> generation));
             }
 
             @Override
@@ -3391,7 +3396,7 @@ public class InternalEngine extends Engine {
         });
     }
 
-    private void notWaitForCommitDurability(long generation, ActionListener<Void> listener) {
+    private void checkGenerationFlushed(long generation, ActionListener<Void> listener) {
         try {
             ensureOpen();
         } catch (AlreadyClosedException e) {
@@ -3410,7 +3415,7 @@ public class InternalEngine extends Engine {
      * The default implementation is basically a NOOP.
      */
     protected void waitForCommitDurability(long generation, ActionListener<Void> listener) {
-        notWaitForCommitDurability(generation, listener);
+        checkGenerationFlushed(generation, listener);
     }
 
     public long getLastUnsafeSegmentGenerationForGets() {

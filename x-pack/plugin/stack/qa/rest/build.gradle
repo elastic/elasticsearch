@@ -18,6 +18,6 @@ testClusters.configureEach {
   setting 'xpack.license.self_generated.type', 'trial'
 }
 
-tasks.named("yamlRestCompatTestTransform").configure({ task ->
+tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
   task.skipTest("stack/10_basic/Test kibana reporting index auto creation", "warning does not exist for compatibility")
 })

@@ -21,12 +21,11 @@ import com.maxmind.geoip2.model.IspResponse;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
-import java.net.InetAddress;
 
 /**
- * Provides a uniform interface for interacting with various GeoIP databases.
+ * Provides a uniform interface for interacting with various ip databases.
  */
-public interface GeoIpDatabase {
+public interface IpDatabase {
 
     /**
      * @return the database type as it is detailed in the database file metadata
@@ -40,7 +39,7 @@ public interface GeoIpDatabase {
      * @throws UnsupportedOperationException may be thrown if the implementation does not support retrieving city data
      */
     @Nullable
-    CityResponse getCity(InetAddress ipAddress);
+    CityResponse getCity(String ipAddress);
 
     /**
      * @param ipAddress the IP address to look up
@@ -48,7 +47,7 @@ public interface GeoIpDatabase {
      * @throws UnsupportedOperationException may be thrown if the implementation does not support retrieving country data
      */
     @Nullable
-    CountryResponse getCountry(InetAddress ipAddress);
+    CountryResponse getCountry(String ipAddress);
 
     /**
      * @param ipAddress the IP address to look up
@@ -57,22 +56,22 @@ public interface GeoIpDatabase {
      * @throws UnsupportedOperationException may be thrown if the implementation does not support retrieving ASN data
      */
     @Nullable
-    AsnResponse getAsn(InetAddress ipAddress);
+    AsnResponse getAsn(String ipAddress);
 
     @Nullable
-    AnonymousIpResponse getAnonymousIp(InetAddress ipAddress);
+    AnonymousIpResponse getAnonymousIp(String ipAddress);
 
     @Nullable
-    ConnectionTypeResponse getConnectionType(InetAddress ipAddress);
+    ConnectionTypeResponse getConnectionType(String ipAddress);
 
     @Nullable
-    DomainResponse getDomain(InetAddress ipAddress);
+    DomainResponse getDomain(String ipAddress);
 
     @Nullable
-    EnterpriseResponse getEnterprise(InetAddress ipAddress);
+    EnterpriseResponse getEnterprise(String ipAddress);
 
     @Nullable
-    IspResponse getIsp(InetAddress ipAddress);
+    IspResponse getIsp(String ipAddress);
 
     /**
      * Releases the current database object. Called after processing a single document. Databases should be closed or returned to a

@@ -22,6 +22,8 @@ PUT _connector/my-{service-name-stub}-connector
   "service_type": "{service-name-stub}"
 }
 ----
+// TEST[skip:can't test in isolation]
+
 
 .You'll also need to *create an API key* for the connector to use.
 

@@ -25,6 +25,7 @@ PUT _connector/my-{service-name-stub}-connector
   "is_native": "true"
 }
 ----
+// TEST[skip:can't test in isolation]
 
 .You'll also need to *create an API key* for the connector to use.
 

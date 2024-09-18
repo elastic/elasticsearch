@@ -160,7 +160,6 @@ public class DebertaV2TokenizerTests extends ESTestCase {
                 0,
                 null
             ).get(0);
-            System.out.println(tokenization.tokens().get(0));
             assertThat(tokenStrings(tokenization.tokens().get(0)), contains("▁Ela", "stic", "search", "▁", ".", MASK_TOKEN, "▁", "."));
         }
     }

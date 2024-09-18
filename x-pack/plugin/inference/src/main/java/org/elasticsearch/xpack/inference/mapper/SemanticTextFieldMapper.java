@@ -114,15 +114,21 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             mapper -> ((SemanticTextFieldType) mapper.fieldType()).modelSettings,
             XContentBuilder::field,
             Objects::toString
-        ).acceptsNull()
-            .setMergeValidator(
-                ((previous, current, conflicts) -> SemanticTextFieldMapper.canMergeModelSettings(previous, current, true, conflicts))
-            )
-            .setValueMerger(SemanticTextFieldMapper::mergeModelSettings);
+        ).acceptsNull().setMergeValidator(SemanticTextFieldMapper::canMergeModelSettings);
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private Function<MapperBuilderContext, ObjectMapper> inferenceFieldBuilder;
+
+        public static Builder from(SemanticTextFieldMapper mapper) {
+            Builder builder = new Builder(
+                mapper.leafName(),
+                mapper.fieldType().indexVersionCreated,
+                mapper.fieldType().getChunksField().bitsetProducer()
+            );
+            builder.init(mapper);
+            return builder;
+        }
 
         public Builder(String name, IndexVersion indexVersionCreated, Function<Query, BitSetProducer> bitSetProducer) {
             super(name);
@@ -152,10 +158,12 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         @Override
         protected void merge(FieldMapper mergeWith, Conflicts conflicts, MapperMergeContext mapperMergeContext) {
-            super.merge(mergeWith, conflicts, mapperMergeContext);
+            SemanticTextFieldMapper semanticMergeWith = (SemanticTextFieldMapper) mergeWith;
+            semanticMergeWith = copySettings(semanticMergeWith, mapperMergeContext);
+
+            super.merge(semanticMergeWith, conflicts, mapperMergeContext);
             conflicts.check();
-            var semanticMergeWith = (SemanticTextFieldMapper) mergeWith;
-            var context = mapperMergeContext.createChildContext(mergeWith.leafName(), ObjectMapper.Dynamic.FALSE);
+            var context = mapperMergeContext.createChildContext(semanticMergeWith.leafName(), ObjectMapper.Dynamic.FALSE);
             var inferenceField = inferenceFieldBuilder.apply(context.getMapperBuilderContext());
             var mergedInferenceField = inferenceField.merge(semanticMergeWith.fieldType().getInferenceField(), context);
             inferenceFieldBuilder = c -> mergedInferenceField;
@@ -190,6 +198,27 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 builderParams(this, context)
             );
         }
+
+        /**
+         * As necessary, copy settings from this builder to the passed-in mapper.
+         * Used to preserve {@link SemanticTextField.ModelSettings} when updating a semantic text mapping.
+         *
+         * @param mapper The mapper
+         * @return A mapper with the copied settings applied
+         */
+        private SemanticTextFieldMapper copySettings(SemanticTextFieldMapper mapper, MapperMergeContext mapperMergeContext) {
+            SemanticTextFieldMapper returnedMapper = mapper;
+            if (mapper.fieldType().getModelSettings() == null && mapper.fieldType().getEmbeddingsField() == null) {
+                // The mapper doesn't have model settings or a definition for the embeddings field, indicating that it was not created via
+                // the inference on ingest code path. In this case, copy the existing model settings to the mapper so they are persisted
+                // when it is applied.
+                Builder builder = from(mapper);
+                builder.setModelSettings(modelSettings.getValue());
+                returnedMapper = builder.build(mapperMergeContext.getMapperBuilderContext());
+            }
+
+            return returnedMapper;
+        }
     }
 
     private SemanticTextFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams) {
@@ -205,7 +234,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), fieldType().indexVersionCreated, fieldType().getChunksField().bitsetProducer()).init(this);
+        return Builder.from(this);
     }
 
     @Override
@@ -257,9 +286,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 context.path().add(leafName());
             }
         } else {
-            // Don't allow current model settings to be null in this context because we need them to validate embedding compatibility
             Conflicts conflicts = new Conflicts(fullFieldName);
-            canMergeModelSettings(fieldType().getModelSettings(), field.inference().modelSettings(), false, conflicts);
+            canMergeModelSettings(fieldType().getModelSettings(), field.inference().modelSettings(), conflicts);
             try {
                 conflicts.check();
             } catch (Exception exc) {
@@ -557,13 +585,12 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     private static boolean canMergeModelSettings(
         SemanticTextField.ModelSettings previous,
         SemanticTextField.ModelSettings current,
-        boolean allowCurrentToBeNull,
         Conflicts conflicts
     ) {
         if (Objects.equals(previous, current)) {
             return true;
         }
-        if (previous == null || (allowCurrentToBeNull && current == null)) {
+        if (previous == null) {
             return true;
         }
         conflicts.addConflict("model_settings", "");

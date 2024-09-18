@@ -53,6 +53,26 @@ public class TopTests extends AbstractAggregationTestCase {
                     .collect(Collectors.toCollection(() -> suppliers));
             }
         }
+        for (DataType valueType : DataType.values()) {
+            if (DataType.isString(valueType) == false) {
+                continue;
+            }
+            suppliers.add(new TestCaseSupplier(List.of(valueType), () -> {
+                int limit = 3;
+                List<BytesRef> values = randomList(1, 100, () -> new BytesRef(randomAlphaOfLength(20)));
+                List<BytesRef> expected = values.stream().sorted().limit(limit).toList();
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        TestCaseSupplier.TypedData.multiRow(values, valueType, "field"),
+                        new TestCaseSupplier.TypedData(limit, DataType.INTEGER, "limit").forceLiteral(),
+                        new TestCaseSupplier.TypedData(new BytesRef("asc"), DataType.KEYWORD, "order").forceLiteral()
+                    ),
+                    "Top[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
+                    valueType,
+                    equalTo(expected)
+                );
+            }));
+        }
 
         suppliers.addAll(
             List.of(

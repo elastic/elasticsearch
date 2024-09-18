@@ -7,61 +7,46 @@
 
 package org.elasticsearch.compute.aggregation;
 
-$if(BytesRef || Ip)$
 import org.apache.lucene.util.BytesRef;
-$endif$
-$if(BytesRef)$
 import org.elasticsearch.common.breaker.CircuitBreaker;
-$endif$
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-$if(!long)$
-import org.elasticsearch.compute.data.$Type$Block;
-$endif$
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntVector;
-$if(long)$
-import org.elasticsearch.compute.data.$Type$Block;
-$endif$
-import org.elasticsearch.compute.data.sort.$Name$BucketedSort;
+import org.elasticsearch.compute.data.sort.BytesRefBucketedSort;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.sort.SortOrder;
 
 /**
- * Aggregates the top N field values for $type$.
+ * Aggregates the top N field values for BytesRef.
  * <p>
  *     This class is generated. Edit `X-TopAggregator.java.st` to edit this file.
  * </p>
  */
-@Aggregator({ @IntermediateState(name = "top", type = "$TYPE$_BLOCK") })
+@Aggregator({ @IntermediateState(name = "top", type = "BYTES_REF_BLOCK") })
 @GroupingAggregator
-class Top$Name$Aggregator {
+class TopBytesRefAggregator {
     public static SingleState initSingle(BigArrays bigArrays, int limit, boolean ascending) {
         return new SingleState(bigArrays, limit, ascending);
     }
 
-    public static void combine(SingleState state, $type$ v) {
+    public static void combine(SingleState state, BytesRef v) {
         state.add(v);
     }
 
-    public static void combineIntermediate(SingleState state, $Type$Block values) {
+    public static void combineIntermediate(SingleState state, BytesRefBlock values) {
         int start = values.getFirstValueIndex(0);
         int end = start + values.getValueCount(0);
-$if(BytesRef || Ip)$
         var scratch = new BytesRef();
         for (int i = start; i < end; i++) {
-            combine(state, values.get$Type$(i, scratch));
+            combine(state, values.getBytesRef(i, scratch));
         }
-$else$
-        for (int i = start; i < end; i++) {
-            combine(state, values.get$Type$(i));
-        }
-$endif$
     }
 
     public static Block evaluateFinal(SingleState state, DriverContext driverContext) {
@@ -72,23 +57,17 @@ $endif$
         return new GroupingState(bigArrays, limit, ascending);
     }
 
-    public static void combine(GroupingState state, int groupId, $type$ v) {
+    public static void combine(GroupingState state, int groupId, BytesRef v) {
         state.add(groupId, v);
     }
 
-    public static void combineIntermediate(GroupingState state, int groupId, $Type$Block values, int valuesPosition) {
+    public static void combineIntermediate(GroupingState state, int groupId, BytesRefBlock values, int valuesPosition) {
         int start = values.getFirstValueIndex(valuesPosition);
         int end = start + values.getValueCount(valuesPosition);
-$if(BytesRef || Ip)$
         var scratch = new BytesRef();
         for (int i = start; i < end; i++) {
-            combine(state, groupId, values.get$Type$(i, scratch));
+            combine(state, groupId, values.getBytesRef(i, scratch));
         }
-$else$
-        for (int i = start; i < end; i++) {
-            combine(state, groupId, values.get$Type$(i));
-        }
-$endif$
     }
 
     public static void combineStates(GroupingState current, int groupId, GroupingState state, int statePosition) {
@@ -100,19 +79,15 @@ $endif$
     }
 
     public static class GroupingState implements Releasable {
-        private final $Name$BucketedSort sort;
+        private final BytesRefBucketedSort sort;
 
         private GroupingState(BigArrays bigArrays, int limit, boolean ascending) {
-$if(BytesRef)$
             // TODO pass the breaker in from the DriverContext
             CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
             this.sort = new BytesRefBucketedSort(breaker, "top", bigArrays, ascending ? SortOrder.ASC : SortOrder.DESC, limit);
-$else$
-            this.sort = new $Name$BucketedSort(bigArrays, ascending ? SortOrder.ASC : SortOrder.DESC, limit);
-$endif$
         }
 
-        public void add(int groupId, $type$ value) {
+        public void add(int groupId, BytesRef value) {
             sort.collect(value, groupId);
         }
 
@@ -145,7 +120,7 @@ $endif$
             this.internalState = new GroupingState(bigArrays, limit, ascending);
         }
 
-        public void add($type$ value) {
+        public void add(BytesRef value) {
             internalState.add(0, value);
         }
 

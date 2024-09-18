@@ -98,6 +98,11 @@ public class EsqlCapabilities {
         AGG_TOP_IP_SUPPORT,
 
         /**
+         * Support for {@code keyword} and {@code text} fields in {@code TOP} aggregation.
+         */
+        AGG_TOP_STRING_SUPPORT,
+
+        /**
          * {@code CASE} properly handling multivalue conditions.
          */
         CASE_MV,

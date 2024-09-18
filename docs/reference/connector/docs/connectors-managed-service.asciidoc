@@ -159,7 +159,7 @@ The attached indices of these connectors cannot be changed until the connector h
 +
 [source, console,subs="+attributes"]
 ----
-POST .elastic-connectors/_update/<connector_id>
+POST .elastic-connectors/_update/connector_id
 {
   "doc": {
     "features": {

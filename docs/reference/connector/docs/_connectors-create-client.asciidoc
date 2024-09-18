@@ -43,9 +43,9 @@ Note the `encoded` return values from the response:
 ----
 POST /_security/api_key
 {
-  "name": "<connector_name>-connector-api-key",
+  "name": "connector_name-connector-api-key",
   "role_descriptors": {
-    "<connector_name>-connector-role": {
+    "connector_name-connector-role": {
       "cluster": [
         "monitor",
         "manage_connector"
@@ -53,8 +53,8 @@ POST /_security/api_key
       "indices": [
         {
           "names": [
-            "<index_name>",
-            ".search-acl-filter-<index_name>",
+            "index_name",
+            ".search-acl-filter-index_name",
             ".elastic-connectors*"
           ],
           "privileges": [

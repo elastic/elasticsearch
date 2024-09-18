@@ -163,7 +163,7 @@ The auxilliary information needed for the configuration will then be automatical
 +
 [source,console]
 ----
-POST /.elastic-connectors/_update/<connector_id>
+POST /.elastic-connectors/_update/connector_id
 {
   "doc" : {
     "configuration": {
@@ -425,7 +425,7 @@ The auxilliary information needed for the configuration will then be automatical
 +
 [source,console]
 ----
-POST /.elastic-connectors/_update/<connector_id>
+POST /.elastic-connectors/_update/connector_id
 {
   "doc" : {
     "configuration": {

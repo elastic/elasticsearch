@@ -97,7 +97,7 @@ You can use the following manual workaround:
 +
 [source,console]
 ----
-POST /.elastic-connectors/_update/<connector-id>
+POST /.elastic-connectors/_update/connector-id
 {
   "doc": {
     "custom_scheduling": {}
@@ -122,7 +122,7 @@ Only the following two field properties are required, as the rest will be autopo
 +
 [source,console]
 ----
-POST /.elastic-connectors/_update/<connector_id>
+POST /.elastic-connectors/_update/connector_id
 {
   "doc" : {
     "configuration": {

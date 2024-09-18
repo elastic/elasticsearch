@@ -368,7 +368,7 @@ For example, you can manually run an Elasticsearch query that removes drive item
 
 [source, console]
 ----
-POST <INDEX_NAME>/_update_by_query?conflicts=proceed
+POST INDEX_NAME/_update_by_query?conflicts=proceed
 {
   "query": {
     "bool": {
@@ -852,7 +852,7 @@ For example, you can manually run an Elasticsearch query that removes drive item
 
 [source, console]
 ----
-POST <INDEX_NAME>/_update_by_query?conflicts=proceed
+POST INDEX_NAME/_update_by_query?conflicts=proceed
 {
   "query": {
     "bool": {

@@ -3378,7 +3378,10 @@ public class InternalEngine extends Engine {
         this.flushListener.addOrNotify(location, new ActionListener<>() {
             @Override
             public void onResponse(Long generation) {
-                waitForCommitDurability(generation, listener.map(v -> generation));
+                // No need to wait for commit durability since the ONLY caller is PostWriteRefresh which
+                // requires the commit generation to be visible to search shards. Visibility does not require
+                // special logic for durability since nodes can talk to each other directly (RCO).
+                notWaitForCommitDurability(generation, listener.map(v -> generation));
             }
 
             @Override
@@ -3388,7 +3391,7 @@ public class InternalEngine extends Engine {
         });
     }
 
-    protected void waitForCommitDurability(long generation, ActionListener<Void> listener) {
+    private void notWaitForCommitDurability(long generation, ActionListener<Void> listener) {
         try {
             ensureOpen();
         } catch (AlreadyClosedException e) {
@@ -3400,6 +3403,14 @@ public class InternalEngine extends Engine {
         } else {
             listener.onResponse(null);
         }
+    }
+
+    /**
+     * This method is meant to be overridden by subclasses that require special logic to ensure commit durability.
+     * The default implementation is basically a NOOP.
+     */
+    protected void waitForCommitDurability(long generation, ActionListener<Void> listener) {
+        notWaitForCommitDurability(generation, listener);
     }
 
     public long getLastUnsafeSegmentGenerationForGets() {

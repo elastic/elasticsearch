@@ -40,5 +40,4 @@ DLS documentation:
 // TODO
 
 include::dls-overview.asciidoc[]
-include::dls-connectors-app-search.asciidoc[]
 include::dls-e2e-guide.asciidoc[]

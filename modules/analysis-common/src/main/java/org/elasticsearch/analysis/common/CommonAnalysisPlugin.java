@@ -101,7 +101,12 @@ import org.apache.lucene.analysis.tr.ApostropheFilter;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.analysis.util.ElisionFilter;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.CharFilterFactory;
@@ -133,6 +138,8 @@ import java.util.TreeMap;
 import static org.elasticsearch.plugins.AnalysisPlugin.requiresAnalysisSettings;
 
 public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, ScriptPlugin {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(CommonAnalysisPlugin.class);
 
     private final SetOnce<ScriptService> scriptServiceHolder = new SetOnce<>();
     private final SetOnce<SynonymsManagementAPIService> synonymsManagementServiceHolder = new SetOnce<>();
@@ -295,7 +302,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         tokenizers.put("simple_pattern_split", SimplePatternSplitTokenizerFactory::new);
         tokenizers.put("thai", ThaiTokenizerFactory::new);
         tokenizers.put("ngram", NGramTokenizerFactory::new);
-        tokenizers.put("edge_ngram", EdgeNGramTokenizerFactory::new);      
+        tokenizers.put("edge_ngram", EdgeNGramTokenizerFactory::new);
         tokenizers.put("edgeNGram", (IndexSettings indexSettings, Environment environment, String name, Settings settings) -> {
             if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.V_8_0_0)) {
                 throw new IllegalArgumentException(

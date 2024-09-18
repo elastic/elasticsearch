@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest;
@@ -407,7 +408,7 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(ingestService.getPipeline("_id"), notNullValue());
 
         // Delete pipeline:
-        DeletePipelineRequest deleteRequest = new DeletePipelineRequest("_id");
+        DeletePipelineRequest deleteRequest = new DeletePipelineRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "_id");
         previousClusterState = clusterState;
         clusterState = executeDelete(deleteRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
@@ -712,7 +713,7 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(pipeline.getProcessors().size(), equalTo(1));
         assertThat(pipeline.getProcessors().get(0).getType(), equalTo("set"));
 
-        DeletePipelineRequest deleteRequest = new DeletePipelineRequest(id);
+        DeletePipelineRequest deleteRequest = new DeletePipelineRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, id);
         previousClusterState = clusterState;
         clusterState = executeDelete(deleteRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
@@ -802,7 +803,7 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(ingestService.getPipeline("q1"), notNullValue());
 
         // Delete pipeline matching wildcard
-        DeletePipelineRequest deleteRequest = new DeletePipelineRequest("p*");
+        DeletePipelineRequest deleteRequest = new DeletePipelineRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "p*");
         previousClusterState = clusterState;
         clusterState = executeDelete(deleteRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
@@ -815,13 +816,16 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(
             expectThrows(
                 ResourceNotFoundException.class,
-                () -> executeFailingDelete(new DeletePipelineRequest("unknown"), finalClusterState)
+                () -> executeFailingDelete(
+                    new DeletePipelineRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "unknown"),
+                    finalClusterState
+                )
             ).getMessage(),
             equalTo("pipeline [unknown] is missing")
         );
 
         // match all wildcard works on last remaining pipeline
-        DeletePipelineRequest matchAllDeleteRequest = new DeletePipelineRequest("*");
+        DeletePipelineRequest matchAllDeleteRequest = new DeletePipelineRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "*");
         previousClusterState = clusterState;
         clusterState = executeDelete(matchAllDeleteRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
@@ -850,8 +854,10 @@ public class IngestServiceTests extends ESTestCase {
 
         ClusterState finalClusterState = clusterState;
         assertThat(
-            expectThrows(ResourceNotFoundException.class, () -> executeFailingDelete(new DeletePipelineRequest("z*"), finalClusterState))
-                .getMessage(),
+            expectThrows(
+                ResourceNotFoundException.class,
+                () -> executeFailingDelete(new DeletePipelineRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "z*"), finalClusterState)
+            ).getMessage(),
             equalTo("pipeline [z*] is missing")
         );
     }
@@ -877,7 +883,7 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         assertThat(ingestService.getPipeline("_id"), notNullValue());
 
-        DeletePipelineRequest deleteRequest = new DeletePipelineRequest("_id");
+        DeletePipelineRequest deleteRequest = new DeletePipelineRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "_id");
 
         {
             // delete pipeline which is in used of default_pipeline
@@ -2636,7 +2642,14 @@ public class IngestServiceTests extends ESTestCase {
 
         final Integer version = randomInt();
         var pipelineString = "{\"version\": " + version + ", \"processors\": []}";
-        var request = new PutPipelineRequest(pipelineId, new BytesArray(pipelineString), XContentType.JSON, version);
+        var request = new PutPipelineRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            pipelineId,
+            new BytesArray(pipelineString),
+            XContentType.JSON,
+            version
+        );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> executeFailingPut(request, clusterState));
         assertThat(
             e.getMessage(),
@@ -2661,7 +2674,14 @@ public class IngestServiceTests extends ESTestCase {
             .build();
 
         final Integer requestedVersion = randomValueOtherThan(version, ESTestCase::randomInt);
-        var request = new PutPipelineRequest(pipelineId, new BytesArray(pipelineString), XContentType.JSON, requestedVersion);
+        var request = new PutPipelineRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            pipelineId,
+            new BytesArray(pipelineString),
+            XContentType.JSON,
+            requestedVersion
+        );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> executeFailingPut(request, clusterState));
         assertThat(
             e.getMessage(),
@@ -2686,7 +2706,14 @@ public class IngestServiceTests extends ESTestCase {
             .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, new IngestMetadata(Map.of(pipelineId, existingPipeline))).build())
             .build();
 
-        var request = new PutPipelineRequest(pipelineId, new BytesArray(pipelineString), XContentType.JSON, version);
+        var request = new PutPipelineRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            pipelineId,
+            new BytesArray(pipelineString),
+            XContentType.JSON,
+            version
+        );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> executeFailingPut(request, clusterState));
         assertThat(e.getMessage(), equalTo(Strings.format("cannot update pipeline [%s] with the same version [%s]", pipelineId, version)));
     }
@@ -2702,7 +2729,14 @@ public class IngestServiceTests extends ESTestCase {
 
         final int specifiedVersion = randomValueOtherThan(existingVersion, ESTestCase::randomInt);
         var updatedPipelineString = "{\"version\": " + specifiedVersion + ", \"processors\": []}";
-        var request = new PutPipelineRequest(pipelineId, new BytesArray(updatedPipelineString), XContentType.JSON, existingVersion);
+        var request = new PutPipelineRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            pipelineId,
+            new BytesArray(updatedPipelineString),
+            XContentType.JSON,
+            existingVersion
+        );
         var updatedState = executePut(request, clusterState);
 
         var updatedConfig = ((IngestMetadata) updatedState.metadata().custom(IngestMetadata.TYPE)).getPipelines().get(pipelineId);
@@ -2720,7 +2754,14 @@ public class IngestServiceTests extends ESTestCase {
             .build();
 
         var updatedPipelineString = "{\"processors\": []}";
-        var request = new PutPipelineRequest(pipelineId, new BytesArray(updatedPipelineString), XContentType.JSON, existingVersion);
+        var request = new PutPipelineRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            pipelineId,
+            new BytesArray(updatedPipelineString),
+            XContentType.JSON,
+            existingVersion
+        );
         var updatedState = executePut(request, clusterState);
 
         var updatedConfig = ((IngestMetadata) updatedState.metadata().custom(IngestMetadata.TYPE)).getPipelines().get(pipelineId);

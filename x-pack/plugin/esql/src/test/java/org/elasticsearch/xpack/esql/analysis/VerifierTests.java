@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 
@@ -35,6 +36,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.matchesRegex;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
@@ -1075,19 +1077,34 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testMatchCommand() throws Exception {
-        assumeTrue("skipping because MATCH_COMMAND is not enabled", EsqlCapabilities.Cap.MATCH_COMMAND.isEnabled());
-        assertEquals("1:24: MATCH cannot be used after LIMIT", error("from test | limit 10 | match \"Anna\""));
-        assertEquals("1:13: MATCH cannot be used after SHOW", error("show info | match \"8.16.0\""));
-        assertEquals("1:17: MATCH cannot be used after ROW", error("row a= \"Anna\" | match \"Anna\""));
-        assertEquals("1:26: MATCH cannot be used after EVAL", error("from test | eval z = 2 | match \"Anna\""));
-        assertEquals("1:43: MATCH cannot be used after DISSECT", error("from test | dissect first_name \"%{foo}\" | match \"Connection\""));
-        assertEquals("1:27: MATCH cannot be used after DROP", error("from test | drop emp_no | match \"Anna\""));
-        assertEquals("1:35: MATCH cannot be used after EVAL", error("from test | eval n = emp_no * 3 | match \"Anna\""));
-        assertEquals("1:44: MATCH cannot be used after GROK", error("from test | grok last_name \"%{WORD:foo}\" | match \"Anna\""));
-        assertEquals("1:27: MATCH cannot be used after KEEP", error("from test | keep emp_no | match \"Anna\""));
+    public void testMatchCommand() {
+        assertMatchCommand("1:24:", "LIMIT", "from test | limit 10 | match \"Anna\"");
+        assertMatchCommand("1:13:", "SHOW", "show info | match \"8.16.0\"");
+        assertMatchCommand("1:17:", "ROW", "row a= \"Anna\" | match \"Anna\"");
+        assertMatchCommand("1:26:", "EVAL", "from test | eval z = 2 | match \"Anna\"");
+        assertMatchCommand("1:43:", "DISSECT", "from test | dissect first_name \"%{foo}\" | match \"Connection\"");
+        assertMatchCommand("1:27:", "DROP", "from test | drop emp_no | match \"Anna\"");
+        assertMatchCommand("1:35:", "EVAL", "from test | eval n = emp_no * 3 | match \"Anna\"");
+        assertMatchCommand("1:44:", "GROK", "from test | grok last_name \"%{WORD:foo}\" | match \"Anna\"");
+        assertMatchCommand("1:27:", "KEEP", "from test | keep emp_no | match \"Anna\"");
 
         // TODO Keep adding tests for all unsupported commands
+    }
+
+    private void assertMatchCommand(String lineAndColumn, String command, String query) {
+        String message;
+        Class<? extends Exception> exception;
+        var isSnapshot = Build.current().isSnapshot();
+        if (isSnapshot) {
+            message = " MATCH cannot be used after ";
+            exception = VerificationException.class;
+        } else {
+            message = " mismatched input 'match' expecting ";
+            exception = ParsingException.class;
+        }
+
+        var expectedErrorMessage = lineAndColumn + message + (isSnapshot ? command : "");
+        assertThat(error(query, defaultAnalyzer, exception), containsString(expectedErrorMessage));
     }
 
     public void testCoalesceWithMixedNumericTypes() {
@@ -1292,6 +1309,10 @@ public class VerifierTests extends ESTestCase {
     }
 
     private String error(String query, Analyzer analyzer, Object... params) {
+        return error(query, analyzer, VerificationException.class, params);
+    }
+
+    private String error(String query, Analyzer analyzer, Class<? extends Exception> exception, Object... params) {
         List<QueryParam> parameters = new ArrayList<>();
         for (Object param : params) {
             if (param == null) {
@@ -1304,12 +1325,13 @@ public class VerifierTests extends ESTestCase {
                 throw new IllegalArgumentException("VerifierTests don't support params of type " + param.getClass());
             }
         }
-        VerificationException e = expectThrows(
-            VerificationException.class,
-            () -> analyzer.analyze(parser.createStatement(query, new QueryParams(parameters)))
-        );
+        Throwable e = expectThrows(exception, () -> analyzer.analyze(parser.createStatement(query, new QueryParams(parameters))));
+        assertThat(e, instanceOf(exception));
+
         String message = e.getMessage();
-        assertTrue(message.startsWith("Found "));
+        if (e instanceof VerificationException) {
+            assertTrue(message.startsWith("Found "));
+        }
         String pattern = "\nline ";
         int index = message.indexOf(pattern);
         return message.substring(index + pattern.length());

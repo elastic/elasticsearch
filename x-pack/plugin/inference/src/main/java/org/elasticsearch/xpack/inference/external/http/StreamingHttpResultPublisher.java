@@ -71,8 +71,13 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<HttpResp
     @Override
     public void responseReceived(HttpResponse httpResponse) throws IOException {
         this.response = httpResponse;
-        var firstResponse = HttpResult.create(settings.getMaxResponseSize(), response);
-        this.queue.offer(() -> subscriber.onNext(firstResponse));
+        if (response.getEntity() == null || response.getEntity().getContentLength() <= 0) {
+            // on success, we may receive an empty content payload to initiate the stream
+            this.queue.offer(() -> subscriber.onNext(new HttpResult(response, new byte[0])));
+        } else {
+            var firstResponse = HttpResult.create(settings.getMaxResponseSize(), response);
+            this.queue.offer(() -> subscriber.onNext(firstResponse));
+        }
         this.listener.onResponse(this);
     }
 

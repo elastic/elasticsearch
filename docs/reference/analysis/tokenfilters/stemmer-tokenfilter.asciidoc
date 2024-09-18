@@ -144,7 +144,7 @@ https://snowballstem.org/algorithms/danish/stemmer.html[*`danish`*]
 
 Dutch::
 https://snowballstem.org/algorithms/dutch/stemmer.html[*`dutch`*],
-https://snowballstem.org/algorithms/kraaij_pohlmann/stemmer.html[`dutch_kp`] deprecated:[8.16.0, `dutch_kp` will be removed in a future version],
+https://snowballstem.org/algorithms/kraaij_pohlmann/stemmer.html[`dutch_kp`] deprecated:[8.16.0, `dutch_kp` will be removed in a future version]
 
 English::
 https://snowballstem.org/algorithms/porter/stemmer.html[*`english`*],

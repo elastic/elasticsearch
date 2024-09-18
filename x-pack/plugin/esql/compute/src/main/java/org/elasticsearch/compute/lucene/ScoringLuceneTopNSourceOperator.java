@@ -52,13 +52,7 @@ public final class ScoringLuceneTopNSourceOperator extends LuceneTopNSourceOpera
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new ScoringLuceneTopNSourceOperator(
-                driverContext.blockFactory(),
-                maxPageSize,
-                sorts,
-                limit,
-                sliceQueue
-            );
+            return new ScoringLuceneTopNSourceOperator(driverContext.blockFactory(), maxPageSize, sorts, limit, sliceQueue);
         }
 
         @Override

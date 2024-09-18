@@ -232,7 +232,6 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
         return page;
     }
 
-
     @Override
     protected void describe(StringBuilder sb) {
         sb.append(", limit = ").append(limit);

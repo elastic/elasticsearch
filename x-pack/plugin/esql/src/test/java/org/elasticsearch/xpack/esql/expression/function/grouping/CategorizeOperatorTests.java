@@ -116,9 +116,9 @@ public class CategorizeOperatorTests extends ESTestCase {
                 values.add(vector.getBytesRef(p, new BytesRef()).utf8ToString());
             }
             assertThat(values, equalTo(List.of(
-                "words words words goodbye .*",
-                "words words words goodbye blue sky .*",
-                "words words words hello .+")));
+                ".*?words.+?words.+?words.+?goodbye.*?",
+                ".*?words.+?words.+?words.+?goodbye.+?blue.+?sky.*?",
+                ".*?words.+?words.+?words.+?hello.*?")));
         } finally {
             Releasables.close(() -> Iterators.map(output.iterator(), (Page p) -> p::releaseBlocks));
         }

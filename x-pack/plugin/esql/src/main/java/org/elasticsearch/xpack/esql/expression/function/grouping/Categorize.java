@@ -324,22 +324,7 @@ public class Categorize extends GroupingFunction implements Validatable {
             try (BytesRefVector.Builder result = blockFactory.newBytesRefVectorBuilder(categorizer.getCategoryCount())) {
                 BytesRefBuilder scratch = new BytesRefBuilder();
                 for (SerializableTokenListCategory category : categorizer.toCategories(categorizer.getCategoryCount())) {
-                    // NOCOMMIT build tokens properly
-                    BytesRef[] tokens = category.getKeyTokens();
-                    if (tokens.length == 0) {
-                        scratch.append((byte) '*');
-                        result.appendBytesRef(scratch.get());
-                        scratch.clear();
-                        continue;
-                    }
-                    scratch.append(tokens[0]);
-                    for (int i = 1; i < tokens.length; i++) {
-                        scratch.append((byte) ' ');
-                        scratch.append(tokens[i]);
-                    }
-                    scratch.append((byte) ' ');
-                    scratch.append((byte) '.');
-                    scratch.append((byte) '*');
+                    scratch.copyChars(category.getRegex());
                     result.appendBytesRef(scratch.get());
                     scratch.clear();
                 }

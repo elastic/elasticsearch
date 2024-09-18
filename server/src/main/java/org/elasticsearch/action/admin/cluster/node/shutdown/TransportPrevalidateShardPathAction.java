@@ -44,8 +44,7 @@ public class TransportPrevalidateShardPathAction extends TransportNodesAction<
     PrevalidateShardPathRequest,
     PrevalidateShardPathResponse,
     NodePrevalidateShardPathRequest,
-    NodePrevalidateShardPathResponse,
-    Void> {
+    NodePrevalidateShardPathResponse> {
 
     public static final String ACTION_NAME = "internal:admin/indices/prevalidate_shard_path";
     public static final ActionType<PrevalidateShardPathResponse> TYPE = new ActionType<>(ACTION_NAME);

@@ -54,8 +54,7 @@ public class NodesDataTiersUsageTransportAction extends TransportNodesAction<
     NodesDataTiersUsageTransportAction.NodesRequest,
     NodesDataTiersUsageTransportAction.NodesResponse,
     NodesDataTiersUsageTransportAction.NodeRequest,
-    NodeDataTiersUsage,
-    Void> {
+    NodeDataTiersUsage> {
 
     public static final ActionType<NodesResponse> TYPE = new ActionType<>("cluster:monitor/nodes/data_tier_usage");
     public static final NodeFeature LOCALLY_PRECALCULATED_STATS_FEATURE = new NodeFeature("usage.data_tiers.precalculate_stats");

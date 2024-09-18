@@ -29,8 +29,7 @@ public class HealthApiStatsTransportAction extends TransportNodesAction<
     HealthApiStatsAction.Request,
     HealthApiStatsAction.Response,
     HealthApiStatsAction.Request.Node,
-    HealthApiStatsAction.Response.Node,
-    Void> {
+    HealthApiStatsAction.Response.Node> {
 
     private final HealthApiStats healthApiStats;
 

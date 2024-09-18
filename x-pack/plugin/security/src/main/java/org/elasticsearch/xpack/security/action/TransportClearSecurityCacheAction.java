@@ -33,8 +33,7 @@ public class TransportClearSecurityCacheAction extends TransportNodesAction<
     ClearSecurityCacheRequest,
     ClearSecurityCacheResponse,
     ClearSecurityCacheRequest.Node,
-    ClearSecurityCacheResponse.Node,
-    Void> {
+    ClearSecurityCacheResponse.Node> {
 
     private final CacheInvalidatorRegistry cacheInvalidatorRegistry;
 

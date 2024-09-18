@@ -34,8 +34,7 @@ public class TransportTrainedModelCacheInfoAction extends TransportNodesAction<
     TrainedModelCacheInfoAction.Request,
     TrainedModelCacheInfoAction.Response,
     TransportTrainedModelCacheInfoAction.NodeModelCacheInfoRequest,
-    CacheInfo,
-    Void> {
+    CacheInfo> {
 
     private final ModelLoadingService modelLoadingService;
 

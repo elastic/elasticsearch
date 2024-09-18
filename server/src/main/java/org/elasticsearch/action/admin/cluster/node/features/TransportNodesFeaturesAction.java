@@ -33,8 +33,7 @@ public class TransportNodesFeaturesAction extends TransportNodesAction<
     NodesFeaturesRequest,
     NodesFeaturesResponse,
     TransportNodesFeaturesAction.NodeFeaturesRequest,
-    NodeFeatures,
-    Void> {
+    NodeFeatures> {
 
     public static final ActionType<NodesFeaturesResponse> TYPE = new ActionType<>("cluster:monitor/nodes/features");
 

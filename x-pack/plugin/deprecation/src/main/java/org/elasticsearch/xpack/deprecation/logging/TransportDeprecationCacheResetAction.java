@@ -28,8 +28,7 @@ public class TransportDeprecationCacheResetAction extends TransportNodesAction<
     DeprecationCacheResetAction.Request,
     DeprecationCacheResetAction.Response,
     DeprecationCacheResetAction.NodeRequest,
-    DeprecationCacheResetAction.NodeResponse,
-    Void> {
+    DeprecationCacheResetAction.NodeResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportDeprecationCacheResetAction.class);
 

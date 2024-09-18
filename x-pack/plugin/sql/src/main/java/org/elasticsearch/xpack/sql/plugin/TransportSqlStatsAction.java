@@ -28,8 +28,7 @@ public class TransportSqlStatsAction extends TransportNodesAction<
     SqlStatsRequest,
     SqlStatsResponse,
     SqlStatsRequest.NodeStatsRequest,
-    SqlStatsResponse.NodeStatsResponse,
-    Void> {
+    SqlStatsResponse.NodeStatsResponse> {
 
     // the plan executor holds the metrics
     private final PlanExecutor planExecutor;

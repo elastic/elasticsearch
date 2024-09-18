@@ -26,8 +26,7 @@ public class TransportAnalyticsStatsAction extends TransportNodesAction<
     AnalyticsStatsAction.Request,
     AnalyticsStatsAction.Response,
     AnalyticsStatsAction.NodeRequest,
-    AnalyticsStatsAction.NodeResponse,
-    Void> {
+    AnalyticsStatsAction.NodeResponse> {
     private final AnalyticsUsage usage;
 
     @Inject

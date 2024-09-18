@@ -47,8 +47,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<
     TransportNodesSnapshotsStatus.Request,
     TransportNodesSnapshotsStatus.NodesSnapshotStatus,
     TransportNodesSnapshotsStatus.NodeRequest,
-    TransportNodesSnapshotsStatus.NodeSnapshotStatus,
-    Void> {
+    TransportNodesSnapshotsStatus.NodeSnapshotStatus> {
 
     public static final String ACTION_NAME = TransportSnapshotsStatusAction.TYPE.name() + "[nodes]";
     public static final ActionType<NodesSnapshotStatus> TYPE = new ActionType<>(ACTION_NAME);

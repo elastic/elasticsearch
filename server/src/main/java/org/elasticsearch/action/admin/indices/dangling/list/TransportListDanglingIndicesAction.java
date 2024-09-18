@@ -36,8 +36,7 @@ public class TransportListDanglingIndicesAction extends TransportNodesAction<
     ListDanglingIndicesRequest,
     ListDanglingIndicesResponse,
     NodeListDanglingIndicesRequest,
-    NodeListDanglingIndicesResponse,
-    Void> {
+    NodeListDanglingIndicesResponse> {
 
     public static final ActionType<ListDanglingIndicesResponse> TYPE = new ActionType<>("cluster:admin/indices/dangling/list");
 

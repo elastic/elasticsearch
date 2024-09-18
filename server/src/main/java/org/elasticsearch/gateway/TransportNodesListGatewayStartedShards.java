@@ -58,8 +58,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
     TransportNodesListGatewayStartedShards.Request,
     TransportNodesListGatewayStartedShards.NodesGatewayStartedShards,
     TransportNodesListGatewayStartedShards.NodeRequest,
-    TransportNodesListGatewayStartedShards.NodeGatewayStartedShards,
-    Void> {
+    TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> {
 
     private static final Logger logger = LogManager.getLogger(TransportNodesListGatewayStartedShards.class);
 

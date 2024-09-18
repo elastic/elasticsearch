@@ -35,8 +35,7 @@ public class TransportGetServiceAccountNodesCredentialsAction extends TransportN
     GetServiceAccountCredentialsNodesRequest,
     GetServiceAccountCredentialsNodesResponse,
     GetServiceAccountCredentialsNodesRequest.Node,
-    GetServiceAccountCredentialsNodesResponse.Node,
-    Void> {
+    GetServiceAccountCredentialsNodesResponse.Node> {
 
     private final FileServiceAccountTokenStore fileServiceAccountTokenStore;
 

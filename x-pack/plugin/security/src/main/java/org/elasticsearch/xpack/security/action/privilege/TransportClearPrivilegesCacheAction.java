@@ -30,8 +30,7 @@ public class TransportClearPrivilegesCacheAction extends TransportNodesAction<
     ClearPrivilegesCacheRequest,
     ClearPrivilegesCacheResponse,
     ClearPrivilegesCacheRequest.Node,
-    ClearPrivilegesCacheResponse.Node,
-    Void> {
+    ClearPrivilegesCacheResponse.Node> {
 
     private final CompositeRolesStore rolesStore;
     private final CacheInvalidatorRegistry cacheInvalidatorRegistry;

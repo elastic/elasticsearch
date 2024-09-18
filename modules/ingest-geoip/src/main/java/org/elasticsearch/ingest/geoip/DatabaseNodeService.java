@@ -36,6 +36,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.FileAlreadyExistsException;
@@ -235,7 +236,20 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
     }
 
     public void shutdown() throws IOException {
-        IOUtils.close(databases.values());
+        // this is a little 'fun' looking, but it's just adapting IOUtils.close() into something
+        // that can call a bunch of shutdown methods (rather than close methods)
+        final var loadersToShutdown = databases.values().stream().map(ShutdownCloseable::new).toList();
+        databases.clear();
+        IOUtils.close(loadersToShutdown);
+    }
+
+    private record ShutdownCloseable(DatabaseReaderLazyLoader loader) implements Closeable {
+        @Override
+        public void close() throws IOException {
+            if (loader != null) {
+                loader.shutdown();
+            }
+        }
     }
 
     void checkDatabases(ClusterState state) {
@@ -418,7 +432,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
             DatabaseReaderLazyLoader loader = new DatabaseReaderLazyLoader(cache, file, recordedMd5);
             DatabaseReaderLazyLoader existing = databases.put(databaseFileName, loader);
             if (existing != null) {
-                existing.close();
+                existing.shutdown();
             } else {
                 // Loaded a database for the first time, so reload pipelines for which a database was not available:
                 Predicate<GeoIpProcessor.DatabaseUnavailableProcessor> predicate = p -> databaseFileName.equals(p.getDatabaseName());
@@ -456,7 +470,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
                 logger.debug("database [{}] no longer exists, cleaning up...", staleEntry);
                 DatabaseReaderLazyLoader existing = databases.remove(staleEntry);
                 assert existing != null;
-                existing.close(true);
+                existing.shutdown(true);
             } catch (Exception e) {
                 logger.error(() -> "failed to clean database [" + staleEntry + "]", e);
             }

@@ -28,6 +28,7 @@ public class DebertaV2TokenizerTests extends ESTestCase {
         DebertaV2Tokenizer.PAD_TOKEN,
         DebertaV2Tokenizer.SEPARATOR_TOKEN,
         DebertaV2Tokenizer.UNKNOWN_TOKEN,
+        "▁",
         "▁Ela",
         "stic",
         "search",
@@ -52,6 +53,7 @@ public class DebertaV2TokenizerTests extends ESTestCase {
         0.0,
         0.0,
         0.0,
+        -7.97025,
         -12.535264015197754,
         -12.300995826721191,
         -13.255199432373047,
@@ -138,7 +140,7 @@ public class DebertaV2TokenizerTests extends ESTestCase {
             assertThat(tokenization.tokenIds()[0], not(equalTo(3))); // not the unknown token
 
             tokenization = tokenizer.tokenize("🏁", Tokenization.Truncate.NONE, -1, 0, null).get(0);
-            assertThat(tokenStrings(tokenization.tokens().get(0)), contains("▁🏁"));
+            assertThat(tokenStrings(tokenization.tokens().get(0)), contains("<0xE2>"));
             assertThat(tokenization.tokenIds()[0], equalTo(3)); // the unknown token (not in the vocabulary)
         }
     }
@@ -148,7 +150,7 @@ public class DebertaV2TokenizerTests extends ESTestCase {
             DebertaV2Tokenizer tokenizer = DebertaV2Tokenizer.builder(
                 TEST_CASE_VOCAB,
                 TEST_CASE_SCORES,
-                new DebertaV2Tokenization(false, false, null, Tokenization.Truncate.NONE, -1)
+                new DebertaV2Tokenization(false, true, null, Tokenization.Truncate.NONE, -1)
             ).build()
         ) {
             TokenizationResult.Tokens tokenization = tokenizer.tokenize(
@@ -158,6 +160,7 @@ public class DebertaV2TokenizerTests extends ESTestCase {
                 0,
                 null
             ).get(0);
+            System.out.println(tokenization.tokens().get(0));
             assertThat(tokenStrings(tokenization.tokens().get(0)), contains("▁Ela", "stic", "search", "▁", ".", MASK_TOKEN, "▁", "."));
         }
     }

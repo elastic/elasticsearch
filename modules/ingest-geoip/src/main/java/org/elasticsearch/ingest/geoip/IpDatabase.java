@@ -15,7 +15,6 @@ import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
-import java.util.Optional;
 
 /**
  * Provides a uniform interface for interacting with various ip databases.
@@ -37,7 +36,7 @@ public interface IpDatabase extends AutoCloseable {
      * @param <RESPONSE> the type of response of that will be returned
      */
     @Nullable
-    <RESPONSE> RESPONSE getResponse(String ipAddress, CheckedBiFunction<Reader, String, Optional<RESPONSE>, Exception> responseProvider);
+    <RESPONSE> RESPONSE getResponse(String ipAddress, CheckedBiFunction<Reader, String, RESPONSE, Exception> responseProvider);
 
     /**
      * Releases the current database object. Called after processing a single document. Databases should be closed or returned to a

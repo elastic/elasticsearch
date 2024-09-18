@@ -27,13 +27,13 @@ import com.maxmind.geoip2.record.Subdivision;
 
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -582,22 +582,15 @@ class MaxmindGeoDataLookups {
         @Override
         public final Map<String, Object> getGeoData(final IpDatabase ipDatabase, final String ipAddress) {
             final RESPONSE response = ipDatabase.getResponse(ipAddress, this::lookup);
-            if (response == null) {
-                return Map.of();
-            } else {
-                return transform(response);
-            }
+            return (response == null) ? Map.of() : transform(response);
         }
 
-        private Optional<RESPONSE> lookup(final Reader reader, final String ipAddress) throws IOException {
+        @Nullable
+        private RESPONSE lookup(final Reader reader, final String ipAddress) throws IOException {
             final InetAddress ip = InetAddresses.forString(ipAddress);
             final DatabaseRecord<RESPONSE> record = reader.getRecord(ip, clazz);
             final RESPONSE data = record.getData();
-            if (data == null) {
-                return Optional.empty();
-            } else {
-                return Optional.of(builder.build(data, NetworkAddress.format(ip), record.getNetwork(), List.of("en")));
-            }
+            return (data == null) ? null : builder.build(data, NetworkAddress.format(ip), record.getNetwork(), List.of("en"));
         }
 
         /**

@@ -49,9 +49,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/110949
 - class: org.elasticsearch.multi_node.GlobalCheckpointSyncActionIT
   issue: https://github.com/elastic/elasticsearch/issues/111124
-- class: org.elasticsearch.cluster.PrevalidateShardPathIT
-  method: testCheckShards
-  issue: https://github.com/elastic/elasticsearch/issues/111134
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test021InstallPlugin
   issue: https://github.com/elastic/elasticsearch/issues/110343
@@ -198,9 +195,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testGetJob_GivenNoSuchJob
   issue: https://github.com/elastic/elasticsearch/issues/112730
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  method: test {yaml=reference/cluster/stats/line_1450}
-  issue: https://github.com/elastic/elasticsearch/issues/112732
 - class: org.elasticsearch.script.StatsSummaryTests
   method: testEqualsAndHashCode
   issue: https://github.com/elastic/elasticsearch/issues/112439
@@ -236,6 +230,15 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.security.JdbcSqlSpecIT
   method: test {case-functions.testSelectInsertWithLcaseAndLengthWithOrderBy}
   issue: https://github.com/elastic/elasticsearch/issues/112642
+- class: org.elasticsearch.datastreams.logsdb.qa.StandardVersusLogsIndexModeRandomDataChallengeRestIT
+  method: testHistogramAggregation
+  issue: https://github.com/elastic/elasticsearch/issues/113109
+- class: org.elasticsearch.action.admin.cluster.node.stats.NodeStatsTests
+  method: testChunking
+  issue: https://github.com/elastic/elasticsearch/issues/113139
+- class: org.elasticsearch.xpack.inference.rest.ServerSentEventsRestActionListenerTests
+  method: testResponse
+  issue: https://github.com/elastic/elasticsearch/issues/113148
 
 # Examples:
 #

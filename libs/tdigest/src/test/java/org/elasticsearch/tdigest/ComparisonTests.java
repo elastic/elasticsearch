@@ -124,9 +124,4 @@ public class ComparisonTests extends TDigestTestCase {
         assertEquals(expectedMedian, mergingDigest.quantile(0.5), 5000);
         assertEquals(expectedMedian, hybridDigest.quantile(0.5), 5000);
     }
-
-    @After
-    public void closeDigests() {
-        Releasables.close(avlTreeDigest, mergingDigest, sortingDigest, hybridDigest);
-    }
 }

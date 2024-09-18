@@ -13,6 +13,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.DefaultChannelPromise;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.transport.TransportException;
 
 import java.io.IOException;
@@ -159,7 +161,7 @@ public class Netty4Utils {
     }
 
     private static boolean assertCorrectPromiseListenerThreading(ChannelPromise promise) {
-        promise.addListener((ChannelFutureListener) future -> {
+        addListener(promise, future -> {
             var eventLoop = future.channel().eventLoop();
             assert eventLoop.inEventLoop() || future.cause() instanceof RejectedExecutionException || eventLoop.isTerminated()
                 : future.cause();
@@ -184,5 +186,10 @@ public class Netty4Utils {
                 }
             }
         });
+    }
+
+    @SuppressForbidden(reason = "single point for adding listeners that enforces use of ChannelFutureListener")
+    public static void addListener(ChannelFuture channelFuture, ChannelFutureListener listener) {
+        channelFuture.addListener(listener);
     }
 }

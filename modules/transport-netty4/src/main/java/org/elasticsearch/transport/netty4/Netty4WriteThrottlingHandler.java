@@ -94,13 +94,13 @@ public final class Netty4WriteThrottlingHandler extends ChannelDuplexHandler {
             final int bufferSize = Math.min(readableBytes, MAX_BYTES_PER_WRITE);
             if (readableBytes == bufferSize) {
                 // last write for this chunk we're done
-                ctx.write(buf).addListener(forwardResultListener(promise));
+                Netty4Utils.addListener(ctx.write(buf), forwardResultListener(promise));
                 return;
             }
             final int readerIndex = buf.readerIndex();
             final ByteBuf writeBuffer = buf.retainedSlice(readerIndex, bufferSize);
             buf.readerIndex(readerIndex + bufferSize);
-            ctx.write(writeBuffer).addListener(forwardFailureListener(promise));
+            Netty4Utils.addListener(ctx.write(writeBuffer), forwardFailureListener(promise));
             if (ctx.channel().isWritable() == false) {
                 // channel isn't writable any longer -> move to queuing
                 queueWrite(buf, promise);
@@ -164,9 +164,9 @@ public final class Netty4WriteThrottlingHandler extends ChannelDuplexHandler {
             final ChannelFuture writeFuture = ctx.write(writeBuffer);
             if (sliced == false) {
                 currentWrite = null;
-                writeFuture.addListener(forwardResultListener(write.promise));
+                Netty4Utils.addListener(writeFuture, forwardResultListener(write.promise));
             } else {
-                writeFuture.addListener(forwardFailureListener(write.promise));
+                Netty4Utils.addListener(writeFuture, forwardFailureListener(write.promise));
             }
         }
         ctx.flush();

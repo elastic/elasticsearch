@@ -127,4 +127,22 @@ public class MachineLearningFeatureSetUsage extends XPackFeatureSet.Usage {
     public int getNodeCount() {
         return nodeCount;
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        MachineLearningFeatureSetUsage that = (MachineLearningFeatureSetUsage) o;
+        return nodeCount == that.nodeCount
+            && Objects.equals(jobsUsage, that.jobsUsage)
+            && Objects.equals(datafeedsUsage, that.datafeedsUsage)
+            && Objects.equals(analyticsUsage, that.analyticsUsage)
+            && Objects.equals(inferenceUsage, that.inferenceUsage)
+            && Objects.equals(memoryUsage, that.memoryUsage);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(jobsUsage, datafeedsUsage, analyticsUsage, inferenceUsage, memoryUsage, nodeCount);
+    }
 }

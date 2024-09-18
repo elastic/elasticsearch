@@ -26,6 +26,20 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+/**
+ * DotPrefixValidator provides an abstract class implementing a mapped action filter.
+ *
+ * This class then implements the {@link #apply(Task, String, ActionRequest, ActionListener, ActionFilterChain)}
+ * method which checks for indices in the request that begin with a dot, emitting a deprecation
+ * warning if they do. If the request is performed by a non-external user (operator, internal product, etc.)
+ * as defined by {@link #isInternalRequest()} then the deprecation is emitted. Otherwise, it is skipped.
+ *
+ * The indices for consideration are returned by the abstract {@link #getIndicesFromRequest(Object)}
+ * method, which subclasses must implement.
+ *
+ * Some built-in index names and patterns are also elided from the check, as defined in
+ * {@link #IGNORED_INDEX_NAMES} and {@link #IGNORED_INDEX_PATTERNS}.
+ */
 public abstract class DotPrefixValidator<RequestType> implements MappedActionFilter {
     public static final Setting<Boolean> VALIDATE_DOT_PREFIXES = Setting.boolSetting(
         "cluster.indices.validate_dot_prefixes",

@@ -29,7 +29,7 @@ import java.util.function.Supplier;
 
 public class ComparisonTests extends TDigestTestCase {
 
-    private static final int SAMPLE_COUNT = 100_000;
+    private static final int SAMPLE_COUNT = 1_000_000;
 
     private TDigest avlTreeDigest;
     private TDigest mergingDigest;

@@ -464,6 +464,7 @@ public class MistralServiceTests extends ESTestCase {
             PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
             service.chunkedInfer(
                 model,
+                null,
                 List.of("abc", "def"),
                 new HashMap<>(),
                 InputType.INGEST,

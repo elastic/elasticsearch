@@ -64,19 +64,6 @@ public abstract class SenderService implements InferenceService {
         }
     }
 
-    public void chunkedInfer(
-        Model model,
-        List<String> input,
-        Map<String, Object> taskSettings,
-        InputType inputType,
-        ChunkingOptions chunkingOptions,
-        TimeValue timeout,
-        ActionListener<List<ChunkedInferenceServiceResults>> listener
-    ) {
-        init();
-        chunkedInfer(model, null, input, taskSettings, inputType, chunkingOptions, timeout, listener);
-    }
-
     @Override
     public void chunkedInfer(
         Model model,

@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -202,6 +203,8 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
         });
     }
 
+    @UpdateForV9
+    @AwaitsFix(bugUrl = "this is testing pre-7.0 upgrade behavior so probably needs some updating")
     public void testLogicallyEquivalentSnapshotIsUsedEvenIfFilesAreDifferent() throws Exception {
         createStore(store -> {
             boolean shareFilesWithSource = randomBoolean();
@@ -387,6 +390,8 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
         });
     }
 
+    @UpdateForV9
+    @AwaitsFix(bugUrl = "this is testing v7.14 compat functionality so can probably be removed")
     public void testFallbacksToSourceOnlyPlanIfTargetNodeIsInUnsupportedVersion() throws Exception {
         createStore(store -> {
             Store.MetadataSnapshot targetMetadataSnapshot = generateRandomTargetState(store);

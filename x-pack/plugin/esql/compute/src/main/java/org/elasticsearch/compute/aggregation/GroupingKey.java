@@ -20,13 +20,13 @@ import org.elasticsearch.core.Releasable;
 import java.util.ArrayList;
 import java.util.List;
 
-public record GroupingKey(AggregatorMode mode, Thing thing) implements EvalOperator.ExpressionEvaluator {
+public record GroupingKey(AggregatorMode mode, Thing thing, BlockFactory blockFactory) implements EvalOperator.ExpressionEvaluator {
     public interface Thing extends Releasable {
         int extraIntermediateBlocks();
 
         Block evalRawInput(Page page);
 
-        Block evalIntermediateInput(Page page);
+        Block evalIntermediateInput(BlockFactory blockFactory, Page page);
 
         void fetchIntermediateState(BlockFactory blockFactory, Block[] blocks, int positionCount);
 
@@ -49,7 +49,7 @@ public record GroupingKey(AggregatorMode mode, Thing thing) implements EvalOpera
         return mode -> new Factory() {
             @Override
             public GroupingKey apply(DriverContext context, int resultOffset) {
-                return new GroupingKey(mode, new Load(channel, resultOffset));
+                return new GroupingKey(mode, new Load(channel, resultOffset), context.blockFactory());
             }
 
             @Override
@@ -86,7 +86,7 @@ public record GroupingKey(AggregatorMode mode, Thing thing) implements EvalOpera
 
     @Override
     public Block eval(Page page) {
-        return mode.isInputPartial() ? thing.evalIntermediateInput(page) : thing.evalRawInput(page);
+        return mode.isInputPartial() ? thing.evalIntermediateInput(blockFactory, page) : thing.evalRawInput(page);
     }
 
     public int finishBlockCount() {
@@ -124,7 +124,7 @@ public record GroupingKey(AggregatorMode mode, Thing thing) implements EvalOpera
         }
 
         @Override
-        public Block evalIntermediateInput(Page page) {
+        public Block evalIntermediateInput(BlockFactory blockFactory, Page page) {
             Block b = page.getBlock(resultOffset);
             b.incRef();
             return b;

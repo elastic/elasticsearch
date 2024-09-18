@@ -461,7 +461,7 @@ public class OperatorTests extends MapperServiceTestCase {
         record Factory(AggregatorMode mode, int inputChannel) implements GroupingKey.Factory {
             @Override
             public GroupingKey apply(DriverContext context, int resultOffset) {
-                return new GroupingKey(mode, new ExampleStatefulGroupingFunction(inputChannel, resultOffset));
+                return new GroupingKey(mode, new ExampleStatefulGroupingFunction(inputChannel, resultOffset), context.blockFactory());
             }
 
             @Override
@@ -499,7 +499,7 @@ public class OperatorTests extends MapperServiceTestCase {
         }
 
         @Override
-        public Block evalIntermediateInput(Page page) {
+        public Block evalIntermediateInput(BlockFactory blockFactory, Page page) {
             IntBlock block = page.getBlock(resultOffset + 1);
             IntVector vector = block.asVector();
             assertThat(vector.isConstant(), equalTo(true));

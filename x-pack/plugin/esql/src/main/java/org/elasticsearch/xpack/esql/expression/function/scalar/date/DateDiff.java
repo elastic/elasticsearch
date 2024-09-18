@@ -66,7 +66,7 @@ public class DateDiff extends EsqlScalarFunction {
      */
     public enum Part implements DateTimeField {
 
-        YEAR((start, end) -> end.getYear() - start.getYear(), "years", "yyyy", "yy"),
+        YEAR((start, end) -> safeToInt(ChronoUnit.YEARS.between(start, end)), "years", "yyyy", "yy"),
         QUARTER((start, end) -> safeToInt(IsoFields.QUARTER_YEARS.between(start, end)), "quarters", "qq", "q"),
         MONTH((start, end) -> safeToInt(ChronoUnit.MONTHS.between(start, end)), "months", "mm", "m"),
         DAYOFYEAR((start, end) -> safeToInt(ChronoUnit.DAYS.between(start, end)), "dy", "y"),

@@ -304,7 +304,12 @@ public class EsqlCapabilities {
         /**
          * Support explicit casting from string literal to DATE_PERIOD or TIME_DURATION.
          */
-        CAST_STRING_LITERAL_TO_TEMPORAL_AMOUNT;
+        CAST_STRING_LITERAL_TO_TEMPORAL_AMOUNT,
+
+        /**
+         * Compute year differences in full calendar years.
+         */
+        DATE_DIFF_YEAR_CALENDARIAL;
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

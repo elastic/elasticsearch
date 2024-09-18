@@ -21,6 +21,7 @@
 
 package org.elasticsearch.tdigest;
 
+import org.elasticsearch.tdigest.arrays.WrapperTDigestArrays;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -38,6 +39,7 @@ public class IntAVLTreeTests extends ESTestCase {
         int[] counts;
 
         IntegerBag() {
+            super(WrapperTDigestArrays.INSTANCE);
             values = new int[capacity()];
             counts = new int[capacity()];
         }

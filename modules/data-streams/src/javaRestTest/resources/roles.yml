@@ -16,4 +16,10 @@ under_privilged:
         - read
         - write
         - view_index_metadata
+only_get:
+  indices:
+    - names: [ 'my-ds*' ]
+      privileges:
+        - read
+        - view_index_metadata
 no_privilege:

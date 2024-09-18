@@ -16,6 +16,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MapperTestUtils;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ccr.Ccr;
@@ -331,6 +332,8 @@ public class TransportResumeFollowActionTests extends ESTestCase {
         replicatedSettings.add(IndexSettings.MAX_SHINGLE_DIFF_SETTING);
         replicatedSettings.add(IndexSettings.TIME_SERIES_END_TIME);
         replicatedSettings.add(IndexSettings.PREFER_ILM_SETTING);
+        replicatedSettings.add(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING);
+        replicatedSettings.add(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING);
 
         for (Setting<?> setting : IndexScopedSettings.BUILT_IN_INDEX_SETTINGS) {
             // removed settings have no effect, they are only there for BWC

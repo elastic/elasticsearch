@@ -327,7 +327,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         TransportRequest deleteIndexRequest = clientSeenRequests.get(1);
         assertThat(deleteIndexRequest, instanceOf(DeleteIndexRequest.class));
         // only the first generation index should be eligible for retention
-        assertThat(((DeleteIndexRequest) deleteIndexRequest).indices(), arrayContaining(dataStream.getIndices().getFirst().getName()));
+        assertThat(((DeleteIndexRequest) deleteIndexRequest).indices(), arrayContaining(dataStream.getIndices().get(0).getName()));
     }
 
     public void testMergePolicyNotExecutedForTSIndicesWithinTimeBounds() {
@@ -367,7 +367,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         // Only the first generation index should be eligible for merging. The other have end dates in the future.
         assertThat(
             ((UpdateSettingsRequest) updateSettingsRequest).indices(),
-            arrayContaining(dataStream.getIndices().getFirst().getName())
+            arrayContaining(dataStream.getIndices().get(0).getName())
         );
         assertThat(
             ((UpdateSettingsRequest) updateSettingsRequest).settings().keySet(),

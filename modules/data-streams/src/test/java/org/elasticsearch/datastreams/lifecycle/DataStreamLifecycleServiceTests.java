@@ -364,7 +364,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         assertThat(clientSeenRequests.get(0), instanceOf(RolloverRequest.class));
         TransportRequest updateSettingsRequest = clientSeenRequests.get(1);
         assertThat(updateSettingsRequest, instanceOf(UpdateSettingsRequest.class));
-        // Only the first generation index should be eligible for retention. The other have end dates in the future.
+        // Only the first generation index should be eligible for merging. The other have end dates in the future.
         assertThat(
             ((UpdateSettingsRequest) updateSettingsRequest).indices(),
             arrayContaining(dataStream.getIndices().getFirst().getName())

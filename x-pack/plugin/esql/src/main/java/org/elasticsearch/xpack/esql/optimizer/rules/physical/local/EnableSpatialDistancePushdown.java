@@ -12,8 +12,10 @@ import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -25,10 +27,15 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Esq
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
 import java.nio.ByteOrder;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * When a spatial distance predicate can be pushed down to lucene, this is done by capturing the distance within the same function.
@@ -44,23 +51,69 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
     @Override
     protected PhysicalPlan rule(FilterExec filterExec, LocalPhysicalOptimizerContext ctx) {
         PhysicalPlan plan = filterExec;
-        if (filterExec.child() instanceof EsQueryExec) {
-            // Find and rewrite any binary comparisons that involve a distance function and a literal
-            var rewritten = filterExec.condition().transformDown(EsqlBinaryComparison.class, comparison -> {
-                ComparisonType comparisonType = ComparisonType.from(comparison.getFunctionType());
-                if (comparison.left() instanceof StDistance dist && comparison.right().foldable()) {
-                    return rewriteComparison(comparison, dist, comparison.right(), comparisonType);
-                } else if (comparison.right() instanceof StDistance dist && comparison.left().foldable()) {
-                    return rewriteComparison(comparison, dist, comparison.left(), ComparisonType.invert(comparisonType));
-                }
-                return comparison;
-            });
-            if (rewritten.equals(filterExec.condition()) == false) {
-                plan = new FilterExec(filterExec.source(), filterExec.child(), rewritten);
-            }
+        if (filterExec.child() instanceof EsQueryExec esQueryExec) {
+            plan = rewrite(filterExec, esQueryExec);
+        } else if (filterExec.child() instanceof EvalExec evalExec && evalExec.child() instanceof EsQueryExec esQueryExec) {
+            plan = rewrite(filterExec, evalExec, esQueryExec);
         }
 
         return plan;
+    }
+
+    private FilterExec rewrite(FilterExec filterExec, EsQueryExec esQueryExec) {
+        // Find and rewrite any binary comparisons that involve a distance function and a literal
+        var rewritten = filterExec.condition().transformDown(EsqlBinaryComparison.class, comparison -> {
+            ComparisonType comparisonType = ComparisonType.from(comparison.getFunctionType());
+            if (comparison.left() instanceof StDistance dist && comparison.right().foldable()) {
+                return rewriteComparison(comparison, dist, comparison.right(), comparisonType);
+            } else if (comparison.right() instanceof StDistance dist && comparison.left().foldable()) {
+                return rewriteComparison(comparison, dist, comparison.left(), ComparisonType.invert(comparisonType));
+            }
+            return comparison;
+        });
+        if (rewritten.equals(filterExec.condition()) == false) {
+            return new FilterExec(filterExec.source(), esQueryExec, rewritten);
+        }
+        return filterExec;
+    }
+
+    private boolean isPushableAlias(Alias alias) {
+        // TODO: Add support for more pushable aliases, like simple field references
+        return alias.child() instanceof StDistance;
+    }
+
+    private PhysicalPlan rewrite(FilterExec filterExec, EvalExec evalExec, EsQueryExec esQueryExec) {
+        Map<String, Alias> pushable = new LinkedHashMap<>();
+        List<Alias> nonPushable = new ArrayList<>();
+        evalExec.fields().forEach(alias -> {
+            if (isPushableAlias(alias)) {
+                pushable.put(alias.name(), alias);
+            } else {
+                nonPushable.add(alias);
+            }
+        });
+        // TODO support mixing pushable and non-pushable aliases
+        if (nonPushable.isEmpty()) {
+            // Find and rewrite any binary comparisons that involve a distance function and a literal
+            var rewritten = filterExec.condition().transformDown(EsqlBinaryComparison.class, comparison -> {
+                ComparisonType comparisonType = ComparisonType.from(comparison.getFunctionType());
+                if (comparison.left() instanceof ReferenceAttribute d && pushable.containsKey(d.name()) && comparison.right().foldable()) {
+                    StDistance dist = (StDistance) pushable.get(d.name()).child();
+                    return rewriteComparison(comparison, dist, comparison.right(), comparisonType);
+                } else if (comparison.right() instanceof ReferenceAttribute d
+                    && pushable.containsKey(d.name())
+                    && comparison.left().foldable()) {
+                        StDistance dist = (StDistance) pushable.get(d.name()).child();
+                        return rewriteComparison(comparison, dist, comparison.left(), ComparisonType.invert(comparisonType));
+                    }
+                return comparison;
+            });
+            if (rewritten.equals(filterExec.condition()) == false) {
+                FilterExec filter = new FilterExec(filterExec.source(), esQueryExec, rewritten);
+                return new EvalExec(evalExec.source(), filter, evalExec.fields());
+            }
+        }
+        return filterExec;
     }
 
     private Expression rewriteComparison(

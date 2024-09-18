@@ -11,6 +11,7 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.BinarySpatialFunction;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.function.Predicate;
 
@@ -68,17 +70,31 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
         }
     }
 
-    record PushableGeoDistance(EvalExec evalExec, EsQueryExec queryExec, FieldAttribute fieldAttribute, Order order, Point point)
-        implements
-            Pushable {
+    record PushableGeoDistance(FieldAttribute fieldAttribute, Order order, Point point) {
+        private EsQueryExec.Sort sort() {
+            return new EsQueryExec.GeoDistanceSort(fieldAttribute.exactAttribute(), order.direction(), point.getLat(), point.getLon());
+        }
+
+        private static PushableGeoDistance from(StDistance distance, Order order) {
+            if (distance.left() instanceof FieldAttribute fieldAttribute && distance.right().foldable()) {
+                Geometry geometry = SpatialRelatesUtils.makeGeometryFromLiteral(distance.right());
+                if (geometry instanceof Point point) {
+                    return new PushableGeoDistance(fieldAttribute, order, point);
+                }
+            } else if (distance.right() instanceof FieldAttribute fieldAttribute && distance.left().foldable()) {
+                Geometry geometry = SpatialRelatesUtils.makeGeometryFromLiteral(distance.left());
+                if (geometry instanceof Point point) {
+                    return new PushableGeoDistance(fieldAttribute, order, point);
+                }
+            }
+            return null;
+        }
+    }
+
+    record PushableCompoundExec(EvalExec evalExec, EsQueryExec queryExec, List<EsQueryExec.Sort> pushableSorts) implements Pushable {
         public PhysicalPlan rewrite(TopNExec topNExec) {
-            EsQueryExec.GeoDistanceSort distanceSort = new EsQueryExec.GeoDistanceSort(
-                fieldAttribute.exactAttribute(),
-                order.direction(),
-                point.getLat(),
-                point.getLon()
-            );
-            return evalExec.replaceChild(queryExec.withSorts(List.of(distanceSort)).withLimit(topNExec.limit()));
+            // We need to keep the EVAL in place because the coordinator will have its own TopNExec so we need to keep the distance
+            return evalExec.replaceChild(queryExec.withSorts(pushableSorts).withLimit(topNExec.limit()));
         }
     }
 
@@ -87,36 +103,60 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
         if (child instanceof EsQueryExec queryExec
             && queryExec.canPushSorts()
             && canPushDownOrders(topNExec.order(), hasIdenticalDelegate)) {
+            // With the simplest case of `FROM index | SORT ...` we only allow pushing down if the sort is on a field
             return new PushableQueryExec(queryExec);
         }
         if (child instanceof ExchangeExec exchangeExec
             && exchangeExec.child() instanceof EsQueryExec queryExec
             && queryExec.canPushSorts()
             && canPushDownOrders(topNExec.order(), hasIdenticalDelegate)) {
+            // When we have an exchange between the FROM and the SORT, we also only allow pushing down if the sort is on a field
             return new PushableExchangeExec(exchangeExec, queryExec);
         }
-        if (child instanceof EvalExec evalExec && evalExec.child() instanceof EsQueryExec queryExec) {
+        if (child instanceof EvalExec evalExec && evalExec.child() instanceof EsQueryExec queryExec && queryExec.canPushSorts()) {
+            // When we have an EVAL between the FROM and the SORT, we consider pushing down if the sort is on a field and/or
+            // a distance function defined in the EVAL. We also move the EVAL to after the SORT.
             List<Order> orders = topNExec.order();
             List<Alias> fields = evalExec.fields();
-            // TODO: allow sorting distance together with other fields
-            if (orders.size() == 1 && orders.get(0).child() instanceof ReferenceAttribute referenceAttribute) {
-                for (Alias field : fields) {
-                    if (field.child() instanceof StDistance distance
-                        && distance.crsType() == BinarySpatialFunction.SpatialCrsType.GEO
-                        && field.id().equals(referenceAttribute.id())) {
-                        if (distance.left() instanceof FieldAttribute fieldAttribute && distance.right().foldable()) {
-                            Geometry geometry = SpatialRelatesUtils.makeGeometryFromLiteral(distance.right());
-                            if (geometry instanceof Point point) {
-                                return new PushableGeoDistance(evalExec, queryExec, fieldAttribute, orders.getFirst(), point);
-                            }
-                        } else if (distance.right() instanceof FieldAttribute fieldAttribute && distance.left().foldable()) {
-                            Geometry geometry = SpatialRelatesUtils.makeGeometryFromLiteral(distance.left());
-                            if (geometry instanceof Point point) {
-                                return new PushableGeoDistance(evalExec, queryExec, fieldAttribute, orders.getFirst(), point);
-                            }
-                        }
-                    }
+            LinkedHashMap<NameId, StDistance> refs = fields.stream().reduce(new LinkedHashMap<>(), (m, a) -> {
+                // TODO: can we support CARTESIAN also?
+                if (a.child() instanceof StDistance distance && distance.crsType() == BinarySpatialFunction.SpatialCrsType.GEO) {
+                    m.put(a.id(), distance);
                 }
+                return m;
+            }, (m1, m2) -> m1);
+            List<EsQueryExec.Sort> pushableSorts = new ArrayList<>();
+            for (Order order : orders) {
+                if (LucenePushDownUtils.isPushableFieldAttribute(order.child(), hasIdenticalDelegate)) {
+                    pushableSorts.add(
+                        new EsQueryExec.FieldSort(
+                            ((FieldAttribute) order.child()).exactAttribute(),
+                            order.direction(),
+                            order.nullsPosition()
+                        )
+                    );
+                } else if (order.child() instanceof ReferenceAttribute referenceAttribute) {
+                    if (refs.containsKey(referenceAttribute.id())) {
+                        StDistance distance = refs.get(referenceAttribute.id());
+                        PushableGeoDistance pushableGeoDistance = PushableGeoDistance.from(distance, order);
+                        if (pushableGeoDistance != null) {
+                            pushableSorts.add(pushableGeoDistance.sort());
+                        } else {
+                            // As soon as we see a non-pushable sort, we know we need a final SORT command
+                            break;
+                        }
+                    } else {
+                        // If the SORT refers to a non-pushable reference function, the EVAL must remain before the SORT,
+                        // and we can no longer push down anything
+                        return NO_OP;
+                    }
+                } else {
+                    // As soon as we see a non-pushable sort, we know we need a final SORT command
+                    break;
+                }
+            }
+            if (pushableSorts.size() > 0) {
+                return new PushableCompoundExec(evalExec, queryExec, pushableSorts);
             }
         }
         return NO_OP;

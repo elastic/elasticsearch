@@ -333,7 +333,7 @@ public abstract class DocumentParserContext {
     }
 
     public final boolean canAddIgnoredField() {
-        return mappingLookup.isSourceSynthetic() && clonedSource == false;
+        return mappingLookup.isSourceSynthetic() && clonedSource == false && indexSettings().getSkipIgnoredSourceWrite() == false;
     }
 
     Mapper.SourceKeepMode sourceKeepModeFromIndexSettings() {
@@ -367,7 +367,7 @@ public abstract class DocumentParserContext {
 
     public void markFieldAsCopyTo(String fieldName) {
         copyToFields.add(fieldName);
-        if (mappingLookup.isSourceSynthetic()) {
+        if (mappingLookup.isSourceSynthetic() && indexSettings().getSkipIgnoredSourceWrite() == false) {
             /*
             Mark this field as containing copied data meaning it should not be present
             in synthetic _source (to be consistent with stored _source).

@@ -472,7 +472,23 @@ public class MultiGetRequest extends ActionRequest
                         } else if (VERSION_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                             versionType = VersionType.fromString(parser.text());
                         } else if (SOURCE.match(currentFieldName, parser.getDeprecationHandler())) {
-                            fetchSourceContext = FetchSourceContext.fromXContent(parser);
+                            if (parser.isBooleanValue()) {
+                                fetchSourceContext = fetchSourceContext == null
+                                    ? FetchSourceContext.of(parser.booleanValue())
+                                    : FetchSourceContext.of(
+                                    parser.booleanValue(),
+                                    fetchSourceContext.includes(),
+                                    fetchSourceContext.excludes()
+                                );
+                            } else if (token == Token.VALUE_STRING) {
+                                fetchSourceContext = FetchSourceContext.of(
+                                    fetchSourceContext == null || fetchSourceContext.fetchSource(),
+                                    new String[] { parser.text() },
+                                    fetchSourceContext == null ? Strings.EMPTY_ARRAY : fetchSourceContext.excludes()
+                                );
+                            } else {
+                                throw new ElasticsearchParseException("illegal type for _source: [{}]", token);
+                            }
                         } else {
                             throw new ElasticsearchParseException(
                                 "failed to parse multi get request. unknown field [{}]",
@@ -491,12 +507,47 @@ public class MultiGetRequest extends ActionRequest
                             storedFields.add(parser.text());
                         }
                     } else if (SOURCE.match(currentFieldName, parser.getDeprecationHandler())) {
-                        fetchSourceContext = FetchSourceContext.fromXContent(parser);
+                        ArrayList<String> includes = new ArrayList<>();
+                        while ((token = parser.nextToken()) != Token.END_ARRAY) {
+                            includes.add(parser.text());
+                        }
+                        fetchSourceContext = FetchSourceContext.of(
+                            fetchSourceContext == null || fetchSourceContext.fetchSource(),
+                            includes.toArray(Strings.EMPTY_ARRAY),
+                            fetchSourceContext == null ? Strings.EMPTY_ARRAY : fetchSourceContext.excludes()
+                        );
                     }
 
                 } else if (token == Token.START_OBJECT) {
                     if (SOURCE.match(currentFieldName, parser.getDeprecationHandler())) {
-                        fetchSourceContext = FetchSourceContext.fromXContent(parser);
+                        List<String> currentList = null, includes = null, excludes = null;
+
+                        while ((token = parser.nextToken()) != Token.END_OBJECT) {
+                            if (token == Token.FIELD_NAME) {
+                                currentFieldName = parser.currentName();
+                                if ("includes".equals(currentFieldName) || "include".equals(currentFieldName)) {
+                                    currentList = includes != null ? includes : (includes = new ArrayList<>(2));
+                                } else if ("excludes".equals(currentFieldName) || "exclude".equals(currentFieldName)) {
+                                    currentList = excludes != null ? excludes : (excludes = new ArrayList<>(2));
+                                } else {
+                                    throw new ElasticsearchParseException("source definition may not contain [{}]", parser.text());
+                                }
+                            } else if (token == Token.START_ARRAY) {
+                                while ((token = parser.nextToken()) != Token.END_ARRAY) {
+                                    currentList.add(parser.text());
+                                }
+                            } else if (token.isValue()) {
+                                currentList.add(parser.text());
+                            } else {
+                                throw new ElasticsearchParseException("unexpected token while parsing source settings");
+                            }
+                        }
+
+                        fetchSourceContext = FetchSourceContext.of(
+                            fetchSourceContext == null || fetchSourceContext.fetchSource(),
+                            includes == null ? Strings.EMPTY_ARRAY : includes.toArray(Strings.EMPTY_ARRAY),
+                            excludes == null ? Strings.EMPTY_ARRAY : excludes.toArray(Strings.EMPTY_ARRAY)
+                        );
                     }
                 }
             }

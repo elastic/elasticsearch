@@ -13,12 +13,14 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.FlatteningXContentParser;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -300,20 +302,33 @@ public abstract class DocumentParserContext {
     }
 
     /**
-     * Adds an ignored field with missing value, that will be retrieved from the source on a subsequent parsing pass.
+     * Adds an ignored field from the parser context, capturing an object or an array.
+     *
+     * In case of nested arrays, i.e. capturing an array within an array, elements tracked as ignored fields may interfere with
+     * the rest, as _ignored_source contents take precedence over regular field contents with the same leaf name. To prevent
+     * missing array elements from synthetic source, the top-level array gets captured as ignored field in this case, and
+     * the current parsing context is returned as-is, as it has been cloned earlier through {@link #maybeCloneForArray}.
+     *
+     * Otherwise, the current parsing context gets captured. A new parser sub-context gets created from the current
+     * {@link DocumentParserContext} and returned, indicating that the source for the sub-context has been captured, to avoid
+     * double-storing.
      */
-    public final void addIgnoredFieldMissingValue(IgnoredSourceFieldMapper.NameValue ignoredFieldWithNoSource) {
+    public final DocumentParserContext addIgnoredFieldFromContext(IgnoredSourceFieldMapper.NameValue ignoredFieldWithNoSource)
+        throws IOException {
         if (canAddIgnoredField()) {
-            if (arrayFieldMissingValue != null) {
+            if (arrayFieldMissingValue != null && arrayFieldMissingValue.name().equals(ignoredFieldWithNoSource.name()) == false) {
                 // The field is within an array, store the full array instead.
                 ignoredFieldsMissingValues.add(arrayFieldMissingValue);
                 recordedSource = true;
             } else {
                 assert ignoredFieldWithNoSource != null;
                 assert ignoredFieldWithNoSource.value() == null;
-                ignoredFieldsMissingValues.add(ignoredFieldWithNoSource);
+                Tuple<DocumentParserContext, XContentBuilder> tuple = XContentDataHelper.cloneSubContext(this);
+                addIgnoredField(ignoredFieldWithNoSource.cloneWithValue(XContentDataHelper.encodeXContentBuilder(tuple.v2())));
+                return tuple.v1();
             }
         }
+        return this;
     }
 
     /**

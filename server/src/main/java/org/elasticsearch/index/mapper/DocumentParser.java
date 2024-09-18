@@ -420,7 +420,7 @@ public final class DocumentParser {
         if (context.parent().isNested()) {
             // Handle a nested object that doesn't contain an array. Arrays are handled in #parseNonDynamicArray.
             if (context.parent().storeArraySource() && context.canAddIgnoredField()) {
-                context.addIgnoredFieldMissingValue(
+                context = context.addIgnoredFieldFromContext(
                     new IgnoredSourceFieldMapper.NameValue(
                         context.parent().fullPath(),
                         context.parent().fullPath().lastIndexOf(context.parent().leafName()),
@@ -428,7 +428,6 @@ public final class DocumentParser {
                         context.doc()
                     )
                 );
-                context = XContentDataHelper.cloneSubContextWithRecordedSource(context);
                 token = context.parser().currentToken();
                 parser = context.parser();
             }
@@ -565,10 +564,10 @@ public final class DocumentParser {
                 if (context.canAddIgnoredField()
                     && (fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK
                         || (context.isWithinCopyTo() == false && context.isCopyToDestinationField(mapper.fullPath())))) {
-                    context.addIgnoredFieldMissingValue(
+                    context = context.addIgnoredFieldFromContext(
                         IgnoredSourceFieldMapper.NameValue.fromContext(context, fieldMapper.fullPath(), null)
                     );
-                    fieldMapper.parse(XContentDataHelper.cloneSubContextWithRecordedSource(context));
+                    fieldMapper.parse(context);
                 } else {
                     fieldMapper.parse(context);
                 }
@@ -667,10 +666,9 @@ public final class DocumentParser {
                 dynamicObjectMapper = new NoOpObjectMapper(currentFieldName, context.path().pathAsText(currentFieldName));
                 if (context.canAddIgnoredField()) {
                     // Clone the DocumentParserContext to parse its subtree twice.
-                    context.addIgnoredFieldMissingValue(
+                    context = context.addIgnoredFieldFromContext(
                         IgnoredSourceFieldMapper.NameValue.fromContext(context, context.path().pathAsText(currentFieldName), null)
                     );
-                    context = XContentDataHelper.cloneSubContextWithRecordedSource(context);
                 }
             } else {
                 dynamicObjectMapper = DynamicFieldsBuilder.createDynamicObjectMapper(context, currentFieldName);
@@ -820,7 +818,7 @@ public final class DocumentParser {
                 || dynamicRuntimeContext
                 || fieldWithStoredArraySource
                 || copyToFieldHasValuesInDocument) {
-                context.addIgnoredFieldMissingValue(null);  // Marks the parent array for storing its source.
+                context = context.addIgnoredFieldFromContext(IgnoredSourceFieldMapper.NameValue.fromContext(context, fullPath, null));
             } else if (mapper instanceof ObjectMapper objectMapper
                 && (objectMapper.isEnabled() == false || objectMapper.dynamic == ObjectMapper.Dynamic.FALSE)) {
                     context.addIgnoredField(

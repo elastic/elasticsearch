@@ -45,6 +45,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
 
     public static final String NAME = "rrf";
     public static final NodeFeature RRF_RETRIEVER_SUPPORTED = new NodeFeature("rrf_retriever_supported");
+    public static final NodeFeature RRF_RETRIEVER_COMPOSITION_SUPPORTED = new NodeFeature("rrf_retriever_composition_supported");
 
     public static final ParseField RETRIEVERS_FIELD = new ParseField("retrievers");
     public static final ParseField RANK_WINDOW_SIZE_FIELD = new ParseField("rank_window_size");
@@ -79,6 +80,9 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
     public static RRFRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {
         if (context.clusterSupportsFeature(RRF_RETRIEVER_SUPPORTED) == false) {
             throw new ParsingException(parser.getTokenLocation(), "unknown retriever [" + NAME + "]");
+        }
+        if (context.clusterSupportsFeature(RRF_RETRIEVER_COMPOSITION_SUPPORTED) == false) {
+            throw new UnsupportedOperationException("[rrf] retriever composition feature is not supported by all nodes in the cluster");
         }
         if (RRFRankPlugin.RANK_RRF_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
             throw LicenseUtils.newComplianceException("Reciprocal Rank Fusion (RRF)");

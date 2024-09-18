@@ -438,7 +438,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     private void executeBulkShardRequest(BulkShardRequest bulkShardRequest, Releasable releaseOnFinish) {
         ShardId shardId = bulkShardRequest.shardId();
 
-        // Short circuit the shark level request with the existing shard failure.
+        // Short circuit the shard level request with the existing shard failure.
         if (shortCircuitShardFailures.containsKey(shardId)) {
             handleShardFailure(bulkShardRequest, clusterService.state(), shortCircuitShardFailures.get(shardId));
             releaseOnFinish.close();

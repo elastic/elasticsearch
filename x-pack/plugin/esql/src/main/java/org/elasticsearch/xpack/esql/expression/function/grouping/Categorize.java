@@ -325,7 +325,6 @@ public class Categorize extends GroupingFunction implements Validatable {
         }
 
         private OrdinalBytesRefBlock finalKeys(BlockFactory blockFactory, IntBlock keys) {
-            keys.incRef();
             return new OrdinalBytesRefBlock(keys, finalBytes(blockFactory));
         }
 

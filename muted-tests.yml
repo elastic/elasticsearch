@@ -212,12 +212,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testCreateJob_WithClashingFieldMappingsFails
   issue: https://github.com/elastic/elasticsearch/issues/113046
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {categorize.Categorize SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/113054
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {categorize.Categorize ASYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/113055
 - class: org.elasticsearch.xpack.sql.qa.security.JdbcSqlSpecIT
   method: test {case-functions.testUcaseInline1}
   issue: https://github.com/elastic/elasticsearch/issues/112641
@@ -233,6 +227,17 @@ tests:
 - class: org.elasticsearch.datastreams.logsdb.qa.StandardVersusLogsIndexModeRandomDataChallengeRestIT
   method: testHistogramAggregation
   issue: https://github.com/elastic/elasticsearch/issues/113109
+- class: org.elasticsearch.action.admin.cluster.node.stats.NodeStatsTests
+  method: testChunking
+  issue: https://github.com/elastic/elasticsearch/issues/113139
+- class: org.elasticsearch.xpack.inference.rest.ServerSentEventsRestActionListenerTests
+  method: testResponse
+  issue: https://github.com/elastic/elasticsearch/issues/113148
+- class: org.elasticsearch.validation.DotPrefixClientYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/113152
+- class: org.elasticsearch.packaging.test.WindowsServiceTests
+  method: test30StartStop
+  issue: https://github.com/elastic/elasticsearch/issues/113160
 
 # Examples:
 #

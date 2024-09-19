@@ -197,9 +197,20 @@ public final class ApplicationPermission {
             if (this.application.test(other.getApplication()) == false) {
                 return false;
             }
-            if (Operations.isTotal(privilege.getAutomaton())) {
+            if (privilege.isTotal()) {
                 return true;
             }
+
+            // TODO: account for empty privs
+            if (privilege.isExact() && other.isExact()) {
+                for (var pattern : other.getPatterns()) {
+                    if (false == privilege.matcher().test(pattern)) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+
             return Operations.isEmpty(privilege.getAutomaton()) == false
                 && Operations.isEmpty(other.getAutomaton()) == false
                 && Operations.subsetOf(other.getAutomaton(), privilege.getAutomaton());

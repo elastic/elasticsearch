@@ -43,7 +43,7 @@ public abstract class ApplicationPrivilege {
      */
     private static final Pattern VALID_NAME_OR_ACTION = Pattern.compile("^\\p{Graph}*$");
 
-    public static final Function<String, ApplicationPrivilege> NONE = app -> new AutomatonBasedApplicationPrivilege(
+    public static final Function<String, ApplicationPrivilege> NONE = app -> new StringMatchingApplicationPrivilege(
         app,
         Collections.singleton("none")
     );

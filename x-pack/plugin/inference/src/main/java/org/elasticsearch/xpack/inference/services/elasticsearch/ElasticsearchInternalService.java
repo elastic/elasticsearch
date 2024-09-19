@@ -73,7 +73,6 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         MULTILINGUAL_E5_SMALL_MODEL_ID,
         MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86
     );
-    public static final Set<String> ELSER_VALID_IDS = Set.of(ELSER_V2_MODEL_LINUX_X86, ELSER_V2_MODEL);
 
     private static final Logger logger = LogManager.getLogger(ElasticsearchInternalService.class);
 

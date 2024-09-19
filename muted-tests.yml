@@ -205,6 +205,9 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/cluster/stats/line_1450}
   issue: https://github.com/elastic/elasticsearch/issues/112732
+- class: org.elasticsearch.packaging.test.WindowsServiceTests
+  method: test30StartStop
+  issue: https://github.com/elastic/elasticsearch/issues/113160
 
 # Examples:
 #

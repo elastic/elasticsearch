@@ -165,6 +165,13 @@ public final class DocumentParser {
             return;
         }
 
+        // Clean up any conflicting ignored values, to avoid double-printing them as array elements in synthetic source.
+        Map<String, IgnoredSourceFieldMapper.NameValue> fields = new HashMap<>(ignoredFieldsMissingValues.size());
+        for (var field : ignoredFieldsMissingValues) {
+            fields.put(field.name(), field);
+        }
+        context.deduplicateIgnoredFieldValues(fields.keySet());
+
         assert context.mappingLookup().isSourceSynthetic();
         try (
             XContentParser parser = XContentHelper.createParser(
@@ -179,7 +186,7 @@ public final class DocumentParser {
                 context.sourceToParse(),
                 parser
             );
-            var nameValues = parseDocForMissingValues(newContext, ignoredFieldsMissingValues);
+            var nameValues = parseDocForMissingValues(newContext, fields);
             for (var nameValue : nameValues) {
                 context.addIgnoredField(nameValue);
             }
@@ -191,14 +198,8 @@ public final class DocumentParser {
      */
     private static List<IgnoredSourceFieldMapper.NameValue> parseDocForMissingValues(
         DocumentParserContext context,
-        Collection<IgnoredSourceFieldMapper.NameValue> ignoredFieldsMissingValues
+        Map<String, IgnoredSourceFieldMapper.NameValue> fields
     ) throws IOException {
-        // Maps full name to the corresponding NameValue entry.
-        Map<String, IgnoredSourceFieldMapper.NameValue> fields = new HashMap<>(ignoredFieldsMissingValues.size());
-        for (var field : ignoredFieldsMissingValues) {
-            fields.put(field.name(), field);
-        }
-
         // Generate all possible parent names for the given fields.
         // This is used to skip processing objects that can't generate missing values.
         Set<String> parentNames = getPossibleParentNames(fields.keySet());
@@ -336,6 +337,10 @@ public final class DocumentParser {
         if (token != null) {
             throwNotAtEnd(token);
         }
+    }
+
+    private static Mapper.SourceKeepMode getSourceKeepMode(DocumentParserContext context, Optional<Mapper.SourceKeepMode> mapperMode) {
+        return mapperMode.orElseGet(context::sourceKeepModeFromIndexSettings);
     }
 
     private static void throwNotAtEnd(XContentParser.Token token) {
@@ -562,6 +567,7 @@ public final class DocumentParser {
             } else {
                 if (context.canAddIgnoredField()
                     && (fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK
+                        || getSourceKeepMode(context, fieldMapper.sourceKeepMode()) == Mapper.SourceKeepMode.ALL
                         || (context.isWithinCopyTo() == false && context.isCopyToDestinationField(mapper.fullPath())))) {
                     context = context.addIgnoredFieldFromContext(
                         IgnoredSourceFieldMapper.NameValue.fromContext(context, fieldMapper.fullPath(), null)
@@ -801,8 +807,8 @@ public final class DocumentParser {
                     || objectMapper.dynamic == ObjectMapper.Dynamic.RUNTIME);
             boolean fieldWithFallbackSyntheticSource = mapper instanceof FieldMapper fieldMapper
                 && fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK;
-            boolean fieldWithStoredArraySource = mapper instanceof FieldMapper
-                && context.sourceKeepModeFromIndexSettings() == Mapper.SourceKeepMode.ARRAYS;
+            boolean fieldWithStoredArraySource = mapper instanceof FieldMapper fieldMapper
+                && getSourceKeepMode(context, fieldMapper.sourceKeepMode()) != Mapper.SourceKeepMode.NONE;
             boolean dynamicRuntimeContext = context.dynamic() == ObjectMapper.Dynamic.RUNTIME;
             boolean copyToFieldHasValuesInDocument = context.isWithinCopyTo() == false && context.isCopyToDestinationField(fullPath);
             if (objectRequiresStoringSource
@@ -977,7 +983,6 @@ public final class DocumentParser {
                 // ignore copy_to that targets inference fields, values are already extracted in the coordinating node to perform inference.
                 continue;
             }
-
             // In case of a hierarchy of nested documents, we need to figure out
             // which document the field should go to
             LuceneDocument targetDoc = null;

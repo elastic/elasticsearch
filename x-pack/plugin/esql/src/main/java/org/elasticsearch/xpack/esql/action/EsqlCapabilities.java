@@ -312,9 +312,14 @@ public class EsqlCapabilities {
         CATEGORIZE(true),
 
         /**
-         * Support named parameters for field names.
+         * QSTR function
          */
-        NAMED_PARAMETER_FOR_FIELD_NAME;
+        QSTR_FUNCTION(true),
+
+        /**
+         * Support named parameters for field names, function names and field name pattern.
+         */
+        NAMED_PARAMETER_FOR_IDENTIFIER_AND_PATTERN;
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

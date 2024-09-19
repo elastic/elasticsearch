@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless.lucene;
 
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
+import co.elastic.elasticsearch.stateless.cache.reader.CacheFileReaderTestUtils;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 
@@ -30,7 +31,7 @@ public class BlobStoreCacheDirectoryTestUtils {
     }
 
     public static StatelessSharedBlobCacheService.CacheFile getCacheFile(BlobCacheIndexInput target) {
-        return target.cacheFile();
+        return CacheFileReaderTestUtils.getCacheFile(target.getCacheFileReader());
     }
 
     public static StatelessSharedBlobCacheService getCacheService(BlobStoreCacheDirectory target) {

@@ -27,7 +27,6 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredPositiveInteger;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 
 public class ElasticsearchInternalServiceSettings implements ServiceSettings {
 
@@ -84,7 +83,8 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
             validationException
         );
 
-        String modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        // model id is optional as the ELSER service will default it. TODO make this a required field once the elser service is removed
+        String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         if (numAllocations == null && adaptiveAllocationsSettings == null) {
             validationException.addValidationError(

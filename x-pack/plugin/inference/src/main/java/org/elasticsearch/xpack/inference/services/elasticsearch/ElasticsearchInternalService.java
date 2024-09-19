@@ -237,7 +237,8 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             .equals(selectDefaultModelVariantBasedOnClusterArchitecture(platformArchitectures, ELSER_V2_MODEL_LINUX_X86, ELSER_V2_MODEL))) {
             if (esServiceSettingsBuilder.getModelId().equals(ELSER_V2_MODEL)) {
                 logger.warn(
-                    "The platform agnostic model [{}] was requested on Linux x86_64. It is recommended to use the optimized model instead [{}]",
+                    "The platform agnostic model [{}] was requested on Linux x86_64. "
+                        + "It is recommended to use the optimized model instead [{}]",
                     ELSER_V2_MODEL,
                     ELSER_V2_MODEL_LINUX_X86
                 );

@@ -37,8 +37,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xcontent.XContent;
-import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
@@ -57,6 +55,9 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.services.elasticsearch.BaseElasticsearchInternalService.selectDefaultModelVariantBasedOnClusterArchitecture;
+import static org.elasticsearch.xpack.inference.services.elser.ElserModels.ELSER_V2_MODEL;
+import static org.elasticsearch.xpack.inference.services.elser.ElserModels.ELSER_V2_MODEL_LINUX_X86;
 
 public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
     PutInferenceModelAction.Request,
@@ -120,13 +121,6 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
                 )
             );
             return;
-        } else if (serviceName.equals(ElserInternalService.NAME)) {
-            DEPRECATION_LOGGER.warn(
-                DeprecationCategory.API,
-                "The [{}] service is deprecated and will be removed in a future release. Use the [{}] service instead.",
-                ElserInternalService.NAME,
-                ElasticsearchInternalService.NAME
-            );
         }
 
         var service = serviceRegistry.getService(serviceName);
@@ -174,6 +168,25 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             // Find the cluster platform as the service may need that
             // information when creating the model
             MlPlatformArchitecturesUtil.getMlNodesArchitecturesSet(listener.delegateFailureAndWrap((delegate, architectures) -> {
+
+                if (serviceName.equals(ElserInternalService.NAME)) { // TODO remove this block once the elser service is removed
+                    String modelId = selectDefaultModelVariantBasedOnClusterArchitecture(
+                        architectures,
+                        ELSER_V2_MODEL_LINUX_X86,
+                        ELSER_V2_MODEL
+                    );
+
+                    DEPRECATION_LOGGER.critical(
+                        DeprecationCategory.API,
+                        "inference_api_elser_service",
+                        "The [{}] service is deprecated and will be removed in a future release. Use the [{}] service instead, with"
+                            + " [model_id] set to [{}] in the [service_settings]",
+                        ElserInternalService.NAME,
+                        ElasticsearchInternalService.NAME,
+                        modelId
+                    );
+                }
+
                 if (architectures.isEmpty() && clusterIsInElasticCloud(clusterService.getClusterSettings())) {
                     parseAndStoreModel(
                         service.get(),

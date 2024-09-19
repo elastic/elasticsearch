@@ -86,13 +86,13 @@ public final class BulkRequestParser {
             .withRestApiVersion(restApiVersion);
     }
 
-    private static int findNextMarker(byte marker, int from, BytesReference data) {
+    private static int findNextMarker(byte marker, int from, BytesReference data, boolean isIncremental) {
         final int res = data.indexOf(marker, from);
         if (res != -1) {
             assert res >= 0;
             return res;
         }
-        if (from != data.length()) {
+        if (from != data.length() && isIncremental == false) {
             throw new IllegalArgumentException("The bulk request must be terminated by a newline [\\n]");
         }
         return res;
@@ -137,18 +137,57 @@ public final class BulkRequestParser {
         Consumer<UpdateRequest> updateRequestConsumer,
         Consumer<DeleteRequest> deleteRequestConsumer
     ) throws IOException {
-        XContent xContent = xContentType.xContent();
-        int line = 0;
-        int from = 0;
-        byte marker = xContent.bulkSeparator();
         // Bulk requests can contain a lot of repeated strings for the index, pipeline and routing parameters. This map is used to
         // deduplicate duplicate strings parsed for these parameters. While it does not prevent instantiating the duplicate strings, it
         // reduces their lifetime to the lifetime of this parse call instead of the lifetime of the full bulk request.
         final Map<String, String> stringDeduplicator = new HashMap<>();
+
+        incrementalParse(
+            data,
+            defaultIndex,
+            defaultRouting,
+            defaultFetchSourceContext,
+            defaultPipeline,
+            defaultRequireAlias,
+            defaultRequireDataStream,
+            defaultListExecutedPipelines,
+            allowExplicitIndex,
+            xContentType,
+            indexRequestConsumer,
+            updateRequestConsumer,
+            deleteRequestConsumer,
+            false,
+            stringDeduplicator
+        );
+    }
+
+    public int incrementalParse(
+        BytesReference data,
+        String defaultIndex,
+        String defaultRouting,
+        FetchSourceContext defaultFetchSourceContext,
+        String defaultPipeline,
+        Boolean defaultRequireAlias,
+        Boolean defaultRequireDataStream,
+        Boolean defaultListExecutedPipelines,
+        boolean allowExplicitIndex,
+        XContentType xContentType,
+        BiConsumer<IndexRequest, String> indexRequestConsumer,
+        Consumer<UpdateRequest> updateRequestConsumer,
+        Consumer<DeleteRequest> deleteRequestConsumer,
+        boolean isIncremental,
+        Map<String, String> stringDeduplicator
+    ) throws IOException {
+        XContent xContent = xContentType.xContent();
+        byte marker = xContent.bulkSeparator();
         boolean typesDeprecationLogged = false;
 
+        int line = 0;
+        int from = 0;
+        int consumed = 0;
+
         while (true) {
-            int nextMarker = findNextMarker(marker, from, data);
+            int nextMarker = findNextMarker(marker, from, data, isIncremental);
             if (nextMarker == -1) {
                 break;
             }
@@ -333,8 +372,9 @@ public final class BulkRequestParser {
                             .setIfSeqNo(ifSeqNo)
                             .setIfPrimaryTerm(ifPrimaryTerm)
                     );
+                    consumed = from;
                 } else {
-                    nextMarker = findNextMarker(marker, from, data);
+                    nextMarker = findNextMarker(marker, from, data, isIncremental);
                     if (nextMarker == -1) {
                         break;
                     }
@@ -407,9 +447,11 @@ public final class BulkRequestParser {
                     }
                     // move pointers
                     from = nextMarker + 1;
+                    consumed = from;
                 }
             }
         }
+        return isIncremental ? consumed : from;
     }
 
     @UpdateForV9

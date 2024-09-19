@@ -560,6 +560,16 @@ public class DateFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        return syntheticSourceSupportInternal(ignoreMalformed, true);
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed) {
+        // Serializing and deserializing BigDecimal values may lead to parsing errors, a test artifact.
+        return syntheticSourceSupportInternal(ignoreMalformed, false);
+    }
+
+    private SyntheticSourceSupport syntheticSourceSupportInternal(boolean ignoreMalformed, boolean allowBigDecimal) {
         return new SyntheticSourceSupport() {
             private final DateFieldMapper.Resolution resolution = randomFrom(DateFieldMapper.Resolution.values());
             private final Object nullValue = usually()
@@ -641,7 +651,7 @@ public class DateFieldMapperTests extends MapperTestCase {
                         }
                         return randomLongBetween(0, MAX_ISO_DATE);
                     case NANOSECONDS:
-                        return switch (randomInt(2)) {
+                        return switch (randomInt(allowBigDecimal ? 2 : 1)) {
                             case 0 -> randomLongBetween(0, MAX_NANOS);
                             case 1 -> randomIs8601Nanos(MAX_NANOS);
                             case 2 -> new BigDecimal(randomDecimalNanos(MAX_MILLIS_DOUBLE_NANOS_KEEPS_PRECISION));

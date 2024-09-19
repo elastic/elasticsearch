@@ -133,8 +133,8 @@ public class OpenAiEmbeddingsServiceSettings extends FilteredXContentObject impl
     private final String modelId;
     private final URI uri;
     private final String organizationId;
-    private SimilarityMeasure similarity;
-    private Integer dimensions;
+    private final SimilarityMeasure similarity;
+    private final Integer dimensions;
     private final Integer maxInputTokens;
     private final Boolean dimensionsSetByUser;
     private final RateLimitSettings rateLimitSettings;

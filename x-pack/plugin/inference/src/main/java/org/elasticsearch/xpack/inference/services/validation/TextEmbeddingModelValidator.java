@@ -38,7 +38,9 @@ public class TextEmbeddingModelValidator implements ModelValidator {
             var dimensions = serviceSettings.dimensions();
             int embeddingSize = getEmbeddingSize(embeddingResults);
 
-            if (serviceSettings.dimensionsSetByUser() && dimensions != null && (dimensions.equals(embeddingSize) == false)) {
+            if (Boolean.TRUE.equals(serviceSettings.dimensionsSetByUser())
+                && dimensions != null
+                && (dimensions.equals(embeddingSize) == false)) {
                 throw new ElasticsearchStatusException(
                     Strings.format(
                         "The retrieved embeddings size [%s] does not match the size specified in the settings [%s]. "

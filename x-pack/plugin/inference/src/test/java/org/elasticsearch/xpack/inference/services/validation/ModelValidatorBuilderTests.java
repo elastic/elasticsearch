@@ -12,6 +12,8 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
 
+import static org.hamcrest.Matchers.isA;
+
 public class ModelValidatorBuilderTests extends ESTestCase {
     public void testBuildModelValidator_NullTaskType() {
         assertThrows(IllegalArgumentException.class, () -> { ModelValidatorBuilder.buildModelValidator(null); });
@@ -19,7 +21,7 @@ public class ModelValidatorBuilderTests extends ESTestCase {
 
     public void testBuildModelValidator_ValidTaskType() {
         taskTypeToModelValidatorClassMap().forEach((taskType, modelValidatorClass) -> {
-            assert (ModelValidatorBuilder.buildModelValidator(taskType).getClass().equals(modelValidatorClass));
+            assertThat(ModelValidatorBuilder.buildModelValidator(taskType), isA(modelValidatorClass));
         });
     }
 

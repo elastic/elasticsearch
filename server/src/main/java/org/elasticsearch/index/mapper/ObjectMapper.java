@@ -819,15 +819,17 @@ public class ObjectMapper extends Mapper {
 
             // Go one level down if possible
             var pathComponents = pathInCurrent.split("\\.");
-            var prefixParts = new ArrayList<String>();
+            var childMapperName = new StringBuilder();
 
             var parent = current;
             current = null;
             for (int i = 0; i < pathComponents.length - 1; i++) {
-                prefixParts.add(pathComponents[i]);
-                var childMapperName = String.join(".", prefixParts);
-                var childMapper = parent.mappers.get(childMapperName);
+                if (childMapperName.isEmpty() == false) {
+                    childMapperName.append(".");
+                }
+                childMapperName.append(pathComponents[i]);
 
+                var childMapper = parent.mappers.get(childMapperName.toString());
                 if (childMapper instanceof ObjectMapper objectMapper) {
                     current = objectMapper;
                     pathInCurrent = pathInCurrent.substring(childMapperName.length() + 1);
@@ -992,7 +994,9 @@ public class ObjectMapper extends Mapper {
             }
 
             for (var writer : currentWriters.values()) {
-                writer.writeTo(b);
+                if (writer.hasValue()) {
+                    writer.writeTo(b);
+                }
             }
 
             b.endObject();
@@ -1041,34 +1045,49 @@ public class ObjectMapper extends Mapper {
         interface FieldWriter {
             void writeTo(XContentBuilder builder) throws IOException;
 
+            boolean hasValue();
+
             record FieldLoader(SourceLoader.SyntheticFieldLoader loader) implements FieldWriter {
                 @Override
                 public void writeTo(XContentBuilder builder) throws IOException {
                     loader.write(builder);
+                }
+
+                @Override
+                public boolean hasValue() {
+                    return loader.hasValue();
                 }
             }
 
             class IgnoredSource implements FieldWriter {
                 private final String fieldName;
                 private final String leafName;
-                private final List<BytesRef> values;
+                private final List<BytesRef> encodedValues;
 
                 IgnoredSource(IgnoredSourceFieldMapper.NameValue initialValue) {
                     this.fieldName = initialValue.name();
                     this.leafName = initialValue.getFieldName();
-                    this.values = new ArrayList<>();
-                    this.values.add(initialValue.value());
+                    this.encodedValues = new ArrayList<>();
+                    if (initialValue.hasValue()) {
+                        this.encodedValues.add(initialValue.value());
+                    }
                 }
 
                 @Override
                 public void writeTo(XContentBuilder builder) throws IOException {
-                    XContentDataHelper.writeMerged(builder, leafName, values);
+                    XContentDataHelper.writeMerged(builder, leafName, encodedValues);
+                }
+
+                @Override
+                public boolean hasValue() {
+                    return encodedValues.isEmpty() == false;
                 }
 
                 public FieldWriter mergeWith(IgnoredSourceFieldMapper.NameValue nameValue) {
                     assert Objects.equals(nameValue.name(), fieldName) : "IgnoredSource is merged with wrong field data";
-
-                    values.add(nameValue.value());
+                    if (nameValue.hasValue()) {
+                        encodedValues.add(nameValue.value());
+                    }
                     return this;
                 }
             }

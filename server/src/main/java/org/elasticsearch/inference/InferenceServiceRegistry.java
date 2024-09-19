@@ -54,6 +54,7 @@ public class InferenceServiceRegistry implements Closeable {
             return Optional.ofNullable(services.get(serviceName));
         }
     }
+    }
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return namedWriteables;

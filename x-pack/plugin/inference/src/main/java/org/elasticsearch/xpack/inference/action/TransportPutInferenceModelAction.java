@@ -20,6 +20,8 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -35,6 +37,8 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
@@ -45,6 +49,8 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlPlatformArchitecturesUtil;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
+import org.elasticsearch.xpack.inference.services.elser.ElserInternalService;
 
 import java.io.IOException;
 import java.util.Map;
@@ -57,6 +63,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
     PutInferenceModelAction.Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutInferenceModelAction.class);
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(PutInferenceModelAction.class);
 
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
@@ -113,6 +120,13 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
                 )
             );
             return;
+        } else if (serviceName.equals(ElserInternalService.NAME)) {
+            DEPRECATION_LOGGER.warn(
+                DeprecationCategory.API,
+                "The [{}] service is deprecated and will be removed in a future release. Use the [{}] service instead.",
+                ElserInternalService.NAME,
+                ElasticsearchInternalService.NAME
+            );
         }
 
         var service = serviceRegistry.getService(serviceName);

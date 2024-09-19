@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -168,11 +169,12 @@ public class XContentDataHelperTests extends ESTestCase {
         XContentParser xContentParser = createParser(JsonXContent.jsonXContent, data);
         xContentParser.nextToken();
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
-        assertFalse(context.getClonedSource());
+        assertFalse(context.getRecordedSource());
         var tuple = XContentDataHelper.cloneSubContextWithParser(context);
         assertEquals(data, dataInParser(tuple.v1().parser()));
         assertEquals(data, dataInParser(tuple.v2()));
-        assertTrue(tuple.v1().getClonedSource());
+        assertTrue(tuple.v1().getRecordedSource());
+        assertFalse(context.getRecordedSource());
     }
 
     public void testWriteMergedWithSingleValue() throws IOException {

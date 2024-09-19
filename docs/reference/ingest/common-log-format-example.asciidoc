@@ -28,7 +28,7 @@ Pipelines**.
 image::images/ingest/ingest-pipeline-list.png[Kibana's Ingest Pipelines list view,align="center"]
 
 . Click **Create pipeline > New pipeline**.
-. Set **Name** to `my-pipeline` and optionally add a description for the 
+. Set **Name** to `my-pipeline` and optionally add a description for the
 pipeline.
 . Add a <<grok-processor,grok processor>> to parse the log message:
 
@@ -128,6 +128,7 @@ PUT _ingest/pipeline/my-pipeline
 // end::common-log-pipeline[]
 }
 ----
+// TEST[skip:This can output a warning, and asciidoc doesn't support allowed_warnings]
 ////
 --
 

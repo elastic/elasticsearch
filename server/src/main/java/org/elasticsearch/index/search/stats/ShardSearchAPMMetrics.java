@@ -32,7 +32,7 @@ public final class ShardSearchAPMMetrics implements SearchOperationListener {
     public ShardSearchAPMMetrics(MeterRegistry meterRegistry) {
         this.actionLatencies = meterRegistry.registerLongHistogram(
             SEARCH_PHASES_DURATION_METRIC,
-            "Transport action execution times at the node level, expressed as a histogram",
+            "Search actions execution times at the shard level, expressed as a histogram",
             "ms"
         );
     }

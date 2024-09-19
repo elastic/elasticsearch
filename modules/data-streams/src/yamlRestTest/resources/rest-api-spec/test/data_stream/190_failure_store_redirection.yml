@@ -231,14 +231,13 @@ teardown:
 
 ---
 "Ensure failure is redirected to correct failure store after a reroute processor":
-  - skip:
-      known_issues:
-        - cluster_feature: "gte_v8.15.0"
-          fixed_by: "gte_v8.16.0"
-      reason: "Failure store documents contained the original index name rather than the rerouted one before v8.16.0"
   - requires:
-      test_runner_features: [allowed_warnings]
-
+      test_runner_features: [allowed_warnings, capabilities]
+      reason: "Failure store status was added in 8.16+"
+      capabilities:
+        - method: POST
+          path: /{index}/_doc
+          capabilities: [ 'failure_store_status' ]
   - do:
       ingest.put_pipeline:
         id: "failing_pipeline"
@@ -316,6 +315,7 @@ teardown:
         body:
           '@timestamp': '2020-12-12'
           foo: bar
+  - match: { failure_store: used}
 
   - do:
       search:
@@ -774,12 +774,7 @@ teardown:
 ---
 "Version conflicts are not redirected to failure store":
   - requires:
-      reason: "Failure store status was added in 8.16+"
-      test_runner_features: [ capabilities, allowed_warnings, contains ]
-      capabilities:
-        - method: POST
-          path: /_bulk
-          capabilities: [ 'failure_store_status' ]
+      test_runner_features: [ allowed_warnings]
 
   - do:
       allowed_warnings:
@@ -818,10 +813,13 @@ teardown:
 ---
 "Test failure store status with bulk request":
   - requires:
+      test_runner_features: [ allowed_warnings, capabilities ]
       reason: "Failure store status was added in 8.16+"
-      test_runner_features: [ capabilities, allowed_warnings, contains ]
       capabilities:
         - method: POST
+          path: /_bulk
+          capabilities: [ 'failure_store_status' ]
+        - method: PUT
           path: /_bulk
           capabilities: [ 'failure_store_status' ]
 

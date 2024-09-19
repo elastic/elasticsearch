@@ -905,7 +905,6 @@ public class IndicesService extends AbstractLifecycleComponent
                     // concrete index - no name clash, it uses uuid
                     .setConcreteIndex(shardRouting.index())
                     .source(mapping.source().string(), XContentType.JSON);
-                // concrete index - no name clash, it uses uuid
                 client.execute(
                     featureService.clusterHasFeature(clusterService.state(), SUPPORTS_AUTO_PUT)
                         ? TransportAutoPutMappingAction.TYPE

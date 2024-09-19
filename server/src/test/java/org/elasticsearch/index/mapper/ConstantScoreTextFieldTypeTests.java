@@ -251,7 +251,7 @@ public class ConstantScoreTextFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = createFieldType();
         IntervalsSource fuzzyIntervals = ft.fuzzyIntervals("foo", 1, 2, true, MOCK_CONTEXT);
         FuzzyQuery fq = new FuzzyQuery(new Term("field", "foo"), 1, 2, 128, true);
-        IntervalsSource expectedIntervals = Intervals.multiterm(fq.getAutomata(),  IndexSearcher.getMaxClauseCount(), "foo");
+        IntervalsSource expectedIntervals = Intervals.multiterm(fq.getAutomata(), IndexSearcher.getMaxClauseCount(), "foo");
         assertEquals(expectedIntervals, fuzzyIntervals);
     }
 

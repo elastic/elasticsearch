@@ -51,7 +51,7 @@ public class Configuration implements Writeable {
     private final boolean profile;
 
     private final Map<String, Map<String, Column>> tables;
-    private final long queryStartTimeMillis;
+    private final long queryStartTimeNanos;
 
     public Configuration(
         ZoneId zi,
@@ -64,7 +64,7 @@ public class Configuration implements Writeable {
         String query,
         boolean profile,
         Map<String, Map<String, Column>> tables,
-        long queryStartTimeMillis
+        long queryStartTimeNanos
     ) {
         this.zoneId = zi.normalized();
         this.now = ZonedDateTime.now(Clock.tick(Clock.system(zoneId), Duration.ofNanos(1)));
@@ -78,7 +78,7 @@ public class Configuration implements Writeable {
         this.profile = profile;
         this.tables = tables;
         assert tables != null;
-        this.queryStartTimeMillis = queryStartTimeMillis;
+        this.queryStartTimeNanos = queryStartTimeNanos;
     }
 
     public Configuration(BlockStreamInput in) throws IOException {
@@ -102,9 +102,9 @@ public class Configuration implements Writeable {
             this.tables = Map.of();
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_CCS_COMPUTE_RESPONSE)) {
-            this.queryStartTimeMillis = in.readLong();
+            this.queryStartTimeNanos = in.readLong();
         } else {
-            this.queryStartTimeMillis = -1;
+            this.queryStartTimeNanos = -1;
         }
     }
 
@@ -128,7 +128,7 @@ public class Configuration implements Writeable {
             out.writeMap(tables, (o1, columns) -> o1.writeMap(columns, StreamOutput::writeWriteable));
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_CCS_COMPUTE_RESPONSE)) {
-            out.writeLong(queryStartTimeMillis);
+            out.writeLong(queryStartTimeNanos);
         }
     }
 
@@ -179,10 +179,10 @@ public class Configuration implements Writeable {
     }
 
     /**
-     * @return Start time of the ESQL query in millis
+     * @return Start time of the ESQL query in nanos
      */
-    public long getQueryStartTimeMillis() {
-        return queryStartTimeMillis;
+    public long getQueryStartTimeNanos() {
+        return queryStartTimeNanos;
     }
 
     /**

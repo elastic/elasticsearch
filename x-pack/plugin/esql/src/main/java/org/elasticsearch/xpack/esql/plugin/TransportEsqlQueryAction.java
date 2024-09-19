@@ -168,7 +168,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             request.query(),
             request.profile(),
             request.tables(),
-            System.currentTimeMillis()
+            System.nanoTime()
         );
         String sessionId = sessionID(task);
         EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(clusterAlias -> remoteClusterService.isSkipUnavailable(clusterAlias));

@@ -103,7 +103,7 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
             query,
             profile,
             tables,
-            System.currentTimeMillis()
+            System.nanoTime()
         );
 
     }

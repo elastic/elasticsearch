@@ -69,7 +69,7 @@ public class ToUpperTests extends AbstractConfigurationFunctionTestCase {
             "",
             false,
             Map.of(),
-            System.currentTimeMillis()
+            System.nanoTime()
         );
     }
 

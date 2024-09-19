@@ -43,7 +43,7 @@ public abstract class AbstractConfigurationFunctionTestCase extends AbstractScal
             StringUtils.EMPTY,
             randomBoolean(),
             Map.of(),
-            System.currentTimeMillis()
+            System.nanoTime()
         );
     }
 

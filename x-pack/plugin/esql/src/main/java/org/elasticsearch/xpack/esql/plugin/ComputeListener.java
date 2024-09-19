@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -146,10 +147,10 @@ final class ComputeListener implements Releasable {
      * phase. Per-cluster took time is recorded in the {@link EsqlExecutionInfo} and status is
      * set to SUCCESSFUL when the CountDown reaches zero.
      * @param clusterAlias remote cluster alias the data node compute is running on
-     * @param queryStartTimeMillis start time (on coordinating cluster) for computing took time (per cluster)
+     * @param queryStartTimeNanos start time (on coordinating cluster) for computing took time (per cluster)
      * @param countDown counter of number of data nodes to wait for before changing cluster status from RUNNING to SUCCESSFUL
      */
-    ActionListener<ComputeResponse> acquireComputeForDataNodes(String clusterAlias, long queryStartTimeMillis, CountDown countDown) {
+    ActionListener<ComputeResponse> acquireComputeForDataNodes(String clusterAlias, long queryStartTimeNanos, CountDown countDown) {
         assert clusterAlias != null : "Must provide non-null cluster alias to acquireCompute";
         return acquireAvoid().map(resp -> {
             responseHeaders.collect();
@@ -157,11 +158,11 @@ final class ComputeListener implements Releasable {
             if (profiles != null && profiles.isEmpty() == false) {
                 collectedProfiles.addAll(profiles);
             }
-            long tookTimeMillis = System.currentTimeMillis() - queryStartTimeMillis;
-            TimeValue tookOnDataNode = new TimeValue(tookTimeMillis);
+            long tookTimeNanos = System.nanoTime() - queryStartTimeNanos;
+            TimeValue tookOnDataNode = new TimeValue(tookTimeNanos, TimeUnit.NANOSECONDS);
             esqlExecutionInfo.swapCluster(clusterAlias, (k, v) -> {
                 EsqlExecutionInfo.Cluster.Builder builder = new EsqlExecutionInfo.Cluster.Builder(v);
-                if (v.getTook() == null || v.getTook().millis() < tookOnDataNode.millis()) {
+                if (v.getTook() == null || v.getTook().nanos() < tookOnDataNode.nanos()) {
                     builder.setTook(tookOnDataNode);
                 }
                 if (countDown.countDown()) {

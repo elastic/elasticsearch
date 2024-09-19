@@ -86,13 +86,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     }
 
     public EsqlExecutionInfo(StreamInput in) throws IOException {
-        Long took = in.readOptionalLong();
-        if (took == null) {
-            this.overallTook = null;
-        } else {
-            this.overallTook = new TimeValue(took);
-        }
-
+        this.overallTook = in.readOptionalTimeValue();
         List<EsqlExecutionInfo.Cluster> clusterList = in.readCollectionAsList(EsqlExecutionInfo.Cluster::new);
         if (clusterList.isEmpty()) {
             this.clusterInfo = ConcurrentCollections.newConcurrentMap();
@@ -106,7 +100,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalLong(overallTook == null ? null : overallTook.millis());
+        out.writeOptionalTimeValue(overallTook);
         if (clusterInfo != null) {
             out.writeCollection(clusterInfo.values().stream().toList());
         } else {
@@ -236,7 +230,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         private final Integer successfulShards;
         private final Integer skippedShards;
         private final Integer failedShards;
-        private final TimeValue took;  // search latency in millis for this cluster sub-search
+        private final TimeValue took;  // search latency for this cluster sub-search
 
         /**
          * Marks the status of a Cluster search involved in a Cross-Cluster search.
@@ -315,12 +309,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             this.successfulShards = in.readOptionalInt();
             this.skippedShards = in.readOptionalInt();
             this.failedShards = in.readOptionalInt();
-            Long took = in.readOptionalLong();
-            if (took == null) {
-                this.took = null;
-            } else {
-                this.took = new TimeValue(took);
-            }
+            this.took = in.readOptionalTimeValue();
             this.skipUnavailable = in.readBoolean();
         }
 
@@ -333,7 +322,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             out.writeOptionalInt(successfulShards);
             out.writeOptionalInt(skippedShards);
             out.writeOptionalInt(failedShards);
-            out.writeOptionalLong(took == null ? null : took.millis());
+            out.writeOptionalTimeValue(took);
             out.writeBoolean(skipUnavailable);
         }
 
@@ -426,6 +415,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
                 builder.field(STATUS_FIELD.getPreferredName(), getStatus().toString());
                 builder.field(INDICES_FIELD.getPreferredName(), indexExpression);
                 if (took != null) {
+                    // TODO: change this to took_nanos and call took.nanos?
                     builder.field(TOOK.getPreferredName(), took.millis());
                 }
                 if (totalShards != null) {

@@ -76,7 +76,7 @@ public class EvalMapperTests extends ESTestCase {
         StringUtils.EMPTY,
         false,
         Map.of(),
-        System.currentTimeMillis()
+        System.nanoTime()
     );
 
     @ParametersFactory(argumentFormatting = "%1$s")

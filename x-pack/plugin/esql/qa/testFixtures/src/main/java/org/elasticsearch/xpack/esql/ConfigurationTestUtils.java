@@ -71,7 +71,7 @@ public class ConfigurationTestUtils {
             query,
             profile,
             tables,
-            System.currentTimeMillis()
+            System.nanoTime()
         );
     }
 

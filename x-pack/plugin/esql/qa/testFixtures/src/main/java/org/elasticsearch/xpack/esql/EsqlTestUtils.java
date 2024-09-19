@@ -271,7 +271,7 @@ public final class EsqlTestUtils {
             query,
             false,
             TABLES,
-            System.currentTimeMillis()
+            System.nanoTime()
         );
     }
 

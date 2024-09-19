@@ -81,6 +81,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
@@ -202,8 +203,8 @@ public class ComputeService {
             Releasable ignored = exchangeSource.addEmptySink();
             // this is the top level ComputeListener called once at the end (e.g., once all clusters have finished for a CCS)
             var computeListener = ComputeListener.createComputeListener(transportService, rootTask, executionInfo, listener.map(r -> {
-                long tookTimeMillis = System.currentTimeMillis() - configuration.getQueryStartTimeMillis();
-                executionInfo.overallTook(new TimeValue(tookTimeMillis));
+                long tookTimeNanos = System.nanoTime() - configuration.getQueryStartTimeNanos();
+                executionInfo.overallTook(new TimeValue(tookTimeNanos, TimeUnit.NANOSECONDS));
                 return new Result(physicalPlan.output(), collectedPages, r.getProfiles(), executionInfo);
             }))
         ) {
@@ -320,7 +321,7 @@ public class ComputeService {
                             exchangeSource.addRemoteSink(remoteSink, queryPragmas.concurrentExchangeClients());
                             ActionListener<ComputeResponse> computeResponseListener = computeListener.acquireComputeForDataNodes(
                                 clusterAlias,
-                                configuration.getQueryStartTimeMillis(),
+                                configuration.getQueryStartTimeNanos(),
                                 countDown
                             );
                             var dataNodeListener = ActionListener.runBefore(computeResponseListener, () -> l.onResponse(null));

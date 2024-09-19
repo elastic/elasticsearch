@@ -123,13 +123,14 @@ public abstract class DocumentParserContext {
     private Field version;
     private final SeqNoFieldMapper.SequenceIDFields seqID;
     private final Set<String> fieldsAppliedFromTemplates;
+
     /**
      * Fields that are copied from values of other fields via copy_to.
      * This per-document state is needed since it is possible
      * that copy_to field in introduced using a dynamic template
      * in this document and therefore is not present in mapping yet.
      */
-    public final Set<String> copyToFields;
+    private final Set<String> copyToFields;
 
     // Indicates if the source for this context has been marked to be recorded. Applies to synthetic source only.
     private boolean recordedSource;
@@ -457,6 +458,10 @@ public abstract class DocumentParserContext {
 
     public boolean isCopyToDestinationField(String name) {
         return copyToFields.contains(name);
+    }
+
+    public Set<String> getCopyToFields() {
+        return copyToFields;
     }
 
     /**

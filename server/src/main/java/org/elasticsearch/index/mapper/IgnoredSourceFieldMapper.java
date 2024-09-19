@@ -165,7 +165,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
             Otherwise, it would be constructed f.e. from doc_values which leads to duplicate values
             in copied field after reindexing.
             */
-            for (String copyToField : context.copyToFields) {
+            for (String copyToField : context.getCopyToFields()) {
                 ObjectMapper parent = context.parent().findParentMapper(copyToField);
                 if (parent == null) {
                     // There are scenarios when this can happen:

@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.indices.rollover.LazyRolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -485,6 +486,10 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                             addFailure(bulkItemResponse);
                         } else {
                             bulkItemResponse.getResponse().setShardInfo(bulkShardResponse.getShardInfo());
+                            if (isFailureStoreRequest(bulkItemRequest.request())
+                                && bulkItemResponse.getResponse() instanceof IndexResponse ir) {
+                                ir.setFailureStoreStatus(IndexDocFailureStoreStatus.USED);
+                            }
                             responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
                         }
                     }

@@ -37,7 +37,7 @@ public class IndexResponse extends DocWriteResponse {
      */
     @Nullable
     protected final List<String> executedPipelines;
-    private final IndexDocFailureStoreStatus failureStoreStatus;
+    private IndexDocFailureStoreStatus failureStoreStatus;
 
     public IndexResponse(ShardId shardId, StreamInput in) throws IOException {
         super(shardId, in);
@@ -159,6 +159,10 @@ public class IndexResponse extends DocWriteResponse {
     @Override
     public RestStatus status() {
         return result == Result.CREATED ? RestStatus.CREATED : super.status();
+    }
+
+    public void setFailureStoreStatus(IndexDocFailureStoreStatus failureStoreStatus) {
+        this.failureStoreStatus = failureStoreStatus;
     }
 
     @Override

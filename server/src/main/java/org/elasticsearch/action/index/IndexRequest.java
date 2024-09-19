@@ -212,9 +212,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         } else {
             originatesFromUpdateByDoc = false;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_STATUS_IN_INDEX_RESPONSE)) {
-            writeToFailureStore = in.readBoolean();
-        }
     }
 
     public IndexRequest() {
@@ -783,9 +780,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_REQUEST_UPDATE_BY_DOC_ORIGIN)) {
             out.writeBoolean(originatesFromUpdateByDoc);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_STATUS_IN_INDEX_RESPONSE)) {
-            out.writeBoolean(writeToFailureStore);
-        }
     }
 
     @Override
@@ -887,6 +881,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return this;
     }
 
+    /**
+     * Transient flag denoting that the local request should be routed to a failure store. Not persisted across the wire.
+     */
     public boolean isWriteToFailureStore() {
         return writeToFailureStore;
     }

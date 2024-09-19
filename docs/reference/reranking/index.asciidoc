@@ -33,7 +33,7 @@ https://en.wikipedia.org/wiki/Okapi_BM25[BM25] is the default statistical scorin
 
 Vector search involves transforming data into dense or sparse vector embeddings to capture semantic meanings, and computing similarity scores for query vectors.
 Store vectors using `semantic_text` fields for automatic inference and vectorization or `dense_vector` and `sparse_vector` fields when you need more control over the underlying embedding model.
-Query vectors with `semantic` queries or `knn` and `sparse_vector` queries to compute similarity scores.
+Query vector fields with `semantic`, `knn` or `sparse_vector` queries to compute similarity scores.
 Refer to <<semantic-search,semantic search>> for more information.
 
 [float]

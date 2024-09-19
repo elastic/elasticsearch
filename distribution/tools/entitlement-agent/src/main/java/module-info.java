@@ -9,5 +9,5 @@
 
 module org.elasticsearch.entitlement.agent {
     requires java.instrument;
-    requires org.elasticsearch.entitlements.runtime;
+    requires org.elasticsearch.entitlement.runtime;
 }

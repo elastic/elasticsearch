@@ -66,9 +66,7 @@ public enum RestApiVersion {
         };
     }
 
-    @UpdateForV9
-    // Right now we return api version 8 for major version 9 until we bump the api version above
-    public static RestApiVersion forMajor(int major) {
+   public static RestApiVersion forMajor(int major) {
         switch (major) {
             case 7 -> {
                 return V_7;
@@ -77,7 +75,7 @@ public enum RestApiVersion {
                 return V_8;
             }
             case 9 -> {
-                return V_8;
+                return V_9;
             }
             default -> throw new IllegalArgumentException("Unknown REST API version " + major);
         }

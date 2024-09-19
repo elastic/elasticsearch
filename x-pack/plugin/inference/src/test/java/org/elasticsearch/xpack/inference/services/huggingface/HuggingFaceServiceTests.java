@@ -616,6 +616,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
             PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
             service.chunkedInfer(
                 model,
+                null,
                 List.of("abc"),
                 new HashMap<>(),
                 InputType.INGEST,
@@ -671,6 +672,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
             PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
             service.chunkedInfer(
                 model,
+                null,
                 List.of("abc"),
                 new HashMap<>(),
                 InputType.INGEST,

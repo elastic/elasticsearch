@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.inference.external.action.alibabacloudsearch.Alib
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
+import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.request.alibabacloudsearch.AlibabaCloudSearchUtils;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
@@ -107,7 +108,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
             @Override
             public void doInfer(
                 Model model,
-                List<String> input,
+                InferenceInputs inputs,
                 Map<String, Object> taskSettings,
                 InputType inputType,
                 TimeValue timeout,
@@ -213,6 +214,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
             PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
             service.chunkedInfer(
                 model,
+                null,
                 input,
                 new HashMap<>(),
                 InputType.INGEST,

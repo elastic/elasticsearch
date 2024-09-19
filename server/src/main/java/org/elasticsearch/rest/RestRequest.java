@@ -24,6 +24,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.telemetry.tracing.Traceable;
@@ -304,16 +305,28 @@ public class RestRequest implements ToXContent.Params, Traceable {
     }
 
     public boolean hasContent() {
-        return contentLength() > 0;
+        return isStreamedContent() || contentLength() > 0;
     }
 
     public int contentLength() {
-        return httpRequest.content().length();
+        return httpRequest.body().asFull().bytes().length();
+    }
+
+    public boolean isFullContent() {
+        return httpRequest.body().isFull();
     }
 
     public BytesReference content() {
         this.contentConsumed = true;
-        return httpRequest.content();
+        return httpRequest.body().asFull().bytes();
+    }
+
+    public boolean isStreamedContent() {
+        return httpRequest.body().isStream();
+    }
+
+    public HttpBody.Stream contentStream() {
+        return httpRequest.body().asStream();
     }
 
     /**

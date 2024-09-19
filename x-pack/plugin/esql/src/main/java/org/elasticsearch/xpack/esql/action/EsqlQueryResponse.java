@@ -205,9 +205,9 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         boolean[] nullColumns = dropNullColumns ? nullColumns() : null;
 
         Iterator<ToXContent> tookTime;
-        if (executionInfo != null && executionInfo.getOverallTook() != null) {
+        if (executionInfo != null && executionInfo.overallTook() != null) {
             tookTime = ChunkedToXContentHelper.singleChunk((builder, p) -> {
-                builder.field("took", executionInfo.getOverallTook().millis());
+                builder.field("took", executionInfo.overallTook().millis());
                 return builder;
             });
         } else {

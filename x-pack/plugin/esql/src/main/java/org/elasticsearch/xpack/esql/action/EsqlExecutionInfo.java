@@ -80,7 +80,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      * For testing use with fromXContent parsing only
      * @param clusterInfo
      */
-    public EsqlExecutionInfo(ConcurrentMap<String, Cluster> clusterInfo) {
+    EsqlExecutionInfo(ConcurrentMap<String, Cluster> clusterInfo) {
         this.clusterInfo = clusterInfo;
         this.skipUnavailablePredicate = Predicates.always();
     }
@@ -114,15 +114,15 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         }
     }
 
-    public void setOverallTookTime(TimeValue took) {
+    public void overallTook(TimeValue took) {
         this.overallTook = took;
     }
 
-    public TimeValue getOverallTook() {
+    public TimeValue overallTook() {
         return overallTook;
     }
 
-    public Set<String> getClusterAliases() {
+    public Set<String> clusterAliases() {
         return clusterInfo.keySet();
     }
 

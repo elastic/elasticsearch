@@ -63,11 +63,7 @@ final class ComputeResponse extends TransportResponse {
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_CCS_COMPUTE_RESPONSE)) {
             Long took = in.readOptionalLong();
-            if (took == null) {
-                this.took = null;
-            } else {
-                this.took = new TimeValue(took);
-            }
+            this.took = took == null ? new TimeValue(0L) : new TimeValue(took);
             this.totalShards = in.readVInt();
             this.successfulShards = in.readVInt();
             this.skippedShards = in.readVInt();

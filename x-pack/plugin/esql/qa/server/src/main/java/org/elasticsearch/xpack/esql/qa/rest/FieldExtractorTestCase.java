@@ -304,9 +304,8 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
 
         assertMap(
             result,
-            matchesMap().entry("columns", List.of(columnInfo("flattened", "unsupported")))
+            matchesMapWithOptionalTook(result.get("took")).entry("columns", List.of(columnInfo("flattened", "unsupported")))
                 .entry("values", List.of(matchesList().item(null)))
-                .entry("took", greaterThanOrEqualTo(0))
         );
     }
 
@@ -345,12 +344,12 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         String value = randomAlphaOfLength(20);
         Map<String, Object> result = new Test("text").storeAndDocValues(randomBoolean(), null).sub("raw", keywordTest()).roundTrip(value);
 
-        MapMatcher mapMatcher = matchesMap();
         assertMap(
             result,
-            mapMatcher.entry("columns", List.of(columnInfo("text_field", "text"), columnInfo("text_field.raw", "keyword")))
-                .entry("values", List.of(matchesList().item(value).item(value)))
-                .entry("took", greaterThanOrEqualTo(0))
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("text_field", "text"), columnInfo("text_field.raw", "keyword"))
+            ).entry("values", List.of(matchesList().item(value).item(value)))
         );
     }
 
@@ -373,9 +372,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
 
         assertMap(
             result,
-            matchesMap().entry("columns", List.of(columnInfo("text_field", "text"), columnInfo("text_field.int", "integer")))
-                .entry("values", List.of(matchesList().item(Integer.toString(value)).item(value)))
-                .entry("took", greaterThanOrEqualTo(0))
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("text_field", "text"), columnInfo("text_field.int", "integer"))
+            ).entry("values", List.of(matchesList().item(Integer.toString(value)).item(value)))
         );
     }
 
@@ -395,11 +395,13 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     public void testTextFieldWithIntegerSubfieldMalformed() throws IOException {
         String value = randomAlphaOfLength(5);
         Map<String, Object> result = textTest().sourceMode(SourceMode.DEFAULT).sub("int", intTest().ignoreMalformed(true)).roundTrip(value);
+
         assertMap(
             result,
-            matchesMap().entry("columns", List.of(columnInfo("text_field", "text"), columnInfo("text_field.int", "integer")))
-                .entry("values", List.of(matchesList().item(value).item(null)))
-                .entry("took", greaterThanOrEqualTo(0))
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("text_field", "text"), columnInfo("text_field.int", "integer"))
+            ).entry("values", List.of(matchesList().item(value).item(null)))
         );
     }
 
@@ -422,9 +424,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
 
         assertMap(
             result,
-            matchesMap().entry("columns", List.of(columnInfo("text_field", "text"), columnInfo("text_field.ip", "ip")))
-                .entry("values", List.of(matchesList().item(value).item(value)))
-                .entry("took", greaterThanOrEqualTo(0))
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("text_field", "text"), columnInfo("text_field.ip", "ip"))
+            ).entry("values", List.of(matchesList().item(value).item(value)))
         );
     }
 
@@ -447,9 +450,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
 
         assertMap(
             result,
-            matchesMap().entry("columns", List.of(columnInfo("text_field", "text"), columnInfo("text_field.ip", "ip")))
-                .entry("values", List.of(matchesList().item(value).item(null)))
-                .entry("took", greaterThanOrEqualTo(0))
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("text_field", "text"), columnInfo("text_field.ip", "ip"))
+            ).entry("values", List.of(matchesList().item(value).item(null)))
         );
     }
 
@@ -473,10 +477,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
 
         assertMap(
             result,
-            matchesMap().entry(
+            matchesMapWithOptionalTook(result.get("took")).entry(
                 "columns",
                 List.of(columnInfo("integer_field", "integer"), columnInfo("integer_field.str", text ? "text" : "keyword"))
-            ).entry("values", List.of(matchesList().item(value).item(Integer.toString(value)))).entry("took", greaterThanOrEqualTo(0))
+            ).entry("values", List.of(matchesList().item(value).item(Integer.toString(value))))
         );
     }
 
@@ -497,12 +501,13 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         String value = randomAlphaOfLength(5);
         boolean text = randomBoolean();
         Map<String, Object> result = intTest().forceIgnoreMalformed().sub("str", text ? textTest() : keywordTest()).roundTrip(value);
+
         assertMap(
             result,
-            matchesMap().entry(
+            matchesMapWithOptionalTook(result.get("took")).entry(
                 "columns",
                 List.of(columnInfo("integer_field", "integer"), columnInfo("integer_field.str", text ? "text" : "keyword"))
-            ).entry("values", List.of(matchesList().item(null).item(value))).entry("took", greaterThanOrEqualTo(0))
+            ).entry("values", List.of(matchesList().item(null).item(value)))
         );
     }
 
@@ -526,9 +531,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
 
         assertMap(
             result,
-            matchesMap().entry("columns", List.of(columnInfo("ip_field", "ip"), columnInfo("ip_field.str", text ? "text" : "keyword")))
-                .entry("values", List.of(matchesList().item(value).item(value)))
-                .entry("took", greaterThanOrEqualTo(0))
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("ip_field", "ip"), columnInfo("ip_field.str", text ? "text" : "keyword"))
+            ).entry("values", List.of(matchesList().item(value).item(value)))
         );
     }
 
@@ -549,11 +555,13 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         String value = randomAlphaOfLength(5);
         boolean text = randomBoolean();
         Map<String, Object> result = ipTest().forceIgnoreMalformed().sub("str", text ? textTest() : keywordTest()).roundTrip(value);
+
         assertMap(
             result,
-            matchesMap().entry("columns", List.of(columnInfo("ip_field", "ip"), columnInfo("ip_field.str", text ? "text" : "keyword")))
-                .entry("values", List.of(matchesList().item(null).item(value)))
-                .entry("took", greaterThanOrEqualTo(0))
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("ip_field", "ip"), columnInfo("ip_field.str", text ? "text" : "keyword"))
+            ).entry("values", List.of(matchesList().item(null).item(value)))
         );
     }
 
@@ -574,11 +582,13 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     public void testIntFieldWithByteSubfield() throws IOException {
         byte value = randomByte();
         Map<String, Object> result = intTest().sub("byte", byteTest()).roundTrip(value);
+
         assertMap(
             result,
-            matchesMap().entry("columns", List.of(columnInfo("integer_field", "integer"), columnInfo("integer_field.byte", "integer")))
-                .entry("values", List.of(matchesList().item((int) value).item((int) value)))
-                .entry("took", greaterThanOrEqualTo(0))
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("integer_field", "integer"), columnInfo("integer_field.byte", "integer"))
+            ).entry("values", List.of(matchesList().item((int) value).item((int) value)))
         );
     }
 
@@ -601,11 +611,13 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         Map<String, Object> result = intTest().sourceMode(SourceMode.DEFAULT)
             .sub("byte", byteTest().ignoreMalformed(true))
             .roundTrip(value);
+
         assertMap(
             result,
-            matchesMap().entry("columns", List.of(columnInfo("integer_field", "integer"), columnInfo("integer_field.byte", "integer")))
-                .entry("values", List.of(matchesList().item(value).item(null)))
-                .entry("took", greaterThanOrEqualTo(0))
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("integer_field", "integer"), columnInfo("integer_field.byte", "integer"))
+            ).entry("values", List.of(matchesList().item(value).item(null)))
         );
     }
 
@@ -629,10 +641,19 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
 
         assertMap(
             result,
-            matchesMap().entry("columns", List.of(columnInfo("byte_field", "integer"), columnInfo("byte_field.int", "integer")))
-                .entry("values", List.of(matchesList().item((int) value).item((int) value)))
-                .entry("took", greaterThanOrEqualTo(0))
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("byte_field", "integer"), columnInfo("byte_field.int", "integer"))
+            ).entry("values", List.of(matchesList().item((int) value).item((int) value)))
         );
+    }
+
+    static MapMatcher matchesMapWithOptionalTook(Object tookTimeValue) {
+        MapMatcher mapMatcher = matchesMap();
+        if (tookTimeValue instanceof Number) {
+            mapMatcher = mapMatcher.entry("took", greaterThanOrEqualTo(0));
+        }
+        return mapMatcher;
     }
 
     /**
@@ -652,11 +673,13 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     public void testByteFieldWithIntSubfieldTooBig() throws IOException {
         int value = randomValueOtherThanMany((Integer v) -> (Byte.MIN_VALUE <= v) && (v <= Byte.MAX_VALUE), ESTestCase::randomInt);
         Map<String, Object> result = byteTest().forceIgnoreMalformed().sub("int", intTest()).roundTrip(value);
+
         assertMap(
             result,
-            matchesMap().entry("columns", List.of(columnInfo("byte_field", "integer"), columnInfo("byte_field.int", "integer")))
-                .entry("values", List.of(matchesList().item(null).item(value)))
-                .entry("took", greaterThanOrEqualTo(0))
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("byte_field", "integer"), columnInfo("byte_field.int", "integer"))
+            ).entry("values", List.of(matchesList().item(null).item(value)))
         );
     }
 
@@ -685,9 +708,8 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         Map<String, Object> result = runEsql("FROM test*");
         assertMap(
             result,
-            matchesMap().entry("columns", List.of(columnInfo("f", "unsupported")))
+            matchesMapWithOptionalTook(result.get("took")).entry("columns", List.of(columnInfo("f", "unsupported")))
                 .entry("values", List.of(matchesList().item(null), matchesList().item(null)))
-                .entry("took", greaterThanOrEqualTo(0))
         );
         ResponseException e = expectThrows(ResponseException.class, () -> runEsql("FROM test* | SORT f | LIMIT 3"));
         String err = EntityUtils.toString(e.getResponse().getEntity());
@@ -724,9 +746,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         Map<String, Object> result = runEsql("FROM test* | SORT file, other");
         assertMap(
             result,
-            matchesMap().entry("columns", List.of(columnInfo("file", "keyword"), columnInfo("other", "keyword")))
-                .entry("values", List.of(matchesList().item("f1").item(null), matchesList().item(null).item("o2")))
-                .entry("took", greaterThanOrEqualTo(0))
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("file", "keyword"), columnInfo("other", "keyword"))
+            ).entry("values", List.of(matchesList().item("f1").item(null), matchesList().item(null).item("o2")))
         );
     }
 
@@ -789,9 +812,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         Map<String, Object> result = runEsql("FROM test* | SORT file.raw | LIMIT 2");
         assertMap(
             result,
-            matchesMap().entry("columns", List.of(columnInfo("file", "unsupported"), columnInfo("file.raw", "keyword")))
-                .entry("values", List.of(matchesList().item(null).item("o2"), matchesList().item(null).item(null)))
-                .entry("took", greaterThanOrEqualTo(0))
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("file", "unsupported"), columnInfo("file.raw", "keyword"))
+            ).entry("values", List.of(matchesList().item(null).item("o2"), matchesList().item(null).item(null)))
         );
     }
 
@@ -835,9 +859,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         Map<String, Object> result = runEsql("FROM test* | LIMIT 2");
         assertMap(
             result,
-            matchesMap().entry("columns", List.of(columnInfo("f", "unsupported"), columnInfo("f.raw", "unsupported")))
-                .entry("values", List.of(matchesList().item(null).item(null)))
-                .entry("took", greaterThanOrEqualTo(0))
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("f", "unsupported"), columnInfo("f.raw", "unsupported"))
+            ).entry("values", List.of(matchesList().item(null).item(null)))
         );
     }
 
@@ -899,9 +924,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         Map<String, Object> result = runEsql("FROM test* | LIMIT 2");
         assertMap(
             result,
-            matchesMap().entry("columns", List.of(columnInfo("f", "unsupported"), columnInfo("f.raw", "unsupported")))
-                .entry("values", List.of(matchesList().item(null).item(null), matchesList().item(null).item(null)))
-                .entry("took", greaterThanOrEqualTo(0))
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("f", "unsupported"), columnInfo("f.raw", "unsupported"))
+            ).entry("values", List.of(matchesList().item(null).item(null), matchesList().item(null).item(null)))
         );
     }
 
@@ -935,9 +961,8 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         Map<String, Object> result = runEsql("FROM test* | SORT emp_no | LIMIT 2");
         assertMap(
             result,
-            matchesMap().entry("columns", List.of(columnInfo("emp_no", "integer")))
+            matchesMapWithOptionalTook(result.get("took")).entry("columns", List.of(columnInfo("emp_no", "integer")))
                 .entry("values", List.of(matchesList().item(1), matchesList().item(2)))
-                .entry("took", greaterThanOrEqualTo(0))
         );
     }
 
@@ -982,9 +1007,8 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         Map<String, Object> result = runEsql("FROM test* | LIMIT 2");
         assertMap(
             result,
-            matchesMap().entry("columns", List.of(columnInfo("emp_no", "unsupported")))
+            matchesMapWithOptionalTook(result.get("took")).entry("columns", List.of(columnInfo("emp_no", "unsupported")))
                 .entry("values", List.of(matchesList().item(null), matchesList().item(null)))
-                .entry("took", greaterThanOrEqualTo(0))
         );
     }
 
@@ -1029,9 +1053,8 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         Map<String, Object> result = runEsql("FROM test* | LIMIT 2");
         assertMap(
             result,
-            matchesMap().entry("columns", List.of(columnInfo("emp_no", "unsupported")))
+            matchesMapWithOptionalTook(result.get("took")).entry("columns", List.of(columnInfo("emp_no", "unsupported")))
                 .entry("values", List.of(matchesList().item(null), matchesList().item(null)))
-                .entry("took", greaterThanOrEqualTo(0))
         );
     }
 
@@ -1328,10 +1351,8 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
                 values = values.item(expectedValue);
                 values = values.item(expectedValue);
             }
-            assertMap(
-                result,
-                matchesMap().entry("columns", columns).entry("values", List.of(values)).entry("took", greaterThanOrEqualTo(0))
-            );
+
+            assertMap(result, matchesMapWithOptionalTook(result.get("took")).entry("columns", columns).entry("values", List.of(values)));
         }
 
         void createIndex(String name, String fieldName) throws IOException {

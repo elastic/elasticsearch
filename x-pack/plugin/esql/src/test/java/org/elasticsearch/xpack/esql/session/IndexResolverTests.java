@@ -56,8 +56,8 @@ public class IndexResolverTests extends ESTestCase {
 
             IndexResolver.updateExecutionInfoWithFieldCapsResults(executionInfo, clusterAndResolvedIndices, failures);
 
-            assertThat(executionInfo.getClusterAliases(), equalTo(Set.of(localClusterAlias, remote1Alias, remote2Alias)));
-            assertNull(executionInfo.getOverallTook());
+            assertThat(executionInfo.clusterAliases(), equalTo(Set.of(localClusterAlias, remote1Alias, remote2Alias)));
+            assertNull(executionInfo.overallTook());
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(localClusterAlias);
             assertThat(localCluster.getIndexExpression(), equalTo("logs-a,logs-b"));
@@ -99,8 +99,8 @@ public class IndexResolverTests extends ESTestCase {
 
             IndexResolver.updateExecutionInfoWithFieldCapsResults(executionInfo, clusterAndResolvedIndices, failures);
 
-            assertThat(executionInfo.getClusterAliases(), equalTo(Set.of(remote1Alias, remote2Alias)));
-            assertNull(executionInfo.getOverallTook());
+            assertThat(executionInfo.clusterAliases(), equalTo(Set.of(remote1Alias, remote2Alias)));
+            assertNull(executionInfo.overallTook());
 
             EsqlExecutionInfo.Cluster remote1Cluster = executionInfo.getCluster(remote1Alias);
             assertThat(remote1Cluster.getIndexExpression(), equalTo("remote1:logs-a,remote1:logs-b"));
@@ -132,8 +132,8 @@ public class IndexResolverTests extends ESTestCase {
 
             IndexResolver.updateExecutionInfoWithFieldCapsResults(executionInfo, clusterAndResolvedIndices, failures);
 
-            assertThat(executionInfo.getClusterAliases(), equalTo(Set.of(localClusterAlias, remote1Alias)));
-            assertNull(executionInfo.getOverallTook());
+            assertThat(executionInfo.clusterAliases(), equalTo(Set.of(localClusterAlias, remote1Alias)));
+            assertNull(executionInfo.overallTook());
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(localClusterAlias);
             assertThat(localCluster.getIndexExpression(), equalTo("logs-a,logs-b"));
@@ -189,8 +189,8 @@ public class IndexResolverTests extends ESTestCase {
 
             IndexResolver.updateExecutionInfoWithFieldCapsResults(executionInfo, clusterAndResolvedIndices, failures);
 
-            assertThat(executionInfo.getClusterAliases(), equalTo(Set.of(localClusterAlias, remote1Alias, remote2Alias)));
-            assertNull(executionInfo.getOverallTook());
+            assertThat(executionInfo.clusterAliases(), equalTo(Set.of(localClusterAlias, remote1Alias, remote2Alias)));
+            assertNull(executionInfo.overallTook());
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(localClusterAlias);
             assertThat(localCluster.getIndexExpression(), equalTo("logs-a,logs-b"));
@@ -235,8 +235,8 @@ public class IndexResolverTests extends ESTestCase {
 
             IndexResolver.updateExecutionInfoWithFieldCapsResults(executionInfo, clusterAndResolvedIndices, failures);
 
-            assertThat(executionInfo.getClusterAliases(), equalTo(Set.of(remote1Alias)));
-            assertNull(executionInfo.getOverallTook());
+            assertThat(executionInfo.clusterAliases(), equalTo(Set.of(remote1Alias)));
+            assertNull(executionInfo.overallTook());
 
             EsqlExecutionInfo.Cluster remote1Cluster = executionInfo.getCluster(remote1Alias);
             assertThat(remote1Cluster.getIndexExpression(), equalTo("remote1:*"));
@@ -264,8 +264,8 @@ public class IndexResolverTests extends ESTestCase {
 
             IndexResolver.updateExecutionInfoWithFieldCapsResults(executionInfo, clusterAndResolvedIndices, failures);
 
-            assertThat(executionInfo.getClusterAliases(), equalTo(Set.of(remote1Alias)));
-            assertNull(executionInfo.getOverallTook());
+            assertThat(executionInfo.clusterAliases(), equalTo(Set.of(remote1Alias)));
+            assertNull(executionInfo.overallTook());
 
             EsqlExecutionInfo.Cluster remote1Cluster = executionInfo.getCluster(remote1Alias);
             assertThat(remote1Cluster.getIndexExpression(), equalTo("remote1:*"));

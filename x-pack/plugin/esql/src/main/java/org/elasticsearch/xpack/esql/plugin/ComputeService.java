@@ -203,7 +203,7 @@ public class ComputeService {
             // this is the top level ComputeListener called once at the end (e.g., once all clusters have finished for a CCS)
             var computeListener = ComputeListener.createComputeListener(transportService, rootTask, executionInfo, listener.map(r -> {
                 long tookTimeMillis = System.currentTimeMillis() - configuration.getQueryStartTimeMillis();
-                executionInfo.setOverallTookTime(new TimeValue(tookTimeMillis));
+                executionInfo.overallTook(new TimeValue(tookTimeMillis));
                 return new Result(physicalPlan.output(), collectedPages, r.getProfiles(), executionInfo);
             }))
         ) {

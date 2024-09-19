@@ -135,7 +135,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
 
     EsqlExecutionInfo createExecutionInfo() {
         EsqlExecutionInfo executionInfo = new EsqlExecutionInfo();
-        executionInfo.setOverallTookTime(new TimeValue(5000));
+        executionInfo.overallTook(new TimeValue(5000));
         executionInfo.swapCluster(
             "",
             (k, v) -> new EsqlExecutionInfo.Cluster(
@@ -358,7 +358,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             List<List<Object>> values,
             EsqlExecutionInfo executionInfo
         ) {
-            executionInfo.setOverallTookTime(new TimeValue(took));
+            executionInfo.overallTook(new TimeValue(took));
             this.response = new EsqlQueryResponse(
                 columns,
                 List.of(valuesToPage(TestBlockFactory.getNonBreakingInstance(), columns, values)),

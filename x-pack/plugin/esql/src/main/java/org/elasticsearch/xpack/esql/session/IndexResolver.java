@@ -192,7 +192,7 @@ public class IndexResolver {
         Map<String, StringBuilder> clusterAndResolvedIndices,
         List<FieldCapabilitiesFailure> failures
     ) {
-        Set<String> clustersWithoutFieldCapsResponses = new HashSet<>(executionInfo.getClusterAliases());
+        Set<String> clustersWithoutFieldCapsResponses = new HashSet<>(executionInfo.clusterAliases());
         for (Map.Entry<String, StringBuilder> entry : clusterAndResolvedIndices.entrySet()) {
             final String clusterAlias = entry.getKey();
             final EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(clusterAlias);

@@ -82,6 +82,15 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
         assertEquals(chunkSize * totalChunks, totalBytes.get());
     }
 
+    // ensures that channel.setAutoRead(true) only when we flush last chunk
+    public void testSetAutoReadOnLastFlush() {
+        channel.writeInbound(randomLastContent(10));
+        assertFalse("should not auto-read on last content reception", channel.config().isAutoRead());
+        stream.next();
+        channel.runPendingTasks();
+        assertTrue("should set auto-read once last content is flushed", channel.config().isAutoRead());
+    }
+
     // ensures that we read from channel when no current chunks available
     // and pass next chunk downstream without holding
     public void testReadFromChannel() {

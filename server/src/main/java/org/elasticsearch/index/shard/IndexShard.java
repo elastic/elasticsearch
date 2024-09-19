@@ -1516,7 +1516,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public void triggerPendingMerges() throws IOException {
         switch (state /* single volatile read */) {
-            case STARTED, POST_RECOVERY -> getEngine().forceMerge(false, ForceMergeRequest.Defaults.MAX_NUM_SEGMENTS, false, null);
+            case STARTED, POST_RECOVERY -> getEngine().forceMerge(
+                // don't immediately flush - if any merging happens then we don't wait for it anyway
+                false,
+                // don't apply any segment count limit, we only want to call IndexWriter#maybeMerge
+                ForceMergeRequest.Defaults.MAX_NUM_SEGMENTS,
+                // don't look for expunge-delete merges, we only want to call IndexWriter#maybeMerge
+                false,
+                // force-merge UUID is not used when calling IndexWriter#maybeMerge
+                null
+            );
             // otherwise shard likely closed and maybe reopened, nothing to do
         }
     }

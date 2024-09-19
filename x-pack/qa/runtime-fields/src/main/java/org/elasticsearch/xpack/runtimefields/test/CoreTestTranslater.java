@@ -222,9 +222,9 @@ public abstract class CoreTestTranslater {
          */
         protected abstract boolean modifySearch(ApiCallSection search);
 
-        private static Object getSetting(Object map, String... keys) {
+        private static Object getSetting(final Object map, final String... keys) {
             Map<?, ?> current = (Map<?, ?>) map;
-            for (String key : keys) {
+            for (final String key : keys) {
                 if (current != null) {
                     current = (Map<?, ?>) current.get(key);
                 } else {

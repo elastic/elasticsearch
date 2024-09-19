@@ -477,16 +477,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 childQueryBuilder = switch (modelSettings.taskType()) {
                     case SPARSE_EMBEDDING -> {
                         if (inferenceResults instanceof TextExpansionResults == false) {
-                            // TODO: Update exception message
                             throw new IllegalArgumentException(
-                                "Field ["
-                                    + name()
-                                    + "] expected query inference results to be of type ["
-                                    + TextExpansionResults.NAME
-                                    + "],"
-                                    + " got ["
-                                    + inferenceResults.getWriteableName()
-                                    + "]. Has the inference endpoint configuration changed?"
+                                generateQueryInferenceResultsTypeMismatchMessage(inferenceResults, TextExpansionResults.NAME)
                             );
                         }
 
@@ -504,41 +496,25 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     }
                     case TEXT_EMBEDDING -> {
                         if (inferenceResults instanceof MlTextEmbeddingResults == false) {
-                            // TODO: Update exception message
                             throw new IllegalArgumentException(
-                                "Field ["
-                                    + name()
-                                    + "] expected query inference results to be of type ["
-                                    + MlTextEmbeddingResults.NAME
-                                    + "],"
-                                    + " got ["
-                                    + inferenceResults.getWriteableName()
-                                    + "]. Has the inference endpoint configuration changed?"
+                                generateQueryInferenceResultsTypeMismatchMessage(inferenceResults, MlTextEmbeddingResults.NAME)
                             );
                         }
 
                         MlTextEmbeddingResults textEmbeddingResults = (MlTextEmbeddingResults) inferenceResults;
                         float[] inference = textEmbeddingResults.getInferenceAsFloat();
                         if (inference.length != modelSettings.dimensions()) {
-                            // TODO: Update exception message
                             throw new IllegalArgumentException(
-                                "Field ["
-                                    + name()
-                                    + "] expected query inference results with "
-                                    + modelSettings.dimensions()
-                                    + " dimensions, got "
-                                    + inference.length
-                                    + " dimensions. Has the inference endpoint configuration changed?"
+                                generateDimensionCountMismatchMessage(inference.length, modelSettings.dimensions())
                             );
                         }
 
                         yield new KnnVectorQueryBuilder(inferenceResultsFieldName, inference, null, null, null);
                     }
-                    // TODO: Update exception message
                     default -> throw new IllegalStateException(
                         "Field ["
                             + name()
-                            + "] configured to use an inference endpoint with an unsupported task type ["
+                            + "] is configured to use an inference endpoint with an unsupported task type ["
                             + modelSettings.taskType()
                             + "]"
                     );
@@ -546,6 +522,51 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             }
 
             return new NestedQueryBuilder(nestedFieldPath, childQueryBuilder, ScoreMode.Max).boost(boost).queryName(queryName);
+        }
+
+        private String generateQueryInferenceResultsTypeMismatchMessage(InferenceResults inferenceResults, String expectedResultsType) {
+            StringBuilder sb = new StringBuilder(
+                "Field ["
+                    + name()
+                    + "] expected query inference results to be of type ["
+                    + expectedResultsType
+                    + "],"
+                    + " got ["
+                    + inferenceResults.getWriteableName()
+                    + "]."
+            );
+
+            return generateInvalidQueryInferenceResultsMessage(sb);
+        }
+
+        private String generateDimensionCountMismatchMessage(int inferenceDimCount, int expectedDimCount) {
+            StringBuilder sb = new StringBuilder(
+                "Field ["
+                    + name()
+                    + "] expected query inference results with "
+                    + expectedDimCount
+                    + " dimensions, got "
+                    + inferenceDimCount
+                    + " dimensions."
+            );
+
+            return generateInvalidQueryInferenceResultsMessage(sb);
+        }
+
+        private String generateInvalidQueryInferenceResultsMessage(StringBuilder baseMessageBuilder) {
+            if (searchInferenceId != null && searchInferenceId.equals(inferenceId) == false) {
+                baseMessageBuilder.append(
+                    " Is the search inference endpoint ["
+                        + searchInferenceId
+                        + "] compatible with the inference endpoint ["
+                        + inferenceId
+                        + "]?"
+                );
+            } else {
+                baseMessageBuilder.append(" Has the configuration for inference endpoint [" + inferenceId + "] changed?");
+            }
+
+            return baseMessageBuilder.toString();
         }
     }
 
@@ -625,12 +646,5 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         }
         conflicts.addConflict("model_settings", "");
         return false;
-    }
-
-    private static SemanticTextField.ModelSettings mergeModelSettings(
-        SemanticTextField.ModelSettings previous,
-        SemanticTextField.ModelSettings current
-    ) {
-        return current == null ? previous : current;
     }
 }

@@ -30,6 +30,12 @@ public class IndexingPressure {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<ByteSizeValue> SPLIT_BULK_THRESHOLD = Setting.memorySizeSetting(
+        "indexing_pressure.memory.split_bulk_threshold",
+        "8.5%",
+        Setting.Property.NodeScope
+    );
+
     private static final Logger logger = LogManager.getLogger(IndexingPressure.class);
 
     private final AtomicLong currentCombinedCoordinatingAndPrimaryBytes = new AtomicLong(0);
@@ -57,10 +63,12 @@ public class IndexingPressure {
     private final AtomicLong primaryDocumentRejections = new AtomicLong(0);
 
     private final long primaryAndCoordinatingLimits;
+    private final long splitBulkThreshold;
     private final long replicaLimits;
 
     public IndexingPressure(Settings settings) {
         this.primaryAndCoordinatingLimits = MAX_INDEXING_BYTES.get(settings).getBytes();
+        this.splitBulkThreshold = SPLIT_BULK_THRESHOLD.get(settings).getBytes();
         this.replicaLimits = (long) (this.primaryAndCoordinatingLimits * 1.5);
     }
 
@@ -202,6 +210,10 @@ public class IndexingPressure {
             this.currentReplicaBytes.getAndAdd(-bytes);
             this.currentReplicaOps.getAndAdd(-operations);
         });
+    }
+
+    public boolean shouldSplitBulks() {
+        return currentCombinedCoordinatingAndPrimaryBytes.get() >= splitBulkThreshold;
     }
 
     public IndexingPressureStats stats() {

@@ -110,7 +110,14 @@ public class ComputeListenerTests extends ESTestCase {
             );
         }
         if (includeExecutionInfo) {
-            return new ComputeResponse(profiles, new TimeValue(randomLongBetween(0, 50000)), 10, 10, randomIntBetween(0, 3), 0);
+            return new ComputeResponse(
+                profiles,
+                new TimeValue(randomLongBetween(0, 50000), TimeUnit.NANOSECONDS),
+                10,
+                10,
+                randomIntBetween(0, 3),
+                0
+            );
         } else {
             return new ComputeResponse(profiles);
         }
@@ -183,8 +190,8 @@ public class ComputeListenerTests extends ESTestCase {
             response.getProfiles().stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)),
             equalTo(allProfiles.stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)))
         );
-        assertThat(response.getTook().millis(), greaterThanOrEqualTo(0L));
-        assertThat(response.getTook().millis(), lessThanOrEqualTo(50000L));
+        assertThat(response.getTook().nanos(), greaterThanOrEqualTo(0L));
+        assertThat(response.getTook().nanos(), lessThanOrEqualTo(50000L));
         assertThat(response.getTotalShards(), equalTo(10));
         assertThat(response.getSuccessfulShards(), equalTo(10));
         assertThat(response.getSkippedShards(), greaterThanOrEqualTo(0));
@@ -200,8 +207,8 @@ public class ComputeListenerTests extends ESTestCase {
         EsqlExecutionInfo executionInfo = new EsqlExecutionInfo();
         final int rand = randomIntBetween(0, 2);
         TimeValue tookTimeInCluster = switch (rand) {
-            case 0 -> new TimeValue(2400);
-            case 1 -> new TimeValue(999999990);
+            case 0 -> new TimeValue(24000, TimeUnit.NANOSECONDS);
+            case 1 -> new TimeValue(999999990, TimeUnit.NANOSECONDS);
             case 2 -> null;
             default -> throw new AssertionError("should not happen");
         };
@@ -219,14 +226,14 @@ public class ComputeListenerTests extends ESTestCase {
                 tookTimeInCluster
             )
         );
-        long startTimeMillis = System.currentTimeMillis() - 5000;
+        long startTimeNanos = System.nanoTime() - 50000;
         try (ComputeListener computeListener = ComputeListener.createOnRemote("rc1", transportService, newTask(), executionInfo, future)) {
             int tasks = randomIntBetween(1, 5);
             CountDown countDown = new CountDown(tasks);
             for (int t = 0; t < tasks; t++) {
                 ComputeResponse resp = randomResponse(true);
                 allProfiles.addAll(resp.getProfiles());
-                ActionListener<ComputeResponse> subListener = computeListener.acquireComputeForDataNodes("rc1", startTimeMillis, countDown);
+                ActionListener<ComputeResponse> subListener = computeListener.acquireComputeForDataNodes("rc1", startTimeNanos, countDown);
                 threadPool.schedule(
                     ActionRunnable.wrap(subListener, l -> l.onResponse(resp)),
                     TimeValue.timeValueNanos(between(0, 100)),
@@ -239,13 +246,13 @@ public class ComputeListenerTests extends ESTestCase {
             response.getProfiles().stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)),
             equalTo(allProfiles.stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)))
         );
-        if (tookTimeInCluster != null && tookTimeInCluster.millis() == 999999990L) {
+        if (tookTimeInCluster != null && tookTimeInCluster.nanos() == 999999990L) {
             // if took time in the cluster obj is larger than the took time in the response, keep the higher value
             assertThat(response.getTook(), equalTo(tookTimeInCluster));
         } else {
             // if took time in the cluster obj is null or smaller than the took time in the response, swap in the value from the response
-            assertThat(response.getTook().millis(), greaterThanOrEqualTo(5000L));
-            assertThat(response.getTook().millis(), lessThanOrEqualTo(999999990L));
+            assertThat(response.getTook().nanos(), greaterThanOrEqualTo(5000L));
+            assertThat(response.getTook().nanos(), lessThanOrEqualTo(999999990L));
         }
         assertThat(response.getTotalShards(), equalTo(10));
         assertThat(response.getSuccessfulShards(), equalTo(10));

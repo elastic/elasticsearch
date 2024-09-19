@@ -252,7 +252,7 @@ public final class XContentDataHelper {
         DocumentParserContext subcontext = context.switchParser(
             XContentHelper.createParserNotCompressed(configuration, BytesReference.bytes(builder), context.parser().contentType())
         );
-        subcontext.setClonedSource();  // Avoids double-storing parts of the source for the same parser subtree.
+        subcontext.setRecordedSource();  // Avoids double-storing parts of the source for the same parser subtree.
         subcontext.parser().nextToken();
         return subcontext;
     }

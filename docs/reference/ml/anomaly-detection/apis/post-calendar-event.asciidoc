@@ -56,7 +56,7 @@ milliseconds since the epoch or ISO 8601 format.
 milliseconds since the epoch or ISO 8601 format.
 
 `skip_results`:::
-(Optional, Boolean) If `true`, the results durint the scheduled event are not created.
+(Optional, Boolean) If `true`, the results during the scheduled event are not created.
 The default value is `true`.
 
 `skip_model_update`:::
@@ -69,7 +69,7 @@ by a specified number of seconds in a specified direction. This is useful to qui
 adjust to known Daylight Saving Time (DST) events. For example, to account for a
 one-hour backward time shift during the fall DST event, use a value of `-3600`.
 The default value is `0`. The time is shifted once at the beginning of the scheduled
-event.
+event. The shift is measured in seconds.
 ====
 
 [[ml-post-calendar-event-example]]
@@ -121,6 +121,7 @@ The API returns the following results:
   ]
 }
 ----
+
 [source,console]
 --------------------------------------------------
 POST _ml/calendars/dst-germany/events

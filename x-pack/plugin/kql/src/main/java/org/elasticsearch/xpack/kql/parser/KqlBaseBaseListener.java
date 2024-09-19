@@ -53,6 +53,18 @@ class KqlBaseBaseListener implements KqlBaseListener {
      *
      * <p>The default implementation does nothing.</p>
      */
+    @Override public void enterParenthesizedQuery(KqlBaseParser.ParenthesizedQueryContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override public void exitParenthesizedQuery(KqlBaseParser.ParenthesizedQueryContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
     @Override public void enterLogicalAnd(KqlBaseParser.LogicalAndContext ctx) { }
     /**
      * {@inheritDoc}
@@ -113,13 +125,13 @@ class KqlBaseBaseListener implements KqlBaseListener {
      *
      * <p>The default implementation does nothing.</p>
      */
-    @Override public void enterFieldMTermQuery(KqlBaseParser.FieldMTermQueryContext ctx) { }
+    @Override public void enterFieldTermQuery(KqlBaseParser.FieldTermQueryContext ctx) { }
     /**
      * {@inheritDoc}
      *
      * <p>The default implementation does nothing.</p>
      */
-    @Override public void exitFieldMTermQuery(KqlBaseParser.FieldMTermQueryContext ctx) { }
+    @Override public void exitFieldTermQuery(KqlBaseParser.FieldTermQueryContext ctx) { }
     /**
      * {@inheritDoc}
      *

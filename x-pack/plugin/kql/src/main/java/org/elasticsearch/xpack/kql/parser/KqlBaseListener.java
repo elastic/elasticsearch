@@ -42,6 +42,18 @@ interface KqlBaseListener extends ParseTreeListener {
      */
     void exitQueryDefault(KqlBaseParser.QueryDefaultContext ctx);
     /**
+     * Enter a parse tree produced by the {@code parenthesizedQuery}
+     * labeled alternative in {@link KqlBaseParser#query}.
+     * @param ctx the parse tree
+     */
+    void enterParenthesizedQuery(KqlBaseParser.ParenthesizedQueryContext ctx);
+    /**
+     * Exit a parse tree produced by the {@code parenthesizedQuery}
+     * labeled alternative in {@link KqlBaseParser#query}.
+     * @param ctx the parse tree
+     */
+    void exitParenthesizedQuery(KqlBaseParser.ParenthesizedQueryContext ctx);
+    /**
      * Enter a parse tree produced by the {@code logicalAnd}
      * labeled alternative in {@link KqlBaseParser#query}.
      * @param ctx the parse tree
@@ -96,15 +108,15 @@ interface KqlBaseListener extends ParseTreeListener {
      */
     void exitFieldRangeQuery(KqlBaseParser.FieldRangeQueryContext ctx);
     /**
-     * Enter a parse tree produced by {@link KqlBaseParser#fieldMTermQuery}.
+     * Enter a parse tree produced by {@link KqlBaseParser#fieldTermQuery}.
      * @param ctx the parse tree
      */
-    void enterFieldMTermQuery(KqlBaseParser.FieldMTermQueryContext ctx);
+    void enterFieldTermQuery(KqlBaseParser.FieldTermQueryContext ctx);
     /**
-     * Exit a parse tree produced by {@link KqlBaseParser#fieldMTermQuery}.
+     * Exit a parse tree produced by {@link KqlBaseParser#fieldTermQuery}.
      * @param ctx the parse tree
      */
-    void exitFieldMTermQuery(KqlBaseParser.FieldMTermQueryContext ctx);
+    void exitFieldTermQuery(KqlBaseParser.FieldTermQueryContext ctx);
     /**
      * Enter a parse tree produced by {@link KqlBaseParser#term}.
      * @param ctx the parse tree

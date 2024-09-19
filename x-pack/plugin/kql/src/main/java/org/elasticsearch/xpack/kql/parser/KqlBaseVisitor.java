@@ -31,6 +31,13 @@ interface KqlBaseVisitor<T> extends ParseTreeVisitor<T> {
      */
     T visitQueryDefault(KqlBaseParser.QueryDefaultContext ctx);
     /**
+     * Visit a parse tree produced by the {@code parenthesizedQuery}
+     * labeled alternative in {@link KqlBaseParser#query}.
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitParenthesizedQuery(KqlBaseParser.ParenthesizedQueryContext ctx);
+    /**
      * Visit a parse tree produced by the {@code logicalAnd}
      * labeled alternative in {@link KqlBaseParser#query}.
      * @param ctx the parse tree
@@ -63,11 +70,11 @@ interface KqlBaseVisitor<T> extends ParseTreeVisitor<T> {
      */
     T visitFieldRangeQuery(KqlBaseParser.FieldRangeQueryContext ctx);
     /**
-     * Visit a parse tree produced by {@link KqlBaseParser#fieldMTermQuery}.
+     * Visit a parse tree produced by {@link KqlBaseParser#fieldTermQuery}.
      * @param ctx the parse tree
      * @return the visitor result
      */
-    T visitFieldMTermQuery(KqlBaseParser.FieldMTermQueryContext ctx);
+    T visitFieldTermQuery(KqlBaseParser.FieldTermQueryContext ctx);
     /**
      * Visit a parse tree produced by {@link KqlBaseParser#term}.
      * @param ctx the parse tree

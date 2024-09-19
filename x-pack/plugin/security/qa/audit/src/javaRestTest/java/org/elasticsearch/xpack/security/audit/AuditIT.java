@@ -8,9 +8,7 @@
 package org.elasticsearch.xpack.security.audit;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SecureString;

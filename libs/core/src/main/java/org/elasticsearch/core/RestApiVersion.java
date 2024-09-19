@@ -66,7 +66,7 @@ public enum RestApiVersion {
         };
     }
 
-   public static RestApiVersion forMajor(int major) {
+    public static RestApiVersion forMajor(int major) {
         switch (major) {
             case 7 -> {
                 return V_7;

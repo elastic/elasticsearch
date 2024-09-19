@@ -10,7 +10,6 @@ package org.elasticsearch.rest;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ParsedMediaType;
 import org.hamcrest.CustomTypeSafeMatcher;
@@ -210,12 +209,13 @@ public class RestCompatibleVersionHelperTests extends ESTestCase {
         );
         assertThat(
             e.getMessage(),
-            equalTo("A compatible version is required on both Content-Type and Accept headers if either one has requested a "
-                + "compatible version and the compatible versions must match. "
-                + "Accept="
-                + acceptHeader(PREVIOUS_VERSION)
-                + ", Content-Type="
-                + contentTypeHeader(OBSOLETE_VERSION)
+            equalTo(
+                "A compatible version is required on both Content-Type and Accept headers if either one has requested a "
+                    + "compatible version and the compatible versions must match. "
+                    + "Accept="
+                    + acceptHeader(PREVIOUS_VERSION)
+                    + ", Content-Type="
+                    + contentTypeHeader(OBSOLETE_VERSION)
             )
         );
     }

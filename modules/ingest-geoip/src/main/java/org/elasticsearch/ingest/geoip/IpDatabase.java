@@ -25,7 +25,7 @@ import java.io.IOException;
 /**
  * Provides a uniform interface for interacting with various ip databases.
  */
-public interface IpDatabase {
+public interface IpDatabase extends AutoCloseable {
 
     /**
      * @return the database type as it is detailed in the database file metadata
@@ -76,7 +76,9 @@ public interface IpDatabase {
     /**
      * Releases the current database object. Called after processing a single document. Databases should be closed or returned to a
      * resource pool. No further interactions should be expected.
+     *
      * @throws IOException if the implementation encounters any problem while cleaning up
      */
-    void release() throws IOException;
+    @Override
+    void close() throws IOException;
 }

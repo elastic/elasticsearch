@@ -163,7 +163,7 @@ RUN <%= retry.loop(package_manager,
           "      ${package_manager} update && \n" +
           "      ${package_manager} upgrade && \n" +
           "      ${package_manager} add --no-cache \n" +
-          "        bash ca-certificates curl libsystemd netcat-openbsd p11-kit p11-kit-trust shadow tini unzip zip zstd && \n" +
+          "        bash java-cacerts curl libsystemd netcat-openbsd p11-kit p11-kit-trust shadow tini unzip zip zstd && \n" +
           "      rm -rf /var/cache/apk/* "
      ) %>
 <% } else if (docker_base == "default" || docker_base == "cloud") { %>
@@ -249,6 +249,8 @@ RUN chmod g=u /etc/passwd && \\
 # stays up-to-date with changes to Ubuntu's store)
 COPY bin/docker-openjdk /etc/ca-certificates/update.d/docker-openjdk
 RUN /etc/ca-certificates/update.d/docker-openjdk
+<% } else if (docker_base == 'wolfi') { %>
+RUN ln -sf /etc/ssl/certs/java/cacerts /usr/share/elasticsearch/jdk/lib/security/cacerts
 <% } else { %>
 RUN ln -sf /etc/pki/ca-trust/extracted/java/cacerts /usr/share/elasticsearch/jdk/lib/security/cacerts
 <% } %>

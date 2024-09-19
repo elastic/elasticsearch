@@ -12,7 +12,6 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.UpdateForV9;
-import org.elasticsearch.logging.LogManager;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -391,13 +390,17 @@ public class DateUtils {
     // check for all textual fields, and localized zone offset
     // the weird thing with Z is to ONLY match 4 in a row, with no Z before or after (but those groups can also be empty)
     private static final Predicate<String> CONTAINS_CHANGING_TEXT_SPECIFIERS = System.getProperty("java.locale.providers", "")
-        .contains("COMPAT") ? Pattern.compile("[BEGOavz]|LLL|MMM|QQQ|ccc|eee|(?<!Z)Z{4}(?!Z)").asPredicate() : Predicates.never();
+        .contains("COMPAT") ? Pattern.compile("[BEGOavz]|LLL|MMM|QQQ|qqq|ccc|eee|(?<!Z)Z{4}(?!Z)").asPredicate() : Predicates.never();
 
     @UpdateForV9    // this can be removed, we will only use CLDR on v9
     static void checkTextualDateFormats(String format) {
         if (CONTAINS_CHANGING_TEXT_SPECIFIERS.test(format)) {
-            LogManager.getLogger(DateFormatter.class)
-                .warn("Date format [{}] contains textual field specifiers that could change in JDK 23", format);
+            deprecationLogger.warn(
+                DeprecationCategory.PARSING,
+                "cldr_date_formats_" + format,
+                "Date format [{}] contains textual field specifiers that could change in JDK 23",
+                format
+            );
         }
     }
 }

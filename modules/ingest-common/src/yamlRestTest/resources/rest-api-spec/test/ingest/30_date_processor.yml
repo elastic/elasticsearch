@@ -1,3 +1,6 @@
+setup:
+  - requires:
+      test_runner_features: allowed_warnings
 ---
 teardown:
   - do:
@@ -97,6 +100,8 @@ teardown:
 "Test date processor with no timezone configured":
 
   - do:
+      allowed_warnings:
+        - 'Date format [dd/MMM/yyyy:H:m:s Z] contains textual field specifiers that could change in JDK 23'
       ingest.put_pipeline:
         id: "my_pipeline"
         # sample formats from beats, featuring mongodb, icinga, apache
@@ -165,6 +170,8 @@ teardown:
   - match: { acknowledged: true }
 
   - do:
+      allowed_warnings:
+        - 'Date format [dd/MMM/yyyy:H:m:s Z] contains textual field specifiers that could change in JDK 23'
       index:
         index: test
         id: "1"

@@ -39,6 +39,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.InfoStream;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
@@ -261,6 +262,7 @@ public class PersistedClusterStateService {
 
     private static IndexWriter createIndexWriter(Directory directory, boolean openExisting) throws IOException {
         final IndexWriterConfig indexWriterConfig = new IndexWriterConfig(new KeywordAnalyzer());
+        indexWriterConfig.setInfoStream(InfoStream.NO_OUTPUT);
         // start empty since we re-write the whole cluster state to ensure it is all using the same format version
         indexWriterConfig.setOpenMode(openExisting ? IndexWriterConfig.OpenMode.APPEND : IndexWriterConfig.OpenMode.CREATE);
         // only commit when specifically instructed, we must not write any intermediate states

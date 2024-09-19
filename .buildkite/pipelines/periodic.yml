@@ -584,7 +584,7 @@ steps:
       machineType: n2-standard-8
       buildDirectory: /dev/shm/bk
       diskSizeGb: 250
-    if: build.branch == "main" || build.branch == "7.17"
+    if: build.branch == "main" || build.branch == "8.x" || build.branch == "7.17"
   - label: check-branch-consistency
     command: .ci/scripts/run-gradle.sh branchConsistency
     timeout_in_minutes: 15

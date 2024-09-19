@@ -28,7 +28,16 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.IOException;
 import java.util.Map;
 
-public record HeapMemoryUsage(long publicationSeqNo, Map<ShardId, ShardMappingSize> shardMappingSizes) implements Writeable {
+import static org.elasticsearch.cluster.ClusterState.UNKNOWN_VERSION;
+
+public record HeapMemoryUsage(long publicationSeqNo, Map<ShardId, ShardMappingSize> shardMappingSizes, long clusterStateVersion)
+    implements
+        Writeable {
+
+    HeapMemoryUsage(long publicationSeqNo, Map<ShardId, ShardMappingSize> shardMappingSizes) {
+        this(publicationSeqNo, shardMappingSizes, UNKNOWN_VERSION);
+    }
+
     public static HeapMemoryUsage from(StreamInput in) throws IOException {
         final Writeable.Reader<ShardId> keyReader;
         if (in.getTransportVersion().onOrAfter(ServerlessTransportVersions.SHARD_FIELD_INFOS)) {
@@ -36,7 +45,14 @@ public record HeapMemoryUsage(long publicationSeqNo, Map<ShardId, ShardMappingSi
         } else {
             keyReader = is -> new ShardId(new Index(is), 0);
         }
-        return new HeapMemoryUsage(in.readVLong(), in.readMap(keyReader, ShardMappingSize::from));
+        return new HeapMemoryUsage(in.readVLong(), in.readMap(keyReader, ShardMappingSize::from), readClusterStateVersion(in));
+    }
+
+    private static long readClusterStateVersion(StreamInput in) throws IOException {
+        if (in.getTransportVersion().onOrAfter(ServerlessTransportVersions.CLUSTER_STATE_VERSION_IN_PUBLISH_MEMORY_METRICS_REQUEST)) {
+            return in.readLong();
+        }
+        return UNKNOWN_VERSION;
     }
 
     @Override
@@ -49,5 +65,8 @@ public record HeapMemoryUsage(long publicationSeqNo, Map<ShardId, ShardMappingSi
             keyWriter = (o, v) -> v.getIndex().writeTo(o);
         }
         out.writeMap(shardMappingSizes, keyWriter, (o, shard) -> shard.writeTo(o));
+        if (out.getTransportVersion().onOrAfter(ServerlessTransportVersions.CLUSTER_STATE_VERSION_IN_PUBLISH_MEMORY_METRICS_REQUEST)) {
+            out.writeLong(clusterStateVersion);
+        }
     }
 }

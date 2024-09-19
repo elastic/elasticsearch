@@ -28,8 +28,10 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTableGenerator;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -41,6 +43,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -51,9 +54,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -545,8 +551,147 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         assertThat(sb.toString(), equalTo(expectedOutput));
     }
 
+    public void testDoNotThrowMissedIndicesUpdateExceptionWhenSourceClusterStateVersionIsLessThanOrEqualToLocalClusterStateVersion() {
+        setupStateAndPublishFirstMetrics((currentClusterStateVersion, shardId, currentNode, lastSequenceNumber) -> {
+            // received sequence number > last sequence number
+            long receivedSeqNum = randomLongBetween(lastSequenceNumber + 1, Long.MAX_VALUE);
+            // received cluster state <= current cluster state version
+            long receivedClusterStateVersion = randomBoolean()
+                ? currentClusterStateVersion
+                : randomLongBetween(1, currentClusterStateVersion);
+            // Different node
+            String newNode = randomValueOtherThan(currentNode, ESTestCase::randomIdentifier);
+
+            // Should not throw
+            service.updateShardsMappingSize(
+                new HeapMemoryUsage(receivedSeqNum, Map.of(shardId, randomShardMappingSize(newNode)), receivedClusterStateVersion)
+            );
+            // should not apply
+            assertEquals(lastSequenceNumber, service.getShardMemoryMetrics().get(shardId).getSeqNo());
+        });
+    }
+
+    public void testThrowMissedIndicesUpdateExceptionWhenSourceClusterStateVersionIsGreaterThanLocalClusterStateVersion() {
+        setupStateAndPublishFirstMetrics((currentClusterStateVersion, shardId, currentNode, lastSequenceNumber) -> {
+            // received sequence number > last sequence number
+            long receivedSeqNum = randomLongBetween(lastSequenceNumber + 1, Long.MAX_VALUE);
+            // received cluster state > current cluster state version
+            long receivedClusterStateVersion = randomLongBetween(currentClusterStateVersion + 1, Long.MAX_VALUE);
+            // Different node
+            String newNode = randomValueOtherThan(currentNode, ESTestCase::randomIdentifier);
+
+            // Should throw
+            assertThrows(AutoscalingMissedIndicesUpdateException.class, () -> {
+                service.updateShardsMappingSize(
+                    new HeapMemoryUsage(receivedSeqNum, Map.of(shardId, randomShardMappingSize(newNode)), receivedClusterStateVersion)
+                );
+            });
+            // should not apply
+            assertEquals(lastSequenceNumber, service.getShardMemoryMetrics().get(shardId).getSeqNo());
+        });
+    }
+
+    public void testIgnoreOnConflictIsConservative() {
+        final AtomicReference<ClusterState> currentClusterState = new AtomicReference<>();
+        final CyclicBarrier barrier = new CyclicBarrier(2);
+        final int iterations = randomIntBetween(20, 100);
+        final int numberOfShards = randomIntBetween(30, 80);
+        logger.info("--> Running {} iterations with {} shards", iterations, numberOfShards);
+        try (TestThreadPool threadPool = new TestThreadPool(getClass().getSimpleName())) {
+            Future<?> applierFuture = threadPool.generic()
+                .submit(() -> clusterStateApplier(iterations, currentClusterState, barrier, numberOfShards));
+            Future<?> metricUpdaterFuture = threadPool.generic()
+                .submit(() -> shardMetricsUpdater(iterations, currentClusterState, barrier));
+            safeGet(metricUpdaterFuture);
+            safeGet(applierFuture);
+        }
+    }
+
+    private void clusterStateApplier(
+        int iterations,
+        AtomicReference<ClusterState> currentClusterState,
+        CyclicBarrier barrier,
+        int numberOfShards
+    ) {
+        ClusterState priorClusterState = ClusterState.EMPTY_STATE;
+        long clusterStateVersion = randomLongBetween(1_000, 100_000);
+        logger.info("--> Initial cluster state version: {}", clusterStateVersion);
+        for (int i = 0; i < iterations; i++) {
+            ClusterState clusterState = createClusterStateWithIndices(1, numberOfShards, clusterStateVersion++);
+            currentClusterState.set(clusterState);
+            safeAwait(barrier);
+            service.clusterChanged(new ClusterChangedEvent("test", clusterState, priorClusterState));
+            priorClusterState = clusterState;
+        }
+    }
+
+    /**
+     * Every time we submit metrics, we know we're submitting metrics from a cluster state version later than the last fully applied
+     * version because of the barrier. For this reason, the metrics should never be ignored. Occasionally there will be a mismatch due
+     * to a partially applied cluster state, in which case a retry should be request by throwing
+     * {@link AutoscalingMissedIndicesUpdateException}.
+     */
+    private void shardMetricsUpdater(int iterations, AtomicReference<ClusterState> currentClusterState, CyclicBarrier barrier) {
+        for (int i = 0; i < iterations; i++) {
+            safeAwait(barrier);
+            ClusterState clusterState = currentClusterState.get();
+            Map<ShardId, ShardMappingSize> shardsToUpdate = clusterState.routingTable()
+                .index("index0")
+                .allShards()
+                .filter(s -> randomBoolean())
+                .map(IndexShardRoutingTable::primaryShard)
+                .collect(Collectors.toMap(ShardRouting::shardId, sr -> randomShardMappingSize(sr.currentNodeId())));
+            // Every update should be either applied or retried, we should never ignore
+            try {
+                long publicationSeqNo = randomLongBetween(100, Long.MAX_VALUE);
+                service.updateShardsMappingSize(
+                    new HeapMemoryUsage(
+                        publicationSeqNo,  // it's a new node every time, this should always apply
+                        shardsToUpdate,
+                        clusterState.version()
+                    )
+                );
+                // All submitted shards should have been updated if we get here
+                String failureMessage = "Failed updating metrics for cluster state version " + clusterState.version();
+                shardsToUpdate.keySet()
+                    .forEach(
+                        shardId -> assertEquals(failureMessage, publicationSeqNo, service.getShardMemoryMetrics().get(shardId).getSeqNo())
+                    );
+            } catch (AutoscalingMissedIndicesUpdateException e) {
+                // This is fine, there was a conflict and we requested a retry
+            }
+        }
+    }
+
+    private void setupStateAndPublishFirstMetrics(TestStateConsumer testStateConsumer) {
+        final long initialClusterStateVersion = randomLongBetween(1_000, 100_000);
+        final ClusterState clusterStateWithIndices = createClusterStateWithIndices(1, 1, initialClusterStateVersion);
+        final ShardRouting shardRouting = clusterStateWithIndices.routingTable().allShards().findFirst().orElseThrow();
+        final String currentNode = shardRouting.currentNodeId();
+        final ShardId shardId = shardRouting.shardId();
+
+        service.clusterChanged(new ClusterChangedEvent("test", clusterStateWithIndices, ClusterState.EMPTY_STATE));
+        int initialSeqNum = randomIntBetween(1, 1000);
+        service.updateShardsMappingSize(new HeapMemoryUsage(initialSeqNum, Map.of(shardId, randomShardMappingSize(currentNode))));
+        assertEquals(initialSeqNum, service.getShardMemoryMetrics().get(shardId).getSeqNo());
+
+        testStateConsumer.accept(initialClusterStateVersion, shardId, currentNode, initialSeqNum);
+    }
+
+    private interface TestStateConsumer {
+        void accept(long currentClusterStateVersion, ShardId shardId, String currentNode, long lastSequenceNumber);
+    }
+
+    private ShardMappingSize randomShardMappingSize(String nodeId) {
+        return new ShardMappingSize(randomNonNegativeLong(), randomNonNegativeInt(), randomNonNegativeInt(), nodeId);
+    }
+
+    private ClusterState createClusterStateWithIndices(int numberOfShards, int numberOfReplicas) {
+        return createClusterStateWithIndices(numberOfShards, numberOfReplicas, randomIntBetween(1, 1000));
+    }
+
     /** Creates a cluster state for a one node cluster, having the given number of indices in its metadata. */
-    private ClusterState createClusterStateWithIndices(int numberOfIndices, int numberOfShards) {
+    private ClusterState createClusterStateWithIndices(int numberOfIndices, int numberOfShards, long version) {
         var indices = new HashMap<String, IndexMetadata>();
         var routingTableBuilder = RoutingTable.builder();
         IntStream.range(0, numberOfIndices).forEach(i -> {
@@ -562,6 +707,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("node_0")).localNodeId("node_0").masterNodeId("node_0"))
             .routingTable(routingTableBuilder)
             .metadata(Metadata.builder().indices(indices))
+            .version(version)
             .build();
     }
 }

@@ -24,6 +24,7 @@ import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -50,6 +51,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.disruption.SlowClusterStateProcessing;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -62,6 +64,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -1092,6 +1095,76 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         return safeGet(
             client().execute(GetIndexTierMetrics.INSTANCE, new GetIndexTierMetrics.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))
         ).getMetrics().getMemoryMetrics();
+    }
+
+    public void testUpdatesFromOldPrimaryNodesAreSilentlyIgnored() {
+        final String masterNode = startMasterOnlyNode();
+        final String originalIndexingNode = startIndexNode(INDEX_NODE_SETTINGS);
+        ensureStableCluster(2); // master + index node
+
+        // create and populate the index
+        createIndex(INDEX_NAME, indexSettings(1, 0).build());
+        indexDocs(INDEX_NAME, between(50, 100));
+
+        // Create a new indexing node
+        final String newIndexingNode = startIndexNode(INDEX_NODE_SETTINGS);
+        logger.info("--> New indexing node is {}/{}", newIndexingNode, getNodeId(newIndexingNode));
+
+        // Block metrics publish requests from the original node
+        final CountDownLatch allowSendingMetrics = new CountDownLatch(1);
+        final CountDownLatch requestIsWaiting = new CountDownLatch(1);
+        MockTransportService.getInstance(originalIndexingNode).addSendBehavior((connection, requestId, action, request, options) -> {
+            if (TransportPublishHeapMemoryMetrics.NAME.equals(action)) {
+                requestIsWaiting.countDown();
+                safeAwait(allowSendingMetrics);
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        // Wait for a request to be blocked
+        safeAwait(requestIsWaiting);
+        logger.info("--> A request is blocked");
+
+        // trigger a relocation
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", originalIndexingNode), INDEX_NAME);
+        ensureGreen(INDEX_NAME);
+        logger.info("--> Relocation is complete");
+
+        // monitor to ensure the blocked publish request is not rejected for retry
+        final String originalIndexingNodeId = getNodeId(originalIndexingNode);
+        final CountDownLatch acceptedResponseSeen = new CountDownLatch(1);
+        final AtomicInteger retryResponsesSeen = new AtomicInteger(0);
+        MockTransportService.getInstance(masterNode)
+            .addRequestHandlingBehavior(TransportPublishHeapMemoryMetrics.NAME, (handler, request, channel, task) -> {
+                PublishHeapMemoryMetricsRequest publishHeapMemoryMetricsRequest = asInstanceOf(
+                    PublishHeapMemoryMetricsRequest.class,
+                    request
+                );
+                // Intercept responses to requests from the prior primary with a known version, to ensure they are not rejected for retry
+                if (Objects.equals(originalIndexingNodeId, getSourceNodeId(publishHeapMemoryMetricsRequest))
+                    && publishHeapMemoryMetricsRequest.getHeapMemoryUsage().clusterStateVersion() != ClusterState.UNKNOWN_VERSION) {
+                    handler.messageReceived(
+                        request,
+                        new TestTransportChannel(
+                            ActionListener.wrap(
+                                (response) -> acceptedResponseSeen.countDown(),
+                                (exception) -> retryResponsesSeen.incrementAndGet()
+                            )
+                        ),
+                        task
+                    );
+                }
+                handler.messageReceived(request, channel, task);
+            });
+
+        // release the blocked publish request(s), wait till we've seen one not rejected
+        allowSendingMetrics.countDown();
+        safeAwait(acceptedResponseSeen);
+        assertEquals(0, retryResponsesSeen.get());
+    }
+
+    private String getSourceNodeId(PublishHeapMemoryMetricsRequest request) {
+        return request.getHeapMemoryUsage().shardMappingSizes().values().stream().findAny().map(ShardMappingSize::nodeId).orElse(null);
     }
 
     static void snapshotMetrics(MemoryMetricsService memoryMetricsService, Map<ShardId, MemoryMetricsService.ShardMemoryMetrics> out) {

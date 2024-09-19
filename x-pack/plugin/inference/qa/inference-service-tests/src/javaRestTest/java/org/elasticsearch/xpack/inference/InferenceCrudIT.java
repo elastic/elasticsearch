@@ -17,9 +17,12 @@ import org.elasticsearch.inference.TaskType;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.equalToIgnoringCase;
 import static org.hamcrest.Matchers.hasSize;
 
 public class InferenceCrudIT extends InferenceBaseRestTest {
@@ -224,20 +227,55 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         deleteIndex(indexName);
     }
 
-    @SuppressWarnings("unchecked")
-    public void testUnsupportedStream() throws IOException {
-        String modelId = "no_task_type_in_url";
-        putModel(modelId, mockSparseServiceModelConfig(TaskType.SPARSE_EMBEDDING));
+    public void testUnsupportedStream() throws Exception {
+        String modelId = "streaming";
+        putModel(modelId, mockCompletionServiceModelConfig(TaskType.SPARSE_EMBEDDING));
         var singleModel = getModel(modelId);
         assertEquals(modelId, singleModel.get("inference_id"));
         assertEquals(TaskType.SPARSE_EMBEDDING.toString(), singleModel.get("task_type"));
 
         try {
-            streamInferOnMockService(modelId, List.of(randomAlphaOfLength(10)));
-            fail("Expected http response 405, found 200.");
-        } catch (ResponseException e) {
-            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(405));
-            assertThat(e.getMessage(), containsString("Streaming is not allowed for service [test_service]."));
+            var events = streamInferOnMockService(modelId, TaskType.SPARSE_EMBEDDING, List.of(randomAlphaOfLength(10)));
+            assertThat(events.size(), equalTo(2));
+            events.forEach(event -> {
+                switch (event.name()) {
+                    case EVENT -> assertThat(event.value(), equalToIgnoringCase("error"));
+                    case DATA -> assertThat(
+                        event.value(),
+                        containsString(
+                            "Streaming is not allowed for service [streaming_completion_test_service] and task [sparse_embedding]"
+                        )
+                    );
+                }
+            });
+        } finally {
+            deleteModel(modelId);
+        }
+    }
+
+    public void testSupportedStream() throws Exception {
+        String modelId = "streaming";
+        putModel(modelId, mockCompletionServiceModelConfig(TaskType.COMPLETION));
+        var singleModel = getModel(modelId);
+        assertEquals(modelId, singleModel.get("inference_id"));
+        assertEquals(TaskType.COMPLETION.toString(), singleModel.get("task_type"));
+
+        var input = IntStream.range(0, randomInt(10)).mapToObj(i -> randomAlphaOfLength(10)).toList();
+
+        try {
+            var events = streamInferOnMockService(modelId, TaskType.COMPLETION, input);
+
+            var expectedResponses = Stream.concat(
+                input.stream().map(String::toUpperCase).map(str -> "{\"completion\":[{\"delta\":\"" + str + "\"}]}"),
+                Stream.of("[DONE]")
+            ).iterator();
+            assertThat(events.size(), equalTo((input.size() + 1) * 2));
+            events.forEach(event -> {
+                switch (event.name()) {
+                    case EVENT -> assertThat(event.value(), equalToIgnoringCase("message"));
+                    case DATA -> assertThat(event.value(), equalTo(expectedResponses.next()));
+                }
+            });
         } finally {
             deleteModel(modelId);
         }

@@ -111,7 +111,7 @@ public class RestActions {
      * @param response The response containing individual, node-level responses.
      * @see #buildNodesHeader(XContentBuilder, Params, int, int, int, List)
      */
-    public static <NodeResponse extends BaseNodeResponse> void buildNodesHeader(
+    public static <NodeResponse extends BaseNodeResponse> XContentBuilder buildNodesHeader(
         final XContentBuilder builder,
         final Params params,
         final BaseNodesResponse<NodeResponse> response
@@ -120,6 +120,7 @@ public class RestActions {
         final int failed = response.failures().size();
 
         buildNodesHeader(builder, params, successful + failed, successful, failed, response.failures());
+        return builder;
     }
 
     /**

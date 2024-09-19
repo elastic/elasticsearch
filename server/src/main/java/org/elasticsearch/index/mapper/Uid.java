@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.Numbers;
+import org.elasticsearch.common.Strings;
 
 import java.util.Arrays;
 import java.util.Base64;
@@ -169,7 +170,7 @@ public final class Uid {
         } else if ((idBytes.length == length && offset == 0) == false) { // no need to copy if it's not a slice
             idBytes = Arrays.copyOfRange(idBytes, offset, offset + length);
         }
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(idBytes);
+        return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(idBytes);
     }
 
     /** Decode an indexed id back to its original form.

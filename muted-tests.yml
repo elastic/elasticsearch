@@ -262,6 +262,9 @@ tests:
 - class: org.elasticsearch.index.mapper.DoubleRangeFieldMapperTests
   method: testSyntheticSourceKeepArrays
   issue: https://github.com/elastic/elasticsearch/issues/113217
+- class: org.elasticsearch.packaging.test.WindowsServiceTests
+  method: test80JavaOptsInEnvVar
+  issue: https://github.com/elastic/elasticsearch/issues/113219
 
 # Examples:
 #

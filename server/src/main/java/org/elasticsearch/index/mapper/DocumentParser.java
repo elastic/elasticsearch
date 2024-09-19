@@ -695,6 +695,7 @@ public final class DocumentParser {
                     parseObjectOrNested(context.createFlattenContext(currentFieldName));
                     return;
                 }
+
             }
             if (context.dynamic() != ObjectMapper.Dynamic.RUNTIME) {
                 if (context.addDynamicMapper(dynamicObjectMapper) == false) {

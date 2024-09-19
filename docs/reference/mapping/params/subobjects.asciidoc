@@ -110,9 +110,10 @@ PUT my-index-000001/_doc/metric_1
 <2> The document does not support objects
 
 Setting `subobjects: false` disallows the definition of <<object,`object`>> and <<object,`nested`>> sub-fields, which
-can be too restrictive in cases where it's desirable to have <<nested,`nested`>> objects or sub-objects with specific behavior
-(e.g. with `enabled:false`). In this case, it's possible to set `subobjects: auto`, so subobjects are allowed to be
-statically defined in the mapping, while dynamically-defined fields do not introduce intermediate objects. For instance:
+can be too restrictive in cases where it's desirable to have <<nested,`nested`>> objects or sub-objects with specific
+behavior (e.g. with `enabled:false`). In this case, it's possible to set `subobjects: auto`, so subobjects are allowed
+to be pre-defined in the mapping (including in dynamic templates), while dynamically-defined fields do not introduce
+intermediate objects. For instance:
 
 [source,console]
 --------------------------------------------------

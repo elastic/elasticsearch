@@ -48,10 +48,6 @@ class BucketedSortCommon implements Releasable {
         return rootIndex + bucketSize;
     }
 
-    long requiredSize(long rootIndex) {
-        return rootIndex + bucketSize;
-    }
-
     boolean inHeapMode(int bucket) {
         return heapMode.get(bucket);
     }

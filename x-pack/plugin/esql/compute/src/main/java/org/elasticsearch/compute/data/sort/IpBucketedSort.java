@@ -99,7 +99,7 @@ public class IpBucketedSort implements Releasable {
             return;
         }
         // Gathering mode
-        long requiredSize = common.requiredSize(rootIndex) * IP_LENGTH;
+        long requiredSize = common.endIndex(rootIndex) * IP_LENGTH;
         if (values.size() < requiredSize) {
             grow(requiredSize);
         }

@@ -9,7 +9,8 @@ package org.elasticsearch.compute.data.sort;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -26,7 +27,14 @@ import static org.hamcrest.Matchers.equalTo;
 public class BytesRefBucketedSortTests extends BucketedSortTestCase<BytesRefBucketedSort, BytesRef> {
     @Override
     protected BytesRefBucketedSort build(SortOrder sortOrder, int bucketSize) {
-        return new BytesRefBucketedSort(new NoopCircuitBreaker("test"), "test", bigArrays(), sortOrder, bucketSize);
+        BigArrays bigArrays = bigArrays();
+        return new BytesRefBucketedSort(
+            bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST),
+            "test",
+            bigArrays,
+            sortOrder,
+            bucketSize
+        );
     }
 
     @Override

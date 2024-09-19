@@ -24,16 +24,13 @@ import org.elasticsearch.search.sort.SortOrder;
 
 import java.util.Arrays;
 import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 
 /**
  * Aggregates the top N variable length {@link BytesRef} values per bucket.
  * See {@link BucketedSort} for more information.
  */
 public class BytesRefBucketedSort implements Releasable {
-    /**
-     * {@code true} if the bucket is in heap mode, {@code false} if
-     * it is still gathering.
-     */
     private final BucketedSortCommon common;
     private final CircuitBreaker breaker;
     private final String label;
@@ -89,7 +86,7 @@ public class BytesRefBucketedSort implements Releasable {
             return;
         }
         long rootIndex = common.rootIndex(bucket);
-        long requiredSize = common.requiredSize(rootIndex);
+        long requiredSize = common.endIndex(rootIndex);
         if (values.size() < requiredSize) {
             throw new AssertionError("values too short " + values.size() + " < " + requiredSize);
         }
@@ -124,7 +121,7 @@ public class BytesRefBucketedSort implements Releasable {
             return;
         }
         // Gathering mode
-        long requiredSize = common.requiredSize(rootIndex);
+        long requiredSize = common.endIndex(rootIndex);
         if (values.size() < requiredSize) {
             grow(requiredSize);
         }
@@ -380,13 +377,10 @@ public class BytesRefBucketedSort implements Releasable {
 
     @Override
     public final void close() {
-        Releasables.close(() -> {
-            for (int i = 0; i < values.size(); i++) {
-                BreakingBytesRefBuilder bytes = values.get(i);
-                if (bytes != null) {
-                    bytes.close();
-                }
-            }
-        }, values, common);
+        Releasable allValues = values == null ? () -> {} : Releasables.wrap(LongStream.range(0, values.size()).mapToObj(i -> {
+            BreakingBytesRefBuilder bytes = values.get(i);
+            return bytes == null ? (Releasable) () -> {} : bytes;
+        }).toList().iterator());
+        Releasables.close(allValues, values, common);
     }
 }

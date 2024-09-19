@@ -12,12 +12,9 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
-import java.util.Map;
-
 public class SearchTransportAPMMetrics {
     public static final String SEARCH_ACTION_LATENCY_BASE_METRIC = "es.search.nodes.transport_actions.latency.histogram";
     public static final String ACTION_ATTRIBUTE_NAME = "action";
-    public static final String SYSTEM_THREAD_ATTRIBUTE_NAME = "system_thread";
 
     public static final String QUERY_CAN_MATCH_NODE_METRIC = "shards_can_match";
     public static final String DFS_ACTION_METRIC = "dfs_query_then_fetch/shard_dfs_phase";
@@ -44,24 +41,11 @@ public class SearchTransportAPMMetrics {
         );
     }
 
-    protected SearchTransportAPMMetrics(LongHistogram actionLatencies) {
+    private SearchTransportAPMMetrics(LongHistogram actionLatencies) {
         this.actionLatencies = actionLatencies;
     }
 
-    public void recordPhaseLatency(String phaseName, long latency, boolean isSystem) {
-        Map<String, Object> attributes = Map.of(ACTION_ATTRIBUTE_NAME, phaseName, SYSTEM_THREAD_ATTRIBUTE_NAME, isSystem);
-        actionLatencies.record(latency, attributes);
+    public LongHistogram getActionLatencies() {
+        return actionLatencies;
     }
-
-    public static class NoopSearchTransportAPMMetrics extends SearchTransportAPMMetrics {
-        public NoopSearchTransportAPMMetrics() {
-            super((LongHistogram) null);
-        }
-
-        @Override
-        public void recordPhaseLatency(String phaseName, long latency, boolean isSystem) {
-            // no-op
-        }
-    }
-
 }

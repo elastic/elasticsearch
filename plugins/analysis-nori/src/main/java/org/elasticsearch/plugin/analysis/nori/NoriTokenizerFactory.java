@@ -31,7 +31,7 @@ import static org.elasticsearch.index.IndexVersions.UPGRADE_LUCENE_9_9_1;
 public class NoriTokenizerFactory extends AbstractTokenizerFactory {
     private static final String USER_DICT_PATH_OPTION = "user_dictionary";
     private static final String USER_DICT_RULES_OPTION = "user_dictionary_rules";
-    private static final String DEDUPLICATE_DICTIONARY = "deduplicate_dictionary";
+    private static final String LENIENT = "lenient";
 
     private final UserDictionary userDictionary;
     private final KoreanTokenizer.DecompoundMode decompoundMode;
@@ -55,7 +55,7 @@ public class NoriTokenizerFactory extends AbstractTokenizerFactory {
             settings,
             USER_DICT_PATH_OPTION,
             USER_DICT_RULES_OPTION,
-            DEDUPLICATE_DICTIONARY,
+            LENIENT,
             false,  // typically don't want to remove comments as deduplication will provide better feedback
             isSupportDuplicateCheck(indexSettings)
         );

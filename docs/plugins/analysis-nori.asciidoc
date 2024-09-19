@@ -58,7 +58,7 @@ It can be set to:
 
     Whether punctuation should be discarded from the output. Defaults to `true`.
 
-`deduplicate_dictionary`::
+`lenient`::
 
     Whether the `user_dictionary` should be deduplicated on the provided `text`.
     False by default causing duplicates to generate an error.
@@ -110,7 +110,7 @@ PUT nori_sample
             "decompound_mode": "mixed",
             "discard_punctuation": "false",
             "user_dictionary": "userdict_ko.txt",
-            "deduplicate_dictionary": "true"
+            "lenient": "true"
           }
         },
         "analyzer": {

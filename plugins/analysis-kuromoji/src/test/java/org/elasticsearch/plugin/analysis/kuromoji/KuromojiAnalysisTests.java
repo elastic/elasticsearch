@@ -451,7 +451,7 @@ public class KuromojiAnalysisTests extends ESTestCase {
     public void testKuromojiAnalyzerDuplicateUserDictRuleDeduplication() throws Exception {
         Settings settings = Settings.builder()
             .put("index.analysis.analyzer.my_analyzer.type", "kuromoji")
-            .put("index.analysis.analyzer.my_analyzer.deduplicate_dictionary", "true")
+            .put("index.analysis.analyzer.my_analyzer.lenient", "true")
             .putList(
                 "index.analysis.analyzer.my_analyzer.user_dictionary_rules",
                 "c++,c++,w,w",

@@ -268,11 +268,11 @@ public class Analysis {
         Settings settings,
         String settingPath,
         String settingList,
-        String settingDeduplicate,
+        String settingLenient,
         boolean removeComments,
         boolean checkDuplicate
     ) {
-        boolean deduplicateDictionary = settings.getAsBoolean(settingDeduplicate, false);
+        boolean deduplicateDictionary = settings.getAsBoolean(settingLenient, false);
         final List<String> ruleList = getWordList(env, settings, settingPath, settingList, removeComments);
         if (ruleList != null && ruleList.isEmpty() == false && checkDuplicate) {
             return deDuplicateRules(ruleList, deduplicateDictionary == false);

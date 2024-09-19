@@ -103,7 +103,7 @@ public class ClusterStatsRemoteIT extends AbstractMultiClustersTestCase {
     }
 
     private void setupClusters() {
-        int numShardsLocal = randomIntBetween(2, 10);
+        int numShardsLocal = randomIntBetween(2, 5);
         Settings localSettings = indexSettings(numShardsLocal, randomIntBetween(0, 1)).build();
         assertAcked(
             client(LOCAL_CLUSTER).admin()

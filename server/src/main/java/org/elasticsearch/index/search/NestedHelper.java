@@ -25,6 +25,7 @@ import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.function.Predicate;
 
 /** Utility class to filter parent and children clauses when building nested
@@ -62,7 +63,7 @@ public final class NestedHelper {
                 }
             } catch (IOException e) {
                 // this handling isn't needed any more once we move to Lucene 10
-                throw new AssertionError("We are not doing IO here, this should never happen.");
+                throw new UncheckedIOException("We are not doing IO here, this should never happen.", e);
             }
         } else if (query instanceof PointRangeQuery) {
             return mightMatchNestedDocs(((PointRangeQuery) query).getField());
@@ -129,7 +130,7 @@ public final class NestedHelper {
                 }
             } catch (IOException e) {
                 // this handling isn't needed any more once we move to Lucene 10
-                throw new AssertionError("We are not doing IO here, this should never happen.");
+                throw new UncheckedIOException("We are not doing IO here, this should never happen.", e);
             }
         } else if (query instanceof PointRangeQuery) {
             return mightMatchNonNestedDocs(((PointRangeQuery) query).getField(), nestedPath);

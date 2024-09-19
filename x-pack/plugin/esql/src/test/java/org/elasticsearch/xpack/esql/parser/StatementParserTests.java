@@ -1815,8 +1815,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(up.pattern(), "`f*1.`.`f.2*`*");
         ur = (UnresolvedRelation) keep.child();
         assertEquals(ur, relation("test"));
-
-        // TODO add more complicated patterns here
     }
 
     public void testParamInInvalidPosition() {

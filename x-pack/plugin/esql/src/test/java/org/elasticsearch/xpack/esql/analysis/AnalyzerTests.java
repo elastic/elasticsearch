@@ -39,6 +39,8 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.parser.QueryParam;
+import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.TableIdentifier;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -77,6 +79,7 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.tsdbIndexResolution;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -2087,6 +2090,189 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(limit.limit().fold(), equalTo(1000));
     }
 
+    public void testNamedParamsForIdentifiers() {
+        assertProjectionWithMapping(
+            """
+                from test
+                | eval ?f1 = ?fn1(?f2)
+                | where ?f1 == ?f2
+                | stats ?f8 = ?fn2(?f3.?f4.?f5) by ?f3.?f6.?f7
+                | sort ?f36.?f7, ?f8
+                | keep ?f367, ?f8
+                """,
+            "mapping-multi-field-with-nested.json",
+            new QueryParams(
+                List.of(
+                    new QueryParam("f1", "a", NULL, true),
+                    new QueryParam("f2", "keyword", NULL, true),
+                    new QueryParam("f3", "some", NULL, true),
+                    new QueryParam("f4", "dotted", NULL, true),
+                    new QueryParam("f5", "field", NULL, true),
+                    new QueryParam("f6", "string", NULL, true),
+                    new QueryParam("f7", "typical", NULL, true),
+                    new QueryParam("f8", "y", NULL, true),
+                    new QueryParam("f36", "some.string", NULL, true),
+                    new QueryParam("f367", "some.string.typical", NULL, true),
+                    new QueryParam("fn1", "trim", NULL, true),
+                    new QueryParam("fn2", "count", NULL, true)
+                )
+            ),
+            "some.string.typical",
+            "y"
+        );
+
+        assertProjectionWithMapping(
+            """
+                from test
+                | eval ?f1 = ?fn1(?f2)
+                | where ?f1 == ?f2
+                | mv_expand ?f3.?f4.?f5
+                | dissect ?f8 "%{bar}"
+                | grok ?f2 "%{WORD:foo}"
+                | rename ?f9 as ?f10
+                | sort ?f3.?f6.?f7
+                | drop ?f11
+                """,
+            "mapping-multi-field-with-nested.json",
+            new QueryParams(
+                List.of(
+                    new QueryParam("f1", "a", NULL, true),
+                    new QueryParam("f2", "keyword", NULL, true),
+                    new QueryParam("f3", "some", NULL, true),
+                    new QueryParam("f4", "dotted", NULL, true),
+                    new QueryParam("f5", "field", NULL, true),
+                    new QueryParam("f6", "string", NULL, true),
+                    new QueryParam("f7", "typical", NULL, true),
+                    new QueryParam("f8", "text", NULL, true),
+                    new QueryParam("f9", "date", NULL, true),
+                    new QueryParam("f10", "datetime", NULL, true),
+                    new QueryParam("f11", "bool", NULL, true),
+                    new QueryParam("fn1", "trim", NULL, true)
+                )
+            ),
+            "binary",
+            "binary_stored",
+            "datetime",
+            "date_nanos",
+            "geo_shape",
+            "int",
+            "keyword",
+            "shape",
+            "some.ambiguous",
+            "some.ambiguous.normalized",
+            "some.ambiguous.one",
+            "some.ambiguous.two",
+            "some.dotted.field",
+            "some.string",
+            "some.string.normalized",
+            "some.string.typical",
+            "text",
+            "unsigned_long",
+            "unsupported",
+            "x",
+            "x.y",
+            "x.y.z",
+            "x.y.z.v",
+            "x.y.z.w",
+            "a",
+            "bar",
+            "foo"
+        );
+    }
+
+    public void testInvalidNamedParamsForIdentifiers() {
+        // missing field
+        assertError(
+            """
+                from test
+                | eval ?f1 = ?fn1(?f2)
+                | keep ?f3
+                """,
+            "mapping-multi-field-with-nested.json",
+            new QueryParams(
+                List.of(
+                    new QueryParam("f1", "a", NULL, true),
+                    new QueryParam("f2", "keyword", NULL, true),
+                    new QueryParam("f3", "some.string.nonexisting", NULL, true),
+                    new QueryParam("fn1", "trim", NULL, true)
+                )
+            ),
+            "Unknown column [some.string.nonexisting]"
+        );
+
+        // invalid type
+        assertError(
+            """
+                from test
+                | eval ?f1 = ?fn1(?f2)
+                | keep ?f3
+                """,
+            "mapping-multi-field-with-nested.json",
+            new QueryParams(
+                List.of(
+                    new QueryParam("f1", "a", NULL, true),
+                    new QueryParam("f2", "keyword", NULL, false, true),
+                    new QueryParam("f3", "some.string.typical", NULL, false, true),
+                    new QueryParam("fn1", "trim", NULL, true)
+                )
+            ),
+            "Unresolved pattern [keyword]"
+        );
+    }
+
+    public void testNamedParamsForIdentifierPatterns() {
+        assertProjectionWithMapping(
+            """
+                from test
+                | keep ?f1, ?f2.?f3
+                | drop ?f1.?f6.?f7.?f8, ?f2.?f4, ?f2.?f5.?f3
+                """,
+            "mapping-multi-field-with-nested.json",
+            new QueryParams(
+                List.of(
+                    new QueryParam("f1", "x*", NULL, false, true),
+                    new QueryParam("f2", "some", NULL, true),
+                    new QueryParam("f3", "*", NULL, false, true),
+                    new QueryParam("f4", "ambiguous*", NULL, false, true),
+                    new QueryParam("f5", "dotted", NULL, true),
+                    new QueryParam("f6", "y", NULL, true),
+                    new QueryParam("f7", "z", NULL, true),
+                    new QueryParam("f8", "v", NULL, true)
+                )
+            ),
+            "x",
+            "x.y",
+            "x.y.z",
+            "x.y.z.w",
+            "some.string",
+            "some.string.normalized",
+            "some.string.typical"
+        );
+    }
+
+    public void testInvalidNamedParamsForIdentifierPatterns() {
+        // missing pattern
+        assertError(
+            """
+                from test
+                | keep ?f1
+                """,
+            "mapping-multi-field-with-nested.json",
+            new QueryParams(List.of(new QueryParam("f1", "a*", NULL, false, true))),
+            "No matches found for pattern [a*]"
+        );
+        // invalid type
+        assertError(
+            """
+                from test
+                | keep ?f1
+                """,
+            "mapping-multi-field-with-nested.json",
+            new QueryParams(List.of(new QueryParam("f1", "x*", NULL, true))),
+            "Unknown column [x*], did you mean [x]?"
+        );
+    }
+
     private void verifyUnsupported(String query, String errorMessage) {
         verifyUnsupported(query, errorMessage, "mapping-multi-field-variation.json");
     }
@@ -2115,6 +2301,17 @@ public class AnalyzerTests extends ESTestCase {
         var plan = analyze(query, mapping.toString());
         var limit = as(plan, Limit.class);
         assertThat(Expressions.names(limit.output()), contains(names));
+    }
+
+    private void assertProjectionWithMapping(String query, String mapping, QueryParams params, String... names) {
+        var plan = analyze(query, mapping.toString(), params);
+        var limit = as(plan, Limit.class);
+        assertThat(Expressions.names(limit.output()), contains(names));
+    }
+
+    private void assertError(String query, String mapping, QueryParams params, String error) {
+        Throwable e = expectThrows(VerificationException.class, () -> analyze(query, mapping, params));
+        assertThat(e.getMessage(), containsString(error));
     }
 
     @Override

@@ -17,8 +17,8 @@ public record QueryParam(String name, Object value, DataType type, boolean isIde
         this(name, value, type, false, false);
     }
 
-    public QueryParam(String name, Object value, DataType type, boolean isField) {
-        this(name, value, type, isField, false);
+    public QueryParam(String name, Object value, DataType type, boolean isIdentifier) {
+        this(name, value, type, isIdentifier, false);
     }
 
     public String nameValue() {

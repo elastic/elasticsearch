@@ -27,6 +27,7 @@ import co.elastic.elasticsearch.stateless.cache.reader.IndexingShardCacheBlobRea
 import co.elastic.elasticsearch.stateless.cache.reader.MutableObjectStoreUploadTracker;
 import co.elastic.elasticsearch.stateless.cache.reader.ObjectStoreCacheBlobReader;
 import co.elastic.elasticsearch.stateless.cache.reader.ObjectStoreUploadTracker;
+import co.elastic.elasticsearch.stateless.cache.reader.SequentialRangeMissingHandler;
 import co.elastic.elasticsearch.stateless.cache.reader.SwitchingCacheBlobReader;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
@@ -71,6 +72,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static co.elastic.elasticsearch.stateless.TestUtils.newCacheService;
+import static co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheFile;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING;
 import static org.elasticsearch.blobcache.shared.SharedBytes.PAGE_SIZE;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomChecksumBytes;
@@ -251,7 +253,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
 
             indexInput.seek(randomLongBetween(0, input.length - 1));
             BlobCacheIndexInput clone = asInstanceOf(BlobCacheIndexInput.class, indexInput.clone());
-            assertThat(clone.cacheFile(), not(equalTo(indexInput.cacheFile())));
+            assertThat(getCacheFile(clone), not(equalTo(getCacheFile(indexInput))));
             assertThat(clone.getFilePointer(), equalTo(indexInput.getFilePointer()));
         }
     }
@@ -380,7 +382,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         final long rangeLength = PAGE_SIZE * between(20, 40);
         final long rangeToWriteEnd = rangeToWriteStart + rangeLength;
         final ByteRange rangeToWrite = ByteRange.of(rangeToWriteStart, rangeToWriteEnd);
-        final var sequentialRangeMissingHandler = new BlobCacheIndexInput.SequentialRangeMissingHandler(
+        final var sequentialRangeMissingHandler = new SequentialRangeMissingHandler(
             "__test__",
             "__unknown__",
             rangeToWrite,
@@ -481,7 +483,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         final long rangeLength = PAGE_SIZE * between(20, 40);
         final long rangeToWriteEnd = rangeToWriteStart + rangeLength;
         final ByteRange rangeToWrite = ByteRange.of(rangeToWriteStart, rangeToWriteEnd);
-        final var sequentialRangeMissingHandler = new BlobCacheIndexInput.SequentialRangeMissingHandler(
+        final var sequentialRangeMissingHandler = new SequentialRangeMissingHandler(
             "__test__",
             "__unknown__",
             rangeToWrite,

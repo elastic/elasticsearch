@@ -109,7 +109,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
             }
 
             if (ip instanceof String ipString) {
-                Map<String, Object> geoData = getGeoData(ipDatabase, ipString);
+                Map<String, Object> geoData = ipDataLookup.getData(ipDatabase, ipString);
                 if (geoData.isEmpty() == false) {
                     ingestDocument.setFieldValue(targetField, geoData);
                 }
@@ -120,7 +120,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     if (ipAddr instanceof String == false) {
                         throw new IllegalArgumentException("array in field [" + field + "] should only contain strings");
                     }
-                    Map<String, Object> geoData = getGeoData(ipDatabase, (String) ipAddr);
+                    Map<String, Object> geoData = ipDataLookup.getData(ipDatabase, (String) ipAddr);
                     if (geoData.isEmpty()) {
                         geoDataList.add(null);
                         continue;
@@ -141,10 +141,6 @@ public final class GeoIpProcessor extends AbstractProcessor {
         }
 
         return ingestDocument;
-    }
-
-    private Map<String, Object> getGeoData(IpDatabase ipDatabase, String ipAddress) throws IOException {
-        return ipDataLookup.getData(ipDatabase, ipAddress);
     }
 
     @Override

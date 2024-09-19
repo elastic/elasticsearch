@@ -210,7 +210,11 @@ public class Categorize extends GroupingFunction implements Validatable {
                     context
                 );
                 field = null;
-                GroupingKey result = new GroupingKey(mode, new GroupingKeyThing(resultOffset, evaluator, categorizer), context.blockFactory());
+                GroupingKey result = new GroupingKey(
+                    mode,
+                    new GroupingKeyThing(resultOffset, evaluator, categorizer),
+                    context.blockFactory()
+                );
                 categorizer = null;
                 evaluator = null;
                 return result;

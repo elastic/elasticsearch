@@ -7,8 +7,6 @@
 
 package org.elasticsearch.compute;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
-
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;

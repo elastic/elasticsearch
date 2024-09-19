@@ -505,12 +505,7 @@ public class OrdinalsGroupingOperator implements Operator {
                     // NOCOMMIT double check the mode
                     GroupingKey.forStatelessGrouping(channelIndex, groupingElementType).get(AggregatorMode.INITIAL)
                 ),
-                () -> BlockHash.build(
-                    List.of(new GroupSpec(0, groupingElementType)),
-                    driverContext.blockFactory(),
-                    maxPageSize,
-                    false
-                ),
+                () -> BlockHash.build(List.of(new GroupSpec(0, groupingElementType)), driverContext.blockFactory(), maxPageSize, false),
                 driverContext
             );
         }

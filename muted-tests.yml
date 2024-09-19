@@ -244,6 +244,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {date.DateFormatLocale SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/113199
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {date.DateFormatLocale ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/113200
 
 # Examples:
 #

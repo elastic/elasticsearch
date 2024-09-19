@@ -241,6 +241,7 @@ public abstract class CoreTestTranslater {
                 Object ignoreAbove = getSetting(settings, "index", "mapping", "ignore_above");
                 if (ignoreAbove instanceof Integer ignoreAboveSettingValue) {
                     if (ignoreAboveSettingValue >= 0) {
+                        // Scripts don't support ignore_above so we skip those fields
                         continue;
                     }
                 }

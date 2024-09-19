@@ -262,8 +262,9 @@ warning:Line 1:38: java.lang.IllegalArgumentException: single-value function enc
 a:integer | b:integer | same:boolean
 ;
 
-// https://github.com/elastic/elasticsearch/issues/112704
 caseOnTheValue_NotOnTheField
+required_capability: fixed_wrong_is_not_null_check_on_case
+
 FROM employees 
 | WHERE emp_no < 10022 AND emp_no > 10012 
 | KEEP languages, emp_no 

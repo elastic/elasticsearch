@@ -204,7 +204,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
      */
     public static RestRequest request(XContentParserConfiguration parserConfig, HttpRequest httpRequest, HttpChannel httpChannel) {
         Map<String, String> params = params(httpRequest.uri());
-        String path = path(httpRequest.uri());
+        String path = httpRequest.path();
         return new RestRequest(
             parserConfig,
             params,
@@ -227,15 +227,6 @@ public class RestRequest implements ToXContent.Params, Traceable {
             }
         }
         return params;
-    }
-
-    private static String path(final String uri) {
-        final int index = uri.indexOf('?');
-        if (index >= 0) {
-            return uri.substring(0, index);
-        } else {
-            return uri;
-        }
     }
 
     /**

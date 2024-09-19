@@ -34,6 +34,19 @@ public interface HttpPreRequest {
     String uri();
 
     /**
+     * The uri without the query string.
+     */
+    default String path() {
+        String uri = uri();
+        final int index = uri.indexOf('?');
+        if (index >= 0) {
+            return uri.substring(0, index);
+        } else {
+            return uri;
+        }
+    }
+
+    /**
      * Get all of the headers and values associated with the HTTP headers.
      * Modifications of this map are not supported.
      */

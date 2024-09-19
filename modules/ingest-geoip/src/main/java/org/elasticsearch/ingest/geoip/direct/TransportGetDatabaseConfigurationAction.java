@@ -39,7 +39,7 @@ public class TransportGetDatabaseConfigurationAction extends TransportNodesActio
     GetDatabaseConfigurationAction.Response,
     GetDatabaseConfigurationAction.NodeRequest,
     GetDatabaseConfigurationAction.NodeResponse,
-    Void> {
+    List<DatabaseConfigurationMetadata>> {
 
     public static final NodeFeature GET_DATABASE_CONFIGURATION_ACTION_MULTI_NODE = new NodeFeature(
         "get_database_configuration_action.multi_node"
@@ -79,18 +79,13 @@ public class TransportGetDatabaseConfigurationAction extends TransportNodesActio
              * the information that we used to return from the master node (it doesn't make any difference that this might not be the master
              * node, because we're only reading the clsuter state).
              */
-            listener.onResponse(newResponse(request, List.of(), List.of()));
+            newResponseAsync(task, request, createActionContext(task, request), List.of(), List.of(), listener);
         } else {
             super.doExecute(task, request, listener);
         }
     }
 
-    @Override
-    protected GetDatabaseConfigurationAction.Response newResponse(
-        GetDatabaseConfigurationAction.Request request,
-        List<GetDatabaseConfigurationAction.NodeResponse> nodeResponses,
-        List<FailedNodeException> failures
-    ) {
+    protected List<DatabaseConfigurationMetadata> createActionContext(Task task, GetDatabaseConfigurationAction.Request request) {
         final Set<String> ids;
         if (request.getDatabaseIds().length == 0) {
             // if we did not ask for a specific name, then return all databases
@@ -124,7 +119,33 @@ public class TransportGetDatabaseConfigurationAction extends TransportNodesActio
                 }
             }
         }
-        return new GetDatabaseConfigurationAction.Response(results, clusterService.getClusterName(), nodeResponses, failures);
+        return results;
+    }
+
+    protected void newResponseAsync(
+        Task task,
+        GetDatabaseConfigurationAction.Request request,
+        List<DatabaseConfigurationMetadata> results,
+        List<GetDatabaseConfigurationAction.NodeResponse> responses,
+        List<FailedNodeException> failures,
+        ActionListener<GetDatabaseConfigurationAction.Response> listener
+    ) {
+        ActionListener.run(
+            listener,
+            l -> ActionListener.respondAndRelease(
+                l,
+                new GetDatabaseConfigurationAction.Response(results, clusterService.getClusterName(), responses, failures)
+            )
+        );
+    }
+
+    @Override
+    protected GetDatabaseConfigurationAction.Response newResponse(
+        GetDatabaseConfigurationAction.Request request,
+        List<GetDatabaseConfigurationAction.NodeResponse> nodeResponses,
+        List<FailedNodeException> failures
+    ) {
+        throw new UnsupportedOperationException("Use newResponseAsync instead");
     }
 
     @Override

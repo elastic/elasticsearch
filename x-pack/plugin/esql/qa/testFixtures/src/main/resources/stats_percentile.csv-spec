@@ -156,7 +156,7 @@ m:double   | p50:double      | job_positions:keyword
 
 
 medianOfDoubleByKeyword#[skip:-8.12.99,reason:ReplaceStatsAggExpressionWithEval breaks bwc gh-103765]
-from employees | stats m = median(salary_change), p50 = percentile(salary_change, 50)by job_positions | sort m desc | limit 4;
+from employees | stats m = median(salary_change), p50 = percentile(salary_change, 50) by job_positions | sort m desc | limit 4;
 
 m:double           | p50:double           | job_positions:keyword
 5.94               | 5.94                 | "Accountant"
@@ -239,4 +239,40 @@ row a=0
 
 constant_single:double
 5
+;
+
+foldablePercentileValue
+from employees | eval x = 82+8 | stats percentile(salary, x), percentile(salary, 90);
+
+percentile(salary, x):double|percentile(salary, 90):double
+68442.6                     |68442.6
+;
+
+
+foldablePercentileValue_WithGrouping
+from employees | eval x = 82+8 | stats percentile(salary, x), percentile(salary, 90) by languages | sort languages desc;
+
+percentile(salary, x):double|percentile(salary, 90):double|languages:integer   
+73965.8                     |73965.8                      |null           
+54518.0                     |54518.0                      |5              
+66286.2                     |66286.2                      |4              
+68961.2                     |68961.2                      |3              
+63067.2                     |63067.2                      |2              
+69425.4                     |69425.4                      |1
+;
+
+nullPercentileValue
+from employees | eval x = null + 1 | stats pNull = percentile(salary_change, null), pNullFolding = percentile(salary_change, null + 1), pNullEvalFolding = percentile(salary_change, x);
+
+ pNull:double  |pNullFolding:double|pNullEvalFolding:double
+null           |null               |null
+;
+
+nullPercentileValue_WithGrouping
+from employees | eval x = null + 1 | stats pNull = percentile(salary_change, null), pNullFolding = percentile(salary_change, null + 1), pNullEvalFolding = percentile(salary_change, x), p = percentile(salary_change, 75) by gender | sort p;
+
+ pNull:double  |pNullFolding:double|pNullEvalFolding:double|   p:double    |gender:keyword
+null           |null               |null                   |7.34           |M
+null           |null               |null                   |8.3375         |F
+null           |null               |null                   |8.985          |null
 ;

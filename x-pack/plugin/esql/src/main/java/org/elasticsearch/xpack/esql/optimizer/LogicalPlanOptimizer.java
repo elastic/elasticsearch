@@ -170,6 +170,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new CombineBinaryComparisons(),
             new CombineDisjunctions(),
             new SimplifyComparisonsArithmetics(DataType::areCompatible),
+            // new ReplaceStatsAggExpressionWithEval(),
             // prune/elimination
             new PruneFilters(),
             new PruneColumns(),

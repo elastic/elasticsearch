@@ -44,7 +44,6 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isWholeNumber;
 
@@ -192,7 +191,10 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
     @Override
     public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
         DataType type = field().dataType();
-        int precision = this.precision == null ? DEFAULT_PRECISION : ((Number) this.precision.fold()).intValue();
+        // folding and checking with null here after the folding constants rules do their job, otherwise there could be a NPE
+        int precision = (this.precision == null || this.precision.fold() == null)
+            ? DEFAULT_PRECISION
+            : ((Number) this.precision.fold()).intValue();
         if (type == DataType.BOOLEAN) {
             // Booleans ignore the precision because there are only two possible values anyway
             return new CountDistinctBooleanAggregatorFunctionSupplier(inputChannels);

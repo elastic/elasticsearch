@@ -31,7 +31,7 @@ import java.util.Collections;
 
 public class EdgeNGramTokenizerTests extends ESTokenStreamTestCase {
 
-    private IndexAnalyzers buildAnalyzers(IndexVersion version, String tokenizer) throws IOException {
+    private static IndexAnalyzers buildAnalyzers(IndexVersion version, String tokenizer) throws IOException {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         Settings indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, version)

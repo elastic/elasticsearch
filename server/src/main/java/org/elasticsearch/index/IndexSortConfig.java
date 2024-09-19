@@ -14,7 +14,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -53,8 +52,6 @@ import java.util.function.Supplier;
  *
 **/
 public final class IndexSortConfig {
-
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(IndexSortConfig.class);
 
     /**
      * The list of field names
@@ -137,14 +134,10 @@ public final class IndexSortConfig {
 
     // visible for tests
     final FieldSortSpec[] sortSpecs;
-    private final IndexVersion indexCreatedVersion;
-    private final String indexName;
     private final IndexMode indexMode;
 
     public IndexSortConfig(IndexSettings indexSettings) {
         final Settings settings = indexSettings.getSettings();
-        this.indexCreatedVersion = indexSettings.getIndexVersionCreated();
-        this.indexName = indexSettings.getIndex().getName();
         this.indexMode = indexSettings.getMode();
 
         if (this.indexMode == IndexMode.TIME_SERIES) {

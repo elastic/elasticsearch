@@ -1194,7 +1194,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     private static FunctionDefinition definition(String name) {
-        EsqlFunctionRegistry registry = new EsqlFunctionRegistry();
+        EsqlFunctionRegistry registry = new EsqlFunctionRegistry().snapshotRegistry();
         if (registry.functionExists(name)) {
             return registry.resolveFunction(name);
         }

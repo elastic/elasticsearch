@@ -429,9 +429,21 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             // TODO lucene 10 upgrade, we can probably remove the IndexVersions here once we delete all V7 versions
             modifiedRepositoryData.snapshotsToXContent(XContentFactory.jsonBuilder(), IndexVersions.V_8_0_0)
         );
-        repository.blobStore()
-            .blobContainer(repository.basePath())
-            .writeBlobAtomic(randomNonDataPurpose(), getRepositoryDataBlobName(modifiedRepositoryData.getGenId()), serialized, true);
+        if (randomBoolean()) {
+            repository.blobStore()
+                .blobContainer(repository.basePath())
+                .writeBlobAtomic(randomNonDataPurpose(), getRepositoryDataBlobName(modifiedRepositoryData.getGenId()), serialized, true);
+        } else {
+            repository.blobStore()
+                .blobContainer(repository.basePath())
+                .writeBlobAtomic(
+                    randomNonDataPurpose(),
+                    getRepositoryDataBlobName(modifiedRepositoryData.getGenId()),
+                    serialized.streamInput(),
+                    serialized.length(),
+                    true
+                );
+        }
 
         final String newSnapshotName = "snapshot-new";
         final long beforeThrottledSnapshot = repository.threadPool().relativeTimeInNanos();

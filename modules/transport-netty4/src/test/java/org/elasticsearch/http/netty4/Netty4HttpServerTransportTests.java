@@ -46,6 +46,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.Request;
@@ -419,7 +420,8 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                         handlingSettings,
                         TLSConfig.noTLS(),
                         null,
-                        randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
+                        randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null),
+                        new IncrementalBulkService.Enabled(clusterSettings)
                     ) {
                         @Override
                         protected void initChannel(Channel ch) throws Exception {
@@ -905,7 +907,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 assertThat(channel.request().getHttpRequest().header(headerReference.get()), is(headerValueReference.get()));
                 assertThat(channel.request().getHttpRequest().method(), is(translateRequestMethod(httpMethodReference.get())));
                 // assert content is dropped
-                assertThat(channel.request().getHttpRequest().content().utf8ToString(), is(""));
+                assertThat(channel.request().getHttpRequest().body().asFull().bytes().utf8ToString(), is(""));
                 try {
                     channel.sendResponse(new RestResponse(channel, (Exception) ((ElasticsearchWrapperException) cause).getCause()));
                 } catch (IOException e) {

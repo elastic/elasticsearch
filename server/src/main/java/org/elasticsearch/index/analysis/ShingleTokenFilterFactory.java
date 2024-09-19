@@ -11,7 +11,6 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.shingle.ShingleFilter;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -19,15 +18,10 @@ import org.elasticsearch.lucene.analysis.miscellaneous.DisableGraphAttribute;
 
 public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(ShingleTokenFilterFactory.class);
-
     private final Factory factory;
-
-    private final IndexSettings indexSettings;
 
     public ShingleTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name, settings);
-        this.indexSettings = indexSettings;
         int maxAllowedShingleDiff = indexSettings.getMaxShingleDiff();
         Integer maxShingleSize = settings.getAsInt("max_shingle_size", ShingleFilter.DEFAULT_MAX_SHINGLE_SIZE);
         Integer minShingleSize = settings.getAsInt("min_shingle_size", ShingleFilter.DEFAULT_MIN_SHINGLE_SIZE);
@@ -86,7 +80,7 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
         private final String tokenSeparator;
         private final String fillerToken;
 
-        private int minShingleSize;
+        private final int minShingleSize;
 
         private final String name;
 

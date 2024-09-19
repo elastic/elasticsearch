@@ -21,6 +21,9 @@ public class TopNFunctionsBuilderTests extends ESTestCase {
 
         assertEquals(7L, response.getSelfCount());
         assertEquals(14L, response.getTotalCount());
+        assertEquals(1.5d, response.getAnnualCo2Tons(), 0.001d);
+        assertEquals(48.2d, response.getAnnualCostsUsd(), 0.001d);
+
         assertEquals(2, response.getTopN().size());
         assertEquals(foo, response.getTopN().get(0));
         assertEquals(bar, response.getTopN().get(1));
@@ -35,9 +38,12 @@ public class TopNFunctionsBuilderTests extends ESTestCase {
 
         GetTopNFunctionsResponse response = builder.build();
 
-        // total counts are independent of the limit
+        // total values are independent of the limit
         assertEquals(7L, response.getSelfCount());
         assertEquals(14L, response.getTotalCount());
+        assertEquals(1.5d, response.getAnnualCo2Tons(), 0.001d);
+        assertEquals(48.2d, response.getAnnualCostsUsd(), 0.001d);
+
         assertEquals(1, response.getTopN().size());
         assertEquals(foo, response.getTopN().get(0));
     }
@@ -53,6 +59,8 @@ public class TopNFunctionsBuilderTests extends ESTestCase {
 
         assertEquals(7L, response.getSelfCount());
         assertEquals(14L, response.getTotalCount());
+        assertEquals(1.5d, response.getAnnualCo2Tons(), 0.001d);
+        assertEquals(48.2d, response.getAnnualCostsUsd(), 0.001d);
         // still limited to the available two functions
         assertEquals(2, response.getTopN().size());
         assertEquals(foo, response.getTopN().get(0));

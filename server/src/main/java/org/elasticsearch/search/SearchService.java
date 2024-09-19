@@ -1,10 +1,11 @@
 
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
@@ -19,9 +20,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.search.CanMatchNodeRequest;
 import org.elasticsearch.action.search.CanMatchNodeResponse;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.TransportActions;
@@ -49,7 +50,6 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
@@ -83,6 +83,7 @@ import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationContext.ProductionAggregationContext;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SubSearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseContext;
@@ -111,6 +112,9 @@ import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
+import org.elasticsearch.search.rank.feature.RankFeatureResult;
+import org.elasticsearch.search.rank.feature.RankFeatureShardPhase;
+import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -150,6 +154,7 @@ import static org.elasticsearch.core.TimeValue.timeValueHours;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueMinutes;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.elasticsearch.search.rank.feature.RankFeatureShardPhase.EMPTY_RESULT;
 
 public class SearchService extends AbstractLifecycleComponent implements IndexEventListener {
     private static final Logger logger = LogManager.getLogger(SearchService.class);
@@ -272,9 +277,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final BigArrays bigArrays;
 
-    private final DfsPhase dfsPhase = new DfsPhase();
-
     private final FetchPhase fetchPhase;
+    private final RankFeatureShardPhase rankFeatureShardPhase;
     private volatile boolean enableSearchWorkerThreads;
     private volatile boolean enableQueryPhaseParallelCollection;
 
@@ -313,6 +317,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ThreadPool threadPool,
         ScriptService scriptService,
         BigArrays bigArrays,
+        RankFeatureShardPhase rankFeatureShardPhase,
         FetchPhase fetchPhase,
         ResponseCollectorService responseCollectorService,
         CircuitBreakerService circuitBreakerService,
@@ -326,6 +331,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.scriptService = scriptService;
         this.responseCollectorService = responseCollectorService;
         this.bigArrays = bigArrays;
+        this.rankFeatureShardPhase = rankFeatureShardPhase;
         this.fetchPhase = fetchPhase;
         this.multiBucketConsumerService = new MultiBucketConsumerService(
             clusterService,
@@ -455,18 +461,22 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     protected void putReaderContext(ReaderContext context) {
-        final ReaderContext previous = activeReaders.put(context.id().getId(), context);
+        final long id = context.id().getId();
+        final ReaderContext previous = activeReaders.put(id, context);
         assert previous == null;
         // ensure that if we race against afterIndexRemoved, we remove the context from the active list.
         // this is important to ensure store can be cleaned up, in particular if the search is a scroll with a long timeout.
         final Index index = context.indexShard().shardId().getIndex();
         if (indicesService.hasIndex(index) == false) {
-            removeReaderContext(context.id().getId());
+            removeReaderContext(id);
             throw new IndexNotFoundException(index);
         }
     }
 
     protected ReaderContext removeReaderContext(long id) {
+        if (logger.isTraceEnabled()) {
+            logger.trace("removing reader context [{}]", id);
+        }
         return activeReaders.remove(id);
     }
 
@@ -501,7 +511,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
             SearchContext context = createContext(readerContext, request, task, ResultsType.DFS, false)
         ) {
-            dfsPhase.execute(context);
+            DfsPhase.execute(context);
             return context.dfsResult();
         } catch (Exception e) {
             logger.trace("Dfs phase failed", e);
@@ -643,12 +653,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private IndexShard getShard(ShardSearchRequest request) {
         final ShardSearchContextId contextId = request.readerId();
-        if (contextId != null) {
-            if (sessionId.equals(contextId.getSessionId())) {
-                final ReaderContext readerContext = activeReaders.get(contextId.getId());
-                if (readerContext != null) {
-                    return readerContext.indexShard();
-                }
+        if (contextId != null && sessionId.equals(contextId.getSessionId())) {
+            final ReaderContext readerContext = activeReaders.get(contextId.getId());
+            if (readerContext != null) {
+                return readerContext.indexShard();
             }
         }
         return indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
@@ -712,12 +720,38 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
+    public void executeRankFeaturePhase(RankFeatureShardRequest request, SearchShardTask task, ActionListener<RankFeatureResult> listener) {
+        final ReaderContext readerContext = findReaderContext(request.contextId(), request);
+        final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.getShardSearchRequest());
+        final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
+        runAsync(getExecutor(readerContext.indexShard()), () -> {
+            try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.RANK_FEATURE, false)) {
+                int[] docIds = request.getDocIds();
+                if (docIds == null || docIds.length == 0) {
+                    searchContext.rankFeatureResult().shardResult(EMPTY_RESULT);
+                    searchContext.rankFeatureResult().incRef();
+                    return searchContext.rankFeatureResult();
+                }
+                rankFeatureShardPhase.prepareForFetch(searchContext, request);
+                fetchPhase.execute(searchContext, docIds, null);
+                rankFeatureShardPhase.processFetch(searchContext);
+                var rankFeatureResult = searchContext.rankFeatureResult();
+                rankFeatureResult.incRef();
+                return rankFeatureResult;
+            } catch (Exception e) {
+                assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
+                // we handle the failure in the failure listener below
+                throw e;
+            }
+        }, wrapFailureListener(listener, readerContext, markAsUsed));
+    }
+
     private QueryFetchSearchResult executeFetchPhase(ReaderContext reader, SearchContext context, long afterQueryTime) {
         try (
             Releasable scope = tracer.withScope(context.getTask());
             SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context, true, afterQueryTime)
         ) {
-            fetchPhase.execute(context, shortcutDocIdsToLoad(context));
+            fetchPhase.execute(context, shortcutDocIdsToLoad(context), null);
             if (reader.singleSession()) {
                 freeReaderContext(reader.id());
             }
@@ -870,7 +904,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 try (
                     SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext, true, System.nanoTime())
                 ) {
-                    fetchPhase.execute(searchContext, request.docIds());
+                    fetchPhase.execute(searchContext, request.docIds(), request.getRankDocks());
                     if (readerContext.singleSession()) {
                         freeReaderContext(request.contextId());
                     }
@@ -936,13 +970,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
                 return createAndPutReaderContext(request, indexService, shard, searcherSupplier, defaultKeepAlive);
             }
-        } else {
-            final long keepAliveInMillis = getKeepAlive(request);
-            final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-            final IndexShard shard = indexService.getShard(request.shardId().id());
-            final Engine.SearcherSupplier searcherSupplier = shard.acquireSearcherSupplier();
-            return createAndPutReaderContext(request, indexService, shard, searcherSupplier, keepAliveInMillis);
         }
+        final long keepAliveInMillis = getKeepAlive(request);
+        final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
+        final IndexShard shard = indexService.getShard(request.shardId().id());
+        return createAndPutReaderContext(request, indexService, shard, shard.acquireSearcherSupplier(), keepAliveInMillis);
     }
 
     final ReaderContext createAndPutReaderContext(
@@ -955,19 +987,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ReaderContext readerContext = null;
         Releasable decreaseScrollContexts = null;
         try {
+            final ShardSearchContextId id = new ShardSearchContextId(sessionId, idGenerator.incrementAndGet());
             if (request.scroll() != null) {
                 decreaseScrollContexts = openScrollContexts::decrementAndGet;
                 if (openScrollContexts.incrementAndGet() > maxOpenScrollContext) {
                     throw new TooManyScrollContextsException(maxOpenScrollContext, MAX_OPEN_SCROLL_CONTEXT.getKey());
                 }
-            }
-            final ShardSearchContextId id = new ShardSearchContextId(sessionId, idGenerator.incrementAndGet());
-            if (request.scroll() != null) {
                 readerContext = new LegacyReaderContext(id, indexService, shard, reader, request, keepAliveInMillis);
-                if (request.scroll() != null) {
-                    readerContext.addOnClose(decreaseScrollContexts);
-                    decreaseScrollContexts = null;
-                }
+                readerContext.addOnClose(decreaseScrollContexts);
+                decreaseScrollContexts = null;
             } else {
                 readerContext = new ReaderContext(id, indexService, shard, reader, keepAliveInMillis, true);
             }
@@ -977,16 +1005,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             searchOperationListener.onNewReaderContext(finalReaderContext);
             if (finalReaderContext.scrollContext() != null) {
                 searchOperationListener.onNewScrollContext(finalReaderContext);
+                readerContext.addOnClose(() -> searchOperationListener.onFreeScrollContext(finalReaderContext));
             }
-            readerContext.addOnClose(() -> {
-                try {
-                    if (finalReaderContext.scrollContext() != null) {
-                        searchOperationListener.onFreeScrollContext(finalReaderContext);
-                    }
-                } finally {
-                    searchOperationListener.onFreeReaderContext(finalReaderContext);
-                }
-            });
+            readerContext.addOnClose(() -> searchOperationListener.onFreeReaderContext(finalReaderContext));
             putReaderContext(finalReaderContext);
             readerContext = null;
             return finalReaderContext;
@@ -1095,7 +1116,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 reader,
                 request,
                 shardTarget,
-                threadPool::relativeTimeInMillis,
+                threadPool.relativeTimeInMillisSupplier(),
                 timeout,
                 fetchPhase,
                 lowLevelCancellation,
@@ -1141,6 +1162,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public boolean freeReaderContext(ShardSearchContextId contextId) {
+        logger.trace("freeing reader context [{}]", contextId);
         if (sessionId.equals(contextId.getSessionId())) {
             try (ReaderContext context = removeReaderContext(contextId.getId())) {
                 return context != null;
@@ -1233,7 +1255,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (source == null) {
             return;
         }
-        validateSearchSource(source, context.scrollContext() != null);
         SearchShardTarget shardTarget = context.shardTarget();
         SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
         context.from(source.from());
@@ -1425,53 +1446,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             for (SubSearchSourceBuilder subSearchSourceBuilder : source.subSearches()) {
                 queries.add(subSearchSourceBuilder.toSearchQuery(context.getSearchExecutionContext()));
             }
-            context.rankShardContext(source.rankBuilder().buildRankShardContext(queries, context.from()));
-        }
-    }
-
-    /**
-     * Validates the incoming search request on the data node. These checks have been moved to the coordinating node.
-     * Validation is still performed on the data nodes to ensure that in a mixed cluster scenario, when the coordinating node is on an older
-     * version that does not yet perform validation, the shards make up for that.
-     * This method can be entirely removed in the next major version, when all nodes perform the validation when coordinating a search.
-     *
-     * @see SearchRequest#validate()
-     */
-    @UpdateForV9
-    private static void validateSearchSource(SearchSourceBuilder source, boolean hasScroll) {
-        if (source.trackTotalHitsUpTo() != null && source.trackTotalHitsUpTo() != SearchContext.TRACK_TOTAL_HITS_ACCURATE && hasScroll) {
-            throw new IllegalArgumentException("disabling [track_total_hits] is not allowed in a scroll context");
-        }
-        if (CollectionUtils.isEmpty(source.searchAfter()) == false) {
-            if (hasScroll) {
-                throw new IllegalArgumentException("`search_after` cannot be used in a scroll context.");
-            }
-            if (source.from() > 0) {
-                throw new IllegalArgumentException("`from` parameter must be set to 0 when `search_after` is used.");
-            }
-        }
-        if (source.collapse() != null) {
-            if (hasScroll) {
-                throw new IllegalArgumentException("cannot use `collapse` in a scroll context");
-            }
-            if (source.rescores() != null && source.rescores().isEmpty() == false) {
-                throw new IllegalArgumentException("cannot use `collapse` in conjunction with `rescore`");
-            }
-        }
-        if (source.slice() != null) {
-            if (source.pointInTimeBuilder() == null && (hasScroll == false)) {
-                throw new IllegalArgumentException("[slice] can only be used with [scroll] or [point-in-time] requests");
-            }
-        }
-        if (source.storedFields() != null) {
-            if (source.storedFields().fetchFields() == false) {
-                if (source.fetchSource() != null && source.fetchSource().fetchSource()) {
-                    throw new IllegalArgumentException("[stored_fields] cannot be disabled if [_source] is requested");
-                }
-                if (source.fetchFields() != null) {
-                    throw new IllegalArgumentException("[stored_fields] cannot be disabled when using the [fields] option");
-                }
-            }
+            context.queryPhaseRankShardContext(source.rankBuilder().buildQueryPhaseShardContext(queries, context.from()));
         }
     }
 
@@ -1545,6 +1520,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return this.responseCollectorService;
     }
 
+    public long getDefaultKeepAliveInMillis() {
+        return defaultKeepAlive;
+    }
+
     /**
      * Used to indicate which result object should be instantiated when creating a search context
      */
@@ -1559,6 +1538,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             @Override
             void addResultsObject(SearchContext context) {
                 context.addQueryResult();
+            }
+        },
+        RANK_FEATURE {
+            @Override
+            void addResultsObject(SearchContext context) {
+                context.addRankFeatureResult();
             }
         },
         FETCH {
@@ -1620,13 +1605,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public void canMatch(CanMatchNodeRequest request, ActionListener<CanMatchNodeResponse> listener) {
-        final List<ShardSearchRequest> shardSearchRequests = request.createShardSearchRequests();
-        final List<CanMatchNodeResponse.ResponseOrFailure> responses = new ArrayList<>(shardSearchRequests.size());
-        for (ShardSearchRequest shardSearchRequest : shardSearchRequests) {
-            CanMatchShardResponse canMatchShardResponse;
+        var shardLevelRequests = request.getShardLevelRequests();
+        final List<CanMatchNodeResponse.ResponseOrFailure> responses = new ArrayList<>(shardLevelRequests.size());
+        for (var shardLevelRequest : shardLevelRequests) {
             try {
-                canMatchShardResponse = canMatch(shardSearchRequest);
-                responses.add(new CanMatchNodeResponse.ResponseOrFailure(canMatchShardResponse));
+                responses.add(new CanMatchNodeResponse.ResponseOrFailure(canMatch(request.createShardSearchRequest(shardLevelRequest))));
             } catch (Exception e) {
                 responses.add(new CanMatchNodeResponse.ResponseOrFailure(e));
             }
@@ -1737,14 +1720,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     @SuppressWarnings("unchecked")
     public static boolean queryStillMatchesAfterRewrite(ShardSearchRequest request, QueryRewriteContext context) throws IOException {
         Rewriteable.rewrite(request.getRewriteable(), context, false);
-        boolean canMatch = request.getAliasFilter().getQueryBuilder() instanceof MatchNoneQueryBuilder == false;
-        if (canRewriteToMatchNone(request.source())) {
-            canMatch &= request.source()
-                .subSearches()
-                .stream()
-                .anyMatch(sqwb -> sqwb.getQueryBuilder() instanceof MatchNoneQueryBuilder == false);
+        if (request.getAliasFilter().getQueryBuilder() instanceof MatchNoneQueryBuilder) {
+            return false;
         }
-        return canMatch;
+        final var source = request.source();
+        return canRewriteToMatchNone(source) == false
+            || source.subSearches().stream().anyMatch(sqwb -> sqwb.getQueryBuilder() instanceof MatchNoneQueryBuilder == false);
     }
 
     /**
@@ -1764,26 +1745,25 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return aggregations == null || aggregations.mustVisitAllDocs() == false;
     }
 
-    @SuppressWarnings({ "rawtypes", "unchecked" })
+    @SuppressWarnings("unchecked")
     private void rewriteAndFetchShardRequest(IndexShard shard, ShardSearchRequest request, ActionListener<ShardSearchRequest> listener) {
-        ActionListener<Rewriteable> actionListener = listener.delegateFailureAndWrap((l, r) -> {
-            if (request.readerId() != null) {
-                l.onResponse(request);
-            } else {
-                shard.ensureShardSearchActive(b -> l.onResponse(request));
-            }
-        });
         // we also do rewrite on the coordinating node (TransportSearchService) but we also need to do it here.
         // AliasFilters and other things may need to be rewritten on the data node, but not per individual shard.
-        // These are uncommon-cases but we are very efficient doing the rewrite here.
-        Rewriteable.rewriteAndFetch(request.getRewriteable(), indicesService.getDataRewriteContext(request::nowInMillis), actionListener);
+        // These are uncommon-cases, but we are very efficient doing the rewrite here.
+        Rewriteable.rewriteAndFetch(
+            request.getRewriteable(),
+            indicesService.getDataRewriteContext(request::nowInMillis),
+            request.readerId() == null
+                ? listener.delegateFailureAndWrap((l, r) -> shard.ensureShardSearchActive(b -> l.onResponse(request)))
+                : listener.safeMap(r -> request)
+        );
     }
 
     /**
      * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
-    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis) {
-        return indicesService.getRewriteContext(nowInMillis);
+    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, ResolvedIndices resolvedIndices, PointInTimeBuilder pit) {
+        return indicesService.getRewriteContext(nowInMillis, resolvedIndices, pit);
     }
 
     public CoordinatorRewriteContextProvider getCoordinatorRewriteContextProvider(LongSupplier nowInMillis) {
@@ -1801,7 +1781,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return new AggregationReduceContext.Builder() {
             @Override
             public AggregationReduceContext forPartialReduction() {
-                return new AggregationReduceContext.ForPartial(bigArrays, scriptService, isCanceled, aggs);
+                return new AggregationReduceContext.ForPartial(
+                    bigArrays,
+                    scriptService,
+                    isCanceled,
+                    aggs,
+                    multiBucketConsumerService.createForPartial()
+                );
             }
 
             @Override
@@ -1811,7 +1797,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     scriptService,
                     isCanceled,
                     aggs,
-                    multiBucketConsumerService.create()
+                    multiBucketConsumerService.createForFinal()
                 );
             }
         };

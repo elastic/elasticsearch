@@ -124,7 +124,7 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
                 SearchLookup lookup = new SearchLookup(
                     searchExecutionContext::getFieldType,
                     (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(
-                        new FieldDataContext("test", lookupSupplier, searchExecutionContext::sourcePath, fdo)
+                        new FieldDataContext("test", null, lookupSupplier, searchExecutionContext::sourcePath, fdo)
                     ).build(null, null),
                     (ctx, doc) -> null
                 );
@@ -133,6 +133,11 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
                 assertThat(searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {
                     @Override
                     public boolean needs_score() {
+                        return false;
+                    }
+
+                    @Override
+                    public boolean needs_termStats() {
                         return false;
                     }
 

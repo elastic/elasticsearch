@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.codec.tsdb;
@@ -11,13 +12,20 @@ package org.elasticsearch.index.codec.tsdb;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
@@ -27,6 +35,14 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
 
@@ -116,4 +132,116 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
         }
     }
 
+    public void testOneDocManyValues() throws Exception {
+        IndexWriterConfig config = new IndexWriterConfig();
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, config)) {
+            int numValues = 128 + random().nextInt(1024); // > 2^7 to require two blocks
+            Document d = new Document();
+            for (int i = 0; i < numValues; i++) {
+                d.add(new SortedSetDocValuesField("dv", new BytesRef("v-" + i)));
+            }
+            writer.addDocument(d);
+            try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                LeafReaderContext leaf = reader.leaves().get(0);
+                SortedSetDocValues dv = leaf.reader().getSortedSetDocValues("dv");
+                for (int i = 0; i < 3; i++) {
+                    assertTrue(dv.advanceExact(0));
+                    assertThat(dv.docValueCount(), equalTo(numValues));
+                    for (int v = 0; v < dv.docValueCount(); v++) {
+                        assertThat(dv.nextOrd(), greaterThanOrEqualTo(0L));
+                    }
+                }
+            }
+        }
+    }
+
+    public void testManyDocsWithManyValues() throws Exception {
+        final int numDocs = 10 + random().nextInt(20);
+        final Map<String, List<String>> sortedSet = new HashMap<>(); // key -> doc-values
+        final Map<String, long[]> sortedNumbers = new HashMap<>(); // key -> numbers
+        try (Directory directory = newDirectory()) {
+            IndexWriterConfig conf = newIndexWriterConfig();
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), directory, conf)) {
+                for (int i = 0; i < numDocs; i++) {
+                    Document doc = new Document();
+                    String key = "k-" + i;
+                    doc.add(new StringField("key", new BytesRef(key), Field.Store.YES));
+                    int numValues = random().nextInt(600);
+                    List<String> binary = new ArrayList<>();
+                    for (int v = 0; v < numValues; v++) {
+                        String dv = "v-" + random().nextInt(3) + ":" + v;
+                        binary.add(dv);
+                        doc.add(new SortedSetDocValuesField("binary", new BytesRef(dv)));
+                    }
+                    sortedSet.put(key, binary.stream().sorted().toList());
+                    numValues = random().nextInt(600);
+                    long[] numbers = new long[numValues];
+                    for (int v = 0; v < numValues; v++) {
+                        numbers[v] = random().nextInt(10) * 1000 + v;
+                        doc.add(new SortedNumericDocValuesField("numbers", numbers[v]));
+                    }
+                    Arrays.sort(numbers);
+                    sortedNumbers.put(key, numbers);
+                    writer.addDocument(doc);
+                }
+                writer.commit();
+            }
+            try (IndexReader reader = maybeWrapWithMergingReader(DirectoryReader.open(directory))) {
+                for (LeafReaderContext leaf : reader.leaves()) {
+                    StoredFields storedFields = leaf.reader().storedFields();
+                    int iters = 1 + random().nextInt(5);
+                    for (int i = 0; i < iters; i++) {
+                        // check with binary
+                        SortedSetDocValues binaryDV = leaf.reader().getSortedSetDocValues("binary");
+                        int doc = random().nextInt(leaf.reader().maxDoc());
+                        while ((doc = binaryDV.advance(doc)) != DocIdSetIterator.NO_MORE_DOCS) {
+                            String key = storedFields.document(doc).getBinaryValue("key").utf8ToString();
+                            List<String> expected = sortedSet.get(key);
+                            List<String> actual = new ArrayList<>();
+                            for (int v = 0; v < binaryDV.docValueCount(); v++) {
+                                long ord = binaryDV.nextOrd();
+                                actual.add(binaryDV.lookupOrd(ord).utf8ToString());
+                            }
+                            assertEquals(expected, actual);
+                            int repeats = random().nextInt(3);
+                            for (int r = 0; r < repeats; r++) {
+                                assertTrue(binaryDV.advanceExact(doc));
+                                actual.clear();
+                                for (int v = 0; v < binaryDV.docValueCount(); v++) {
+                                    long ord = binaryDV.nextOrd();
+                                    actual.add(binaryDV.lookupOrd(ord).utf8ToString());
+                                }
+                                assertEquals(expected, actual);
+                            }
+                            doc++;
+                            doc += random().nextInt(3);
+                        }
+                        // check with numbers
+                        doc = random().nextInt(leaf.reader().maxDoc());
+                        SortedNumericDocValues numbersDV = leaf.reader().getSortedNumericDocValues("numbers");
+                        while ((doc = numbersDV.advance(doc)) != DocIdSetIterator.NO_MORE_DOCS) {
+                            String key = storedFields.document(doc).getBinaryValue("key").utf8ToString();
+                            long[] expected = sortedNumbers.get(key);
+                            long[] actual = new long[expected.length];
+                            for (int v = 0; v < numbersDV.docValueCount(); v++) {
+                                actual[v] = numbersDV.nextValue();
+                            }
+                            assertArrayEquals(expected, actual);
+                            int repeats = random().nextInt(3);
+                            for (int r = 0; r < repeats; r++) {
+                                assertTrue(numbersDV.advanceExact(doc));
+                                actual = new long[expected.length];
+                                for (int v = 0; v < numbersDV.docValueCount(); v++) {
+                                    actual[v] = numbersDV.nextValue();
+                                }
+                                assertArrayEquals(expected, actual);
+                            }
+                            doc++;
+                            doc += random().nextInt(3);
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

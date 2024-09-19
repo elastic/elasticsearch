@@ -8,29 +8,30 @@
 package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
 
-public class PostConnectorActionResponseBWCSerializingTests extends AbstractBWCWireSerializationTestCase<PostConnectorAction.Response> {
+public class PostConnectorActionResponseBWCSerializingTests extends AbstractBWCWireSerializationTestCase<ConnectorCreateActionResponse> {
     @Override
-    protected Writeable.Reader<PostConnectorAction.Response> instanceReader() {
-        return PostConnectorAction.Response::new;
+    protected Writeable.Reader<ConnectorCreateActionResponse> instanceReader() {
+        return ConnectorCreateActionResponse::new;
     }
 
     @Override
-    protected PostConnectorAction.Response createTestInstance() {
-        return new PostConnectorAction.Response(randomUUID());
+    protected ConnectorCreateActionResponse createTestInstance() {
+        return new ConnectorCreateActionResponse(randomUUID(), randomFrom(DocWriteResponse.Result.values()));
     }
 
     @Override
-    protected PostConnectorAction.Response mutateInstance(PostConnectorAction.Response instance) throws IOException {
+    protected ConnectorCreateActionResponse mutateInstance(ConnectorCreateActionResponse instance) throws IOException {
         return randomValueOtherThan(instance, this::createTestInstance);
     }
 
     @Override
-    protected PostConnectorAction.Response mutateInstanceForVersion(PostConnectorAction.Response instance, TransportVersion version) {
+    protected ConnectorCreateActionResponse mutateInstanceForVersion(ConnectorCreateActionResponse instance, TransportVersion version) {
         return instance;
     }
 }

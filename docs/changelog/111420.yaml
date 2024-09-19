@@ -1,0 +1,5 @@
+pr: 111420
+summary: "[Query rules] Add `exclude` query rule type"
+area: Relevance
+type: feature
+issues: []

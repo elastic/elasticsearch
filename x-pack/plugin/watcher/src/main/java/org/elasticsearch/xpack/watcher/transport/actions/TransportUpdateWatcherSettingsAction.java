@@ -22,10 +22,10 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.Task;
@@ -69,7 +69,7 @@ public class TransportUpdateWatcherSettingsAction extends TransportMasterNodeAct
             clusterService,
             threadPool,
             actionFilters,
-            UpdateWatcherSettingsAction.Request::new,
+            UpdateWatcherSettingsAction.Request::readFrom,
             indexNameExpressionResolver,
             AcknowledgedResponse::readFrom,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
@@ -93,7 +93,7 @@ public class TransportUpdateWatcherSettingsAction extends TransportMasterNodeAct
         final Settings newSettings = Settings.builder().loadFromMap(request.settings()).build();
         final UpdateSettingsClusterStateUpdateRequest clusterStateUpdateRequest = new UpdateSettingsClusterStateUpdateRequest().indices(
             new Index[] { watcherIndexMd.getIndex() }
-        ).settings(newSettings).ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
+        ).settings(newSettings).ackTimeout(request.ackTimeout()).masterNodeTimeout(request.masterNodeTimeout());
 
         updateSettingsService.updateSettings(clusterStateUpdateRequest, new ActionListener<>() {
             @Override

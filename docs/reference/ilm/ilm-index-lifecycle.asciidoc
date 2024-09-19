@@ -5,7 +5,7 @@
 <titleabbrev>Index lifecycle</titleabbrev>
 ++++
 
-{ilm-init} defines five index lifecycle _phases_:
+<<index-lifecycle-management,{ilm-init}>> defines five index lifecycle _phases_:
 
 * **Hot**: The index is actively being updated and queried.
 * **Warm**: The index is no longer being updated but is still being queried.
@@ -42,6 +42,12 @@ a "cold" phase with a minimum age either unset, or >= 10 days.
 
 The minimum age defaults to zero, which causes {ilm-init} to move indices to the next phase
 as soon as all actions in the current phase complete.
+
+[NOTE]
+====
+If an index has been <<ilm-rollover,rolled over>>, then the `min_age` value is relative to the time 
+the index was rolled over, not the index creation time. <<min-age-calculation,Learn more>>.
+====
 
 If an index has unallocated shards and the <<cluster-health,cluster health status>> is yellow,
 the index can still transition to the next phase according to its {ilm} policy.

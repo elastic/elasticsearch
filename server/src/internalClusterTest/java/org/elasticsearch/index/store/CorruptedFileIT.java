@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.store;
 
@@ -19,6 +20,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
@@ -179,12 +181,18 @@ public class CorruptedFileIT extends ESIntegTestCase {
          */
         setReplicaCount(2, "test");
         ClusterHealthResponse health = clusterAdmin().health(
-            new ClusterHealthRequest("test").waitForGreenStatus()
-                .timeout("5m") // sometimes due to cluster rebalacing and random settings default timeout is just not enough.
+            new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, "test").waitForGreenStatus()
+                // sometimes due to cluster rebalancing and random settings default timeout is just not enough.
+                .masterNodeTimeout(TimeValue.timeValueMinutes(5))
+                .timeout(TimeValue.timeValueMinutes(5))
                 .waitForNoRelocatingShards(true)
         ).actionGet();
         if (health.isTimedOut()) {
-            logger.info("cluster state:\n{}\n{}", clusterAdmin().prepareState().get().getState(), getClusterPendingTasks());
+            logger.info(
+                "cluster state:\n{}\n{}",
+                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState(),
+                getClusterPendingTasks()
+            );
             assertThat("timed out waiting for green state", health.isTimedOut(), equalTo(false));
         }
         assertThat(health.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -282,21 +290,27 @@ public class CorruptedFileIT extends ESIntegTestCase {
          * we corrupted the primary shard - now lets make sure we never recover from it successfully
          */
         setReplicaCount(1, "test");
-        clusterAdmin().prepareReroute().get();
+        ClusterRerouteUtils.reroute(client());
 
         boolean didClusterTurnRed = waitUntil(() -> {
-            ClusterHealthStatus test = clusterAdmin().health(new ClusterHealthRequest("test")).actionGet().getStatus();
+            ClusterHealthStatus test = clusterAdmin().health(new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, "test"))
+                .actionGet()
+                .getStatus();
             return test == ClusterHealthStatus.RED;
         }, 5, TimeUnit.MINUTES);// sometimes on slow nodes the replication / recovery is just dead slow
 
-        final ClusterHealthResponse response = clusterAdmin().health(new ClusterHealthRequest("test")).get();
+        final ClusterHealthResponse response = clusterAdmin().health(new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, "test")).get();
 
         if (response.getStatus() != ClusterHealthStatus.RED) {
             logger.info("Cluster turned red in busy loop: {}", didClusterTurnRed);
-            logger.info("cluster state:\n{}\n{}", clusterAdmin().prepareState().get().getState(), getClusterPendingTasks());
+            logger.info(
+                "cluster state:\n{}\n{}",
+                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState(),
+                getClusterPendingTasks()
+            );
         }
         assertThat(response.getStatus(), is(ClusterHealthStatus.RED));
-        ClusterState state = clusterAdmin().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         GroupShardsIterator<ShardIterator> shardIterators = state.getRoutingTable()
             .activePrimaryShardsGrouped(new String[] { "test" }, false);
         for (ShardIterator iterator : shardIterators) {
@@ -366,7 +380,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
                 .put("index.routing.allocation.include._name", primariesNode.getName() + "," + unluckyNode.getName()),
             "test"
         );
-        clusterAdmin().prepareReroute().get();
+        ClusterRerouteUtils.reroute(client());
         hasCorrupted.await();
         corrupt.set(false);
         ensureGreen();
@@ -463,7 +477,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
                 final var replicaShards = indexRoutingTable.shard(shardId).replicaShards();
                 if (replicaShards.isEmpty()
                     || replicaShards.stream()
-                        .anyMatch(sr -> sr.unassigned() == false || sr.unassignedInfo().getNumFailedAllocations() < maxRetries)) {
+                        .anyMatch(sr -> sr.unassigned() == false || sr.unassignedInfo().failedAllocations() < maxRetries)) {
                     return false;
                 }
             }
@@ -491,7 +505,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
                 .put("index.routing.allocation.exclude._name", unluckyNode.getName()),
             "test"
         );
-        clusterAdmin().prepareReroute().setRetryFailed(true).get();
+        ClusterRerouteUtils.rerouteRetryFailed(client());
         ensureGreen("test");
         assertThatAllShards("test", shard -> {
             assertThat(shard.primaryShard().currentNodeId(), not(equalTo(unluckyNode.getId())));
@@ -506,7 +520,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
     }
 
     private void assertThatAllShards(String index, Consumer<IndexShardRoutingTable> verifier) {
-        var clusterStateResponse = clusterAdmin().state(new ClusterStateRequest().routingTable(true)).actionGet();
+        var clusterStateResponse = clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT).routingTable(true)).actionGet();
         var indexRoutingTable = clusterStateResponse.getState().getRoutingTable().index(index);
         for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
             verifier.accept(indexRoutingTable.shard(shardId));
@@ -551,7 +565,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         // it snapshots and that will write a new segments.X+1 file
         logger.info("-->  creating repository");
         assertAcked(
-            clusterAdmin().preparePutRepository("test-repo")
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "test-repo")
                 .setType("fs")
                 .setSettings(
                     Settings.builder()
@@ -561,10 +575,11 @@ public class CorruptedFileIT extends ESIntegTestCase {
                 )
         );
         logger.info("--> snapshot");
-        final CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot("test-repo", "test-snap")
-            .setWaitForCompletion(true)
-            .setIndices("test")
-            .get();
+        final CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            "test-repo",
+            "test-snap"
+        ).setWaitForCompletion(true).setIndices("test").get();
         final SnapshotState snapshotState = createSnapshotResponse.getSnapshotInfo().state();
         logger.info("--> snapshot terminated with state " + snapshotState);
         final List<Path> files = listShardFiles(shardRouting);
@@ -651,7 +666,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
     }
 
     private int numShards(String... index) {
-        ClusterState state = clusterAdmin().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         GroupShardsIterator<?> shardIterators = state.getRoutingTable().activePrimaryShardsGrouped(index, false);
         return shardIterators.size();
     }
@@ -678,7 +693,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
     }
 
     private ShardRouting corruptRandomPrimaryFile(final boolean includePerCommitFiles) throws IOException {
-        ClusterState state = clusterAdmin().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         Index test = state.metadata().index("test").getIndex();
         GroupShardsIterator<ShardIterator> shardIterators = state.getRoutingTable()
             .activePrimaryShardsGrouped(new String[] { "test" }, false);
@@ -734,7 +749,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
 
     public List<Path> listShardFiles(ShardRouting routing) throws IOException {
         NodesStatsResponse nodeStatses = clusterAdmin().prepareNodesStats(routing.currentNodeId()).setFs(true).get();
-        ClusterState state = clusterAdmin().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         final Index test = state.metadata().index("test").getIndex();
         assertThat(routing.toString(), nodeStatses.getNodes().size(), equalTo(1));
         List<Path> files = new ArrayList<>();

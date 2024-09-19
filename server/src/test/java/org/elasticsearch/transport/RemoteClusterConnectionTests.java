@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.transport;
 
@@ -761,7 +762,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                                         .sendRequest(
                                             randomNonNegativeLong(),
                                             "arbitrary",
-                                            TransportRequest.Empty.INSTANCE,
+                                            new EmptyRequest(),
                                             TransportRequestOptions.of(null, type)
                                         )
                                 ).getMessage(),
@@ -835,7 +836,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                                     try {
                                         Transport.Connection lowLevelConnection = connection.getConnection();
                                         assertNotNull(lowLevelConnection);
-                                    } catch (NoSuchRemoteClusterException e) {
+                                    } catch (ConnectTransportException e) {
                                         // ignore, this is an expected exception
                                     }
                                 }
@@ -855,7 +856,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                                     DiscoveryNode node = randomFrom(discoverableNodes);
                                     try {
                                         connection.getConnectionManager().getConnection(node);
-                                    } catch (NoSuchRemoteClusterException e) {
+                                    } catch (ConnectTransportException e) {
                                         // Ignore
                                     }
                                 }
@@ -922,7 +923,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                         RemoteClusterCredentialsManager.EMPTY
                     )
                 ) {
-                    PlainActionFuture.get(fut -> connection.ensureConnected(fut.map(x -> null)));
+                    safeAwait(listener -> connection.ensureConnected(listener.map(x -> null)));
                     for (int i = 0; i < 10; i++) {
                         // always a direct connection as the remote node is already connected
                         Transport.Connection remoteConnection = connection.getConnection(seedNode);

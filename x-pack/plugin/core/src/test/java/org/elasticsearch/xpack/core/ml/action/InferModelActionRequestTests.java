@@ -73,6 +73,7 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
         if (randomBoolean()) {
             request.setPrefixType(randomFrom(TrainedModelPrefixStrings.PrefixType.values()));
         }
+        request.setChunked(randomBoolean());
         return request;
     }
 
@@ -87,8 +88,9 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
         var previouslyLicensed = instance.isPreviouslyLicensed();
         var timeout = instance.getInferenceTimeout();
         var prefixType = instance.getPrefixType();
+        var chunked = instance.isChunked();
 
-        int change = randomIntBetween(0, 7);
+        int change = randomIntBetween(0, 8);
         switch (change) {
             case 0:
                 modelId = modelId + "foo";
@@ -123,6 +125,9 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
                 prefixType = TrainedModelPrefixStrings.PrefixType.values()[(prefixType.ordinal() + 1) % TrainedModelPrefixStrings.PrefixType
                     .values().length];
                 break;
+            case 8:
+                chunked = chunked == false;
+                break;
             default:
                 throw new IllegalStateException();
         }
@@ -130,6 +135,7 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
         var r = new Request(modelId, update, objectsToInfer, textInput, timeout, previouslyLicensed);
         r.setHighPriority(highPriority);
         r.setPrefixType(prefixType);
+        r.setChunked(chunked);
         return r;
     }
 
@@ -245,6 +251,19 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
             );
             r.setHighPriority(instance.isHighPriority());
             r.setPrefixType(TrainedModelPrefixStrings.PrefixType.NONE);
+            return r;
+        } else if (version.before(TransportVersions.ML_CHUNK_INFERENCE_OPTION)) {
+            var r = new Request(
+                instance.getId(),
+                adjustedUpdate,
+                instance.getObjectsToInfer(),
+                instance.getTextInput(),
+                instance.getInferenceTimeout(),
+                instance.isPreviouslyLicensed()
+            );
+            r.setHighPriority(instance.isHighPriority());
+            r.setPrefixType(instance.getPrefixType());
+            r.setChunked(false);  // r.setChunked(instance.isChunked()); for the next version
             return r;
         }
 

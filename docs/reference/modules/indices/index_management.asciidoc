@@ -46,9 +46,9 @@ to `true`.
 
 This setting affects the following built-in index templates:
 
-include::{es-repo-dir}/indices/index-templates.asciidoc[tag=built-in-index-template-patterns]
+include::{es-ref-dir}/indices/index-templates.asciidoc[tag=built-in-index-template-patterns]
 
 This setting also affects the following built-in component templates:
 
-include::{es-repo-dir}/indices/put-component-template.asciidoc[tag=built-in-component-templates]
+include::{es-ref-dir}/indices/put-component-template.asciidoc[tag=built-in-component-templates]
 --

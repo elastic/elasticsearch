@@ -37,7 +37,6 @@ public record DownsampleShardTaskParams(
     String[] dimensions
 ) implements PersistentTaskParams {
 
-    private static final TransportVersion V_8_13_0 = TransportVersions.ML_MODEL_IN_SERVICE_SETTINGS;
     public static final String NAME = DownsampleShardTask.TASK_NAME;
     private static final ParseField DOWNSAMPLE_CONFIG = new ParseField("downsample_config");
     private static final ParseField DOWNSAMPLE_INDEX = new ParseField("rollup_index");
@@ -73,7 +72,7 @@ public record DownsampleShardTaskParams(
             new ShardId(in),
             in.readStringArray(),
             in.readStringArray(),
-            in.getTransportVersion().onOrAfter(V_8_13_0) ? in.readOptionalStringArray() : new String[] {}
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0) ? in.readOptionalStringArray() : new String[] {}
         );
     }
 
@@ -112,7 +111,7 @@ public record DownsampleShardTaskParams(
         shardId.writeTo(out);
         out.writeStringArray(metrics);
         out.writeStringArray(labels);
-        if (out.getTransportVersion().onOrAfter(V_8_13_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeOptionalStringArray(dimensions);
         }
     }

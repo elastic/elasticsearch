@@ -87,7 +87,7 @@ public class TextSimilarityProcessor extends NlpTask.Processor {
         @Override
         public InferenceResults processResult(TokenizationResult tokenization, PyTorchInferenceResult pyTorchResult, boolean chunkResult) {
             if (chunkResult) {
-                throw chunkingNotSupportedException(TaskType.NER);
+                throw chunkingNotSupportedException(TaskType.TEXT_SIMILARITY);
             }
 
             if (pyTorchResult.getInferenceResult().length < 1) {

@@ -10,6 +10,8 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
@@ -78,8 +80,21 @@ public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
-    public BytesRefBlock asBlock() {
-        return new BytesRefVectorBlock(this);
+    public OrdinalBytesRefBlock asBlock() {
+        return new OrdinalBytesRefBlock(ordinals.asBlock(), bytes);
+    }
+
+    @Override
+    public OrdinalBytesRefVector asOrdinals() {
+        return this;
+    }
+
+    public IntVector getOrdinalsVector() {
+        return ordinals;
+    }
+
+    public BytesRefVector getDictionaryVector() {
+        return bytes;
     }
 
     @Override
@@ -105,6 +120,20 @@ public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted
                 return builder.build();
             }
         }
+    }
+
+    @Override
+    public BytesRefBlock keepMask(BooleanVector mask) {
+        /*
+         * The implementation in OrdinalBytesRefBlock is quite fast and
+         * amounts to the same thing so we can just reuse it.
+         */
+        return asBlock().keepMask(mask);
+    }
+
+    @Override
+    public ReleasableIterator<? extends BytesRefBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return new BytesRefLookup(asBlock(), positions, targetBlockSize);
     }
 
     @Override

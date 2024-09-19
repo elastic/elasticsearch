@@ -423,6 +423,8 @@ public class AssignmentStats implements ToXContentObject, Writeable {
     @Nullable
     private final Integer numberOfAllocations;
     @Nullable
+    private final AdaptiveAllocationsSettings adaptiveAllocationsSettings;
+    @Nullable
     private final Integer queueCapacity;
     @Nullable
     private final ByteSizeValue cacheSize;
@@ -435,6 +437,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         String modelId,
         @Nullable Integer threadsPerAllocation,
         @Nullable Integer numberOfAllocations,
+        @Nullable AdaptiveAllocationsSettings adaptiveAllocationsSettings,
         @Nullable Integer queueCapacity,
         @Nullable ByteSizeValue cacheSize,
         Instant startTime,
@@ -445,6 +448,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         this.modelId = modelId;
         this.threadsPerAllocation = threadsPerAllocation;
         this.numberOfAllocations = numberOfAllocations;
+        this.adaptiveAllocationsSettings = adaptiveAllocationsSettings;
         this.queueCapacity = queueCapacity;
         this.startTime = Objects.requireNonNull(startTime);
         this.nodeStats = nodeStats;
@@ -479,6 +483,11 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         } else {
             deploymentId = modelId;
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+            adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
+        } else {
+            adaptiveAllocationsSettings = null;
+        }
     }
 
     public String getDeploymentId() {
@@ -497,6 +506,11 @@ public class AssignmentStats implements ToXContentObject, Writeable {
     @Nullable
     public Integer getNumberOfAllocations() {
         return numberOfAllocations;
+    }
+
+    @Nullable
+    public AdaptiveAllocationsSettings getAdaptiveAllocationsSettings() {
+        return adaptiveAllocationsSettings;
     }
 
     @Nullable
@@ -575,6 +589,9 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         if (numberOfAllocations != null) {
             builder.field(StartTrainedModelDeploymentAction.TaskParams.NUMBER_OF_ALLOCATIONS.getPreferredName(), numberOfAllocations);
         }
+        if (adaptiveAllocationsSettings != null) {
+            builder.field(StartTrainedModelDeploymentAction.Request.ADAPTIVE_ALLOCATIONS.getPreferredName(), adaptiveAllocationsSettings);
+        }
         if (queueCapacity != null) {
             builder.field(StartTrainedModelDeploymentAction.TaskParams.QUEUE_CAPACITY.getPreferredName(), queueCapacity);
         }
@@ -649,6 +666,9 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeString(deploymentId);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+            out.writeOptionalWriteable(adaptiveAllocationsSettings);
+        }
     }
 
     @Override
@@ -660,6 +680,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             && Objects.equals(modelId, that.modelId)
             && Objects.equals(threadsPerAllocation, that.threadsPerAllocation)
             && Objects.equals(numberOfAllocations, that.numberOfAllocations)
+            && Objects.equals(adaptiveAllocationsSettings, that.adaptiveAllocationsSettings)
             && Objects.equals(queueCapacity, that.queueCapacity)
             && Objects.equals(startTime, that.startTime)
             && Objects.equals(state, that.state)
@@ -677,6 +698,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             modelId,
             threadsPerAllocation,
             numberOfAllocations,
+            adaptiveAllocationsSettings,
             queueCapacity,
             startTime,
             nodeStats,

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.regex;
@@ -44,8 +45,18 @@ public class Regex {
         return str.equals("*");
     }
 
+    /**
+     * Returns true if the str ends with "*".
+     */
     public static boolean isSuffixMatchPattern(String str) {
         return str.length() > 1 && str.indexOf('*') == str.length() - 1;
+    }
+
+    /**
+     * Returns true if the str ends with ".*".
+     */
+    public static boolean isSuffixWildcard(String str) {
+        return isSuffixMatchPattern(str) && str.endsWith(".*");
     }
 
     /** Return an {@link Automaton} that matches the given pattern. */
@@ -71,9 +82,12 @@ public class Regex {
 
         List<BytesRef> simpleStrings = new ArrayList<>();
         List<Automaton> automata = new ArrayList<>();
+        List<BytesRef> prefixes = new ArrayList<>();
         for (String pattern : patterns) {
             // Strings longer than 1000 characters aren't supported by makeStringUnion
-            if (isSimpleMatchPattern(pattern) || pattern.length() >= 1000) {
+            if (isSuffixWildcard(pattern) && pattern.length() < 1000) {
+                prefixes.add(new BytesRef(pattern.substring(0, pattern.length() - 1)));
+            } else if (isSimpleMatchPattern(pattern) || pattern.length() >= 1000) {
                 automata.add(simpleMatchToAutomaton(pattern));
             } else {
                 simpleStrings.add(new BytesRef(pattern));
@@ -87,10 +101,17 @@ public class Regex {
             } else {
                 simpleStringsAutomaton = Automata.makeString(simpleStrings.get(0).utf8ToString());
             }
-            if (automata.isEmpty()) {
+            if (automata.isEmpty() && prefixes.isEmpty()) {
                 return simpleStringsAutomaton;
             }
             automata.add(simpleStringsAutomaton);
+        }
+        if (false == prefixes.isEmpty()) {
+            List<Automaton> prefixAutomaton = new ArrayList<>();
+            Collections.sort(prefixes);
+            prefixAutomaton.add(Automata.makeStringUnion(prefixes));
+            prefixAutomaton.add(Automata.makeAnyString());
+            automata.add(Operations.concatenate(prefixAutomaton));
         }
         return Operations.union(automata);
     }
@@ -230,8 +251,26 @@ public class Regex {
     }
 
     public static Pattern compile(String regex, String flags) {
-        int pFlags = flags == null ? 0 : flagsFromString(flags);
-        return Pattern.compile(regex, pFlags);
+        try {
+            int pFlags = flags == null ? 0 : flagsFromString(flags);
+            return Pattern.compile(regex, pFlags);
+        } catch (OutOfMemoryError e) {
+            if (e.getMessage().equals("Pattern too complex")) {
+                // Normally, we do try to handle OutOfMemoryError errors, as they typically indicate the JVM is not healthy.
+                //
+                // In the context of Pattern::compile, an OutOfMemoryError can occur if the pattern is too complex.
+                // In this case, the OutOfMemoryError is thrown by a pre-check rather than actual memory exhaustion.
+                //
+                // Because the JVM has not encountered a real memory issue, we can treat this as a recoverable exception by wrapping
+                // the original OutOfMemoryError in an IllegalArgumentException.
+                //
+                // For additional details, see:
+                // - https://bugs.openjdk.org/browse/JDK-8300207
+                // - https://github.com/openjdk/jdk/commit/030b071db1fb6197a2633a04b20aa95432a903bc
+                throw new IllegalArgumentException("Too complex regex pattern", e);
+            }
+            throw e;
+        }
     }
 
     public static int flagsFromString(String flags) {

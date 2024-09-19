@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.downsample;
 
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.io.IOException;
@@ -31,11 +32,13 @@ public class DownsampleMetrics extends AbstractLifecycleComponent {
 
     public static final String LATENCY_SHARD = "es.tsdb.downsample.latency.shard.histogram";
     public static final String LATENCY_TOTAL = "es.tsdb.downsample.latency.total.histogram";
+    public static final String ACTIONS_SHARD = "es.tsdb.downsample.actions.shard.total";
+    public static final String ACTIONS = "es.tsdb.downsample.actions.total";
 
     private final MeterRegistry meterRegistry;
 
-    public DownsampleMetrics(MeterRegistry meterRegistry) {
-        this.meterRegistry = meterRegistry;
+    public DownsampleMetrics(TelemetryProvider telemetryProvider) {
+        this.meterRegistry = telemetryProvider.getMeterRegistry();
     }
 
     @Override
@@ -43,6 +46,8 @@ public class DownsampleMetrics extends AbstractLifecycleComponent {
         // Register all metrics to track.
         meterRegistry.registerLongHistogram(LATENCY_SHARD, "Downsampling action latency per shard", "ms");
         meterRegistry.registerLongHistogram(LATENCY_TOTAL, "Downsampling latency end-to-end", "ms");
+        meterRegistry.registerLongCounter(ACTIONS_SHARD, "Number of shard-level downsampling actions", "count");
+        meterRegistry.registerLongCounter(ACTIONS, "Number of downsampling operations", "count");
     }
 
     @Override
@@ -71,11 +76,13 @@ public class DownsampleMetrics extends AbstractLifecycleComponent {
         }
     }
 
-    void recordLatencyShard(long durationInMilliSeconds, ActionStatus status) {
+    void recordShardOperation(long durationInMilliSeconds, ActionStatus status) {
         meterRegistry.getLongHistogram(LATENCY_SHARD).record(durationInMilliSeconds, Map.of(ActionStatus.NAME, status.getMessage()));
+        meterRegistry.getLongCounter(ACTIONS_SHARD).incrementBy(1L, Map.of(ActionStatus.NAME, status.getMessage()));
     }
 
-    void recordLatencyTotal(long durationInMilliSeconds, ActionStatus status) {
+    void recordOperation(long durationInMilliSeconds, ActionStatus status) {
         meterRegistry.getLongHistogram(LATENCY_TOTAL).record(durationInMilliSeconds, Map.of(ActionStatus.NAME, status.getMessage()));
+        meterRegistry.getLongCounter(ACTIONS).incrementBy(1L, Map.of(ActionStatus.NAME, status.getMessage()));
     }
 }

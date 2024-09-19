@@ -472,6 +472,15 @@ You can run a group of YAML test by using wildcards:
   --tests "org.elasticsearch.test.rest.ClientYamlTestSuiteIT.test {yaml=index/*/*}"
 ---------------------------------------------------------------------------
 
+or 
+
+---------------------------------------------------------------------------
+./gradlew :rest-api-spec:yamlRestTest \
+  --tests org.elasticsearch.test.rest.ClientYamlTestSuiteIT -Dtests.method="test {yaml=cat.segments/10_basic/*}"
+---------------------------------------------------------------------------
+
+The latter method is preferable when the YAML suite name contains `.` (period).
+
 Note that if the selected test via the `--tests` filter is not a valid test, i.e., the YAML test
 runner is not able to parse and load it, you might get an error message indicating that the test
 was not found. In such cases, running the whole suite without using the `--tests` could show more
@@ -551,13 +560,19 @@ When running `./gradlew check`, minimal bwc checks are also run against compatib
 
 ==== BWC Testing against a specific remote/branch
 
-Sometimes a backward compatibility change spans two versions. A common case is a new functionality
-that needs a BWC bridge in an unreleased versioned of a release branch (for example, 5.x).
-To test the changes, you can instruct Gradle to build the BWC version from another remote/branch combination instead of
-pulling the release branch from GitHub. You do so using the `bwc.remote` and `bwc.refspec.BRANCH` system properties:
+Sometimes a backward compatibility change spans two versions.
+A common case is a new functionality that needs a BWC bridge in an unreleased versioned of a release branch (for example, 5.x).
+Another use case, since the introduction of serverless, is to test BWC against main in addition to the other released branches.
+To do so, specify the `bwc.refspec` remote and branch to use for the BWC build as `origin/main`.
+To test against main, you will also need to create a new version in link:./server/src/main/java/org/elasticsearch/Version.java[Version.java], 
+increment `elasticsearch` in link:./build-tools-internal/version.properties[version.properties], and hard-code the `project.version` for ml-cpp 
+in link:./x-pack/plugin/ml/build.gradle[ml/build.gradle].
+
+In general, to test the changes, you can instruct Gradle to build the BWC version from another remote/branch combination instead of pulling the release branch from GitHub.
+You do so using the `bwc.refspec.{VERSION}` system property:
 
 -------------------------------------------------
-./gradlew check -Dbwc.remote=${remote} -Dbwc.refspec.5.x=index_req_bwc_5.x
+./gradlew check -Dtests.bwc.refspec.8.15=origin/main
 -------------------------------------------------
 
 The branch needs to be available on the remote that the BWC makes of the

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.coordination;
@@ -26,7 +27,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.ClusterStateUpdaters;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -143,12 +144,11 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             cluster.stabilise();
             final var clusterNode = cluster.getAnyLeader();
 
-            final var mockAppender = new MockLogAppender();
-            try (var ignored = mockAppender.capturing(Coordinator.class, Coordinator.CoordinatorPublication.class)) {
+            try (var mockLog = MockLog.capture(Coordinator.class, Coordinator.CoordinatorPublication.class)) {
 
                 clusterNode.disconnect();
-                mockAppender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
                         "write heartbeat failure",
                         Coordinator.class.getCanonicalName(),
                         Level.WARN,
@@ -156,12 +156,12 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                     )
                 );
                 cluster.runFor(HEARTBEAT_FREQUENCY.get(Settings.EMPTY).millis(), "warnings");
-                mockAppender.assertAllExpectationsMatched();
+                mockLog.assertAllExpectationsMatched();
                 clusterNode.heal();
 
                 coordinatorStrategy.disruptElections = true;
-                mockAppender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
                         "acquire term failure",
                         Coordinator.class.getCanonicalName(),
                         Level.WARN,
@@ -169,12 +169,12 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                     )
                 );
                 cluster.runFor(DEFAULT_ELECTION_DELAY, "warnings");
-                mockAppender.assertAllExpectationsMatched();
+                mockLog.assertAllExpectationsMatched();
                 coordinatorStrategy.disruptElections = false;
 
                 coordinatorStrategy.disruptPublications = true;
-                mockAppender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
                         "verify term failure",
                         Coordinator.CoordinatorPublication.class.getCanonicalName(),
                         Level.WARN,
@@ -182,7 +182,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                     )
                 );
                 cluster.runFor(DEFAULT_ELECTION_DELAY + DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "publication warnings");
-                mockAppender.assertAllExpectationsMatched();
+                mockLog.assertAllExpectationsMatched();
                 coordinatorStrategy.disruptPublications = false;
             }
 

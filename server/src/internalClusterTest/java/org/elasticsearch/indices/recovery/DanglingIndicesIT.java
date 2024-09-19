@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery;
@@ -175,6 +176,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
      * other will be considered dangling, and can therefore be listed and
      * deleted through the API
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/108288")
     public void testDanglingIndexCanBeDeleted() throws Exception {
         final Settings settings = buildSettings(1, true);
         internalCluster().startNodes(3, settings);
@@ -190,6 +192,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         // tombstone has been pushed out of the graveyard.
         createIndex("additional");
         assertAcked(indicesAdmin().prepareDelete("additional"));
+        internalCluster().awaitIndexShardCloseAsyncTasks();
         assertThat(listDanglingIndices(), is(empty()));
     }
 
@@ -323,7 +326,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
             }
         }
 
-        final Metadata metadata = clusterAdmin().prepareState().clear().setMetadata(true).get().getState().metadata();
+        final Metadata metadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).clear().setMetadata(true).get().getState().metadata();
         assertTrue(metadata.indexGraveyard().toString(), metadata.indexGraveyard().containsIndex(new Index(INDEX_NAME, danglingIndexUUID)));
         assertNull(Strings.toString(metadata, true, true), metadata.index(INDEX_NAME));
     }

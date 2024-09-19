@@ -13,17 +13,15 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class PutAnalyticsCollectionAction {
 
@@ -42,7 +40,8 @@ public class PutAnalyticsCollectionAction {
             this.name = in.readString();
         }
 
-        public Request(String name) {
+        public Request(TimeValue masterNodeTimeout, String name) {
+            super(masterNodeTimeout);
             this.name = name;
         }
 
@@ -78,19 +77,6 @@ public class PutAnalyticsCollectionAction {
         @Override
         public int hashCode() {
             return Objects.hash(name);
-        }
-
-        private static final ConstructingObjectParser<Request, String> PARSER = new ConstructingObjectParser<>(
-            "put_analytics_collection_request",
-            false,
-            (p) -> new Request((String) p[0])
-        );
-        static {
-            PARSER.declareString(constructorArg(), NAME_FIELD);
-        }
-
-        public static Request parse(XContentParser parser) {
-            return PARSER.apply(parser, null);
         }
 
         @Override

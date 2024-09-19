@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.bulk;
@@ -20,6 +21,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -37,6 +39,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -87,6 +90,9 @@ public class BulkRequest extends ActionRequest
         requests.addAll(in.readCollectionAsList(i -> DocWriteRequest.readDocumentRequest(null, i)));
         refreshPolicy = RefreshPolicy.readFrom(in);
         timeout = in.readTimeValue();
+        for (DocWriteRequest<?> request : requests) {
+            indices.add(Objects.requireNonNull(request.index(), "request index must not be null"));
+        }
     }
 
     public BulkRequest(@Nullable String globalIndex) {
@@ -355,13 +361,6 @@ public class BulkRequest extends ActionRequest
         return this;
     }
 
-    /**
-     * A timeout to wait if the index operation can't be performed immediately. Defaults to {@code 1m}.
-     */
-    public final BulkRequest timeout(String timeout) {
-        return timeout(TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout"));
-    }
-
     public TimeValue timeout() {
         return timeout;
     }
@@ -469,5 +468,36 @@ public class BulkRequest extends ActionRequest
 
     public Set<String> getIndices() {
         return Collections.unmodifiableSet(indices);
+    }
+
+    /**
+     * Returns true if this is a request for a simulation rather than a real bulk request.
+     * @return true if this is a simulated bulk request
+     */
+    public boolean isSimulated() {
+        return false; // Always false, but may be overridden by a subclass
+    }
+
+    /*
+     * Returns any component template substitutions that are to be used as part of this bulk request. We would likely only have
+     * substitutions in the event of a simulated request.
+     */
+    public Map<String, ComponentTemplate> getComponentTemplateSubstitutions() throws IOException {
+        return Map.of();
+    }
+
+    /*
+     * This copies this bulk request, but without all of its inner requests or the set of indices found in those requests
+     */
+    public BulkRequest shallowClone() {
+        BulkRequest bulkRequest = new BulkRequest(globalIndex);
+        bulkRequest.setRefreshPolicy(getRefreshPolicy());
+        bulkRequest.waitForActiveShards(waitForActiveShards());
+        bulkRequest.timeout(timeout());
+        bulkRequest.pipeline(pipeline());
+        bulkRequest.routing(routing());
+        bulkRequest.requireAlias(requireAlias());
+        bulkRequest.requireDataStream(requireDataStream());
+        return bulkRequest;
     }
 }

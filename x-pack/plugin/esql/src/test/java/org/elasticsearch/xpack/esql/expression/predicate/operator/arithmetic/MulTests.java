@@ -10,97 +10,121 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.AbstractArithmeticTestCase.arithmeticExceptionOverflowCase;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
+import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
 import static org.hamcrest.Matchers.equalTo;
 
-public class MulTests extends AbstractFunctionTestCase {
+public class MulTests extends AbstractScalarFunctionTestCase {
     public MulTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Int * Int", () -> {
-            // Ensure we don't have an overflow
-            int rhs = randomIntBetween(-255, 255);
-            int lhs = randomIntBetween(-255, 255);
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(lhs, DataTypes.INTEGER, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, DataTypes.INTEGER, "rhs")
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryWithWidening(
+                new TestCaseSupplier.NumericTypeTestConfigs<Number>(
+                    new TestCaseSupplier.NumericTypeTestConfig<>(-255, 255, (l, r) -> l.intValue() * r.intValue(), "MulIntsEvaluator"),
+                    new TestCaseSupplier.NumericTypeTestConfig<>(
+                        -1024L,
+                        1024L,
+                        (l, r) -> l.longValue() * r.longValue(),
+                        "MulLongsEvaluator"
+                    ),
+                    new TestCaseSupplier.NumericTypeTestConfig<>(
+                        -1024D,
+                        1024D,
+                        (l, r) -> l.doubleValue() * r.doubleValue(),
+                        "MulDoublesEvaluator"
+                    )
                 ),
-                "MulIntsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
-                DataTypes.INTEGER,
-                equalTo(lhs * rhs)
-            );
-        }), new TestCaseSupplier("Long * Long", () -> {
-            // Ensure we don't have an overflow
-            long rhs = randomLongBetween(-1024, 1024);
-            long lhs = randomLongBetween(-1024, 1024);
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(lhs, DataTypes.LONG, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, DataTypes.LONG, "rhs")
-                ),
-                "MulLongsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
-                DataTypes.LONG,
-                equalTo(lhs * rhs)
-            );
-        }), new TestCaseSupplier("Double * Double", () -> {
+                "lhs",
+                "rhs",
+                (lhs, rhs) -> List.of(),
+                true
+            )
+        );
+
+        // Double
+        suppliers.addAll(List.of(new TestCaseSupplier("Double * Double", List.of(DataType.DOUBLE, DataType.DOUBLE), () -> {
             double rhs = randomDouble();
             double lhs = randomDouble();
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(lhs, DataTypes.DOUBLE, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, DataTypes.DOUBLE, "rhs")
+                    new TestCaseSupplier.TypedData(lhs, DataType.DOUBLE, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, DataType.DOUBLE, "rhs")
                 ),
                 "MulDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
-                DataTypes.DOUBLE,
+                DataType.DOUBLE,
                 equalTo(lhs * rhs)
             );
-        }), /* new TestCaseSupplier("ULong * ULong", () -> {
-             // Ensure we don't have an overflow
-             long rhs = randomLongBetween(0, 1024);
-             long lhs = randomLongBetween(0, 1024);
-             BigInteger lhsBI = unsignedLongAsBigInteger(lhs);
-             BigInteger rhsBI = unsignedLongAsBigInteger(rhs);
-             return new TestCase(
-                 Source.EMPTY,
-                 List.of(new TypedData(lhs, DataTypes.UNSIGNED_LONG, "lhs"), new TypedData(rhs, DataTypes.UNSIGNED_LONG, "rhs")),
-                 "MulUnsignedLongsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
-                 equalTo(asLongUnsigned(lhsBI.multiply(rhsBI).longValue()))
-             );
-            })
-            */
+        }),
+
+            // Overflows
+            new TestCaseSupplier(
+                List.of(DataType.DOUBLE, DataType.DOUBLE),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(Double.MAX_VALUE, DataType.DOUBLE, "lhs"),
+                        new TestCaseSupplier.TypedData(Double.MAX_VALUE, DataType.DOUBLE, "rhs")
+                    ),
+                    "MulDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                    DataType.DOUBLE,
+                    equalTo(null)
+                ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                    .withWarning("Line -1:-1: java.lang.ArithmeticException: not a finite double number: Infinity")
+            ),
+            new TestCaseSupplier(
+                List.of(DataType.DOUBLE, DataType.DOUBLE),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(-Double.MAX_VALUE, DataType.DOUBLE, "lhs"),
+                        new TestCaseSupplier.TypedData(Double.MAX_VALUE, DataType.DOUBLE, "rhs")
+                    ),
+                    "MulDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                    DataType.DOUBLE,
+                    equalTo(null)
+                ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                    .withWarning("Line -1:-1: java.lang.ArithmeticException: not a finite double number: -Infinity")
+            )
+        ));
+
+        suppliers.add(
             arithmeticExceptionOverflowCase(
-                DataTypes.INTEGER,
+                DataType.INTEGER,
                 () -> randomBoolean() ? Integer.MIN_VALUE : Integer.MAX_VALUE,
                 () -> randomIntBetween(2, Integer.MAX_VALUE),
                 "MulIntsEvaluator"
-            ),
+            )
+        );
+        suppliers.add(
             arithmeticExceptionOverflowCase(
-                DataTypes.LONG,
+                DataType.LONG,
                 () -> randomBoolean() ? Long.MIN_VALUE : Long.MAX_VALUE,
                 () -> randomLongBetween(2L, Long.MAX_VALUE),
                 "MulLongsEvaluator"
-            ),
+            )
+        );
+        suppliers.add(
             arithmeticExceptionOverflowCase(
-                DataTypes.UNSIGNED_LONG,
+                DataType.UNSIGNED_LONG,
                 () -> asLongUnsigned(UNSIGNED_LONG_MAX),
                 () -> asLongUnsigned(randomLongBetween(-Long.MAX_VALUE, Long.MAX_VALUE)),
                 "MulUnsignedLongsEvaluator"
             )
-        ));
+        );
+
+        return parameterSuppliersFromTypedData(anyNullIsNull(false, suppliers));
     }
 
     @Override

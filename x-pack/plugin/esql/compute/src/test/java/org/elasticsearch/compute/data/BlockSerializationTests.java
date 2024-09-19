@@ -26,6 +26,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class BlockSerializationTests extends SerializationTestCase {
@@ -36,6 +37,10 @@ public class BlockSerializationTests extends SerializationTestCase {
 
     public void testConstantLongBlockLong() throws IOException {
         assertConstantBlockImpl(blockFactory.newConstantLongBlockWith(randomLong(), randomIntBetween(1, 8192)));
+    }
+
+    public void testConstantFloatBlock() throws IOException {
+        assertConstantBlockImpl(blockFactory.newConstantFloatBlockWith(randomFloat(), randomIntBetween(1, 8192)));
     }
 
     public void testConstantDoubleBlock() throws IOException {
@@ -76,6 +81,17 @@ public class BlockSerializationTests extends SerializationTestCase {
         }
         assertEmptyBlock(blockFactory.newLongVectorBuilder(0).build().asBlock());
         try (LongVector toFilter = blockFactory.newLongVectorBuilder(0).appendLong(randomLong()).build()) {
+            assertEmptyBlock(toFilter.filter().asBlock());
+        }
+    }
+
+    public void testEmptyFloatBlock() throws IOException {
+        assertEmptyBlock(blockFactory.newFloatBlockBuilder(0).build());
+        try (FloatBlock toFilter = blockFactory.newFloatBlockBuilder(0).appendNull().build()) {
+            assertEmptyBlock(toFilter.filter());
+        }
+        assertEmptyBlock(blockFactory.newFloatVectorBuilder(0).build().asBlock());
+        try (FloatVector toFilter = blockFactory.newFloatVectorBuilder(0).appendFloat(randomFloat()).build()) {
             assertEmptyBlock(toFilter.filter().asBlock());
         }
     }
@@ -135,6 +151,22 @@ public class BlockSerializationTests extends SerializationTestCase {
             assertFilterBlock(toFilter.filter(0).asBlock());
         }
         try (LongVector toFilter = blockFactory.newLongVectorBuilder(1).appendLong(randomLong()).appendLong(randomLong()).build()) {
+            assertFilterBlock(toFilter.filter(0).asBlock());
+        }
+    }
+
+    public void testFilterFloatBlock() throws IOException {
+        try (FloatBlock toFilter = blockFactory.newFloatBlockBuilder(0).appendFloat(1).appendFloat(2).build()) {
+            assertFilterBlock(toFilter.filter(1));
+        }
+        try (FloatBlock toFilter = blockFactory.newFloatBlockBuilder(1).appendFloat(randomFloat()).appendNull().build()) {
+            assertFilterBlock(toFilter.filter(0));
+        }
+        try (FloatVector toFilter = blockFactory.newFloatVectorBuilder(1).appendFloat(randomFloat()).build()) {
+            assertFilterBlock(toFilter.filter(0).asBlock());
+
+        }
+        try (FloatVector toFilter = blockFactory.newFloatVectorBuilder(1).appendFloat(randomFloat()).appendFloat(randomFloat()).build()) {
             assertFilterBlock(toFilter.filter(0).asBlock());
         }
     }
@@ -204,10 +236,10 @@ public class BlockSerializationTests extends SerializationTestCase {
     public void testSimulateAggs() {
         DriverContext driverCtx = driverContext();
         Page page = new Page(blockFactory.newLongArrayVector(new long[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 }, 10).asBlock());
-        var bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
-        var params = new Object[] {};
         var function = SumLongAggregatorFunction.create(driverCtx, List.of(0));
-        function.addRawInput(page);
+        try (BooleanVector noMasking = driverContext().blockFactory().newConstantBooleanVector(true, page.getPositionCount())) {
+            function.addRawInput(page, noMasking);
+        }
         Block[] blocks = new Block[function.intermediateBlockCount()];
         try {
             function.evaluateIntermediate(blocks, 0, driverCtx);
@@ -332,6 +364,30 @@ public class BlockSerializationTests extends SerializationTestCase {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    public void testCompositeBlock() throws Exception {
+        final int numBlocks = randomIntBetween(1, 10);
+        final int positionCount = randomIntBetween(1, 1000);
+        final Block[] blocks = new Block[numBlocks];
+        for (int b = 0; b < numBlocks; b++) {
+            ElementType elementType = randomFrom(ElementType.LONG, ElementType.DOUBLE, ElementType.BOOLEAN, ElementType.NULL);
+            blocks[b] = BasicBlockTests.randomBlock(blockFactory, elementType, positionCount, true, 0, between(1, 2), 0, between(1, 2))
+                .block();
+        }
+        try (CompositeBlock origBlock = new CompositeBlock(blocks)) {
+            assertThat(origBlock.getBlockCount(), equalTo(numBlocks));
+            for (int b = 0; b < numBlocks; b++) {
+                assertThat(origBlock.getBlock(b), equalTo(blocks[b]));
+            }
+            try (CompositeBlock deserBlock = serializeDeserializeBlock(origBlock)) {
+                assertThat(deserBlock.getBlockCount(), equalTo(numBlocks));
+                for (int b = 0; b < numBlocks; b++) {
+                    assertThat(deserBlock.getBlock(b), equalTo(origBlock.getBlock(b)));
+                }
+                EqualsHashCodeTestUtils.checkEqualsAndHashCode(deserBlock, unused -> deserBlock);
             }
         }
     }

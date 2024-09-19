@@ -313,7 +313,7 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
         meta.put(SnapshotsService.POLICY_ID_METADATA_FIELD, REPO);
         final int totalShards = between(1, 20);
         SnapshotInfo snapInfo = new SnapshotInfo(
-            new Snapshot(REPO, new SnapshotId("snap-" + randomUUID(), "uuid")),
+            new Snapshot(REPO, new SnapshotId("snap-" + randomIdentifier(), "uuid")),
             Collections.singletonList("foo"),
             Collections.singletonList("bar"),
             Collections.emptyList(),
@@ -349,7 +349,7 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
         }
         assert failureCount == failures.size();
         SnapshotInfo snapInfo = new SnapshotInfo(
-            new Snapshot(REPO, new SnapshotId("snap-fail-" + randomAlphaOfLength(3), "uuid-fail")),
+            new Snapshot(REPO, new SnapshotId("snap-fail-" + randomUUID(), "uuid-fail")),
             Collections.singletonList("foo-fail"),
             Collections.singletonList("bar-fail"),
             Collections.emptyList(),
@@ -377,7 +377,7 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
         }
         assert failureCount == failures.size();
         SnapshotInfo snapInfo = new SnapshotInfo(
-            new Snapshot(REPO, new SnapshotId("snap-fail-" + randomAlphaOfLength(3), "uuid-fail")),
+            new Snapshot(REPO, new SnapshotId("snap-fail-" + randomUUID(), "uuid-fail")),
             Collections.singletonList("foo-fail"),
             Collections.singletonList("bar-fail"),
             Collections.emptyList(),

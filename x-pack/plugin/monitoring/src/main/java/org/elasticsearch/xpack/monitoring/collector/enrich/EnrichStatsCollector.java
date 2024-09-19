@@ -52,7 +52,7 @@ public final class EnrichStatsCollector extends Collector {
             final long timestamp = timestamp();
             final String clusterUuid = clusterUuid(clusterState);
 
-            final EnrichStatsAction.Request request = new EnrichStatsAction.Request();
+            final EnrichStatsAction.Request request = new EnrichStatsAction.Request(getCollectionTimeout());
             final EnrichStatsAction.Response response = client.execute(EnrichStatsAction.INSTANCE, request)
                 .actionGet(getCollectionTimeout());
 

@@ -13,7 +13,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -39,7 +39,6 @@ public class TransportIsolateDatafeedAction extends TransportTasksAction<
             transportService,
             actionFilters,
             IsolateDatafeedAction.Request::new,
-            IsolateDatafeedAction.Response::new,
             IsolateDatafeedAction.Response::new,
             transportService.getThreadPool().executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
         );

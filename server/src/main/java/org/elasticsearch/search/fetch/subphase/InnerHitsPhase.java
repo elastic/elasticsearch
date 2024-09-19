@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch.subphase;
@@ -92,7 +93,7 @@ public final class InnerHitsPhase implements FetchSubPhase {
             innerHitsContext.setRootId(hit.getId());
             innerHitsContext.setRootLookup(rootSource);
 
-            fetchPhase.execute(innerHitsContext, docIdsToLoad);
+            fetchPhase.execute(innerHitsContext, docIdsToLoad, null);
             FetchSearchResult fetchResult = innerHitsContext.fetchResult();
             SearchHit[] internalHits = fetchResult.fetchResult().hits().getHits();
             for (int j = 0; j < internalHits.length; j++) {
@@ -104,6 +105,7 @@ public final class InnerHitsPhase implements FetchSubPhase {
                 }
             }
             var h = fetchResult.hits();
+            assert hit.isPooled() || h.isPooled() == false;
             results.put(entry.getKey(), h);
             h.mustIncRef();
         }

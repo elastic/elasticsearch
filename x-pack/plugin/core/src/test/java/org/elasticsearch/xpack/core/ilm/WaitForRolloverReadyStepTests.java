@@ -35,6 +35,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContentObject;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import java.util.Collections;
@@ -47,6 +48,7 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -64,9 +66,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             ? null
             : new ByteSizeValue(randomNonNegativeLong() / maxPrimaryShardSizeUnit.toBytes(1), maxPrimaryShardSizeUnit);
         Long maxDocs = randomBoolean() ? null : randomNonNegativeLong();
-        TimeValue maxAge = (maxDocs == null && maxSize == null || randomBoolean())
-            ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
-            : null;
+        TimeValue maxAge = (maxDocs == null && maxSize == null || randomBoolean()) ? randomPositiveTimeValue() : null;
         Long maxPrimaryShardDocs = randomBoolean() ? null : randomNonNegativeLong();
         ByteSizeUnit minSizeUnit = randomFrom(ByteSizeUnit.values());
         ByteSizeValue minSize = randomBoolean() ? null : new ByteSizeValue(randomNonNegativeLong() / minSizeUnit.toBytes(1), minSizeUnit);
@@ -75,9 +75,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             ? null
             : new ByteSizeValue(randomNonNegativeLong() / minPrimaryShardSizeUnit.toBytes(1), minPrimaryShardSizeUnit);
         Long minDocs = randomBoolean() ? null : randomNonNegativeLong();
-        TimeValue minAge = (minDocs == null || randomBoolean())
-            ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
-            : null;
+        TimeValue minAge = (minDocs == null || randomBoolean()) ? randomPositiveTimeValue() : null;
         Long minPrimaryShardDocs = randomBoolean() ? null : randomNonNegativeLong();
         return new WaitForRolloverReadyStep(
             stepKey,
@@ -123,10 +121,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
                 ByteSizeUnit maxPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
                 return new ByteSizeValue(randomNonNegativeLong() / maxPrimaryShardSizeUnit.toBytes(1), maxPrimaryShardSizeUnit);
             });
-            case 4 -> maxAge = randomValueOtherThan(
-                maxAge,
-                () -> TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
-            );
+            case 4 -> maxAge = randomValueOtherThan(maxAge, () -> randomPositiveTimeValue());
             case 5 -> maxDocs = randomValueOtherThan(maxDocs, ESTestCase::randomNonNegativeLong);
             case 6 -> maxPrimaryShardDocs = randomValueOtherThan(maxPrimaryShardDocs, ESTestCase::randomNonNegativeLong);
             case 7 -> minSize = randomValueOtherThan(minSize, () -> {
@@ -137,10 +132,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
                 ByteSizeUnit minPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
                 return new ByteSizeValue(randomNonNegativeLong() / minPrimaryShardSizeUnit.toBytes(1), minPrimaryShardSizeUnit);
             });
-            case 9 -> minAge = randomValueOtherThan(
-                minAge,
-                () -> TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
-            );
+            case 9 -> minAge = randomValueOtherThan(minAge, () -> randomPositiveTimeValue());
             case 10 -> minDocs = randomValueOtherThan(minDocs, ESTestCase::randomNonNegativeLong);
             case 11 -> minPrimaryShardDocs = randomValueOtherThan(minPrimaryShardDocs, ESTestCase::randomNonNegativeLong);
             default -> throw new AssertionError("Illegal randomisation branch");
@@ -264,7 +256,14 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
 
     public void testEvaluateConditionOnDataStreamTarget() {
         String dataStreamName = "test-datastream";
-        IndexMetadata indexMetadata = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
+        long ts = System.currentTimeMillis();
+        boolean failureStoreIndex = randomBoolean();
+        IndexMetadata indexMetadata = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1, ts))
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+        IndexMetadata failureStoreMetadata = IndexMetadata.builder(DataStream.getDefaultFailureStoreName(dataStreamName, 1, ts))
             .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
@@ -277,9 +276,17 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         SetOnce<Boolean> conditionsMet = new SetOnce<>();
         Metadata metadata = Metadata.builder()
             .put(indexMetadata, true)
-            .put(DataStreamTestHelper.newInstance(dataStreamName, List.of(indexMetadata.getIndex())))
+            .put(failureStoreMetadata, true)
+            .put(
+                DataStreamTestHelper.newInstance(
+                    dataStreamName,
+                    List.of(indexMetadata.getIndex()),
+                    List.of(failureStoreMetadata.getIndex())
+                )
+            )
             .build();
-        step.evaluateCondition(metadata, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        IndexMetadata indexToOperateOn = failureStoreIndex ? failureStoreMetadata : indexMetadata;
+        step.evaluateCondition(metadata, indexToOperateOn.getIndex(), new AsyncWaitStep.Listener() {
 
             @Override
             public void onResponse(boolean complete, ToXContentObject infomationContext) {
@@ -296,18 +303,38 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
 
         verify(client, Mockito.only()).admin();
         verify(adminClient, Mockito.only()).indices();
-        verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
+
+        ArgumentCaptor<RolloverRequest> requestCaptor = ArgumentCaptor.forClass(RolloverRequest.class);
+        verify(indicesClient, Mockito.only()).rolloverIndex(requestCaptor.capture(), Mockito.any());
+
+        RolloverRequest request = requestCaptor.getValue();
+        assertThat(request.indicesOptions().failureStoreOptions().includeFailureIndices(), equalTo(failureStoreIndex));
+        assertThat(request.indicesOptions().failureStoreOptions().includeRegularIndices(), not(equalTo(failureStoreIndex)));
     }
 
     public void testSkipRolloverIfDataStreamIsAlreadyRolledOver() {
         String dataStreamName = "test-datastream";
-        IndexMetadata firstGenerationIndex = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
+        long ts = System.currentTimeMillis();
+        boolean failureStoreIndex = randomBoolean();
+        IndexMetadata firstGenerationIndex = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1, ts))
             .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
-        IndexMetadata writeIndex = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 2))
+        IndexMetadata writeIndex = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 2, ts))
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+
+        IndexMetadata firstGenerationFailureIndex = IndexMetadata.builder(DataStream.getDefaultFailureStoreName(dataStreamName, 1, ts))
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+
+        IndexMetadata writeFailureIndex = IndexMetadata.builder(DataStream.getDefaultFailureStoreName(dataStreamName, 2, ts))
             .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
@@ -318,9 +345,18 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         Metadata metadata = Metadata.builder()
             .put(firstGenerationIndex, true)
             .put(writeIndex, true)
-            .put(DataStreamTestHelper.newInstance(dataStreamName, List.of(firstGenerationIndex.getIndex(), writeIndex.getIndex())))
+            .put(firstGenerationFailureIndex, true)
+            .put(writeFailureIndex, true)
+            .put(
+                DataStreamTestHelper.newInstance(
+                    dataStreamName,
+                    List.of(firstGenerationIndex.getIndex(), writeIndex.getIndex()),
+                    List.of(firstGenerationFailureIndex.getIndex(), writeFailureIndex.getIndex())
+                )
+            )
             .build();
-        step.evaluateCondition(metadata, firstGenerationIndex.getIndex(), new AsyncWaitStep.Listener() {
+        IndexMetadata indexToOperateOn = failureStoreIndex ? firstGenerationFailureIndex : firstGenerationIndex;
+        step.evaluateCondition(metadata, indexToOperateOn.getIndex(), new AsyncWaitStep.Listener() {
 
             @Override
             public void onResponse(boolean complete, ToXContentObject infomationContext) {
@@ -673,9 +709,9 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
 
         WaitForRolloverReadyStep step = createRandomInstance();
         String rolloverTarget = randomAlphaOfLength(5);
-        TimeValue masterTimeout = TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test");
+        TimeValue masterTimeout = randomPositiveTimeValue();
 
-        RolloverRequest request = step.createRolloverRequest(rolloverTarget, masterTimeout, rolloverOnlyIfHasDocuments);
+        RolloverRequest request = step.createRolloverRequest(rolloverTarget, masterTimeout, rolloverOnlyIfHasDocuments, false);
 
         assertThat(request.getRolloverTarget(), is(rolloverTarget));
         assertThat(request.masterNodeTimeout(), is(masterTimeout));
@@ -696,7 +732,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
     public void testCreateRolloverRequestRolloverBeyondMaximumPrimaryShardDocCount() {
         WaitForRolloverReadyStep step = createRandomInstance();
         String rolloverTarget = randomAlphaOfLength(5);
-        TimeValue masterTimeout = TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test");
+        TimeValue masterTimeout = randomPositiveTimeValue();
         var c = step.getConditions();
         // If beyond MAX_PRIMARY_SHARD_DOCS_FOR_TSDB then expected is always MAX_PRIMARY_SHARD_DOCS_FOR_TSDB
         step = new WaitForRolloverReadyStep(
@@ -714,7 +750,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             c.getMinDocs(),
             c.getMinPrimaryShardDocs()
         );
-        RolloverRequest request = step.createRolloverRequest(rolloverTarget, masterTimeout, true);
+        RolloverRequest request = step.createRolloverRequest(rolloverTarget, masterTimeout, true, false);
         assertThat(request.getRolloverTarget(), is(rolloverTarget));
         assertThat(request.masterNodeTimeout(), is(masterTimeout));
         assertThat(request.isDryRun(), is(true)); // it's always a dry_run
@@ -735,7 +771,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             c.getMinDocs(),
             c.getMinPrimaryShardDocs()
         );
-        request = step.createRolloverRequest(rolloverTarget, masterTimeout, true);
+        request = step.createRolloverRequest(rolloverTarget, masterTimeout, true, false);
         assertThat(request.getRolloverTarget(), is(rolloverTarget));
         assertThat(request.masterNodeTimeout(), is(masterTimeout));
         assertThat(request.isDryRun(), is(true)); // it's always a dry_run
@@ -757,7 +793,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             c.getMinDocs(),
             c.getMinPrimaryShardDocs()
         );
-        request = step.createRolloverRequest(rolloverTarget, masterTimeout, true);
+        request = step.createRolloverRequest(rolloverTarget, masterTimeout, true, false);
         assertThat(request.getRolloverTarget(), is(rolloverTarget));
         assertThat(request.masterNodeTimeout(), is(masterTimeout));
         assertThat(request.isDryRun(), is(true)); // it's always a dry_run

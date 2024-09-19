@@ -30,12 +30,6 @@ public class EsqlQueryRequestBuilder extends org.elasticsearch.xpack.core.esql.a
     }
 
     @Override
-    public EsqlQueryRequestBuilder esqlVersion(String esqlVersion) {
-        request.esqlVersion(esqlVersion);
-        return this;
-    }
-
-    @Override
     public EsqlQueryRequestBuilder query(String query) {
         request.query(query);
         return this;

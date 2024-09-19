@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.snapshots;
@@ -18,6 +19,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -47,83 +49,124 @@ import static org.mockito.Mockito.when;
 public class RestoreServiceTests extends ESTestCase {
 
     public void testUpdateDataStream() {
+        long now = System.currentTimeMillis();
         String dataStreamName = "data-stream-1";
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
-        List<Index> indices = Collections.singletonList(new Index(backingIndexName, "uuid"));
+        List<Index> indices = List.of(new Index(backingIndexName, randomUUID()));
+        String failureIndexName = DataStream.getDefaultFailureStoreName(dataStreamName, 1, now);
+        List<Index> failureIndices = List.of(new Index(failureIndexName, randomUUID()));
 
-        DataStream dataStream = DataStreamTestHelper.newInstance(dataStreamName, indices);
+        DataStream dataStream = DataStreamTestHelper.newInstance(dataStreamName, indices, failureIndices);
 
         Metadata.Builder metadata = mock(Metadata.Builder.class);
-        IndexMetadata indexMetadata = mock(IndexMetadata.class);
-        when(metadata.get(eq(backingIndexName))).thenReturn(indexMetadata);
-        Index updatedIndex = new Index(backingIndexName, "uuid2");
-        when(indexMetadata.getIndex()).thenReturn(updatedIndex);
 
-        RestoreSnapshotRequest request = new RestoreSnapshotRequest();
+        IndexMetadata backingIndexMetadata = mock(IndexMetadata.class);
+        when(metadata.get(eq(backingIndexName))).thenReturn(backingIndexMetadata);
+        Index updatedBackingIndex = new Index(backingIndexName, randomUUID());
+        when(backingIndexMetadata.getIndex()).thenReturn(updatedBackingIndex);
+
+        IndexMetadata failureIndexMetadata = mock(IndexMetadata.class);
+        when(metadata.get(eq(failureIndexName))).thenReturn(failureIndexMetadata);
+        Index updatedFailureIndex = new Index(failureIndexName, randomUUID());
+        when(failureIndexMetadata.getIndex()).thenReturn(updatedFailureIndex);
+
+        RestoreSnapshotRequest request = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT);
 
         DataStream updateDataStream = RestoreService.updateDataStream(dataStream, metadata, request);
 
         assertEquals(dataStreamName, updateDataStream.getName());
-        assertEquals(Collections.singletonList(updatedIndex), updateDataStream.getIndices());
+        assertEquals(List.of(updatedBackingIndex), updateDataStream.getIndices());
+        assertEquals(List.of(updatedFailureIndex), updateDataStream.getFailureIndices().getIndices());
     }
 
     public void testUpdateDataStreamRename() {
+        long now = System.currentTimeMillis();
         String dataStreamName = "data-stream-1";
         String renamedDataStreamName = "data-stream-2";
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
         String renamedBackingIndexName = DataStream.getDefaultBackingIndexName(renamedDataStreamName, 1);
-        List<Index> indices = Collections.singletonList(new Index(backingIndexName, "uuid"));
+        List<Index> indices = List.of(new Index(backingIndexName, randomUUID()));
 
-        DataStream dataStream = DataStreamTestHelper.newInstance(dataStreamName, indices);
+        String failureIndexName = DataStream.getDefaultFailureStoreName(dataStreamName, 1, now);
+        String renamedFailureIndexName = DataStream.getDefaultFailureStoreName(renamedDataStreamName, 1, now);
+        List<Index> failureIndices = List.of(new Index(failureIndexName, randomUUID()));
+
+        DataStream dataStream = DataStreamTestHelper.newInstance(dataStreamName, indices, failureIndices);
 
         Metadata.Builder metadata = mock(Metadata.Builder.class);
-        IndexMetadata indexMetadata = mock(IndexMetadata.class);
-        when(metadata.get(eq(renamedBackingIndexName))).thenReturn(indexMetadata);
-        Index renamedIndex = new Index(renamedBackingIndexName, "uuid2");
-        when(indexMetadata.getIndex()).thenReturn(renamedIndex);
 
-        RestoreSnapshotRequest request = new RestoreSnapshotRequest().renamePattern("data-stream-1").renameReplacement("data-stream-2");
+        IndexMetadata backingIndexMetadata = mock(IndexMetadata.class);
+        when(metadata.get(eq(renamedBackingIndexName))).thenReturn(backingIndexMetadata);
+        Index renamedBackingIndex = new Index(renamedBackingIndexName, randomUUID());
+        when(backingIndexMetadata.getIndex()).thenReturn(renamedBackingIndex);
+
+        IndexMetadata failureIndexMetadata = mock(IndexMetadata.class);
+        when(metadata.get(eq(renamedFailureIndexName))).thenReturn(failureIndexMetadata);
+        Index renamedFailureIndex = new Index(renamedFailureIndexName, randomUUID());
+        when(failureIndexMetadata.getIndex()).thenReturn(renamedFailureIndex);
+
+        RestoreSnapshotRequest request = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT).renamePattern("data-stream-1")
+            .renameReplacement("data-stream-2");
 
         DataStream renamedDataStream = RestoreService.updateDataStream(dataStream, metadata, request);
 
         assertEquals(renamedDataStreamName, renamedDataStream.getName());
-        assertEquals(Collections.singletonList(renamedIndex), renamedDataStream.getIndices());
+        assertEquals(List.of(renamedBackingIndex), renamedDataStream.getIndices());
+        assertEquals(List.of(renamedFailureIndex), renamedDataStream.getFailureIndices().getIndices());
     }
 
     public void testPrefixNotChanged() {
+        long now = System.currentTimeMillis();
         String dataStreamName = "ds-000001";
         String renamedDataStreamName = "ds2-000001";
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
         String renamedBackingIndexName = DataStream.getDefaultBackingIndexName(renamedDataStreamName, 1);
-        List<Index> indices = Collections.singletonList(new Index(backingIndexName, "uuid"));
+        List<Index> indices = Collections.singletonList(new Index(backingIndexName, randomUUID()));
 
-        DataStream dataStream = DataStreamTestHelper.newInstance(dataStreamName, indices);
+        String failureIndexName = DataStream.getDefaultFailureStoreName(dataStreamName, 1, now);
+        String renamedFailureIndexName = DataStream.getDefaultFailureStoreName(renamedDataStreamName, 1, now);
+        List<Index> failureIndices = Collections.singletonList(new Index(failureIndexName, randomUUID()));
+
+        DataStream dataStream = DataStreamTestHelper.newInstance(dataStreamName, indices, failureIndices);
 
         Metadata.Builder metadata = mock(Metadata.Builder.class);
+
         IndexMetadata indexMetadata = mock(IndexMetadata.class);
         when(metadata.get(eq(renamedBackingIndexName))).thenReturn(indexMetadata);
-        Index renamedIndex = new Index(renamedBackingIndexName, "uuid2");
+        Index renamedIndex = new Index(renamedBackingIndexName, randomUUID());
         when(indexMetadata.getIndex()).thenReturn(renamedIndex);
 
-        RestoreSnapshotRequest request = new RestoreSnapshotRequest().renamePattern("ds-").renameReplacement("ds2-");
+        IndexMetadata failureIndexMetadata = mock(IndexMetadata.class);
+        when(metadata.get(eq(renamedFailureIndexName))).thenReturn(failureIndexMetadata);
+        Index renamedFailureIndex = new Index(renamedFailureIndexName, randomUUID());
+        when(failureIndexMetadata.getIndex()).thenReturn(renamedFailureIndex);
+
+        RestoreSnapshotRequest request = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT).renamePattern("ds-").renameReplacement("ds2-");
 
         DataStream renamedDataStream = RestoreService.updateDataStream(dataStream, metadata, request);
 
         assertEquals(renamedDataStreamName, renamedDataStream.getName());
-        assertEquals(Collections.singletonList(renamedIndex), renamedDataStream.getIndices());
+        assertEquals(List.of(renamedIndex), renamedDataStream.getIndices());
+        assertEquals(List.of(renamedFailureIndex), renamedDataStream.getFailureIndices().getIndices());
 
-        request = new RestoreSnapshotRequest().renamePattern("ds-000001").renameReplacement("ds2-000001");
+        request = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT).renamePattern("ds-000001").renameReplacement("ds2-000001");
 
         renamedDataStream = RestoreService.updateDataStream(dataStream, metadata, request);
 
         assertEquals(renamedDataStreamName, renamedDataStream.getName());
-        assertEquals(Collections.singletonList(renamedIndex), renamedDataStream.getIndices());
+        assertEquals(List.of(renamedIndex), renamedDataStream.getIndices());
+        assertEquals(List.of(renamedFailureIndex), renamedDataStream.getFailureIndices().getIndices());
     }
 
     public void testRefreshRepositoryUuidsDoesNothingIfDisabled() {
         final RepositoriesService repositoriesService = mock(RepositoriesService.class);
         final AtomicBoolean called = new AtomicBoolean();
-        RestoreService.refreshRepositoryUuids(false, repositoriesService, () -> assertTrue(called.compareAndSet(false, true)));
+        RestoreService.refreshRepositoryUuids(
+            false,
+            repositoriesService,
+            () -> assertTrue(called.compareAndSet(false, true)),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         assertTrue(called.get());
         verifyNoMoreInteractions(repositoriesService);
     }
@@ -173,7 +216,12 @@ public class RestoreServiceTests extends ESTestCase {
         final RepositoriesService repositoriesService = mock(RepositoriesService.class);
         when(repositoriesService.getRepositories()).thenReturn(repositories);
         final AtomicBoolean completed = new AtomicBoolean();
-        RestoreService.refreshRepositoryUuids(true, repositoriesService, () -> assertTrue(completed.compareAndSet(false, true)));
+        RestoreService.refreshRepositoryUuids(
+            true,
+            repositoriesService,
+            () -> assertTrue(completed.compareAndSet(false, true)),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         assertTrue(completed.get());
         assertThat(pendingRefreshes, empty());
         finalAssertions.forEach(Runnable::run);
@@ -181,7 +229,7 @@ public class RestoreServiceTests extends ESTestCase {
 
     public void testNotAllowToRestoreGlobalStateFromSnapshotWithoutOne() {
 
-        var request = new RestoreSnapshotRequest().includeGlobalState(true);
+        var request = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT).includeGlobalState(true);
         var repository = new RepositoryMetadata("name", "type", Settings.EMPTY);
         var snapshot = new Snapshot("repository", new SnapshotId("name", "uuid"));
 

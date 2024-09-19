@@ -12,10 +12,10 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Plugin;
@@ -118,8 +118,10 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
                 client.prepareIndex("hosts").setSource("ip", h.getKey(), "os", h.getValue()).get();
             }
             client.admin().indices().prepareRefresh("hosts").get();
-            client.execute(PutEnrichPolicyAction.INSTANCE, new PutEnrichPolicyAction.Request("hosts", hostPolicy)).actionGet();
-            client.execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request("hosts")).actionGet();
+            client.execute(PutEnrichPolicyAction.INSTANCE, new PutEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "hosts", hostPolicy))
+                .actionGet();
+            client.execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "hosts"))
+                .actionGet();
             assertAcked(client.admin().indices().prepareDelete("hosts"));
         }
     }
@@ -137,8 +139,10 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
                 client.prepareIndex("vendors").setSource("os", v.getKey(), "vendor", v.getValue()).get();
             }
             client.admin().indices().prepareRefresh("vendors").get();
-            client.execute(PutEnrichPolicyAction.INSTANCE, new PutEnrichPolicyAction.Request("vendors", vendorPolicy)).actionGet();
-            client.execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request("vendors")).actionGet();
+            client.execute(PutEnrichPolicyAction.INSTANCE, new PutEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "vendors", vendorPolicy))
+                .actionGet();
+            client.execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "vendors"))
+                .actionGet();
             assertAcked(client.admin().indices().prepareDelete("vendors"));
         }
     }
@@ -195,7 +199,10 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
         for (String cluster : allClusters()) {
             cluster(cluster).wipe(Set.of());
             for (String policy : List.of("hosts", "vendors")) {
-                client(cluster).execute(DeleteEnrichPolicyAction.INSTANCE, new DeleteEnrichPolicyAction.Request(policy));
+                client(cluster).execute(
+                    DeleteEnrichPolicyAction.INSTANCE,
+                    new DeleteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policy)
+                );
             }
         }
     }
@@ -457,7 +464,7 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
     }
 
     protected EsqlQueryResponse runQuery(String query) {
-        EsqlQueryRequest request = new EsqlQueryRequest();
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
         request.query(query);
         request.pragmas(AbstractEsqlIntegTestCase.randomPragmas());
         if (randomBoolean()) {

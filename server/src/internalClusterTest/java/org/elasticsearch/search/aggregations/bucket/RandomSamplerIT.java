@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket;
@@ -22,9 +23,9 @@ import java.util.Map;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
 @ESIntegTestCase.SuiteScopeTestCase
@@ -83,13 +84,16 @@ public class RandomSamplerIT extends ESIntegTestCase {
         }
         indexRandom(true, builders);
         ensureSearchable();
+        // Force merge to ensure segment consistency as any segment merging can change which particular documents
+        // are sampled
+        assertNoFailures(indicesAdmin().prepareForceMerge("idx").setMaxNumSegments(1).get());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105839")
     public void testRandomSamplerConsistentSeed() {
         double[] sampleMonotonicValue = new double[1];
         double[] sampleNumericValue = new double[1];
         long[] sampledDocCount = new long[1];
+        double tolerance = 1e-14;
         // initialize the values
         assertResponse(
             prepareSearch("idx").setPreference("shard:0")
@@ -120,9 +124,12 @@ public class RandomSamplerIT extends ESIntegTestCase {
                     ),
                 response -> {
                     InternalRandomSampler sampler = response.getAggregations().get("sampler");
-                    assertThat(((Avg) sampler.getAggregations().get("mean_monotonic")).getValue(), equalTo(sampleMonotonicValue[0]));
-                    assertThat(((Avg) sampler.getAggregations().get("mean_numeric")).getValue(), equalTo(sampleNumericValue[0]));
-                    assertThat(sampler.getDocCount(), equalTo(sampledDocCount[0]));
+                    double monotonicValue = ((Avg) sampler.getAggregations().get("mean_monotonic")).getValue();
+                    double numericValue = ((Avg) sampler.getAggregations().get("mean_numeric")).getValue();
+                    long docCount = sampler.getDocCount();
+                    assertEquals(monotonicValue, sampleMonotonicValue[0], tolerance);
+                    assertEquals(numericValue, sampleNumericValue[0], tolerance);
+                    assertEquals(docCount, sampledDocCount[0]);
                 }
             );
         }

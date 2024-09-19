@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.ingest;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -38,8 +40,17 @@ public class SimulateIndexResponseTests extends ESTestCase {
         String source = """
             {"doc": {"key1": "val1", "key2": "val2"}}""";
         BytesReference sourceBytes = BytesReference.fromByteBuffer(ByteBuffer.wrap(source.getBytes(StandardCharsets.UTF_8)));
-        SimulateIndexResponse indexResponse = new SimulateIndexResponse(id, index, version, sourceBytes, XContentType.JSON, pipelines);
-        String output = Strings.toString(indexResponse);
+
+        SimulateIndexResponse indexResponse = new SimulateIndexResponse(
+            id,
+            index,
+            version,
+            sourceBytes,
+            XContentType.JSON,
+            pipelines,
+            null
+        );
+
         assertEquals(
             XContentHelper.stripWhitespace(
                 Strings.format(
@@ -58,7 +69,39 @@ public class SimulateIndexResponseTests extends ESTestCase {
                     pipelines.stream().map(pipeline -> "\"" + pipeline + "\"").collect(Collectors.joining(","))
                 )
             ),
-            output
+            Strings.toString(indexResponse)
+        );
+
+        SimulateIndexResponse indexResponseWithException = new SimulateIndexResponse(
+            id,
+            index,
+            version,
+            sourceBytes,
+            XContentType.JSON,
+            pipelines,
+            new ElasticsearchException("Some failure")
+        );
+
+        assertEquals(
+            XContentHelper.stripWhitespace(
+                Strings.format(
+                    """
+                        {
+                          "_id": "%s",
+                          "_index": "%s",
+                          "_version": %d,
+                          "_source": %s,
+                          "executed_pipelines": [%s],
+                          "error":{"type":"exception","reason":"Some failure"}
+                        }""",
+                    id,
+                    index,
+                    version,
+                    source,
+                    pipelines.stream().map(pipeline -> "\"" + pipeline + "\"").collect(Collectors.joining(","))
+                )
+            ),
+            Strings.toString(indexResponseWithException)
         );
     }
 
@@ -85,6 +128,14 @@ public class SimulateIndexResponseTests extends ESTestCase {
         }
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference sourceBytes = RandomObjects.randomSource(random(), xContentType);
-        return new SimulateIndexResponse(id, index, version, sourceBytes, xContentType, pipelines);
+        return new SimulateIndexResponse(
+            id,
+            index,
+            version,
+            sourceBytes,
+            xContentType,
+            pipelines,
+            randomBoolean() ? null : new ElasticsearchException("failed")
+        );
     }
 }

@@ -18,10 +18,15 @@ import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 $if(long)$
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.$Type$Block;
+$elseif(int)$
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 $else$
 import org.elasticsearch.compute.data.$Type$Block;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 $endif$
 import org.elasticsearch.compute.data.Page;
@@ -36,16 +41,17 @@ import java.util.Arrays;
 final class EnrichResultBuilderFor$Type$ extends EnrichResultBuilder {
 $if(BytesRef)$
     private final BytesRefArray bytes; // shared between all cells
+    private BytesRef scratch = new BytesRef();
 $endif$
     private ObjectArray<$if(BytesRef)$int$else$$type$$endif$[]> cells;
 
-    EnrichResultBuilderFor$Type$(BlockFactory blockFactory, int channel, int totalPositions) {
-        super(blockFactory, channel, totalPositions);
-        this.cells = blockFactory.bigArrays().newObjectArray(totalPositions);
+    EnrichResultBuilderFor$Type$(BlockFactory blockFactory, int channel) {
+        super(blockFactory, channel);
+        this.cells = blockFactory.bigArrays().newObjectArray(1);
 $if(BytesRef)$
         BytesRefArray bytes = null;
         try {
-            bytes = new BytesRefArray(totalPositions * 3L, blockFactory.bigArrays());
+            bytes = new BytesRefArray(1L, blockFactory.bigArrays());
             this.bytes = bytes;
         } finally {
             if (bytes == null) {
@@ -67,6 +73,7 @@ $endif$
                 continue;
             }
             int cellPosition = positions.getInt(i);
+            cells = blockFactory.bigArrays().grow(cells, cellPosition + 1);
             final var oldCell = cells.get(cellPosition);
             final var newCell = extendCell(oldCell, valueCount);
             cells.set(cellPosition, newCell);
@@ -96,34 +103,87 @@ $endif$
         }
     }
 
-    @Override
-    Block build() {
-        try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(totalPositions)) {
+    private $if(BytesRef)$int$else$$type$$endif$[] combineCell($if(BytesRef)$int$else$$type$$endif$[] first, $if(BytesRef)$int$else$$type$$endif$[] second) {
+        if (first == null) {
+            return second;
+        }
+        if (second == null) {
+            return first;
+        }
+        var result = new $if(BytesRef)$int$else$$type$$endif$[first.length + second.length];
+        System.arraycopy(first, 0, result, 0, first.length);
+        System.arraycopy(second, 0, result, first.length, second.length);
+        return result;
+    }
+
+    private void appendGroupToBlockBuilder($Type$Block.Builder builder, $if(BytesRef)$int$else$$type$$endif$[] group) {
+        if (group == null) {
+            builder.appendNull();
+        } else if (group.length == 1) {
 $if(BytesRef)$
-            BytesRef scratch = new BytesRef();
-$endif$
-            for (int i = 0; i < totalPositions; i++) {
-                final var cell = cells.get(i);
-                if (cell == null) {
-                    builder.appendNull();
-                    continue;
-                }
-                if (cell.length > 1) {
-                    builder.beginPositionEntry();
-                }
-                // TODO: sort and dedup
-                for (var v : cell) {
-$if(BytesRef)$
-                    builder.appendBytesRef(bytes.get(v, scratch));
+            builder.appendBytesRef(bytes.get(group[0], scratch));
 $else$
-                    builder.append$Type$(v);
+            builder.append$Type$(group[0]);
 $endif$
-                }
-                if (cell.length > 1) {
-                    builder.endPositionEntry();
+        } else {
+            builder.beginPositionEntry();
+            // TODO: sort and dedup and set MvOrdering
+            for (var v : group) {
+$if(BytesRef)$
+                builder.appendBytesRef(bytes.get(v, scratch));
+$else$
+                builder.append$Type$(v);
+$endif$
+            }
+            builder.endPositionEntry();
+        }
+    }
+
+    private $if(BytesRef)$int$else$$type$$endif$[] getCellOrNull(int position) {
+        return position < cells.size() ? cells.get(position) : null;
+    }
+
+    private Block buildWithSelected(IntBlock selected) {
+        try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(selected.getPositionCount())) {
+            for (int i = 0; i < selected.getPositionCount(); i++) {
+                int selectedCount = selected.getValueCount(i);
+                switch (selectedCount) {
+                    case 0 -> builder.appendNull();
+                    case 1 -> {
+                        int groupId = selected.getInt(selected.getFirstValueIndex(i));
+                        appendGroupToBlockBuilder(builder, getCellOrNull(groupId));
+                    }
+                    default -> {
+                        int firstValueIndex = selected.getFirstValueIndex(i);
+                        var cell = getCellOrNull(selected.getInt(firstValueIndex));
+                        for (int p = 1; p < selectedCount; p++) {
+                            int groupId = selected.getInt(firstValueIndex + p);
+                            cell = combineCell(cell, getCellOrNull(groupId));
+                        }
+                        appendGroupToBlockBuilder(builder, cell);
+                    }
                 }
             }
             return builder.build();
+        }
+    }
+
+    private Block buildWithSelected(IntVector selected) {
+        try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(selected.getPositionCount())) {
+            for (int i = 0; i < selected.getPositionCount(); i++) {
+                appendGroupToBlockBuilder(builder, getCellOrNull(selected.getInt(i)));
+            }
+            return builder.build();
+        }
+    }
+
+    @Override
+    Block build(IntBlock selected) {
+        var vector = selected.asVector();
+        if (vector != null) {
+            return buildWithSelected(vector);
+        } else {
+            return buildWithSelected(selected);
         }
     }
 

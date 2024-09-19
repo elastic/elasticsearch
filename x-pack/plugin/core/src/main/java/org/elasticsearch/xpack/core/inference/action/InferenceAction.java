@@ -14,8 +14,12 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -24,8 +28,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.inference.results.LegacyTextEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
@@ -34,9 +37,13 @@ import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.Flow;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class InferenceAction extends ActionType<InferenceAction.Response> {
 
@@ -114,21 +121,17 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 this.input = List.of(in.readString());
             }
             this.taskSettings = in.readGenericMap();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
                 this.inputType = in.readEnum(InputType.class);
             } else {
                 this.inputType = InputType.UNSPECIFIED;
             }
 
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_COHERE_RERANK)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
                 this.query = in.readOptionalString();
-            } else {
-                this.query = null;
-            }
-
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_TIMEOUT_ADDED)) {
                 this.inferenceTimeout = in.readTimeValue();
             } else {
+                this.query = null;
                 this.inferenceTimeout = DEFAULT_TIMEOUT;
             }
         }
@@ -161,18 +164,37 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             return inferenceTimeout;
         }
 
+        public boolean isStreaming() {
+            return false;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             if (input == null) {
                 var e = new ActionRequestValidationException();
-                e.addValidationError("missing input");
+                e.addValidationError("Field [input] cannot be null");
                 return e;
             }
+
             if (input.isEmpty()) {
                 var e = new ActionRequestValidationException();
-                e.addValidationError("input array is empty");
+                e.addValidationError("Field [input] cannot be an empty array");
                 return e;
             }
+
+            if (taskType.equals(TaskType.RERANK)) {
+                if (query == null) {
+                    var e = new ActionRequestValidationException();
+                    e.addValidationError(format("Field [query] cannot be null for task type [%s]", TaskType.RERANK));
+                    return e;
+                }
+                if (query.isEmpty()) {
+                    var e = new ActionRequestValidationException();
+                    e.addValidationError(format("Field [query] cannot be empty for task type [%s]", TaskType.RERANK));
+                    return e;
+                }
+            }
+
             return null;
         }
 
@@ -187,30 +209,26 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 out.writeString(input.get(0));
             }
             out.writeGenericMap(taskSettings);
-            // in version ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED the input type enum was added, so we only want to write the enum if we're
-            // at that version or later
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED)) {
+
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
                 out.writeEnum(getInputTypeToWrite(inputType, out.getTransportVersion()));
             }
 
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_COHERE_RERANK)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
                 out.writeOptionalString(query);
-            }
-
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_TIMEOUT_ADDED)) {
                 out.writeTimeValue(inferenceTimeout);
             }
         }
 
         // default for easier testing
         static InputType getInputTypeToWrite(InputType inputType, TransportVersion version) {
-            if (version.before(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_UNSPECIFIED_ADDED)
-                && validEnumsBeforeUnspecifiedAdded.contains(inputType) == false) {
-                return InputType.INGEST;
-            } else if (version.before(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_CLASS_CLUSTER_ADDED)
-                && validEnumsBeforeClassificationClusteringAdded.contains(inputType) == false) {
+            if (version.before(TransportVersions.V_8_13_0)) {
+                if (validEnumsBeforeUnspecifiedAdded.contains(inputType) == false) {
+                    return InputType.INGEST;
+                } else if (validEnumsBeforeClassificationClusteringAdded.contains(inputType) == false) {
                     return InputType.UNSPECIFIED;
                 }
+            }
 
             return inputType;
         }
@@ -242,7 +260,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             private InputType inputType = InputType.UNSPECIFIED;
             private Map<String, Object> taskSettings = Map.of();
             private String query;
-            private TimeValue timeout;
+            private TimeValue timeout = DEFAULT_TIMEOUT;
 
             private Builder() {}
 
@@ -309,12 +327,22 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         }
     }
 
-    public static class Response extends ActionResponse implements ToXContentObject {
+    public static class Response extends ActionResponse implements ChunkedToXContentObject {
 
         private final InferenceServiceResults results;
+        private final boolean isStreaming;
+        private final Flow.Publisher<ChunkedToXContent> publisher;
 
         public Response(InferenceServiceResults results) {
             this.results = results;
+            this.isStreaming = false;
+            this.publisher = null;
+        }
+
+        public Response(InferenceServiceResults results, Flow.Publisher<ChunkedToXContent> publisher) {
+            this.results = results;
+            this.isStreaming = true;
+            this.publisher = publisher;
         }
 
         public Response(StreamInput in) throws IOException {
@@ -326,6 +354,9 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 // hugging face elser and elser
                 results = transformToServiceResults(List.of(in.readNamedWriteable(InferenceResults.class)));
             }
+            // streaming isn't supported via Writeable yet
+            this.isStreaming = false;
+            this.publisher = null;
         }
 
         @SuppressWarnings("deprecation")
@@ -379,6 +410,24 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             return results;
         }
 
+        /**
+         * Returns {@code true} if these results are streamed as chunks, or {@code false} if these results contain the entire payload.
+         * Currently set to false while it is being implemented.
+         */
+        public boolean isStreaming() {
+            return isStreaming;
+        }
+
+        /**
+         * When {@link #isStreaming()} is {@code true}, the RestHandler will subscribe to this publisher.
+         * When the RestResponse is finished with the current chunk, it will request the next chunk using the subscription.
+         * If the RestResponse is closed, it will cancel the subscription.
+         */
+        public Flow.Publisher<ChunkedToXContent> publisher() {
+            assert isStreaming() : "this should only be called after isStreaming() verifies this object is non-null";
+            return publisher;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
@@ -386,14 +435,16 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             } else {
                 out.writeNamedWriteable(results.transformToLegacyFormat().get(0));
             }
+            // streaming isn't supported via Writeable yet
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            results.toXContent(builder, params);
-            builder.endObject();
-            return builder;
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+            return Iterators.concat(
+                ChunkedToXContentHelper.startObject(),
+                results.toXContentChunked(params),
+                ChunkedToXContentHelper.endObject()
+            );
         }
 
         @Override

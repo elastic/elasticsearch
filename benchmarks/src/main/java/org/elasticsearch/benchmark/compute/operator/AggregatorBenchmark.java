@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.benchmark.compute.operator;
@@ -124,24 +125,21 @@ public class AggregatorBenchmark {
                 driverContext
             );
         }
-        List<HashAggregationOperator.GroupSpec> groups = switch (grouping) {
-            case LONGS -> List.of(new HashAggregationOperator.GroupSpec(0, ElementType.LONG));
-            case INTS -> List.of(new HashAggregationOperator.GroupSpec(0, ElementType.INT));
-            case DOUBLES -> List.of(new HashAggregationOperator.GroupSpec(0, ElementType.DOUBLE));
-            case BOOLEANS -> List.of(new HashAggregationOperator.GroupSpec(0, ElementType.BOOLEAN));
-            case BYTES_REFS -> List.of(new HashAggregationOperator.GroupSpec(0, ElementType.BYTES_REF));
-            case TWO_LONGS -> List.of(
-                new HashAggregationOperator.GroupSpec(0, ElementType.LONG),
-                new HashAggregationOperator.GroupSpec(1, ElementType.LONG)
-            );
+        List<BlockHash.GroupSpec> groups = switch (grouping) {
+            case LONGS -> List.of(new BlockHash.GroupSpec(0, ElementType.LONG));
+            case INTS -> List.of(new BlockHash.GroupSpec(0, ElementType.INT));
+            case DOUBLES -> List.of(new BlockHash.GroupSpec(0, ElementType.DOUBLE));
+            case BOOLEANS -> List.of(new BlockHash.GroupSpec(0, ElementType.BOOLEAN));
+            case BYTES_REFS -> List.of(new BlockHash.GroupSpec(0, ElementType.BYTES_REF));
+            case TWO_LONGS -> List.of(new BlockHash.GroupSpec(0, ElementType.LONG), new BlockHash.GroupSpec(1, ElementType.LONG));
             case LONGS_AND_BYTES_REFS -> List.of(
-                new HashAggregationOperator.GroupSpec(0, ElementType.LONG),
-                new HashAggregationOperator.GroupSpec(1, ElementType.BYTES_REF)
+                new BlockHash.GroupSpec(0, ElementType.LONG),
+                new BlockHash.GroupSpec(1, ElementType.BYTES_REF)
             );
             case TWO_LONGS_AND_BYTES_REFS -> List.of(
-                new HashAggregationOperator.GroupSpec(0, ElementType.LONG),
-                new HashAggregationOperator.GroupSpec(1, ElementType.LONG),
-                new HashAggregationOperator.GroupSpec(2, ElementType.BYTES_REF)
+                new BlockHash.GroupSpec(0, ElementType.LONG),
+                new BlockHash.GroupSpec(1, ElementType.LONG),
+                new BlockHash.GroupSpec(2, ElementType.BYTES_REF)
             );
             default -> throw new IllegalArgumentException("unsupported grouping [" + grouping + "]");
         };
@@ -575,13 +573,14 @@ public class AggregatorBenchmark {
         };
 
         DriverContext driverContext = driverContext();
-        Operator operator = operator(driverContext, grouping, op, dataType);
-        Page page = page(driverContext.blockFactory(), grouping, blockType);
-        for (int i = 0; i < opCount; i++) {
-            operator.addInput(page);
+        try (Operator operator = operator(driverContext, grouping, op, dataType)) {
+            Page page = page(driverContext.blockFactory(), grouping, blockType);
+            for (int i = 0; i < opCount; i++) {
+                operator.addInput(page.shallowCopy());
+            }
+            operator.finish();
+            checkExpected(grouping, op, blockType, dataType, operator.getOutput(), opCount);
         }
-        operator.finish();
-        checkExpected(grouping, op, blockType, dataType, operator.getOutput(), opCount);
     }
 
     static DriverContext driverContext() {

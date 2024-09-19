@@ -8,6 +8,8 @@ preview::[]
 
 Updates the `status` of a connector.
 
+To get started with Connector APIs, check out the {enterprise-search-ref}/connectors-tutorial-api.html[tutorial^].
+
 [[update-connector-status-api-request]]
 ==== {api-request-title}
 
@@ -16,7 +18,7 @@ Updates the `status` of a connector.
 [[update-connector-status-api-prereq]]
 ==== {api-prereq-title}
 
-* To sync data using connectors, it's essential to have the Elastic connectors service running.
+* To sync data using self-managed connectors, you need to deploy the {enterprise-search-ref}/build-connector.html[Elastic connector service] on your own infrastructure. This service runs automatically on Elastic Cloud for native connectors.
 * The `connector_id` parameter should reference an existing connector.
 * The change of `status` must be a valid status transition according to the https://github.com/elastic/connectors/blob/main/docs/CONNECTOR_PROTOCOL.md[Connector Protocol].
 

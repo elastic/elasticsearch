@@ -11,6 +11,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -39,13 +40,16 @@ import static org.hamcrest.Matchers.equalTo;
 
 @TestLogging(value = "org.elasticsearch.xpack.esql.session:DEBUG", reason = "to better understand planning")
 public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
-
     @After
     public void ensureExchangesAreReleased() throws Exception {
         for (String node : internalCluster().getNodeNames()) {
             TransportEsqlQueryAction esqlQueryAction = internalCluster().getInstance(TransportEsqlQueryAction.class, node);
             ExchangeService exchangeService = esqlQueryAction.exchangeService();
-            assertBusy(() -> assertTrue("Leftover exchanges " + exchangeService + " on node " + node, exchangeService.isEmpty()));
+            assertBusy(() -> {
+                if (exchangeService.lifecycleState() == Lifecycle.State.STARTED) {
+                    assertTrue("Leftover exchanges " + exchangeService + " on node " + node, exchangeService.isEmpty());
+                }
+            });
         }
     }
 
@@ -114,14 +118,14 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
     protected void setRequestCircuitBreakerLimit(ByteSizeValue limit) {
         if (limit != null) {
             assertAcked(
-                clusterAdmin().prepareUpdateSettings()
+                clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                     .setPersistentSettings(
                         Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), limit).build()
                     )
             );
         } else {
             assertAcked(
-                clusterAdmin().prepareUpdateSettings()
+                clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                     .setPersistentSettings(
                         Settings.builder().putNull(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey()).build()
                     )
@@ -129,18 +133,20 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
         }
     }
 
-    protected EsqlQueryResponse run(String esqlCommands) {
+    protected final EsqlQueryResponse run(String esqlCommands) {
         return run(esqlCommands, randomPragmas());
     }
 
-    protected EsqlQueryResponse run(String esqlCommands, QueryPragmas pragmas) {
+    protected final EsqlQueryResponse run(String esqlCommands, QueryPragmas pragmas) {
         return run(esqlCommands, pragmas, null);
     }
 
     protected EsqlQueryResponse run(String esqlCommands, QueryPragmas pragmas, QueryBuilder filter) {
-        EsqlQueryRequest request = new EsqlQueryRequest();
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
         request.query(esqlCommands);
-        request.pragmas(pragmas);
+        if (pragmas != null) {
+            request.pragmas(pragmas);
+        }
         if (filter != null) {
             request.filter(filter);
         }

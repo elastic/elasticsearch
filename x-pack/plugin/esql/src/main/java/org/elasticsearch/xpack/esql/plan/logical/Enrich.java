@@ -7,30 +7,54 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
-import org.elasticsearch.xpack.ql.capabilities.Resolvables;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.core.expression.Expressions.asAttributes;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public class Enrich extends UnaryPlan {
+public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich> {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        LogicalPlan.class,
+        "Enrich",
+        Enrich::readFrom
+    );
+
     private final Expression policyName;
     private final NamedExpression matchField;
     private final EnrichPolicy policy;
     private final Map<String, String> concreteIndices; // cluster -> enrich indices
+    // This could be simplified by just always using an Alias.
     private final List<NamedExpression> enrichFields;
     private List<Attribute> output;
 
@@ -75,6 +99,75 @@ public class Enrich extends UnaryPlan {
         this.enrichFields = enrichFields;
     }
 
+    private static Enrich readFrom(StreamInput in) throws IOException {
+        Enrich.Mode mode = Enrich.Mode.ANY;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+            mode = in.readEnum(Enrich.Mode.class);
+        }
+        final Source source = Source.readFrom((PlanStreamInput) in);
+        final LogicalPlan child = in.readNamedWriteable(LogicalPlan.class);
+        final Expression policyName = in.readNamedWriteable(Expression.class);
+        final NamedExpression matchField = in.readNamedWriteable(NamedExpression.class);
+        if (in.getTransportVersion().before(TransportVersions.V_8_13_0)) {
+            in.readString(); // discard the old policy name
+        }
+        final EnrichPolicy policy = new EnrichPolicy(in);
+        final Map<String, String> concreteIndices;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+            concreteIndices = in.readMap(StreamInput::readString, StreamInput::readString);
+        } else {
+            EsIndex esIndex = new EsIndex(in);
+            if (esIndex.concreteIndices().size() > 1) {
+                throw new IllegalStateException("expected a single enrich index; got " + esIndex);
+            }
+            concreteIndices = Map.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, Iterables.get(esIndex.concreteIndices(), 0));
+        }
+        return new Enrich(
+            source,
+            child,
+            mode,
+            policyName,
+            matchField,
+            policy,
+            concreteIndices,
+            in.readNamedWriteableCollectionAsList(NamedExpression.class)
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+            out.writeEnum(mode());
+        }
+
+        Source.EMPTY.writeTo(out);
+        out.writeNamedWriteable(child());
+        out.writeNamedWriteable(policyName());
+        out.writeNamedWriteable(matchField());
+        if (out.getTransportVersion().before(TransportVersions.V_8_13_0)) {
+            out.writeString(BytesRefs.toString(policyName().fold())); // old policy name
+        }
+        policy().writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+            out.writeMap(concreteIndices(), StreamOutput::writeString, StreamOutput::writeString);
+        } else {
+            Map<String, String> concreteIndices = concreteIndices();
+            if (concreteIndices.keySet().equals(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY))) {
+                String enrichIndex = concreteIndices.get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+                EsIndex esIndex = new EsIndex(enrichIndex, Map.of(), Map.of(enrichIndex, IndexMode.STANDARD));
+                esIndex.writeTo(out);
+            } else {
+                throw new IllegalStateException("expected a single enrich index; got " + concreteIndices);
+            }
+        }
+        out.writeNamedWriteableCollection(enrichFields());
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
     public NamedExpression matchField() {
         return matchField;
     }
@@ -97,6 +190,15 @@ public class Enrich extends UnaryPlan {
 
     public Mode mode() {
         return mode;
+    }
+
+    @Override
+    protected AttributeSet computeReferences() {
+        return matchField.references();
+    }
+
+    public String commandName() {
+        return "ENRICH";
     }
 
     @Override
@@ -126,6 +228,32 @@ public class Enrich extends UnaryPlan {
             this.output = mergeOutputAttributes(enrichFields(), child().output());
         }
         return output;
+    }
+
+    @Override
+    public List<Attribute> generatedAttributes() {
+        return asAttributes(enrichFields);
+    }
+
+    @Override
+    public Enrich withGeneratedNames(List<String> newNames) {
+        checkNumberOfNewNames(newNames);
+
+        List<NamedExpression> newEnrichFields = new ArrayList<>(enrichFields.size());
+        for (int i = 0; i < enrichFields.size(); i++) {
+            NamedExpression enrichField = enrichFields.get(i);
+            String newName = newNames.get(i);
+            if (enrichField.name().equals(newName)) {
+                newEnrichFields.add(enrichField);
+            } else if (enrichField instanceof ReferenceAttribute ra) {
+                newEnrichFields.add(new Alias(ra.source(), newName, ra, new NameId(), ra.synthetic()));
+            } else if (enrichField instanceof Alias a) {
+                newEnrichFields.add(new Alias(a.source(), newName, a.child(), new NameId(), a.synthetic()));
+            } else {
+                throw new IllegalArgumentException("Enrich field must be Alias or ReferenceAttribute");
+            }
+        }
+        return new Enrich(source(), child(), mode(), policyName(), matchField(), policy(), concreteIndices(), newEnrichFields);
     }
 
     @Override

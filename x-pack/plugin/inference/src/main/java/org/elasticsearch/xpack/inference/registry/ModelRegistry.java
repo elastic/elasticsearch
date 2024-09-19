@@ -74,7 +74,10 @@ public class ModelRegistry {
             if (modelConfigMap.config() == null) {
                 throw new ElasticsearchStatusException("Missing config map", RestStatus.BAD_REQUEST);
             }
-            String inferenceEntityId = ServiceUtils.removeStringOrThrowIfNull(modelConfigMap.config(), ModelConfigurations.MODEL_ID);
+            String inferenceEntityId = ServiceUtils.removeStringOrThrowIfNull(
+                modelConfigMap.config(),
+                ModelConfigurations.INDEX_ONLY_ID_FIELD_NAME
+            );
             String service = ServiceUtils.removeStringOrThrowIfNull(modelConfigMap.config(), ModelConfigurations.SERVICE);
             String taskTypeStr = ServiceUtils.removeStringOrThrowIfNull(modelConfigMap.config(), TaskType.NAME);
             TaskType taskType = TaskType.fromString(taskTypeStr);
@@ -102,7 +105,7 @@ public class ModelRegistry {
         ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
             // There should be a hit for the configurations and secrets
             if (searchResponse.getHits().getHits().length == 0) {
-                delegate.onFailure(new ResourceNotFoundException("Model not found [{}]", inferenceEntityId));
+                delegate.onFailure(inferenceNotFoundException(inferenceEntityId));
                 return;
             }
 
@@ -128,7 +131,7 @@ public class ModelRegistry {
         ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
             // There should be a hit for the configurations and secrets
             if (searchResponse.getHits().getHits().length == 0) {
-                delegate.onFailure(new ResourceNotFoundException("Model not found [{}]", inferenceEntityId));
+                delegate.onFailure(inferenceNotFoundException(inferenceEntityId));
                 return;
             }
 
@@ -145,6 +148,10 @@ public class ModelRegistry {
             .request();
 
         client.search(modelSearch, searchListener);
+    }
+
+    private ResourceNotFoundException inferenceNotFoundException(String inferenceEntityId) {
+        return new ResourceNotFoundException("Inference endpoint not found [{}]", inferenceEntityId);
     }
 
     /**
@@ -227,10 +234,10 @@ public class ModelRegistry {
                 return InferenceSecretsIndex.INDEX_NAME;
             }
 
-            logger.warn(format("Found invalid index for model [%s] at index [%s]", inferenceEntityId, hit.getIndex()));
+            logger.warn(format("Found invalid index for inference endpoint [%s] at index [%s]", inferenceEntityId, hit.getIndex()));
             throw new IllegalArgumentException(
                 format(
-                    "Invalid result while loading model [%s] index: [%s]. Try deleting and reinitializing the service",
+                    "Invalid result while loading inference endpoint [%s] index: [%s]. Try deleting and reinitializing the service",
                     inferenceEntityId,
                     hit.getIndex()
                 )
@@ -241,11 +248,15 @@ public class ModelRegistry {
             || mappedHits.containsKey(InferenceSecretsIndex.INDEX_NAME) == false
             || mappedHits.size() > 2) {
             logger.warn(
-                format("Failed to load model [%s], found model parts from index prefixes: [%s]", inferenceEntityId, mappedHits.keySet())
+                format(
+                    "Failed to load inference endpoint [%s], found endpoint parts from index prefixes: [%s]",
+                    inferenceEntityId,
+                    mappedHits.keySet()
+                )
             );
             throw new IllegalStateException(
                 format(
-                    "Failed to load model, model [%s] is in an invalid state. Try deleting and reinitializing the service",
+                    "Failed to load inference endpoint [%s]. Endpoint is in an invalid state, try deleting and reinitializing the service",
                     inferenceEntityId
                 )
             );
@@ -286,12 +297,14 @@ public class ModelRegistry {
             var inferenceEntityId = model.getConfigurations().getInferenceEntityId();
 
             if (bulkItemResponses.getItems().length == 0) {
-                logger.warn(format("Storing model [%s] failed, no items were received from the bulk response", inferenceEntityId));
+                logger.warn(
+                    format("Storing inference endpoint [%s] failed, no items were received from the bulk response", inferenceEntityId)
+                );
 
                 listener.onFailure(
                     new ElasticsearchStatusException(
                         format(
-                            "Failed to store inference model [%s], invalid bulk response received. Try reinitializing the service",
+                            "Failed to store inference endpoint [%s], invalid bulk response received. Try reinitializing the service",
                             inferenceEntityId
                         ),
                         RestStatus.INTERNAL_SERVER_ERROR
@@ -310,19 +323,19 @@ public class ModelRegistry {
             logBulkFailures(model.getConfigurations().getInferenceEntityId(), bulkItemResponses);
 
             if (ExceptionsHelper.unwrapCause(failure.getCause()) instanceof VersionConflictEngineException) {
-                listener.onFailure(new ResourceAlreadyExistsException("Inference model [{}] already exists", inferenceEntityId));
+                listener.onFailure(new ResourceAlreadyExistsException("Inference endpoint [{}] already exists", inferenceEntityId));
                 return;
             }
 
             listener.onFailure(
                 new ElasticsearchStatusException(
-                    format("Failed to store inference model [%s]", inferenceEntityId),
+                    format("Failed to store inference endpoint [%s]", inferenceEntityId),
                     RestStatus.INTERNAL_SERVER_ERROR,
                     failure.getCause()
                 )
             );
         }, e -> {
-            String errorMessage = format("Failed to store inference model [%s]", model.getConfigurations().getInferenceEntityId());
+            String errorMessage = format("Failed to store inference endpoint [%s]", model.getConfigurations().getInferenceEntityId());
             logger.warn(errorMessage, e);
             listener.onFailure(new ElasticsearchStatusException(errorMessage, RestStatus.INTERNAL_SERVER_ERROR, e));
         });
@@ -333,7 +346,7 @@ public class ModelRegistry {
             if (item.isFailed()) {
                 logger.warn(
                     format(
-                        "Failed to store inference model [%s] index: [%s] bulk failure message [%s]",
+                        "Failed to store inference endpoint [%s] index: [%s] bulk failure message [%s]",
                         inferenceEntityId,
                         item.getIndex(),
                         item.getFailureMessage()
@@ -365,7 +378,10 @@ public class ModelRegistry {
     private static IndexRequest createIndexRequest(String docId, String indexName, ToXContentObject body, boolean allowOverwriting) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             var request = new IndexRequest(indexName);
-            XContentBuilder source = body.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            XContentBuilder source = body.toXContent(
+                builder,
+                new ToXContent.MapParams(Map.of(ModelConfigurations.USE_ID_FOR_INDEX, Boolean.TRUE.toString()))
+            );
             var operation = allowOverwriting ? DocWriteRequest.OpType.INDEX : DocWriteRequest.OpType.CREATE;
 
             return request.opType(operation).id(docId).source(source);

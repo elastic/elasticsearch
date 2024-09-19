@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.upgrades;
@@ -23,7 +24,7 @@ import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class FeatureUpgradeIT extends ParameterizedRollingUpgradeTestCase {
+public class FeatureUpgradeIT extends AbstractRollingUpgradeTestCase {
 
     public FeatureUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
@@ -99,7 +100,7 @@ public class FeatureUpgradeIT extends ParameterizedRollingUpgradeTestCase {
                     .orElse(Collections.emptyMap());
 
                 assertThat(feature, aMapWithSize(4));
-                assertThat(feature.get("minimum_index_version"), equalTo(getOldClusterIndexVersion().toString()));
+                assertThat(feature.get("minimum_index_version"), equalTo(getOldClusterIndexVersion().toReleaseVersion()));
 
                 // Feature migration happens only across major versions; also, we usually begin to require migrations once we start testing
                 // for the next major version upgrade (see e.g. #93666). Trying to express this with features may be problematic, so we

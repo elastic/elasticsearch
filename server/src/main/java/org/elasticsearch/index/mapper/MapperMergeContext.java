@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -23,10 +24,6 @@ public final class MapperMergeContext {
     private MapperMergeContext(MapperBuilderContext mapperBuilderContext, NewFieldsBudget newFieldsBudget) {
         this.mapperBuilderContext = mapperBuilderContext;
         this.newFieldsBudget = newFieldsBudget;
-    }
-
-    static MapperMergeContext root(boolean isSourceSynthetic, boolean isDataStream, long newFieldsBudget) {
-        return root(isSourceSynthetic, isDataStream, MergeReason.MAPPING_UPDATE, newFieldsBudget);
     }
 
     /**
@@ -55,7 +52,7 @@ public final class MapperMergeContext {
      * @param name the name of the child context
      * @return a new {@link MapperMergeContext} with this context as its parent
      */
-    MapperMergeContext createChildContext(String name, ObjectMapper.Dynamic dynamic) {
+    public MapperMergeContext createChildContext(String name, ObjectMapper.Dynamic dynamic) {
         return createChildContext(mapperBuilderContext.createChildContext(name, dynamic));
     }
 
@@ -69,7 +66,7 @@ public final class MapperMergeContext {
         return new MapperMergeContext(childContext, newFieldsBudget);
     }
 
-    MapperBuilderContext getMapperBuilderContext() {
+    public MapperBuilderContext getMapperBuilderContext() {
         return mapperBuilderContext;
     }
 

@@ -75,7 +75,7 @@ public class DefaultSecretSettingsTests extends AbstractWireSerializingTestCase<
 
     @Override
     protected DefaultSecretSettings mutateInstance(DefaultSecretSettings instance) throws IOException {
-        return createRandom();
+        return randomValueOtherThan(instance, DefaultSecretSettingsTests::createRandom);
     }
 
     public static Map<String, Object> getSecretSettingsMap(String apiKey) {

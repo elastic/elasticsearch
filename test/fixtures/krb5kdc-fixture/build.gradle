@@ -3,10 +3,11 @@ import org.gradle.api.services.internal.BuildServiceRegistryInternal
 
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 apply plugin: 'elasticsearch.java'
 apply plugin: 'elasticsearch.cache-test-fixtures'
@@ -22,7 +23,7 @@ dockerFixtures {
 
 configurations {
   all {
-    transitive = false
+    exclude group: 'org.hamcrest', module: 'hamcrest-core'
   }
   krb5ConfHdfsFile {
     canBeConsumed = true
@@ -36,20 +37,17 @@ configurations {
 
 dependencies {
   testImplementation project(':test:framework')
-
   api "junit:junit:${versions.junit}"
   api project(':test:fixtures:testcontainer-utils')
-  api "org.testcontainers:testcontainers:${versions.testcontainer}"
-  implementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  api("org.testcontainers:testcontainers:${versions.testcontainer}") {
+    transitive = false
+  }
+  implementation("com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"){
+    transitive = false
+  }
   implementation "org.slf4j:slf4j-api:${versions.slf4j}"
-  implementation "com.github.docker-java:docker-java-api:${versions.dockerJava}"
+ // implementation "com.github.docker-java:docker-java-api:${versions.dockerJava}"
   implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
-
-  runtimeOnly "com.github.docker-java:docker-java-transport-zerodep:${versions.dockerJava}"
-  runtimeOnly "com.github.docker-java:docker-java-transport:${versions.dockerJava}"
-  runtimeOnly "com.github.docker-java:docker-java-core:${versions.dockerJava}"
-  runtimeOnly "org.apache.commons:commons-compress:${versions.commonsCompress}"
-  runtimeOnly "org.rnorth.duct-tape:duct-tape:${versions.ductTape}"
 
   // ensure we have proper logging during when used in tests
   runtimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"

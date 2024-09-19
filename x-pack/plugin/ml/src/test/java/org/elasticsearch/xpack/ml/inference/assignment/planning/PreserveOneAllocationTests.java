@@ -26,8 +26,8 @@ public class PreserveOneAllocationTests extends ESTestCase {
     public void testGivenNoPreviousAssignments() {
         Node node1 = new Node("n_1", ByteSizeValue.ofMb(440).getBytes(), 4);
         Node node2 = new Node("n_2", ByteSizeValue.ofMb(440).getBytes(), 4);
-        Deployment deployment1 = new AssignmentPlan.Deployment("m_1", ByteSizeValue.ofMb(30).getBytes(), 2, 1, Map.of(), 0, 0, 0);
-        AssignmentPlan.Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(30).getBytes(), 2, 4, Map.of(), 0, 0, 0);
+        Deployment deployment1 = new AssignmentPlan.Deployment("m_1", ByteSizeValue.ofMb(30).getBytes(), 2, 1, Map.of(), 0, null, 0, 0);
+        AssignmentPlan.Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(30).getBytes(), 2, 4, Map.of(), 0, null, 0, 0);
         PreserveOneAllocation preserveOneAllocation = new PreserveOneAllocation(List.of(node1, node2), List.of(deployment1, deployment2));
 
         List<Node> nodesPreservingAllocations = preserveOneAllocation.nodesPreservingAllocations();
@@ -42,8 +42,18 @@ public class PreserveOneAllocationTests extends ESTestCase {
             // old memory format
             Node node1 = new Node("n_1", ByteSizeValue.ofMb(640).getBytes(), 8);
             Node node2 = new Node("n_2", ByteSizeValue.ofMb(640).getBytes(), 8);
-            Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(30).getBytes(), 2, 1, Map.of("n_1", 1), 1, 0, 0);
-            Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(50).getBytes(), 6, 4, Map.of("n_1", 1, "n_2", 2), 3, 0, 0);
+            Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(30).getBytes(), 2, 1, Map.of("n_1", 1), 1, null, 0, 0);
+            Deployment deployment2 = new Deployment(
+                "m_2",
+                ByteSizeValue.ofMb(50).getBytes(),
+                6,
+                4,
+                Map.of("n_1", 1, "n_2", 2),
+                3,
+                null,
+                0,
+                0
+            );
             PreserveOneAllocation preserveOneAllocation = new PreserveOneAllocation(
                 List.of(node1, node2),
                 List.of(deployment1, deployment2)
@@ -117,6 +127,7 @@ public class PreserveOneAllocationTests extends ESTestCase {
                 1,
                 Map.of("n_1", 1),
                 1,
+                null,
                 ByteSizeValue.ofMb(300).getBytes(),
                 ByteSizeValue.ofMb(10).getBytes()
             );
@@ -127,6 +138,7 @@ public class PreserveOneAllocationTests extends ESTestCase {
                 4,
                 Map.of("n_1", 1, "n_2", 2),
                 3,
+                null,
                 ByteSizeValue.ofMb(300).getBytes(),
                 ByteSizeValue.ofMb(10).getBytes()
             );
@@ -199,7 +211,7 @@ public class PreserveOneAllocationTests extends ESTestCase {
         {
             // old memory format
             Node node = new Node("n_1", ByteSizeValue.ofMb(400).getBytes(), 4);
-            Deployment deployment = new Deployment("m_1", ByteSizeValue.ofMb(30).getBytes(), 2, 2, Map.of("n_1", 2), 2, 0, 0);
+            Deployment deployment = new Deployment("m_1", ByteSizeValue.ofMb(30).getBytes(), 2, 2, Map.of("n_1", 2), 2, null, 0, 0);
             PreserveOneAllocation preserveOneAllocation = new PreserveOneAllocation(List.of(node), List.of(deployment));
 
             AssignmentPlan plan = AssignmentPlan.builder(List.of(node), List.of(deployment)).build();
@@ -221,6 +233,7 @@ public class PreserveOneAllocationTests extends ESTestCase {
                 2,
                 Map.of("n_1", 2),
                 2,
+                null,
                 ByteSizeValue.ofMb(300).getBytes(),
                 ByteSizeValue.ofMb(10).getBytes()
             );

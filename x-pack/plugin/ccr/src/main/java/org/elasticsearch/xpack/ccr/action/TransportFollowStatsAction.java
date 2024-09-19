@@ -17,8 +17,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.CancellableTask;
@@ -59,7 +59,6 @@ public class TransportFollowStatsAction extends TransportTasksAction<
             transportService,
             actionFilters,
             FollowStatsAction.StatsRequest::new,
-            FollowStatsAction.StatsResponses::new,
             FollowStatsAction.StatsResponse::new,
             transportService.getThreadPool().executor(Ccr.CCR_THREAD_POOL_NAME)
         );

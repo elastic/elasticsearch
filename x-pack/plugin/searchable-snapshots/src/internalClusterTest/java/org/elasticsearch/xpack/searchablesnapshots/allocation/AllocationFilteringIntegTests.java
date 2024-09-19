@@ -62,6 +62,7 @@ public class AllocationFilteringIntegTests extends BaseSearchableSnapshotsIntegT
             .put(mountedIndexSettings.build());
 
         return new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
             indexName,
             fsRepoName,
             snapshotName,

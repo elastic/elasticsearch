@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.ccs;
@@ -105,7 +106,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
 
         SearchRequest searchRequest = new SearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
         if (randomBoolean()) {
-            searchRequest = searchRequest.scroll("1m");
+            searchRequest = searchRequest.scroll(TimeValue.timeValueMinutes(1));
         }
         searchRequest.allowPartialSearchResults(false);
         if (randomBoolean()) {
@@ -286,7 +287,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
 
         SearchRequest searchRequest = new SearchRequest(localIndex, REMOTE_CLUSTER + ":" + "no_such_index*");
         if (randomBoolean()) {
-            searchRequest = searchRequest.scroll("1m");
+            searchRequest = searchRequest.scroll(TimeValue.timeValueMinutes(1));
         }
         searchRequest.allowPartialSearchResults(false);
         if (randomBoolean()) {
@@ -701,7 +702,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         assertFalse(
             client(REMOTE_CLUSTER).admin()
                 .cluster()
-                .prepareHealth(remoteIndex)
+                .prepareHealth(TEST_REQUEST_TIMEOUT, remoteIndex)
                 .setWaitForYellowStatus()
                 .setTimeout(TimeValue.timeValueSeconds(10))
                 .get()

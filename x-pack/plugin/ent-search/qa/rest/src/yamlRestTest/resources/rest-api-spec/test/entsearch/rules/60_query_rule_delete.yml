@@ -1,0 +1,155 @@
+setup:
+  - requires:
+      cluster_features: [ "gte_v8.15.0" ]
+      reason: Introduced in 8.15.0
+  - do:
+      query_rules.put_ruleset:
+        ruleset_id: test-query-ruleset
+        body:
+          rules:
+            - rule_id: query-rule-id1
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  values: [ elastic ]
+              actions:
+                ids:
+                  - 'id1'
+                  - 'id2'
+            - rule_id: query-rule-id2
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  values: [ search ]
+              actions:
+                ids:
+                  - 'id3'
+                  - 'id4'
+  - do:
+      query_rules.put_ruleset:
+        ruleset_id: test-query-ruleset-to-delete
+        body:
+          rules:
+            - rule_id: query-rule-id1
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  values: [ elastic ]
+              actions:
+                ids:
+                  - 'id1'
+                  - 'id2'
+            - rule_id: query-rule-id2
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  values: [ search ]
+              actions:
+                ids:
+                  - 'id3'
+                  - 'id4'
+---
+teardown:
+  - do:
+      query_rules.delete_ruleset:
+        ruleset_id: test-query-ruleset
+        ignore: 404
+
+  - do:
+      query_rules.delete_ruleset:
+        ruleset_id: test-query-ruleset-to-delete
+        ignore: 404
+
+---
+"Delete Query Rule, ruleset still exists":
+  - do:
+      query_rules.delete_rule:
+        ruleset_id: test-query-ruleset
+        rule_id: query-rule-id1
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: "missing"
+      query_rules.get_rule:
+        ruleset_id: test-query-ruleset
+        rule_id: query-rule-id1
+
+  - do:
+      query_rules.get_ruleset:
+        ruleset_id: test-query-ruleset
+
+  - match: { rules.0.rule_id: query-rule-id2 }
+
+---
+"Delete Query Rule, ruleset is also deleted as it is now empty":
+  - do:
+      query_rules.delete_rule:
+        ruleset_id: test-query-ruleset-to-delete
+        rule_id: query-rule-id1
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: "missing"
+      query_rules.get_rule:
+        ruleset_id: test-query-ruleset-to-delete
+        rule_id: query-rule-id1
+
+  - do:
+      query_rules.get_ruleset:
+        ruleset_id: test-query-ruleset-to-delete
+
+  - match: { rules.0.rule_id: query-rule-id2 }
+
+  - do:
+      query_rules.delete_rule:
+        ruleset_id: test-query-ruleset-to-delete
+        rule_id: query-rule-id2
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: "missing"
+      query_rules.get_rule:
+        ruleset_id: test-query-ruleset-to-delete
+        rule_id: query-rule-id2
+
+  - do:
+      catch: "missing"
+      query_rules.get_ruleset:
+        ruleset_id: test-query-ruleset-to-delete
+
+---
+"Delete Query Rule - Rule does not exist":
+  - do:
+      catch: "missing"
+      query_rules.delete_rule:
+        ruleset_id: test-query-ruleset
+        rule_id: nonexistent-rule
+
+---
+"Delete Query Rule - Ruleset does not exist":
+  - do:
+      catch: "missing"
+      query_rules.delete_rule:
+        ruleset_id: nonexistent-query-ruleset
+        rule_id: nonexistent-rule
+
+---
+'Delete Query Ruleset - Insufficient privilege':
+  - skip:
+      features: headers
+
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      query_rules.delete_rule:
+        ruleset_id: test-query-ruleset
+        rule_id: query-rule-id1
+
+  - match: { error.type: 'security_exception' }

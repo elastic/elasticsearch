@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest;
@@ -12,6 +13,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -48,7 +50,31 @@ import static org.elasticsearch.core.TimeValue.parseTimeValue;
 
 public class RestRequest implements ToXContent.Params, Traceable {
 
-    public static final String PATH_RESTRICTED = "pathRestricted";
+    /**
+     * Internal marker request parameter to indicate that a request was made in serverless mode. Use this parameter, together with
+     * {@link #OPERATOR_REQUEST} if you need to toggle behavior for serverless, for example to enforce partial API restrictions
+     * (prevent request fields, omit response fields) for an API.
+     * Requests not made in serverless mode, will *not* have this parameter set.
+     * Given a request instance, you can use {@link #isServerlessRequest()} to determine if the parameter is set or not.
+     * This is also available from {@code ToXContent.Params}. For example:
+     * {@code params.paramAsBoolean(RestRequest.SERVERLESS_REQUEST, false)}
+     */
+    public static final String SERVERLESS_REQUEST = "serverlessRequest";
+    /**
+     * Internal marker request parameter to indicate that a request was made by an operator user.
+     * Requests made by regular users (users without operator privileges), will *not* have this parameter set.
+     * Given a request instance, you can use {@link #isOperatorRequest()} to determine if the parameter is set or not.
+     * This is also available from {@code ToXContent.Params}. For example:
+     * {@code params.paramAsBoolean(RestRequest.OPERATOR_REQUEST, false)}
+     */
+    public static final String OPERATOR_REQUEST = "operatorRequest";
+
+    /**
+     * Internal request parameters used as markers to indicate various operations modes such as serverless mode, or operator mode.
+     * These can never be set directly by end-users. Instead, they are set internally by Elasticsearch and must be supported by all
+     * request handlers.
+     */
+    public static final Set<String> INTERNAL_MARKER_REQUEST_PARAMETERS = Set.of(SERVERLESS_REQUEST, OPERATOR_REQUEST);
     // tchar pattern as defined by RFC7230 section 3.2.6
     private static final Pattern TCHAR_PATTERN = Pattern.compile("[a-zA-Z0-9!#$%&'*+\\-.\\^_`|~]+");
 
@@ -297,9 +323,15 @@ public class RestRequest implements ToXContent.Params, Traceable {
         if (hasContent() == false) {
             throw new ElasticsearchParseException("request body is required");
         } else if (xContentType.get() == null) {
-            throw new IllegalStateException("unknown content type");
+            throwValidationException("unknown content type");
         }
         return content();
+    }
+
+    private static void throwValidationException(String msg) {
+        ValidationException unknownContentType = new ValidationException();
+        unknownContentType.addValidationError(msg);
+        throw unknownContentType;
     }
 
     /**
@@ -561,12 +593,12 @@ public class RestRequest implements ToXContent.Params, Traceable {
         String source = param("source");
         String typeParam = param("source_content_type");
         if (source == null || typeParam == null) {
-            throw new IllegalStateException("source and source_content_type parameters are required");
+            throwValidationException("source and source_content_type parameters are required");
         }
         BytesArray bytes = new BytesArray(source);
         final XContentType xContentType = parseContentType(Collections.singletonList(typeParam));
         if (xContentType == null) {
-            throw new IllegalStateException("Unknown value for source_content_type [" + typeParam + "]");
+            throwValidationException("Unknown value for source_content_type [" + typeParam + "]");
         }
         return new Tuple<>(xContentType, bytes);
     }
@@ -616,13 +648,41 @@ public class RestRequest implements ToXContent.Params, Traceable {
         return restApiVersion.isPresent();
     }
 
-    public void markPathRestricted(String restriction) {
-        if (params.containsKey(PATH_RESTRICTED)) {
-            throw new IllegalArgumentException("The parameter [" + PATH_RESTRICTED + "] is already defined.");
+    /**
+     * See {@link #SERVERLESS_REQUEST}
+     */
+    public void markAsServerlessRequest() {
+        setParamTrueOnceAndConsume(SERVERLESS_REQUEST);
+    }
+
+    /**
+     * See {@link #SERVERLESS_REQUEST}
+     */
+    public boolean isServerlessRequest() {
+        return paramAsBoolean(SERVERLESS_REQUEST, false);
+    }
+
+    /**
+     * See {@link #OPERATOR_REQUEST}
+     */
+    public void markAsOperatorRequest() {
+        setParamTrueOnceAndConsume(OPERATOR_REQUEST);
+    }
+
+    /**
+     * See {@link #OPERATOR_REQUEST}
+     */
+    public boolean isOperatorRequest() {
+        return paramAsBoolean(OPERATOR_REQUEST, false);
+    }
+
+    private void setParamTrueOnceAndConsume(String param) {
+        if (params.containsKey(param)) {
+            throw new IllegalArgumentException("The parameter [" + param + "] is already defined.");
         }
-        params.put(PATH_RESTRICTED, restriction);
+        params.put(param, "true");
         // this parameter is intended be consumed via ToXContent.Params.param(..), not this.params(..) so don't require it is consumed here
-        consumedParams.add(PATH_RESTRICTED);
+        consumedParams.add(param);
     }
 
     @Override

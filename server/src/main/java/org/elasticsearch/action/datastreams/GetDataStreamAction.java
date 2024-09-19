@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.datastreams;
 
@@ -25,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -56,18 +58,25 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         private String[] names;
         private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true, false, false, true, false);
         private boolean includeDefaults = false;
+        private boolean verbose = false;
 
-        public Request(String[] names) {
+        public Request(TimeValue masterNodeTimeout, String[] names) {
+            super(masterNodeTimeout);
             this.names = names;
         }
 
-        public Request(String[] names, boolean includeDefaults) {
+        public Request(TimeValue masterNodeTimeout, String[] names, boolean includeDefaults) {
+            super(masterNodeTimeout);
             this.names = names;
             this.includeDefaults = includeDefaults;
         }
 
         public String[] getNames() {
             return names;
+        }
+
+        public boolean verbose() {
+            return verbose;
         }
 
         @Override
@@ -84,6 +93,11 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             } else {
                 this.includeDefaults = false;
             }
+            if (in.getTransportVersion().onOrAfter(TransportVersions.GET_DATA_STREAMS_VERBOSE)) {
+                this.verbose = in.readBoolean();
+            } else {
+                this.verbose = false;
+            }
         }
 
         @Override
@@ -94,6 +108,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                 out.writeBoolean(includeDefaults);
             }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.GET_DATA_STREAMS_VERBOSE)) {
+                out.writeBoolean(verbose);
+            }
         }
 
         @Override
@@ -103,12 +120,13 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             Request request = (Request) o;
             return Arrays.equals(names, request.names)
                 && indicesOptions.equals(request.indicesOptions)
-                && includeDefaults == request.includeDefaults;
+                && includeDefaults == request.includeDefaults
+                && verbose == request.verbose;
         }
 
         @Override
         public int hashCode() {
-            int result = Objects.hash(indicesOptions, includeDefaults);
+            int result = Objects.hash(indicesOptions, includeDefaults, verbose);
             result = 31 * result + Arrays.hashCode(names);
             return result;
         }
@@ -145,6 +163,11 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
         public Request includeDefaults(boolean includeDefaults) {
             this.includeDefaults = includeDefaults;
+            return this;
+        }
+
+        public Request verbose(boolean verbose) {
+            this.verbose = verbose;
             return this;
         }
     }
@@ -187,6 +210,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             public static final ParseField TIME_SINCE_LAST_AUTO_SHARD_EVENT_MILLIS = new ParseField(
                 "time_since_last_auto_shard_event_millis"
             );
+            public static final ParseField FAILURE_STORE_ENABLED = new ParseField("enabled");
+            public static final ParseField MAXIMUM_TIMESTAMP = new ParseField("maximum_timestamp");
 
             private final DataStream dataStream;
             private final ClusterHealthStatus dataStreamStatus;
@@ -198,6 +223,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             private final TimeSeries timeSeries;
             private final Map<Index, IndexProperties> indexSettingsValues;
             private final boolean templatePreferIlmValue;
+            @Nullable
+            private final Long maximumTimestamp;
 
             public DataStreamInfo(
                 DataStream dataStream,
@@ -206,7 +233,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 @Nullable String ilmPolicyName,
                 @Nullable TimeSeries timeSeries,
                 Map<Index, IndexProperties> indexSettingsValues,
-                boolean templatePreferIlmValue
+                boolean templatePreferIlmValue,
+                @Nullable Long maximumTimestamp
             ) {
                 this.dataStream = dataStream;
                 this.dataStreamStatus = dataStreamStatus;
@@ -215,18 +243,20 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 this.timeSeries = timeSeries;
                 this.indexSettingsValues = indexSettingsValues;
                 this.templatePreferIlmValue = templatePreferIlmValue;
+                this.maximumTimestamp = maximumTimestamp;
             }
 
             @SuppressWarnings("unchecked")
             DataStreamInfo(StreamInput in) throws IOException {
                 this(
-                    new DataStream(in),
+                    DataStream.read(in),
                     ClusterHealthStatus.readFrom(in),
                     in.readOptionalString(),
                     in.readOptionalString(),
                     in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0) ? in.readOptionalWriteable(TimeSeries::new) : null,
                     in.getTransportVersion().onOrAfter(V_8_11_X) ? in.readMap(Index::new, IndexProperties::new) : Map.of(),
-                    in.getTransportVersion().onOrAfter(V_8_11_X) ? in.readBoolean() : true
+                    in.getTransportVersion().onOrAfter(V_8_11_X) ? in.readBoolean() : true,
+                    in.getTransportVersion().onOrAfter(TransportVersions.GET_DATA_STREAMS_VERBOSE) ? in.readOptionalVLong() : null
                 );
             }
 
@@ -261,6 +291,11 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 return templatePreferIlmValue;
             }
 
+            @Nullable
+            public Long getMaximumTimestamp() {
+                return maximumTimestamp;
+            }
+
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 dataStream.writeTo(out);
@@ -273,6 +308,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 if (out.getTransportVersion().onOrAfter(V_8_11_X)) {
                     out.writeMap(indexSettingsValues);
                     out.writeBoolean(templatePreferIlmValue);
+                }
+                if (out.getTransportVersion().onOrAfter(TransportVersions.GET_DATA_STREAMS_VERBOSE)) {
+                    out.writeOptionalVLong(maximumTimestamp);
                 }
             }
 
@@ -298,45 +336,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     .field(DataStream.NAME_FIELD.getPreferredName(), DataStream.TIMESTAMP_FIELD_NAME)
                     .endObject();
 
-                builder.field(DataStream.INDICES_FIELD.getPreferredName());
-                if (dataStream.getIndices() == null) {
-                    builder.nullValue();
-                } else {
-                    builder.startArray();
-                    for (Index index : dataStream.getIndices()) {
-                        builder.startObject();
-                        index.toXContentFragment(builder);
-                        IndexProperties indexProperties = indexSettingsValues.get(index);
-                        if (indexProperties != null) {
-                            builder.field(PREFER_ILM.getPreferredName(), indexProperties.preferIlm());
-                            if (indexProperties.ilmPolicyName() != null) {
-                                builder.field(ILM_POLICY_FIELD.getPreferredName(), indexProperties.ilmPolicyName());
-                            }
-                            builder.field(MANAGED_BY.getPreferredName(), indexProperties.managedBy.displayValue);
-                        }
-                        builder.endObject();
-                    }
-                    builder.endArray();
-                }
+                indicesToXContent(builder, dataStream.getIndices());
                 builder.field(DataStream.GENERATION_FIELD.getPreferredName(), dataStream.getGeneration());
-                if (DataStream.isFailureStoreEnabled()) {
-                    builder.field(DataStream.FAILURE_INDICES_FIELD.getPreferredName());
-                    builder.startArray();
-                    for (Index failureStore : dataStream.getFailureIndices()) {
-                        builder.startObject();
-                        failureStore.toXContentFragment(builder);
-                        IndexProperties indexProperties = indexSettingsValues.get(failureStore);
-                        if (indexProperties != null) {
-                            builder.field(PREFER_ILM.getPreferredName(), indexProperties.preferIlm());
-                            if (indexProperties.ilmPolicyName() != null) {
-                                builder.field(ILM_POLICY_FIELD.getPreferredName(), indexProperties.ilmPolicyName());
-                            }
-                            builder.field(MANAGED_BY.getPreferredName(), indexProperties.managedBy.displayValue);
-                        }
-                        builder.endObject();
-                    }
-                    builder.endArray();
-                }
                 if (dataStream.getMetadata() != null) {
                     builder.field(DataStream.METADATA_FIELD.getPreferredName(), dataStream.getMetadata());
                 }
@@ -346,7 +347,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 }
                 if (dataStream.getLifecycle() != null) {
                     builder.field(LIFECYCLE_FIELD.getPreferredName());
-                    dataStream.getLifecycle().toXContent(builder, params, rolloverConfiguration, globalRetention);
+                    dataStream.getLifecycle().toXContent(builder, params, rolloverConfiguration, globalRetention, dataStream.isInternal());
                 }
                 if (ilmPolicyName != null) {
                     builder.field(ILM_POLICY_FIELD.getPreferredName(), ilmPolicyName);
@@ -358,20 +359,10 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 builder.field(ALLOW_CUSTOM_ROUTING.getPreferredName(), dataStream.isAllowCustomRouting());
                 builder.field(REPLICATED.getPreferredName(), dataStream.isReplicated());
                 builder.field(ROLLOVER_ON_WRITE.getPreferredName(), dataStream.rolloverOnWrite());
-                if (DataStream.isFailureStoreEnabled()) {
-                    builder.field(DataStream.FAILURE_STORE_FIELD.getPreferredName(), dataStream.isFailureStore());
+                if (this.maximumTimestamp != null) {
+                    builder.field(MAXIMUM_TIMESTAMP.getPreferredName(), this.maximumTimestamp);
                 }
-                if (dataStream.getAutoShardingEvent() != null) {
-                    DataStreamAutoShardingEvent autoShardingEvent = dataStream.getAutoShardingEvent();
-                    builder.startObject(AUTO_SHARDING_FIELD.getPreferredName());
-                    autoShardingEvent.toXContent(builder, params);
-                    builder.humanReadableField(
-                        TIME_SINCE_LAST_AUTO_SHARD_EVENT_MILLIS.getPreferredName(),
-                        TIME_SINCE_LAST_AUTO_SHARD_EVENT.getPreferredName(),
-                        autoShardingEvent.getTimeSinceLastAutoShardingEvent(System::currentTimeMillis)
-                    );
-                    builder.endObject();
-                }
+                addAutoShardingEvent(builder, params, dataStream.getAutoShardingEvent());
                 if (timeSeries != null) {
                     builder.startObject(TIME_SERIES.getPreferredName());
                     builder.startArray(TEMPORAL_RANGES.getPreferredName());
@@ -386,8 +377,54 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     builder.endArray();
                     builder.endObject();
                 }
+                if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+                    builder.startObject(DataStream.FAILURE_STORE_FIELD.getPreferredName());
+                    builder.field(FAILURE_STORE_ENABLED.getPreferredName(), dataStream.isFailureStoreEnabled());
+                    builder.field(
+                        DataStream.ROLLOVER_ON_WRITE_FIELD.getPreferredName(),
+                        dataStream.getFailureIndices().isRolloverOnWrite()
+                    );
+                    indicesToXContent(builder, dataStream.getFailureIndices().getIndices());
+                    addAutoShardingEvent(builder, params, dataStream.getFailureIndices().getAutoShardingEvent());
+                    builder.endObject();
+                }
                 builder.endObject();
                 return builder;
+            }
+
+            private XContentBuilder indicesToXContent(XContentBuilder builder, List<Index> indices) throws IOException {
+                builder.field(DataStream.INDICES_FIELD.getPreferredName());
+                builder.startArray();
+                for (Index index : indices) {
+                    builder.startObject();
+                    index.toXContentFragment(builder);
+                    IndexProperties indexProperties = indexSettingsValues.get(index);
+                    if (indexProperties != null) {
+                        builder.field(PREFER_ILM.getPreferredName(), indexProperties.preferIlm());
+                        if (indexProperties.ilmPolicyName() != null) {
+                            builder.field(ILM_POLICY_FIELD.getPreferredName(), indexProperties.ilmPolicyName());
+                        }
+                        builder.field(MANAGED_BY.getPreferredName(), indexProperties.managedBy.displayValue);
+                    }
+                    builder.endObject();
+                }
+                builder.endArray();
+                return builder;
+            }
+
+            private void addAutoShardingEvent(XContentBuilder builder, Params params, DataStreamAutoShardingEvent autoShardingEvent)
+                throws IOException {
+                if (autoShardingEvent == null) {
+                    return;
+                }
+                builder.startObject(AUTO_SHARDING_FIELD.getPreferredName());
+                autoShardingEvent.toXContent(builder, params);
+                builder.humanReadableField(
+                    TIME_SINCE_LAST_AUTO_SHARD_EVENT_MILLIS.getPreferredName(),
+                    TIME_SINCE_LAST_AUTO_SHARD_EVENT.getPreferredName(),
+                    autoShardingEvent.getTimeSinceLastAutoShardingEvent(System::currentTimeMillis)
+                );
+                builder.endObject();
             }
 
             /**
@@ -425,7 +462,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     && Objects.equals(indexTemplate, that.indexTemplate)
                     && Objects.equals(ilmPolicyName, that.ilmPolicyName)
                     && Objects.equals(timeSeries, that.timeSeries)
-                    && Objects.equals(indexSettingsValues, that.indexSettingsValues);
+                    && Objects.equals(indexSettingsValues, that.indexSettingsValues)
+                    && Objects.equals(maximumTimestamp, that.maximumTimestamp);
             }
 
             @Override
@@ -437,7 +475,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     ilmPolicyName,
                     timeSeries,
                     indexSettingsValues,
-                    templatePreferIlmValue
+                    templatePreferIlmValue,
+                    maximumTimestamp
                 );
             }
         }
@@ -511,7 +550,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             this(
                 in.readCollectionAsList(DataStreamInfo::new),
                 in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X) ? in.readOptionalWriteable(RolloverConfiguration::new) : null,
-                in.getTransportVersion().onOrAfter(TransportVersions.USE_DATA_STREAM_GLOBAL_RETENTION)
+                in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)
                     ? in.readOptionalWriteable(DataStreamGlobalRetention::read)
                     : null
             );
@@ -537,18 +576,22 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                 out.writeOptionalWriteable(rolloverConfiguration);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.USE_DATA_STREAM_GLOBAL_RETENTION)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
                 out.writeOptionalWriteable(globalRetention);
             }
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            Params withEffectiveRetentionParams = new DelegatingMapParams(DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAMS, params);
             builder.startObject();
             builder.startArray(DATA_STREAMS_FIELD.getPreferredName());
             for (DataStreamInfo dataStream : dataStreams) {
-                dataStream.toXContent(builder, withEffectiveRetentionParams, rolloverConfiguration, globalRetention);
+                dataStream.toXContent(
+                    builder,
+                    DataStreamLifecycle.addEffectiveRetentionParams(params),
+                    rolloverConfiguration,
+                    globalRetention
+                );
             }
             builder.endArray();
             builder.endObject();

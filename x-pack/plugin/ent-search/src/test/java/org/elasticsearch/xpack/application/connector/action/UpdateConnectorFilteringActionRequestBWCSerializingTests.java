@@ -31,7 +31,9 @@ public class UpdateConnectorFilteringActionRequestBWCSerializingTests extends Ab
         this.connectorId = randomUUID();
         return new UpdateConnectorFilteringAction.Request(
             connectorId,
-            List.of(ConnectorTestUtils.getRandomConnectorFiltering(), ConnectorTestUtils.getRandomConnectorFiltering())
+            List.of(ConnectorTestUtils.getRandomConnectorFiltering(), ConnectorTestUtils.getRandomConnectorFiltering()),
+            ConnectorTestUtils.getRandomConnectorFiltering().getActive().getAdvancedSnippet(),
+            ConnectorTestUtils.getRandomConnectorFiltering().getActive().getRules()
         );
     }
 

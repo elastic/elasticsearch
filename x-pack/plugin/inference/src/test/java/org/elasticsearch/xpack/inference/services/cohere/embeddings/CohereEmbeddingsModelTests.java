@@ -218,7 +218,7 @@ public class CohereEmbeddingsModelTests extends ESTestCase {
             TaskType.TEXT_EMBEDDING,
             "service",
             new CohereEmbeddingsServiceSettings(
-                new CohereServiceSettings(url, SimilarityMeasure.DOT_PRODUCT, dimensions, tokenLimit, model),
+                new CohereServiceSettings(url, SimilarityMeasure.DOT_PRODUCT, dimensions, tokenLimit, model, null),
                 Objects.requireNonNullElse(embeddingType, CohereEmbeddingType.FLOAT)
             ),
             taskSettings,
@@ -241,7 +241,7 @@ public class CohereEmbeddingsModelTests extends ESTestCase {
             TaskType.TEXT_EMBEDDING,
             "service",
             new CohereEmbeddingsServiceSettings(
-                new CohereServiceSettings(url, similarityMeasure, dimensions, tokenLimit, model),
+                new CohereServiceSettings(url, similarityMeasure, dimensions, tokenLimit, model, null),
                 Objects.requireNonNullElse(embeddingType, CohereEmbeddingType.FLOAT)
             ),
             taskSettings,

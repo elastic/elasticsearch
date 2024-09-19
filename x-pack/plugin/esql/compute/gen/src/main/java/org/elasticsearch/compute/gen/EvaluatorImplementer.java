@@ -52,6 +52,8 @@ import static org.elasticsearch.compute.gen.Types.SOURCE;
 import static org.elasticsearch.compute.gen.Types.WARNINGS;
 import static org.elasticsearch.compute.gen.Types.blockType;
 import static org.elasticsearch.compute.gen.Types.builderType;
+import static org.elasticsearch.compute.gen.Types.elementType;
+import static org.elasticsearch.compute.gen.Types.vectorFixedBuilderType;
 import static org.elasticsearch.compute.gen.Types.vectorType;
 
 public class EvaluatorImplementer {
@@ -120,11 +122,11 @@ public class EvaluatorImplementer {
     private MethodSpec ctor() {
         MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
         builder.addParameter(SOURCE, "source");
-        builder.addStatement("this.warnings = new Warnings(source)");
         processFunction.args.stream().forEach(a -> a.implementCtor(builder));
 
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
         builder.addStatement("this.driverContext = driverContext");
+        builder.addStatement("this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source)");
         return builder.build();
     }
 
@@ -167,19 +169,25 @@ public class EvaluatorImplementer {
         builder.addModifiers(Modifier.PUBLIC).returns(resultDataType);
         builder.addParameter(TypeName.INT, "positionCount");
 
-        processFunction.args.stream().forEach(a -> {
-            if (a.paramName(blockStyle) != null) {
-                builder.addParameter(a.dataType(blockStyle), a.paramName(blockStyle));
-            }
-        });
+        boolean vectorize = false;
+        if (blockStyle == false && processFunction.warnExceptions.isEmpty() && processOutputsMultivalued == false) {
+            ClassName type = processFunction.resultDataType(false);
+            vectorize = type.simpleName().startsWith("BytesRef") == false;
+        }
 
-        TypeName builderType = builderType(resultDataType);
+        TypeName builderType = vectorize ? vectorFixedBuilderType(elementType(resultDataType)) : builderType(resultDataType);
         builder.beginControlFlow(
             "try($T result = driverContext.blockFactory().$L(positionCount))",
             builderType,
             buildFromFactory(builderType)
         );
         {
+            processFunction.args.stream().forEach(a -> {
+                if (a.paramName(blockStyle) != null) {
+                    builder.addParameter(a.dataType(blockStyle), a.paramName(blockStyle));
+                }
+            });
+
             processFunction.args.stream().forEach(a -> a.createScratch(builder));
 
             builder.beginControlFlow("position: for (int p = 0; p < positionCount; p++)");
@@ -226,7 +234,7 @@ public class EvaluatorImplementer {
                 pattern.append(")");
                 String builtPattern;
                 if (processFunction.builderArg == null) {
-                    builtPattern = "result.$L(" + pattern + ")";
+                    builtPattern = vectorize ? "result.$L(p, " + pattern + ")" : "result.$L(" + pattern + ")";
                     args.add(0, appendMethod(resultDataType));
                 } else {
                     builtPattern = pattern.toString();
@@ -249,8 +257,9 @@ public class EvaluatorImplementer {
             }
             builder.endControlFlow();
             builder.addStatement("return result.build()");
-            builder.endControlFlow();
         }
+        builder.endControlFlow();
+
         return builder.build();
     }
 
@@ -775,7 +784,7 @@ public class EvaluatorImplementer {
 
         @Override
         public void buildInvocation(StringBuilder pattern, List<Object> args, boolean blockStyle) {
-            pattern.append("$L");
+            pattern.append("this.$L");
             args.add(name);
         }
 

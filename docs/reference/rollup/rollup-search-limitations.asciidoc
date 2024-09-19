@@ -2,7 +2,7 @@
 [[rollup-search-limitations]]
 === {rollup-cap} search limitations
 
-deprecated::[8.11.0,"Rollups will be removed in a future version. Use <<downsampling,downsampling>> instead."]
+deprecated::[8.11.0,"Rollups will be removed in a future version. Please <<rollup-migrating-to-downsampling,migrate>> to <<downsampling,downsampling>> instead."]
 
 While we feel the Rollup function is extremely flexible, the nature of summarizing data means there will be some limitations. Once
 live data is thrown away, you will always lose some flexibility.

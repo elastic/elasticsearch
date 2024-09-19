@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.stats;
@@ -33,6 +34,7 @@ import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardCountStats;
+import org.elasticsearch.index.shard.SparseVectorStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.index.warmer.WarmerStats;
@@ -44,6 +46,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
+
+import static org.elasticsearch.TransportVersions.VERSION_SUPPORTING_SPARSE_VECTOR_STATS;
 
 public class CommonStats implements Writeable, ToXContentFragment {
 
@@ -110,6 +114,9 @@ public class CommonStats implements Writeable, ToXContentFragment {
     @Nullable
     public DenseVectorStats denseVectorStats;
 
+    @Nullable
+    public SparseVectorStats sparseVectorStats;
+
     public CommonStats() {
         this(CommonStatsFlags.NONE);
     }
@@ -139,6 +146,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
                 case Shards -> shards = new ShardCountStats();
                 case Mappings -> nodeMappings = new NodeMappingStats();
                 case DenseVector -> denseVectorStats = new DenseVectorStats();
+                case SparseVector -> sparseVectorStats = new SparseVectorStats();
                 default -> throw new IllegalStateException("Unknown Flag: " + flag);
             }
         }
@@ -182,6 +190,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
                         // Setting to 1 because the single IndexShard passed to this method implies 1 shard
                         stats.shards = new ShardCountStats(1);
                     case DenseVector -> stats.denseVectorStats = indexShard.denseVectorStats();
+                    case SparseVector -> stats.sparseVectorStats = indexShard.sparseVectorStats();
                     default -> throw new IllegalStateException("Unknown or invalid flag for shard-level stats: " + flag);
                 }
             } catch (AlreadyClosedException e) {
@@ -219,6 +228,9 @@ public class CommonStats implements Writeable, ToXContentFragment {
         if (in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_DENSE_VECTOR_STATS)) {
             denseVectorStats = in.readOptionalWriteable(DenseVectorStats::new);
         }
+        if (in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_SPARSE_VECTOR_STATS)) {
+            sparseVectorStats = in.readOptionalWriteable(SparseVectorStats::new);
+        }
     }
 
     @Override
@@ -249,6 +261,9 @@ public class CommonStats implements Writeable, ToXContentFragment {
         if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_DENSE_VECTOR_STATS)) {
             out.writeOptionalWriteable(denseVectorStats);
         }
+        if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_SPARSE_VECTOR_STATS)) {
+            out.writeOptionalWriteable(sparseVectorStats);
+        }
     }
 
     @Override
@@ -275,7 +290,8 @@ public class CommonStats implements Writeable, ToXContentFragment {
             && Objects.equals(bulk, that.bulk)
             && Objects.equals(shards, that.shards)
             && Objects.equals(nodeMappings, that.nodeMappings)
-            && Objects.equals(denseVectorStats, that.denseVectorStats);
+            && Objects.equals(denseVectorStats, that.denseVectorStats)
+            && Objects.equals(sparseVectorStats, that.sparseVectorStats);
     }
 
     @Override
@@ -300,7 +316,8 @@ public class CommonStats implements Writeable, ToXContentFragment {
             bulk,
             shards,
             nodeMappings,
-            denseVectorStats
+            denseVectorStats,
+            sparseVectorStats
         );
     }
 
@@ -465,6 +482,14 @@ public class CommonStats implements Writeable, ToXContentFragment {
         } else {
             denseVectorStats.add(stats.getDenseVectorStats());
         }
+        if (sparseVectorStats == null) {
+            if (stats.getSparseVectorStats() != null) {
+                sparseVectorStats = new SparseVectorStats();
+                sparseVectorStats.add(stats.getSparseVectorStats());
+            }
+        } else {
+            sparseVectorStats.add(stats.getSparseVectorStats());
+        }
     }
 
     @Nullable
@@ -567,6 +592,11 @@ public class CommonStats implements Writeable, ToXContentFragment {
         return denseVectorStats;
     }
 
+    @Nullable
+    public SparseVectorStats getSparseVectorStats() {
+        return sparseVectorStats;
+    }
+
     /**
      * Utility method which computes total memory by adding
      * FieldData, PercolatorCache, Segments (index writer, version map)
@@ -609,6 +639,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
         addIfNonNull(builder, params, bulk);
         addIfNonNull(builder, params, nodeMappings);
         addIfNonNull(builder, params, denseVectorStats);
+        addIfNonNull(builder, params, sparseVectorStats);
         return builder;
     }
 

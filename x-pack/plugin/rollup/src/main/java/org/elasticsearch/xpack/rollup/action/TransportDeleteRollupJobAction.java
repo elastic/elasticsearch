@@ -16,9 +16,9 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -45,7 +45,6 @@ public class TransportDeleteRollupJobAction extends TransportTasksAction<
             transportService,
             actionFilters,
             DeleteRollupJobAction.Request::new,
-            DeleteRollupJobAction.Response::new,
             DeleteRollupJobAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

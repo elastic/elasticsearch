@@ -7,10 +7,7 @@
 
 package org.elasticsearch.xpack.security.role;
 
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
 
@@ -21,8 +18,7 @@ import static org.hamcrest.Matchers.containsString;
 public class RoleWithWorkflowsRestrictionRestIT extends SecurityOnTrialLicenseRestTestCase {
 
     public void testCreateRoleWithWorkflowsRestrictionFail() {
-        Request createRoleRequest = new Request(HttpPut.METHOD_NAME, "/_security/role/role_with_restriction");
-        createRoleRequest.setJsonEntity("""
+        Request request = roleRequest("""
             {
               "cluster": ["all"],
               "indices": [
@@ -34,16 +30,15 @@ public class RoleWithWorkflowsRestrictionRestIT extends SecurityOnTrialLicenseRe
               "restriction":{
                 "workflows": ["foo", "bar"]
               }
-            }""");
+            }""", "role_with_restriction");
 
-        ResponseException e = expectThrows(ResponseException.class, () -> adminClient().performRequest(createRoleRequest));
+        ResponseException e = expectThrows(ResponseException.class, () -> adminClient().performRequest(request));
         assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
         assertThat(e.getMessage(), containsString("failed to parse role [role_with_restriction]. unexpected field [restriction]"));
     }
 
     public void testUpdateRoleWithWorkflowsRestrictionFail() throws IOException {
-        Request createRoleRequest = new Request(HttpPut.METHOD_NAME, "/_security/role/my_role");
-        createRoleRequest.setJsonEntity("""
+        upsertRole("""
             {
               "cluster": ["all"],
               "indices": [
@@ -52,12 +47,9 @@ public class RoleWithWorkflowsRestrictionRestIT extends SecurityOnTrialLicenseRe
                   "privileges": ["all"]
                 }
               ]
-            }""");
-        Response createRoleResponse = adminClient().performRequest(createRoleRequest);
-        assertOK(createRoleResponse);
+            }""", "my_role");
 
-        Request updateRoleRequest = new Request(HttpPost.METHOD_NAME, "/_security/role/my_role");
-        updateRoleRequest.setJsonEntity("""
+        Request updateRoleRequest = roleRequest("""
             {
               "cluster": ["all"],
               "indices": [
@@ -69,7 +61,7 @@ public class RoleWithWorkflowsRestrictionRestIT extends SecurityOnTrialLicenseRe
               "restriction":{
                 "workflows": ["foo", "bar"]
               }
-            }""");
+            }""", "my_role");
 
         ResponseException e = expectThrows(ResponseException.class, () -> adminClient().performRequest(updateRoleRequest));
         assertEquals(400, e.getResponse().getStatusLine().getStatusCode());

@@ -79,7 +79,7 @@ import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SEC
  */
 public class NativeUsersStore {
 
-    static final String USER_DOC_TYPE = "user";
+    public static final String USER_DOC_TYPE = "user";
     public static final String RESERVED_USER_TYPE = "reserved-user";
     private static final Logger logger = LogManager.getLogger(NativeUsersStore.class);
 

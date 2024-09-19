@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.service;
@@ -16,7 +17,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
@@ -146,10 +147,10 @@ public class ClusterApplierRecordingServiceTests extends ESTestCase {
             deterministicTaskQueue.getCurrentTimeMillis() + debugLoggingTimeout.millis() + between(1, 1000),
             slowAction::close
         );
-        MockLogAppender.assertThatLogger(
+        MockLog.assertThatLogger(
             deterministicTaskQueue::runAllTasksInTimeOrder,
             ClusterApplierRecordingService.class,
-            new MockLogAppender.SeenEventExpectation(
+            new MockLog.SeenEventExpectation(
                 "hot threads",
                 ClusterApplierRecordingService.class.getCanonicalName(),
                 Level.DEBUG,
@@ -163,15 +164,10 @@ public class ClusterApplierRecordingServiceTests extends ESTestCase {
             randomLongBetween(0, deterministicTaskQueue.getCurrentTimeMillis() + debugLoggingTimeout.millis() - 1),
             fastAction::close
         );
-        MockLogAppender.assertThatLogger(
+        MockLog.assertThatLogger(
             deterministicTaskQueue::runAllTasksInTimeOrder,
             ClusterApplierRecordingService.class,
-            new MockLogAppender.UnseenEventExpectation(
-                "hot threads",
-                ClusterApplierRecordingService.class.getCanonicalName(),
-                Level.DEBUG,
-                "*"
-            )
+            new MockLog.UnseenEventExpectation("hot threads", ClusterApplierRecordingService.class.getCanonicalName(), Level.DEBUG, "*")
         );
     }
 

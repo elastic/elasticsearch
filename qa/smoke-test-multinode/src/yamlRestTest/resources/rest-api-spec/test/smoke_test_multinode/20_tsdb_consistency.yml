@@ -2,8 +2,8 @@
 # rest-api-spec we would, but it requires painless.
 
 setup:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: introduced in 8.1.0
 
   - do:
@@ -67,8 +67,8 @@ setup:
 
 ---
 "index with replicas and shards is green":
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: introduced in 8.1.0
 
   - do:
@@ -78,8 +78,8 @@ setup:
 
 ---
 "each shard has unique _tsids":
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: introduced in 8.1.0
 
   - do:

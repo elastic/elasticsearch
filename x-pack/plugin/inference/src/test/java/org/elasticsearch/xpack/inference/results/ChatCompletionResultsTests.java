@@ -125,6 +125,13 @@ public class ChatCompletionResultsTests extends AbstractWireSerializingTestCase<
         return new ChatCompletionResults(chatCompletionResults);
     }
 
+    public static Map<String, Object> buildExpectationCompletion(List<String> results) {
+        return Map.of(
+            ChatCompletionResults.COMPLETION,
+            results.stream().map(result -> Map.of(ChatCompletionResults.Result.RESULT, result)).toList()
+        );
+    }
+
     private static ChatCompletionResults.Result createRandomChatCompletionResult() {
         return new ChatCompletionResults.Result(randomAlphaOfLengthBetween(10, 300));
     }

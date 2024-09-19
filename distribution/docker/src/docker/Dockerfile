@@ -22,7 +22,7 @@
 <% if (docker_base == 'iron_bank') { %>
 ARG BASE_REGISTRY=registry1.dso.mil
 ARG BASE_IMAGE=ironbank/redhat/ubi/ubi9
-ARG BASE_TAG=9.3
+ARG BASE_TAG=9.4
 <% } %>
 
 ################################################################################
@@ -43,29 +43,34 @@ RUN chmod 0555 /bin/tini
 # Install required packages to extract the Elasticsearch distribution
 <% if (docker_base == 'default' || docker_base == 'cloud') { %>
 RUN <%= retry.loop(package_manager, "${package_manager} update && DEBIAN_FRONTEND=noninteractive ${package_manager} install -y curl ") %>
+<% } else if (docker_base == "wolfi") { %>
+RUN <%= retry.loop(package_manager, "export DEBIAN_FRONTEND=noninteractive && ${package_manager} update && ${package_manager} update && ${package_manager} add --no-cache curl") %>
 <% } else { %>
 RUN <%= retry.loop(package_manager, "${package_manager} install -y findutils tar gzip") %>
 <% } %>
 
-# `tini` is a tiny but valid init for containers. This is used to cleanly
-# control how ES and any child processes are shut down.
-#
-# The tini GitHub page gives instructions for verifying the binary using
-# gpg, but the keyservers are slow to return the key and this can fail the
-# build. Instead, we check the binary against the published checksum.
-RUN set -eux ; \\
-    tini_bin="" ; \\
-    case "\$(arch)" in \\
-        aarch64) tini_bin='tini-arm64' ;; \\
-        x86_64)  tini_bin='tini-amd64' ;; \\
-        *) echo >&2 ; echo >&2 "Unsupported architecture \$(arch)" ; echo >&2 ; exit 1 ;; \\
-    esac ; \\
-    curl --retry 10 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin} ; \\
-    curl --retry 10 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin}.sha256sum ; \\
-    sha256sum -c \${tini_bin}.sha256sum ; \\
-    rm \${tini_bin}.sha256sum ; \\
-    mv \${tini_bin} /bin/tini ; \\
-    chmod 0555 /bin/tini
+<% if (docker_base != 'wolfi') { %>
+    # `tini` is a tiny but valid init for containers. This is used to cleanly
+    # control how ES and any child processes are shut down.
+    # For wolfi we pick it from the blessed wolfi package registry.
+    #
+    # The tini GitHub page gives instructions for verifying the binary using
+    # gpg, but the keyservers are slow to return the key and this can fail the
+    # build. Instead, we check the binary against the published checksum.
+    RUN set -eux ; \\
+        tini_bin="" ; \\
+        case "\$(arch)" in \\
+            aarch64) tini_bin='tini-arm64' ;; \\
+            x86_64)  tini_bin='tini-amd64' ;; \\
+            *) echo >&2 ; echo >&2 "Unsupported architecture \$(arch)" ; echo >&2 ; exit 1 ;; \\
+        esac ; \\
+        curl --retry 10 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin} ; \\
+        curl --retry 10 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin}.sha256sum ; \\
+        sha256sum -c \${tini_bin}.sha256sum ; \\
+        rm \${tini_bin}.sha256sum ; \\
+        mv \${tini_bin} /bin/tini ; \\
+        chmod 0555 /bin/tini
+<% } %>
 
 <% } %>
 
@@ -152,6 +157,15 @@ RUN ${package_manager} update --setopt=tsflags=nodocs -y && \\
       nc shadow-utils zip findutils unzip procps-ng && \\
     ${package_manager} clean all
 
+<% } else if (docker_base == "wolfi") { %>
+RUN <%= retry.loop(package_manager,
+          "export DEBIAN_FRONTEND=noninteractive && \n" +
+          "      ${package_manager} update && \n" +
+          "      ${package_manager} upgrade && \n" +
+          "      ${package_manager} add --no-cache \n" +
+          "        bash ca-certificates curl libsystemd netcat-openbsd p11-kit p11-kit-trust shadow tini unzip zip zstd && \n" +
+          "      rm -rf /var/cache/apk/* "
+     ) %>
 <% } else if (docker_base == "default" || docker_base == "cloud") { %>
 
 # Change default shell to bash, then install required packages with retries.
@@ -185,6 +199,11 @@ RUN groupadd -g 1000 elasticsearch && \\
     adduser --uid 1000 --gid 1000 --home /usr/share/elasticsearch elasticsearch && \\
     adduser elasticsearch root && \\
     chown -R 0:0 /usr/share/elasticsearch
+<% } else if (docker_base == "wolfi") { %>
+RUN groupadd -g 1000 elasticsearch && \
+    adduser -G elasticsearch -u 1000 elasticsearch -D --home /usr/share/elasticsearch elasticsearch && \
+    adduser elasticsearch root && \
+    chown -R 0:0 /usr/share/elasticsearch
 <% } else { %>
 RUN groupadd -g 1000 elasticsearch && \\
     adduser -u 1000 -g 1000 -G 0 -d /usr/share/elasticsearch elasticsearch && \\
@@ -196,7 +215,9 @@ ENV ELASTIC_CONTAINER true
 WORKDIR /usr/share/elasticsearch
 
 COPY --from=builder --chown=0:0 /usr/share/elasticsearch /usr/share/elasticsearch
+<% if (docker_base != "wolfi") { %>
 COPY --from=builder --chown=0:0 /bin/tini /bin/tini
+<% } %>
 
 <% if (docker_base == 'cloud') { %>
 COPY --from=builder --chown=0:0 /opt /opt
@@ -280,7 +301,12 @@ CMD ["/app/elasticsearch.sh"]
 RUN mkdir /app && \\
     echo -e '#!/bin/bash\\nexec /usr/local/bin/docker-entrypoint.sh eswrapper' > /app/elasticsearch.sh && \\
     chmod 0555 /app/elasticsearch.sh
-
+<% } else if (docker_base == "wolfi") { %>
+# Our actual entrypoint is `tini`, a minimal but functional init program. It
+# calls the entrypoint we provide, while correctly forwarding signals.
+ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
+# Dummy overridable parameter parsed by entrypoint
+CMD ["eswrapper"]
 <% } else { %>
 # Our actual entrypoint is `tini`, a minimal but functional init program. It
 # calls the entrypoint we provide, while correctly forwarding signals.

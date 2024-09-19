@@ -199,8 +199,8 @@ public class ForecastJobAction extends ActionType<ForecastJobAction.Response> {
 
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
 
-        private boolean acknowledged;
-        private String forecastId;
+        private final boolean acknowledged;
+        private final String forecastId;
 
         public Response(boolean acknowledged, String forecastId) {
             super(null, null);

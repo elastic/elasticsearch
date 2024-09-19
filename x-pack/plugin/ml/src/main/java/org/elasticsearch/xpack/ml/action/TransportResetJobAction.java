@@ -24,9 +24,9 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -156,7 +156,7 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
         GetTaskRequest getTaskRequest = new GetTaskRequest();
         getTaskRequest.setTaskId(existingTaskId);
         getTaskRequest.setWaitForCompletion(true);
-        getTaskRequest.setTimeout(request.timeout());
+        getTaskRequest.setTimeout(request.ackTimeout());
         executeAsyncWithOrigin(client, ML_ORIGIN, TransportGetTaskAction.TYPE, getTaskRequest, ActionListener.wrap(getTaskResponse -> {
             TaskResult taskResult = getTaskResponse.getTask();
             if (taskResult.isCompleted()) {

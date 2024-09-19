@@ -19,7 +19,8 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
-import org.hamcrest.CoreMatchers;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
@@ -54,7 +55,14 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
         Integer maxInputTokens = randomBoolean() ? null : randomIntBetween(128, 256);
         var model = randomBoolean() ? randomAlphaOfLength(15) : null;
 
-        return new CohereServiceSettings(ServiceUtils.createOptionalUri(url), similarityMeasure, dims, maxInputTokens, model);
+        return new CohereServiceSettings(
+            ServiceUtils.createOptionalUri(url),
+            similarityMeasure,
+            dims,
+            maxInputTokens,
+            model,
+            RateLimitSettingsTests.createRandom()
+        );
     }
 
     public void testFromMap() {
@@ -83,7 +91,48 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
 
         MatcherAssert.assertThat(
             serviceSettings,
-            is(new CohereServiceSettings(ServiceUtils.createUri(url), SimilarityMeasure.DOT_PRODUCT, dims, maxInputTokens, model))
+            is(new CohereServiceSettings(ServiceUtils.createUri(url), SimilarityMeasure.DOT_PRODUCT, dims, maxInputTokens, model, null))
+        );
+    }
+
+    public void testFromMap_WithRateLimit() {
+        var url = "https://www.abc.com";
+        var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
+        var dims = 1536;
+        var maxInputTokens = 512;
+        var model = "model";
+        var serviceSettings = CohereServiceSettings.fromMap(
+            new HashMap<>(
+                Map.of(
+                    ServiceFields.URL,
+                    url,
+                    ServiceFields.SIMILARITY,
+                    similarity,
+                    ServiceFields.DIMENSIONS,
+                    dims,
+                    ServiceFields.MAX_INPUT_TOKENS,
+                    maxInputTokens,
+                    CohereServiceSettings.OLD_MODEL_ID_FIELD,
+                    model,
+                    RateLimitSettings.FIELD_NAME,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 3))
+                )
+            ),
+            ConfigurationParseContext.REQUEST
+        );
+
+        MatcherAssert.assertThat(
+            serviceSettings,
+            is(
+                new CohereServiceSettings(
+                    ServiceUtils.createUri(url),
+                    SimilarityMeasure.DOT_PRODUCT,
+                    dims,
+                    maxInputTokens,
+                    model,
+                    new RateLimitSettings(3)
+                )
+            )
         );
     }
 
@@ -113,7 +162,7 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
 
         MatcherAssert.assertThat(
             serviceSettings,
-            is(new CohereServiceSettings(ServiceUtils.createUri(url), SimilarityMeasure.DOT_PRODUCT, dims, maxInputTokens, model))
+            is(new CohereServiceSettings(ServiceUtils.createUri(url), SimilarityMeasure.DOT_PRODUCT, dims, maxInputTokens, model, null))
         );
     }
 
@@ -145,7 +194,7 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
 
         MatcherAssert.assertThat(
             serviceSettings,
-            is(new CohereServiceSettings(ServiceUtils.createUri(url), SimilarityMeasure.DOT_PRODUCT, dims, maxInputTokens, model))
+            is(new CohereServiceSettings(ServiceUtils.createUri(url), SimilarityMeasure.DOT_PRODUCT, dims, maxInputTokens, model, null))
         );
     }
 
@@ -180,7 +229,9 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
 
         MatcherAssert.assertThat(
             thrownException.getMessage(),
-            is(Strings.format("Validation Failed: 1: [service_settings] Invalid url [%s] received for field [%s];", url, ServiceFields.URL))
+            containsString(
+                Strings.format("Validation Failed: 1: [service_settings] Invalid url [%s] received for field [%s]", url, ServiceFields.URL)
+            )
         );
     }
 
@@ -204,14 +255,14 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
     }
 
     public void testXContent_WritesModelId() throws IOException {
-        var entity = new CohereServiceSettings((String) null, null, null, null, "modelId");
+        var entity = new CohereServiceSettings((String) null, null, null, null, "modelId", new RateLimitSettings(1));
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, CoreMatchers.is("""
-            {"model_id":"modelId"}"""));
+        assertThat(xContentResult, is("""
+            {"model_id":"modelId","rate_limit":{"requests_per_minute":1}}"""));
     }
 
     @Override
@@ -226,7 +277,7 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
 
     @Override
     protected CohereServiceSettings mutateInstance(CohereServiceSettings instance) throws IOException {
-        return null;
+        return randomValueOtherThan(instance, CohereServiceSettingsTests::createRandom);
     }
 
     public static Map<String, Object> getServiceSettingsMap(@Nullable String url, @Nullable String model) {

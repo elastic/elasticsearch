@@ -44,11 +44,11 @@ and indices, omit this parameter or use `*` or `_all`.
 [[cat-segments-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bytes]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=bytes]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=http-format]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
 +
 --
 If you do not specify which columns to include, the API returns the default
@@ -71,39 +71,39 @@ Valid columns are:
 
 `segment`::
 (Default)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=segment]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=segment]
 
 `generation`::
 (Default)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=generation]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=generation]
 
 `docs.count`::
 (Default)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-count]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=docs-count]
                 
 `docs.deleted`::
 (Default)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-deleted]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=docs-deleted]
 
 `size`::
 (Default)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=segment-size]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=segment-size]
 
 `size.memory`::
 (Default)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=memory]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=memory]
 
 `committed`::
 (Default)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=committed]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=committed]
 
 `searchable`::
 (Default)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=segment-search]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=segment-search]
 
 `version`::
 (Default)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=segment-version]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=segment-version]
 
 `compound`::
 (Default) If `true`, the segment is stored in a compound file. This means Lucene
@@ -113,11 +113,11 @@ merged all files from the segment in a single file to save file descriptors.
 ID of the node, such as `k0zy`.
 --
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=help]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 
 [[cat-segments-api-example]]

@@ -1,12 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.create;
+
+import io.netty.handler.codec.http.HttpMethod;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
@@ -14,14 +17,22 @@ import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
@@ -31,17 +42,24 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
+import static org.elasticsearch.test.rest.ESRestTestCase.entityAsMap;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -52,6 +70,11 @@ import static org.hamcrest.core.IsNull.notNullValue;
 
 @ClusterScope(scope = Scope.TEST)
 public class CreateIndexIT extends ESIntegTestCase {
+
+    @Override
+    protected boolean addMockHttpTransport() {
+        return false; // expose HTTP requests
+    }
 
     public void testCreationDateGivenFails() {
         try {
@@ -70,7 +93,7 @@ public class CreateIndexIT extends ESIntegTestCase {
         long timeBeforeRequest = System.currentTimeMillis();
         prepareCreate("test").get();
         long timeAfterRequest = System.currentTimeMillis();
-        ClusterStateResponse response = clusterAdmin().prepareState().get();
+        ClusterStateResponse response = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
         ClusterState state = response.getState();
         assertThat(state, notNullValue());
         Metadata metadata = state.getMetadata();
@@ -132,6 +155,20 @@ public class CreateIndexIT extends ESIntegTestCase {
         MappingMetadata mappings = response.mappings().get("test");
         assertNotNull(mappings);
         assertTrue(mappings.sourceAsMap().isEmpty());
+    }
+
+    public void testTwoEmptyEqualMappings() throws Exception {
+        assertAcked(prepareCreate("test1"));
+        assertAcked(prepareCreate("test2").setMapping(XContentFactory.jsonBuilder().startObject().endObject()));
+        FieldCapabilitiesRequest fieldCapsReq1 = new FieldCapabilitiesRequest();
+        fieldCapsReq1.indices("test1");
+        fieldCapsReq1.fields("*");
+        FieldCapabilitiesResponse fieldCapsResp1 = internalCluster().coordOnlyNodeClient().fieldCaps(fieldCapsReq1).actionGet();
+        FieldCapabilitiesRequest fieldCapsReq2 = new FieldCapabilitiesRequest();
+        fieldCapsReq2.indices("test2");
+        fieldCapsReq2.fields("*");
+        FieldCapabilitiesResponse fieldCapsResp2 = internalCluster().coordOnlyNodeClient().fieldCaps(fieldCapsReq2).actionGet();
+        assertEquals(fieldCapsResp1.get(), fieldCapsResp2.get());
     }
 
     public void testInvalidShardCountSettings() throws Exception {
@@ -276,7 +313,7 @@ public class CreateIndexIT extends ESIntegTestCase {
     }
 
     public void testRestartIndexCreationAfterFullClusterRestart() throws Exception {
-        clusterAdmin().prepareUpdateSettings()
+        clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .setTransientSettings(Settings.builder().put("cluster.routing.allocation.enable", "none"))
             .get();
         indicesAdmin().prepareCreate("test").setWaitForActiveShards(ActiveShardCount.NONE).setSettings(indexSettings()).get();
@@ -286,10 +323,7 @@ public class CreateIndexIT extends ESIntegTestCase {
 
     public void testFailureToCreateIndexCleansUpIndicesService() {
         final int numReplicas = internalCluster().numDataNodes();
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), numReplicas)
-            .build();
+        Settings settings = indexSettings(1, numReplicas).build();
         assertAcked(indicesAdmin().prepareCreate("test-idx-1").setSettings(settings).addAlias(new Alias("alias1").writeIndex(true)).get());
 
         ActionRequestBuilder<?, ?> builder = indicesAdmin().prepareCreate("test-idx-2")
@@ -308,20 +342,29 @@ public class CreateIndexIT extends ESIntegTestCase {
      */
     public void testDefaultWaitForActiveShardsUsesIndexSetting() throws Exception {
         final int numReplicas = internalCluster().numDataNodes();
-        Settings settings = Settings.builder()
-            .put(SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), Integer.toString(numReplicas))
-            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), numReplicas)
+        Settings settings = indexSettings(1, numReplicas).put(SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), Integer.toString(numReplicas))
             .build();
         assertAcked(indicesAdmin().prepareCreate("test-idx-1").setSettings(settings).get());
 
         // all should fail
         settings = Settings.builder().put(settings).put(SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), "all").build();
-        assertFalse(indicesAdmin().prepareCreate("test-idx-2").setSettings(settings).setTimeout("100ms").get().isShardsAcknowledged());
+        assertFalse(
+            indicesAdmin().prepareCreate("test-idx-2")
+                .setSettings(settings)
+                .setTimeout(TimeValue.timeValueMillis(100))
+                .get()
+                .isShardsAcknowledged()
+        );
 
         // the numeric equivalent of all should also fail
         settings = Settings.builder().put(settings).put(SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), Integer.toString(numReplicas + 1)).build();
-        assertFalse(indicesAdmin().prepareCreate("test-idx-3").setSettings(settings).setTimeout("100ms").get().isShardsAcknowledged());
+        assertFalse(
+            indicesAdmin().prepareCreate("test-idx-3")
+                .setSettings(settings)
+                .setTimeout(TimeValue.timeValueMillis(100))
+                .get()
+                .isShardsAcknowledged()
+        );
     }
 
     public void testInvalidPartitionSize() {
@@ -356,6 +399,40 @@ public class CreateIndexIT extends ESIntegTestCase {
         CreateIndexResponse response = prepareCreate("foo").setSettings(Settings.builder().build()).get();
 
         assertEquals("Should have index name in response", "foo", response.index());
+    }
+
+    public void testInfiniteAckTimeout() throws IOException {
+        final var clusterService = internalCluster().getInstance(ClusterService.class);
+        final var barrier = new CyclicBarrier(2);
+        clusterService.getClusterApplierService().runOnApplierThread("block for test", Priority.NORMAL, cs -> {
+            safeAwait(barrier);
+            safeAwait(barrier);
+        }, ActionListener.noop());
+
+        safeAwait(barrier);
+
+        final var request = ESRestTestCase.newXContentRequest(
+            HttpMethod.PUT,
+            "testindex",
+            (builder, params) -> builder.startObject("settings")
+                .field(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .field(SETTING_NUMBER_OF_REPLICAS, internalCluster().numDataNodes() - 1)
+                .endObject()
+        );
+        request.addParameter("timeout", "-1");
+        final var responseFuture = new PlainActionFuture<Response>();
+        getRestClient().performRequestAsync(request, ActionTestUtils.wrapAsRestResponseListener(responseFuture));
+
+        if (randomBoolean()) {
+            safeSleep(scaledRandomIntBetween(1, 100));
+        }
+
+        assertFalse(responseFuture.isDone());
+        safeAwait(barrier);
+
+        final var response = FutureUtils.get(responseFuture, 10, TimeUnit.SECONDS);
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        assertTrue((boolean) extractValue("acknowledged", entityAsMap(response)));
     }
 
 }

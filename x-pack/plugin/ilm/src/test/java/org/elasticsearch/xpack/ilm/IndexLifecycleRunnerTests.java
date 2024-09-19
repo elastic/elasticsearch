@@ -237,7 +237,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
     public void testRunPolicyErrorStepOnRetryableFailedStep() {
         String policyName = "rollover_policy";
         String phaseName = "hot";
-        TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
+        TimeValue after = randomTimeValue(0, 1_000_000_000, TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS);
         Map<String, LifecycleAction> actions = new HashMap<>();
         RolloverAction action = RolloverActionTests.randomInstance();
         actions.put(RolloverAction.NAME, action);

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.source;
 
@@ -167,5 +168,19 @@ public class MetadataFetchingIT extends ESIntegTestCase {
             );
             assertThat(exc.getMessage(), equalTo("cannot combine _none_ with other fields"));
         }
+    }
+
+    public void testFetchId() {
+        assertAcked(prepareCreate("test"));
+        ensureGreen();
+
+        prepareIndex("test").setId("1").setSource("field", "value").get();
+        refresh();
+
+        assertResponse(prepareSearch("test").addFetchField("_id"), response -> {
+            assertEquals(1, response.getHits().getHits().length);
+            assertEquals("1", response.getHits().getAt(0).getId());
+            assertEquals("1", response.getHits().getAt(0).field("_id").getValue());
+        });
     }
 }

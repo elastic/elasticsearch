@@ -246,10 +246,7 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
                 """);
             ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(request));
             assertThat(exception.getResponse().toString(), exception.getResponse().getStatusLine().getStatusCode(), is(400));
-            assertThat(
-                exception.getMessage(),
-                containsString("Field [api_key_invalidated] is not allowed for API Key query or aggregation")
-            );
+            assertThat(exception.getMessage(), containsString("Field [api_key_invalidated] is not allowed for querying or aggregation"));
         }
         {
             Request request = new Request("GET", "/_security/_query/api_key" + (randomBoolean() ? "?typed_keys" : ""));
@@ -282,7 +279,7 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
                 """);
             ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(request));
             assertThat(exception.getResponse().toString(), exception.getResponse().getStatusLine().getStatusCode(), is(400));
-            assertThat(exception.getMessage(), containsString("Field [creator.realm] is not allowed for API Key query or aggregation"));
+            assertThat(exception.getMessage(), containsString("Field [creator.realm] is not allowed for querying or aggregation"));
         }
     }
 
@@ -418,7 +415,7 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
                 """);
             ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(request));
             assertThat(exception.getResponse().toString(), exception.getResponse().getStatusLine().getStatusCode(), is(400));
-            assertThat(exception.getMessage(), containsString("Field [runtime_key_type] is not allowed for API Key query or aggregation"));
+            assertThat(exception.getMessage(), containsString("Field [runtime_key_type] is not allowed for querying or aggregation"));
         }
     }
 
@@ -549,7 +546,7 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
                 """);
             ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(request));
             assertThat(exception.getResponse().toString(), exception.getResponse().getStatusLine().getStatusCode(), is(400));
-            assertThat(exception.getMessage(), containsString("Field [creator] is not allowed for API Key query or aggregation"));
+            assertThat(exception.getMessage(), containsString("Field [creator] is not allowed for querying or aggregation"));
         }
     }
 

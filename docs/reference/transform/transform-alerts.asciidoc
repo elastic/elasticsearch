@@ -18,18 +18,19 @@ refer to
 
 You can create {transform} rules under **{stack-manage-app} > {rules-ui}**.
 
-. On the *Create rule* window, give a name to the rule and optionally provide 
-tags. Select the {transform} health rule type:
-+
---
-[role="screenshot"]
-image::images/transform-rule.png["Creating a transform health rule",500]
-// NOTE: This is screenshot is automatically generated. Do not edit it directly.
---
+. Click *Create rule* and select the {transform} health rule type.
+
+. Give a name to the rule and optionally provide tags.
 
 . Select the {transform} or {transforms} to include. You can also use a special 
 character (`*`) to apply the rule to all your {transforms}. {transforms-cap} 
 created after the rule are automatically included.
++
+--
+[role="screenshot"]
+image::images/transform-check-config.png["Selecting health check",500]
+// NOTE: This is screenshot is automatically generated. Do not edit it directly.
+--
 
 . The following health checks are available and enabled by default:
 +
@@ -41,10 +42,6 @@ _{transform-cap} is not started_::
 _Unhealthy {transform}_:: 
   Get alerts when a {transform} has an unhealthy status.
   The notification message contains status details and related issues.
-
-[role="screenshot"]
-image::images/transform-check-config.png["Selecting health check",500]
-// NOTE: This is screenshot is automatically generated. Do not edit it directly.
 --
 
 . Set the check interval, which defines how often to evaluate the rule conditions.

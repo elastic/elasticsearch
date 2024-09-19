@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
@@ -89,7 +90,10 @@ public class DesiredBalanceReconciler {
     private final DoubleGauge undesiredAllocationsRatio;
 
     public DesiredBalanceReconciler(ClusterSettings clusterSettings, ThreadPool threadPool, MeterRegistry meterRegistry) {
-        this.undesiredAllocationLogInterval = new FrequencyCappedAction(threadPool);
+        this.undesiredAllocationLogInterval = new FrequencyCappedAction(
+            threadPool.relativeTimeInMillisSupplier(),
+            TimeValue.timeValueMinutes(5)
+        );
         clusterSettings.initializeAndWatch(UNDESIRED_ALLOCATIONS_LOG_INTERVAL_SETTING, this.undesiredAllocationLogInterval::setMinInterval);
         clusterSettings.initializeAndWatch(
             UNDESIRED_ALLOCATIONS_LOG_THRESHOLD_SETTING,
@@ -226,19 +230,19 @@ public class DesiredBalanceReconciler {
             while (unassignedIterator.hasNext()) {
                 final ShardRouting shardRouting = unassignedIterator.next();
                 final UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
-                if (shardRouting.primary() && unassignedInfo.getLastAllocationStatus() == AllocationStatus.NO_ATTEMPT) {
+                if (shardRouting.primary() && unassignedInfo.lastAllocationStatus() == AllocationStatus.NO_ATTEMPT) {
                     unassignedIterator.updateUnassigned(
                         new UnassignedInfo(
-                            unassignedInfo.getReason(),
-                            unassignedInfo.getMessage(),
-                            unassignedInfo.getFailure(),
-                            unassignedInfo.getNumFailedAllocations(),
-                            unassignedInfo.getUnassignedTimeInNanos(),
-                            unassignedInfo.getUnassignedTimeInMillis(),
-                            unassignedInfo.isDelayed(),
+                            unassignedInfo.reason(),
+                            unassignedInfo.message(),
+                            unassignedInfo.failure(),
+                            unassignedInfo.failedAllocations(),
+                            unassignedInfo.unassignedTimeNanos(),
+                            unassignedInfo.unassignedTimeMillis(),
+                            unassignedInfo.delayed(),
                             AllocationStatus.DECIDERS_NO,
-                            unassignedInfo.getFailedNodeIds(),
-                            unassignedInfo.getLastAllocatedNodeId()
+                            unassignedInfo.failedNodeIds(),
+                            unassignedInfo.lastAllocatedNodeId()
                         ),
                         shardRouting.recoverySource(),
                         allocation.changes()
@@ -441,7 +445,7 @@ public class DesiredBalanceReconciler {
         private void moveShards() {
             // Iterate over all started shards and check if they can remain. In the presence of throttling shard movements,
             // the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are offloading the shards.
-            for (final var iterator = OrderedShardsIterator.create(routingNodes, moveOrdering); iterator.hasNext();) {
+            for (final var iterator = OrderedShardsIterator.createForNecessaryMoves(allocation, moveOrdering); iterator.hasNext();) {
                 final var shardRouting = iterator.next();
 
                 if (shardRouting.started() == false) {
@@ -480,6 +484,7 @@ public class DesiredBalanceReconciler {
                         shardRouting,
                         moveTarget.getId(),
                         allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
+                        "move",
                         allocation.changes()
                     );
                     iterator.dePrioritizeNode(shardRouting.currentNodeId());
@@ -500,7 +505,7 @@ public class DesiredBalanceReconciler {
             // Iterate over all started shards and try to move any which are on undesired nodes. In the presence of throttling shard
             // movements, the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are offloading the
             // shards.
-            for (final var iterator = OrderedShardsIterator.create(routingNodes, moveOrdering); iterator.hasNext();) {
+            for (final var iterator = OrderedShardsIterator.createForBalancing(allocation, moveOrdering); iterator.hasNext();) {
                 final var shardRouting = iterator.next();
 
                 totalAllocations++;
@@ -546,6 +551,7 @@ public class DesiredBalanceReconciler {
                         shardRouting,
                         rebalanceTarget.getId(),
                         allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
+                        "rebalance",
                         allocation.changes()
                     );
                     iterator.dePrioritizeNode(shardRouting.currentNodeId());

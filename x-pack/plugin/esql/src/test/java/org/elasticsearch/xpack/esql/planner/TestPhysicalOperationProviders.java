@@ -31,15 +31,14 @@ import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes;
 
 import java.util.List;
 import java.util.Random;
@@ -165,6 +164,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         private final MappedFieldType.FieldExtractPreference extractPreference;
 
         TestFieldExtractOperator(String columnName, DataType dataType, MappedFieldType.FieldExtractPreference extractPreference) {
+            assert columnNames.contains(columnName);
             this.columnName = columnName;
             this.dataType = dataType;
             this.extractPreference = extractPreference;
@@ -276,7 +276,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
             return new TestHashAggregationOperator(
                 aggregators,
                 () -> BlockHash.build(
-                    List.of(new HashAggregationOperator.GroupSpec(groupByChannel, groupElementType)),
+                    List.of(new BlockHash.GroupSpec(groupByChannel, groupElementType)),
                     driverContext.blockFactory(),
                     pageSize,
                     false
@@ -322,7 +322,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
     }
 
     private boolean shouldMapToDocValues(DataType dataType, MappedFieldType.FieldExtractPreference extractPreference) {
-        return extractPreference == DOC_VALUES && EsqlDataTypes.isSpatialPoint(dataType);
+        return extractPreference == DOC_VALUES && DataType.isSpatialPoint(dataType);
     }
 
     private static class TestBlockCopier {
@@ -372,8 +372,14 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
                     if (count == 0) {
                         builder.appendNull();
                     } else {
+                        if (count > 1) {
+                            builder.beginPositionEntry();
+                        }
                         for (int v = 0; v < count; v++) {
-                            builder.appendLong(encode(bytesRefBlock.getBytesRef(i, scratch)));
+                            builder.appendLong(encode(bytesRefBlock.getBytesRef(i + v, scratch)));
+                        }
+                        if (count > 1) {
+                            builder.endPositionEntry();
                         }
                     }
                 }

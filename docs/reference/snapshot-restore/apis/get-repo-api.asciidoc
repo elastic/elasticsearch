@@ -59,7 +59,7 @@ cluster, omit this parameter or use `*` or `_all`.
 only. If `false`, the request gets information from the master node. Defaults to
 `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [role="child_attributes"]
 [[get-snapshot-repo-api-response-body]]

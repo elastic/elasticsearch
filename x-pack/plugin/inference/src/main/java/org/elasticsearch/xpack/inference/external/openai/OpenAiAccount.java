@@ -7,15 +7,27 @@
 
 package org.elasticsearch.xpack.inference.external.openai;
 
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiModel;
 
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Objects;
 
-public record OpenAiAccount(@Nullable URI url, @Nullable String organizationId, SecureString apiKey) {
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.buildUri;
+
+public record OpenAiAccount(URI uri, @Nullable String organizationId, SecureString apiKey) {
+
+    public static OpenAiAccount of(OpenAiModel model, CheckedSupplier<URI, URISyntaxException> uriBuilder) {
+        var uri = buildUri(model.rateLimitServiceSettings().uri(), "OpenAI", uriBuilder);
+
+        return new OpenAiAccount(uri, model.rateLimitServiceSettings().organizationId(), model.apiKey());
+    }
 
     public OpenAiAccount {
+        Objects.requireNonNull(uri);
         Objects.requireNonNull(apiKey);
     }
 }

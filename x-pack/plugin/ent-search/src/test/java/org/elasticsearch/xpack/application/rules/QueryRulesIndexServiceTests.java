@@ -19,11 +19,15 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xpack.application.EnterpriseSearchModuleTestUtils;
+import org.elasticsearch.xpack.application.rules.action.DeleteQueryRuleAction;
+import org.elasticsearch.xpack.application.rules.action.PutQueryRuleAction;
 import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -47,7 +51,7 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
 
     @Before
     public void setup() {
-        Set<Setting<?>> settingsSet = ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
+        Set<Setting<?>> settingsSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         settingsSet.addAll(QueryRulesConfig.getSettings());
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, settingsSet);
         this.queryRulesIndexService = new QueryRulesIndexService(client(), clusterSettings);
@@ -74,7 +78,8 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
                 "my_rule1",
                 QueryRuleType.PINNED,
                 List.of(new QueryRuleCriteria(EXACT, "query_string", List.of("foo"))),
-                Map.of("ids", List.of("id1", "id2"))
+                Map.of("ids", List.of("id1", "id2")),
+                EnterpriseSearchModuleTestUtils.randomQueryRulePriority()
             );
             final QueryRuleset myQueryRuleset = new QueryRuleset("my_ruleset", Collections.singletonList(myQueryRule1));
             DocWriteResponse resp = awaitPutQueryRuleset(myQueryRuleset);
@@ -89,13 +94,15 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
             "my_rule1",
             QueryRuleType.PINNED,
             List.of(new QueryRuleCriteria(EXACT, "query_string", List.of("foo"))),
-            Map.of("docs", List.of(Map.of("_index", "my_index1", "_id", "id1"), Map.of("_index", "my_index2", "_id", "id2")))
+            Map.of("docs", List.of(Map.of("_index", "my_index1", "_id", "id1"), Map.of("_index", "my_index2", "_id", "id2"))),
+            EnterpriseSearchModuleTestUtils.randomQueryRulePriority()
         );
         final QueryRule myQueryRule2 = new QueryRule(
             "my_rule2",
             QueryRuleType.PINNED,
             List.of(new QueryRuleCriteria(EXACT, "query_string", List.of("bar"))),
-            Map.of("docs", List.of(Map.of("_index", "my_index1", "_id", "id3"), Map.of("_index", "my_index2", "_id", "id4")))
+            Map.of("docs", List.of(Map.of("_index", "my_index1", "_id", "id3"), Map.of("_index", "my_index2", "_id", "id4"))),
+            EnterpriseSearchModuleTestUtils.randomQueryRulePriority()
         );
         final QueryRuleset myQueryRuleset = new QueryRuleset("my_ruleset", List.of(myQueryRule1, myQueryRule2));
         DocWriteResponse newResp = awaitPutQueryRuleset(myQueryRuleset);
@@ -103,6 +110,58 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(newResp.getIndex(), equalTo(QUERY_RULES_CONCRETE_INDEX_NAME));
         QueryRuleset getQueryRuleset = awaitGetQueryRuleset(myQueryRuleset.id());
         assertThat(getQueryRuleset, equalTo(myQueryRuleset));
+    }
+
+    public void testUpdateQueryRule() throws Exception {
+        // Creating a rule in a nonexistent ruleset creates the ruleset
+        final QueryRule myQueryRule1 = new QueryRule(
+            "my_rule1",
+            QueryRuleType.PINNED,
+            List.of(new QueryRuleCriteria(EXACT, "query_string", List.of("foo"))),
+            Map.of("docs", List.of(Map.of("_index", "my_index1", "_id", "id1"), Map.of("_index", "my_index2", "_id", "id2"))),
+            EnterpriseSearchModuleTestUtils.randomQueryRulePriority()
+        );
+        final String rulesetId = "my_ruleset";
+        PutQueryRuleAction.Response newResp = awaitPutQueryRule(rulesetId, myQueryRule1);
+        assertThat(newResp.status(), equalTo(RestStatus.CREATED));
+
+        QueryRuleset getQueryRuleset = awaitGetQueryRuleset(rulesetId);
+        assertThat(getQueryRuleset, equalTo(new QueryRuleset("my_ruleset", List.of(myQueryRule1))));
+        QueryRule getQueryRule = awaitGetQueryRule(rulesetId, "my_rule1");
+        assertThat(getQueryRule, equalTo(myQueryRule1));
+
+        // Updating the same query rule in the ruleset returns OK instead of CREATED
+        final QueryRule updatedQueryRule1 = new QueryRule(
+            "my_rule1",
+            QueryRuleType.PINNED,
+            List.of(new QueryRuleCriteria(EXACT, "query_string", List.of("bar"))),
+            Map.of("docs", List.of(Map.of("_index", "my_index1", "_id", "id2"), Map.of("_index", "my_index2", "_id", "id1"))),
+            EnterpriseSearchModuleTestUtils.randomQueryRulePriority()
+        );
+        PutQueryRuleAction.Response updateResp = awaitPutQueryRule(rulesetId, updatedQueryRule1);
+        assertThat(updateResp.status(), equalTo(RestStatus.OK));
+
+        QueryRuleset getUpdatedQueryRuleset = awaitGetQueryRuleset(rulesetId);
+        assertThat(getUpdatedQueryRuleset, equalTo(new QueryRuleset("my_ruleset", List.of(updatedQueryRule1))));
+        QueryRule getUpdatedQueryRule = awaitGetQueryRule(rulesetId, "my_rule1");
+        assertThat(getUpdatedQueryRule, equalTo(updatedQueryRule1));
+
+        // Creating a new rule in an existing ruleset
+        final QueryRule myQueryRule2 = new QueryRule(
+            "my_rule2",
+            QueryRuleType.PINNED,
+            List.of(new QueryRuleCriteria(EXACT, "query_string", List.of("bar"))),
+            Map.of("docs", List.of(Map.of("_index", "my_index1", "_id", "id3"), Map.of("_index", "my_index2", "_id", "id4"))),
+            EnterpriseSearchModuleTestUtils.randomQueryRulePriority()
+        );
+
+        PutQueryRuleAction.Response addResp = awaitPutQueryRule(rulesetId, myQueryRule2);
+        assertThat(addResp.status(), equalTo(RestStatus.CREATED));
+
+        QueryRuleset getQueryRuleset2 = awaitGetQueryRuleset(rulesetId);
+        assertThat(getQueryRuleset2, equalTo(new QueryRuleset("my_ruleset", List.of(updatedQueryRule1, myQueryRule2))));
+        QueryRule getQueryRule2 = awaitGetQueryRule(rulesetId, "my_rule2");
+        assertThat(getQueryRule2, equalTo(myQueryRule2));
     }
 
     public void testListQueryRulesets() throws Exception {
@@ -116,7 +175,8 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
                         new QueryRuleCriteria(EXACT, "query_string", List.of("foo" + i)),
                         new QueryRuleCriteria(GTE, "query_string", List.of(i))
                     ),
-                    Map.of("ids", List.of("id1", "id2"))
+                    Map.of("ids", List.of("id1", "id2")),
+                    EnterpriseSearchModuleTestUtils.randomQueryRulePriority()
                 ),
                 new QueryRule(
                     "my_rule_" + i + "_" + (i + 1),
@@ -125,7 +185,8 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
                         new QueryRuleCriteria(FUZZY, "query_string", List.of("bar" + i)),
                         new QueryRuleCriteria(GTE, "user.age", List.of(i))
                     ),
-                    Map.of("ids", List.of("id3", "id4"))
+                    Map.of("ids", List.of("id3", "id4")),
+                    EnterpriseSearchModuleTestUtils.randomQueryRulePriority()
                 )
             );
             final QueryRuleset myQueryRuleset = new QueryRuleset("my_ruleset_" + i, rules);
@@ -175,13 +236,15 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
                 "my_rule1",
                 QueryRuleType.PINNED,
                 List.of(new QueryRuleCriteria(EXACT, "query_string", List.of("foo"))),
-                Map.of("ids", List.of("id1", "id2"))
+                Map.of("ids", List.of("id1", "id2")),
+                EnterpriseSearchModuleTestUtils.randomQueryRulePriority()
             );
             final QueryRule myQueryRule2 = new QueryRule(
                 "my_rule2",
                 QueryRuleType.PINNED,
                 List.of(new QueryRuleCriteria(EXACT, "query_string", List.of("bar"))),
-                Map.of("ids", List.of("id3", "id4"))
+                Map.of("ids", List.of("id3", "id4")),
+                EnterpriseSearchModuleTestUtils.randomQueryRulePriority()
             );
             final QueryRuleset myQueryRuleset = new QueryRuleset("my_ruleset", List.of(myQueryRule1, myQueryRule2));
             DocWriteResponse resp = awaitPutQueryRuleset(myQueryRuleset);
@@ -197,6 +260,45 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
         expectThrows(ResourceNotFoundException.class, () -> awaitGetQueryRuleset("my_ruleset"));
     }
 
+    public void testDeleteQueryRule() throws Exception {
+        for (int i = 0; i < 5; i++) {
+            final QueryRule myQueryRule1 = new QueryRule(
+                "my_rule1",
+                QueryRuleType.PINNED,
+                List.of(new QueryRuleCriteria(EXACT, "query_string", List.of("foo"))),
+                Map.of("ids", List.of("id1", "id2")),
+                randomBoolean() ? randomIntBetween(0, 100) : null
+            );
+            final QueryRule myQueryRule2 = new QueryRule(
+                "my_rule2",
+                QueryRuleType.PINNED,
+                List.of(new QueryRuleCriteria(EXACT, "query_string", List.of("bar"))),
+                Map.of("ids", List.of("id3", "id4")),
+                randomBoolean() ? randomIntBetween(0, 100) : null
+            );
+            final QueryRuleset myQueryRuleset = new QueryRuleset("my_ruleset", List.of(myQueryRule1, myQueryRule2));
+            DocWriteResponse resp = awaitPutQueryRuleset(myQueryRuleset);
+            assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+            assertThat(resp.getIndex(), equalTo(QUERY_RULES_CONCRETE_INDEX_NAME));
+
+            QueryRule getQueryRule = awaitGetQueryRule("my_ruleset", "my_rule1");
+            assertThat(getQueryRule, equalTo(myQueryRule1));
+
+            DeleteQueryRuleAction.Response deleteResp = awaitDeleteQueryRule("my_ruleset", "my_rule1");
+            assertThat(deleteResp.isAcknowledged(), equalTo(true));
+            expectThrows(ResourceNotFoundException.class, () -> awaitGetQueryRule("my_ruleset", "my_rule1"));
+
+            QueryRule getQueryRule2 = awaitGetQueryRule("my_ruleset", "my_rule2");
+            assertThat(getQueryRule2, equalTo(myQueryRule2));
+        }
+
+        // Deleting the last rule in the ruleset should delete the ruleset
+        DeleteQueryRuleAction.Response deleteResp = awaitDeleteQueryRule("my_ruleset", "my_rule2");
+        assertThat(deleteResp.isAcknowledged(), equalTo(true));
+        expectThrows(ResourceNotFoundException.class, () -> awaitGetQueryRule("my_ruleset", "my_rule2"));
+        expectThrows(ResourceNotFoundException.class, () -> awaitGetQueryRuleset("my_ruleset"));
+    }
+
     private DocWriteResponse awaitPutQueryRuleset(QueryRuleset queryRuleset) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<DocWriteResponse> resp = new AtomicReference<>(null);
@@ -204,6 +306,31 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
         queryRulesIndexService.putQueryRuleset(queryRuleset, new ActionListener<>() {
             @Override
             public void onResponse(DocWriteResponse indexResponse) {
+                resp.set(indexResponse);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exc.set(e);
+                latch.countDown();
+            }
+        });
+        assertTrue("Timeout waiting for put request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
+        assertNotNull("Received null response from put request", resp.get());
+        return resp.get();
+    }
+
+    private PutQueryRuleAction.Response awaitPutQueryRule(String queryRulesetId, QueryRule queryRule) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<PutQueryRuleAction.Response> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        queryRulesIndexService.putQueryRule(queryRulesetId, queryRule, new ActionListener<>() {
+            @Override
+            public void onResponse(PutQueryRuleAction.Response indexResponse) {
                 resp.set(indexResponse);
                 latch.countDown();
             }
@@ -247,6 +374,31 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
         return resp.get();
     }
 
+    private QueryRule awaitGetQueryRule(String rulesetId, String ruleId) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<QueryRule> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        queryRulesIndexService.getQueryRule(rulesetId, ruleId, new ActionListener<>() {
+            @Override
+            public void onResponse(QueryRule rule) {
+                resp.set(rule);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exc.set(e);
+                latch.countDown();
+            }
+        });
+        assertTrue("Timeout waiting for get request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
+        assertNotNull("Received null response from get request", resp.get());
+        return resp.get();
+    }
+
     private DeleteResponse awaitDeleteQueryRuleset(String name) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<DeleteResponse> resp = new AtomicReference<>(null);
@@ -254,6 +406,31 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
         queryRulesIndexService.deleteQueryRuleset(name, new ActionListener<>() {
             @Override
             public void onResponse(DeleteResponse deleteResponse) {
+                resp.set(deleteResponse);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exc.set(e);
+                latch.countDown();
+            }
+        });
+        assertTrue("Timeout waiting for delete request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
+        assertNotNull("Received null response from delete request", resp.get());
+        return resp.get();
+    }
+
+    private DeleteQueryRuleAction.Response awaitDeleteQueryRule(String rulesetId, String ruleId) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<DeleteQueryRuleAction.Response> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        queryRulesIndexService.deleteQueryRule(rulesetId, ruleId, new ActionListener<>() {
+            @Override
+            public void onResponse(DeleteQueryRuleAction.Response deleteResponse) {
                 resp.set(deleteResponse);
                 latch.countDown();
             }

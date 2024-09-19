@@ -7,7 +7,7 @@
 
 NOTE: {cloud-only}
 
-Delete autoscaling policy.
+Delete {cloud}/ec-autoscaling.html[autoscaling] policy.
 
 [[autoscaling-delete-autoscaling-policy-request]]
 ==== {api-request-title}
@@ -47,6 +47,11 @@ users can use this API.
 ==== {api-description-title}
 
 This API deletes an autoscaling policy with the provided name.
+
+[[autoscaling-delete-autoscaling-policy-params]]
+==== {api-query-parms-title}
+
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 [[autoscaling-delete-autoscaling-policy-examples]]
 ==== {api-examples-title}

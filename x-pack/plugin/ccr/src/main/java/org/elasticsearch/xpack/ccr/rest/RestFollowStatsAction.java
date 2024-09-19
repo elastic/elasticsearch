@@ -40,9 +40,7 @@ public class RestFollowStatsAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(final RestRequest restRequest, final NodeClient client) {
         final FollowStatsAction.StatsRequest request = new FollowStatsAction.StatsRequest();
         request.setIndices(Strings.splitStringByCommaToArray(restRequest.param("index")));
-        if (restRequest.hasParam("timeout")) {
-            request.setTimeout(restRequest.param("timeout"));
-        }
+        request.setTimeout(restRequest.paramAsTime("timeout", request.getTimeout()));
         return channel -> client.execute(
             FollowStatsAction.INSTANCE,
             request,

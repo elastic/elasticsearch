@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -259,6 +260,24 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
             });
         }
     }
+
+    /**
+     * Executed when a shard returns a rank feature result.
+     *
+     * @param shardIndex The index of the shard in the list provided by {@link SearchProgressListener#onListShards})}.
+     */
+    @Override
+    public void onRankFeatureResult(int shardIndex) {}
+
+    /**
+     * Executed when a shard reports a rank feature failure.
+     *
+     * @param shardIndex The index of the shard in the list provided by {@link SearchProgressListener#onListShards})}.
+     * @param shardTarget The last shard target that thrown an exception.
+     * @param exc The cause of the failure.
+     */
+    @Override
+    public void onRankFeatureFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {}
 
     /**
      * Executed when a shard returns a fetch result.

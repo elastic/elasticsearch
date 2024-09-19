@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.query;
@@ -220,8 +221,6 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
         );
         final IndexReader reader = searchContext.searcher().getIndexReader();
         final Query query = searchContext.rewrittenQuery();
-        // top collectors don't like a size of 0
-        final int totalNumDocs = Math.max(1, reader.numDocs());
         if (searchContext.size() == 0) {
             return new EmptyHits(
                 postFilterWeight,
@@ -232,46 +231,10 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
                 searchContext.sort(),
                 searchContext.trackTotalHitsUpTo()
             );
-        } else if (searchContext.scrollContext() != null) {
-            // we can disable the tracking of total hits after the initial scroll query
-            // since the total hits is preserved in the scroll context.
-            int trackTotalHitsUpTo = searchContext.scrollContext().totalHits != null
-                ? SearchContext.TRACK_TOTAL_HITS_DISABLED
-                : SearchContext.TRACK_TOTAL_HITS_ACCURATE;
-            // no matter what the value of from is
-            int numDocs = Math.min(searchContext.size(), totalNumDocs);
-            return forScroll(
-                postFilterWeight,
-                terminateAfterChecker,
-                aggsCollectorManager,
-                searchContext.minimumScore(),
-                searchContext.getProfilers() != null,
-                reader,
-                query,
-                searchContext.sort(),
-                numDocs,
-                searchContext.trackScores(),
-                trackTotalHitsUpTo,
-                hasFilterCollector,
-                searchContext.scrollContext(),
-                searchContext.numberOfShards()
-            );
-        } else if (searchContext.collapse() != null) {
-            boolean trackScores = searchContext.sort() == null || searchContext.trackScores();
-            int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
-            return forCollapsing(
-                postFilterWeight,
-                terminateAfterChecker,
-                aggsCollectorManager,
-                searchContext.minimumScore(),
-                searchContext.getProfilers() != null,
-                searchContext.collapse(),
-                searchContext.sort(),
-                numDocs,
-                trackScores,
-                searchContext.searchAfter()
-            );
-        } else {
+        }
+        // top collectors don't like a size of 0
+        final int totalNumDocs = Math.max(1, reader.numDocs());
+        if (searchContext.scrollContext() == null) {
             int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
             final boolean rescore = searchContext.rescore().isEmpty() == false;
             if (rescore) {
@@ -280,22 +243,61 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
                     numDocs = Math.max(numDocs, rescoreContext.getWindowSize());
                 }
             }
-            return new WithHits(
-                postFilterWeight,
-                terminateAfterChecker,
-                aggsCollectorManager,
-                searchContext.minimumScore(),
-                searchContext.getProfilers() != null,
-                reader,
-                query,
-                searchContext.sort(),
-                searchContext.searchAfter(),
-                numDocs,
-                searchContext.trackScores(),
-                searchContext.trackTotalHitsUpTo(),
-                hasFilterCollector
-            );
+            if (searchContext.collapse() == null) {
+                return new WithHits(
+                    postFilterWeight,
+                    terminateAfterChecker,
+                    aggsCollectorManager,
+                    searchContext.minimumScore(),
+                    searchContext.getProfilers() != null,
+                    reader,
+                    query,
+                    searchContext.sort(),
+                    searchContext.searchAfter(),
+                    numDocs,
+                    searchContext.trackScores(),
+                    searchContext.trackTotalHitsUpTo(),
+                    hasFilterCollector
+                );
+            } else {
+                boolean trackScores = searchContext.sort() == null || searchContext.trackScores();
+                return forCollapsing(
+                    postFilterWeight,
+                    terminateAfterChecker,
+                    aggsCollectorManager,
+                    searchContext.minimumScore(),
+                    searchContext.getProfilers() != null,
+                    searchContext.collapse(),
+                    searchContext.sort(),
+                    numDocs,
+                    trackScores,
+                    searchContext.searchAfter()
+                );
+            }
         }
+        // we can disable the tracking of total hits after the initial scroll query
+        // since the total hits is preserved in the scroll context.
+        int trackTotalHitsUpTo = searchContext.scrollContext().totalHits != null
+            ? SearchContext.TRACK_TOTAL_HITS_DISABLED
+            : SearchContext.TRACK_TOTAL_HITS_ACCURATE;
+        // no matter what the value of from is
+        int numDocs = Math.min(searchContext.size(), totalNumDocs);
+        return forScroll(
+            postFilterWeight,
+            terminateAfterChecker,
+            aggsCollectorManager,
+            searchContext.minimumScore(),
+            searchContext.getProfilers() != null,
+            reader,
+            query,
+            searchContext.sort(),
+            numDocs,
+            searchContext.trackScores(),
+            trackTotalHitsUpTo,
+            hasFilterCollector,
+            searchContext.scrollContext(),
+            searchContext.numberOfShards()
+        );
     }
 
     /**
@@ -399,7 +401,7 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
             } else if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                 // don't compute hit counts via the collector
                 hitCountThreshold = 1;
-                shortcutTotalHits = new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
+                shortcutTotalHits = Lucene.TOTAL_HITS_GREATER_OR_EQUAL_TO_ZERO;
             } else {
                 // implicit total hit counts are valid only when there is no filter collector in the chain
                 final int hitCount = hasFilterCollector ? -1 : shortcutTotalHitCount(reader, query);

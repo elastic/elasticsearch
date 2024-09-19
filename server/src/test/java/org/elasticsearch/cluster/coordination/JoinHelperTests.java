@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -28,7 +29,7 @@ import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.CapturingTransport.CapturedRequest;
@@ -346,18 +347,17 @@ public class JoinHelperTests extends ESTestCase {
         joinAccumulator.handleJoinRequest(localNode, CompatibilityVersionsUtils.staticCurrent(), Set.of(), joinListener);
         assert joinListener.isDone() == false;
 
-        final var mockAppender = new MockLogAppender();
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "warning log",
-                JoinHelper.class.getCanonicalName(),
-                Level.WARN,
-                "failed to retrieve latest stored state after winning election in term [1]"
-            )
-        );
-        try (var ignored = mockAppender.capturing(JoinHelper.class)) {
+        try (var mockLog = MockLog.capture(JoinHelper.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "warning log",
+                    JoinHelper.class.getCanonicalName(),
+                    Level.WARN,
+                    "failed to retrieve latest stored state after winning election in term [1]"
+                )
+            );
             joinAccumulator.close(Coordinator.Mode.LEADER);
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
 
         assertEquals("simulated", expectThrows(ElasticsearchException.class, () -> FutureUtils.get(joinListener)).getMessage());

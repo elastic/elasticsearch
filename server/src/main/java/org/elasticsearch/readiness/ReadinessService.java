@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.readiness;
@@ -21,7 +22,9 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.reservedstate.service.FileSettingsFeatures;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.transport.BindTransportException;
@@ -38,6 +41,7 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 public class ReadinessService extends AbstractLifecycleComponent implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(ReadinessService.class);
@@ -244,17 +248,54 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
                 logger.info("marking node as not ready because it's shutting down");
             }
         } else {
-            boolean masterElected = clusterState.nodes().getMasterNodeId() != null;
-            boolean fileSettingsApplied = areFileSettingsApplied(clusterState);
-            logger.info("readiness: masterElected={}, fileSettingsApplied={}", masterElected, fileSettingsApplied);
+            boolean masterElected = getReadinessState(clusterState, event.previousState(), this::isMasterElected, "masterElected");
+            boolean fileSettingsApplied = getReadinessState(
+                clusterState,
+                event.previousState(),
+                this::areFileSettingsApplied,
+                "fileSettingsApplied"
+            );
             setReady(masterElected && fileSettingsApplied);
         }
+    }
+
+    private boolean getReadinessState(
+        ClusterState clusterState,
+        ClusterState previousState,
+        Function<ClusterState, Boolean> accessor,
+        String description
+    ) {
+        boolean newStateValue = accessor.apply(clusterState);
+        boolean oldStateValue = accessor.apply(previousState);
+        if (oldStateValue != newStateValue) {
+            logger.info("readiness change: {}={}", description, newStateValue);
+        }
+        return newStateValue;
+    }
+
+    private boolean isMasterElected(ClusterState clusterState) {
+        return clusterState.nodes().getMasterNodeId() != null;
     }
 
     // protected to allow mock service to override
     protected boolean areFileSettingsApplied(ClusterState clusterState) {
         ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
-        return fileSettingsMetadata != null && fileSettingsMetadata.errorMetadata() == null;
+        if (fileSettingsMetadata == null) {
+            // In order to block readiness on file settings being applied, we need to know that the master node has written an initial
+            // version, or a marker that file settings don't exist. When upgrading from a version that did not have file settings, the
+            // current master node may not be the first node upgraded. To be safe, we wait to consider file settings application for
+            // readiness until the whole cluster supports file settings. Note that this only applies when no reserved state metadata
+            // exists, so either we are starting up a current cluster (and the feature will be found) or we are upgrading from
+            // a version before file settings existed (before 8.4).
+            return supportsFileSettings(clusterState) == false;
+        } else {
+            return fileSettingsMetadata.version().equals(ReservedStateMetadata.NO_VERSION) == false;
+        }
+    }
+
+    @SuppressForbidden(reason = "need to check file settings support on exact cluster state")
+    private static boolean supportsFileSettings(ClusterState clusterState) {
+        return clusterState.clusterFeatures().clusterHasFeature(FileSettingsFeatures.FILE_SETTINGS_SUPPORTED);
     }
 
     private void setReady(boolean ready) {

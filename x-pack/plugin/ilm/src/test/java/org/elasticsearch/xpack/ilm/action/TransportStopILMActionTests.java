@@ -52,7 +52,7 @@ public class TransportStopILMActionTests extends ESTestCase {
             new TaskId(randomLong() + ":" + randomLong()),
             emptyMap()
         );
-        StopILMRequest request = new StopILMRequest();
+        StopILMRequest request = new StopILMRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         transportStopILMAction.masterOperation(task, request, ClusterState.EMPTY_STATE, ActionListener.noop());
 
         verify(clusterService).submitUnbatchedStateUpdateTask(

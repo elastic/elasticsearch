@@ -2,4 +2,4 @@
 
 *Description*
 
-Euler’s number.
+Returns {wikipedia}/E_(mathematical_constant)[Euler's number].

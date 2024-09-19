@@ -26,7 +26,7 @@ final class StackTrace implements ToXContentObject {
     String[] fileIds;
     String[] frameIds;
     int[] typeIds;
-    Map<String, Long> subGroups;
+    SubGroup subGroups;
     double annualCO2Tons;
     double annualCostsUSD;
     long count;

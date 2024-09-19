@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.coordination;
@@ -14,7 +15,7 @@ import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -50,18 +51,16 @@ public class ElectionSchedulerFactoryTests extends ESTestCase {
         final TimeValue initialGracePeriod = randomGracePeriod();
         final AtomicBoolean electionStarted = new AtomicBoolean();
 
-        final MockLogAppender appender = new MockLogAppender();
-
         try (
-            var ignored0 = appender.capturing(ElectionSchedulerFactory.class);
+            var mockLog = MockLog.capture(ElectionSchedulerFactory.class);
             var ignored1 = electionSchedulerFactory.startElectionScheduler(
                 initialGracePeriod,
                 () -> assertTrue(electionStarted.compareAndSet(false, true))
             )
         ) {
 
-            appender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
                     "no zero retries message",
                     ElectionSchedulerFactory.class.getName(),
                     Level.INFO,
@@ -70,8 +69,8 @@ public class ElectionSchedulerFactoryTests extends ESTestCase {
             );
             for (int i : new int[] { 10, 20, 990 }) {
                 // the test may stop after 1000 attempts, so might not report the 1000th failure; it definitely reports the 990th tho.
-                appender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
                         i + " retries message",
                         ElectionSchedulerFactory.class.getName(),
                         Level.INFO,
@@ -125,7 +124,7 @@ public class ElectionSchedulerFactoryTests extends ESTestCase {
                 lastElectionFinishTime = thisElectionStartTime + duration;
             }
 
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
         deterministicTaskQueue.runAllTasks();
         assertFalse(electionStarted.get());

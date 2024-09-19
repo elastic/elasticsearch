@@ -41,7 +41,7 @@ class ToCharFormatter {
             of("HH12").formatFn("hh").numeric(),
             of("HH24").formatFn("HH").numeric(),
             of("MI").formatFn("mm").numeric(),
-            of("SS").formatFn("s", x -> String.format(Locale.ROOT, "%02d", parseInt(x))).numeric(),
+            of("SS").formatFn("s", x -> String.format(Locale.ENGLISH, "%02d", parseInt(x))).numeric(),
             of("MS").formatFn("n", nano -> firstDigitsOfNanos(nano, 3)).numericWithLeadingZeros(),
             of("US").formatFn("n", nano -> firstDigitsOfNanos(nano, 6)).numericWithLeadingZeros(),
             of("FF1").formatFn("n", nano -> firstDigitsOfNanos(nano, 1)).numericWithLeadingZeros(),
@@ -52,14 +52,14 @@ class ToCharFormatter {
             of("FF6").formatFn("n", nano -> firstDigitsOfNanos(nano, 6)).numericWithLeadingZeros(),
             of("SSSSS").formatFn("A", milliSecondOfDay -> String.valueOf(parseInt(milliSecondOfDay) / 1000)).numeric(),
             of("SSSS").formatFn("A", milliSecondOfDay -> String.valueOf(parseInt(milliSecondOfDay) / 1000)).numeric(),
-            of("AM").formatFn("a", x -> x.toUpperCase(Locale.ROOT)).text(),
-            of("am").formatFn("a", x -> x.toLowerCase(Locale.ROOT)).text(),
-            of("PM").formatFn("a", x -> x.toUpperCase(Locale.ROOT)).text(),
-            of("pm").formatFn("a", x -> x.toLowerCase(Locale.ROOT)).text(),
+            of("AM").formatFn("a", x -> x.toUpperCase(Locale.ENGLISH)).text(),
+            of("am").formatFn("a", x -> x.toLowerCase(Locale.ENGLISH)).text(),
+            of("PM").formatFn("a", x -> x.toUpperCase(Locale.ENGLISH)).text(),
+            of("pm").formatFn("a", x -> x.toLowerCase(Locale.ENGLISH)).text(),
             of("A.M.").formatFn("a", x -> x.charAt(0) + "." + x.charAt(1) + ".").text(),
-            of("a.m.").formatFn("a", x -> (x.charAt(0) + "." + x.charAt(1) + ".").toLowerCase(Locale.ROOT)).text(),
+            of("a.m.").formatFn("a", x -> (x.charAt(0) + "." + x.charAt(1) + ".").toLowerCase(Locale.ENGLISH)).text(),
             of("P.M.").formatFn("a", x -> x.charAt(0) + "." + x.charAt(1) + ".").text(),
-            of("p.m.").formatFn("a", x -> (x.charAt(0) + "." + x.charAt(1) + ".").toLowerCase(Locale.ROOT)).text(),
+            of("p.m.").formatFn("a", x -> (x.charAt(0) + "." + x.charAt(1) + ".").toLowerCase(Locale.ENGLISH)).text(),
             of("Y,YYY").formatFn("yyyy", year -> year.charAt(0) + "," + year.substring(1)).numericWithLeadingZeros(),
             of("YYYY").formatFn("yyyy").numeric(),
             of("YYY").formatFn("yyyy", year -> year.substring(1)).numeric(),
@@ -70,51 +70,53 @@ class ToCharFormatter {
             of("IY").formatFn(t -> lastNCharacter(absoluteWeekBasedYear(t), 2)).numeric(),
             of("I").formatFn(t -> lastNCharacter(absoluteWeekBasedYear(t), 1)).numeric(),
             of("BC").formatFn("G").text(),
-            of("bc").formatFn("G", x -> x.toLowerCase(Locale.ROOT)).text(),
+            of("bc").formatFn("G", x -> x.toLowerCase(Locale.ENGLISH)).text(),
             of("AD").formatFn("G").text(),
-            of("ad").formatFn("G", x -> x.toLowerCase(Locale.ROOT)).text(),
+            of("ad").formatFn("G", x -> x.toLowerCase(Locale.ENGLISH)).text(),
             of("B.C.").formatFn("G", x -> x.charAt(0) + "." + x.charAt(1) + ".").text(),
-            of("b.c.").formatFn("G", x -> (x.charAt(0) + "." + x.charAt(1) + ".").toLowerCase(Locale.ROOT)).text(),
+            of("b.c.").formatFn("G", x -> (x.charAt(0) + "." + x.charAt(1) + ".").toLowerCase(Locale.ENGLISH)).text(),
             of("A.D.").formatFn("G", x -> x.charAt(0) + "." + x.charAt(1) + ".").text(),
-            of("a.d.").formatFn("G", x -> (x.charAt(0) + "." + x.charAt(1) + ".").toLowerCase(Locale.ROOT)).text(),
-            of("MONTH").formatFn("MMMM", x -> String.format(Locale.ROOT, "%-9s", x.toUpperCase(Locale.ROOT))).text(),
-            of("Month").formatFn("MMMM", x -> String.format(Locale.ROOT, "%-9s", x)).text(),
-            of("month").formatFn("MMMM", x -> String.format(Locale.ROOT, "%-9s", x.toLowerCase(Locale.ROOT))).text(),
-            of("MON").formatFn("MMM", x -> x.toUpperCase(Locale.ROOT)).text(),
+            of("a.d.").formatFn("G", x -> (x.charAt(0) + "." + x.charAt(1) + ".").toLowerCase(Locale.ENGLISH)).text(),
+            of("MONTH").formatFn("MMMM", x -> String.format(Locale.ENGLISH, "%-9s", x.toUpperCase(Locale.ENGLISH))).text(),
+            of("Month").formatFn("MMMM", x -> String.format(Locale.ENGLISH, "%-9s", x)).text(),
+            of("month").formatFn("MMMM", x -> String.format(Locale.ENGLISH, "%-9s", x.toLowerCase(Locale.ENGLISH))).text(),
+            of("MON").formatFn("MMM", x -> x.toUpperCase(Locale.ENGLISH)).text(),
             of("Mon").formatFn("MMM").text(),
-            of("mon").formatFn("MMM", x -> x.toLowerCase(Locale.ROOT)).text(),
+            of("mon").formatFn("MMM", x -> x.toLowerCase(Locale.ENGLISH)).text(),
             of("MM").formatFn("MM").numeric(),
-            of("DAY").formatFn("EEEE", x -> String.format(Locale.ROOT, "%-9s", x.toUpperCase(Locale.ROOT))).text(),
-            of("Day").formatFn("EEEE", x -> String.format(Locale.ROOT, "%-9s", x)).text(),
-            of("day").formatFn("EEEE", x -> String.format(Locale.ROOT, "%-9s", x.toLowerCase(Locale.ROOT))).text(),
-            of("DY").formatFn("E", x -> x.toUpperCase(Locale.ROOT)).text(),
+            of("DAY").formatFn("EEEE", x -> String.format(Locale.ENGLISH, "%-9s", x.toUpperCase(Locale.ENGLISH))).text(),
+            of("Day").formatFn("EEEE", x -> String.format(Locale.ENGLISH, "%-9s", x)).text(),
+            of("day").formatFn("EEEE", x -> String.format(Locale.ENGLISH, "%-9s", x.toLowerCase(Locale.ENGLISH))).text(),
+            of("DY").formatFn("E", x -> x.toUpperCase(Locale.ENGLISH)).text(),
             of("Dy").formatFn("E").text(),
-            of("dy").formatFn("E", x -> x.toLowerCase(Locale.ROOT)).text(),
+            of("dy").formatFn("E", x -> x.toLowerCase(Locale.ENGLISH)).text(),
             of("DDD").formatFn("DDD").numeric(),
             of("IDDD").formatFn(
                 t -> String.format(
-                    Locale.ROOT,
+                    Locale.ENGLISH,
                     "%03d",
                     (t.get(WeekFields.ISO.weekOfWeekBasedYear()) - 1) * 7 + t.get(ChronoField.DAY_OF_WEEK)
                 )
             ).numeric(),
-            of("DD").formatFn("d", x -> String.format(Locale.ROOT, "%02d", parseInt(x))).numeric(),
+            of("DD").formatFn("d", x -> String.format(Locale.ENGLISH, "%02d", parseInt(x))).numeric(),
             of("ID").formatFn(t -> String.valueOf(t.get(ChronoField.DAY_OF_WEEK))).numeric(),
             of("D").formatFn(t -> String.valueOf(t.get(WeekFields.SUNDAY_START.dayOfWeek()))).numeric(),
             of("W").formatFn(t -> String.valueOf(t.get(ChronoField.ALIGNED_WEEK_OF_MONTH))).numeric(),
-            of("WW").formatFn(t -> String.format(Locale.ROOT, "%02d", t.get(ChronoField.ALIGNED_WEEK_OF_YEAR))).numeric(),
-            of("IW").formatFn(t -> String.format(Locale.ROOT, "%02d", t.get(WeekFields.ISO.weekOfWeekBasedYear()))).numeric(),
+            of("WW").formatFn(t -> String.format(Locale.ENGLISH, "%02d", t.get(ChronoField.ALIGNED_WEEK_OF_YEAR))).numeric(),
+            of("IW").formatFn(t -> String.format(Locale.ENGLISH, "%02d", t.get(WeekFields.ISO.weekOfWeekBasedYear()))).numeric(),
             of("CC").formatFn(t -> {
                 int century = yearToCentury(t.get(ChronoField.YEAR));
-                return String.format(Locale.ROOT, century < 0 ? "%03d" : "%02d", century);
+                return String.format(Locale.ENGLISH, century < 0 ? "%03d" : "%02d", century);
             }).numeric(),
             of("J").formatFn(t -> String.valueOf(t.getLong(JulianFields.JULIAN_DAY))).numeric(),
             of("Q").formatFn("Q").numeric(),
-            of("RM").formatFn("MM", month -> String.format(Locale.ROOT, "%-4s", monthToRoman(parseInt(month)))).text(),
-            of("rm").formatFn("MM", month -> String.format(Locale.ROOT, "%-4s", monthToRoman(parseInt(month)).toLowerCase(Locale.ROOT)))
-                .text(),
+            of("RM").formatFn("MM", month -> String.format(Locale.ENGLISH, "%-4s", monthToRoman(parseInt(month)))).text(),
+            of("rm").formatFn(
+                "MM",
+                month -> String.format(Locale.ENGLISH, "%-4s", monthToRoman(parseInt(month)).toLowerCase(Locale.ENGLISH))
+            ).text(),
             of("TZ").formatFn(ToCharFormatter::zoneAbbreviationOf).text(),
-            of("tz").formatFn(t -> zoneAbbreviationOf(t).toLowerCase(Locale.ROOT)).text(),
+            of("tz").formatFn(t -> zoneAbbreviationOf(t).toLowerCase(Locale.ENGLISH)).text(),
             of("TZH").acceptsLowercase(false).formatFn("ZZ", s -> s.substring(0, 3)).text(),
             of("TZM").acceptsLowercase(false).formatFn("ZZ", s -> lastNCharacter(s, 2)).text(),
             of("OF").acceptsLowercase(false).formatFn("ZZZZZ", ToCharFormatter::formatOffset).offset()
@@ -127,7 +129,7 @@ class ToCharFormatter {
         // also index the lower case version of the patterns if accepted
         for (ToCharFormatter formatter : formatters) {
             if (formatter.acceptsLowercase) {
-                formatterMap.putIfAbsent(formatter.pattern.toLowerCase(Locale.ROOT), formatter);
+                formatterMap.putIfAbsent(formatter.pattern.toLowerCase(Locale.ENGLISH), formatter);
             }
         }
         FORMATTER_MAP = formatterMap;
@@ -274,8 +276,8 @@ class ToCharFormatter {
             // the Y,YYY pattern might can cause problems with the parsing, but thankfully the last 3
             // characters is enough to calculate the suffix
             int i = parseInt(lastNCharacter(s, 3));
-            final boolean upperCase = defaultSuffix.equals(defaultSuffix.toUpperCase(Locale.ROOT));
-            return s + (upperCase ? ordinalSuffix(i).toUpperCase(Locale.ROOT) : ordinalSuffix(i));
+            final boolean upperCase = defaultSuffix.equals(defaultSuffix.toUpperCase(Locale.ENGLISH));
+            return s + (upperCase ? ordinalSuffix(i).toUpperCase(Locale.ENGLISH) : ordinalSuffix(i));
         } catch (NumberFormatException ex) {
             return s + defaultSuffix;
         }
@@ -312,11 +314,11 @@ class ToCharFormatter {
     private static String absoluteWeekBasedYear(TemporalAccessor t) {
         int year = t.get(IsoFields.WEEK_BASED_YEAR);
         year = year > 0 ? year : -(year - 1);
-        return String.format(Locale.ROOT, "%04d", year);
+        return String.format(Locale.ENGLISH, "%04d", year);
     }
 
     private static String firstDigitsOfNanos(String nano, int digits) {
-        return String.format(Locale.ROOT, "%09d", parseInt(nano)).substring(0, digits);
+        return String.format(Locale.ENGLISH, "%09d", parseInt(nano)).substring(0, digits);
     }
 
     private static String lastNCharacter(String s, int n) {
@@ -324,7 +326,7 @@ class ToCharFormatter {
     }
 
     private static String zoneAbbreviationOf(TemporalAccessor temporalAccessor) {
-        String zone = ZoneId.from(temporalAccessor).getDisplayName(TextStyle.SHORT, Locale.ROOT);
+        String zone = ZoneId.from(temporalAccessor).getDisplayName(TextStyle.SHORT, Locale.ENGLISH);
         return "Z".equals(zone) ? "UTC" : zone;
     }
 
@@ -344,7 +346,7 @@ class ToCharFormatter {
 
         public Builder formatFn(final String javaPattern, final Function<String, String> additionalMapper) {
             this.formatFn = temporalAccessor -> {
-                String formatted = DateTimeFormatter.ofPattern(javaPattern != null ? javaPattern : "'" + pattern + "'", Locale.ROOT)
+                String formatted = DateTimeFormatter.ofPattern(javaPattern != null ? javaPattern : "'" + pattern + "'", Locale.ENGLISH)
                     .format(temporalAccessor);
                 return additionalMapper == null ? formatted : additionalMapper.apply(formatted);
             };

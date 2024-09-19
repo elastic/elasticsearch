@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.shard;
 
@@ -12,8 +13,8 @@ import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
+import org.elasticsearch.transport.EmptyRequest;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequest.Empty;
 
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
@@ -269,11 +270,11 @@ public class SearchOperationListenerTests extends ESTestCase {
             assertEquals(0, validateSearchContext.get());
 
             if (throwingListeners == 0) {
-                compositeListener.validateReaderContext(mock(ReaderContext.class), Empty.INSTANCE);
+                compositeListener.validateReaderContext(mock(ReaderContext.class), new EmptyRequest());
             } else {
                 RuntimeException expected = expectThrows(
                     RuntimeException.class,
-                    () -> compositeListener.validateReaderContext(mock(ReaderContext.class), Empty.INSTANCE)
+                    () -> compositeListener.validateReaderContext(mock(ReaderContext.class), new EmptyRequest())
                 );
                 assertNull(expected.getMessage());
                 assertEquals(throwingListeners - 1, expected.getSuppressed().length);

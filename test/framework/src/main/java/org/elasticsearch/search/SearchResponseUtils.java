@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search;
 
@@ -17,6 +18,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.text.Text;
@@ -52,6 +54,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -201,7 +204,7 @@ public enum SearchResponseUtils {
         int totalShards = -1;
         int skippedShards = 0; // 0 for BWC
         String scrollId = null;
-        String searchContextId = null;
+        BytesReference searchContextId = null;
         List<ShardSearchFailure> failures = new ArrayList<>();
         SearchResponse.Clusters clusters = SearchResponse.Clusters.EMPTY;
         for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
@@ -211,7 +214,7 @@ public enum SearchResponseUtils {
                 if (SearchResponse.SCROLL_ID.match(currentFieldName, parser.getDeprecationHandler())) {
                     scrollId = parser.text();
                 } else if (SearchResponse.POINT_IN_TIME_ID.match(currentFieldName, parser.getDeprecationHandler())) {
-                    searchContextId = parser.text();
+                    searchContextId = new BytesArray(Base64.getUrlDecoder().decode(parser.text()));
                 } else if (SearchResponse.TOOK.match(currentFieldName, parser.getDeprecationHandler())) {
                     tookInMillis = parser.longValue();
                 } else if (SearchResponse.TIMED_OUT.match(currentFieldName, parser.getDeprecationHandler())) {

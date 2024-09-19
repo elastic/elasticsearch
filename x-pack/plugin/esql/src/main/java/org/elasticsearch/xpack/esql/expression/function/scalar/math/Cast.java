@@ -11,9 +11,8 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.intToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
@@ -27,31 +26,31 @@ public class Cast {
         if (current == required) {
             return in;
         }
-        if (current == DataTypes.NULL || required == DataTypes.NULL) {
+        if (current == DataType.NULL || required == DataType.NULL) {
             return EvalOperator.CONSTANT_NULL_FACTORY;
         }
-        if (required == DataTypes.DOUBLE) {
-            if (current == DataTypes.LONG) {
+        if (required == DataType.DOUBLE) {
+            if (current == DataType.LONG) {
                 return new CastLongToDoubleEvaluator.Factory(source, in);
             }
-            if (current == DataTypes.INTEGER) {
+            if (current == DataType.INTEGER) {
                 return new CastIntToDoubleEvaluator.Factory(source, in);
             }
-            if (current == DataTypes.UNSIGNED_LONG) {
+            if (current == DataType.UNSIGNED_LONG) {
                 return new CastUnsignedLongToDoubleEvaluator.Factory(source, in);
             }
             throw cantCast(current, required);
         }
-        if (required == DataTypes.UNSIGNED_LONG) {
-            if (current == DataTypes.LONG) {
+        if (required == DataType.UNSIGNED_LONG) {
+            if (current == DataType.LONG) {
                 return new CastLongToUnsignedLongEvaluator.Factory(source, in);
             }
-            if (current == DataTypes.INTEGER) {
+            if (current == DataType.INTEGER) {
                 return new CastIntToUnsignedLongEvaluator.Factory(source, in);
             }
         }
-        if (required == DataTypes.LONG) {
-            if (current == DataTypes.INTEGER) {
+        if (required == DataType.LONG) {
+            if (current == DataType.INTEGER) {
                 return new CastIntToLongEvaluator.Factory(source, in);
             }
             throw cantCast(current, required);

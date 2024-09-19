@@ -409,7 +409,8 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         String color = clusterHealthStatus.name().toLowerCase(Locale.ROOT);
         String method = "ensure" + Strings.capitalize(color);
 
-        ClusterHealthRequest healthRequest = new ClusterHealthRequest(indices).timeout(timeout)
+        ClusterHealthRequest healthRequest = new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, indices).masterNodeTimeout(timeout)
+            .timeout(timeout)
             .waitForStatus(clusterHealthStatus)
             .waitForEvents(Priority.LANGUID)
             .waitForNoRelocatingShards(true)
@@ -430,9 +431,9 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                     follower cluster tasks:
                     {}""",
                 method,
-                leaderClient().admin().cluster().prepareState().get().getState(),
+                leaderClient().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState(),
                 ESIntegTestCase.getClusterPendingTasks(leaderClient()),
-                followerClient().admin().cluster().prepareState().get().getState(),
+                followerClient().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState(),
                 ESIntegTestCase.getClusterPendingTasks(followerClient())
             );
             HotThreads.logLocalHotThreads(logger, Level.INFO, "hot threads at timeout", ReferenceDocs.LOGGING);
@@ -483,7 +484,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
 
     protected void pauseFollow(String... indices) throws Exception {
         for (String index : indices) {
-            final PauseFollowAction.Request unfollowRequest = new PauseFollowAction.Request(index);
+            final PauseFollowAction.Request unfollowRequest = new PauseFollowAction.Request(TEST_REQUEST_TIMEOUT, index);
             assertAcked(followerClient().execute(PauseFollowAction.INSTANCE, unfollowRequest).actionGet());
         }
         ensureNoCcrTasks();
@@ -491,15 +492,17 @@ public abstract class CcrIntegTestCase extends ESTestCase {
 
     protected void ensureNoCcrTasks() throws Exception {
         assertBusy(() -> {
-            CcrStatsAction.Response statsResponse = followerClient().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.Request())
-                .actionGet();
+            CcrStatsAction.Response statsResponse = followerClient().execute(
+                CcrStatsAction.INSTANCE,
+                new CcrStatsAction.Request(TEST_REQUEST_TIMEOUT)
+            ).actionGet();
             assertThat(
                 "Follow stats not empty: " + Strings.toString(statsResponse.getFollowStats()),
                 statsResponse.getFollowStats().getStatsResponses(),
                 empty()
             );
 
-            final ClusterState clusterState = followerClient().admin().cluster().prepareState().get().getState();
+            final ClusterState clusterState = followerClient().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             PersistentTasksCustomMetadata tasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
             Collection<PersistentTasksCustomMetadata.PersistentTask<?>> ccrTasks = tasks.tasks()
                 .stream()
@@ -585,7 +588,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
     }
 
     public static PutFollowAction.Request putFollow(String leaderIndex, String followerIndex, ActiveShardCount waitForActiveShards) {
-        PutFollowAction.Request request = new PutFollowAction.Request();
+        PutFollowAction.Request request = new PutFollowAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         request.setRemoteCluster("leader_cluster");
         request.setLeaderIndex(leaderIndex);
         request.setFollowerIndex(followerIndex);
@@ -595,18 +598,18 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         request.getParameters().setMaxReadRequestOperationCount(between(1, 10000));
         request.waitForActiveShards(waitForActiveShards);
         if (randomBoolean()) {
-            request.masterNodeTimeout(randomFrom("10s", "20s", "30s"));
+            request.masterNodeTimeout(TimeValue.timeValueSeconds(randomFrom(10, 20, 30)));
         }
         return request;
     }
 
     public static ResumeFollowAction.Request resumeFollow(String followerIndex) {
-        ResumeFollowAction.Request request = new ResumeFollowAction.Request();
+        ResumeFollowAction.Request request = new ResumeFollowAction.Request(TEST_REQUEST_TIMEOUT);
         request.setFollowerIndex(followerIndex);
         request.getParameters().setMaxRetryDelay(TimeValue.timeValueMillis(10));
         request.getParameters().setReadPollTimeout(TimeValue.timeValueMillis(10));
         if (randomBoolean()) {
-            request.masterNodeTimeout(randomFrom("10s", "20s", "30s"));
+            request.masterNodeTimeout(TimeValue.timeValueSeconds(randomFrom(10, 20, 30)));
         }
         return request;
     }
@@ -658,7 +661,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
     }
 
     private Map<Integer, List<DocIdSeqNoAndSource>> getDocIdAndSeqNos(InternalTestCluster cluster, String index) throws IOException {
-        final ClusterState state = cluster.client().admin().cluster().prepareState().get().getState();
+        final ClusterState state = cluster.client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         List<ShardRouting> shardRoutings = state.routingTable().allShards(index);
         Randomness.shuffle(shardRoutings);
         final Map<Integer, List<DocIdSeqNoAndSource>> docs = new HashMap<>();

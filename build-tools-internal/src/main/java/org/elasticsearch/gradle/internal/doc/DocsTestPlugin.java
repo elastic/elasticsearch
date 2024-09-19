@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.doc;
@@ -75,14 +76,14 @@ public class DocsTestPlugin implements Plugin<Project> {
         project.getTasks().register("listSnippets", DocSnippetTask.class, task -> {
             task.setGroup("Docs");
             task.setDescription("List each snippet");
-            task.setDefaultSubstitutions(commonDefaultSubstitutions);
-            task.setPerSnippet(snippet -> System.out.println(snippet));
+            task.getDefaultSubstitutions().putAll(commonDefaultSubstitutions);
+            task.setPerSnippet(System.out::println);
         });
 
         project.getTasks().register("listConsoleCandidates", DocSnippetTask.class, task -> {
             task.setGroup("Docs");
             task.setDescription("List snippets that probably should be marked // CONSOLE");
-            task.setDefaultSubstitutions(commonDefaultSubstitutions);
+            task.getDefaultSubstitutions().putAll(commonDefaultSubstitutions);
             task.setPerSnippet(snippet -> {
                 if (snippet.isConsoleCandidate()) {
                     System.out.println(snippet);
@@ -93,8 +94,9 @@ public class DocsTestPlugin implements Plugin<Project> {
         Provider<Directory> restRootDir = projectLayout.getBuildDirectory().dir("rest");
         TaskProvider<RestTestsFromDocSnippetTask> buildRestTests = project.getTasks()
             .register("buildRestTests", RestTestsFromDocSnippetTask.class, task -> {
-                task.setDefaultSubstitutions(commonDefaultSubstitutions);
+                task.getDefaultSubstitutions().putAll(commonDefaultSubstitutions);
                 task.getTestRoot().convention(restRootDir);
+                task.getMigrationMode().set(Boolean.getBoolean("gradle.docs.migration"));
                 task.doFirst(task1 -> fileOperations.delete(restRootDir.get()));
             });
 

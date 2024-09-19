@@ -206,8 +206,9 @@ setup:
 "Test POST data with invalid parameters":
   - skip:
       reason: "https://github.com/elastic/elasticsearch/issues/34747"
-      version: "6.5.0 - "
-      features:
+      cluster_features: ["gte_v6.5.0"]
+  - requires:
+      test_runner_features:
         - "warnings"
 
   - do:
@@ -264,7 +265,7 @@ setup:
 "Test Flush data with invalid parameters":
   - skip:
       reason: "https://github.com/elastic/elasticsearch/issues/34747"
-      version: "6.5.0 - "
+      cluster_features: ["gte_v6.5.0"]
 
   - do:
       catch: missing

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -1568,7 +1569,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.endObject();
         })).rootDoc();
 
-        assertThat(doc.get(docMapper.mappers().getMapper("name.first").name()), equalTo("shay"));
+        assertThat(doc.get(docMapper.mappers().getMapper("name.first").fullPath()), equalTo("shay"));
     }
 
     public void testParseToJsonAndParse() throws Exception {
@@ -1581,7 +1582,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
         LuceneDocument doc = builtDocMapper.parse(new SourceToParse("1", json, XContentType.JSON)).rootDoc();
         assertThat(doc.getBinaryValue(IdFieldMapper.NAME), equalTo(Uid.encodeId("1")));
-        assertThat(doc.get(builtDocMapper.mappers().getMapper("name.first").name()), equalTo("shay"));
+        assertThat(doc.get(builtDocMapper.mappers().getMapper("name.first").fullPath()), equalTo("shay"));
     }
 
     public void testSimpleParser() throws Exception {
@@ -1593,7 +1594,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
         LuceneDocument doc = docMapper.parse(new SourceToParse("1", json, XContentType.JSON)).rootDoc();
         assertThat(doc.getBinaryValue(IdFieldMapper.NAME), equalTo(Uid.encodeId("1")));
-        assertThat(doc.get(docMapper.mappers().getMapper("name.first").name()), equalTo("shay"));
+        assertThat(doc.get(docMapper.mappers().getMapper("name.first").fullPath()), equalTo("shay"));
     }
 
     public void testSimpleParserNoTypeNoId() throws Exception {
@@ -1602,7 +1603,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1-notype-noid.json"));
         LuceneDocument doc = docMapper.parse(new SourceToParse("1", json, XContentType.JSON)).rootDoc();
         assertThat(doc.getBinaryValue(IdFieldMapper.NAME), equalTo(Uid.encodeId("1")));
-        assertThat(doc.get(docMapper.mappers().getMapper("name.first").name()), equalTo("shay"));
+        assertThat(doc.get(docMapper.mappers().getMapper("name.first").fullPath()), equalTo("shay"));
     }
 
     public void testAttributes() throws Exception {
@@ -2605,8 +2606,8 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertTrue(barMapper instanceof ObjectMapper);
         Mapper baz = ((ObjectMapper) barMapper).getMapper("baz");
         assertNotNull(baz);
-        assertEquals("foo.bar.baz", baz.name());
-        assertEquals("baz", baz.simpleName());
+        assertEquals("foo.bar.baz", baz.fullPath());
+        assertEquals("baz", baz.leafName());
         List<IndexableField> fields = doc.rootDoc().getFields("foo.bar.baz");
         assertEquals(2, fields.size());
         String[] fieldStrings = fields.stream().map(Object::toString).toArray(String[]::new);
@@ -2623,7 +2624,8 @@ public class DocumentParserTests extends MapperServiceTestCase {
             mapperService.documentParser(),
             newMapping,
             newMapping.toCompressedXContent(),
-            IndexVersion.current()
+            IndexVersion.current(),
+            MapperMetrics.NOOP
         );
         ParsedDocument doc2 = newDocMapper.parse(source("""
             {
@@ -2641,7 +2643,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     public void testDeeplyNestedDocument() throws Exception {
-        int depth = 10000;
+        int depth = 20;
 
         DocumentMapper docMapper = createMapperService(Settings.builder().put(getIndexSettings()).build(), mapping(b -> {}))
             .documentMapper();
@@ -3243,14 +3245,16 @@ public class DocumentParserTests extends MapperServiceTestCase {
             }
 
             @Override
-            public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-                return new StringStoredFieldFieldLoader(name(), simpleName(), null) {
+            protected SyntheticSourceSupport syntheticSourceSupport() {
+                var loader = new StringStoredFieldFieldLoader(fullPath(), leafName()) {
                     @Override
                     protected void write(XContentBuilder b, Object value) throws IOException {
                         BytesRef ref = (BytesRef) value;
                         b.utf8Value(ref.bytes, ref.offset, ref.length);
                     }
                 };
+
+                return new SyntheticSourceSupport.Native(loader);
             }
 
             private static final TypeParser PARSER = new FixedTypeParser(c -> new MockMetadataMapper());

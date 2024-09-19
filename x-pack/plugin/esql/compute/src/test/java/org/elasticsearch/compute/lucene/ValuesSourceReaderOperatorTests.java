@@ -51,6 +51,7 @@ import org.elasticsearch.compute.operator.OperatorTestCase;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
@@ -365,12 +366,12 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected String expectedDescriptionOfSimple() {
-        return "ValuesSourceReaderOperator[fields = [long]]";
+    protected Matcher<String> expectedDescriptionOfSimple() {
+        return equalTo("ValuesSourceReaderOperator[fields = [long]]");
     }
 
     @Override
-    protected String expectedToStringOfSimple() {
+    protected Matcher<String> expectedToStringOfSimple() {
         return expectedDescriptionOfSimple();
     }
 
@@ -403,6 +404,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         loadSimpleAndAssert(
             driverContext,
             CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(100, 5000))),
+            Block.MvOrdering.SORTED_ASCENDING,
             Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING
         );
     }
@@ -416,6 +418,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(100, 5000)))
                 )
             ),
+            Block.MvOrdering.UNORDERED,
             Block.MvOrdering.UNORDERED
         );
     }
@@ -426,7 +429,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext, numDocs, between(1, numDocs), 1));
         Randomness.shuffle(input);
         List<Operator> operators = new ArrayList<>();
-        Checks checks = new Checks(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+        Checks checks = new Checks(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING, Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
         FieldCase testCase = new FieldCase(
             new KeywordFieldMapper.KeywordFieldType("kwd"),
             ElementType.BYTES_REF,
@@ -457,6 +460,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         loadSimpleAndAssert(
             driverContext,
             CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), 0)),
+            Block.MvOrdering.UNORDERED,
             Block.MvOrdering.UNORDERED
         );
     }
@@ -475,7 +479,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             shuffledBlocks[b] = source.getBlock(b).filter(shuffleArray);
         }
         source = new Page(shuffledBlocks);
-        loadSimpleAndAssert(driverContext, List.of(source), Block.MvOrdering.UNORDERED);
+        loadSimpleAndAssert(driverContext, List.of(source), Block.MvOrdering.UNORDERED, Block.MvOrdering.UNORDERED);
     }
 
     private static ValuesSourceReaderOperator.FieldInfo fieldInfo(MappedFieldType ft, ElementType elementType) {
@@ -492,6 +496,11 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             @Override
             public String indexName() {
                 return "test_index";
+            }
+
+            @Override
+            public IndexSettings indexSettings() {
+                throw new UnsupportedOperationException();
             }
 
             @Override
@@ -521,8 +530,13 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         };
     }
 
-    private void loadSimpleAndAssert(DriverContext driverContext, List<Page> input, Block.MvOrdering docValuesMvOrdering) {
-        List<FieldCase> cases = infoAndChecksForEachType(docValuesMvOrdering);
+    private void loadSimpleAndAssert(
+        DriverContext driverContext,
+        List<Page> input,
+        Block.MvOrdering booleanAndNumericalDocValuesMvOrdering,
+        Block.MvOrdering bytesRefDocValuesMvOrdering
+    ) {
+        List<FieldCase> cases = infoAndChecksForEachType(booleanAndNumericalDocValuesMvOrdering, bytesRefDocValuesMvOrdering);
 
         List<Operator> operators = new ArrayList<>();
         operators.add(
@@ -621,7 +635,10 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext, numDocs, commitEvery(numDocs), numDocs));
         assertThat(reader.leaves(), hasSize(10));
         assertThat(input, hasSize(10));
-        List<FieldCase> cases = infoAndChecksForEachType(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+        List<FieldCase> cases = infoAndChecksForEachType(
+            Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING,
+            Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING
+        );
         // Build one operator for each field, so we get a unique map to assert on
         List<Operator> operators = cases.stream()
             .map(
@@ -644,8 +661,11 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         }
     }
 
-    private List<FieldCase> infoAndChecksForEachType(Block.MvOrdering docValuesMvOrdering) {
-        Checks checks = new Checks(docValuesMvOrdering);
+    private List<FieldCase> infoAndChecksForEachType(
+        Block.MvOrdering booleanAndNumericalDocValuesMvOrdering,
+        Block.MvOrdering bytesRefDocValuesMvOrdering
+    ) {
+        Checks checks = new Checks(booleanAndNumericalDocValuesMvOrdering, bytesRefDocValuesMvOrdering);
         List<FieldCase> r = new ArrayList<>();
         r.add(new FieldCase(mapperService.fieldType(IdFieldMapper.NAME), ElementType.BYTES_REF, checks::ids, StatusChecks::id));
         r.add(new FieldCase(TsidExtractingIdFieldMapper.INSTANCE.fieldType(), ElementType.BYTES_REF, checks::ids, StatusChecks::id));
@@ -801,7 +821,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         return r;
     }
 
-    record Checks(Block.MvOrdering docValuesMvOrdering) {
+    record Checks(Block.MvOrdering booleanAndNumericalDocValuesMvOrdering, Block.MvOrdering bytesRefDocValuesMvOrdering) {
         void longs(Block block, int position, int key) {
             LongVector longs = ((LongBlock) block).asVector();
             assertThat(longs.getLong(position), equalTo((long) key));
@@ -858,7 +878,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         }
 
         void mvLongsFromDocValues(Block block, int position, int key) {
-            mvLongs(block, position, key, docValuesMvOrdering);
+            mvLongs(block, position, key, booleanAndNumericalDocValuesMvOrdering);
         }
 
         void mvLongsUnordered(Block block, int position, int key) {
@@ -878,7 +898,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         }
 
         void mvIntsFromDocValues(Block block, int position, int key) {
-            mvInts(block, position, key, docValuesMvOrdering);
+            mvInts(block, position, key, booleanAndNumericalDocValuesMvOrdering);
         }
 
         void mvIntsUnordered(Block block, int position, int key) {
@@ -905,7 +925,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 assertThat(ints.getInt(offset + v), equalTo((int) (short) (2_000 * key + v)));
             }
             if (key % 3 > 0) {
-                assertThat(ints.mvOrdering(), equalTo(docValuesMvOrdering));
+                assertThat(ints.mvOrdering(), equalTo(booleanAndNumericalDocValuesMvOrdering));
             }
         }
 
@@ -917,7 +937,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 assertThat(ints.getInt(offset + v), equalTo((int) (byte) (3_000 * key + v)));
             }
             if (key % 3 > 0) {
-                assertThat(ints.mvOrdering(), equalTo(docValuesMvOrdering));
+                assertThat(ints.mvOrdering(), equalTo(booleanAndNumericalDocValuesMvOrdering));
             }
         }
 
@@ -928,12 +948,12 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 assertThat(doubles.getDouble(offset + v), equalTo(key / 123_456d + v));
             }
             if (key % 3 > 0) {
-                assertThat(doubles.mvOrdering(), equalTo(docValuesMvOrdering));
+                assertThat(doubles.mvOrdering(), equalTo(booleanAndNumericalDocValuesMvOrdering));
             }
         }
 
         void mvStringsFromDocValues(Block block, int position, int key) {
-            mvStrings(block, position, key, docValuesMvOrdering);
+            mvStrings(block, position, key, bytesRefDocValuesMvOrdering);
         }
 
         void mvStringsUnordered(Block block, int position, int key) {
@@ -960,7 +980,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 assertThat(bools.getBoolean(offset + v), equalTo(BOOLEANS[key % 3][v]));
             }
             if (key % 3 > 0) {
-                assertThat(bools.mvOrdering(), equalTo(docValuesMvOrdering));
+                assertThat(bools.mvOrdering(), equalTo(booleanAndNumericalDocValuesMvOrdering));
             }
         }
     }
@@ -1440,7 +1460,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             0
         ).get(driverContext);
         List<Page> results = drive(op, source.iterator(), driverContext);
-        Checks checks = new Checks(Block.MvOrdering.UNORDERED);
+        Checks checks = new Checks(Block.MvOrdering.UNORDERED, Block.MvOrdering.UNORDERED);
         IntVector keys = results.get(0).<IntBlock>getBlock(1).asVector();
         for (int p = 0; p < results.get(0).getPositionCount(); p++) {
             int key = keys.getInt(p);
@@ -1459,7 +1479,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
 
     public void testDescriptionOfMany() throws IOException {
         initIndex(1, 1);
-        List<FieldCase> cases = infoAndChecksForEachType(randomFrom(Block.MvOrdering.values()));
+        Block.MvOrdering ordering = randomFrom(Block.MvOrdering.values());
+        List<FieldCase> cases = infoAndChecksForEachType(ordering, ordering);
 
         ValuesSourceReaderOperator.Factory factory = new ValuesSourceReaderOperator.Factory(
             cases.stream().map(c -> c.info).toList(),

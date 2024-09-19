@@ -27,13 +27,13 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -45,6 +45,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.common.time.RemainingTime;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
@@ -70,6 +71,7 @@ import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.utils.TaskRetriever;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -137,6 +139,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         ClusterState state,
         ActionListener<CreateTrainedModelAssignmentAction.Response> listener
     ) throws Exception {
+        var remainingTime = RemainingTime.from(Instant::now, request.getTimeout());
         logger.debug(() -> "[" + request.getDeploymentId() + "] received deploy request for model [" + request.getModelId() + "]");
         if (MachineLearningField.ML_API_FEATURE.check(licenseState) == false) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
@@ -181,7 +184,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         AtomicLong perAllocationMemoryBytes = new AtomicLong();
 
         ActionListener<CreateTrainedModelAssignmentAction.Response> waitForDeploymentToStart = ActionListener.wrap(
-            modelAssignment -> waitForDeploymentState(request.getDeploymentId(), request.getTimeout(), request.getWaitForState(), listener),
+            modelAssignment -> waitForDeploymentState(request, remainingTime.get(), listener),
             e -> {
                 logger.warn(
                     () -> "[" + request.getDeploymentId() + "] creating new assignment for model [" + request.getModelId() + "] failed",
@@ -204,7 +207,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 modelIdAndSizeInBytes.v1(),
                 request.getDeploymentId(),
                 modelIdAndSizeInBytes.v2(),
-                request.getNumberOfAllocations(),
+                request.computeNumberOfAllocations(),
                 request.getThreadsPerAllocation(),
                 request.getQueueCapacity(),
                 Optional.ofNullable(request.getCacheSize()).orElse(ByteSizeValue.ofBytes(modelIdAndSizeInBytes.v2())),
@@ -216,7 +219,10 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             memoryTracker.refresh(
                 persistentTasks,
                 ActionListener.wrap(
-                    aVoid -> trainedModelAssignmentService.createNewModelAssignment(taskParams, waitForDeploymentToStart),
+                    aVoid -> trainedModelAssignmentService.createNewModelAssignment(
+                        new CreateTrainedModelAssignmentAction.Request(taskParams, request.getAdaptiveAllocationsSettings()),
+                        waitForDeploymentToStart
+                    ),
                     listener::onFailure
                 )
             );
@@ -268,7 +274,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 error -> {
                     if (ExceptionsHelper.unwrapCause(error) instanceof ResourceNotFoundException) {
                         // no name clash, continue with the deployment
-                        checkFullModelDefinitionIsPresent(client, trainedModelConfig, true, request.getTimeout(), modelSizeListener);
+                        checkFullModelDefinitionIsPresent(client, trainedModelConfig, true, remainingTime.get(), modelSizeListener);
                     } else {
                         listener.onFailure(error);
                     }
@@ -280,13 +286,13 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             if (request.getModelId().equals(request.getDeploymentId()) == false) {
                 client.execute(GetTrainedModelsAction.INSTANCE, getModelWithDeploymentId, checkDeploymentIdDoesntAlreadyExist);
             } else {
-                checkFullModelDefinitionIsPresent(client, trainedModelConfig, true, request.getTimeout(), modelSizeListener);
+                checkFullModelDefinitionIsPresent(client, trainedModelConfig, true, remainingTime.get(), modelSizeListener);
             }
 
         }, listener::onFailure);
 
         ActionListener<GetInferenceModelAction.Response> getInferenceModelListener = ActionListener.wrap((getInferenceModelResponse) -> {
-            if (getInferenceModelResponse.getModels().isEmpty() == false) {
+            if (getInferenceModelResponse.getEndpoints().isEmpty() == false) {
                 listener.onFailure(
                     ExceptionsHelper.badRequestException(Messages.MODEL_ID_MATCHES_EXISTING_MODEL_IDS_BUT_MUST_NOT, request.getModelId())
                 );
@@ -315,16 +321,16 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
     }
 
     private void waitForDeploymentState(
-        String deploymentId,
-        TimeValue timeout,
-        AllocationStatus.State state,
+        StartTrainedModelDeploymentAction.Request request,
+        TimeValue remainingTime,
         ActionListener<CreateTrainedModelAssignmentAction.Response> listener
     ) {
-        DeploymentStartedPredicate predicate = new DeploymentStartedPredicate(deploymentId, state);
+        var deploymentId = request.getDeploymentId();
+        DeploymentStartedPredicate predicate = new DeploymentStartedPredicate(deploymentId, request.getWaitForState());
         trainedModelAssignmentService.waitForAssignmentCondition(
             deploymentId,
             predicate,
-            timeout,
+            remainingTime,
             new TrainedModelAssignmentService.WaitForAssignmentListener() {
                 @Override
                 public void onResponse(TrainedModelAssignment assignment) {
@@ -339,6 +345,18 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 @Override
                 public void onFailure(Exception e) {
                     listener.onFailure(e);
+                }
+
+                @Override
+                public void onTimeout(TimeValue timeout) {
+                    onFailure(
+                        new ElasticsearchStatusException(
+                            "Timed out after [{}] waiting for model deployment to start. "
+                                + "Use the trained model stats API to track the state of the deployment.",
+                            RestStatus.REQUEST_TIMEOUT,
+                            request.getTimeout() // use the full request timeout in the error message
+                        )
+                    );
                 }
             }
         );

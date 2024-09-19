@@ -1,8 +1,8 @@
 setup:
-  - skip:
-      features: allowed_warnings
-      cluster_features: ["datastream_lifecycle"]
-      reason: "Data stream lifecycle was GA in 8.11"
+  - requires:
+      cluster_features: [ "gte_v8.11.0" ]
+      reason: "Data stream lifecycle was released as tech preview in 8.11"
+      test_runner_features: allowed_warnings
   - do:
       allowed_warnings:
         - "index template [my-lifecycle] has index patterns [my-data-stream-1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-lifecycle] will take precedence during new index creation"
@@ -23,18 +23,13 @@ setup:
 
 ---
 "Get data stream lifecycle":
-  - skip:
-      cluster_features: ["datastream_lifecycle", "data_stream.lifecycle.global_retention"]
-      reason: "Data stream lifecycle with effective retention was released in 8.14"
 
   - do:
       indices.get_data_lifecycle:
         name: "*"
   - length: { data_streams: 1}
   - match: { data_streams.0.name: my-data-stream-1 }
-  - match: { data_streams.0.lifecycle.data_retention: "10d" }
-  - match: { data_streams.0.lifecycle.effective_retention: "10d"}
-  - match: { data_streams.0.lifecycle.retention_determined_by: "data_stream_configuration"}
+  - match: { data_streams.0.lifecycle.data_retention: '10d' }
   - match: { data_streams.0.lifecycle.enabled: true}
 
 ---
@@ -48,9 +43,7 @@ setup:
 
 ---
 "Put data stream lifecycle does not succeed when at lease one data stream does not exist":
-  - skip:
-      cluster_features: ["datastream_lifecycle", "data_stream.lifecycle.global_retention"]
-      reason: "Data stream lifecycle with effective retention was released in 8.14"
+
   - do:
       catch:  missing
       indices.put_data_lifecycle:
@@ -64,16 +57,12 @@ setup:
         name: "*"
   - length: { data_streams: 1 }
   - match: { data_streams.0.name: my-data-stream-1 }
-  - match: { data_streams.0.lifecycle.data_retention: "10d" }
-  - match: { data_streams.0.lifecycle.effective_retention: "10d"}
-  - match: { data_streams.0.lifecycle.retention_determined_by: "data_stream_configuration"}
+  - match: { data_streams.0.lifecycle.data_retention: '10d' }
   - match: { data_streams.0.lifecycle.enabled: true }
 
 ---
 "Delete data stream lifecycle does not succeed when at lease one data stream does not exist":
-  - skip:
-      cluster_features: ["datastream_lifecycle", "data_stream.lifecycle.global_retention"]
-      reason: "Data stream lifecycle with effective retention was released in 8.14"
+
   - do:
       catch:  missing
       indices.delete_data_lifecycle:
@@ -85,7 +74,5 @@ setup:
         name: "*"
   - length: { data_streams: 1 }
   - match: { data_streams.0.name: my-data-stream-1 }
-  - match: { data_streams.0.lifecycle.data_retention: "10d" }
-  - match: { data_streams.0.lifecycle.effective_retention: "10d"}
-  - match: { data_streams.0.lifecycle.retention_determined_by: "data_stream_configuration"}
+  - match: { data_streams.0.lifecycle.data_retention: '10d' }
   - match: { data_streams.0.lifecycle.enabled: true }

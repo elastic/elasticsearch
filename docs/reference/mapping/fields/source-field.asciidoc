@@ -6,11 +6,11 @@ at index time. The `_source` field itself is not indexed (and thus is not
 searchable), but it is stored so that it can be returned when executing
 _fetch_ requests, like <<docs-get,get>> or <<search-search,search>>.
 
-If disk usage is important to you then have a look at
-<<synthetic-source,synthetic `_source`>> which shrinks disk usage at the cost of
-only supporting a subset of mappings and slower fetches or (not recommended)
-<<disable-source-field,disabling the `_source` field>> which also shrinks disk
-usage but disables many features.
+If disk usage is important to you, then consider the following options:
+
+- Using <<synthetic-source,synthetic `_source`>>, which reconstructs source content at the time of retrieval instead of storing it on disk. This shrinks disk usage, at the cost of slower access to `_source` in <<docs-get,Get>> and <<search-search,Search>> queries.
+- <<disable-source-field,Disabling the `_source` field completely>>. This shrinks disk
+usage but disables features that rely on `_source`.
 
 include::synthetic-source.asciidoc[]
 
@@ -43,7 +43,7 @@ available then a number of features are not supported:
 * The <<docs-update,`update`>>, <<docs-update-by-query,`update_by_query`>>,
 and <<docs-reindex,`reindex`>> APIs.
 
-* In the {kib} link:{kibana-ref}/discover.html[Discover] application, field data will not be displayed. 
+* In the {kib} link:{kibana-ref}/discover.html[Discover] application, field data will not be displayed.
 
 * On the fly <<highlighting,highlighting>>.
 

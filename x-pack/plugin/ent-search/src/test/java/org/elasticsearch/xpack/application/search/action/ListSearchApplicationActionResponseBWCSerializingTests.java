@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.application.search.action;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xpack.application.EnterpriseSearchModuleTestUtils;
 import org.elasticsearch.xpack.application.search.SearchApplication;
 import org.elasticsearch.xpack.application.search.SearchApplicationListItem;
-import org.elasticsearch.xpack.application.search.SearchApplicationTestUtils;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 public class ListSearchApplicationActionResponseBWCSerializingTests extends AbstractBWCWireSerializationTestCase<
@@ -24,7 +24,7 @@ public class ListSearchApplicationActionResponseBWCSerializingTests extends Abst
 
     private static ListSearchApplicationAction.Response randomSearchApplicationListItem() {
         return new ListSearchApplicationAction.Response(randomList(10, () -> {
-            SearchApplication app = SearchApplicationTestUtils.randomSearchApplication();
+            SearchApplication app = EnterpriseSearchModuleTestUtils.randomSearchApplication();
             return new SearchApplicationListItem(app.name(), app.analyticsCollectionName(), app.updatedAtMillis());
         }), randomLongBetween(0, 1000));
     }

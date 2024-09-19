@@ -1,17 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.TimeValue;
@@ -34,16 +37,9 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
         Writeable,
         ChunkedToXContent {
 
-    private static final Comparator<PipelineStat> PIPELINE_STAT_COMPARATOR = (p1, p2) -> {
-        final Stats p2Stats = p2.stats;
-        final Stats p1Stats = p1.stats;
-        final int ingestTimeCompare = Long.compare(p2Stats.ingestTimeInMillis, p1Stats.ingestTimeInMillis);
-        if (ingestTimeCompare == 0) {
-            return Long.compare(p2Stats.ingestCount, p1Stats.ingestCount);
-        } else {
-            return ingestTimeCompare;
-        }
-    };
+    private static final Comparator<PipelineStat> PIPELINE_STAT_COMPARATOR = Comparator.comparingLong(
+        (PipelineStat p) -> p.stats.ingestTimeInMillis
+    ).thenComparingLong((PipelineStat p) -> p.stats.ingestCount).thenComparingLong((PipelineStat p) -> p.byteStats.bytesProduced);
 
     public static final IngestStats IDENTITY = new IngestStats(Stats.IDENTITY, List.of(), Map.of());
 
@@ -69,7 +65,10 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
         for (var i = 0; i < size; i++) {
             var pipelineId = in.readString();
             var pipelineStat = new Stats(in);
-            pipelineStats.add(new PipelineStat(pipelineId, pipelineStat));
+            var byteStat = in.getTransportVersion().onOrAfter(TransportVersions.NODE_STATS_INGEST_BYTES)
+                ? new ByteStats(in)
+                : new ByteStats(0, 0);
+            pipelineStats.add(new PipelineStat(pipelineId, pipelineStat, byteStat));
             int processorsSize = in.readVInt();
             var processorStatsPerPipeline = new ArrayList<ProcessorStat>(processorsSize);
             for (var j = 0; j < processorsSize; j++) {
@@ -91,6 +90,9 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
         for (PipelineStat pipelineStat : pipelineStats) {
             out.writeString(pipelineStat.pipelineId());
             pipelineStat.stats().writeTo(out);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.NODE_STATS_INGEST_BYTES)) {
+                pipelineStat.byteStats().writeTo(out);
+            }
             List<ProcessorStat> processorStatsForPipeline = processorStats.get(pipelineStat.pipelineId());
             if (processorStatsForPipeline == null) {
                 out.writeVInt(0);
@@ -124,6 +126,7 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
                     Iterators.single((builder, params) -> {
                         builder.startObject(pipelineStat.pipelineId());
                         pipelineStat.stats().toXContent(builder, params);
+                        pipelineStat.byteStats().toXContent(builder, params);
                         builder.startArray("processors");
                         return builder;
                     }),
@@ -223,8 +226,10 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
             return this;
         }
 
-        Builder addPipelineMetrics(String pipelineId, IngestMetric pipelineMetric) {
-            this.pipelineStats.add(new PipelineStat(pipelineId, pipelineMetric.createStats()));
+        Builder addPipelineMetrics(String pipelineId, IngestPipelineMetric ingestPipelineMetrics) {
+            this.pipelineStats.add(
+                new PipelineStat(pipelineId, ingestPipelineMetrics.createStats(), ingestPipelineMetrics.createByteStats())
+            );
             return this;
         }
 
@@ -242,18 +247,61 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
     /**
      * Container for pipeline stats.
      */
-    public record PipelineStat(String pipelineId, Stats stats) {
+    public record PipelineStat(String pipelineId, Stats stats, ByteStats byteStats) {
         static List<PipelineStat> merge(List<PipelineStat> first, List<PipelineStat> second) {
-            var totalsPerPipeline = new HashMap<String, Stats>();
+            var totalsPerPipeline = new HashMap<String, PipelineStat>();
 
-            first.forEach(ps -> totalsPerPipeline.merge(ps.pipelineId, ps.stats, Stats::merge));
-            second.forEach(ps -> totalsPerPipeline.merge(ps.pipelineId, ps.stats, Stats::merge));
+            first.forEach(ps -> totalsPerPipeline.merge(ps.pipelineId, ps, PipelineStat::merge));
+            second.forEach(ps -> totalsPerPipeline.merge(ps.pipelineId, ps, PipelineStat::merge));
 
             return totalsPerPipeline.entrySet()
                 .stream()
-                .map(v -> new PipelineStat(v.getKey(), v.getValue()))
+                .map(v -> new PipelineStat(v.getKey(), v.getValue().stats, v.getValue().byteStats))
                 .sorted(PIPELINE_STAT_COMPARATOR)
                 .toList();
+        }
+
+        private static PipelineStat merge(PipelineStat first, PipelineStat second) {
+            assert first.pipelineId.equals(second.pipelineId) : "Can only merge stats from the same pipeline";
+            return new PipelineStat(
+                first.pipelineId,
+                Stats.merge(first.stats, second.stats),
+                ByteStats.merge(first.byteStats, second.byteStats)
+            );
+        }
+    }
+
+    /**
+     * Container for ingested byte stats
+     */
+    public record ByteStats(long bytesIngested, long bytesProduced) implements Writeable, ToXContentFragment {
+        public ByteStats(StreamInput in) throws IOException {
+            this(in.readVLong(), in.readVLong());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(bytesIngested);
+            out.writeVLong(bytesProduced);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.humanReadableField(
+                "ingested_as_first_pipeline_in_bytes",
+                "ingested_as_first_pipeline",
+                ByteSizeValue.ofBytes(bytesIngested)
+            );
+            builder.humanReadableField(
+                "produced_as_first_pipeline_in_bytes",
+                "produced_as_first_pipeline",
+                ByteSizeValue.ofBytes(bytesProduced)
+            );
+            return builder;
+        }
+
+        static ByteStats merge(ByteStats first, ByteStats second) {
+            return new ByteStats((first.bytesIngested + second.bytesIngested), first.bytesProduced + second.bytesProduced);
         }
     }
 

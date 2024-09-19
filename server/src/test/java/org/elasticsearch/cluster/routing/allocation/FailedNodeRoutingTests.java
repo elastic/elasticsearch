@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation;
@@ -123,7 +124,8 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
         for (int i = 0; i < randomIntBetween(4, 8); i++) {
             DiscoveryNodes newNodes = DiscoveryNodes.builder(state.nodes()).add(createNode()).build();
             state = ClusterState.builder(state).nodes(newNodes).build();
-            state = cluster.reroute(state, new ClusterRerouteRequest()); // always reroute after adding node
+            // always reroute after adding node
+            state = cluster.reroute(state, new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT));
         }
 
         // Log the node versions (for debugging if necessary)

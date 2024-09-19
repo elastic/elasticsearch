@@ -19,18 +19,24 @@ public class MockDenseInferenceServiceIT extends InferenceBaseRestTest {
     public void testMockService() throws IOException {
         String inferenceEntityId = "test-mock";
         var putModel = putModel(inferenceEntityId, mockDenseServiceModelConfig(), TaskType.TEXT_EMBEDDING);
-        var getModels = getModels(inferenceEntityId, TaskType.TEXT_EMBEDDING);
-        var model = ((List<Map<String, Object>>) getModels.get("models")).get(0);
+        var model = getModels(inferenceEntityId, TaskType.TEXT_EMBEDDING).get(0);
 
         for (var modelMap : List.of(putModel, model)) {
-            assertEquals(inferenceEntityId, modelMap.get("model_id"));
+            assertEquals(inferenceEntityId, modelMap.get("inference_id"));
             assertEquals(TaskType.TEXT_EMBEDDING, TaskType.fromString((String) modelMap.get("task_type")));
             assertEquals("text_embedding_test_service", modelMap.get("service"));
         }
 
-        // The response is randomly generated, the input can be anything
-        var inference = inferOnMockService(inferenceEntityId, List.of(randomAlphaOfLength(10)));
+        List<String> input = List.of(randomAlphaOfLength(10));
+        var inference = inferOnMockService(inferenceEntityId, input);
         assertNonEmptyInferenceResults(inference, 1, TaskType.TEXT_EMBEDDING);
+        // Same input should return the same result
+        assertEquals(inference, inferOnMockService(inferenceEntityId, input));
+        // Different input values should not
+        assertNotEquals(
+            inference,
+            inferOnMockService(inferenceEntityId, randomValueOtherThan(input, () -> List.of(randomAlphaOfLength(10))))
+        );
     }
 
     public void testMockServiceWithMultipleInputs() throws IOException {
@@ -51,8 +57,7 @@ public class MockDenseInferenceServiceIT extends InferenceBaseRestTest {
     public void testMockService_DoesNotReturnSecretsInGetResponse() throws IOException {
         String inferenceEntityId = "test-mock";
         var putModel = putModel(inferenceEntityId, mockDenseServiceModelConfig(), TaskType.TEXT_EMBEDDING);
-        var getModels = getModels(inferenceEntityId, TaskType.TEXT_EMBEDDING);
-        var model = ((List<Map<String, Object>>) getModels.get("models")).get(0);
+        var model = getModels(inferenceEntityId, TaskType.TEXT_EMBEDDING).get(0);
 
         var serviceSettings = (Map<String, Object>) model.get("service_settings");
         assertNull(serviceSettings.get("api_key"));

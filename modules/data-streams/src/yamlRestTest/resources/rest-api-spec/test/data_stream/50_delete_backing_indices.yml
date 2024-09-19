@@ -12,8 +12,8 @@ setup:
 
 ---
 "Delete backing index on data stream":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams only supported in 7.9+"
 
   - do:
@@ -73,8 +73,8 @@ setup:
 
 ---
 "Attempt to delete write index on data stream is rejected":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason:  "data streams available in 7.9+"
 
   - do:

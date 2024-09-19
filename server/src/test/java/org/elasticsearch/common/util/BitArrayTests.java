@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
@@ -43,6 +44,27 @@ public class BitArrayTests extends ESTestCase {
                     } else {
                         bitArray.clear(i);
                     }
+                }
+                for (int i = 0; i < numBits; i++) {
+                    assertEquals(bitArray.get(i), bits[i]);
+                }
+            }
+        }
+    }
+
+    public void testRandomSetValue() {
+        try (BitArray bitArray = new BitArray(1, BigArrays.NON_RECYCLING_INSTANCE)) {
+            int numBits = randomIntBetween(1000, 10000);
+            for (int step = 0; step < 3; step++) {
+                boolean[] bits = new boolean[numBits];
+                List<Integer> slots = new ArrayList<>();
+                for (int i = 0; i < numBits; i++) {
+                    bits[i] = randomBoolean();
+                    slots.add(i);
+                }
+                Collections.shuffle(slots, random());
+                for (int i : slots) {
+                    bitArray.set(i, bits[i]);
                 }
                 for (int i = 0; i < numBits; i++) {
                     assertEquals(bitArray.get(i), bits[i]);
@@ -180,6 +202,108 @@ public class BitArrayTests extends ESTestCase {
             assertTrue(bitArray.get(999));
             assertTrue(bitArray.get(1000));
             assertFalse(bitArray.get(1001));
+        }
+    }
+
+    public void testFillTrueRandom() {
+        try (BitArray bitArray = new BitArray(1, BigArrays.NON_RECYCLING_INSTANCE)) {
+            int from = randomIntBetween(0, 1000);
+            int to = randomIntBetween(from, 1000);
+
+            bitArray.fill(0, 1000, false);
+            bitArray.fill(from, to, true);
+
+            for (int i = 0; i < 1000; i++) {
+                if (i < from || i >= to) {
+                    assertFalse(bitArray.get(i));
+                } else {
+                    assertTrue(bitArray.get(i));
+                }
+            }
+        }
+    }
+
+    public void testFillFalseRandom() {
+        try (BitArray bitArray = new BitArray(1, BigArrays.NON_RECYCLING_INSTANCE)) {
+            int from = randomIntBetween(0, 1000);
+            int to = randomIntBetween(from, 1000);
+
+            bitArray.fill(0, 1000, true);
+            bitArray.fill(from, to, false);
+
+            for (int i = 0; i < 1000; i++) {
+                if (i < from || i >= to) {
+                    assertTrue(bitArray.get(i));
+                } else {
+                    assertFalse(bitArray.get(i));
+                }
+            }
+        }
+    }
+
+    public void testFillTrueSingleWord() {
+        try (BitArray bitArray = new BitArray(1, BigArrays.NON_RECYCLING_INSTANCE)) {
+            int from = 8;
+            int to = 56;
+
+            bitArray.fill(0, 64, false);
+            bitArray.fill(from, to, true);
+
+            for (int i = 0; i < 64; i++) {
+                if (i < from || i >= to) {
+                    assertFalse(bitArray.get(i));
+                } else {
+                    assertTrue(bitArray.get(i));
+                }
+            }
+        }
+    }
+
+    public void testFillFalseSingleWord() {
+        try (BitArray bitArray = new BitArray(1, BigArrays.NON_RECYCLING_INSTANCE)) {
+            int from = 8;
+            int to = 56;
+
+            bitArray.fill(0, 64, true);
+            bitArray.fill(from, to, false);
+
+            for (int i = 0; i < 64; i++) {
+                if (i < from || i >= to) {
+                    assertTrue(bitArray.get(i));
+                } else {
+                    assertFalse(bitArray.get(i));
+                }
+            }
+        }
+    }
+
+    public void testFillTrueAfterArrayLength() {
+        try (BitArray bitArray = new BitArray(1, BigArrays.NON_RECYCLING_INSTANCE)) {
+            int from = 100;
+            int to = 200;
+
+            bitArray.fill(from, to, true);
+
+            for (int i = 0; i < to; i++) {
+                if (i < from) {
+                    assertFalse(bitArray.get(i));
+                } else {
+                    assertTrue(bitArray.get(i));
+                }
+            }
+        }
+    }
+
+    public void testFillFalseAfterArrayLength() {
+        try (BitArray bitArray = new BitArray(1, BigArrays.NON_RECYCLING_INSTANCE)) {
+            int from = 100;
+            int to = 200;
+
+            bitArray.fill(from, to, false);
+
+            for (int i = 0; i < to; i++) {
+                assertFalse(bitArray.get(i));
+            }
         }
     }
 

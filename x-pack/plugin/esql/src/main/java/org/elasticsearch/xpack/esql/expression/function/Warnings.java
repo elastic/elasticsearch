@@ -7,7 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -23,13 +24,61 @@ public class Warnings {
 
     private int addedWarnings;
 
+    public static final Warnings NOOP_WARNINGS = new Warnings(Source.EMPTY) {
+        @Override
+        public void registerException(Exception exception) {
+            // this space intentionally left blank
+        }
+    };
+
+    /**
+     * Create a new warnings object based on the given mode which warns that
+     * it treats the result as {@code null}.
+     * @param warningsMode The warnings collection strategy to use
+     * @param source used to indicate where in the query the warning occurred
+     * @return A warnings collector object
+     */
+    public static Warnings createWarnings(DriverContext.WarningsMode warningsMode, Source source) {
+        return createWarnings(warningsMode, source, "treating result as null");
+    }
+
+    /**
+     * Create a new warnings object based on the given mode which warns that
+     * it treats the result as {@code false}.
+     * @param warningsMode The warnings collection strategy to use
+     * @param source used to indicate where in the query the warning occurred
+     * @return A warnings collector object
+     */
+    public static Warnings createWarningsTreatedAsFalse(DriverContext.WarningsMode warningsMode, Source source) {
+        return createWarnings(warningsMode, source, "treating result as false");
+    }
+
+    /**
+     * Create a new warnings object based on the given mode
+     * @param warningsMode The warnings collection strategy to use
+     * @param source used to indicate where in the query the warning occurred
+     * @param first warning message attached to the first result
+     * @return A warnings collector object
+     */
+    public static Warnings createWarnings(DriverContext.WarningsMode warningsMode, Source source, String first) {
+        return switch (warningsMode) {
+            case COLLECT -> new Warnings(source, first);
+            case IGNORE -> NOOP_WARNINGS;
+        };
+    }
+
     public Warnings(Source source) {
+        this(source, "treating result as null");
+    }
+
+    public Warnings(Source source, String first) {
         location = format("Line {}:{}: ", source.source().getLineNumber(), source.source().getColumnNumber());
-        first = format(
+        this.first = format(
             null,
-            "{}evaluation of [{}] failed, treating result as null. Only first {} failures recorded.",
+            "{}evaluation of [{}] failed, {}. Only first {} failures recorded.",
             location,
             source.text(),
+            first,
             MAX_ADDED_WARNINGS
         );
     }

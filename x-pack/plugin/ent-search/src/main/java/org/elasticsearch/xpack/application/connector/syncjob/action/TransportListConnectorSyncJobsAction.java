@@ -11,9 +11,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.application.connector.ConnectorSyncStatus;
@@ -29,12 +28,7 @@ public class TransportListConnectorSyncJobsAction extends HandledTransportAction
     protected final ConnectorSyncJobIndexService connectorSyncJobIndexService;
 
     @Inject
-    public TransportListConnectorSyncJobsAction(
-        TransportService transportService,
-        ClusterService clusterService,
-        ActionFilters actionFilters,
-        Client client
-    ) {
+    public TransportListConnectorSyncJobsAction(TransportService transportService, ActionFilters actionFilters, Client client) {
         super(
             ListConnectorSyncJobsAction.NAME,
             transportService,

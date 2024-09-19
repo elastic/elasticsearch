@@ -1,6 +1,6 @@
 setup:
-  - skip:
-      version: ' - 8.13.99'
+  - requires:
+      cluster_features: "gte_v8.14.0"
       reason: 'kNN retriever added in 8.14'
   - do:
       indices.create:
@@ -17,6 +17,8 @@ setup:
                 type: dense_vector
                 dims: 5
                 index: true
+                index_options:
+                  type: hnsw
                 similarity: l2_norm
 
   - do:

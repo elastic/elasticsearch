@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.server.cli;
@@ -38,6 +39,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -393,15 +395,24 @@ public class ServerProcessTests extends ESTestCase {
             stderr.println("final message");
         };
         var server = startProcess(false, false);
+
+        CompletableFuture<Void> stopping = new CompletableFuture<>();
         new Thread(() -> {
-            // simulate stop run as shutdown hook in another thread, eg from Ctrl-C
-            nonInterruptibleVoid(mainReady::await);
-            server.stop();
+            try {
+                // simulate stop run as shutdown hook in another thread, eg from Ctrl-C
+                nonInterruptibleVoid(mainReady::await);
+                server.stop();
+                stopping.complete(null);
+            } catch (Throwable e) {
+                stopping.completeExceptionally(e);
+            }
         }).start();
         int exitCode = server.waitFor();
         assertThat(process.main.isDone(), is(true));
         assertThat(exitCode, equalTo(0));
         assertThat(terminal.getErrorOutput(), containsString("final message"));
+        // rethrow any potential exception observed while stopping
+        stopping.get();
     }
 
     public void testProcessDies() throws Exception {

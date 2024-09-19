@@ -4,10 +4,12 @@
 <titleabbrev>Delete connector sync job</titleabbrev>
 ++++
 
-preview::[]
+beta::[]
 
 Removes a connector sync job and its associated data.
 This is a destructive action that is not recoverable.
+
+To get started with Connector APIs, check out the {enterprise-search-ref}/connectors-tutorial-api.html[tutorial^].
 
 [[delete-connector-sync-job-api-request]]
 ==== {api-request-title}
@@ -17,7 +19,7 @@ This is a destructive action that is not recoverable.
 [[delete-connector-sync-job-api-prereq]]
 ==== {api-prereq-title}
 
-* To sync data using connectors, it's essential to have the Elastic connectors service running.
+* To sync data using self-managed connectors, you need to deploy the {enterprise-search-ref}/build-connector.html[Elastic connector service] on your own infrastructure. This service runs automatically on Elastic Cloud for native connectors.
 
 [[delete-connector-sync-job-api-path-params]]
 ==== {api-path-parms-title}

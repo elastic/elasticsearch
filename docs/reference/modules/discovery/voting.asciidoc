@@ -63,7 +63,8 @@ departed nodes from the voting configuration manually. Use the
 of resilience.
 
 No matter how it is configured, Elasticsearch will not suffer from a 
-"split-brain" inconsistency. The `cluster.auto_shrink_voting_configuration`
+"{wikipedia}/Split-brain_(computing)[split-brain]" inconsistency. 
+The `cluster.auto_shrink_voting_configuration`
 setting affects only its availability in the event of the failure of some of its
 nodes and the administrative tasks that must be performed as nodes join and
 leave the cluster.

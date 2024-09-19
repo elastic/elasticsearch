@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -64,10 +65,11 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
             FollowParameters.initParser(PARSER);
         }
 
-        public static Request fromXContent(final XContentParser parser) throws IOException {
+        public static Request fromXContent(TimeValue masterNodeTimeout, TimeValue ackTimeout, final XContentParser parser)
+            throws IOException {
             PutFollowParameters parameters = PARSER.parse(parser, null);
 
-            Request request = new Request();
+            Request request = new Request(masterNodeTimeout, ackTimeout);
             request.setRemoteCluster(parameters.remoteCluster);
             request.setLeaderIndex(parameters.leaderIndex);
             request.setDataStreamName(parameters.dataStreamName);
@@ -85,7 +87,9 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
         private FollowParameters parameters = new FollowParameters();
         private ActiveShardCount waitForActiveShards = ActiveShardCount.NONE;
 
-        public Request() {}
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout) {
+            super(masterNodeTimeout, ackTimeout);
+        }
 
         public String getFollowerIndex() {
             return followerIndex;

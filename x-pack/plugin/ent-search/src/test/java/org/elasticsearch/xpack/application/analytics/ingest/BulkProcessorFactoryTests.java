@@ -45,7 +45,7 @@ public class BulkProcessorFactoryTests extends ESTestCase {
     }
 
     public void testConfigValueAreUsed() throws Exception {
-        TimeValue flushDelay = TimeValue.parseTimeValue(randomTimeValue(), "random time value");
+        TimeValue flushDelay = randomTimeValue();
         int maxBulkActions = randomIntBetween(1, 10);
         int numberOfRetries = between(0, 5);
         ByteSizeValue maxBytesInFlight = randomByteSizeValue();

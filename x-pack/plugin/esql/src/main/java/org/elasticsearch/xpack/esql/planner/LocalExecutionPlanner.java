@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.planner;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Describable;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
@@ -17,6 +18,7 @@ import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
+import org.elasticsearch.compute.operator.ColumnLoadOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
@@ -28,6 +30,7 @@ import org.elasticsearch.compute.operator.MvExpandOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.Operator.OperatorFactory;
 import org.elasticsearch.compute.operator.OutputOperator.OutputOperatorFactory;
+import org.elasticsearch.compute.operator.RowInTableLookupOperator;
 import org.elasticsearch.compute.operator.RowOperator.RowOperatorFactory;
 import org.elasticsearch.compute.operator.ShowOperator;
 import org.elasticsearch.compute.operator.SinkOperator;
@@ -48,10 +51,21 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
@@ -64,6 +78,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
+import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
@@ -74,16 +89,7 @@ import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.NameId;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.expression.Order;
-import org.elasticsearch.xpack.ql.util.Holder;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -93,6 +99,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static java.util.Arrays.asList;
@@ -114,7 +121,7 @@ public class LocalExecutionPlanner {
     private final BigArrays bigArrays;
     private final BlockFactory blockFactory;
     private final Settings settings;
-    private final EsqlConfiguration configuration;
+    private final Configuration configuration;
     private final ExchangeSourceHandler exchangeSourceHandler;
     private final ExchangeSinkHandler exchangeSinkHandler;
     private final EnrichLookupService enrichLookupService;
@@ -127,7 +134,7 @@ public class LocalExecutionPlanner {
         BigArrays bigArrays,
         BlockFactory blockFactory,
         Settings settings,
-        EsqlConfiguration configuration,
+        Configuration configuration,
         ExchangeSourceHandler exchangeSourceHandler,
         ExchangeSinkHandler exchangeSinkHandler,
         EnrichLookupService enrichLookupService,
@@ -162,7 +169,7 @@ public class LocalExecutionPlanner {
         // workaround for https://github.com/elastic/elasticsearch/issues/99782
         localPhysicalPlan = localPhysicalPlan.transformUp(
             AggregateExec.class,
-            a -> a.getMode() == AggregateExec.Mode.FINAL ? new ProjectExec(a.source(), a, Expressions.asAttributes(a.aggregates())) : a
+            a -> a.getMode() == AggregatorMode.FINAL ? new ProjectExec(a.source(), a, Expressions.asAttributes(a.aggregates())) : a
         );
         PhysicalOperation physicalOperation = plan(localPhysicalPlan, context);
 
@@ -218,6 +225,8 @@ public class LocalExecutionPlanner {
         // lookups and joins
         else if (node instanceof EnrichExec enrich) {
             return planEnrich(enrich, context);
+        } else if (node instanceof HashJoinExec lookup) {
+            return planHashJoin(lookup, context);
         }
         // output
         else if (node instanceof OutputExec outputExec) {
@@ -338,16 +347,17 @@ public class LocalExecutionPlanner {
         List<Layout.ChannelSet> inverse = source.layout.inverse();
         for (int channel = 0; channel < inverse.size(); channel++) {
             elementTypes[channel] = PlannerUtils.toElementType(inverse.get(channel).type());
-            encoders[channel] = switch (inverse.get(channel).type().typeName()) {
-                case "ip" -> TopNEncoder.IP;
-                case "text", "keyword" -> TopNEncoder.UTF8;
-                case "version" -> TopNEncoder.VERSION;
-                case "boolean", "null", "byte", "short", "integer", "long", "double", "float", "half_float", "datetime", "date_period",
-                    "time_duration", "object", "nested", "scaled_float", "unsigned_long", "_doc" -> TopNEncoder.DEFAULT_SORTABLE;
-                case "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" -> TopNEncoder.DEFAULT_UNSORTABLE;
+            encoders[channel] = switch (inverse.get(channel).type()) {
+                case IP -> TopNEncoder.IP;
+                case TEXT, KEYWORD -> TopNEncoder.UTF8;
+                case VERSION -> TopNEncoder.VERSION;
+                case BOOLEAN, NULL, BYTE, SHORT, INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, DATETIME, DATE_NANOS, DATE_PERIOD, TIME_DURATION,
+                    OBJECT, SCALED_FLOAT, UNSIGNED_LONG, DOC_DATA_TYPE, TSID_DATA_TYPE -> TopNEncoder.DEFAULT_SORTABLE;
+                case GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE, COUNTER_LONG, COUNTER_INTEGER, COUNTER_DOUBLE ->
+                    TopNEncoder.DEFAULT_UNSORTABLE;
                 // unsupported fields are encoded as BytesRef, we'll use the same encoder; all values should be null at this point
-                case "unsupported" -> TopNEncoder.UNSUPPORTED;
-                default -> throw new EsqlIllegalArgumentException("No TopN sorting encoder for type " + inverse.get(channel).type());
+                case PARTIAL_AGG, UNSUPPORTED -> TopNEncoder.UNSUPPORTED;
+                case SOURCE -> throw new EsqlIllegalArgumentException("No TopN sorting encoder for type " + inverse.get(channel).type());
             };
         }
         List<TopNOperator.SortOrder> orders = topNExec.order().stream().map(order -> {
@@ -410,12 +420,14 @@ public class LocalExecutionPlanner {
         Layout.Builder layoutBuilder = source.layout.builder();
         layoutBuilder.append(dissect.extractedFields());
         final Expression expr = dissect.inputExpression();
-        String[] attributeNames = Expressions.names(dissect.extractedFields()).toArray(new String[0]);
+        // Names in the pattern and layout can differ.
+        // Attributes need to be rename-able to avoid problems with shadowing - see GeneratingPlan resp. PushDownRegexExtract.
+        String[] patternNames = Expressions.names(dissect.parser().keyAttributes(Source.EMPTY)).toArray(new String[0]);
 
         Layout layout = layoutBuilder.build();
         source = source.with(
             new StringExtractOperator.StringExtractOperatorFactory(
-                attributeNames,
+                patternNames,
                 EvalMapper.toEvaluator(expr, layout),
                 () -> (input) -> dissect.parser().parser().parse(input)
             ),
@@ -432,11 +444,15 @@ public class LocalExecutionPlanner {
         Map<String, Integer> fieldToPos = new HashMap<>(extractedFields.size());
         Map<String, ElementType> fieldToType = new HashMap<>(extractedFields.size());
         ElementType[] types = new ElementType[extractedFields.size()];
+        List<Attribute> extractedFieldsFromPattern = grok.pattern().extractedFields();
         for (int i = 0; i < extractedFields.size(); i++) {
-            Attribute extractedField = extractedFields.get(i);
-            ElementType type = PlannerUtils.toElementType(extractedField.dataType());
-            fieldToPos.put(extractedField.name(), i);
-            fieldToType.put(extractedField.name(), type);
+            DataType extractedFieldType = extractedFields.get(i).dataType();
+            // Names in pattern and layout can differ.
+            // Attributes need to be rename-able to avoid problems with shadowing - see GeneratingPlan resp. PushDownRegexExtract.
+            String patternName = extractedFieldsFromPattern.get(i).name();
+            ElementType type = PlannerUtils.toElementType(extractedFieldType);
+            fieldToPos.put(patternName, i);
+            fieldToType.put(patternName, type);
             types[i] = type;
         }
 
@@ -477,6 +493,67 @@ public class LocalExecutionPlanner {
             ),
             layout
         );
+    }
+
+    private PhysicalOperation planHashJoin(HashJoinExec join, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(join.child(), context);
+        int positionsChannel = source.layout.numberOfChannels();
+
+        Layout.Builder layoutBuilder = source.layout.builder();
+        for (Attribute f : join.output()) {
+            if (join.child().outputSet().contains(f)) {
+                continue;
+            }
+            layoutBuilder.append(f);
+        }
+        Layout layout = layoutBuilder.build();
+        Block[] localData = join.joinData().supplier().get();
+
+        RowInTableLookupOperator.Key[] keys = new RowInTableLookupOperator.Key[join.leftFields().size()];
+        int[] blockMapping = new int[join.leftFields().size()];
+        for (int k = 0; k < join.leftFields().size(); k++) {
+            Attribute left = join.leftFields().get(k);
+            Attribute right = join.rightFields().get(k);
+            Block localField = null;
+            for (int l = 0; l < join.joinData().output().size(); l++) {
+                if (join.joinData().output().get(l).name().equals((((NamedExpression) right).name()))) {
+                    localField = localData[l];
+                }
+            }
+            if (localField == null) {
+                throw new IllegalArgumentException("can't find local data for [" + right + "]");
+            }
+
+            keys[k] = new RowInTableLookupOperator.Key(left.name(), localField);
+            Layout.ChannelAndType input = source.layout.get(left.id());
+            blockMapping[k] = input.channel();
+        }
+
+        // Load the "positions" of each match
+        source = source.with(new RowInTableLookupOperator.Factory(keys, blockMapping), layout);
+
+        // Load the "values" from each match
+        for (Attribute f : join.addedFields()) {
+            Block localField = null;
+            for (int l = 0; l < join.joinData().output().size(); l++) {
+                if (join.joinData().output().get(l).name().equals(f.name())) {
+                    localField = localData[l];
+                }
+            }
+            if (localField == null) {
+                throw new IllegalArgumentException("can't find local data for [" + f + "]");
+            }
+            source = source.with(
+                new ColumnLoadOperator.Factory(new ColumnLoadOperator.Values(f.name(), localField), positionsChannel),
+                layout
+            );
+        }
+
+        // Drop the "positions" of the match
+        List<Integer> projection = new ArrayList<>();
+        IntStream.range(0, positionsChannel).boxed().forEach(projection::add);
+        IntStream.range(positionsChannel + 1, positionsChannel + 1 + join.addedFields().size()).boxed().forEach(projection::add);
+        return source.with(new ProjectOperatorFactory(projection), layout);
     }
 
     private ExpressionEvaluator.Factory toEvaluator(Expression exp, Layout layout) {
@@ -521,6 +598,9 @@ public class LocalExecutionPlanner {
                 inputId = ne.id();
             }
             Layout.ChannelAndType input = source.layout.get(inputId);
+            if (input == null) {
+                throw new IllegalStateException("can't find input for [" + ne + "]");
+            }
             Layout.ChannelSet channelSet = inputChannelToOutputIds.get(input.channel());
             if (channelSet == null) {
                 channelSet = new Layout.ChannelSet(new HashSet<>(), input.type());

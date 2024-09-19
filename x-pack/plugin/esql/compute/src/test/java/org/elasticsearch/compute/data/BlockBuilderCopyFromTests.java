@@ -22,13 +22,13 @@ public class BlockBuilderCopyFromTests extends ESTestCase {
     @ParametersFactory
     public static List<Object[]> params() {
         List<Object[]> params = new ArrayList<>();
-        for (ElementType elementType : ElementType.values()) {
-            if (elementType == ElementType.UNKNOWN || elementType == ElementType.NULL || elementType == ElementType.DOC) {
+        for (ElementType e : ElementType.values()) {
+            if (e == ElementType.UNKNOWN || e == ElementType.NULL || e == ElementType.DOC || e == ElementType.COMPOSITE) {
                 continue;
             }
             for (boolean nullAllowed : new boolean[] { false, true }) {
                 for (int[] valuesPerPosition : new int[][] { new int[] { 1, 1 }, new int[] { 1, 10 } }) {  // TODO 0
-                    params.add(new Object[] { elementType, nullAllowed, valuesPerPosition[0], valuesPerPosition[1] });
+                    params.add(new Object[] { e, nullAllowed, valuesPerPosition[0], valuesPerPosition[1] });
                 }
             }
         }

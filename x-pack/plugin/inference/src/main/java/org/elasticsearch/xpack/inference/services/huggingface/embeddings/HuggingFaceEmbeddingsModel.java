@@ -7,18 +7,17 @@
 
 package org.elasticsearch.xpack.inference.services.huggingface.embeddings;
 
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.huggingface.HuggingFaceActionVisitor;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModel;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
-import java.net.URI;
 import java.util.Map;
 
 public class HuggingFaceEmbeddingsModel extends HuggingFaceModel {
@@ -27,13 +26,14 @@ public class HuggingFaceEmbeddingsModel extends HuggingFaceModel {
         TaskType taskType,
         String service,
         Map<String, Object> serviceSettings,
-        @Nullable Map<String, Object> secrets
+        @Nullable Map<String, Object> secrets,
+        ConfigurationParseContext context
     ) {
         this(
             inferenceEntityId,
             taskType,
             service,
-            HuggingFaceServiceSettings.fromMap(serviceSettings),
+            HuggingFaceServiceSettings.fromMap(serviceSettings, context),
             DefaultSecretSettings.fromMap(secrets)
         );
     }
@@ -46,7 +46,12 @@ public class HuggingFaceEmbeddingsModel extends HuggingFaceModel {
         HuggingFaceServiceSettings serviceSettings,
         @Nullable DefaultSecretSettings secrets
     ) {
-        super(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings), new ModelSecrets(secrets));
+        super(
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings),
+            new ModelSecrets(secrets),
+            serviceSettings,
+            secrets
+        );
     }
 
     public HuggingFaceEmbeddingsModel(HuggingFaceEmbeddingsModel model, HuggingFaceServiceSettings serviceSettings) {
@@ -67,16 +72,6 @@ public class HuggingFaceEmbeddingsModel extends HuggingFaceModel {
     @Override
     public DefaultSecretSettings getSecretSettings() {
         return (DefaultSecretSettings) super.getSecretSettings();
-    }
-
-    @Override
-    public URI getUri() {
-        return getServiceSettings().uri();
-    }
-
-    @Override
-    public SecureString getApiKey() {
-        return getSecretSettings().apiKey();
     }
 
     @Override

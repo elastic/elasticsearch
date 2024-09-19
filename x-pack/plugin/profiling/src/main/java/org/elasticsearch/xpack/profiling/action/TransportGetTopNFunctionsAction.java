@@ -15,7 +15,8 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -33,7 +34,7 @@ public class TransportGetTopNFunctionsAction extends TransportAction<GetStackTra
 
     @Inject
     public TransportGetTopNFunctionsAction(NodeClient nodeClient, TransportService transportService, ActionFilters actionFilters) {
-        super(GetTopNFunctionsAction.NAME, actionFilters, transportService.getTaskManager());
+        super(GetTopNFunctionsAction.NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.nodeClient = nodeClient;
         this.transportService = transportService;
     }
@@ -134,17 +135,22 @@ public class TransportGetTopNFunctionsAction extends TransportAction<GetStackTra
             functions.sort(Collections.reverseOrder());
             long sumSelfCount = 0;
             long sumTotalCount = 0;
+            double sumAnnualCo2Tons = 0.0d;
+            double sumAnnualCostsUsd = 0.0d;
+
             for (int i = 0; i < functions.size(); i++) {
                 TopNFunction topNFunction = functions.get(i);
                 topNFunction.setRank(i + 1);
                 sumSelfCount += topNFunction.getSelfCount();
                 sumTotalCount += topNFunction.getTotalCount();
+                sumAnnualCo2Tons += topNFunction.getSelfAnnualCO2Tons();
+                sumAnnualCostsUsd += topNFunction.getSelfAnnualCostsUSD();
             }
             // limit at the end so global stats are independent of the limit
             if (limit != null && limit > 0 && limit < functions.size()) {
                 functions = functions.subList(0, limit);
             }
-            return new GetTopNFunctionsResponse(sumSelfCount, sumTotalCount, functions);
+            return new GetTopNFunctionsResponse(sumSelfCount, sumTotalCount, sumAnnualCo2Tons, sumAnnualCostsUsd, functions);
         }
 
         public boolean isExists(String frameGroupID) {

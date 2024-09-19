@@ -1,14 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
@@ -16,6 +21,7 @@ import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArrayPriorityQueue;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -204,7 +210,19 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
             LongConsumer addRequestCircuitBreakerBytes,
             CollectConsumer consumer
         ) throws IOException {
-            SortedBinaryDocValues values = valuesSourceConfig.getValuesSource().bytesValues(ctx);
+            final SortedBinaryDocValues values = valuesSourceConfig.getValuesSource().bytesValues(ctx);
+            final BinaryDocValues singleton = FieldData.unwrapSingleton(values);
+            return singleton != null
+                ? getLeafCollector(includeExclude, singleton, sub, consumer)
+                : getLeafCollector(includeExclude, values, sub, consumer);
+        }
+
+        private LeafBucketCollector getLeafCollector(
+            IncludeExclude.StringFilter includeExclude,
+            SortedBinaryDocValues values,
+            LeafBucketCollector sub,
+            CollectConsumer consumer
+        ) {
             return new LeafBucketCollectorBase(sub, values) {
                 final BytesRefBuilder previous = new BytesRefBuilder();
 
@@ -228,6 +246,26 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
                         }
                         previous.copyBytes(bytes);
                         consumer.accept(sub, doc, owningBucketOrd, bytes);
+                    }
+                }
+            };
+        }
+
+        private LeafBucketCollector getLeafCollector(
+            IncludeExclude.StringFilter includeExclude,
+            BinaryDocValues values,
+            LeafBucketCollector sub,
+            CollectConsumer consumer
+        ) {
+            return new LeafBucketCollectorBase(sub, values) {
+
+                @Override
+                public void collect(int doc, long owningBucketOrd) throws IOException {
+                    if (values.advanceExact(doc)) {
+                        BytesRef bytes = values.binaryValue();
+                        if (includeExclude == null || includeExclude.accept(bytes)) {
+                            consumer.accept(sub, doc, owningBucketOrd, bytes);
+                        }
                     }
                 }
             };
@@ -385,20 +423,61 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
             }
             // we need to fill-in the blanks
             for (LeafReaderContext ctx : searcher().getTopReaderContext().leaves()) {
-                SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
-                // brute force
-                for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {
-                    if (excludeDeletedDocs && ctx.reader().getLiveDocs() != null && ctx.reader().getLiveDocs().get(docId) == false) {
-                        continue;
+                final Bits liveDocs = excludeDeletedDocs ? ctx.reader().getLiveDocs() : null;
+                if (liveDocs == null && valuesSource.hasOrdinals()) {
+                    final SortedSetDocValues values = ((ValuesSource.Bytes.WithOrdinals) valuesSource).ordinalsValues(ctx);
+                    collectZeroDocEntries(values, owningBucketOrd);
+                } else {
+                    final SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
+                    final BinaryDocValues singleton = FieldData.unwrapSingleton(values);
+                    if (singleton != null) {
+                        collectZeroDocEntries(singleton, liveDocs, ctx.reader().maxDoc(), owningBucketOrd);
+                    } else {
+                        collectZeroDocEntries(values, liveDocs, ctx.reader().maxDoc(), owningBucketOrd);
                     }
-                    if (values.advanceExact(docId)) {
-                        int valueCount = values.docValueCount();
-                        for (int i = 0; i < valueCount; ++i) {
-                            BytesRef term = values.nextValue();
-                            if (includeExclude == null || includeExclude.accept(term)) {
-                                bucketOrds.add(owningBucketOrd, term);
-                            }
+                }
+            }
+        }
+
+        private void collectZeroDocEntries(SortedSetDocValues values, long owningBucketOrd) throws IOException {
+            final TermsEnum termsEnum = values.termsEnum();
+            BytesRef term;
+            while ((term = termsEnum.next()) != null) {
+                if (includeExclude == null || includeExclude.accept(term)) {
+                    bucketOrds.add(owningBucketOrd, term);
+                }
+            }
+        }
+
+        private void collectZeroDocEntries(SortedBinaryDocValues values, Bits liveDocs, int maxDoc, long owningBucketOrd)
+            throws IOException {
+            // brute force
+            for (int docId = 0; docId < maxDoc; ++docId) {
+                if (liveDocs != null && liveDocs.get(docId) == false) {
+                    continue;
+                }
+                if (values.advanceExact(docId)) {
+                    final int valueCount = values.docValueCount();
+                    for (int i = 0; i < valueCount; ++i) {
+                        final BytesRef term = values.nextValue();
+                        if (includeExclude == null || includeExclude.accept(term)) {
+                            bucketOrds.add(owningBucketOrd, term);
                         }
+                    }
+                }
+            }
+        }
+
+        private void collectZeroDocEntries(BinaryDocValues values, Bits liveDocs, int maxDoc, long owningBucketOrd) throws IOException {
+            // brute force
+            for (int docId = 0; docId < maxDoc; ++docId) {
+                if (liveDocs != null && liveDocs.get(docId) == false) {
+                    continue;
+                }
+                if (values.advanceExact(docId)) {
+                    final BytesRef term = values.binaryValue();
+                    if (includeExclude == null || includeExclude.accept(term)) {
+                        bucketOrds.add(owningBucketOrd, term);
                     }
                 }
             }

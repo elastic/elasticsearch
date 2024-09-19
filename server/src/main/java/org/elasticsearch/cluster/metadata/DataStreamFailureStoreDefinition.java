@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
@@ -24,9 +26,28 @@ import java.io.IOException;
 public class DataStreamFailureStoreDefinition {
 
     public static final String FAILURE_STORE_REFRESH_INTERVAL_SETTING_NAME = "data_streams.failure_store.refresh_interval";
+    public static final Settings DATA_STREAM_FAILURE_STORE_SETTINGS;
     public static final CompressedXContent DATA_STREAM_FAILURE_STORE_MAPPING;
 
+    public static final int FAILURE_STORE_DEFINITION_VERSION = 1;
+    public static final Setting<Integer> FAILURE_STORE_DEFINITION_VERSION_SETTING = Setting.intSetting(
+        "index.failure_store.version",
+        0,
+        Setting.Property.IndexScope
+    );
+
     static {
+        DATA_STREAM_FAILURE_STORE_SETTINGS = Settings.builder()
+            // Always start with the hidden settings for a backing index.
+            .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
+            // Override any pipeline settings on the failure store to not use any
+            // specified by the data stream template. Default pipelines are very much
+            // meant for the backing indices only.
+            .putNull(IndexSettings.DEFAULT_PIPELINE.getKey())
+            .putNull(IndexSettings.FINAL_PIPELINE.getKey())
+            .put(FAILURE_STORE_DEFINITION_VERSION_SETTING.getKey(), FAILURE_STORE_DEFINITION_VERSION)
+            .build();
+
         try {
             /*
              * The data stream failure store mapping. The JSON content is as follows:
@@ -57,7 +78,7 @@ public class DataStreamFailureStoreDefinition {
              *       "error": {
              *         "properties": {
              *           "message": {
-             *              "type": "wildcard"
+             *              "type": "match_only_text"
              *           },
              *           "stack_trace": {
              *              "type": "text"
@@ -71,7 +92,10 @@ public class DataStreamFailureStoreDefinition {
              *           "pipeline_trace": {
              *              "type": "keyword"
              *           },
-             *           "processor": {
+             *           "processor_tag": {
+             *              "type": "keyword"
+             *           },
+             *           "processor_type": {
              *              "type": "keyword"
              *           }
              *         }
@@ -109,7 +133,7 @@ public class DataStreamFailureStoreDefinition {
                     .startObject("error")
                     .startObject("properties")
                     .startObject("message")
-                    .field("type", "wildcard")
+                    .field("type", "match_only_text")
                     .endObject()
                     .startObject("stack_trace")
                     .field("type", "text")
@@ -123,7 +147,10 @@ public class DataStreamFailureStoreDefinition {
                     .startObject("pipeline_trace")
                     .field("type", "keyword")
                     .endObject()
-                    .startObject("processor")
+                    .startObject("processor_tag")
+                    .field("type", "keyword")
+                    .endObject()
+                    .startObject("processor_type")
                     .field("type", "keyword")
                     .endObject()
                     .endObject()
@@ -141,26 +168,25 @@ public class DataStreamFailureStoreDefinition {
     }
 
     /**
-     * Like {@link DataStreamFailureStoreDefinition#applyFailureStoreSettings} but optionally applied on an existing {@link Settings}
-     * @param existingSettings initial settings to update
+     * Obtains the default settings to be used when creating a failure store index on a data stream.
      * @param nodeSettings settings from the cluster service which capture the node's current settings
      * @return either the existing settings if no changes are needed, or a new settings instance which includes failure store specific
      * settings
      */
-    public static Settings buildFailureStoreIndexSettings(Settings existingSettings, Settings nodeSettings) {
+    public static Settings buildFailureStoreIndexSettings(Settings nodeSettings) {
         // Optionally set a custom refresh interval for the failure store index.
         TimeValue refreshInterval = getFailureStoreRefreshInterval(nodeSettings);
         if (refreshInterval != null) {
             return Settings.builder()
-                .put(existingSettings)
+                .put(DATA_STREAM_FAILURE_STORE_SETTINGS)
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), refreshInterval)
                 .build();
         }
-        return existingSettings;
+        return DATA_STREAM_FAILURE_STORE_SETTINGS;
     }
 
     /**
-     * Like {@link DataStreamFailureStoreDefinition#buildFailureStoreIndexSettings} but for usage with a {@link Settings.Builder}
+     * Modifies an existing index's settings so that it can be added to a data stream's failure store.
      * @param nodeSettings settings from the cluster service which capture the node's current settings
      * @param builder to capture failure store specific index settings
      * @return the original settings builder, with any failure store specific settings applied

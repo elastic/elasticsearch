@@ -6,8 +6,8 @@
 
 [IMPORTANT]
 ====
-cat APIs are only intended for human consumption using the command line or {kib} 
-console. They are _not_ intended for use by applications. For application 
+cat APIs are only intended for human consumption using the command line or {kib}
+console. They are _not_ intended for use by applications. For application
 consumption, use the <<cluster-health,cluster health API>>.
 ====
 
@@ -51,22 +51,22 @@ over a longer period of time. See <<cat-health-api-example-large-cluster>>.
 [[cat-health-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=http-format]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=help]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=time]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=time]
 
 `ts` (timestamps)::
 (Optional, Boolean) If `true`, returns `HH:MM:SS` and
 {wikipedia}/Unix_time[Unix `epoch`] timestamps. Defaults to
 `true`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 
 [[cat-health-api-example]]
@@ -87,8 +87,8 @@ The API returns the following response:
 
 [source,txt]
 --------------------------------------------------
-epoch      timestamp cluster       status node.total node.data shards pri relo init unassign pending_tasks max_task_wait_time active_shards_percent
-1475871424 16:17:04  elasticsearch green           1         1      1   1    0    0        0             0                  -                100.0%
+epoch      timestamp cluster       status node.total node.data shards pri relo init unassign unassign.pri pending_tasks max_task_wait_time active_shards_percent
+1475871424 16:17:04  elasticsearch green           1         1      1   1    0    0        0            0             0                  -                100.0%
 --------------------------------------------------
 // TESTRESPONSE[s/1475871424 16:17:04/\\d+ \\d+:\\d+:\\d+/]
 // TESTRESPONSE[s/elasticsearch/[^ ]+/ s/0                  -/\\d+ (-|\\d+(\\.\\d+)?[ms]+)/ non_json]
@@ -107,10 +107,12 @@ The API returns the following response:
 
 [source,txt]
 --------------------------------------------------
-cluster       status node.total node.data shards pri relo init unassign pending_tasks max_task_wait_time active_shards_percent
-elasticsearch green           1         1      1   1    0    0        0             0                  -                100.0%
+cluster       status node.total node.data shards pri relo init unassign unassign.pri pending_tasks max_task_wait_time active_shards_percent
+elasticsearch green           1         1      1   1    0    0        0            0             0                  -                100.0%
 --------------------------------------------------
 // TESTRESPONSE[s/elasticsearch/[^ ]+/ s/0                  -/\\d+ (-|\\d+(\\.\\d+)?[ms]+)/ non_json]
+
+**Note**: The reported number of unassigned primary shards may be lower than the true value if your cluster contains nodes running a version below 8.16. For a more accurate count in this scenario, please use the <<cluster-health,cluster health API>>.
 
 [[cat-health-api-example-across-nodes]]
 ===== Example across nodes
@@ -121,11 +123,11 @@ For example:
 --------------------------------------------------
 % pssh -i -h list.of.cluster.hosts curl -s localhost:9200/_cat/health
 [1] 20:20:52 [SUCCESS] es3.vm
-1384309218 18:20:18 foo green 3 3 3 3 0 0 0 0
+1384309218 18:20:18 foo green 3 3 3 3 0 0 0 0 0
 [2] 20:20:52 [SUCCESS] es1.vm
-1384309218 18:20:18 foo green 3 3 3 3 0 0 0 0
+1384309218 18:20:18 foo green 3 3 3 3 0 0 0 0 0
 [3] 20:20:52 [SUCCESS] es2.vm
-1384309218 18:20:18 foo green 3 3 3 3 0 0 0 0
+1384309218 18:20:18 foo green 3 3 3 3 0 0 0 0 0
 --------------------------------------------------
 // NOTCONSOLE
 
@@ -138,10 +140,10 @@ in a delayed loop. For example:
 [source,sh]
 --------------------------------------------------
 % while true; do curl localhost:9200/_cat/health; sleep 120; done
-1384309446 18:24:06 foo red 3 3 20 20 0 0 1812 0
-1384309566 18:26:06 foo yellow 3 3 950 916 0 12 870 0
-1384309686 18:28:06 foo yellow 3 3 1328 916 0 12 492 0
-1384309806 18:30:06 foo green 3 3 1832 916 4 0 0
+1384309446 18:24:06 foo red 3 3 20 20 0 0 1812 1121 0
+1384309566 18:26:06 foo yellow 3 3 950 916 0 12 870 421 0
+1384309686 18:28:06 foo yellow 3 3 1328 916 0 12 492 301 0
+1384309806 18:30:06 foo green 3 3 1832 916 4 0 0 0
 ^C
 --------------------------------------------------
 // NOTCONSOLE

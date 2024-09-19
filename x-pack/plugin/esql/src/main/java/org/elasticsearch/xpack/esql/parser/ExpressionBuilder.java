@@ -15,17 +15,35 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.InsensitiveEquals;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
+import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MatchQueryPredicate;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.DateUtils;
+import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy;
+import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -34,33 +52,14 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.InvalidArgumentException;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
-import org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy;
-import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
-import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.RLikePattern;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardPattern;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.type.DateUtils;
-import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.math.BigInteger;
 import java.time.Duration;
@@ -69,32 +68,66 @@ import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
+import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
+import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
+import static org.elasticsearch.xpack.esql.core.util.StringUtils.isInteger;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.bigIntegerToUnsignedLong;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.parseTemporalAmout;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.parseTemporalAmount;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIntegral;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.TIME_DURATION;
-import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
-import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
-import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
-import static org.elasticsearch.xpack.ql.util.StringUtils.WILDCARD;
 
 public abstract class ExpressionBuilder extends IdentifierBuilder {
 
-    private final Map<Token, TypedParamValue> params;
+    private int expressionDepth = 0;
 
-    ExpressionBuilder(Map<Token, TypedParamValue> params) {
+    /**
+     * Maximum depth for nested expressions.
+     * Avoids StackOverflowErrors at parse time with very convoluted expressions,
+     * eg. EVAL x = sin(sin(sin(sin(sin(sin(sin(sin(sin(....sin(x)....)
+     * ANTLR parser is recursive, so the only way to prevent a StackOverflow is to detect how
+     * deep we are in the expression parsing and abort the query execution after a threshold
+     *
+     * This value is defined empirically, but the actual stack limit is highly
+     * dependent on the JVM and on the JIT.
+     *
+     * A value of 500 proved to be right below the stack limit, but it still triggered
+     * some CI failures (once every ~2000 iterations). see https://github.com/elastic/elasticsearch/issues/109846
+     * Even though we didn't manage to reproduce the problem in real conditions, we decided
+     * to reduce the max allowed depth to 400 (that is still a pretty reasonable limit for real use cases) and be more safe.
+     *
+     */
+    public static final int MAX_EXPRESSION_DEPTH = 400;
+
+    protected final QueryParams params;
+
+    ExpressionBuilder(QueryParams params) {
         this.params = params;
     }
 
     protected Expression expression(ParseTree ctx) {
-        return typedParsing(this, ctx, Expression.class);
+        expressionDepth++;
+        if (expressionDepth > MAX_EXPRESSION_DEPTH) {
+            throw new ParsingException(
+                "ESQL statement exceeded the maximum expression depth allowed ({}): [{}]",
+                MAX_EXPRESSION_DEPTH,
+                ctx.getParent().getText()
+            );
+        }
+        try {
+            return typedParsing(this, ctx, Expression.class);
+        } finally {
+            expressionDepth--;
+        }
     }
 
     protected List<Expression> expressions(List<? extends ParserRuleContext> contexts) {
@@ -104,7 +137,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Literal visitBooleanValue(EsqlBaseParser.BooleanValueContext ctx) {
         Source source = source(ctx);
-        return new Literal(source, ctx.TRUE() != null, DataTypes.BOOLEAN);
+        return new Literal(source, ctx.TRUE() != null, DataType.BOOLEAN);
     }
 
     @Override
@@ -113,7 +146,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         String text = ctx.getText();
 
         try {
-            return new Literal(source, StringUtils.parseDouble(text), DataTypes.DOUBLE);
+            return new Literal(source, StringUtils.parseDouble(text), DataType.DOUBLE);
         } catch (InvalidArgumentException iae) {
             throw new ParsingException(source, iae.getMessage());
         }
@@ -130,7 +163,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         } catch (InvalidArgumentException siae) {
             // if it's too large, then quietly try to parse as a float instead
             try {
-                return new Literal(source, EsqlDataTypeConverter.stringToDouble(text), DataTypes.DOUBLE);
+                return new Literal(source, EsqlDataTypeConverter.stringToDouble(text), DataType.DOUBLE);
             } catch (InvalidArgumentException ignored) {}
 
             throw new ParsingException(source, siae.getMessage());
@@ -140,13 +173,13 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         DataType type;
         if (number instanceof BigInteger bi) {
             val = asLongUnsigned(bi);
-            type = DataTypes.UNSIGNED_LONG;
+            type = DataType.UNSIGNED_LONG;
         } else if (number.intValue() == number.longValue()) { // try to downsize to int if possible (since that's the most common type)
             val = number.intValue();
-            type = DataTypes.INTEGER;
+            type = DataType.INTEGER;
         } else {
             val = number.longValue();
-            type = DataTypes.LONG;
+            type = DataType.LONG;
         }
         return new Literal(source, val, type);
     }
@@ -155,25 +188,23 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     public Object visitNumericArrayLiteral(EsqlBaseParser.NumericArrayLiteralContext ctx) {
         Source source = source(ctx);
         List<Literal> numbers = visitList(this, ctx.numericValue(), Literal.class);
-        if (numbers.stream().anyMatch(l -> l.dataType() == DataTypes.DOUBLE)) {
-            return new Literal(source, mapNumbers(numbers, (no, dt) -> no.doubleValue()), DataTypes.DOUBLE);
+        if (numbers.stream().anyMatch(l -> l.dataType() == DataType.DOUBLE)) {
+            return new Literal(source, mapNumbers(numbers, (no, dt) -> no.doubleValue()), DataType.DOUBLE);
         }
-        if (numbers.stream().anyMatch(l -> l.dataType() == DataTypes.UNSIGNED_LONG)) {
+        if (numbers.stream().anyMatch(l -> l.dataType() == DataType.UNSIGNED_LONG)) {
             return new Literal(
                 source,
                 mapNumbers(
                     numbers,
-                    (no, dt) -> dt == DataTypes.UNSIGNED_LONG
-                        ? no.longValue()
-                        : bigIntegerToUnsignedLong(BigInteger.valueOf(no.longValue()))
+                    (no, dt) -> dt == DataType.UNSIGNED_LONG ? no.longValue() : bigIntegerToUnsignedLong(BigInteger.valueOf(no.longValue()))
                 ),
-                DataTypes.UNSIGNED_LONG
+                DataType.UNSIGNED_LONG
             );
         }
-        if (numbers.stream().anyMatch(l -> l.dataType() == DataTypes.LONG)) {
-            return new Literal(source, mapNumbers(numbers, (no, dt) -> no.longValue()), DataTypes.LONG);
+        if (numbers.stream().anyMatch(l -> l.dataType() == DataType.LONG)) {
+            return new Literal(source, mapNumbers(numbers, (no, dt) -> no.longValue()), DataType.LONG);
         }
-        return new Literal(source, mapNumbers(numbers, (no, dt) -> no.intValue()), DataTypes.INTEGER);
+        return new Literal(source, mapNumbers(numbers, (no, dt) -> no.intValue()), DataType.INTEGER);
     }
 
     private List<Object> mapNumbers(List<Literal> numbers, BiFunction<Number, DataType, Object> map) {
@@ -182,12 +213,12 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Object visitBooleanArrayLiteral(EsqlBaseParser.BooleanArrayLiteralContext ctx) {
-        return visitArrayLiteral(ctx, ctx.booleanValue(), DataTypes.BOOLEAN);
+        return visitArrayLiteral(ctx, ctx.booleanValue(), DataType.BOOLEAN);
     }
 
     @Override
     public Object visitStringArrayLiteral(EsqlBaseParser.StringArrayLiteralContext ctx) {
-        return visitArrayLiteral(ctx, ctx.string(), DataTypes.KEYWORD);
+        return visitArrayLiteral(ctx, ctx.string(), DataType.KEYWORD);
     }
 
     private Object visitArrayLiteral(ParserRuleContext ctx, List<? extends ParserRuleContext> contexts, DataType dataType) {
@@ -199,7 +230,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Literal visitNullLiteral(EsqlBaseParser.NullLiteralContext ctx) {
         Source source = source(ctx);
-        return new Literal(source, null, DataTypes.NULL);
+        return new Literal(source, null, DataType.NULL);
     }
 
     @Override
@@ -210,7 +241,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Literal visitString(EsqlBaseParser.StringContext ctx) {
         Source source = source(ctx);
-        return new Literal(source, unquoteString(source), DataTypes.KEYWORD);
+        return new Literal(source, unquote(source), DataType.KEYWORD);
     }
 
     @Override
@@ -221,6 +252,37 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
         List<String> strings = visitList(this, ctx.identifier(), String.class);
         return new UnresolvedAttribute(source(ctx), Strings.collectionToDelimitedString(strings, "."));
+    }
+
+    @Override
+    public List<NamedExpression> visitQualifiedNamePatterns(EsqlBaseParser.QualifiedNamePatternsContext ctx) {
+        return visitQualifiedNamePatterns(ctx, ne -> {});
+    }
+
+    protected List<NamedExpression> visitQualifiedNamePatterns(
+        EsqlBaseParser.QualifiedNamePatternsContext ctx,
+        Consumer<NamedExpression> checker
+    ) {
+        if (ctx == null) {
+            return emptyList();
+        }
+        List<EsqlBaseParser.QualifiedNamePatternContext> identifiers = ctx.qualifiedNamePattern();
+        List<NamedExpression> names = new ArrayList<>(identifiers.size());
+
+        for (EsqlBaseParser.QualifiedNamePatternContext patternContext : identifiers) {
+            names.add(visitQualifiedNamePattern(patternContext, checker));
+        }
+
+        return names;
+    }
+
+    protected NamedExpression visitQualifiedNamePattern(
+        EsqlBaseParser.QualifiedNamePatternContext patternContext,
+        Consumer<NamedExpression> checker
+    ) {
+        NamedExpression ne = visitQualifiedNamePattern(patternContext);
+        checker.accept(ne);
+        return ne;
     }
 
     @Override
@@ -390,13 +452,13 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         Source source = source(ctx);
         Literal intLit = typedParsing(this, ctx.integerValue(), Literal.class);
         Number value = (Number) intLit.value();
-        if (intLit.dataType() == DataTypes.UNSIGNED_LONG) {
+        if (intLit.dataType() == DataType.UNSIGNED_LONG) {
             value = unsignedLongAsNumber(value.longValue());
         }
         String qualifier = ctx.UNQUOTED_IDENTIFIER().getText().toLowerCase(Locale.ROOT);
 
         try {
-            TemporalAmount quantity = parseTemporalAmout(value, qualifier, source);
+            TemporalAmount quantity = parseTemporalAmount(value, qualifier, source);
             return new Literal(source, quantity, quantity instanceof Duration ? TIME_DURATION : DATE_PERIOD);
         } catch (InvalidArgumentException | ArithmeticException e) {
             // the range varies by unit: Duration#ofMinutes(), #ofHours() will Math#multiplyExact() to reduce the unit to seconds;
@@ -480,10 +542,32 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         if ("count".equals(EsqlFunctionRegistry.normalizeName(name))) {
             // to simplify the registration, handle in the parser the special count cases
             if (args.isEmpty() || ctx.ASTERISK() != null) {
-                args = singletonList(new Literal(source(ctx), "*", DataTypes.KEYWORD));
+                args = singletonList(new Literal(source(ctx), "*", DataType.KEYWORD));
             }
         }
         return new UnresolvedFunction(source(ctx), name, FunctionResolutionStrategy.DEFAULT, args);
+    }
+
+    @Override
+    public Expression visitInlineCast(EsqlBaseParser.InlineCastContext ctx) {
+        Source source = source(ctx);
+        DataType dataType = typedParsing(this, ctx.dataType(), DataType.class);
+        var converterToFactory = EsqlDataTypeConverter.converterFunctionFactory(dataType);
+        if (converterToFactory == null) {
+            throw new ParsingException(source, "Unsupported conversion to type [{}]", dataType);
+        }
+        Expression expr = expression(ctx.primaryExpression());
+        return converterToFactory.apply(source, expr);
+    }
+
+    @Override
+    public DataType visitToDataType(EsqlBaseParser.ToDataTypeContext ctx) {
+        String typeName = visitIdentifier(ctx.identifier());
+        DataType dataType = DataType.fromNameOrAlias(typeName);
+        if (dataType == DataType.UNSUPPORTED) {
+            throw new ParsingException(source(ctx), "Unknown data type named [{}]", typeName);
+        }
+        return dataType;
     }
 
     @Override
@@ -520,7 +604,13 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         Expression left = expression(ctx.valueExpression());
         Literal pattern = visitString(ctx.pattern);
         RegexMatch<?> result = switch (type) {
-            case EsqlBaseParser.LIKE -> new WildcardLike(source, left, new WildcardPattern(pattern.fold().toString()));
+            case EsqlBaseParser.LIKE -> {
+                try {
+                    yield new WildcardLike(source, left, new WildcardPattern(pattern.fold().toString()));
+                } catch (InvalidArgumentException e) {
+                    throw new ParsingException(source, "Invalid pattern for LIKE [{}]: [{}]", pattern, e.getMessage());
+                }
+            }
             case EsqlBaseParser.RLIKE -> new RLike(source, left, new RLikePattern(pattern.fold().toString()));
             default -> throw new ParsingException("Invalid predicate type for [{}]", source.text());
         };
@@ -545,7 +635,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         NamedExpression newName = visitQualifiedNamePattern(ctx.newName);
         NamedExpression oldName = visitQualifiedNamePattern(ctx.oldName);
         if (newName instanceof UnresolvedNamePattern || oldName instanceof UnresolvedNamePattern) {
-            throw new ParsingException(src, "Using wildcards (*) in RENAME is not allowed [{}]", src.text());
+            throw new ParsingException(src, "Using wildcards [*] in RENAME is not allowed [{}]", src.text());
         }
 
         return new Alias(src, newName.name(), oldName);
@@ -560,11 +650,12 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     private NamedExpression enrichFieldName(EsqlBaseParser.QualifiedNamePatternContext ctx) {
-        var name = visitQualifiedNamePattern(ctx);
-        if (name instanceof UnresolvedNamePattern up) {
-            throw new ParsingException(source(ctx), "Using wildcards (*) in ENRICH WITH projections is not allowed [{}]", up.pattern());
-        }
-        return name;
+        return visitQualifiedNamePattern(ctx, ne -> {
+            if (ne instanceof UnresolvedNamePattern up) {
+                var src = ne.source();
+                throw new ParsingException(src, "Using wildcards [*] in ENRICH WITH projections is not allowed [{}]", up.pattern());
+            }
+        });
     }
 
     @Override
@@ -572,7 +663,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         UnresolvedAttribute id = visitQualifiedName(ctx.qualifiedName());
         Expression value = expression(ctx.booleanExpression());
         var source = source(ctx);
-        String name = id == null ? source.text() : id.qualifiedName();
+        String name = id == null ? source.text() : id.name();
         return new Alias(source, name, value);
     }
 
@@ -603,7 +694,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                         name = source(field).text();
                     }
                 } else {
-                    name = id.qualifiedName();
+                    name = id.name();
                 }
                 // wrap when necessary - no alias and no underlying attribute
                 if (ne == null) {
@@ -619,62 +710,77 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Object visitInputParam(EsqlBaseParser.InputParamContext ctx) {
-        TypedParamValue param = param(ctx.PARAM());
-        DataType dataType = EsqlDataTypes.fromTypeName(param.type);
-        Source source = source(ctx);
-        if (dataType == null) {
-            throw new ParsingException(source, "Invalid parameter data type [{}]", param.type);
-        }
-        if (param.value == null) {
-            // no conversion is required for null values
-            return new Literal(source, null, dataType);
-        }
-        final DataType sourceType;
-        try {
-            sourceType = DataTypes.fromJava(param.value);
-        } catch (QlIllegalArgumentException ex) {
-            throw new ParsingException(
-                ex,
-                source,
-                "Unexpected actual parameter type [{}] for type [{}]",
-                param.value.getClass().getName(),
-                param.type
-            );
-        }
-        if (sourceType == dataType) {
-            // no conversion is required if the value is already have correct type
-            return new Literal(source, param.value, dataType);
-        }
-        // otherwise we need to make sure that xcontent-serialized value is converted to the correct type
-        try {
-
-            if (EsqlDataTypeConverter.canConvert(sourceType, dataType) == false) {
-                throw new ParsingException(
-                    source,
-                    "Cannot cast value [{}] of type [{}] to parameter type [{}]",
-                    param.value,
-                    sourceType,
-                    dataType
-                );
-            }
-            return new Literal(source, EsqlDataTypeConverter.converterFor(sourceType, dataType).convert(param.value), dataType);
-        } catch (QlIllegalArgumentException ex) {
-            throw new ParsingException(ex, source, "Unexpected actual parameter type [{}] for type [{}]", sourceType, param.type);
-        }
+        QueryParam param = paramByToken(ctx.PARAM());
+        return visitParam(ctx, param);
     }
 
-    private TypedParamValue param(TerminalNode node) {
+    @Override
+    public Object visitInputNamedOrPositionalParam(EsqlBaseParser.InputNamedOrPositionalParamContext ctx) {
+        QueryParam param = paramByNameOrPosition(ctx.NAMED_OR_POSITIONAL_PARAM());
+        if (param == null) {
+            return Literal.NULL;
+        }
+        return visitParam(ctx, param);
+    }
+
+    private Object visitParam(EsqlBaseParser.ParamsContext ctx, QueryParam param) {
+        Source source = source(ctx);
+        DataType type = param.type();
+        return new Literal(source, param.value(), type);
+    }
+
+    QueryParam paramByToken(TerminalNode node) {
         if (node == null) {
             return null;
         }
-
         Token token = node.getSymbol();
-
-        if (params.containsKey(token) == false) {
+        if (params.contains(token) == false) {
             throw new ParsingException(source(node), "Unexpected parameter");
         }
-
         return params.get(token);
     }
 
+    QueryParam paramByNameOrPosition(TerminalNode node) {
+        if (node == null) {
+            return null;
+        }
+        Token token = node.getSymbol();
+        String nameOrPosition = token.getText().substring(1);
+        if (isInteger(nameOrPosition)) {
+            int index = Integer.parseInt(nameOrPosition);
+            if (params.get(index) == null) {
+                String message = "";
+                int np = params.size();
+                if (np > 0) {
+                    message = ", did you mean " + (np == 1 ? "position 1?" : "any position between 1 and " + np + "?");
+                }
+                params.addParsingError(new ParsingException(source(node), "No parameter is defined for position " + index + message));
+            }
+            return params.get(index);
+        } else {
+            if (params.contains(nameOrPosition) == false) {
+                String message = "";
+                List<String> potentialMatches = StringUtils.findSimilar(nameOrPosition, params.namedParams().keySet());
+                if (potentialMatches.size() > 0) {
+                    message = ", did you mean "
+                        + (potentialMatches.size() == 1 ? "[" + potentialMatches.get(0) + "]?" : "any of " + potentialMatches + "?");
+                }
+                params.addParsingError(new ParsingException(source(node), "Unknown query parameter [" + nameOrPosition + "]" + message));
+            }
+            return params.get(nameOrPosition);
+        }
+    }
+
+    @Override
+    public Expression visitMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx) {
+        if (Build.current().isSnapshot() == false) {
+            throw new ParsingException(source(ctx), "MATCH operator currently requires a snapshot build");
+        }
+        return new MatchQueryPredicate(
+            source(ctx),
+            expression(ctx.valueExpression()),
+            visitString(ctx.queryString).fold().toString(),
+            null
+        );
+    }
 }

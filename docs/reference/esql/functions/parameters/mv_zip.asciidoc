@@ -3,10 +3,10 @@
 *Parameters*
 
 `string1`::
-A multivalued field
+Multivalue expression.
 
 `string2`::
-A multivalued field
+Multivalue expression.
 
 `delim`::
-delimiter
+Delimiter. Optional; if omitted, `,` is used as a default delimiter.

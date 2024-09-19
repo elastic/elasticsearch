@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.s3;
@@ -42,6 +43,7 @@ public class S3ClientSettingsTests extends ESTestCase {
         assertThat(defaultSettings.proxyUsername, is(emptyString()));
         assertThat(defaultSettings.proxyPassword, is(emptyString()));
         assertThat(defaultSettings.readTimeoutMillis, is(ClientConfiguration.DEFAULT_SOCKET_TIMEOUT));
+        assertThat(defaultSettings.maxConnections, is(ClientConfiguration.DEFAULT_MAX_CONNECTIONS));
         assertThat(defaultSettings.maxRetries, is(ClientConfiguration.DEFAULT_RETRY_POLICY.getMaxErrorRetry()));
         assertThat(defaultSettings.throttleRetries, is(ClientConfiguration.DEFAULT_THROTTLE_RETRIES));
     }
@@ -196,5 +198,21 @@ public class S3ClientSettingsTests extends ESTestCase {
         assertThat(defaultConfiguration.getSignerOverride(), nullValue());
         ClientConfiguration configuration = S3Service.buildConfiguration(settings.get("other"));
         assertThat(configuration.getSignerOverride(), is(signerOverride));
+    }
+
+    public void testMaxConnectionsCanBeSet() {
+        final int maxConnections = between(1, 100);
+        final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
+            Settings.builder().put("s3.client.other.max_connections", maxConnections).build()
+        );
+        assertThat(settings.get("default").maxConnections, is(ClientConfiguration.DEFAULT_MAX_CONNECTIONS));
+        assertThat(settings.get("other").maxConnections, is(maxConnections));
+        ClientConfiguration defaultConfiguration = S3Service.buildConfiguration(settings.get("default"));
+        assertThat(defaultConfiguration.getMaxConnections(), is(ClientConfiguration.DEFAULT_MAX_CONNECTIONS));
+        ClientConfiguration configuration = S3Service.buildConfiguration(settings.get("other"));
+        assertThat(configuration.getMaxConnections(), is(maxConnections));
+
+        // the default appears in the docs so let's make sure it doesn't change:
+        assertEquals(50, ClientConfiguration.DEFAULT_MAX_CONNECTIONS);
     }
 }

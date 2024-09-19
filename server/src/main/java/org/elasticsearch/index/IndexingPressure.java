@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index;
@@ -46,6 +47,7 @@ public class IndexingPressure {
     private final AtomicLong totalReplicaBytes = new AtomicLong(0);
 
     private final AtomicLong totalCoordinatingOps = new AtomicLong(0);
+    private final AtomicLong totalCoordinatingRequests = new AtomicLong(0);
     private final AtomicLong totalPrimaryOps = new AtomicLong(0);
     private final AtomicLong totalReplicaOps = new AtomicLong(0);
 
@@ -109,6 +111,7 @@ public class IndexingPressure {
         totalCombinedCoordinatingAndPrimaryBytes.getAndAdd(bytes);
         totalCoordinatingBytes.getAndAdd(bytes);
         totalCoordinatingOps.getAndAdd(operations);
+        totalCoordinatingRequests.getAndIncrement();
         return wrapReleasable(() -> {
             logger.trace(() -> Strings.format("removing [%d] coordinating operations and [%d] bytes", operations, bytes));
             this.currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
@@ -221,7 +224,8 @@ public class IndexingPressure {
             currentCoordinatingOps.get(),
             currentPrimaryOps.get(),
             currentReplicaOps.get(),
-            primaryDocumentRejections.get()
+            primaryDocumentRejections.get(),
+            totalCoordinatingRequests.get()
         );
     }
 }

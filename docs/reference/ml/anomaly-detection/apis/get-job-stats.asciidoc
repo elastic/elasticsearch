@@ -46,7 +46,7 @@ omitting the identifier.
 
 `allow_no_match`::
 (Optional, Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-jobs]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-jobs]
 
 [role="child_attributes"]
 [[ml-get-job-stats-results]]
@@ -57,7 +57,7 @@ job:
 
 `assignment_explanation`::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=assignment-explanation-anomaly-jobs]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=assignment-explanation-anomaly-jobs]
 
 //Begin data_counts
 [[datacounts]]`data_counts`::
@@ -71,75 +71,75 @@ counts are not reset.
 ====
 `bucket_count`:::
 (long)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=bucket-count-anomaly-jobs]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=bucket-count-anomaly-jobs]
 
 `earliest_record_timestamp`:::
 (date)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=earliest-record-timestamp]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=earliest-record-timestamp]
 
 `empty_bucket_count`:::
 (long)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=empty-bucket-count]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=empty-bucket-count]
 
 `input_bytes`:::
 (long)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=input-bytes]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=input-bytes]
 
 `input_field_count`:::
 (long)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=input-field-count]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=input-field-count]
 
 `input_record_count`:::
 (long)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=input-record-count]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=input-record-count]
 
 `invalid_date_count`:::
 (long)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=invalid-date-count]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=invalid-date-count]
 
 `job_id`:::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 `last_data_time`:::
 (date)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=last-data-time]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=last-data-time]
 
 `latest_empty_bucket_timestamp`:::
 (date)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=latest-empty-bucket-timestamp]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=latest-empty-bucket-timestamp]
 
 `latest_record_timestamp`:::
 (date)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=latest-record-timestamp]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=latest-record-timestamp]
 
 `latest_sparse_bucket_timestamp`:::
 (date)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=latest-sparse-record-timestamp]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=latest-sparse-record-timestamp]
 
 `log_time`:::
 (date) The timestamp of the `data_counts` according to server time.
 
 `missing_field_count`:::
 (long)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=missing-field-count]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=missing-field-count]
 +
 The value of `processed_record_count` includes this count.
 
 `out_of_order_timestamp_count`:::
 (long)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=out-of-order-timestamp-count]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=out-of-order-timestamp-count]
 
 `processed_field_count`:::
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=processed-field-count]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=processed-field-count]
 
 `processed_record_count`:::
 (long)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=processed-record-count]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=processed-record-count]
 
 `sparse_bucket_count`:::
 (long)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=sparse-bucket-count]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=sparse-bucket-count]
 ====
 //End data_counts
 
@@ -183,13 +183,13 @@ forecasts related to this job. If there are no forecasts, this property is omitt
 
 `total`:::
 (long)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=forecast-total]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=forecast-total]
 ====
 //End forecasts_stats
 
 `job_id`::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 //Begin model_size_stats
 [[modelsizestats]]`model_size_stats`::
@@ -201,85 +201,85 @@ model.
 ====
 `assignment_memory_basis`:::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=assignment-memory-basis]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=assignment-memory-basis]
 
 `bucket_allocation_failures_count`:::
 (long)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=bucket-allocation-failures-count]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=bucket-allocation-failures-count]
 
 `categorized_doc_count`:::
 (long)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=categorized-doc-count]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=categorized-doc-count]
 
 `categorization_status`:::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=categorization-status]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=categorization-status]
 
 `dead_category_count`:::
 (long)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dead-category-count]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=dead-category-count]
 
 `failed_category_count`:::
 (long)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=failed-category-count]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=failed-category-count]
 
 `frequent_category_count`:::
 (long)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=frequent-category-count]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=frequent-category-count]
 
 `job_id`:::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 `log_time`:::
 (date) The timestamp of the `model_size_stats` according to server time.
 
 `memory_status`:::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-memory-status]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=model-memory-status]
 
 `model_bytes`:::
 (long)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-bytes]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=model-bytes]
 
 `model_bytes_exceeded`:::
 (long)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-bytes-exceeded]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=model-bytes-exceeded]
 
 `model_bytes_memory_limit`:::
 (long)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-memory-limit-anomaly-jobs]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=model-memory-limit-anomaly-jobs]
 
 `peak_model_bytes`:::
 (long)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=peak-model-bytes]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=peak-model-bytes]
 
 `rare_category_count`:::
 (long)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=rare-category-count]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=rare-category-count]
 
 `result_type`:::
 (string) For internal use. The type of result.
 
 `total_by_field_count`:::
 (long)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=total-by-field-count]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=total-by-field-count]
 
 `total_category_count`:::
 (long)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=total-category-count]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=total-category-count]
 
 `total_over_field_count`:::
 (long)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=total-over-field-count]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=total-over-field-count]
 
 `total_partition_field_count`:::
 (long)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=total-partition-field-count]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=total-partition-field-count]
 
 `timestamp`:::
 (date)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-timestamp]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=model-timestamp]
 ====
 //End model_size_stats
 
@@ -293,32 +293,32 @@ available only for open jobs.
 ====
 `attributes`:::
 (object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-attributes]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=node-attributes]
 
 `ephemeral_id`:::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-ephemeral-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=node-ephemeral-id]
 
 `id`:::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=node-id]
 
 `name`:::
 (string) The node name.
 
 `transport_address`:::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-transport-address]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=node-transport-address]
 ====
 //End node
 
 `open_time`::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=open-time]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=open-time]
 
 `state`::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=state-anomaly-job]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=state-anomaly-job]
 
 //Begin timing_stats
 [[timingstats]]`timing_stats`::
@@ -333,31 +333,31 @@ this job.
 
 `bucket_count`:::
 (long)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=bucket-count]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=bucket-count]
 
 `exponential_average_bucket_processing_time_ms`:::
 (double)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=bucket-time-exponential-average]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=bucket-time-exponential-average]
 
 `exponential_average_bucket_processing_time_per_hour_ms`:::
 (double)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=bucket-time-exponential-average-hour]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=bucket-time-exponential-average-hour]
 
 `job_id`:::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 `maximum_bucket_processing_time_ms`:::
 (double)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=bucket-time-maximum]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=bucket-time-maximum]
 
 `minimum_bucket_processing_time_ms`:::
 (double)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=bucket-time-minimum]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=bucket-time-minimum]
 
 `total_bucket_processing_time_ms`:::
 (double)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=bucket-time-total]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=bucket-time-total]
 ====
 //End timing_stats
 

@@ -37,8 +37,8 @@ setup:
 
 ---
 defaults:
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: added in 7.9.0
   - do:
       search:
@@ -63,8 +63,8 @@ defaults:
 
 ---
 num_buckets:
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: added in 7.9.0
   - do:
       search:
@@ -83,8 +83,8 @@ num_buckets:
 
 ---
 shard_size:
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: added in 7.9.0
   - do:
       search:
@@ -103,8 +103,8 @@ shard_size:
 
 ---
 initial_buffer:
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: added in 7.9.0
   - do:
       search:

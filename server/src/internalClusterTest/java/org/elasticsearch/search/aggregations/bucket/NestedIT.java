@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket;
 
@@ -12,6 +13,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
@@ -31,6 +33,7 @@ import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -47,6 +50,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -844,5 +848,46 @@ public class NestedIT extends ESIntegTestCase {
             RestStatus.BAD_REQUEST,
             containsString("[inner_hits] already contains an entry for key [property]")
         );
+    }
+
+    public void testSyntheticSource() throws Exception {
+        assertAcked(
+            prepareCreate("synthetic").setMapping(
+                jsonBuilder().startObject()
+                    .startObject("_source")
+                    .field("mode", "synthetic")
+                    .endObject()
+                    .startObject("properties")
+                    .startObject("nested")
+                    .field("type", "nested")
+                    .startObject("properties")
+                    .startObject("number")
+                    .field("type", "long")
+                    .field("ignore_malformed", true)
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
+        ensureGreen("synthetic");
+
+        prepareIndex("synthetic").setId("1")
+            .setSource(
+                jsonBuilder().startObject().startArray("nested").startObject().field("number", "a").endObject().endArray().endObject()
+            )
+            .get();
+        refresh("synthetic");
+
+        assertResponse(client().prepareSearch("synthetic").addFetchField("_ignored"), searchResponse -> {
+            assertHitCount(searchResponse, 1);
+            assertEquals(1, searchResponse.getHits().getHits().length);
+            SearchHit searchHit = searchResponse.getHits().getAt(0);
+            assertEquals("nested.number", searchHit.getFields().get("_ignored").getValue());
+            @SuppressWarnings("unchecked")
+            Map<String, ?> nested = (Map<String, ?>) searchHit.getSourceAsMap().get("nested");
+            assertEquals("a", nested.get("number"));
+        });
     }
 }

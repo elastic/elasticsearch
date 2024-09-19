@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.support.replication;
 
@@ -189,7 +190,10 @@ public class ReplicationOperation<
                 logger.trace("[{}] op [{}] post replication actions failed for [{}]", primary.routingEntry().shardId(), opType, request);
                 // TODO: fail shard? This will otherwise have the local / global checkpoint info lagging, or possibly have replicas
                 // go out of sync with the primary
-                finishAsFailed(e);
+                // We update the checkpoints since a refresh might fail but the operations could be safely persisted, in the case that the
+                // fsync failed the local checkpoint won't advance and the engine will be marked as failed when the next indexing operation
+                // is appended into the translog.
+                updateCheckPoints(primary.routingEntry(), primary::localCheckpoint, primary::globalCheckpoint, () -> finishAsFailed(e));
             }
         });
     }

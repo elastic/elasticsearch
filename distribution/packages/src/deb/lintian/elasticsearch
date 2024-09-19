@@ -59,3 +59,7 @@ unknown-field License
 # don't build them ourselves and the license precludes us modifying them
 # to fix this.
 library-not-linked-against-libc usr/share/elasticsearch/modules/x-pack-ml/platform/linux-x86_64/lib/libmkl_*.so
+
+# shared-lib-without-dependency-information (now shared-library-lacks-prerequisites) is falsely reported for libvec.so
+# which has no dependencies (not even libc) besides the symbols in the base executable.
+shared-lib-without-dependency-information usr/share/elasticsearch/lib/platform/linux-x64/libvec.so

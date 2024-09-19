@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -29,6 +30,7 @@ import org.elasticsearch.compute.operator.NullInsertingSourceOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PositionMergingSourceOperator;
 import org.elasticsearch.compute.operator.TestResultPageSinkOperator;
+import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -61,14 +63,20 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
     }
 
     @Override
-    protected final String expectedDescriptionOfSimple() {
-        return "AggregationOperator[mode = SINGLE, aggs = " + expectedDescriptionOfAggregator() + "]";
+    protected final Matcher<String> expectedDescriptionOfSimple() {
+        return equalTo("AggregationOperator[mode = SINGLE, aggs = " + expectedDescriptionOfAggregator() + "]");
     }
 
     @Override
-    protected final String expectedToStringOfSimple() {
+    protected final Matcher<String> expectedToStringOfSimple() {
+        return equalTo(
+            "AggregationOperator[aggregators=[Aggregator[aggregatorFunction=" + expectedToStringOfSimpleAggregator() + ", mode=SINGLE]]]"
+        );
+    }
+
+    protected String expectedToStringOfSimpleAggregator() {
         String type = getClass().getSimpleName().replace("Tests", "");
-        return "AggregationOperator[aggregators=[Aggregator[aggregatorFunction=" + type + "[channels=[0]], mode=SINGLE]]]";
+        return type + "[channels=[0]]";
     }
 
     @Override
@@ -160,7 +168,7 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
 
     // Returns an intermediate state that is equivalent to what the local execution planner will emit
     // if it determines that certain shards have no relevant data.
-    final List<Page> nullIntermediateState(BlockFactory blockFactory) {
+    List<Page> nullIntermediateState(BlockFactory blockFactory) {
         try (var agg = aggregatorFunction(List.of()).aggregator(driverContext())) {
             var method = agg.getClass().getMethod("intermediateStateDesc");
             @SuppressWarnings("unchecked")
@@ -220,6 +228,11 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
     protected static Stream<Boolean> allBooleans(Block input) {
         BooleanBlock b = (BooleanBlock) input;
         return allValueOffsets(b).mapToObj(i -> b.getBoolean(i));
+    }
+
+    protected static Stream<Float> allFloats(Block input) {
+        FloatBlock b = (FloatBlock) input;
+        return allValueOffsets(b).mapToObj(b::getFloat);
     }
 
     protected static DoubleStream allDoubles(Block input) {

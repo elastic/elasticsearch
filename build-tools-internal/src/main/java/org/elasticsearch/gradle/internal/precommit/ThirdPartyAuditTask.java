@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.internal.precommit;
 
@@ -60,6 +61,7 @@ import javax.inject.Inject;
 import static org.gradle.api.JavaVersion.VERSION_20;
 import static org.gradle.api.JavaVersion.VERSION_21;
 import static org.gradle.api.JavaVersion.VERSION_22;
+import static org.gradle.api.JavaVersion.VERSION_23;
 
 @CacheableTask
 public abstract class ThirdPartyAuditTask extends DefaultTask {
@@ -118,8 +120,8 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
         return targetCompatibility;
     }
 
+    @Classpath
     @InputFiles
-    @PathSensitive(PathSensitivity.NAME_ONLY)
     public abstract ConfigurableFileCollection getForbiddenAPIsClasspath();
 
     @InputFile
@@ -191,6 +193,11 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
     @Classpath
     @SkipWhenEmpty
     public abstract ConfigurableFileCollection getJarsToScan();
+
+    @Classpath
+    public FileCollection getClasspath() {
+        return classpath;
+    }
 
     @TaskAction
     public void runThirdPartyAudit() throws IOException {
@@ -336,8 +343,8 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
                 spec.setExecutable(javaHome.get() + "/bin/java");
             }
             spec.classpath(getForbiddenAPIsClasspath(), classpath);
-            // Enable explicitly for each release as appropriate. Just JDK 20/21/22 for now, and just the vector module.
-            if (isJavaVersion(VERSION_20) || isJavaVersion(VERSION_21) || isJavaVersion(VERSION_22)) {
+            // Enable explicitly for each release as appropriate. Just JDK 20/21/22/23 for now, and just the vector module.
+            if (isJavaVersion(VERSION_20) || isJavaVersion(VERSION_21) || isJavaVersion(VERSION_22) || isJavaVersion(VERSION_23)) {
                 spec.jvmArgs("--add-modules", "jdk.incubator.vector");
             }
             spec.jvmArgs("-Xmx1g");

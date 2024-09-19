@@ -34,6 +34,7 @@ import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.hamcrest.Matcher;
 import org.junit.After;
 
 import java.io.IOException;
@@ -48,6 +49,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.matchesRegex;
 
 public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
     private static final MappedFieldType S_FIELD = new NumberFieldMapper.NumberFieldType("s", NumberFieldMapper.NumberType.LONG);
@@ -93,16 +95,13 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
     }
 
     @Override
-    protected String expectedToStringOfSimple() {
-        assumeFalse("can't support variable maxPageSize", true); // TODO allow testing this
-        return "LuceneSourceOperator[shardId=0, maxPageSize=**random**]";
+    protected Matcher<String> expectedToStringOfSimple() {
+        return matchesRegex("LuceneSourceOperator\\[maxPageSize = \\d+, remainingDocs = \\d+]");
     }
 
     @Override
-    protected String expectedDescriptionOfSimple() {
-        assumeFalse("can't support variable maxPageSize", true); // TODO allow testing this
-        return """
-            LuceneSourceOperator[dataPartitioning = SHARD, maxPageSize = **random**, limit = 100, sorts = [{"s":{"order":"asc"}}]]""";
+    protected Matcher<String> expectedDescriptionOfSimple() {
+        return matchesRegex("LuceneSourceOperator\\[dataPartitioning = (DOC|SHARD|SEGMENT), maxPageSize = \\d+, limit = 100]");
     }
 
     // TODO tests for the other data partitioning configurations

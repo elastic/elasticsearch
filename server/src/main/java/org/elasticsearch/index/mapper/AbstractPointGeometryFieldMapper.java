@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.mapper;
 
@@ -18,7 +19,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -41,27 +41,14 @@ public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeomet
     protected AbstractPointGeometryFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
-        MultiFields multiFields,
+        BuilderParams builderParams,
         Explicit<Boolean> ignoreMalformed,
         Explicit<Boolean> ignoreZValue,
         T nullValue,
-        CopyTo copyTo,
         Parser<T> parser
     ) {
-        super(simpleName, mappedFieldType, ignoreMalformed, ignoreZValue, multiFields, copyTo, parser);
+        super(simpleName, mappedFieldType, builderParams, ignoreMalformed, ignoreZValue, parser);
         this.nullValue = nullValue;
-    }
-
-    protected AbstractPointGeometryFieldMapper(
-        String simpleName,
-        MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
-        Parser<T> parser,
-        OnScriptError onScriptError
-    ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, parser, onScriptError);
-        this.nullValue = null;
     }
 
     public T getNullValue() {
@@ -71,7 +58,7 @@ public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeomet
     /** A base parser implementation for point formats */
     protected abstract static class PointParser<T> extends Parser<T> {
         protected final String field;
-        private final CheckedFunction<XContentParser, T, IOException> objectParser;
+        protected final CheckedFunction<XContentParser, T, IOException> objectParser;
         private final T nullValue;
         private final boolean ignoreZValue;
         protected final boolean ignoreMalformed;
@@ -98,7 +85,7 @@ public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeomet
         protected abstract T createPoint(double x, double y);
 
         @Override
-        public void parse(XContentParser parser, CheckedConsumer<T, IOException> consumer, Consumer<Exception> onMalformed)
+        public void parse(XContentParser parser, CheckedConsumer<T, IOException> consumer, MalformedValueHandler malformedHandler)
             throws IOException {
             if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
                 XContentParser.Token token = parser.nextToken();
@@ -132,7 +119,7 @@ public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeomet
                                 consumer.accept(nullValue);
                             }
                         } else {
-                            parseAndConsumeFromObject(parser, consumer, onMalformed);
+                            parseAndConsumeFromObject(parser, consumer, malformedHandler);
                         }
                         token = parser.nextToken();
                     }
@@ -142,20 +129,20 @@ public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeomet
                     consumer.accept(nullValue);
                 }
             } else {
-                parseAndConsumeFromObject(parser, consumer, onMalformed);
+                parseAndConsumeFromObject(parser, consumer, malformedHandler);
             }
         }
 
-        private void parseAndConsumeFromObject(
+        protected void parseAndConsumeFromObject(
             XContentParser parser,
             CheckedConsumer<T, IOException> consumer,
-            Consumer<Exception> onMalformed
-        ) {
+            MalformedValueHandler malformedHandler
+        ) throws IOException {
             try {
                 T point = objectParser.apply(parser);
                 consumer.accept(validate(point));
             } catch (Exception e) {
-                onMalformed.accept(e);
+                malformedHandler.notify(e);
             }
         }
     }

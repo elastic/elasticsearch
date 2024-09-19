@@ -134,7 +134,7 @@ public class AutoscalingFileSettingsIT extends AutoscalingIntegTestCase {
         assertTrue(awaitSuccessful);
 
         final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
-            new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get())
+            new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(metadataVersion.get())
         ).actionGet();
 
         ReservedStateMetadata reservedState = clusterStateResponse.getState()
@@ -222,7 +222,16 @@ public class AutoscalingFileSettingsIT extends AutoscalingIntegTestCase {
             var bis = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
             var parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bis)
         ) {
-            return PutAutoscalingPolicyAction.Request.parse(parser, name);
+            return PutAutoscalingPolicyAction.Request.parse(
+                parser,
+                (roles, deciders) -> new PutAutoscalingPolicyAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
+                    name,
+                    roles,
+                    deciders
+                )
+            );
         }
     }
 }

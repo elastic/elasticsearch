@@ -53,8 +53,8 @@ setup:
 
 ---
 "Tests searchable snapshots stats":
-  - skip:
-      version: " - 7.12.99"
+  - requires:
+      cluster_features: ["gte_v7.13.0"]
       reason:  searchable snapshots response format changed in 7.13.0
 
   - do:

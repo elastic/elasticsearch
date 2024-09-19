@@ -28,7 +28,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractReq
  * Contains secret settings that are common to all services.
  * @param apiKey the key used to authenticate with the 3rd party service
  */
-public record DefaultSecretSettings(SecureString apiKey) implements SecretSettings {
+public record DefaultSecretSettings(SecureString apiKey) implements SecretSettings, ApiKeySecrets {
     public static final String NAME = "default_secret_settings";
 
     static final String API_KEY = "api_key";

@@ -2,11 +2,14 @@
 [[esql-from]]
 === `FROM`
 
+The `FROM` source command returns a table with data from a data stream, index,
+or alias.
+
 **Syntax**
 
 [source,esql]
 ----
-FROM index_pattern [METADATA fields] [OPTIONS options]
+FROM index_pattern [METADATA fields]
 ----
 
 *Parameters*
@@ -16,10 +19,6 @@ A list of indices, data streams or aliases. Supports wildcards and date math.
 
 `fields`::
 A comma-separated list of <<esql-metadata-fields,metadata fields>> to retrieve.
-
-`options`::
-A comma-separated list of <<esql-index-options,index options>> to configure
-data access.
 
 *Description*
 
@@ -62,23 +61,21 @@ today's index:
 FROM <logs-{now/d}>
 ----
 
-Use comma-separated lists or wildcards to query multiple data streams, indices,
-or aliases:
+Use comma-separated lists or wildcards to <<esql-multi-index, query multiple data streams, indices,
+or aliases>>:
 
 [source,esql]
 ----
 FROM employees-00001,other-employees-*
 ----
 
-Use the format `<remote_cluster_name>:<target>` to query data streams and indices
-on remote clusters:
+Use the format `<remote_cluster_name>:<target>` to <<esql-cross-clusters, query data streams and indices
+on remote clusters>>:
 
 [source,esql]
 ----
 FROM cluster_one:employees-00001,cluster_two:other-employees-*
 ----
-
-See <<esql-cross-clusters, using {esql} across clusters>>.
 
 Use the optional `METADATA` directive to enable <<esql-metadata-fields,metadata fields>>:
 
@@ -87,10 +84,10 @@ Use the optional `METADATA` directive to enable <<esql-metadata-fields,metadata 
 FROM employees METADATA _id
 ----
 
-Use the optional `OPTIONS` directive to specify <<esql-index-options,index access options>>.
-This directive must follow `METADATA`, if both are specified:
+Use enclosing double quotes (`"`) or three enclosing double quotes (`"""`) to escape index names
+that contain special characters:
 
 [source,esql]
 ----
-FROM employees* METADATA _index OPTIONS "ignore_unavailable"="true"
+FROM "this=that", """this[that"""
 ----

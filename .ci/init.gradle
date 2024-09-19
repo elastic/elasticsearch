@@ -91,8 +91,8 @@ if (USE_ARTIFACTORY) {
 }
 
 gradle.settingsEvaluated { settings ->
-  settings.pluginManager.withPlugin("com.gradle.enterprise") {
-    settings.gradleEnterprise {
+  settings.pluginManager.withPlugin("com.gradle.develocity") {
+    settings.develocity {
       server = 'https://gradle-enterprise.elastic.co'
     }
   }

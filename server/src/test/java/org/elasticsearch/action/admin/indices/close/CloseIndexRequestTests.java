@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.close;
@@ -29,7 +30,7 @@ public class CloseIndexRequestTests extends ESTestCase {
             try (StreamInput in = out.bytes().streamInput()) {
                 deserializedRequest = new CloseIndexRequest(in);
             }
-            assertEquals(request.timeout(), deserializedRequest.timeout());
+            assertEquals(request.ackTimeout(), deserializedRequest.ackTimeout());
             assertEquals(request.masterNodeTimeout(), deserializedRequest.masterNodeTimeout());
             assertEquals(request.indicesOptions(), deserializedRequest.indicesOptions());
             assertEquals(request.getParentTask(), deserializedRequest.getParentTask());
@@ -49,7 +50,10 @@ public class CloseIndexRequestTests extends ESTestCase {
                     in.setTransportVersion(out.getTransportVersion());
                     assertEquals(request.getParentTask(), TaskId.readFromStream(in));
                     assertEquals(request.masterNodeTimeout(), in.readTimeValue());
-                    assertEquals(request.timeout(), in.readTimeValue());
+                    if (in.getTransportVersion().onOrAfter(TransportVersions.VERSIONED_MASTER_NODE_REQUESTS)) {
+                        assertEquals(request.masterTerm(), in.readVLong());
+                    }
+                    assertEquals(request.ackTimeout(), in.readTimeValue());
                     assertArrayEquals(request.indices(), in.readStringArray());
                     final IndicesOptions indicesOptions = IndicesOptions.readIndicesOptions(in);
                     // indices options are not equivalent when sent to an older version and re-read due
@@ -75,7 +79,10 @@ public class CloseIndexRequestTests extends ESTestCase {
                 out.setTransportVersion(version);
                 sample.getParentTask().writeTo(out);
                 out.writeTimeValue(sample.masterNodeTimeout());
-                out.writeTimeValue(sample.timeout());
+                if (out.getTransportVersion().onOrAfter(TransportVersions.VERSIONED_MASTER_NODE_REQUESTS)) {
+                    out.writeVLong(sample.masterTerm());
+                }
+                out.writeTimeValue(sample.ackTimeout());
                 out.writeStringArray(sample.indices());
                 sample.indicesOptions().writeIndicesOptions(out);
                 if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
@@ -89,7 +96,7 @@ public class CloseIndexRequestTests extends ESTestCase {
                 }
                 assertEquals(sample.getParentTask(), deserializedRequest.getParentTask());
                 assertEquals(sample.masterNodeTimeout(), deserializedRequest.masterNodeTimeout());
-                assertEquals(sample.timeout(), deserializedRequest.timeout());
+                assertEquals(sample.ackTimeout(), deserializedRequest.ackTimeout());
                 assertArrayEquals(sample.indices(), deserializedRequest.indices());
                 // indices options are not equivalent when sent to an older version and re-read due
                 // to the addition of hidden indices as expand to hidden indices is always true when
@@ -116,7 +123,7 @@ public class CloseIndexRequestTests extends ESTestCase {
             );
         }
         if (randomBoolean()) {
-            request.timeout(randomPositiveTimeValue());
+            request.ackTimeout(randomPositiveTimeValue());
         }
         if (randomBoolean()) {
             request.masterNodeTimeout(randomPositiveTimeValue());

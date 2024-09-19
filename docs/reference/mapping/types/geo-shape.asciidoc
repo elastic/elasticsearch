@@ -18,9 +18,8 @@ Documents using this type can be used:
 ** a <<query-dsl-geo-shape-query,`geo_shape` query>> (for example, intersecting polygons).
 * to aggregate documents by geographic grids:
 ** either <<search-aggregations-bucket-geohashgrid-aggregation,`geo_hash`>>
-** or <<search-aggregations-bucket-geotilegrid-aggregation,`geo_tile`>>.
-
-Grid aggregations over `geo_hex` grids are not supported for `geo_shape` fields.
+** or <<search-aggregations-bucket-geotilegrid-aggregation,`geo_tile`>>
+** or <<search-aggregations-bucket-geohexgrid-aggregation,`geo_hex`>>
 
 [[geo-shape-mapping-options]]
 [discrete]
@@ -493,3 +492,16 @@ Due to the complex input structure and index representation of shapes,
 it is not currently possible to sort shapes or retrieve their fields
 directly. The `geo_shape` value is only retrievable through the `_source`
 field.
+
+[[geo-shape-synthetic-source]]
+==== Synthetic source
+
+IMPORTANT: Synthetic `_source` is Generally Available only for TSDB indices
+(indices that have `index.mode` set to `time_series`). For other indices
+synthetic `_source` is in technical preview. Features in technical preview may
+be changed or removed in a future release. Elastic will work to fix
+any issues, but features in technical preview are not subject to the support SLA
+of official GA features.
+
+`geo_shape` fields support <<synthetic-source,synthetic `_source`>> in their
+default configuration.

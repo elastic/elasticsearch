@@ -223,6 +223,17 @@ public final class TestUtils {
         }
 
         @Override
+        public void writeBlobAtomic(
+            OperationPurpose purpose,
+            String blobName,
+            InputStream inputStream,
+            long blobSize,
+            boolean failIfAlreadyExists
+        ) throws IOException {
+            throw unsupportedException();
+        }
+
+        @Override
         public void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists) {
             throw unsupportedException();
         }
@@ -267,7 +278,7 @@ public final class TestUtils {
     public static class NoopBlobStoreCacheService extends BlobStoreCacheService {
 
         public NoopBlobStoreCacheService() {
-            super(null, mock(Client.class), SNAPSHOT_BLOB_CACHE_INDEX);
+            super(mock(Client.class), SNAPSHOT_BLOB_CACHE_INDEX);
         }
 
         @Override
@@ -291,7 +302,7 @@ public final class TestUtils {
         private final ConcurrentHashMap<String, BytesArray> blobs = new ConcurrentHashMap<>();
 
         public SimpleBlobStoreCacheService() {
-            super(null, mock(Client.class), SNAPSHOT_BLOB_CACHE_INDEX);
+            super(mock(Client.class), SNAPSHOT_BLOB_CACHE_INDEX);
         }
 
         @Override

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.nodes;
@@ -37,7 +38,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Executor;
@@ -74,7 +74,9 @@ public abstract class TransportNodesAction<
         Writeable.Reader<NodeRequest> nodeRequest,
         Executor executor
     ) {
-        super(actionName, actionFilters, transportService.getTaskManager());
+        // Only part of this action execution needs to be forked off - coordination can run on SAME because it's only O(#nodes) work.
+        // Hence the separate "finalExecutor", and why we run the whole TransportAction.execute on SAME.
+        super(actionName, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         assert executor.equals(EsExecutors.DIRECT_EXECUTOR_SERVICE) == false
             : "TransportNodesAction must always fork off the transport thread";
         this.clusterService = Objects.requireNonNull(clusterService);
@@ -87,14 +89,12 @@ public abstract class TransportNodesAction<
     @Override
     protected void doExecute(Task task, NodesRequest request, ActionListener<NodesResponse> listener) {
         // coordination can run on SAME because it's only O(#nodes) work
-        if (request.concreteNodes() == null) {
-            resolveRequest(request, clusterService.state());
-            assert request.concreteNodes() != null;
-        }
+
+        final var concreteNodes = Objects.requireNonNull(resolveRequest(request, clusterService.state()));
 
         new CancellableFanOut<DiscoveryNode, NodeResponse, CheckedConsumer<ActionListener<NodesResponse>, Exception>>() {
 
-            final ArrayList<NodeResponse> responses = new ArrayList<>(request.concreteNodes().length);
+            final ArrayList<NodeResponse> responses = new ArrayList<>(concreteNodes.length);
             final ArrayList<FailedNodeException> exceptions = new ArrayList<>(0);
 
             final TransportRequestOptions transportRequestOptions = TransportRequestOptions.timeout(request.timeout());
@@ -172,7 +172,7 @@ public abstract class TransportNodesAction<
             }
         }.run(
             task,
-            Iterators.forArray(request.concreteNodes()),
+            Iterators.forArray(concreteNodes),
             new ThreadedActionListener<>(finalExecutor, listener.delegateFailureAndWrap((l, c) -> c.accept(l)))
         );
     }
@@ -235,10 +235,8 @@ public abstract class TransportNodesAction<
      * Resolves node ids to concrete nodes of the incoming request.
      * NB: if the request's nodeIds() returns nothing, then the request will be sent to ALL known nodes in the cluster.
      */
-    protected void resolveRequest(NodesRequest request, ClusterState clusterState) {
-        assert request.concreteNodes() == null : "request concreteNodes shouldn't be set";
-        String[] nodesIds = clusterState.nodes().resolveNodes(request.nodesIds());
-        request.setConcreteNodes(Arrays.stream(nodesIds).map(clusterState.nodes()::get).toArray(DiscoveryNode[]::new));
+    protected DiscoveryNode[] resolveRequest(NodesRequest request, ClusterState clusterState) {
+        return request.resolveNodes(clusterState);
     }
 
     class NodeTransportHandler implements TransportRequestHandler<NodeRequest> {
@@ -250,5 +248,4 @@ public abstract class TransportNodesAction<
             );
         }
     }
-
 }

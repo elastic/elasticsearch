@@ -13,20 +13,20 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.ql.util.StringUtils.parseIP;
+import static org.elasticsearch.xpack.esql.core.util.StringUtils.parseIP;
 
-public class ToIPTests extends AbstractFunctionTestCase {
+public class ToIPTests extends AbstractScalarFunctionTestCase {
     public ToIPTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -38,13 +38,13 @@ public class ToIPTests extends AbstractFunctionTestCase {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         // convert from IP to IP
-        TestCaseSupplier.forUnaryIp(suppliers, read, DataTypes.IP, v -> v, List.of());
+        TestCaseSupplier.forUnaryIp(suppliers, read, DataType.IP, v -> v, List.of());
 
         // convert random string (i.e. not an IP representation) to IP `null`, with warnings.
         TestCaseSupplier.forUnaryStrings(
             suppliers,
             stringEvaluator,
-            DataTypes.IP,
+            DataType.IP,
             bytesRef -> null,
             bytesRef -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
@@ -57,13 +57,13 @@ public class ToIPTests extends AbstractFunctionTestCase {
             suppliers,
             stringEvaluator,
             validIPsAsStrings(),
-            DataTypes.IP,
+            DataType.IP,
             bytesRef -> parseIP(((BytesRef) bytesRef).utf8ToString()),
             emptyList()
         );
 
         // add null as parameter
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "ip or string");
     }
 
     @Override
@@ -73,16 +73,16 @@ public class ToIPTests extends AbstractFunctionTestCase {
 
     private static List<TestCaseSupplier.TypedDataSupplier> validIPsAsStrings() {
         return List.of(
-            new TestCaseSupplier.TypedDataSupplier("<127.0.0.1 ip>", () -> new BytesRef("127.0.0.1"), DataTypes.KEYWORD),
+            new TestCaseSupplier.TypedDataSupplier("<127.0.0.1 ip>", () -> new BytesRef("127.0.0.1"), DataType.KEYWORD),
             new TestCaseSupplier.TypedDataSupplier(
                 "<ipv4>",
                 () -> new BytesRef(NetworkAddress.format(ESTestCase.randomIp(true))),
-                DataTypes.KEYWORD
+                DataType.KEYWORD
             ),
             new TestCaseSupplier.TypedDataSupplier(
                 "<ipv6>",
                 () -> new BytesRef(NetworkAddress.format(ESTestCase.randomIp(false))),
-                DataTypes.KEYWORD
+                DataType.TEXT
             )
         );
     }

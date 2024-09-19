@@ -44,6 +44,7 @@ public class SetResetModeActionRequest extends AcknowledgedRequest<SetResetModeA
     }
 
     SetResetModeActionRequest(boolean enabled, Boolean deleteMetadata) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
         this.enabled = enabled;
         this.deleteMetadata = deleteMetadata != null && deleteMetadata;
     }

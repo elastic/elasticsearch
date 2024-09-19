@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 import org.elasticsearch.gradle.Architecture
@@ -159,31 +160,4 @@ if (OS.current() == OS.WINDOWS) {
         nonInputProperties.systemProperty "es${version}.port", fixture.map(f->f.addressAndPort)
     }
   }
-}
-
-tasks.named("yamlRestTestV7CompatTransform").configure { task ->
-    task.skipTest("reindex/20_validation/reindex without source gives useful error message", "exception with a type. Not much benefit adding _doc there.")
-    task.skipTest("update_by_query/20_validation/update_by_query without source gives useful error message", "exception with a type. Not much benefit adding _doc there.")
-
-    // these tests are all relying on a call to refresh all indices, when they could easily be changed
-    // in 7.x to call the specific index they want to refresh.
-    // See https://github.com/elastic/elasticsearch/issues/81188
-    task.skipTest("delete_by_query/70_throttle/Rethrottle to -1 which turns off throttling", "test relies on system index being non-hidden")
-    task.skipTest("delete_by_query/80_slices/Multiple slices with rethrottle", "test relies on system index being non-hidden")
-    task.skipTest("delete_by_query/80_slices/Multiple slices with wait_for_completion=false", "test relies on system index being non-hidden")
-    task.skipTest("reindex/80_slices/Multiple slices with rethrottle", "test relies on system index being non-hidden")
-    task.skipTest("reindex/80_slices/Multiple slices with wait_for_completion=false", "test relies on system index being non-hidden")
-    task.skipTest("update_by_query/70_slices/Multiple slices with rethrottle", "test relies on system index being non-hidden")
-    task.skipTest("update_by_query/70_slices/Multiple slices with wait_for_completion=false", "test relies on system index being non-hidden")
-
-    task.addAllowedWarningRegex("\\[types removal\\].*")
-}
-
-tasks.named("yamlRestTestV7CompatTest").configure {
-  systemProperty 'tests.rest.blacklist', [
-    'update_by_query/80_scripting/Can\'t change _id',
-    'update_by_query/80_scripting/Set unsupported operation type',
-    'update_by_query/80_scripting/Setting bogus context is an error',
-
-  ].join(',')
 }

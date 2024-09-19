@@ -123,7 +123,7 @@ The exception of that rule are the `*@custom` component templates that let you s
 If `true`, this request cannot replace or update existing component templates.
 Defaults to `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [role="child_attributes"]
 [[put-component-template-api-request-body]]
@@ -140,13 +140,13 @@ This is the template to be applied, may optionally include a `mappings`,
 `aliases`::
 (Optional, object of objects) Aliases to add.
 +
-include::{es-repo-dir}/indices/put-index-template.asciidoc[tag=template-ds-alias]
+include::{es-ref-dir}/indices/put-index-template.asciidoc[tag=template-ds-alias]
 +
-include::{es-repo-dir}/indices/create-index.asciidoc[tag=aliases-props]
+include::{es-ref-dir}/indices/create-index.asciidoc[tag=aliases-props]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=mappings]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=mappings]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=settings]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=settings]
 ====
 
 `version`::

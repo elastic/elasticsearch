@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.get;
 
+import org.apache.lucene.index.SortedSetDocValues;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
@@ -17,12 +19,16 @@ import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
@@ -35,6 +41,8 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -53,11 +61,13 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     private final MeanMetric missingMetric = new MeanMetric();
     private final CounterMetric currentMetric = new CounterMetric();
     private final IndexShard indexShard;
+    private final MapperMetrics mapperMetrics;
 
-    public ShardGetService(IndexSettings indexSettings, IndexShard indexShard, MapperService mapperService) {
+    public ShardGetService(IndexSettings indexSettings, IndexShard indexShard, MapperService mapperService, MapperMetrics mapperMetrics) {
         super(indexShard.shardId(), indexSettings);
         this.mapperService = mapperService;
         this.indexShard = indexShard;
+        this.mapperMetrics = mapperMetrics;
     }
 
     public GetStats stats() {
@@ -297,8 +307,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         Map<String, DocumentField> metadataFields = null;
         DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
         SourceLoader loader = forceSyntheticSource
-            ? new SourceLoader.Synthetic(mappingLookup.getMapping())
-            : mappingLookup.newSourceLoader();
+            ? new SourceLoader.Synthetic(mappingLookup.getMapping()::syntheticFieldLoader, mapperMetrics.sourceFieldMetrics())
+            : mappingLookup.newSourceLoader(mapperMetrics.sourceFieldMetrics());
         StoredFieldLoader storedFieldLoader = buildStoredFieldLoader(storedFields, fetchSourceContext, loader);
         LeafStoredFieldLoader leafStoredFieldLoader = storedFieldLoader.getLoader(docIdAndVersion.reader.getContext(), null);
         try {
@@ -308,6 +318,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         }
 
         // put stored fields into result objects
+        final IndexVersion indexVersion = indexSettings.getIndexVersionCreated();
         if (leafStoredFieldLoader.storedFields().isEmpty() == false) {
             Set<String> needed = new HashSet<>();
             if (storedFields != null) {
@@ -320,6 +331,10 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 if (false == needed.contains(entry.getKey())) {
                     continue;
                 }
+                if (IgnoredFieldMapper.NAME.equals(entry.getKey())
+                    && indexVersion.onOrAfter(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD)) {
+                    continue;
+                }
                 MappedFieldType ft = mapperService.fieldType(entry.getKey());
                 if (ft == null) {
                     continue;   // user asked for a non-existent field, ignore it
@@ -330,6 +345,21 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 } else {
                     documentFields.put(entry.getKey(), new DocumentField(entry.getKey(), values));
                 }
+            }
+        }
+
+        // NOTE: when _ignored is requested via `stored_fields` we need to load it from doc values instead of loading it from stored fields.
+        // The _ignored field used to be stored, but as a result of supporting aggregations on it, it moved from using a stored field to
+        // using doc values.
+        if (indexVersion.onOrAfter(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD)
+            && storedFields != null
+            && Arrays.asList(storedFields).contains(IgnoredFieldMapper.NAME)) {
+            final DocumentField ignoredDocumentField = loadIgnoredMetadataField(docIdAndVersion);
+            if (ignoredDocumentField != null) {
+                if (metadataFields == null) {
+                    metadataFields = new HashMap<>();
+                }
+                metadataFields.put(IgnoredFieldMapper.NAME, ignoredDocumentField);
             }
         }
 
@@ -355,6 +385,22 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             documentFields,
             metadataFields
         );
+    }
+
+    private static DocumentField loadIgnoredMetadataField(final DocIdAndVersion docIdAndVersion) throws IOException {
+        final SortedSetDocValues ignoredDocValues = docIdAndVersion.reader.getContext()
+            .reader()
+            .getSortedSetDocValues(IgnoredFieldMapper.NAME);
+        if (ignoredDocValues == null
+            || ignoredDocValues.advanceExact(docIdAndVersion.docId) == false
+            || ignoredDocValues.docValueCount() <= 0) {
+            return null;
+        }
+        final List<Object> ignoredValues = new ArrayList<>(ignoredDocValues.docValueCount());
+        for (int i = 0; i < ignoredDocValues.docValueCount(); i++) {
+            ignoredValues.add(ignoredDocValues.lookupOrd(ignoredDocValues.nextOrd()).utf8ToString());
+        }
+        return new DocumentField(IgnoredFieldMapper.NAME, ignoredValues);
     }
 
     private static StoredFieldLoader buildStoredFieldLoader(String[] fields, FetchSourceContext fetchSourceContext, SourceLoader loader) {

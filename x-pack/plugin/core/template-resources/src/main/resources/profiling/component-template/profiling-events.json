@@ -3,18 +3,16 @@
     "settings": {
       "index": {
         "number_of_shards": 4,
-        "number_of_replicas": 0,
         "auto_expand_replicas": "0-1",
         "max_result_window": 150000,
         "refresh_interval": "10s",
         "sort": {
           "field": [
             "profiling.project.id",
-            "@timestamp",
             "orchestrator.resource.name",
+            "host.name",
             "container.name",
-            "process.thread.name",
-            "host.id"
+            "process.thread.name"
           ]
         }
       },
@@ -22,7 +20,7 @@
     },
     "mappings": {
       "_source": {
-        "enabled": false
+        "mode": "synthetic"
       },
       "_meta": {
         "index-template-version": ${xpack.profiling.template.version},
@@ -39,8 +37,8 @@
           "type": "keyword"
         },
         "@timestamp": {
-          "type": "date",
-          "format": "epoch_second"
+          "type": "date_nanos",
+          "format": "strict_date_optional_time_nanos||epoch_second"
         },
         "host.id": {
           "type": "keyword"
@@ -78,6 +76,9 @@
           "type": "keyword"
         },
         "service.name": {
+          "type": "keyword"
+        },
+        "container.id": {
           "type": "keyword"
         }
       }

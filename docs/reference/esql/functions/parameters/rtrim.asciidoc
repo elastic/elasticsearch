@@ -3,4 +3,4 @@
 *Parameters*
 
 `string`::
-
+String expression. If `null`, the function returns `null`.

@@ -75,8 +75,18 @@ For syntax, refer to <<esql-locale-param>>.
 (Optional, array) Values for parameters in the `query`. For syntax, refer to
 <<esql-rest-params>>.
 
+`profile`::
+(Optional, boolean) If provided and `true` the response will include an extra `profile` object
+with information about how the query was executed. It provides insight into the performance
+of each part of the query. This is for human debugging as the object's format might change at any time.
+
 `query`::
-(Required, object) {esql} query to run. For syntax, refer to <<esql-syntax>>.
+(Required, string) {esql} query to run. For syntax, refer to <<esql-syntax>>.
+
+ifeval::["{release-state}"=="unreleased"]
+`table`::
+(Optional, object) Named "table" parameters that can be referenced by the <<esql-lookup>> command.
+endif::[]
 
 [discrete]
 [role="child_attributes"]
@@ -92,6 +102,11 @@ Column `name` and `type` for each column returned in `values`. Each object is a 
 Column `name` and `type` for each queried column. Each object is a single column. This is only
 returned if `drop_null_columns` is sent with the request.
 
-`rows`::
+`values`::
 (array of arrays)
 Values for the search results.
+
+`profile`::
+(object)
+Profile describing the execution of the query. Only returned if `profile` was sent in the body.
+The object itself is for human debugging and can change at any time.

@@ -99,6 +99,9 @@
                     "upgradeable": {
                       "type": "boolean"
                     },
+                    "unprivileged": {
+                      "type": "boolean"
+                    },
                     "version": {
                       "type": "text",
                       "fields": {
@@ -312,6 +315,15 @@
           "enabled": false
         },
         "tags": {
+          "type": "keyword"
+        },
+        "namespaces": {
+          "type": "keyword"
+        },
+        "audit_unenrolled_time": {
+          "type": "date"
+        },
+        "audit_unenrolled_reason": {
           "type": "keyword"
         }
       }

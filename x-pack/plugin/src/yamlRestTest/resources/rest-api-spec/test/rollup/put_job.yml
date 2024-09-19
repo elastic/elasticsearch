@@ -26,6 +26,19 @@ setup:
               value_field:
                 type: integer
 
+  - do:
+      indices.create:
+        index: dummy-rollup-index
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            _meta:
+              _rollup:
+                my-id: { }
+
+
 ---
 "Test basic put_job":
   - do:
@@ -93,6 +106,11 @@ setup:
             processing_total: 0
           status:
             job_state: "stopped"
+
+  - do: {xpack.usage: {}}
+  - match: { rollup.available: true }
+  - match: { rollup.enabled: true }
+  - match: { rollup.number_of_rollup_jobs: 1 }
 
 ---
 "Test put_job with existing name":
@@ -243,6 +261,39 @@ setup:
           }
 
 ---
+"Deprecation validation failure":
+
+  - do:
+      indices.delete:
+        index: dummy-rollup-index
+
+  - do:
+      catch: /new rollup jobs are not allowed in clusters that don't have any rollup usage, since rollup has been deprecated/
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      rollup.put_job:
+        id: foo
+        body:  >
+          {
+            "index_pattern": "foo",
+            "rollup_index": "foo_rollup",
+            "cron": "*/30 * * * * ?",
+            "page_size" :10,
+            "groups" : {
+              "date_histogram": {
+                "field": "the_field",
+                "calendar_interval": "1h"
+              }
+            },
+            "metrics": [
+              {
+                "field": "field_doesnt_exist",
+                "metrics": ["min", "max", "sum"]
+              }
+            ]
+          }
+
+---
 "Unknown Metric":
 
   - do:
@@ -357,8 +408,8 @@ setup:
 
 ---
 "Test put_job with comma-delimited index pattern":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: Comma delimited index pattern introduced in 8.2.0
 
   - do:

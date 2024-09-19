@@ -59,6 +59,14 @@ public class RoutingInfo implements ToXContentObject, Writeable {
         this(currentAllocations == null ? 0 : currentAllocations, targetAllocations == null ? 0 : targetAllocations, state, reason);
     }
 
+    /**
+     * RoutingInfo defines the state of a particular trained model assignment on a particular node.
+     * @param currentAllocations The number of allocations currently running on a node.
+     * @param targetAllocations The number of allocations that have been assigned to a node, and will run on the node. Should never be
+     *                          higher than the number of available processors on the node.
+     * @param state Indicates the availability of the allocations on the node.
+     * @param reason Will contain the reason that currentAllocations != targetAllocations, if applicable, otherwise empty string.
+     */
     public RoutingInfo(int currentAllocations, int targetAllocations, RoutingState state, String reason) {
         this.currentAllocations = currentAllocations;
         this.targetAllocations = targetAllocations;
@@ -78,10 +86,17 @@ public class RoutingInfo implements ToXContentObject, Writeable {
         this.reason = in.readOptionalString();
     }
 
+    /**
+     * @return The number of allocations currently running on a node.
+     */
     public int getCurrentAllocations() {
         return currentAllocations;
     }
 
+    /**
+     * @return The number of allocations that have been assigned to a node, and will run on the node. Should never be
+     * higher than the number of available processors on the node.
+     */
     public int getTargetAllocations() {
         return targetAllocations;
     }

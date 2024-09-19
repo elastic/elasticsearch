@@ -172,8 +172,8 @@ setup:
 
 ---
 "Should return only selected features":
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: "features option added in 8.1.0"
 
   - do:

@@ -2,10 +2,8 @@
 [[tutorial-manage-data-stream-retention]]
 === Tutorial: Data stream retention
 
-preview::[]
-
-In this tutorial, we are going to go over the data stream lifecycle retention, define it, go over how it can be configured and how
-it can be applied. Keep in mind, the following options apply only to data streams that are managed by the data stream lifecycle.
+In this tutorial, we are going to go over the data stream lifecycle retention; we will define it, go over how it can be configured
+and how it can gets applied. Keep in mind, the following options apply only to data streams that are managed by the data stream lifecycle.
 
 . <<what-is-retention>>
 . <<retention-configuration>>
@@ -36,7 +34,12 @@ PUT /_data_stream/my-data-stream
 ----
 DELETE /_data_stream/my-data-stream*
 DELETE /_index_template/template
-DELETE /_data_stream/_global_retention
+PUT /_cluster/settings
+{
+  "persistent" : {
+    "data_streams.lifecycle.retention.*" : null
+  }
+}
 ----
 // TEARDOWN
 ////
@@ -80,16 +83,21 @@ We define 4 different types of retention:
 set via an <<index-templates,index template>> for future data streams or via the <<data-streams-put-lifecycle, PUT data
 stream lifecycle API>> for an existing data stream. When the data stream retention is not set, it implies that the data
 need to be kept forever.
-* The global default retention, or `default_retention`, which is a retention configured on a cluster level and will be
+* The global default retention, let's call it `default_retention`, which is a retention configured via the cluster setting
+<<data-streams-lifecycle-retention-default, `data_streams.lifecycle.retention.default`>> and will be
 applied to all data streams managed by data stream lifecycle that do not have `data_retention` configured. Effectively,
 it ensures that there will be no data streams keeping their data forever. This can be set via the
-<<data-streams-put-global-retention, PUT global retention API>>.
-* The global max retention, or `max_retention`, which is a retention configured on a cluster level and will be applied to
+<<cluster-update-settings, update cluster settings API>>.
+* The global max retention, let's call it `max_retention`, which is a retention configured via the cluster setting
+<<data-streams-lifecycle-retention-max, `data_streams.lifecycle.retention.max`>> and will be applied to
 all data streams managed by data stream lifecycle. Effectively, it ensures that there will be no data streams whose retention
-will exceed this time period. This can be set via the <<data-streams-put-global-retention, PUT global retention API>>.
+will exceed this time period. This can be set via the <<cluster-update-settings, update cluster settings API>>.
 * The effective retention, or `effective_retention`, which is the retention applied at a data stream on a given moment.
 Effective retention cannot be set, it is derived by taking into account all the configured retention listed above and is
 calculated as it is described <<effective-retention-calculation,here>>.
+
+NOTE: Global default and max retention do not apply to data streams internal to elastic. Internal data streams are recognised
+ either by having the `system` flag set to `true` or if their name is prefixed with a dot (`.`).
 
 [discrete]
 [[retention-configuration]]
@@ -129,15 +137,17 @@ PUT _data_stream/my-data-stream/_lifecycle
 // TEST[continued]
 <1> The retention period of this data stream is set to 30 days.
 
-- By setting the global retention via the `default_retention` and `max_retention` that are set on a cluster level. You
-can set them via the <<data-streams-put-global-retention, PUT global retention API>>. For example:
+- By setting the global retention via the `data_streams.lifecycle.retention.default` and/or `data_streams.lifecycle.retention.max`
+that are set on a cluster level. You can be set via the <<cluster-update-settings, update cluster settings API>>. For example:
 +
 [source,console]
 --------------------------------------------------
-PUT _data_stream/_global_retention
+PUT /_cluster/settings
 {
-  "default_retention": "7d",
-  "max_retention": "90d"
+  "persistent" : {
+    "data_streams.lifecycle.retention.default" : "7d",
+    "data_streams.lifecycle.retention.max" : "90d"
+  }
 }
 --------------------------------------------------
 // TEST[continued]
@@ -167,6 +177,41 @@ The above is demonstrated in the examples below:
 |Not relevant           |**30 days**        |12 months          |30 days                |`max_retention`
 |Not set                |**30 days**        |Not set            |30 days                |`max_retention`
 |===
+
+Considering our example, if we retrieve the lifecycle of `my-data-stream`:
+[source,console]
+----
+GET _data_stream/my-data-stream/_lifecycle
+----
+// TEST[continued]
+
+We see that it will remain the same with what the user configured:
+[source,console-result]
+----
+{
+  "global_retention" : {
+    "max_retention" : "90d",                                   <1>
+    "default_retention" : "7d"                                 <2>
+  },
+  "data_streams": [
+    {
+      "name": "my-data-stream",
+      "lifecycle": {
+        "enabled": true,
+        "data_retention": "30d",                                <3>
+        "effective_retention": "30d",                           <4>
+        "retention_determined_by": "data_stream_configuration"  <5>
+      }
+    }
+  ]
+}
+----
+<1> The maximum retention configured in the cluster.
+<2> The default retention configured in the cluster.
+<3> The requested retention for this data stream.
+<4> The retention that is applied by the data stream lifecycle on this data stream.
+<5> The configuration that determined the effective retention. In this case it's the `data_configuration` because
+it is less than the `max_retention`.
 
 [discrete]
 [[effective-retention-application]]

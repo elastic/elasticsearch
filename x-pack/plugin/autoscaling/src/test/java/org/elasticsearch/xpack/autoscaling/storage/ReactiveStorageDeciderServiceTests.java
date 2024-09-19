@@ -402,8 +402,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
                     ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
                     allocation.changes()
                 );
-                allocation.routingNodes()
-                    .startShard(logger, initialized, allocation.changes(), ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+                allocation.routingNodes().startShard(initialized, allocation.changes(), ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
                 return;
             }
         }
@@ -763,7 +762,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         }
         final RoutingTable oldRoutingTable = oldState.routingTable();
         final RoutingNodes newRoutingNodes = allocation.routingNodes();
-        final RoutingTable newRoutingTable = RoutingTable.of(oldRoutingTable.version(), newRoutingNodes);
+        final RoutingTable newRoutingTable = RoutingTable.of(newRoutingNodes);
         final Metadata newMetadata = allocation.updateMetadataWithRoutingChanges(newRoutingTable);
         assert newRoutingTable.validate(newMetadata); // validates the routing table is coherent with the cluster state metadata
 

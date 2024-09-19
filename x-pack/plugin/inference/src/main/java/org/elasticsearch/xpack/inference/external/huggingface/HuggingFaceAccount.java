@@ -8,14 +8,19 @@
 package org.elasticsearch.xpack.inference.external.huggingface;
 
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModel;
 
 import java.net.URI;
 import java.util.Objects;
 
-public record HuggingFaceAccount(URI url, SecureString apiKey) {
+public record HuggingFaceAccount(URI uri, SecureString apiKey) {
+
+    public static HuggingFaceAccount of(HuggingFaceModel model) {
+        return new HuggingFaceAccount(model.rateLimitServiceSettings().uri(), model.apiKey());
+    }
 
     public HuggingFaceAccount {
-        Objects.requireNonNull(url);
+        Objects.requireNonNull(uri);
         Objects.requireNonNull(apiKey);
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
@@ -31,6 +32,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -388,8 +390,8 @@ public class MockBigArrays extends BigArrays {
         }
 
         @Override
-        public byte set(long index, byte value) {
-            return in.set(index, value);
+        public void set(long index, byte value) {
+            in.set(index, value);
         }
 
         @Override
@@ -413,7 +415,7 @@ public class MockBigArrays extends BigArrays {
         }
 
         @Override
-        public void fillWith(StreamInput streamInput) throws IOException {
+        public void fillWith(InputStream streamInput) throws IOException {
             in.fillWith(streamInput);
         }
 
@@ -468,8 +470,13 @@ public class MockBigArrays extends BigArrays {
         }
 
         @Override
-        public int set(long index, int value) {
-            return in.set(index, value);
+        public int getAndSet(long index, int value) {
+            return in.getAndSet(index, value);
+        }
+
+        @Override
+        public void set(long index, int value) {
+            in.set(index, value);
         }
 
         @Override
@@ -523,8 +530,13 @@ public class MockBigArrays extends BigArrays {
         }
 
         @Override
-        public long set(long index, long value) {
-            return in.set(index, value);
+        public long getAndSet(long index, long value) {
+            return in.getAndSet(index, value);
+        }
+
+        @Override
+        public void set(long index, long value) {
+            in.set(index, value);
         }
 
         @Override
@@ -583,8 +595,8 @@ public class MockBigArrays extends BigArrays {
         }
 
         @Override
-        public float set(long index, float value) {
-            return in.set(index, value);
+        public void set(long index, float value) {
+            in.set(index, value);
         }
 
         @Override
@@ -628,8 +640,8 @@ public class MockBigArrays extends BigArrays {
         }
 
         @Override
-        public double set(long index, double value) {
-            return in.set(index, value);
+        public void set(long index, double value) {
+            in.set(index, value);
         }
 
         @Override

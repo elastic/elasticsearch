@@ -4,7 +4,7 @@
 <titleabbrev>{esql} async query delete API</titleabbrev>
 ++++
 
-The {esql} async query delete API is used to manually delete an async query
+The <<esql,{esql}>> async query delete API is used to manually delete an async query
 by ID. If the query is still running, the query will be cancelled. Otherwise,
 the stored results are deleted.
 

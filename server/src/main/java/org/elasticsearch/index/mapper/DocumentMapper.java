@@ -1,15 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 
@@ -20,6 +23,10 @@ public class DocumentMapper {
     private final CompressedXContent mappingSource;
     private final MappingLookup mappingLookup;
     private final DocumentParser documentParser;
+    private final MapperMetrics mapperMetrics;
+    private final IndexVersion indexVersion;
+
+    static final NodeFeature INDEX_SORTING_ON_NESTED = new NodeFeature("mapper.index_sorting_on_nested");
 
     /**
      * Create a new {@link DocumentMapper} that holds empty mappings.
@@ -32,14 +39,28 @@ public class DocumentMapper {
         );
         MetadataFieldMapper[] metadata = mapperService.getMetadataMappers().values().toArray(new MetadataFieldMapper[0]);
         Mapping mapping = new Mapping(root, metadata, null);
-        return new DocumentMapper(mapperService.documentParser(), mapping, mapping.toCompressedXContent(), IndexVersion.current());
+        return new DocumentMapper(
+            mapperService.documentParser(),
+            mapping,
+            mapping.toCompressedXContent(),
+            IndexVersion.current(),
+            mapperService.getMapperMetrics()
+        );
     }
 
-    DocumentMapper(DocumentParser documentParser, Mapping mapping, CompressedXContent source, IndexVersion version) {
+    DocumentMapper(
+        DocumentParser documentParser,
+        Mapping mapping,
+        CompressedXContent source,
+        IndexVersion version,
+        MapperMetrics mapperMetrics
+    ) {
         this.documentParser = documentParser;
-        this.type = mapping.getRoot().name();
+        this.type = mapping.getRoot().fullPath();
         this.mappingLookup = MappingLookup.fromMapping(mapping);
         this.mappingSource = source;
+        this.mapperMetrics = mapperMetrics;
+        this.indexVersion = version;
 
         assert mapping.toCompressedXContent().equals(source) || isSyntheticSourceMalformed(source, version)
             : "provided source [" + source + "] differs from mapping [" + mapping.toCompressedXContent() + "]";
@@ -112,9 +133,26 @@ public class DocumentMapper {
          * Build an empty source loader to validate that the mapping is compatible
          * with the source loading strategy declared on the source field mapper.
          */
-        sourceMapper().newSourceLoader(mapping());
+        try {
+            sourceMapper().newSourceLoader(mapping(), mapperMetrics.sourceFieldMetrics());
+        } catch (IllegalArgumentException e) {
+            mapperMetrics.sourceFieldMetrics().recordSyntheticSourceIncompatibleMapping();
+            throw e;
+        }
+
         if (settings.getIndexSortConfig().hasIndexSort() && mappers().nestedLookup() != NestedLookup.EMPTY) {
-            throw new IllegalArgumentException("cannot have nested fields when index sort is activated");
+            if (indexVersion.before(IndexVersions.INDEX_SORTING_ON_NESTED)) {
+                throw new IllegalArgumentException("cannot have nested fields when index sort is activated");
+            }
+            for (String field : settings.getValue(IndexSortConfig.INDEX_SORT_FIELD_SETTING)) {
+                for (NestedObjectMapper nestedObjectMapper : mappers().nestedLookup().getNestedMappers().values()) {
+                    if (field.startsWith(nestedObjectMapper.fullPath())) {
+                        throw new IllegalArgumentException(
+                            "cannot apply index sort to field [" + field + "] under nested object [" + nestedObjectMapper.fullPath() + "]"
+                        );
+                    }
+                }
+            }
         }
         List<String> routingPaths = settings.getIndexMetadata().getRoutingPaths();
         for (String path : routingPaths) {

@@ -135,10 +135,6 @@ public class GetRollupIndexCapsAction extends ActionType<GetRollupIndexCapsActio
             this.jobs = Objects.requireNonNull(jobs);
         }
 
-        Response(StreamInput in) throws IOException {
-            jobs = in.readMap(RollableIndexCaps::new);
-        }
-
         public Map<String, RollableIndexCaps> getJobs() {
             return jobs;
         }

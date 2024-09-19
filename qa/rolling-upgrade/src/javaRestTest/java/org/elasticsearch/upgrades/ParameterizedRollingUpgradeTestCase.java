@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.upgrades;
@@ -14,77 +15,49 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
-import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.test.rest.TestFeatureService;
 import org.junit.AfterClass;
 import org.junit.Before;
-import org.junit.ClassRule;
-import org.junit.rules.RuleChain;
-import org.junit.rules.TemporaryFolder;
-import org.junit.rules.TestRule;
 
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase {
+    protected static final int NODE_NUM = 3;
     private static final String OLD_CLUSTER_VERSION = System.getProperty("tests.old_cluster_version");
-
-    private static final TemporaryFolder repoDirectory = new TemporaryFolder();
-
-    private static final int NODE_NUM = 3;
-
-    private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.DEFAULT)
-        .version(getOldClusterTestVersion())
-        .nodes(NODE_NUM)
-        .setting("path.repo", new Supplier<>() {
-            @Override
-            @SuppressForbidden(reason = "TemporaryFolder only has io.File methods, not nio.File")
-            public String get() {
-                return repoDirectory.getRoot().getPath();
-            }
-        })
-        .setting("xpack.security.enabled", "false")
-        .feature(FeatureFlag.TIME_SERIES_MODE)
-        .build();
-
-    @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
-
-    @ParametersFactory(shuffle = false)
-    public static Iterable<Object[]> parameters() {
-        return IntStream.rangeClosed(0, NODE_NUM).boxed().map(n -> new Object[] { n }).toList();
-    }
-
     private static final Set<Integer> upgradedNodes = new HashSet<>();
-    private static final Set<String> oldClusterFeatures = new HashSet<>();
+    private static TestFeatureService oldClusterTestFeatureService = null;
     private static boolean upgradeFailed = false;
     private static IndexVersion oldIndexVersion;
-
     private final int requestedUpgradedNodes;
 
     protected ParameterizedRollingUpgradeTestCase(@Name("upgradedNodes") int upgradedNodes) {
         this.requestedUpgradedNodes = upgradedNodes;
     }
 
+    @ParametersFactory(shuffle = false)
+    public static Iterable<Object[]> parameters() {
+        return IntStream.rangeClosed(0, NODE_NUM).boxed().map(n -> new Object[] { n }).toList();
+    }
+
+    protected abstract ElasticsearchCluster getUpgradeCluster();
+
     @Before
     public void extractOldClusterFeatures() {
-        if (isOldCluster() && oldClusterFeatures.isEmpty()) {
-            oldClusterFeatures.addAll(testFeatureService.getAllSupportedFeatures());
+        if (isOldCluster() && oldClusterTestFeatureService == null) {
+            oldClusterTestFeatureService = testFeatureService;
         }
     }
 
@@ -134,7 +107,7 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
                 if (upgradedNodes.add(n)) {
                     try {
                         logger.info("Upgrading node {} to version {}", n, Version.CURRENT);
-                        cluster.upgradeNodeToVersion(n, Version.CURRENT);
+                        getUpgradeCluster().upgradeNodeToVersion(n, Version.CURRENT);
                     } catch (Exception e) {
                         upgradeFailed = true;
                         throw e;
@@ -149,7 +122,7 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
     public static void resetNodes() {
         oldIndexVersion = null;
         upgradedNodes.clear();
-        oldClusterFeatures.clear();
+        oldClusterTestFeatureService = null;
         upgradeFailed = false;
     }
 
@@ -159,8 +132,8 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
     }
 
     protected static boolean oldClusterHasFeature(String featureId) {
-        assert oldClusterFeatures.isEmpty() == false;
-        return oldClusterFeatures.contains(featureId);
+        assert oldClusterTestFeatureService != null;
+        return oldClusterTestFeatureService.clusterHasFeature(featureId);
     }
 
     protected static boolean oldClusterHasFeature(NodeFeature feature) {
@@ -198,7 +171,7 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
 
     @Override
     protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
+        return getUpgradeCluster().getHttpAddresses();
     }
 
     @Override

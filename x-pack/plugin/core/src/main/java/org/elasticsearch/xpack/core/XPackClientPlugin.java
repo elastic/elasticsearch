@@ -11,12 +11,14 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -68,6 +70,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskParams;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskState;
+import org.elasticsearch.xpack.core.ml.search.WeightedTokensQueryBuilder;
 import org.elasticsearch.xpack.core.monitoring.MonitoringFeatureSetUsage;
 import org.elasticsearch.xpack.core.rollup.RollupFeatureSetUsage;
 import org.elasticsearch.xpack.core.rollup.RollupField;
@@ -81,8 +84,12 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExceptExpression;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.RoleMapperExpression;
+import org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionGroup;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
+import org.elasticsearch.xpack.core.security.support.SecurityMigrationTaskParams;
 import org.elasticsearch.xpack.core.slm.SLMFeatureSetUsage;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.spatial.SpatialFeatureSetUsage;
@@ -108,7 +115,7 @@ import java.util.Objects;
 import java.util.stream.Stream;
 
 // TODO: merge this into XPackPlugin
-public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPlugin {
+public class XPackClientPlugin extends Plugin implements ActionPlugin, SearchPlugin, NetworkPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
@@ -142,7 +149,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             new NamedWriteableRegistry.Entry(ClusterState.Custom.class, TokenMetadata.TYPE, TokenMetadata::new),
             new NamedWriteableRegistry.Entry(NamedDiff.class, TokenMetadata.TYPE, TokenMetadata::readDiffFrom),
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.SECURITY, SecurityFeatureSetUsage::new),
-            // security : conditional privileges
+            // security : configurable cluster privileges
             new NamedWriteableRegistry.Entry(
                 ConfigurableClusterPrivilege.class,
                 ConfigurableClusterPrivileges.ManageApplicationPrivileges.WRITEABLE_NAME,
@@ -153,11 +160,25 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 ConfigurableClusterPrivileges.WriteProfileDataPrivileges.WRITEABLE_NAME,
                 ConfigurableClusterPrivileges.WriteProfileDataPrivileges::createFrom
             ),
+            new NamedWriteableRegistry.Entry(
+                ConfigurableClusterPrivilege.class,
+                ConfigurableClusterPrivileges.ManageRolesPrivilege.WRITEABLE_NAME,
+                ConfigurableClusterPrivileges.ManageRolesPrivilege::createFrom
+            ),
             // security : role-mappings
+            new NamedWriteableRegistry.Entry(Metadata.Custom.class, RoleMappingMetadata.TYPE, RoleMappingMetadata::new),
+            new NamedWriteableRegistry.Entry(NamedDiff.class, RoleMappingMetadata.TYPE, RoleMappingMetadata::readDiffFrom),
             new NamedWriteableRegistry.Entry(RoleMapperExpression.class, AllExpression.NAME, AllExpression::new),
             new NamedWriteableRegistry.Entry(RoleMapperExpression.class, AnyExpression.NAME, AnyExpression::new),
             new NamedWriteableRegistry.Entry(RoleMapperExpression.class, FieldExpression.NAME, FieldExpression::new),
             new NamedWriteableRegistry.Entry(RoleMapperExpression.class, ExceptExpression.NAME, ExceptExpression::new),
+            // security : role descriptors
+            new NamedWriteableRegistry.Entry(RemoteClusterPermissions.class, RemoteClusterPermissions.NAME, RemoteClusterPermissions::new),
+            new NamedWriteableRegistry.Entry(
+                RemoteClusterPermissionGroup.class,
+                RemoteClusterPermissionGroup.NAME,
+                RemoteClusterPermissionGroup::new
+            ),
             // eql
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.EQL, EqlFeatureSetUsage::new),
             // esql
@@ -283,7 +304,12 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 XPackField.ENTERPRISE_SEARCH,
                 EnterpriseSearchFeatureSetUsage::new
             ),
-            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.UNIVERSAL_PROFILING, ProfilingUsage::new)
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.UNIVERSAL_PROFILING, ProfilingUsage::new),
+            new NamedWriteableRegistry.Entry(
+                PersistentTaskParams.class,
+                SecurityMigrationTaskParams.TASK_NAME,
+                SecurityMigrationTaskParams::new
+            )
         ).filter(Objects::nonNull).toList();
     }
 
@@ -354,6 +380,30 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 Metadata.Custom.class,
                 new ParseField(TransformMetadata.TYPE),
                 parser -> TransformMetadata.LENIENT_PARSER.parse(parser, null).build()
+            ),
+            // security
+            new NamedXContentRegistry.Entry(
+                PersistentTaskParams.class,
+                new ParseField(SecurityMigrationTaskParams.TASK_NAME),
+                SecurityMigrationTaskParams::fromXContent
+            ),
+            new NamedXContentRegistry.Entry(
+                Metadata.Custom.class,
+                new ParseField(RoleMappingMetadata.TYPE),
+                RoleMappingMetadata::fromXContent
+            )
+        );
+    }
+
+    // TODO: The WeightedTokensBuilder is slated for removal after the SparseVectorQueryBuilder is available.
+    // The logic to create a Boolean query based on weighted tokens will remain and/or be moved to server.
+    @Override
+    public List<SearchPlugin.QuerySpec<?>> getQueries() {
+        return List.of(
+            new SearchPlugin.QuerySpec<QueryBuilder>(
+                WeightedTokensQueryBuilder.NAME,
+                WeightedTokensQueryBuilder::new,
+                WeightedTokensQueryBuilder::fromXContent
             )
         );
     }

@@ -97,7 +97,7 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
 
     @Override
     protected OpenAiEmbeddingsTaskSettings mutateInstance(OpenAiEmbeddingsTaskSettings instance) throws IOException {
-        return createRandomWithUser();
+        return randomValueOtherThan(instance, OpenAiEmbeddingsTaskSettingsTests::createRandomWithUser);
     }
 
     public static Map<String, Object> getTaskSettingsMap(@Nullable String user) {

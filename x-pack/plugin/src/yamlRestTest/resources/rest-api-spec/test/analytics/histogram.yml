@@ -174,8 +174,8 @@ setup:
 
 ---
 histogram with synthetic source:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: introduced in 8.5.0
 
   - do:
@@ -220,8 +220,8 @@ histogram with synthetic source:
 
 ---
 histogram with synthetic source and zero counts:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: introduced in 8.5.0
 
   - do:
@@ -255,8 +255,8 @@ histogram with synthetic source and zero counts:
 
 ---
 histogram with large count values:
-  - skip:
-      version: " - 8.10.99"
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
       reason: Support for `long` values was introduced in 8.11.0
 
   - do:
@@ -306,3 +306,54 @@ histogram with large count values:
   - match: { aggregations.percent.values.1\.0: 0.2 }
   - match: { aggregations.percent.values.5\.0: 0.2 }
   - match: { aggregations.percent.values.25\.0: 0.2 }
+
+---
+histogram with synthetic source and ignore_malformed:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: introduced in 8.15.0
+
+  - do:
+      indices.create:
+        index: histo_synthetic
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              latency:
+                type: histogram
+                ignore_malformed: true
+
+  - do:
+      index:
+        index: histo_synthetic
+        id: "1"
+        body:
+          latency: "quick brown fox"
+
+  - do:
+      index:
+        index: histo_synthetic
+        id: "2"
+        body:
+          latency: [{"values": [1.0], "counts": [1], "hello": "world"}, [123, 456], {"values": [2.0], "counts": [2]}, "fox"]
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      get:
+        index: histo_synthetic
+        id: 1
+  - match:
+      _source:
+        latency: "quick brown fox"
+
+  - do:
+      get:
+        index: histo_synthetic
+        id: 2
+  - match:
+      _source:
+        latency: [{"values": [2.0], "counts": [2]}, {"values": [1.0], "counts": [1], "hello": "world"}, 123, 456, "fox"]

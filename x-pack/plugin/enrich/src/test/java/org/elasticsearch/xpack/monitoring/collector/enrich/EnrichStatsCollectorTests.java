@@ -91,6 +91,9 @@ public class EnrichStatsCollectorTests extends BaseCollectorTestCase {
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
                     randomNonNegativeLong()
                 )
             );

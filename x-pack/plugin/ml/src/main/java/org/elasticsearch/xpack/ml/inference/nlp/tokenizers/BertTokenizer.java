@@ -236,6 +236,10 @@ public class BertTokenizer extends NlpTokenizer {
         ).buildRequest(requestId, truncate);
     }
 
+    /**
+     * @param seq cannot be null
+     * @return InnerTokenization
+     */
     @Override
     public InnerTokenization innerTokenize(String seq) {
         List<Integer> tokenPositionMap = new ArrayList<>();

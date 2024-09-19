@@ -18,10 +18,11 @@ import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.preallocate.Preallocate;
+import org.elasticsearch.nativeaccess.NativeAccess;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
@@ -78,7 +79,7 @@ public class SharedBytes extends AbstractRefCounted {
         Path cacheFile = null;
         if (fileSize > 0) {
             cacheFile = findCacheSnapshotCacheFilePath(environment, fileSize);
-            Preallocate.preallocate(cacheFile, fileSize);
+            preallocate(cacheFile, fileSize);
             this.fileChannel = FileChannel.open(cacheFile, OPEN_OPTIONS);
             assert this.fileChannel.size() == fileSize : "expected file size " + fileSize + " but was " + fileChannel.size();
         } else {
@@ -138,6 +139,24 @@ public class SharedBytes extends AbstractRefCounted {
             throw new IOException(
                 "Not enough free space [" + usableSpace + "] for cache file of size [" + fileSize + "] in path [" + path + "]"
             );
+        }
+    }
+
+    @SuppressForbidden(reason = "random access file needed to set file size")
+    static void preallocate(Path cacheFile, long fileSize) throws IOException {
+        // first try using native methods to preallocate space in the file
+        NativeAccess.instance().tryPreallocate(cacheFile, fileSize);
+        // even if allocation was successful above, verify again here
+        try (RandomAccessFile raf = new RandomAccessFile(cacheFile.toFile(), "rw")) {
+            if (raf.length() != fileSize) {
+                logger.info("pre-allocating cache file [{}] ({} bytes) using setLength method", cacheFile, fileSize);
+                raf.setLength(fileSize);
+                logger.debug("pre-allocated cache file [{}] using setLength method", cacheFile);
+            }
+        } catch (final Exception e) {
+            logger.warn(() -> "failed to pre-allocate cache file [" + cacheFile + "] using setLength method", e);
+            // if anything goes wrong, delete the potentially created file to not waste disk space
+            Files.deleteIfExists(cacheFile);
         }
     }
 
@@ -204,16 +223,29 @@ public class SharedBytes extends AbstractRefCounted {
             if (bytesRead <= 0) {
                 break;
             }
-            if (buffer.hasRemaining()) {
-                // ensure that last write is aligned on 4k boundaries (= page size)
-                final int remainder = buffer.position() % PAGE_SIZE;
-                final int adjustment = remainder == 0 ? 0 : PAGE_SIZE - remainder;
-                buffer.position(buffer.position() + adjustment);
-            }
-            bytesCopied += positionalWrite(fc, fileChannelPos + bytesCopied, buffer);
+            bytesCopied += copyBufferToCacheFileAligned(fc, fileChannelPos + bytesCopied, buffer);
             progressUpdater.accept(bytesCopied);
         }
         return bytesCopied;
+    }
+
+    /**
+     * Copy all bytes from {@code buffer} to {@code fc}, only doing writes aligned along {@link #PAGE_SIZE}.
+     *
+     * @param fc output cache file reference
+     * @param fileChannelPos position in {@code fc} to write to
+     * @param buffer bytebuffer to copy from
+     * @return the number of bytes copied
+     * @throws IOException on failure
+     */
+    public static int copyBufferToCacheFileAligned(IO fc, int fileChannelPos, ByteBuffer buffer) throws IOException {
+        if (buffer.hasRemaining()) {
+            // ensure the write is aligned on 4k boundaries (= page size)
+            final int remainder = buffer.position() % PAGE_SIZE;
+            final int adjustment = remainder == 0 ? 0 : PAGE_SIZE - remainder;
+            buffer.position(buffer.position() + adjustment);
+        }
+        return positionalWrite(fc, fileChannelPos, buffer);
     }
 
     private static int positionalWrite(IO fc, int start, ByteBuffer byteBuffer) throws IOException {

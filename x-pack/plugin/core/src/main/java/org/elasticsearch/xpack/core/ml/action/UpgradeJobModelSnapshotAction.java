@@ -71,6 +71,7 @@ public class UpgradeJobModelSnapshotAction extends ActionType<UpgradeJobModelSna
         }
 
         public Request(String jobId, String snapshotId, TimeValue timeValue, boolean waitForCompletion) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID);
             this.snapshotId = ExceptionsHelper.requireNonNull(snapshotId, SNAPSHOT_ID);
             this.timeout = timeValue == null ? DEFAULT_TIMEOUT : timeValue;

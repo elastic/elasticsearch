@@ -32,6 +32,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -460,7 +461,10 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             final ClusterState nextLocalClusterState;
             if (nextClusterStateVersion == 1) {
                 // cluster state #1 : one pattern is active
-                PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
+                PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT
+                );
                 request.setName("patternLogs");
                 request.setRemoteCluster(remoteCluster);
                 request.setLeaderIndexPatterns(singletonList("patternLogs-*"));
@@ -478,7 +482,10 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
             } else if (nextClusterStateVersion == 3) {
                 // cluster state #3 : add a new pattern, two patterns are active
-                PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
+                PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT
+                );
                 request.setName("patternDocs");
                 request.setRemoteCluster(remoteCluster);
                 request.setLeaderIndexPatterns(singletonList("patternDocs-*"));
@@ -496,12 +503,22 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
             } else if (nextClusterStateVersion == 5) {
                 // cluster state #5 : first pattern is paused, second pattern is still active
-                ActivateAutoFollowPatternAction.Request request = new ActivateAutoFollowPatternAction.Request("patternLogs", false);
+                ActivateAutoFollowPatternAction.Request request = new ActivateAutoFollowPatternAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
+                    "patternLogs",
+                    false
+                );
                 nextLocalClusterState = TransportActivateAutoFollowPatternAction.innerActivate(request, currentLocalState);
 
             } else if (nextClusterStateVersion == 6) {
                 // cluster state #5 : second pattern is paused, both patterns are inactive
-                ActivateAutoFollowPatternAction.Request request = new ActivateAutoFollowPatternAction.Request("patternDocs", false);
+                ActivateAutoFollowPatternAction.Request request = new ActivateAutoFollowPatternAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
+                    "patternDocs",
+                    false
+                );
                 nextLocalClusterState = TransportActivateAutoFollowPatternAction.innerActivate(request, currentLocalState);
 
             } else {
@@ -1090,7 +1107,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                             .build()
                     )
                     .build(),
-                new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
+                createDataStream(index)
             );
 
             PutFollowAction.Request request = AutoFollower.generateRequest("remote", index, indexAbstraction, pattern);
@@ -1133,7 +1150,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                             .build()
                     )
                     .build(),
-                new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
+                createDataStream(index)
             );
 
             PutFollowAction.Request request = AutoFollower.generateRequest("remote", index, indexAbstraction, pattern);
@@ -1176,7 +1193,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                             .build()
                     )
                     .build(),
-                new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
+                createDataStream(index)
             );
 
             PutFollowAction.Request request = AutoFollower.generateRequest("remote", index, indexAbstraction, pattern);
@@ -1262,7 +1279,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                             .build()
                     )
                     .build(),
-                new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
+                createDataStream(index)
             );
 
             PutFollowAction.Request request = AutoFollower.generateRequest("remote", index, indexAbstraction, pattern);
@@ -1305,7 +1322,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                             .build()
                     )
                     .build(),
-                new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
+                createDataStream(index)
             );
 
             IllegalArgumentException e = expectThrows(
@@ -1321,6 +1338,14 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                 )
             );
         }
+    }
+
+    private DataStream createDataStream(Index index) {
+        return DataStream.builder("logs-foo-bar", List.of(index))
+            .setMetadata(Map.of())
+            .setAllowCustomRouting(true)
+            .setIndexMode(IndexMode.STANDARD)
+            .build();
     }
 
     public void testStats() {
@@ -1788,6 +1813,8 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         assertThat(counter.get(), equalTo(states.length));
     }
 
+    @UpdateForV9
+    @AwaitsFix(bugUrl = "ability to disable soft deletes was removed in 8.0 indexes so we can probably remove this test")
     public void testAutoFollowerSoftDeletesDisabled() {
         Client client = mock(Client.class);
         when(client.getRemoteClusterClient(anyString(), any(), any())).thenReturn(new RedirectToLocalClusterRemoteClusterClient(client));
@@ -2606,17 +2633,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             .numberOfReplicas(0)
             .system(system)
             .build();
-        DataStream dataStream = new DataStream(
-            dataStreamName,
-            List.of(indexMetadata.getIndex()),
-            1,
-            null,
-            false,
-            false,
-            system,
-            false,
-            null
-        );
+        DataStream dataStream = DataStream.builder(dataStreamName, List.of(indexMetadata.getIndex())).setSystem(system).build();
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("remote"))
             .metadata(Metadata.builder().put(indexMetadata, true).put(dataStream).version(0L));
 

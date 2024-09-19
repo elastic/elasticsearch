@@ -1,130 +1,145 @@
 ---
 "binary":
-    - skip:
-        features: ["headers"]
-    - do:
-        indices.create:
-            index: test
-            body:
-                mappings:
-                    properties:
-                        binary:
-                            type: binary
-                            doc_values: true
+  - skip:
+      features: ["headers"]
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              binary:
+                type: binary
+                doc_values: true
+              sort_field:
+                type: keyword
+                doc_values: true
 
-    - do:
-        #set the header so we won't randomize it
-        headers:
-            Content-Type: application/json
-        index:
-            index: test
-            id: "1"
-            body:
-                binary: "U29tZSBiaW5hcnkgYmxvYg=="
+  - do:
+      #set the header so we won't randomize it
+      headers:
+        Content-Type: application/json
+      index:
+        index: test
+        id: "1"
+        body:
+          binary: "U29tZSBiaW5hcnkgYmxvYg=="
+          sort_field: "1"
 
-    - do:
-        #set the header so we won't randomize it
-        headers:
-          Content-Type: application/json
-        index:
-          index: test
-          id: "2"
-          body:
-            binary: [
-              "U29tZSBiaW5hcnkgYmxvYg==",
-              "MTIzNA==",
-              "dGVzdA=="
-            ]
+  - do:
+      #set the header so we won't randomize it
+      headers:
+        Content-Type: application/json
+      index:
+        index: test
+        id: "2"
+        body:
+          binary: [
+            "U29tZSBiaW5hcnkgYmxvYg==",
+            "MTIzNA==",
+            "dGVzdA=="
+          ]
+          sort_field: "2"
 
-    - do:
-        #set the header so we won't randomize it
-        headers:
-          Content-Type: application/json
-        index:
-          index: test
-          id: "3"
-          body: {}
+  - do:
+      #set the header so we won't randomize it
+      headers:
+        Content-Type: application/json
+      index:
+        index: test
+        id: "3"
+        body:
+          sort_field: "3"
 
-    - do:
-        indices.refresh: {}
+  - do:
+      indices.refresh: {}
 
-    - do:
-        search:
-            body:
-                script_fields:
-                    field1:
-                        script:
-                            source: "if (doc['binary'].size() == 0) {return 'empty'} doc['binary'].get(0).utf8ToString()"
-                    field2:
-                        script:
-                            source: "if (doc['binary'].size() == 0) {return 'empty'} doc['binary'].value.utf8ToString()"
-    - match: { hits.hits.0.fields.field1.0: "Some binary blob" }
-    - match: { hits.hits.0.fields.field2.0: "Some binary blob" }
+  - do:
+      search:
+        body:
+          sort: sort_field
+          script_fields:
+            field1:
+              script:
+                source: "if (doc['binary'].size() == 0) {return 'empty'} doc['binary'].get(0).utf8ToString()"
+            field2:
+              script:
+                source: "if (doc['binary'].size() == 0) {return 'empty'} doc['binary'].value.utf8ToString()"
+  - match: { hits.hits.0.fields.field1.0: "Some binary blob" }
+  - match: { hits.hits.0.fields.field2.0: "Some binary blob" }
+  - match: { hits.hits.1.fields.field1.0: "1234" }
+  - match: { hits.hits.1.fields.field2.0: "1234" }
+  - match: { hits.hits.2.fields.field1.0: "empty" }
+  - match: { hits.hits.2.fields.field2.0: "empty" }
 
-    - do:
-        search:
-          body:
-            script_fields:
-              field1:
-                script:
-                  source: "ByteBuffer bb = field('binary').get(null); if (bb == null) {return -1;} return bb.get(0)"
-              field2:
-                script:
-                  source: "ByteBuffer bb = field('binary').get(0, null); if (bb == null) {return -1;} return bb.get(0)"
-              field3:
-                script:
-                  source: "int total = 0; for (value in field('binary')) {total += value.get(0)} total"
-    - match: { hits.hits.0.fields.field1.0: 83 }
-    - match: { hits.hits.0.fields.field2.0: 83 }
-    - match: { hits.hits.0.fields.field3.0: 83 }
-    - match: { hits.hits.1.fields.field1.0: 49 }
-    - match: { hits.hits.1.fields.field2.0: 49 }
-    - match: { hits.hits.1.fields.field3.0: 248 }
-    - match: { hits.hits.2.fields.field1.0: -1 }
-    - match: { hits.hits.2.fields.field2.0: -1 }
-    - match: { hits.hits.2.fields.field3.0: 0 }
+  - do:
+      search:
+        body:
+          sort: sort_field
+          script_fields:
+            field1:
+              script:
+                source: "ByteBuffer bb = field('binary').get(null); if (bb == null) {return -1;} return bb.get(0)"
+            field2:
+              script:
+                source: "ByteBuffer bb = field('binary').get(0, null); if (bb == null) {return -1;} return bb.get(0)"
+            field3:
+              script:
+                source: "int total = 0; for (value in field('binary')) {total += value.get(0)} total"
+  - match: { hits.hits.0.fields.field1.0: 83 }
+  - match: { hits.hits.0.fields.field2.0: 83 }
+  - match: { hits.hits.0.fields.field3.0: 83 }
+  - match: { hits.hits.1.fields.field1.0: 49 }
+  - match: { hits.hits.1.fields.field2.0: 49 }
+  - match: { hits.hits.1.fields.field3.0: 248 }
+  - match: { hits.hits.2.fields.field1.0: -1 }
+  - match: { hits.hits.2.fields.field2.0: -1 }
+  - match: { hits.hits.2.fields.field3.0: 0 }
 
-    - do:
-        search:
-          body:
-            script_fields:
-              field1:
-                script:
-                  source: "ByteBuffer bb = field('binary').get(null); if (bb == null) {return -1;} return bb.limit()"
-              field2:
-                script:
-                  source: "ByteBuffer bb = field('binary').get(0, null); if (bb == null) {return -1;} return bb.limit()"
-              field3:
-                script:
-                  source: "int total = 0; for (ByteBuffer value : field('binary')) {total += value.limit()} total"
-    - match: { hits.hits.0.fields.field1.0: 16 }
-    - match: { hits.hits.0.fields.field2.0: 16 }
-    - match: { hits.hits.0.fields.field3.0: 16 }
-    - match: { hits.hits.1.fields.field1.0: 4 }
-    - match: { hits.hits.1.fields.field2.0: 4 }
-    - match: { hits.hits.1.fields.field3.0: 24 }
-    - match: { hits.hits.2.fields.field1.0: -1 }
-    - match: { hits.hits.2.fields.field2.0: -1 }
-    - match: { hits.hits.2.fields.field3.0: 0 }
+  - do:
+      search:
+        body:
+          sort: sort_field
+          script_fields:
+            field1:
+              script:
+                source: "ByteBuffer bb = field('binary').get(null); if (bb == null) {return -1;} return bb.limit()"
+            field2:
+              script:
+                source: "ByteBuffer bb = field('binary').get(0, null); if (bb == null) {return -1;} return bb.limit()"
+            field3:
+              script:
+                source: "int total = 0; for (ByteBuffer value : field('binary')) {total += value.limit()} total"
+  - match: { hits.hits.0.fields.field1.0: 16 }
+  - match: { hits.hits.0.fields.field2.0: 16 }
+  - match: { hits.hits.0.fields.field3.0: 16 }
+  - match: { hits.hits.1.fields.field1.0: 4 }
+  - match: { hits.hits.1.fields.field2.0: 4 }
+  - match: { hits.hits.1.fields.field3.0: 24 }
+  - match: { hits.hits.2.fields.field1.0: -1 }
+  - match: { hits.hits.2.fields.field2.0: -1 }
+  - match: { hits.hits.2.fields.field3.0: 0 }
 
-    - do:
-        search:
-          body:
-            script_fields:
-              field1:
-                script:
-                  source: "ByteBuffer bb = $('binary', null); if (bb == null) {return -1;} return bb.get(0)"
-    - match: { hits.hits.0.fields.field1.0: 83 }
-    - match: { hits.hits.1.fields.field1.0: 49 }
-    - match: { hits.hits.2.fields.field1.0: -1 }
+  - do:
+      search:
+        body:
+          sort: sort_field
+          script_fields:
+            field1:
+              script:
+                source: "ByteBuffer bb = $('binary', null); if (bb == null) {return -1;} return bb.get(0)"
+  - match: { hits.hits.0.fields.field1.0: 83 }
+  - match: { hits.hits.1.fields.field1.0: 49 }
+  - match: { hits.hits.2.fields.field1.0: -1 }
 
-    - do:
-        search:
-          body:
-            script_fields:
-              field1:
-                script:
-                  source: "ByteBuffer bb = $('binary', null); if (bb == null) {return -1;} return bb.limit()"
-    - match: { hits.hits.0.fields.field1.0: 16 }
-    - match: { hits.hits.1.fields.field1.0: 4 }
-    - match: { hits.hits.2.fields.field1.0: -1 }
+  - do:
+      search:
+        body:
+          sort: sort_field
+          script_fields:
+            field1:
+              script:
+                source: "ByteBuffer bb = $('binary', null); if (bb == null) {return -1;} return bb.limit()"
+  - match: { hits.hits.0.fields.field1.0: 16 }
+  - match: { hits.hits.1.fields.field1.0: 4 }
+  - match: { hits.hits.2.fields.field1.0: -1 }

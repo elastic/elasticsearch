@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.rollover;
@@ -51,7 +52,7 @@ public class RolloverConditionsTests extends AbstractXContentSerializingTestCase
         ByteSizeValue minSize = randomBoolean() ? randomByteSizeValue() : null;
         ByteSizeValue minPrimaryShardSize = randomBoolean() ? randomByteSizeValue() : null;
         Long minDocs = randomBoolean() ? randomNonNegativeLong() : null;
-        TimeValue minAge = randomBoolean() ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test") : null;
+        TimeValue minAge = randomBoolean() ? randomPositiveTimeValue() : null;
         Long minPrimaryShardDocs = randomBoolean() ? randomNonNegativeLong() : null;
 
         return RolloverConditions.newBuilder()
@@ -89,10 +90,7 @@ public class RolloverConditionsTests extends AbstractXContentSerializingTestCase
                 ByteSizeUnit maxPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
                 return new ByteSizeValue(randomNonNegativeLong() / maxPrimaryShardSizeUnit.toBytes(1), maxPrimaryShardSizeUnit);
             });
-            case 2 -> maxAge = randomValueOtherThan(
-                maxAge,
-                () -> TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
-            );
+            case 2 -> maxAge = randomValueOtherThan(maxAge, () -> randomPositiveTimeValue());
             case 3 -> maxDocs = maxDocs == null ? randomNonNegativeLong() : maxDocs + 1;
             case 4 -> maxPrimaryShardDocs = maxPrimaryShardDocs == null ? randomNonNegativeLong() : maxPrimaryShardDocs + 1;
             case 5 -> minSize = randomValueOtherThan(minSize, () -> {
@@ -103,10 +101,7 @@ public class RolloverConditionsTests extends AbstractXContentSerializingTestCase
                 ByteSizeUnit minPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
                 return new ByteSizeValue(randomNonNegativeLong() / minPrimaryShardSizeUnit.toBytes(1), minPrimaryShardSizeUnit);
             });
-            case 7 -> minAge = randomValueOtherThan(
-                minAge,
-                () -> TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
-            );
+            case 7 -> minAge = randomValueOtherThan(minAge, () -> randomPositiveTimeValue());
             case 8 -> minDocs = minDocs == null ? randomNonNegativeLong() : minDocs + 1;
             case 9 -> minPrimaryShardDocs = minPrimaryShardDocs == null ? randomNonNegativeLong() : minPrimaryShardDocs + 1;
             default -> throw new AssertionError("Illegal randomisation branch");

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.snapshots;
 
@@ -29,6 +30,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryConflictException;
@@ -64,14 +66,22 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> verify the repository");
         int numberOfFiles = FileSystemUtils.files(location).length;
-        VerifyRepositoryResponse verifyRepositoryResponse = client.admin().cluster().prepareVerifyRepository("test-repo-1").get();
+        VerifyRepositoryResponse verifyRepositoryResponse = client.admin()
+            .cluster()
+            .prepareVerifyRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "test-repo-1")
+            .get();
         assertThat(verifyRepositoryResponse.getNodes().size(), equalTo(cluster().numDataAndMasterNodes()));
 
         logger.info("--> verify that we didn't leave any files as a result of verification");
         assertThat(FileSystemUtils.files(location).length, equalTo(numberOfFiles));
 
         logger.info("--> check that repository is really there");
-        ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().clear().setMetadata(true).get();
+        ClusterStateResponse clusterStateResponse = client.admin()
+            .cluster()
+            .prepareState(TEST_REQUEST_TIMEOUT)
+            .clear()
+            .setMetadata(true)
+            .get();
         Metadata metadata = clusterStateResponse.getState().getMetadata();
         RepositoriesMetadata repositoriesMetadata = metadata.custom(RepositoriesMetadata.TYPE);
         assertThat(repositoriesMetadata, notNullValue());
@@ -82,7 +92,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         createRepository("test-repo-2", "fs");
 
         logger.info("--> check that both repositories are in cluster state");
-        clusterStateResponse = client.admin().cluster().prepareState().clear().setMetadata(true).get();
+        clusterStateResponse = client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).clear().setMetadata(true).get();
         metadata = clusterStateResponse.getState().getMetadata();
         repositoriesMetadata = metadata.custom(RepositoriesMetadata.TYPE);
         assertThat(repositoriesMetadata, notNullValue());
@@ -95,7 +105,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> check that both repositories can be retrieved by getRepositories query");
         GetRepositoriesResponse repositoriesResponse = client.admin()
             .cluster()
-            .prepareGetRepositories(randomFrom("_all", "*", "test-repo-*"))
+            .prepareGetRepositories(TEST_REQUEST_TIMEOUT, randomFrom("_all", "*", "test-repo-*"))
             .get();
         assertThat(repositoriesResponse.repositories().size(), equalTo(2));
         assertThat(findRepository(repositoriesResponse.repositories(), "test-repo-1"), notNullValue());
@@ -106,24 +116,24 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         assertThat(
             client.admin()
                 .cluster()
-                .preparePutRepository("test-repo-1")
+                .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "test-repo-1")
                 .setType("fs")
                 .setSettings(Settings.builder().put("location", location))
                 .get()
                 .isAcknowledged(),
             equalTo(true)
         );
-        assertEquals(beforeStateUuid, client.admin().cluster().prepareState().clear().get().getState().stateUUID());
+        assertEquals(beforeStateUuid, client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).clear().get().getState().stateUUID());
 
         logger.info("--> delete repository test-repo-1");
-        client.admin().cluster().prepareDeleteRepository("test-repo-1").get();
-        repositoriesResponse = client.admin().cluster().prepareGetRepositories().get();
+        client.admin().cluster().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "test-repo-1").get();
+        repositoriesResponse = client.admin().cluster().prepareGetRepositories(TEST_REQUEST_TIMEOUT).get();
         assertThat(repositoriesResponse.repositories().size(), equalTo(1));
         assertThat(findRepository(repositoriesResponse.repositories(), "test-repo-2"), notNullValue());
 
         logger.info("--> delete repository test-repo-2");
-        client.admin().cluster().prepareDeleteRepository("test-repo-2").get();
-        repositoriesResponse = client.admin().cluster().prepareGetRepositories().get();
+        client.admin().cluster().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "test-repo-2").get();
+        repositoriesResponse = client.admin().cluster().prepareGetRepositories(TEST_REQUEST_TIMEOUT).get();
         assertThat(repositoriesResponse.repositories().size(), equalTo(0));
     }
 
@@ -141,7 +151,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> trying creating repository with incorrect settings");
         try {
-            client.admin().cluster().preparePutRepository("test-repo").setType("fs").get();
+            client.admin().cluster().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "test-repo").setType("fs").get();
             fail("Shouldn't be here");
         } catch (RepositoryException ex) {
             assertThat(ex.getCause().getMessage(), equalTo("[test-repo] missing location"));
@@ -151,7 +161,10 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         Path invalidRepoPath = createTempDir().toAbsolutePath();
         String location = invalidRepoPath.toString();
         try {
-            clusterAdmin().preparePutRepository("test-repo").setType("fs").setSettings(Settings.builder().put("location", location)).get();
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "test-repo")
+                .setType("fs")
+                .setSettings(Settings.builder().put("location", location))
+                .get();
             fail("Shouldn't be here");
         } catch (RepositoryException ex) {
             assertThat(
@@ -163,7 +176,11 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
 
     public void testRepositoryAckTimeout() {
         logger.info("-->  creating repository test-repo-1 with 0s timeout - shouldn't ack");
-        AcknowledgedResponse putRepositoryResponse = clusterAdmin().preparePutRepository("test-repo-1")
+        AcknowledgedResponse putRepositoryResponse = clusterAdmin().preparePutRepository(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            "test-repo-1"
+        )
             .setType("fs")
             .setSettings(
                 Settings.builder()
@@ -171,12 +188,12 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
                     .put("compress", randomBoolean())
                     .put("chunk_size", randomIntBetween(5, 100), ByteSizeUnit.BYTES)
             )
-            .setTimeout("0s")
+            .setTimeout(TimeValue.ZERO)
             .get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(false));
 
         logger.info("-->  creating repository test-repo-2 with standard timeout - should ack");
-        putRepositoryResponse = clusterAdmin().preparePutRepository("test-repo-2")
+        putRepositoryResponse = clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "test-repo-2")
             .setType("fs")
             .setSettings(
                 Settings.builder()
@@ -188,11 +205,15 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
         logger.info("-->  deleting repository test-repo-2 with 0s timeout - shouldn't ack");
-        AcknowledgedResponse deleteRepositoryResponse = clusterAdmin().prepareDeleteRepository("test-repo-2").setTimeout("0s").get();
+        AcknowledgedResponse deleteRepositoryResponse = clusterAdmin().prepareDeleteRepository(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            "test-repo-2"
+        ).setTimeout(TimeValue.ZERO).get();
         assertThat(deleteRepositoryResponse.isAcknowledged(), equalTo(false));
 
         logger.info("-->  deleting repository test-repo-1 with standard timeout - should ack");
-        deleteRepositoryResponse = clusterAdmin().prepareDeleteRepository("test-repo-1").get();
+        deleteRepositoryResponse = clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "test-repo-1").get();
         assertThat(deleteRepositoryResponse.isAcknowledged(), equalTo(true));
     }
 
@@ -206,7 +227,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         logger.info("-->  creating repository that cannot write any files - should fail");
         ActionRequestBuilder<?, ?> builder3 = client.admin()
             .cluster()
-            .preparePutRepository("test-repo-1")
+            .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "test-repo-1")
             .setType("mock")
             .setSettings(settings);
         expectThrows(RepositoryVerificationException.class, builder3);
@@ -214,25 +235,41 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         logger.info("-->  creating read-only repository that cannot read any files - should fail");
         ActionRequestBuilder<?, ?> builder2 = client.admin()
             .cluster()
-            .preparePutRepository("test-repo-2")
+            .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "test-repo-2")
             .setType("mock")
             .setSettings(readonlySettings);
         expectThrows(RepositoryVerificationException.class, builder2);
 
         logger.info("-->  creating repository that cannot write any files, but suppress verification - should be acked");
-        assertAcked(client.admin().cluster().preparePutRepository("test-repo-1").setType("mock").setSettings(settings).setVerify(false));
+        assertAcked(
+            client.admin()
+                .cluster()
+                .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "test-repo-1")
+                .setType("mock")
+                .setSettings(settings)
+                .setVerify(false)
+        );
 
         logger.info("-->  verifying repository");
-        ActionRequestBuilder<?, ?> builder1 = client.admin().cluster().prepareVerifyRepository("test-repo-1");
+        ActionRequestBuilder<?, ?> builder1 = client.admin()
+            .cluster()
+            .prepareVerifyRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "test-repo-1");
         expectThrows(RepositoryVerificationException.class, builder1);
 
         logger.info("-->  creating read-only repository that cannot read any files, but suppress verification - should be acked");
         assertAcked(
-            client.admin().cluster().preparePutRepository("test-repo-2").setType("mock").setSettings(readonlySettings).setVerify(false)
+            client.admin()
+                .cluster()
+                .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "test-repo-2")
+                .setType("mock")
+                .setSettings(readonlySettings)
+                .setVerify(false)
         );
 
         logger.info("-->  verifying repository");
-        ActionRequestBuilder<?, ?> builder = client.admin().cluster().prepareVerifyRepository("test-repo-2");
+        ActionRequestBuilder<?, ?> builder = client.admin()
+            .cluster()
+            .prepareVerifyRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "test-repo-2");
         expectThrows(RepositoryVerificationException.class, builder);
 
         Path location = randomRepoPath();
@@ -241,7 +278,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         try {
             client.admin()
                 .cluster()
-                .preparePutRepository("test-repo-1")
+                .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "test-repo-1")
                 .setType("mock")
                 .setSettings(Settings.builder().put("location", location).put("localize_location", true))
                 .get();
@@ -255,7 +292,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> creating repository");
         final String repo = "test-repo";
         assertAcked(
-            clusterAdmin().preparePutRepository(repo)
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repo)
                 .setType("mock")
                 .setSettings(
                     Settings.builder()
@@ -267,17 +304,17 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> snapshot");
         final String index = "test-idx";
-        assertAcked(prepareCreate(index, 1, Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0)));
+        assertAcked(prepareCreate(index, 1, indexSettings(1, 0)));
         for (int i = 0; i < 10; i++) {
             indexDoc(index, Integer.toString(i), "foo", "bar" + i);
         }
         refresh();
         final String snapshot1 = "test-snap1";
-        clusterAdmin().prepareCreateSnapshot(repo, snapshot1).setWaitForCompletion(true).get();
+        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repo, snapshot1).setWaitForCompletion(true).get();
         String blockedNode = internalCluster().getMasterName();
         blockMasterOnWriteIndexFile(repo);
         logger.info("--> start deletion of snapshot");
-        ActionFuture<AcknowledgedResponse> future = clusterAdmin().prepareDeleteSnapshot(repo, snapshot1).execute();
+        ActionFuture<AcknowledgedResponse> future = clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repo, snapshot1).execute();
         logger.info("--> waiting for block to kick in on node [{}]", blockedNode);
         waitForBlock(blockedNode, repo);
 
@@ -292,14 +329,21 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         );
 
         logger.info("--> try deleting the repository, should fail because the deletion of the snapshot is in progress");
-        RepositoryConflictException e1 = expectThrows(RepositoryConflictException.class, clusterAdmin().prepareDeleteRepository(repo));
+        RepositoryConflictException e1 = expectThrows(
+            RepositoryConflictException.class,
+            clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repo)
+        );
         assertThat(e1.status(), equalTo(RestStatus.CONFLICT));
         assertThat(e1.getMessage(), containsString("trying to modify or unregister repository that is currently used"));
 
         logger.info("--> try updating the repository, should fail because the deletion of the snapshot is in progress");
         RepositoryConflictException e2 = expectThrows(
             RepositoryConflictException.class,
-            clusterAdmin().preparePutRepository(repo).setType("mock").setSettings(Settings.builder().put("location", randomRepoPath()))
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repo)
+                // if "true" will deadlock on snapshot thread pool, we are running with single thread which is busy at the moment
+                .setVerify(false)
+                .setType("mock")
+                .setSettings(Settings.builder().put("location", randomRepoPath()))
         );
         assertThat(e2.status(), equalTo(RestStatus.CONFLICT));
         assertThat(e2.getMessage(), containsString("trying to modify or unregister repository that is currently used"));
@@ -350,14 +394,14 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         repository.setFailOnDeleteContainer(true);
 
         logger.info("--> delete the second snapshot");
-        client.admin().cluster().prepareDeleteSnapshot(repositoryName, snapshot2Name).get();
+        client.admin().cluster().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, snapshot2Name).get();
 
         // Make repository work normally
         repository.setFailOnDeleteContainer(false);
 
         // This snapshot should delete last snapshot's residual stale indices as well
         logger.info("--> delete snapshot one");
-        client.admin().cluster().prepareDeleteSnapshot(repositoryName, snapshot1Name).get();
+        client.admin().cluster().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, snapshot1Name).get();
 
         logger.info("--> check no leftover files");
         assertFileCount(repositoryPath, 2); // just the index-N and index.latest blobs
@@ -436,7 +480,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         clusterService.addListener(clusterStateListener);
 
         final var deleteFuture = new PlainActionFuture<AcknowledgedResponse>();
-        client.admin().cluster().prepareDeleteSnapshot(repositoryName, snapshotName).execute(deleteFuture);
+        client.admin().cluster().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, snapshotName).execute(deleteFuture);
 
         safeAwait(barrier); // wait for all the snapshot threads to be blocked
         clusterService.removeListener(clusterStateListener);
@@ -444,7 +488,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         // We must wait for all the cleanup work to be enqueued (with the throttled runner at least) so we can be sure of exactly how it
         // will execute. The cleanup work is enqueued by the master service thread on completion of the cluster state update which increases
         // the root blob generation in the repo metadata, so it is sufficient to wait for another no-op task to run on the master service:
-        PlainActionFuture.get(fut -> clusterService.createTaskQueue("test", Priority.NORMAL, new SimpleBatchedExecutor<>() {
+        safeAwait(listener -> clusterService.createTaskQueue("test", Priority.NORMAL, new SimpleBatchedExecutor<>() {
             @Override
             public Tuple<ClusterState, Object> executeTask(ClusterStateTaskListener clusterStateTaskListener, ClusterState clusterState) {
                 return Tuple.tuple(clusterState, null);
@@ -452,9 +496,9 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
 
             @Override
             public void taskSucceeded(ClusterStateTaskListener clusterStateTaskListener, Object ignored) {
-                fut.onResponse(null);
+                listener.onResponse(null);
             }
-        }).submitTask("test", e -> fail(), null), 10, TimeUnit.SECONDS);
+        }).submitTask("test", e -> fail(), null));
 
         final IntSupplier queueLength = () -> threadPool.stats()
             .stats()

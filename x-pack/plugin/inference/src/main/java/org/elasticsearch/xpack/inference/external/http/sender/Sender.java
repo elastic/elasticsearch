@@ -18,7 +18,7 @@ public interface Sender extends Closeable {
     void start();
 
     void send(
-        ExecutableRequestCreator requestCreator,
+        RequestManager requestCreator,
         InferenceInputs inferenceInputs,
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener

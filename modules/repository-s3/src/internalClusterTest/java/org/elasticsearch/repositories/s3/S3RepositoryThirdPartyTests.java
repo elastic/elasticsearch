@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.repositories.s3;
 
@@ -15,7 +16,6 @@ import com.amazonaws.services.s3.model.MultipartUpload;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
@@ -25,7 +25,6 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -44,18 +43,15 @@ import org.junit.ClassRule;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.blankOrNullString;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
@@ -126,10 +122,11 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 settings.put("storage_class", storageClass);
             }
         }
-        AcknowledgedResponse putRepositoryResponse = clusterAdmin().preparePutRepository(repoName)
-            .setType("s3")
-            .setSettings(settings)
-            .get();
+        AcknowledgedResponse putRepositoryResponse = clusterAdmin().preparePutRepository(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            repoName
+        ).setType("s3").setSettings(settings).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
     }
 
@@ -165,19 +162,12 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
 
                 class TestHarness {
                     boolean tryCompareAndSet(BytesReference expected, BytesReference updated) {
-                        return PlainActionFuture.<Boolean, RuntimeException>get(
-                            future -> blobContainer.compareAndSetRegister(randomPurpose(), "key", expected, updated, future),
-                            10,
-                            TimeUnit.SECONDS
-                        );
+                        return safeAwait(l -> blobContainer.compareAndSetRegister(randomPurpose(), "key", expected, updated, l));
                     }
 
                     BytesReference readRegister() {
-                        return PlainActionFuture.get(
-                            future -> blobContainer.getRegister(randomPurpose(), "key", future.map(OptionalBytesReference::bytesReference)),
-                            10,
-                            TimeUnit.SECONDS
-                        );
+                        final OptionalBytesReference result = safeAwait(l -> blobContainer.getRegister(randomPurpose(), "key", l));
+                        return result.bytesReference();
                     }
 
                     List<MultipartUpload> listMultipartUploads() {
@@ -229,37 +219,8 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
     }
 
     public void testReadFromPositionLargerThanBlobLength() {
-        final var blobName = randomIdentifier();
-        final var blobBytes = randomBytesReference(randomIntBetween(100, 2_000));
-
-        final var repository = getRepository();
-        executeOnBlobStore(repository, blobStore -> {
-            blobStore.writeBlob(randomPurpose(), blobName, blobBytes, true);
-            return null;
-        });
-
-        long position = randomLongBetween(blobBytes.length(), Long.MAX_VALUE - 1L);
-        long length = randomLongBetween(1L, Long.MAX_VALUE - position);
-
-        var exception = expectThrows(UncategorizedExecutionException.class, () -> readBlob(repository, blobName, position, length));
-        assertThat(exception.getCause(), instanceOf(ExecutionException.class));
-        assertThat(exception.getCause().getCause(), instanceOf(IOException.class));
-        assertThat(
-            exception.getCause().getCause().getMessage(),
-            containsString(
-                "Requested range [start="
-                    + position
-                    + ", end="
-                    + (position + length - 1L)
-                    + ", currentOffset=0] cannot be satisfied for blob object ["
-                    + repository.basePath().buildAsString()
-                    + blobName
-                    + ']'
-            )
-        );
-        assertThat(
-            asInstanceOf(AmazonS3Exception.class, exception.getRootCause()).getStatusCode(),
-            equalTo(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus())
+        testReadFromPositionLargerThanBlobLength(
+            e -> asInstanceOf(AmazonS3Exception.class, e.getCause()).getStatusCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()
         );
     }
 }

@@ -34,7 +34,12 @@ public class RestGetInferenceModelAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "_inference/_all"), new Route(GET, INFERENCE_ID_PATH), new Route(GET, TASK_TYPE_INFERENCE_ID_PATH));
+        return List.of(
+            new Route(GET, "_inference"),
+            new Route(GET, "_inference/_all"),
+            new Route(GET, INFERENCE_ID_PATH),
+            new Route(GET, TASK_TYPE_INFERENCE_ID_PATH)
+        );
     }
 
     @Override

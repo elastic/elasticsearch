@@ -19,10 +19,10 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -97,7 +97,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
     }
 
     @Override
-    protected void resolveRequest(NodesRequest request, ClusterState clusterState) {
+    protected DiscoveryNode[] resolveRequest(NodesRequest request, ClusterState clusterState) {
         final Map<String, DiscoveryNode> dataNodes = clusterState.getNodes().getDataNodes();
 
         final DiscoveryNode[] resolvedNodes;
@@ -109,7 +109,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
                 .map(dataNodes::get)
                 .toArray(DiscoveryNode[]::new);
         }
-        request.setConcreteNodes(resolvedNodes);
+        return resolvedNodes;
     }
 
     @Override
@@ -149,14 +149,8 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
     }
 
     public static final class NodesRequest extends BaseNodesRequest<NodesRequest> {
-
         public NodesRequest(String[] nodes) {
             super(nodes);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) {
-            TransportAction.localOnly();
         }
     }
 

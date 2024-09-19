@@ -5,7 +5,7 @@
 <titleabbrev>Unfollow</titleabbrev>
 ++++
 
-Converts a follower index to a regular index.
+Converts a <<xpack-ccr,{ccr}>> follower index to a regular index.
 
 [[ccr-post-unfollow-request]]
 ==== {api-request-title}
@@ -63,7 +63,7 @@ irreversible operation.
 [[ccr-post-unfollow-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [[ccr-post-unfollow-examples]]
 ==== {api-examples-title}

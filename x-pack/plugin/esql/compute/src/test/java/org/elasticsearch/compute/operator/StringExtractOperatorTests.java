@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
+import org.hamcrest.Matcher;
 
 import java.util.List;
 import java.util.Map;
@@ -59,12 +60,12 @@ public class StringExtractOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected String expectedDescriptionOfSimple() {
-        return "StringExtractOperator[fields=[test]]";
+    protected Matcher<String> expectedDescriptionOfSimple() {
+        return equalTo("StringExtractOperator[fields=[test]]");
     }
 
     @Override
-    protected String expectedToStringOfSimple() {
+    protected Matcher<String> expectedToStringOfSimple() {
         return expectedDescriptionOfSimple();
     }
 

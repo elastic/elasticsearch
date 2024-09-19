@@ -43,6 +43,7 @@ public class SetUpgradeModeAction extends ActionType<AcknowledgedResponse> {
         }
 
         public Request(boolean enabled) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.enabled = enabled;
         }
 

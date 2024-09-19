@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -38,6 +39,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.FielddataOperation;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
@@ -102,6 +104,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private boolean rewriteToNamedQueries = false;
 
     private final Integer requestSize;
+    private final MapperMetrics mapperMetrics;
 
     /**
      * Build a {@linkplain SearchExecutionContext}.
@@ -125,7 +128,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
         Predicate<String> indexNameMatcher,
         BooleanSupplier allowExpensiveQueries,
         ValuesSourceRegistry valuesSourceRegistry,
-        Map<String, Object> runtimeMappings
+        Map<String, Object> runtimeMappings,
+        MapperMetrics mapperMetrics
     ) {
         this(
             shardId,
@@ -147,7 +151,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
             allowExpensiveQueries,
             valuesSourceRegistry,
             runtimeMappings,
-            null
+            null,
+            mapperMetrics
         );
     }
 
@@ -171,7 +176,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
         BooleanSupplier allowExpensiveQueries,
         ValuesSourceRegistry valuesSourceRegistry,
         Map<String, Object> runtimeMappings,
-        Integer requestSize
+        Integer requestSize,
+        MapperMetrics mapperMetrics
     ) {
         this(
             shardId,
@@ -196,7 +202,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
             allowExpensiveQueries,
             valuesSourceRegistry,
             parseRuntimeMappings(runtimeMappings, mapperService, indexSettings, mappingLookup),
-            requestSize
+            requestSize,
+            mapperMetrics
         );
     }
 
@@ -221,7 +228,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
             source.allowExpensiveQueries,
             source.getValuesSourceRegistry(),
             source.runtimeMappings,
-            source.requestSize
+            source.requestSize,
+            source.mapperMetrics
         );
     }
 
@@ -245,7 +253,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
         BooleanSupplier allowExpensiveQueries,
         ValuesSourceRegistry valuesSourceRegistry,
         Map<String, MappedFieldType> runtimeMappings,
-        Integer requestSize
+        Integer requestSize,
+        MapperMetrics mapperMetrics
     ) {
         super(
             parserConfig,
@@ -260,7 +269,9 @@ public class SearchExecutionContext extends QueryRewriteContext {
             namedWriteableRegistry,
             valuesSourceRegistry,
             allowExpensiveQueries,
-            scriptService
+            scriptService,
+            null,
+            null
         );
         this.shardId = shardId;
         this.shardRequestIndex = shardRequestIndex;
@@ -270,6 +281,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.nestedScope = new NestedScope();
         this.searcher = searcher;
         this.requestSize = requestSize;
+        this.mapperMetrics = mapperMetrics;
     }
 
     private void reset() {
@@ -328,6 +340,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             fieldType,
             new FieldDataContext(
                 getFullyQualifiedIndex().getName(),
+                getIndexSettings(),
                 () -> this.lookup().forkAndTrackFieldReferences(fieldType.name()),
                 this::sourcePath,
                 fielddataOperation
@@ -426,9 +439,9 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public SourceLoader newSourceLoader(boolean forceSyntheticSource) {
         if (forceSyntheticSource) {
-            return new SourceLoader.Synthetic(mappingLookup.getMapping());
+            return new SourceLoader.Synthetic(mappingLookup.getMapping()::syntheticFieldLoader, mapperMetrics.sourceFieldMetrics());
         }
-        return mappingLookup.newSourceLoader();
+        return mappingLookup.newSourceLoader(mapperMetrics.sourceFieldMetrics());
     }
 
     /**
@@ -481,7 +494,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     public SearchLookup lookup() {
         if (this.lookup == null) {
             SourceProvider sourceProvider = isSourceSynthetic()
-                ? SourceProvider.fromSyntheticSource(mappingLookup.getMapping())
+                ? SourceProvider.fromSyntheticSource(mappingLookup.getMapping(), mapperMetrics.sourceFieldMetrics())
                 : SourceProvider.fromStoredFields();
             setLookupProviders(sourceProvider, LeafFieldLookupProvider.fromStoredFields());
         }
@@ -499,12 +512,19 @@ public class SearchExecutionContext extends QueryRewriteContext {
         SourceProvider sourceProvider,
         Function<LeafReaderContext, LeafFieldLookupProvider> fieldLookupProvider
     ) {
-        // TODO can we assert that this is only called during FetchPhase?
+        // This isn't called only during fetch phase: there's scenarios where fetch phase is executed as part of the query phase,
+        // as well as runtime fields loaded from _source that do need a source provider as part of executing the query
         this.lookup = new SearchLookup(
             this::getFieldType,
             (fieldType, searchLookup, fielddataOperation) -> indexFieldDataLookup.apply(
                 fieldType,
-                new FieldDataContext(getFullyQualifiedIndex().getName(), searchLookup, this::sourcePath, fielddataOperation)
+                new FieldDataContext(
+                    getFullyQualifiedIndex().getName(),
+                    getIndexSettings(),
+                    searchLookup,
+                    this::sourcePath,
+                    fielddataOperation
+                )
             ),
             sourceProvider,
             fieldLookupProvider
@@ -596,8 +616,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     @Override
-    @SuppressWarnings("rawtypes")
-    public void executeAsyncActions(ActionListener listener) {
+    public void executeAsyncActions(ActionListener<Void> listener) {
         failIfFrozen();
         super.executeAsyncActions(listener);
     }

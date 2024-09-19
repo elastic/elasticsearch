@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -255,7 +256,12 @@ public class MetadataUpdateSettingsService {
                 final int updatedNumberOfReplicas = IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(openSettings);
                 if (preserveExisting == false) {
                     // Verify that this won't take us over the cluster shard limit.
-                    shardLimitValidator.validateShardLimitOnReplicaUpdate(currentState, request.indices(), updatedNumberOfReplicas);
+                    shardLimitValidator.validateShardLimitOnReplicaUpdate(
+                        currentState.nodes(),
+                        currentState.metadata(),
+                        request.indices(),
+                        updatedNumberOfReplicas
+                    );
 
                     /*
                      * We do not update the in-sync allocation IDs as they will be removed upon the first index operation

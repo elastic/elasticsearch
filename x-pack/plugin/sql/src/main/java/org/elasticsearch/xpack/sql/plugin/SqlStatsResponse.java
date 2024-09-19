@@ -91,9 +91,5 @@ public class SqlStatsResponse extends BaseNodesResponse<SqlStatsResponse.NodeSta
             return builder;
         }
 
-        static SqlStatsResponse.NodeStatsResponse readNodeResponse(StreamInput in) throws IOException {
-            return new SqlStatsResponse.NodeStatsResponse(in);
-        }
-
     }
 }

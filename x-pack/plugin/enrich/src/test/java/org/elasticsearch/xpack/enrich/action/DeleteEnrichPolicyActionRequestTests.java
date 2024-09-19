@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 public class DeleteEnrichPolicyActionRequestTests extends AbstractWireSerializingTestCase<DeleteEnrichPolicyAction.Request> {
     @Override
     protected DeleteEnrichPolicyAction.Request createTestInstance() {
-        return new DeleteEnrichPolicyAction.Request(randomAlphaOfLength(4));
+        return new DeleteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, randomAlphaOfLength(4));
     }
 
     @Override

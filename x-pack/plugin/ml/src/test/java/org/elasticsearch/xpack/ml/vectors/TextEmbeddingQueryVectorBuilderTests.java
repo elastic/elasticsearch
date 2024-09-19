@@ -17,7 +17,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
-import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.ml.MachineLearningTests;
 
 import java.io.IOException;
@@ -51,7 +51,7 @@ public class TextEmbeddingQueryVectorBuilderTests extends AbstractQueryVectorBui
             embedding[i] = array[i];
         }
         return new InferModelAction.Response(
-            List.of(new TextEmbeddingResults("foo", embedding, randomBoolean())),
+            List.of(new MlTextEmbeddingResults("foo", embedding, randomBoolean())),
             builder.getModelId(),
             true
         );

@@ -1,7 +1,7 @@
 "Get feature upgrade status":
 
-  - skip:
-      version: " - 7.15.99"
+  - requires:
+      cluster_features: ["gte_v7.16.0"]
       reason: "Endpoint added in 7.16.0"
 
   - do:

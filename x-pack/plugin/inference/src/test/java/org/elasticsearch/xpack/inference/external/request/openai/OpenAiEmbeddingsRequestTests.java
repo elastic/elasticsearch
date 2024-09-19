@@ -14,7 +14,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
-import org.elasticsearch.xpack.inference.external.openai.OpenAiAccount;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModelTests;
 
 import java.io.IOException;
@@ -118,10 +117,8 @@ public class OpenAiEmbeddingsRequestTests extends ESTestCase {
     ) {
         var embeddingsModel = OpenAiEmbeddingsModelTests.createModel(url, org, apiKey, model, user, (Integer) null);
 
-        var account = new OpenAiAccount(embeddingsModel.getServiceSettings().uri(), org, embeddingsModel.getSecretSettings().apiKey());
         return new OpenAiEmbeddingsRequest(
             TruncatorTests.createTruncator(),
-            account,
             new Truncator.TruncationResult(List.of(input), new boolean[] { false }),
             embeddingsModel
         );

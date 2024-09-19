@@ -10,11 +10,11 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-public class ToDegreesTests extends AbstractFunctionTestCase {
+public class ToDegreesTests extends AbstractScalarFunctionTestCase {
     public ToDegreesTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -36,7 +36,7 @@ public class ToDegreesTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryInt(
             suppliers,
             evaluatorName.apply("ToDoubleFromIntEvaluator"),
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             Math::toDegrees,
             Integer.MIN_VALUE,
             Integer.MAX_VALUE,
@@ -45,7 +45,7 @@ public class ToDegreesTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryLong(
             suppliers,
             evaluatorName.apply("ToDoubleFromLongEvaluator"),
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             Math::toDegrees,
             Long.MIN_VALUE,
             Long.MAX_VALUE,
@@ -54,13 +54,13 @@ public class ToDegreesTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
             evaluatorName.apply("ToDoubleFromUnsignedLongEvaluator"),
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             ul -> Math.toDegrees(ul.doubleValue()),
             BigInteger.ZERO,
             UNSIGNED_LONG_MAX,
             List.of()
         );
-        TestCaseSupplier.forUnaryDouble(suppliers, "ToDegreesEvaluator[field=Attribute[channel=0]]", DataTypes.DOUBLE, d -> {
+        TestCaseSupplier.forUnaryDouble(suppliers, "ToDegreesEvaluator[field=Attribute[channel=0]]", DataType.DOUBLE, d -> {
             double deg = Math.toDegrees(d);
             return Double.isNaN(deg) || Double.isInfinite(deg) ? null : deg;
         }, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, d -> {
@@ -76,12 +76,12 @@ public class ToDegreesTests extends AbstractFunctionTestCase {
             suppliers,
             "ToDegreesEvaluator[field=Attribute[channel=0]]",
             List.of(
-                new TestCaseSupplier.TypedDataSupplier("Double.MAX_VALUE", () -> Double.MAX_VALUE, DataTypes.DOUBLE),
-                new TestCaseSupplier.TypedDataSupplier("-Double.MAX_VALUE", () -> -Double.MAX_VALUE, DataTypes.DOUBLE),
-                new TestCaseSupplier.TypedDataSupplier("Double.POSITIVE_INFINITY", () -> Double.POSITIVE_INFINITY, DataTypes.DOUBLE),
-                new TestCaseSupplier.TypedDataSupplier("Double.NEGATIVE_INFINITY", () -> Double.NEGATIVE_INFINITY, DataTypes.DOUBLE)
+                new TestCaseSupplier.TypedDataSupplier("Double.MAX_VALUE", () -> Double.MAX_VALUE, DataType.DOUBLE),
+                new TestCaseSupplier.TypedDataSupplier("-Double.MAX_VALUE", () -> -Double.MAX_VALUE, DataType.DOUBLE),
+                new TestCaseSupplier.TypedDataSupplier("Double.POSITIVE_INFINITY", () -> Double.POSITIVE_INFINITY, DataType.DOUBLE),
+                new TestCaseSupplier.TypedDataSupplier("Double.NEGATIVE_INFINITY", () -> Double.NEGATIVE_INFINITY, DataType.DOUBLE)
             ),
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             d -> null,
             d -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
@@ -89,7 +89,7 @@ public class ToDegreesTests extends AbstractFunctionTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "numeric");
     }
 
     @Override

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.service;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
@@ -427,6 +429,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                 logger.debug("cluster state updated, version [{}], source [{}]", newClusterState.version(), source);
             }
             try {
+                setIsApplyingClusterState();
                 applyChanges(previousClusterState, newClusterState, source, stopWatch);
                 TimeValue executionTime = getTimeSince(startTimeMillis);
                 logger.debug(
@@ -462,6 +465,8 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                 // continue we will retry with the same cluster state but that might not help.
                 assert applicationMayFail();
                 clusterApplyListener.onFailure(e);
+            } finally {
+                clearIsApplyingClusterState();
             }
         }
     }
@@ -662,5 +667,35 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     // Exposed only for testing
     public int getTimeoutClusterStateListenersSize() {
         return timeoutClusterStateListeners.size();
+    }
+
+    /**
+     * Used in tests to ensure we don't do overly expensive operations such as closing a shard on the applier thread
+     */
+    @Nullable // if assertions are disabled
+    private static final ThreadLocal<Boolean> isApplyingClusterState;
+
+    static {
+        isApplyingClusterState = Assertions.ENABLED ? new ThreadLocal<>() : null;
+    }
+
+    public static boolean assertNotApplyingClusterState() {
+        assert isApplyingClusterState == null || isApplyingClusterState.get() == null
+            : "operation not permitted while applying cluster state, currently on thread " + Thread.currentThread().getName();
+        return true;
+    }
+
+    public static void setIsApplyingClusterState() {
+        assert ThreadPool.assertCurrentThreadPool(CLUSTER_UPDATE_THREAD_NAME);
+        if (isApplyingClusterState != null) {
+            isApplyingClusterState.set(Boolean.TRUE);
+        }
+    }
+
+    public static void clearIsApplyingClusterState() {
+        assert ThreadPool.assertCurrentThreadPool(CLUSTER_UPDATE_THREAD_NAME);
+        if (isApplyingClusterState != null) {
+            isApplyingClusterState.remove();
+        }
     }
 }

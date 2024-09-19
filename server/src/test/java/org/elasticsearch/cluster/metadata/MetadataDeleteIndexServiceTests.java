@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.metadata;
 
@@ -193,6 +194,35 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         assertThat(after.metadata().getIndices().get(DataStream.getDefaultBackingIndexName(dataStreamName, numIndexToDelete)), nullValue());
     }
 
+    public void testDeleteFailureIndexForDataStream() {
+        long now = System.currentTimeMillis();
+        int numBackingIndices = randomIntBetween(2, 5);
+        String dataStreamName = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(
+            List.of(new Tuple<>(dataStreamName, numBackingIndices)),
+            List.of(),
+            now,
+            Settings.EMPTY,
+            0,
+            false,
+            true
+        );
+
+        int numIndexToDelete = randomIntBetween(1, numBackingIndices - 1);
+
+        Index indexToDelete = before.metadata()
+            .index(DataStream.getDefaultFailureStoreName(dataStreamName, numIndexToDelete, now))
+            .getIndex();
+        ClusterState after = MetadataDeleteIndexService.deleteIndices(before, Set.of(indexToDelete), Settings.EMPTY);
+
+        assertThat(after.metadata().getIndices().get(indexToDelete.getName()), nullValue());
+        assertThat(after.metadata().getIndices().size(), equalTo(2 * numBackingIndices - 1));
+        assertThat(
+            after.metadata().getIndices().get(DataStream.getDefaultFailureStoreName(dataStreamName, numIndexToDelete, now)),
+            nullValue()
+        );
+    }
+
     public void testDeleteMultipleBackingIndexForDataStream() {
         int numBackingIndices = randomIntBetween(3, 5);
         int numBackingIndicesToDelete = randomIntBetween(2, numBackingIndices - 1);
@@ -241,6 +271,76 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
             e.getMessage(),
             containsString(
                 "index [" + indexToDelete.getName() + "] is the write index for data stream [" + dataStreamName + "] and cannot be deleted"
+            )
+        );
+    }
+
+    public void testDeleteMultipleFailureIndexForDataStream() {
+        int numBackingIndices = randomIntBetween(3, 5);
+        int numBackingIndicesToDelete = randomIntBetween(2, numBackingIndices - 1);
+        String dataStreamName = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        long ts = System.currentTimeMillis();
+        ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(
+            List.of(new Tuple<>(dataStreamName, numBackingIndices)),
+            List.of(),
+            ts,
+            Settings.EMPTY,
+            1,
+            false,
+            true
+        );
+
+        List<Integer> indexNumbersToDelete = randomSubsetOf(
+            numBackingIndicesToDelete,
+            IntStream.rangeClosed(1, numBackingIndices - 1).boxed().toList()
+        );
+
+        Set<Index> indicesToDelete = new HashSet<>();
+        for (int k : indexNumbersToDelete) {
+            indicesToDelete.add(before.metadata().index(DataStream.getDefaultFailureStoreName(dataStreamName, k, ts)).getIndex());
+        }
+        ClusterState after = MetadataDeleteIndexService.deleteIndices(before, indicesToDelete, Settings.EMPTY);
+
+        DataStream dataStream = after.metadata().dataStreams().get(dataStreamName);
+        assertThat(dataStream, notNullValue());
+        assertThat(dataStream.getFailureIndices().getIndices().size(), equalTo(numBackingIndices - indexNumbersToDelete.size()));
+        for (Index i : indicesToDelete) {
+            assertThat(after.metadata().getIndices().get(i.getName()), nullValue());
+            assertFalse(dataStream.getFailureIndices().getIndices().contains(i));
+        }
+        assertThat(after.metadata().getIndices().size(), equalTo((2 * numBackingIndices) - indexNumbersToDelete.size()));
+    }
+
+    public void testDeleteCurrentWriteFailureIndexForDataStream() {
+        int numBackingIndices = randomIntBetween(1, 5);
+        String dataStreamName = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        long ts = System.currentTimeMillis();
+        ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(
+            List.of(new Tuple<>(dataStreamName, numBackingIndices)),
+            List.of(),
+            ts,
+            Settings.EMPTY,
+            1,
+            false,
+            true
+        );
+
+        Index indexToDelete = before.metadata()
+            .index(DataStream.getDefaultFailureStoreName(dataStreamName, numBackingIndices, ts))
+            .getIndex();
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataDeleteIndexService.deleteIndices(before, Set.of(indexToDelete), Settings.EMPTY)
+        );
+
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "index ["
+                    + indexToDelete.getName()
+                    + "] is the failure store write index for data stream ["
+                    + dataStreamName
+                    + "] and cannot be deleted"
             )
         );
     }

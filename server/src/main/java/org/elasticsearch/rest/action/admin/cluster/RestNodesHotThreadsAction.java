@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.admin.cluster;
@@ -14,7 +15,6 @@ import org.elasticsearch.action.admin.cluster.node.hotthreads.TransportNodesHotT
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -28,9 +28,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 
-import static org.elasticsearch.rest.ChunkedRestResponseBody.fromTextChunks;
+import static org.elasticsearch.rest.ChunkedRestResponseBodyPart.fromTextChunks;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestResponse.TEXT_CONTENT_TYPE;
+import static org.elasticsearch.rest.RestUtils.getTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestNodesHotThreadsAction extends BaseRestHandler {
@@ -103,16 +104,18 @@ public class RestNodesHotThreadsAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
-        NodesHotThreadsRequest nodesHotThreadsRequest = new NodesHotThreadsRequest(nodesIds);
-        nodesHotThreadsRequest.threads(request.paramAsInt("threads", nodesHotThreadsRequest.threads()));
-        nodesHotThreadsRequest.ignoreIdleThreads(request.paramAsBoolean("ignore_idle_threads", nodesHotThreadsRequest.ignoreIdleThreads()));
-        nodesHotThreadsRequest.type(HotThreads.ReportType.of(request.param("type", nodesHotThreadsRequest.type().getTypeValue())));
-        nodesHotThreadsRequest.sortOrder(
-            HotThreads.SortOrder.of(request.param("sort", nodesHotThreadsRequest.sortOrder().getOrderValue()))
+        NodesHotThreadsRequest nodesHotThreadsRequest = new NodesHotThreadsRequest(
+            nodesIds,
+            new HotThreads.RequestOptions(
+                request.paramAsInt("threads", HotThreads.RequestOptions.DEFAULT.threads()),
+                HotThreads.ReportType.of(request.param("type", HotThreads.RequestOptions.DEFAULT.reportType().getTypeValue())),
+                HotThreads.SortOrder.of(request.param("sort", HotThreads.RequestOptions.DEFAULT.sortOrder().getOrderValue())),
+                request.paramAsTime("interval", HotThreads.RequestOptions.DEFAULT.interval()),
+                request.paramAsInt("snapshots", HotThreads.RequestOptions.DEFAULT.snapshots()),
+                request.paramAsBoolean("ignore_idle_threads", HotThreads.RequestOptions.DEFAULT.ignoreIdleThreads())
+            )
         );
-        nodesHotThreadsRequest.interval(TimeValue.parseTimeValue(request.param("interval"), nodesHotThreadsRequest.interval(), "interval"));
-        nodesHotThreadsRequest.snapshots(request.paramAsInt("snapshots", nodesHotThreadsRequest.snapshots()));
-        nodesHotThreadsRequest.timeout(request.param("timeout"));
+        nodesHotThreadsRequest.timeout(getTimeout(request));
         return channel -> client.execute(TransportNodesHotThreadsAction.TYPE, nodesHotThreadsRequest, new RestResponseListener<>(channel) {
             @Override
             public RestResponse buildResponse(NodesHotThreadsResponse response) {

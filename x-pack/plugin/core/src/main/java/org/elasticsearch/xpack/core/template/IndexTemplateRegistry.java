@@ -20,6 +20,7 @@ import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -75,6 +76,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 public abstract class IndexTemplateRegistry implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(IndexTemplateRegistry.class);
+
+    private static final TimeValue REGISTRY_ACTION_TIMEOUT = TimeValue.THIRTY_SECONDS; // TODO should this be longer?
 
     protected final Settings settings;
     protected final Client client;
@@ -614,7 +617,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     private void putPolicy(final LifecyclePolicy policy, final AtomicBoolean creationCheck) {
         final Executor executor = threadPool.generic();
         executor.execute(() -> {
-            PutLifecycleRequest request = new PutLifecycleRequest(policy);
+            PutLifecycleRequest request = new PutLifecycleRequest(REGISTRY_ACTION_TIMEOUT, REGISTRY_ACTION_TIMEOUT, policy);
             request.masterNodeTimeout(TimeValue.MAX_VALUE);
             executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),
@@ -723,11 +726,12 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         final Executor executor = threadPool.generic();
         executor.execute(() -> {
             PutPipelineRequest request = new PutPipelineRequest(
+                MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
+                MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
                 pipelineConfig.getId(),
                 pipelineConfig.loadConfig(),
                 pipelineConfig.getXContentType()
             );
-            request.masterNodeTimeout(TimeValue.MAX_VALUE);
 
             executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),

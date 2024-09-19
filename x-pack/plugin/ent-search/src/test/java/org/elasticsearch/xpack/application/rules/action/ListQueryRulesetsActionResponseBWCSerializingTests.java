@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.application.rules.action;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xpack.application.EnterpriseSearchModuleTestUtils;
 import org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType;
 import org.elasticsearch.xpack.application.rules.QueryRuleset;
 import org.elasticsearch.xpack.application.rules.QueryRulesetListItem;
-import org.elasticsearch.xpack.application.search.SearchApplicationTestUtils;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.util.ArrayList;
@@ -29,7 +29,7 @@ public class ListQueryRulesetsActionResponseBWCSerializingTests extends Abstract
 
     private static ListQueryRulesetsAction.Response randomQueryRulesetListItem() {
         return new ListQueryRulesetsAction.Response(randomList(10, () -> {
-            QueryRuleset queryRuleset = SearchApplicationTestUtils.randomQueryRuleset();
+            QueryRuleset queryRuleset = EnterpriseSearchModuleTestUtils.randomQueryRuleset();
             Map<QueryRuleCriteriaType, Integer> criteriaTypeToCountMap = Map.of(
                 randomFrom(QueryRuleCriteriaType.values()),
                 randomIntBetween(0, 10)

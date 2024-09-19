@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices;
@@ -90,7 +91,7 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
 
     private final Iterable<IndexShard> indexShards;
 
-    private final ByteSizeValue indexingBuffer;
+    private final long indexingBuffer;
 
     private final TimeValue inactiveTime;
     private final TimeValue interval;
@@ -129,7 +130,7 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
                 indexingBuffer = maxIndexingBuffer;
             }
         }
-        this.indexingBuffer = indexingBuffer;
+        this.indexingBuffer = indexingBuffer.getBytes();
 
         this.inactiveTime = SHARD_INACTIVE_TIME_SETTING.get(settings);
         // we need to have this relatively small to free up heap quickly enough
@@ -165,7 +166,7 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
      * returns the current budget for the total amount of indexing buffers of
      * active shards on this node
      */
-    ByteSizeValue indexingBufferSize() {
+    long indexingBufferSize() {
         return indexingBuffer;
     }
 
@@ -295,13 +296,13 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
         public void bytesWritten(int bytes) {
             long totalBytes = bytesWrittenSinceCheck.addAndGet(bytes);
             assert totalBytes >= 0;
-            while (totalBytes > indexingBuffer.getBytes() / 128) {
+            while (totalBytes > indexingBuffer / 128) {
 
                 if (runLock.tryLock()) {
                     try {
                         // Must pull this again because it may have changed since we first checked:
                         totalBytes = bytesWrittenSinceCheck.get();
-                        if (totalBytes > indexingBuffer.getBytes() / 128) {
+                        if (totalBytes > indexingBuffer / 128) {
                             bytesWrittenSinceCheck.addAndGet(-totalBytes);
                             // NOTE: this is only an approximate check, because bytes written is to the translog,
                             // vs indexing memory buffer which is typically smaller but can be larger in extreme
@@ -393,9 +394,9 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
 
             // If we are using more than 50% of our budget across both indexing buffer and bytes we are still moving to disk, then we now
             // throttle the top shards to send back-pressure to ongoing indexing:
-            boolean doThrottle = (totalBytesWriting + totalBytesUsed) > 1.5 * indexingBuffer.getBytes();
+            boolean doThrottle = (totalBytesWriting + totalBytesUsed) > 1.5 * indexingBuffer;
 
-            if (totalBytesUsed > indexingBuffer.getBytes()) {
+            if (totalBytesUsed > indexingBuffer) {
                 // OK we are now over-budget; fill the priority queue and ask largest shard(s) to refresh:
                 List<ShardAndBytesUsed> queue = new ArrayList<>();
 
@@ -487,7 +488,7 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
                         throttled.add(shardAndBytesUsed.shard);
                         activateThrottling(shardAndBytesUsed.shard);
                     }
-                    if (totalBytesUsed <= indexingBuffer.getBytes()) {
+                    if (totalBytesUsed <= indexingBuffer) {
                         break;
                     }
                 }

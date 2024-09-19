@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.fixtures
@@ -13,6 +14,7 @@ import org.elasticsearch.gradle.internal.test.BuildConfigurationAwareGradleRunne
 import org.elasticsearch.gradle.internal.test.InternalAwareGradleRunner
 import org.elasticsearch.gradle.internal.test.NormalizeOutputGradleRunner
 import org.elasticsearch.gradle.internal.test.TestResultExtension
+import org.gradle.internal.component.external.model.ComponentVariant
 import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.GradleRunner
 import org.junit.Rule
@@ -21,6 +23,9 @@ import spock.lang.Specification
 import spock.lang.TempDir
 
 import java.lang.management.ManagementFactory
+import java.nio.file.Files
+import java.io.File
+import java.nio.file.Path
 import java.util.jar.JarEntry
 import java.util.jar.JarOutputStream
 
@@ -56,6 +61,10 @@ abstract class AbstractGradleFuncTest extends Specification {
             plugins {
                 id 'base'
             }
+        """
+        def mutedTestsFile = testProjectDir.newFile("muted-tests.yml")
+        mutedTestsFile << """
+            tests: []
         """
     }
 

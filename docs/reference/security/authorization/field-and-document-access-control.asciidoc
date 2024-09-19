@@ -3,10 +3,10 @@
 === Setting up field and document level security
 
 You can control access to data within a data stream or index by adding field and document level
-security permissions to a role. 
-<<field-level-security,Field level security permissions>> restrict access to 
-particular fields within a document. 
-<<document-level-security,Document level security permissions>> restrict access 
+security permissions to a role.
+<<field-level-security,Field level security permissions>> restrict access to
+particular fields within a document.
+<<document-level-security,Document level security permissions>> restrict access
 to particular documents.
 
 NOTE: Document and field level security is currently meant to operate with
@@ -54,8 +54,35 @@ specify any field restrictions. If you assign a user both roles, `role_a` gives
 the user access to all documents and `role_b` gives the user access to all
 fields.
 
+[IMPORTANT]
+===========
 If you need to restrict access to both documents and fields, consider splitting
 documents by index instead.
+===========
 
 include::role-templates.asciidoc[]
 include::set-security-user.asciidoc[]
+
+
+[[ccx-apikeys-dls-fls]]
+==== Field and document level security with Cross-cluster API keys
+
+<<security-api-create-cross-cluster-api-key, Cross-Cluster API keys>> can be used to authenticate
+requests to a remote cluster. The `search` parameter defines permissions for cross-cluster search.
+The `replication` parameter defines permissions for cross-cluster replication.
+
+`replication` does not support any field or document level security. `search` supports field and document level security.
+
+For reasons similar to those described in <<multiple-roles-dls-fls,Multiple roles with document and field level security>>,
+you can't create a single cross-cluster API key with both the `search` and `replication` parameters if the
+`search` parameter has document or field level security defined.
+
+If you need to use both of these parameters, and you need to define document or field level security for the `search` parameter,
+create two separate cross-cluster API keys, one using the `search` parameter,
+and one using the `replication` parameter. You will also need to set up two different
+remote connections to the same cluster, with each named connection using the appropriate cross-cluster API key.
+
+
+
+
+

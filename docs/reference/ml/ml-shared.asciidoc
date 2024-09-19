@@ -1,3 +1,27 @@
+tag::adaptive-allocation[]
+Adaptive allocations configuration object.
+If enabled, the number of allocations of the model is set based on the current load the process gets.
+When the load is high, a new model allocation is automatically created (respecting the value of `max_number_of_allocations` if it's set).
+When the load is low, a model allocation is automatically removed (respecting the value of `min_number_of_allocations` if it's set).
+The number of model allocations cannot be scaled down to less than `1` this way.
+If `adaptive_allocations` is enabled, do not set the number of allocations manually.
+end::adaptive-allocation[]
+
+tag::adaptive-allocation-enabled[]
+If `true`, `adaptive_allocations` is enabled.
+Defaults to `false`.
+end::adaptive-allocation-enabled[]
+
+tag::adaptive-allocation-max-number[]
+Specifies the maximum number of allocations to scale to.
+If set, it must be greater than or equal to `min_number_of_allocations`.
+end::adaptive-allocation-max-number[]
+
+tag::adaptive-allocation-min-number[]
+Specifies the minimum number of allocations to scale to.
+If set, it must be greater than or equal to `1`.
+end::adaptive-allocation-min-number[]
+
 tag::aggregations[]
 If set, the {dfeed} performs aggregation searches. Support for aggregations is
 limited and should be used only with low cardinality data. For more information,
@@ -234,15 +258,15 @@ is an object it has the following properties:
 =====
 `char_filter`::::
 (array of strings or objects)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=char-filter]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=char-filter]
 
 `tokenizer`::::
 (string or object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=tokenizer]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=tokenizer]
 
 `filter`::::
 (array of strings or objects)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=filter]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=filter]
 =====
 end::categorization-analyzer[]
 
@@ -360,6 +384,10 @@ model. Unless you also specify `skip_result`, the results will be created as
 usual. This action is suitable when certain values are expected to be
 consistently anomalous and they affect the model in a way that negatively
 impacts the rest of the results.
+* `force_time_shift`: This action will shift the time inside the anomaly detector by a specified
+amount. This is useful, e.g. to quickly adapt to the daylight saving time events that
+are known beforehand. This action requires a `force_time_shift` parameter
+in the `params` object.
 end::custom-rules-actions[]
 
 tag::custom-rules-scope[]
@@ -404,6 +432,16 @@ tag::custom-rules-conditions-value[]
 The value that is compared against the `applies_to` field using the `operator`.
 end::custom-rules-conditions-value[]
 
+tag::custom-rules-params[]
+A set of parameter objects that customize the actions defined in the custom rules
+actions array. The available parameters (depending on the specified actions) include:
+`force_time_shift`.
+end::custom-rules-params[]
+
+tag::custom-rules-params-force-time-shift[]
+Set `time_shift_amount` to the signed number of seconds by which you want to shift the time.
+end::custom-rules-params-force-time-shift[]
+
 tag::custom-settings[]
 Advanced configuration option. Contains custom metadata about the job. For
 example, it can contain custom URL information as shown in
@@ -430,16 +468,16 @@ end::daily-model-snapshot-retention-after-days[]
 
 tag::data-description[]
 The data description defines the format of the input data when you send data to
-the job by using the <<ml-post-data,post data>> API. Note that when using a 
-{dfeed}, only the `time_field` needs to be set, the rest of the properties are 
-automatically set. When data is received via the <<ml-post-data,post data>> API, 
+the job by using the <<ml-post-data,post data>> API. Note that when using a
+{dfeed}, only the `time_field` needs to be set, the rest of the properties are
+automatically set. When data is received via the <<ml-post-data,post data>> API,
 it is not stored in {es}. Only the results for {anomaly-detect} are retained.
 +
 .Properties of `data_description`
 [%collapsible%open]
 ====
 `format`:::
-  (string) Only `xcontent` format is supported at this time, and this is the 
+  (string) Only `xcontent` format is supported at this time, and this is the
   default value.
 
 `time_field`:::
@@ -448,7 +486,7 @@ it is not stored in {es}. Only the results for {anomaly-detect} are retained.
 
 `time_format`:::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=time-format]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=time-format]
 ====
 end::data-description[]
 
@@ -913,7 +951,7 @@ For example:
   "day_of_week": {
     "type": "keyword",
     "script": {
-      "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+      "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ENGLISH))"
     }
   }
 }
@@ -1284,6 +1322,10 @@ end::job-id-data-frame-analytics-define[]
 tag::job-id-datafeed[]
 The unique identifier for the job to which the {dfeed} sends data.
 end::job-id-datafeed[]
+
+tag::output-memory-allocator-bytes[]
+The amount of memory, in bytes, used to output {anomaly-job} documents.
+end::output-memory-allocator-bytes[]
 
 tag::lambda[]
 Advanced configuration option. Regularization parameter to prevent overfitting

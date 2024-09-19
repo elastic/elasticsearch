@@ -1,14 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.IntField;
+import org.apache.lucene.document.LongField;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -38,7 +43,9 @@ import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.plain.BinaryIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -638,8 +645,8 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
         ToLongFunction<String> fieldCardinality = name -> -1;
         for (var resultsType : SearchService.ResultsType.values()) {
             switch (resultsType) {
-                case NONE, FETCH -> assertFalse(
-                    "NONE and FETCH phases do not support parallel collection.",
+                case NONE, RANK_FEATURE, FETCH -> assertFalse(
+                    "NONE, RANK_FEATURE, and FETCH phases do not support parallel collection.",
                     DefaultSearchContext.isParallelCollectionSupportedForResults(
                         resultsType,
                         searchSourceBuilderOrNull,
@@ -795,6 +802,58 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                     null
                 );
                 assertEquals(3, DefaultSearchContext.getFieldCardinality(low, reader));
+            }
+        }
+    }
+
+    public void testGetFieldCardinalityNumeric() throws IOException {
+        try (BaseDirectoryWrapper dir = newDirectory()) {
+            final int numDocs = scaledRandomIntBetween(100, 200);
+            try (RandomIndexWriter w = new RandomIndexWriter(random(), dir, new IndexWriterConfig())) {
+                for (int i = 0; i < numDocs; ++i) {
+                    Document doc = new Document();
+                    doc.add(new LongField("long", i, Field.Store.NO));
+                    doc.add(new IntField("int", i, Field.Store.NO));
+                    doc.add(new SortedNumericDocValuesField("no_index", i));
+                    w.addDocument(doc);
+                }
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                final SortedNumericIndexFieldData longFieldData = new SortedNumericIndexFieldData(
+                    "long",
+                    IndexNumericFieldData.NumericType.LONG,
+                    IndexNumericFieldData.NumericType.LONG.getValuesSourceType(),
+                    null,
+                    true
+                );
+                assertEquals(numDocs, DefaultSearchContext.getFieldCardinality(longFieldData, reader));
+
+                final SortedNumericIndexFieldData integerFieldData = new SortedNumericIndexFieldData(
+                    "int",
+                    IndexNumericFieldData.NumericType.INT,
+                    IndexNumericFieldData.NumericType.INT.getValuesSourceType(),
+                    null,
+                    true
+                );
+                assertEquals(numDocs, DefaultSearchContext.getFieldCardinality(integerFieldData, reader));
+
+                final SortedNumericIndexFieldData shortFieldData = new SortedNumericIndexFieldData(
+                    "int",
+                    IndexNumericFieldData.NumericType.SHORT,
+                    IndexNumericFieldData.NumericType.SHORT.getValuesSourceType(),
+                    null,
+                    true
+                );
+                assertEquals(numDocs, DefaultSearchContext.getFieldCardinality(shortFieldData, reader));
+
+                final SortedNumericIndexFieldData noIndexFieldata = new SortedNumericIndexFieldData(
+                    "no_index",
+                    IndexNumericFieldData.NumericType.LONG,
+                    IndexNumericFieldData.NumericType.LONG.getValuesSourceType(),
+                    null,
+                    false
+                );
+                assertEquals(-1, DefaultSearchContext.getFieldCardinality(noIndexFieldata, reader));
             }
         }
     }

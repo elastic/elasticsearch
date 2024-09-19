@@ -46,7 +46,7 @@ public class TransportCancelConnectorSyncJobActionTests extends ESSingleNodeTest
             Collections.emptySet()
         );
 
-        action = new TransportCancelConnectorSyncJobAction(transportService, clusterService, mock(ActionFilters.class), client());
+        action = new TransportCancelConnectorSyncJobAction(transportService, mock(ActionFilters.class), client());
     }
 
     @Override

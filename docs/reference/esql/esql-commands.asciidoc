@@ -37,9 +37,15 @@ image::images/esql/processing-command.svg[A processing command changing an input
 * <<esql-enrich>>
 * <<esql-eval>>
 * <<esql-grok>>
+ifeval::["{release-state}"=="unreleased"]
+* experimental:[] <<esql-inlinestats-by>>
+endif::[]
 * <<esql-keep>>
 * <<esql-limit>>
-* <<esql-mv_expand>>
+ifeval::["{release-state}"=="unreleased"]
+* experimental:[] <<esql-lookup>>
+endif::[]
+* experimental:[] <<esql-mv_expand>>
 * <<esql-rename>>
 * <<esql-sort>>
 * <<esql-stats-by>>
@@ -56,8 +62,14 @@ include::processing-commands/drop.asciidoc[]
 include::processing-commands/enrich.asciidoc[]
 include::processing-commands/eval.asciidoc[]
 include::processing-commands/grok.asciidoc[]
+ifeval::["{release-state}"=="unreleased"]
+include::processing-commands/inlinestats.asciidoc[]
+endif::[]
 include::processing-commands/keep.asciidoc[]
 include::processing-commands/limit.asciidoc[]
+ifeval::["{release-state}"=="unreleased"]
+include::processing-commands/lookup.asciidoc[]
+endif::[]
 include::processing-commands/mv_expand.asciidoc[]
 include::processing-commands/rename.asciidoc[]
 include::processing-commands/sort.asciidoc[]

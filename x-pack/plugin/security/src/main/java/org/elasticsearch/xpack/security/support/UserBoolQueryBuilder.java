@@ -9,75 +9,33 @@ package org.elasticsearch.xpack.security.support;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.ExistsQueryBuilder;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.PrefixQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.index.query.TermsQueryBuilder;
-import org.elasticsearch.index.query.WildcardQueryBuilder;
+import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Set;
 
-import static org.elasticsearch.xpack.security.support.SecurityIndexFieldNameTranslator.exact;
+import static org.elasticsearch.xpack.security.support.FieldNameTranslators.USER_FIELD_NAME_TRANSLATORS;
 
-public class UserBoolQueryBuilder extends BoolQueryBuilder {
-    public static final SecurityIndexFieldNameTranslator USER_FIELD_NAME_TRANSLATOR = new SecurityIndexFieldNameTranslator(
-        List.of(exact("username"), exact("roles"), exact("full_name"), exact("email"), exact("enabled"))
-    );
+public final class UserBoolQueryBuilder extends BoolQueryBuilder {
+
+    private static final Set<String> FIELDS_ALLOWED_TO_QUERY = Set.of("_id", User.Fields.TYPE.getPreferredName());
 
     private UserBoolQueryBuilder() {}
 
     public static UserBoolQueryBuilder build(QueryBuilder queryBuilder) {
-        UserBoolQueryBuilder userQueryBuilder = new UserBoolQueryBuilder();
+        final UserBoolQueryBuilder finalQuery = new UserBoolQueryBuilder();
         if (queryBuilder != null) {
-            QueryBuilder translaterdQueryBuilder = translateToUserQueryBuilder(queryBuilder);
-            userQueryBuilder.must(translaterdQueryBuilder);
+            QueryBuilder processedQuery = USER_FIELD_NAME_TRANSLATORS.translateQueryBuilderFields(queryBuilder, null);
+            finalQuery.must(processedQuery);
         }
-        userQueryBuilder.filter(QueryBuilders.termQuery("type", "user"));
+        finalQuery.filter(QueryBuilders.termQuery(User.Fields.TYPE.getPreferredName(), NativeUsersStore.USER_DOC_TYPE));
 
-        return userQueryBuilder;
-    }
-
-    private static QueryBuilder translateToUserQueryBuilder(QueryBuilder qb) {
-        if (qb instanceof final BoolQueryBuilder query) {
-            final BoolQueryBuilder newQuery = QueryBuilders.boolQuery()
-                .minimumShouldMatch(query.minimumShouldMatch())
-                .adjustPureNegative(query.adjustPureNegative());
-            query.must().stream().map(UserBoolQueryBuilder::translateToUserQueryBuilder).forEach(newQuery::must);
-            query.should().stream().map(UserBoolQueryBuilder::translateToUserQueryBuilder).forEach(newQuery::should);
-            query.mustNot().stream().map(UserBoolQueryBuilder::translateToUserQueryBuilder).forEach(newQuery::mustNot);
-            query.filter().stream().map(UserBoolQueryBuilder::translateToUserQueryBuilder).forEach(newQuery::filter);
-            return newQuery;
-        } else if (qb instanceof MatchAllQueryBuilder) {
-            return qb;
-        } else if (qb instanceof final TermQueryBuilder query) {
-            final String translatedFieldName = USER_FIELD_NAME_TRANSLATOR.translate(query.fieldName());
-            return QueryBuilders.termQuery(translatedFieldName, query.value()).caseInsensitive(query.caseInsensitive());
-        } else if (qb instanceof final ExistsQueryBuilder query) {
-            final String translatedFieldName = USER_FIELD_NAME_TRANSLATOR.translate(query.fieldName());
-            return QueryBuilders.existsQuery(translatedFieldName);
-        } else if (qb instanceof final TermsQueryBuilder query) {
-            if (query.termsLookup() != null) {
-                throw new IllegalArgumentException("Terms query with terms lookup is not supported for User query");
-            }
-            final String translatedFieldName = USER_FIELD_NAME_TRANSLATOR.translate(query.fieldName());
-            return QueryBuilders.termsQuery(translatedFieldName, query.getValues());
-        } else if (qb instanceof final PrefixQueryBuilder query) {
-            final String translatedFieldName = USER_FIELD_NAME_TRANSLATOR.translate(query.fieldName());
-            return QueryBuilders.prefixQuery(translatedFieldName, query.value()).caseInsensitive(query.caseInsensitive());
-        } else if (qb instanceof final WildcardQueryBuilder query) {
-            final String translatedFieldName = USER_FIELD_NAME_TRANSLATOR.translate(query.fieldName());
-            return QueryBuilders.wildcardQuery(translatedFieldName, query.value())
-                .caseInsensitive(query.caseInsensitive())
-                .rewrite(query.rewrite());
-        } else {
-            throw new IllegalArgumentException("Query type [" + qb.getName() + "] is not supported for User query");
-        }
+        return finalQuery;
     }
 
     @Override
@@ -94,8 +52,7 @@ public class UserBoolQueryBuilder extends BoolQueryBuilder {
         return super.doRewrite(queryRewriteContext);
     }
 
-    boolean isIndexFieldNameAllowed(String queryFieldName) {
-        // Type is needed to filter on user doc type
-        return queryFieldName.equals("type") || USER_FIELD_NAME_TRANSLATOR.supportedIndexFieldName(queryFieldName);
+    boolean isIndexFieldNameAllowed(String fieldName) {
+        return FIELDS_ALLOWED_TO_QUERY.contains(fieldName) || USER_FIELD_NAME_TRANSLATORS.isIndexFieldSupported(fieldName);
     }
 }

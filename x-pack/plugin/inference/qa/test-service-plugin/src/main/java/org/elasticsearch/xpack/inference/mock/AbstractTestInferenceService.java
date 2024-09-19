@@ -27,6 +27,14 @@ import java.util.Map;
 
 public abstract class AbstractTestInferenceService implements InferenceService {
 
+    protected static int stringWeight(String input, int position) {
+        int hashCode = input.hashCode();
+        if (hashCode < 0) {
+            hashCode = -hashCode;
+        }
+        return hashCode + position;
+    }
+
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.current(); // fine for these tests but will not work for cluster upgrade tests
@@ -99,11 +107,6 @@ public abstract class AbstractTestInferenceService implements InferenceService {
             TestSecretSettings secretSettings
         ) {
             super(new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secretSettings));
-        }
-
-        @Override
-        public TestDenseInferenceServiceExtension.TestServiceSettings getServiceSettings() {
-            return (TestDenseInferenceServiceExtension.TestServiceSettings) super.getServiceSettings();
         }
 
         @Override

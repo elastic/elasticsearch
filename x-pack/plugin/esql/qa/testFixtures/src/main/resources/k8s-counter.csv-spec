@@ -1,0 +1,30 @@
+readCounterLong
+required_capability: counter_types
+FROM k8s | WHERE cluster=="prod" AND pod=="two" | sort @timestamp DESC | keep @timestamp,network.bytes_in,network.total_bytes_in | limit 2;
+
+@timestamp:datetime      | network.bytes_in:long | network.total_bytes_in:counter_long
+2024-05-10T00:22:53.000Z | 812                   | 10277
+2024-05-10T00:20:44.000Z | 756                   | 9465
+;
+
+readCounterDouble
+required_capability: counter_types
+FROM k8s | WHERE cluster=="prod" AND pod=="two" | sort @timestamp DESC | keep @timestamp,network.cost,network.total_cost | limit 2;
+
+@timestamp:datetime      | network.cost:double | network.total_cost:counter_double 
+2024-05-10T00:22:53.000Z | 10.75               | 18.375
+2024-05-10T00:20:44.000Z | 7.625               | 7.625
+;
+
+
+castCounterDouble
+required_capability: counter_types
+FROM k8s | EVAL total_cost=to_double(network.total_cost) | STATS total_cost=max(total_cost) BY cluster,pod | sort total_cost DESC | limit 5;
+
+total_cost:double | cluster:keyword | pod:keyword
+144.75            | qa              | three
+137.375           | staging         | three
+130.625           | prod            | three
+112.25            | qa              | one
+108.75            | staging         | two
+;

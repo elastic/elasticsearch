@@ -12,7 +12,15 @@ import java.util.Objects;
 
 public class DocumentsOnlyInput extends InferenceInputs {
 
-    List<String> input;
+    public static DocumentsOnlyInput of(InferenceInputs inferenceInputs) {
+        if (inferenceInputs instanceof DocumentsOnlyInput == false) {
+            throw createUnsupportedTypeException(inferenceInputs);
+        }
+
+        return (DocumentsOnlyInput) inferenceInputs;
+    }
+
+    private final List<String> input;
 
     public DocumentsOnlyInput(List<String> chunks) {
         super();

@@ -13,10 +13,12 @@
 * <<esql-asin>>
 * <<esql-atan>>
 * <<esql-atan2>>
+* <<esql-cbrt>>
 * <<esql-ceil>>
 * <<esql-cos>>
 * <<esql-cosh>>
 * <<esql-e>>
+* <<esql-exp>>
 * <<esql-floor>>
 * <<esql-log>>
 * <<esql-log10>>
@@ -37,20 +39,22 @@ include::layout/acos.asciidoc[]
 include::layout/asin.asciidoc[]
 include::layout/atan.asciidoc[]
 include::layout/atan2.asciidoc[]
+include::layout/cbrt.asciidoc[]
 include::layout/ceil.asciidoc[]
 include::layout/cos.asciidoc[]
 include::layout/cosh.asciidoc[]
-include::e.asciidoc[]
-include::floor.asciidoc[]
+include::layout/e.asciidoc[]
+include::layout/exp.asciidoc[]
+include::layout/floor.asciidoc[]
 include::layout/log.asciidoc[]
 include::layout/log10.asciidoc[]
-include::pi.asciidoc[]
-include::pow.asciidoc[]
-include::round.asciidoc[]
+include::layout/pi.asciidoc[]
+include::layout/pow.asciidoc[]
+include::layout/round.asciidoc[]
 include::layout/signum.asciidoc[]
 include::layout/sin.asciidoc[]
 include::layout/sinh.asciidoc[]
-include::sqrt.asciidoc[]
+include::layout/sqrt.asciidoc[]
 include::layout/tan.asciidoc[]
 include::layout/tanh.asciidoc[]
-include::tau.asciidoc[]
+include::layout/tau.asciidoc[]

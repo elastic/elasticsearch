@@ -56,8 +56,7 @@ setup:
 ---
 "Test traces-apm-* data stream indexing":
   - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/102360"
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/102360"
 
   - do:
       index:
@@ -82,3 +81,27 @@ setup:
   - length: {hits.hits: 1}
   - match: {hits.hits.0.fields.event\.success_count: [1]}
   - match: {hits.hits.0.fields.span\.duration\.us: [123]}
+
+---
+"Test ILM fallback component-template installation with dsl-only mode false":
+  - skip:
+      reason: contains is a newly added assertion
+      features: contains
+  - do:
+      cluster.get_component_template:
+        name: "*-fallback@ilm"
+  - length: {component_templates: 19}
+  - contains: {component_templates: {name: metrics-apm.app-fallback@ilm}}
+  - contains: {component_templates: {name: metrics-apm.internal-fallback@ilm}}
+  - contains: {component_templates: {name: metrics-apm.service_destination.1m-fallback@ilm}}
+  - contains: {component_templates: {name: metrics-apm.service_destination.10m-fallback@ilm}}
+  - contains: {component_templates: {name: metrics-apm.service_destination.60m-fallback@ilm}}
+  - contains: {component_templates: {name: metrics-apm.service_summary.1m-fallback@ilm}}
+  - contains: {component_templates: {name: metrics-apm.service_summary.10m-fallback@ilm}}
+  - contains: {component_templates: {name: metrics-apm.service_summary.60m-fallback@ilm}}
+  - contains: {component_templates: {name: metrics-apm.service_transaction.1m-fallback@ilm}}
+  - contains: {component_templates: {name: metrics-apm.service_transaction.10m-fallback@ilm}}
+  - contains: {component_templates: {name: metrics-apm.service_transaction.60m-fallback@ilm}}
+  - contains: {component_templates: {name: metrics-apm.transaction.1m-fallback@ilm}}
+  - contains: {component_templates: {name: metrics-apm.transaction.10m-fallback@ilm}}
+  - contains: {component_templates: {name: metrics-apm.transaction.60m-fallback@ilm}}

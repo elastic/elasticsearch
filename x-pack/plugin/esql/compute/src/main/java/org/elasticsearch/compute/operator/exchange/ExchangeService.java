@@ -15,17 +15,19 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
@@ -50,14 +52,17 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     // TODO: Make this a child action of the data node transport to ensure that exchanges
     // are accessed only by the user initialized the session.
     public static final String EXCHANGE_ACTION_NAME = "internal:data/read/esql/exchange";
+    public static final String EXCHANGE_ACTION_NAME_FOR_CCS = "cluster:internal:data/read/esql/exchange";
 
     private static final String OPEN_EXCHANGE_ACTION_NAME = "internal:data/read/esql/open_exchange";
+    private static final String OPEN_EXCHANGE_ACTION_NAME_FOR_CCS = "cluster:internal:data/read/esql/open_exchange";
 
     /**
      * The time interval for an exchange sink handler to be considered inactive and subsequently
      * removed from the exchange service if no sinks are attached (i.e., no computation uses that sink handler).
      */
     public static final String INACTIVE_SINKS_INTERVAL_SETTING = "esql.exchange.sink_inactive_interval";
+    public static final TimeValue INACTIVE_SINKS_INTERVAL_DEFAULT = TimeValue.timeValueMinutes(5);
 
     private static final Logger LOGGER = LogManager.getLogger(ExchangeService.class);
 
@@ -67,20 +72,37 @@ public final class ExchangeService extends AbstractLifecycleComponent {
 
     private final Map<String, ExchangeSinkHandler> sinks = ConcurrentCollections.newConcurrentMap();
 
-    private final InactiveSinksReaper inactiveSinksReaper;
-
     public ExchangeService(Settings settings, ThreadPool threadPool, String executorName, BlockFactory blockFactory) {
         this.threadPool = threadPool;
         this.executor = threadPool.executor(executorName);
         this.blockFactory = blockFactory;
-        final var inactiveInterval = settings.getAsTime(INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMinutes(5));
-        this.inactiveSinksReaper = new InactiveSinksReaper(LOGGER, threadPool, this.executor, inactiveInterval);
+        final var inactiveInterval = settings.getAsTime(INACTIVE_SINKS_INTERVAL_SETTING, INACTIVE_SINKS_INTERVAL_DEFAULT);
+        // Run the reaper every half of the keep_alive interval
+        this.threadPool.scheduleWithFixedDelay(
+            new InactiveSinksReaper(LOGGER, threadPool, inactiveInterval),
+            TimeValue.timeValueMillis(Math.max(1, inactiveInterval.millis() / 2)),
+            executor
+        );
     }
 
     public void registerTransportHandler(TransportService transportService) {
         transportService.registerRequestHandler(EXCHANGE_ACTION_NAME, this.executor, ExchangeRequest::new, new ExchangeTransportAction());
         transportService.registerRequestHandler(
             OPEN_EXCHANGE_ACTION_NAME,
+            this.executor,
+            OpenExchangeRequest::new,
+            new OpenExchangeRequestHandler()
+        );
+
+        // This allows the system user access this action when executed over CCS and the API key based security model is in use
+        transportService.registerRequestHandler(
+            EXCHANGE_ACTION_NAME_FOR_CCS,
+            this.executor,
+            ExchangeRequest::new,
+            new ExchangeTransportAction()
+        );
+        transportService.registerRequestHandler(
+            OPEN_EXCHANGE_ACTION_NAME_FOR_CCS,
             this.executor,
             OpenExchangeRequest::new,
             new OpenExchangeRequestHandler()
@@ -93,7 +115,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      * @throws IllegalStateException if a sink handler for the given id already exists
      */
     public ExchangeSinkHandler createSinkHandler(String exchangeId, int maxBufferSize) {
-        ExchangeSinkHandler sinkHandler = new ExchangeSinkHandler(blockFactory, maxBufferSize, threadPool::relativeTimeInMillis);
+        ExchangeSinkHandler sinkHandler = new ExchangeSinkHandler(blockFactory, maxBufferSize, threadPool.relativeTimeInMillisSupplier());
         if (sinks.putIfAbsent(exchangeId, sinkHandler) != null) {
             throw new IllegalStateException("sink exchanger for id [" + exchangeId + "] already exists");
         }
@@ -178,50 +200,70 @@ public final class ExchangeService extends AbstractLifecycleComponent {
 
     private class ExchangeTransportAction implements TransportRequestHandler<ExchangeRequest> {
         @Override
-        public void messageReceived(ExchangeRequest request, TransportChannel channel, Task task) {
+        public void messageReceived(ExchangeRequest request, TransportChannel channel, Task exchangeTask) {
             final String exchangeId = request.exchangeId();
             ActionListener<ExchangeResponse> listener = new ChannelActionListener<>(channel);
             final ExchangeSinkHandler sinkHandler = sinks.get(exchangeId);
             if (sinkHandler == null) {
                 listener.onResponse(new ExchangeResponse(blockFactory, null, true));
             } else {
+                final CancellableTask task = (CancellableTask) exchangeTask;
+                task.addListener(() -> sinkHandler.onFailure(new TaskCancelledException("request cancelled " + task.getReasonCancelled())));
                 sinkHandler.fetchPageAsync(request.sourcesFinished(), listener);
             }
         }
     }
 
-    private final class InactiveSinksReaper extends AbstractAsyncTask {
-        InactiveSinksReaper(Logger logger, ThreadPool threadPool, Executor executor, TimeValue interval) {
-            super(logger, threadPool, executor, interval, true);
-            rescheduleIfNecessary();
+    private final class InactiveSinksReaper extends AbstractRunnable {
+        private final Logger logger;
+        private final TimeValue keepAlive;
+        private final ThreadPool threadPool;
+
+        InactiveSinksReaper(Logger logger, ThreadPool threadPool, TimeValue keepAlive) {
+            this.logger = logger;
+            this.keepAlive = keepAlive;
+            this.threadPool = threadPool;
         }
 
         @Override
-        protected boolean mustReschedule() {
-            Lifecycle.State state = lifecycleState();
-            return state != Lifecycle.State.STOPPED && state != Lifecycle.State.CLOSED;
+        public void onFailure(Exception e) {
+            logger.error("unexpected error when closing inactive sinks", e);
+            assert false : e;
         }
 
         @Override
-        protected void runInternal() {
+        public void onRejection(Exception e) {
+            if (e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown()) {
+                logger.debug("rejected execution when closing inactive sinks");
+            } else {
+                onFailure(e);
+            }
+        }
+
+        @Override
+        public boolean isForceExecution() {
+            // mustn't reject this task even if the queue is full
+            return true;
+        }
+
+        @Override
+        protected void doRun() {
             assert Transports.assertNotTransportThread("reaping inactive exchanges can be expensive");
             assert ThreadPool.assertNotScheduleThread("reaping inactive exchanges can be expensive");
-            final TimeValue maxInterval = getInterval();
+            logger.debug("start removing inactive sinks");
             final long nowInMillis = threadPool.relativeTimeInMillis();
             for (Map.Entry<String, ExchangeSinkHandler> e : sinks.entrySet()) {
                 ExchangeSinkHandler sink = e.getValue();
                 if (sink.hasData() && sink.hasListeners()) {
                     continue;
                 }
-                long elapsed = nowInMillis - sink.lastUpdatedTimeInMillis();
-                if (elapsed > maxInterval.millis()) {
+                long elapsedInMillis = nowInMillis - sink.lastUpdatedTimeInMillis();
+                if (elapsedInMillis > keepAlive.millis()) {
+                    TimeValue elapsedTime = TimeValue.timeValueMillis(elapsedInMillis);
+                    logger.debug("removed sink {} inactive for {}", e.getKey(), elapsedTime);
                     finishSinkHandler(
                         e.getKey(),
-                        new ElasticsearchTimeoutException(
-                            "Exchange sink {} has been inactive for {}",
-                            e.getKey(),
-                            TimeValue.timeValueMillis(elapsed)
-                        )
+                        new ElasticsearchTimeoutException("Exchange sink {} has been inactive for {}", e.getKey(), elapsedTime)
                     );
                 }
             }
@@ -304,7 +346,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
 
     @Override
     protected void doStop() {
-        inactiveSinksReaper.close();
+
     }
 
     @Override

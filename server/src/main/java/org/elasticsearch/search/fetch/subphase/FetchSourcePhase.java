@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch.subphase;
@@ -28,7 +29,7 @@ public final class FetchSourcePhase implements FetchSubPhase {
         }
         assert fetchSourceContext.fetchSource();
         SourceFilter sourceFilter = fetchSourceContext.filter();
-
+        final boolean filterExcludesAll = sourceFilter.excludesAll();
         return new FetchSubPhaseProcessor() {
             private int fastPath;
 
@@ -67,8 +68,13 @@ public final class FetchSourcePhase implements FetchSubPhase {
                     return;
                 }
 
-                // Otherwise, filter the source and add it to the hit.
-                source = source.filter(sourceFilter);
+                if (filterExcludesAll) {
+                    // we can just add an empty map
+                    source = Source.empty(source.sourceContentType());
+                } else {
+                    // Otherwise, filter the source and add it to the hit.
+                    source = source.filter(sourceFilter);
+                }
                 if (nestedHit) {
                     source = extractNested(source, hitContext.hit().getNestedIdentity());
                 }

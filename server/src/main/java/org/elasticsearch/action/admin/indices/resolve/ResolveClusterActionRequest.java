@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.resolve;
@@ -54,20 +55,22 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
         this(names, DEFAULT_INDICES_OPTIONS);
     }
 
+    @SuppressWarnings("this-escape")
     public ResolveClusterActionRequest(String[] names, IndicesOptions indicesOptions) {
         this.names = names;
         this.localIndicesRequested = localIndicesPresent(names);
         this.indicesOptions = indicesOptions;
     }
 
+    @SuppressWarnings("this-escape")
     public ResolveClusterActionRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().before(TransportVersions.RESOLVE_CLUSTER_ENDPOINT_ADDED)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_13_0)) {
             throw new UnsupportedOperationException(
-                "ResolveClusterAction requires at least Transport Version "
-                    + TransportVersions.RESOLVE_CLUSTER_ENDPOINT_ADDED
+                "ResolveClusterAction requires at least version "
+                    + TransportVersions.V_8_13_0.toReleaseVersion()
                     + " but was "
-                    + in.getTransportVersion()
+                    + in.getTransportVersion().toReleaseVersion()
             );
         }
         this.names = in.readStringArray();
@@ -78,12 +81,12 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getTransportVersion().before(TransportVersions.RESOLVE_CLUSTER_ENDPOINT_ADDED)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_13_0)) {
             throw new UnsupportedOperationException(
-                "ResolveClusterAction requires at least Transport Version "
-                    + TransportVersions.RESOLVE_CLUSTER_ENDPOINT_ADDED
+                "ResolveClusterAction requires at least version "
+                    + TransportVersions.V_8_13_0.toReleaseVersion()
                     + " but was "
-                    + out.getTransportVersion()
+                    + out.getTransportVersion().toReleaseVersion()
             );
         }
         out.writeStringArray(names);

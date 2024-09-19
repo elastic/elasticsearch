@@ -46,12 +46,7 @@ public class TransportUpdateConnectorSyncJobIngestionStatsActionTests extends ES
             Collections.emptySet()
         );
 
-        action = new TransportUpdateConnectorSyncJobIngestionStatsAction(
-            transportService,
-            clusterService,
-            mock(ActionFilters.class),
-            client()
-        );
+        action = new TransportUpdateConnectorSyncJobIngestionStatsAction(transportService, mock(ActionFilters.class), client());
     }
 
     @Override

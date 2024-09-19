@@ -1,7 +1,7 @@
 ---
 setup:
-  - skip:
-      version: " - 8.6.99"
+  - requires:
+      cluster_features: ["gte_v8.7.0"]
       reason: serialization bug fixed in 8.7.0
 
   - do:

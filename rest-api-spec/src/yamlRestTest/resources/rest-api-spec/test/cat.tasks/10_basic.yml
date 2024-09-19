@@ -21,7 +21,7 @@
 ---
 "Test cat tasks output with X-Opaque-Id":
   - requires:
-      cluster_features: ["cat_tasks_x_opaque_id"]
+      cluster_features: ["gte_v7.10.0"]
       reason: support for opaque_id was added in 7.10.0
       test_runner_features: ["headers"]
 

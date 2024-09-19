@@ -13,6 +13,8 @@ The following wildcard characters are supported:
 * `*` matches zero or more characters.
 * `?` matches one character.
 
+include::./types/like.asciidoc[]
+
 [source.merge.styled,esql]
 ----
 include::{esql-specs}/docs.csv-spec[tag=like]

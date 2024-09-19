@@ -11,6 +11,7 @@ import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -29,7 +30,9 @@ public class WatcherServiceRequest extends MasterNodeRequest<WatcherServiceReque
         command = Command.valueOf(in.readString().toUpperCase(Locale.ROOT));
     }
 
-    public WatcherServiceRequest() {}
+    public WatcherServiceRequest(TimeValue masterNodeTimeout) {
+        super(masterNodeTimeout);
+    }
 
     /**
      * Starts the watcher service if not already started.

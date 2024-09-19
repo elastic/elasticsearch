@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
+import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
@@ -83,13 +83,11 @@ public final class IndexPrivilege extends Privilege {
     );
     private static final Automaton READ_CROSS_CLUSTER_AUTOMATON = patterns(
         "internal:transport/proxy/indices:data/read/*",
-        ClusterSearchShardsAction.NAME,
+        TransportClusterSearchShardsAction.TYPE.name(),
         TransportSearchShardsAction.TYPE.name(),
         TransportResolveClusterAction.NAME,
-        // cross clusters query for ESQL
-        "internal:data/read/esql/open_exchange",
-        "internal:data/read/esql/exchange",
-        "indices:data/read/esql/cluster"
+        "indices:data/read/esql",
+        "indices:data/read/esql/compute"
     );
     private static final Automaton CREATE_AUTOMATON = patterns(
         "indices:data/write/index*",
@@ -129,7 +127,7 @@ public final class IndexPrivilege extends Privilege {
         GetIndexAction.NAME,
         GetFieldMappingsAction.NAME + "*",
         GetMappingsAction.NAME,
-        ClusterSearchShardsAction.NAME,
+        TransportClusterSearchShardsAction.TYPE.name(),
         TransportSearchShardsAction.TYPE.name(),
         ValidateQueryAction.NAME + "*",
         GetSettingsAction.NAME,
@@ -141,7 +139,9 @@ public final class IndexPrivilege extends Privilege {
         TransportResolveClusterAction.NAME,
         TransportFieldCapabilitiesAction.NAME + "*",
         GetRollupIndexCapsAction.NAME + "*",
-        GetCheckpointAction.NAME + "*" // transform internal action
+        GetCheckpointAction.NAME + "*", // transform internal action
+        "indices:monitor/get/metering/stats", // serverless only
+        "indices:admin/get/metering/stats" // serverless only
     );
     private static final Automaton MANAGE_FOLLOW_INDEX_AUTOMATON = patterns(
         PutFollowAction.NAME,
@@ -208,6 +208,10 @@ public final class IndexPrivilege extends Privilege {
         CROSS_CLUSTER_REPLICATION_INTERNAL_AUTOMATON
     );
 
+    /**
+     * If you are adding a new named index privilege, also add it to the
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-privileges.html#privileges-list-indices">docs</a>.
+     */
     @SuppressWarnings("unchecked")
     private static final Map<String, IndexPrivilege> VALUES = sortByAccessLevel(
         Stream.of(

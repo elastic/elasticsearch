@@ -26,7 +26,7 @@ in the `transform_admin` built-in role.
 
 `<transform_id>`::
 (Required, string)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
 
 [[delete-transform-query-parms]]
 == {api-query-parms-title}

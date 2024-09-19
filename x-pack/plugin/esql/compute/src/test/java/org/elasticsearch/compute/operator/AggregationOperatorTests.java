@@ -17,6 +17,7 @@ import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.hamcrest.Matcher;
 
 import java.util.List;
 import java.util.stream.IntStream;
@@ -54,15 +55,17 @@ public class AggregationOperatorTests extends ForkingOperatorTestCase {
     }
 
     @Override
-    protected String expectedDescriptionOfSimple() {
-        return "AggregationOperator[mode = SINGLE, aggs = sum of longs, max of longs]";
+    protected Matcher<String> expectedDescriptionOfSimple() {
+        return equalTo("AggregationOperator[mode = SINGLE, aggs = sum of longs, max of longs]");
     }
 
     @Override
-    protected String expectedToStringOfSimple() {
-        return "AggregationOperator[aggregators=["
-            + "Aggregator[aggregatorFunction=SumLongAggregatorFunction[channels=[0]], mode=SINGLE], "
-            + "Aggregator[aggregatorFunction=MaxLongAggregatorFunction[channels=[0]], mode=SINGLE]]]";
+    protected Matcher<String> expectedToStringOfSimple() {
+        return equalTo(
+            "AggregationOperator[aggregators=["
+                + "Aggregator[aggregatorFunction=SumLongAggregatorFunction[channels=[0]], mode=SINGLE], "
+                + "Aggregator[aggregatorFunction=MaxLongAggregatorFunction[channels=[0]], mode=SINGLE]]]"
+        );
     }
 
     @Override

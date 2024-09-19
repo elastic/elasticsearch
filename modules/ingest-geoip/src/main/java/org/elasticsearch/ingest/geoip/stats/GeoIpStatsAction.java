@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.geoip.stats;
@@ -11,7 +12,6 @@ package org.elasticsearch.ingest.geoip.stats;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -64,11 +65,6 @@ public class GeoIpStatsAction {
                 return false;
             }
             return true;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) {
-            TransportAction.localOnly();
         }
     }
 
@@ -130,6 +126,15 @@ public class GeoIpStatsAction {
                 if (response.configDatabases.isEmpty() == false) {
                     builder.array("config_databases", response.configDatabases.toArray(String[]::new));
                 }
+                builder.startObject("cache_stats");
+                CacheStats cacheStats = response.cacheStats;
+                builder.field("count", cacheStats.count());
+                builder.field("hits", cacheStats.hits());
+                builder.field("misses", cacheStats.misses());
+                builder.field("evictions", cacheStats.evictions());
+                builder.humanReadableField("hits_time_in_millis", "hits_time", new TimeValue(cacheStats.hitsTimeInMillis()));
+                builder.humanReadableField("misses_time_in_millis", "misses_time", new TimeValue(cacheStats.missesTimeInMillis()));
+                builder.endObject();
                 builder.endObject();
             }
             builder.endObject();
@@ -154,6 +159,7 @@ public class GeoIpStatsAction {
     public static class NodeResponse extends BaseNodeResponse {
 
         private final GeoIpDownloaderStats downloaderStats;
+        private final CacheStats cacheStats;
         private final Set<String> databases;
         private final Set<String> filesInTemp;
         private final Set<String> configDatabases;
@@ -161,6 +167,11 @@ public class GeoIpStatsAction {
         protected NodeResponse(StreamInput in) throws IOException {
             super(in);
             downloaderStats = in.readBoolean() ? new GeoIpDownloaderStats(in) : null;
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+                cacheStats = in.readBoolean() ? new CacheStats(in) : null;
+            } else {
+                cacheStats = null;
+            }
             databases = in.readCollectionAsImmutableSet(StreamInput::readString);
             filesInTemp = in.readCollectionAsImmutableSet(StreamInput::readString);
             configDatabases = in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)
@@ -171,12 +182,14 @@ public class GeoIpStatsAction {
         protected NodeResponse(
             DiscoveryNode node,
             GeoIpDownloaderStats downloaderStats,
+            CacheStats cacheStats,
             Set<String> databases,
             Set<String> filesInTemp,
             Set<String> configDatabases
         ) {
             super(node);
             this.downloaderStats = downloaderStats;
+            this.cacheStats = cacheStats;
             this.databases = Set.copyOf(databases);
             this.filesInTemp = Set.copyOf(filesInTemp);
             this.configDatabases = Set.copyOf(configDatabases);
@@ -205,6 +218,12 @@ public class GeoIpStatsAction {
             if (downloaderStats != null) {
                 downloaderStats.writeTo(out);
             }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+                out.writeBoolean(cacheStats != null);
+                if (cacheStats != null) {
+                    cacheStats.writeTo(out);
+                }
+            }
             out.writeStringCollection(databases);
             out.writeStringCollection(filesInTemp);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
@@ -218,6 +237,7 @@ public class GeoIpStatsAction {
             if (o == null || getClass() != o.getClass()) return false;
             NodeResponse that = (NodeResponse) o;
             return downloaderStats.equals(that.downloaderStats)
+                && Objects.equals(cacheStats, that.cacheStats)
                 && databases.equals(that.databases)
                 && filesInTemp.equals(that.filesInTemp)
                 && Objects.equals(configDatabases, that.configDatabases);
@@ -225,7 +245,7 @@ public class GeoIpStatsAction {
 
         @Override
         public int hashCode() {
-            return Objects.hash(downloaderStats, databases, filesInTemp, configDatabases);
+            return Objects.hash(downloaderStats, cacheStats, databases, filesInTemp, configDatabases);
         }
     }
 }

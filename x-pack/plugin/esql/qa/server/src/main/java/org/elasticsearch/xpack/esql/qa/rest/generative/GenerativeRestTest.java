@@ -34,7 +34,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
 
     public static final Set<String> ALLOWED_ERRORS = Set.of(
         "Reference \\[.*\\] is ambiguous",
-        "Cannot use field \\[.*\\] due to ambiguities"
+        "Cannot use field \\[.*\\] due to ambiguities",
+        "cannot sort on .*"
     );
 
     public static final Set<Pattern> ALLOWED_ERROR_PATTERNS = ALLOWED_ERRORS.stream()

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.logging;
@@ -13,9 +14,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
-import org.elasticsearch.test.MockLogAppender.LoggingExpectation;
-import org.elasticsearch.test.MockLogAppender.SeenEventExpectation;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.MockLog.LoggingExpectation;
+import org.elasticsearch.test.MockLog.SeenEventExpectation;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -61,21 +62,16 @@ public class JULBridgeTests extends ESTestCase {
     private void assertLogged(Runnable loggingCode, LoggingExpectation... expectations) {
         Logger testLogger = LogManager.getLogger("");
         Level savedLevel = testLogger.getLevel();
-        MockLogAppender mockAppender = new MockLogAppender();
 
-        try {
+        try (var mockLog = MockLog.capture("")) {
             Loggers.setLevel(testLogger, Level.ALL);
-            mockAppender.start();
-            Loggers.addAppender(testLogger, mockAppender);
             for (var expectation : expectations) {
-                mockAppender.addExpectation(expectation);
+                mockLog.addExpectation(expectation);
             }
             loggingCode.run();
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         } finally {
             Loggers.setLevel(testLogger, savedLevel);
-            Loggers.removeAppender(testLogger, mockAppender);
-            mockAppender.stop();
         }
     }
 

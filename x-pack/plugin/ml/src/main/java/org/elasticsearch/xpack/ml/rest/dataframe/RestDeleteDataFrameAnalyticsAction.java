@@ -39,7 +39,9 @@ public class RestDeleteDataFrameAnalyticsAction extends BaseRestHandler {
         String id = restRequest.param(DataFrameAnalyticsConfig.ID.getPreferredName());
         DeleteDataFrameAnalyticsAction.Request request = new DeleteDataFrameAnalyticsAction.Request(id);
         request.setForce(restRequest.paramAsBoolean(DeleteDataFrameAnalyticsAction.Request.FORCE.getPreferredName(), request.isForce()));
-        request.timeout(restRequest.paramAsTime(DeleteDataFrameAnalyticsAction.Request.TIMEOUT.getPreferredName(), request.timeout()));
+        request.ackTimeout(
+            restRequest.paramAsTime(DeleteDataFrameAnalyticsAction.Request.TIMEOUT.getPreferredName(), request.ackTimeout())
+        );
         return channel -> client.execute(DeleteDataFrameAnalyticsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

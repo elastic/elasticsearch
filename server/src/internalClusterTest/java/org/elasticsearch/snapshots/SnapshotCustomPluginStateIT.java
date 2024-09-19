@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.snapshots;
@@ -12,27 +13,27 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
+import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptAction;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
+import org.elasticsearch.action.admin.cluster.storedscripts.TransportDeleteStoredScriptAction;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
-import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.GetPipelineResponse;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.ingest.IngestTestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.StoredScriptsIT;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
+import static org.elasticsearch.action.admin.cluster.storedscripts.StoredScriptIntegTestUtils.putJsonStoredScript;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertIndexTemplateExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertIndexTemplateMissing;
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -80,42 +81,33 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
 
         if (testPipeline) {
             logger.info("-->  creating test pipeline");
-            BytesReference pipelineSource = BytesReference.bytes(
-                jsonBuilder().startObject()
-                    .field("description", "my_pipeline")
+            putJsonPipeline(
+                "barbaz",
+                (builder, params) -> builder.field("description", "my_pipeline")
                     .startArray("processors")
                     .startObject()
                     .startObject("test")
                     .endObject()
                     .endObject()
                     .endArray()
-                    .endObject()
             );
-            assertAcked(clusterAdmin().preparePutPipeline("barbaz", pipelineSource, XContentType.JSON).get());
         }
 
         if (testScript) {
             logger.info("-->  creating test script");
-            assertAcked(
-                clusterAdmin().preparePutStoredScript()
-                    .setId("foobar")
-                    .setContent(
-                        new BytesArray("{\"script\": { \"lang\": \"" + MockScriptEngine.NAME + "\", \"source\": \"1\"} }"),
-                        XContentType.JSON
-                    )
-            );
+            putJsonStoredScript("foobar", "{\"script\": { \"lang\": \"" + MockScriptEngine.NAME + "\", \"source\": \"1\"} }");
         }
 
         logger.info("--> snapshot without global state");
-        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot("test-repo", "test-snap-no-global-state")
-            .setIndices()
-            .setIncludeGlobalState(false)
-            .setWaitForCompletion(true)
-            .get();
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            "test-repo",
+            "test-snap-no-global-state"
+        ).setIndices().setIncludeGlobalState(false).setWaitForCompletion(true).get();
         assertThat(createSnapshotResponse.getSnapshotInfo().totalShards(), equalTo(0));
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(0));
         assertThat(getSnapshot("test-repo", "test-snap-no-global-state").state(), equalTo(SnapshotState.SUCCESS));
-        SnapshotsStatusResponse snapshotsStatusResponse = clusterAdmin().prepareSnapshotStatus("test-repo")
+        SnapshotsStatusResponse snapshotsStatusResponse = clusterAdmin().prepareSnapshotStatus(TEST_REQUEST_TIMEOUT, "test-repo")
             .addSnapshots("test-snap-no-global-state")
             .get();
         assertThat(snapshotsStatusResponse.getSnapshots().size(), equalTo(1));
@@ -123,7 +115,7 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
         assertThat(snapshotStatus.includeGlobalState(), equalTo(false));
 
         logger.info("--> snapshot with global state");
-        createSnapshotResponse = clusterAdmin().prepareCreateSnapshot("test-repo", "test-snap-with-global-state")
+        createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snap-with-global-state")
             .setIndices()
             .setIncludeGlobalState(true)
             .setWaitForCompletion(true)
@@ -131,7 +123,9 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
         assertThat(createSnapshotResponse.getSnapshotInfo().totalShards(), equalTo(0));
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(0));
         assertThat(getSnapshot("test-repo", "test-snap-with-global-state").state(), equalTo(SnapshotState.SUCCESS));
-        snapshotsStatusResponse = clusterAdmin().prepareSnapshotStatus("test-repo").addSnapshots("test-snap-with-global-state").get();
+        snapshotsStatusResponse = clusterAdmin().prepareSnapshotStatus(TEST_REQUEST_TIMEOUT, "test-repo")
+            .addSnapshots("test-snap-with-global-state")
+            .get();
         assertThat(snapshotsStatusResponse.getSnapshots().size(), equalTo(1));
         snapshotStatus = snapshotsStatusResponse.getSnapshots().get(0);
         assertThat(snapshotStatus.includeGlobalState(), equalTo(true));
@@ -145,19 +139,25 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
 
         if (testPipeline) {
             logger.info("-->  delete test pipeline");
-            assertAcked(clusterAdmin().deletePipeline(new DeletePipelineRequest("barbaz")).get());
+            deletePipeline("barbaz");
         }
 
         if (testScript) {
             logger.info("-->  delete test script");
-            assertAcked(clusterAdmin().prepareDeleteStoredScript("foobar").get());
+            assertAcked(
+                safeExecute(
+                    TransportDeleteStoredScriptAction.TYPE,
+                    new DeleteStoredScriptRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "foobar")
+                )
+            );
         }
 
         logger.info("--> try restoring from snapshot without global state");
-        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap-no-global-state")
-            .setWaitForCompletion(true)
-            .setRestoreGlobalState(false)
-            .get();
+        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            "test-repo",
+            "test-snap-no-global-state"
+        ).setWaitForCompletion(true).setRestoreGlobalState(false).get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), equalTo(0));
 
         logger.info("--> check that template wasn't restored");
@@ -165,7 +165,7 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
         assertIndexTemplateMissing(getIndexTemplatesResponse, "test-template");
 
         logger.info("--> restore cluster state");
-        restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap-with-global-state")
+        restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snap-with-global-state")
             .setWaitForCompletion(true)
             .setRestoreGlobalState(true)
             .get();
@@ -179,24 +179,27 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
 
         if (testPipeline) {
             logger.info("--> check that pipeline is restored");
-            GetPipelineResponse getPipelineResponse = clusterAdmin().prepareGetPipeline("barbaz").get();
+            GetPipelineResponse getPipelineResponse = getPipelines("barbaz");
             assertTrue(getPipelineResponse.isFound());
         }
 
         if (testScript) {
             logger.info("--> check that script is restored");
-            GetStoredScriptResponse getStoredScriptResponse = clusterAdmin().prepareGetStoredScript("foobar").get();
+            GetStoredScriptResponse getStoredScriptResponse = safeExecute(
+                GetStoredScriptAction.INSTANCE,
+                new GetStoredScriptRequest(TEST_REQUEST_TIMEOUT, "foobar")
+            );
             assertNotNull(getStoredScriptResponse.getSource());
         }
 
         createIndexWithRandomDocs("test-idx", 100);
 
         logger.info("--> snapshot without global state but with indices");
-        createSnapshotResponse = clusterAdmin().prepareCreateSnapshot("test-repo", "test-snap-no-global-state-with-index")
-            .setIndices("test-idx")
-            .setIncludeGlobalState(false)
-            .setWaitForCompletion(true)
-            .get();
+        createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            "test-repo",
+            "test-snap-no-global-state-with-index"
+        ).setIndices("test-idx").setIncludeGlobalState(false).setWaitForCompletion(true).get();
         assertThat(createSnapshotResponse.getSnapshotInfo().totalShards(), greaterThan(0));
         assertThat(
             createSnapshotResponse.getSnapshotInfo().successfulShards(),
@@ -210,29 +213,35 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
             cluster().wipeTemplates("test-template");
         }
         if (testPipeline) {
-            assertAcked(clusterAdmin().deletePipeline(new DeletePipelineRequest("barbaz")).get());
+            deletePipeline("barbaz");
         }
 
         if (testScript) {
-            assertAcked(clusterAdmin().prepareDeleteStoredScript("foobar").get());
+            assertAcked(
+                safeExecute(
+                    TransportDeleteStoredScriptAction.TYPE,
+                    new DeleteStoredScriptRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "foobar")
+                )
+            );
         }
 
         getIndexTemplatesResponse = indicesAdmin().prepareGetTemplates().get();
         assertIndexTemplateMissing(getIndexTemplatesResponse, "test-template");
 
         logger.info("--> try restoring index and cluster state from snapshot without global state");
-        restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap-no-global-state-with-index")
-            .setWaitForCompletion(true)
-            .setRestoreGlobalState(false)
-            .get();
+        restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            "test-repo",
+            "test-snap-no-global-state-with-index"
+        ).setWaitForCompletion(true).setRestoreGlobalState(false).get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
 
         logger.info("--> check that global state wasn't restored but index was");
         getIndexTemplatesResponse = indicesAdmin().prepareGetTemplates().get();
         assertIndexTemplateMissing(getIndexTemplatesResponse, "test-template");
-        assertFalse(clusterAdmin().prepareGetPipeline("barbaz").get().isFound());
-        assertNull(clusterAdmin().prepareGetStoredScript("foobar").get().getSource());
+        assertFalse(getPipelines("barbaz").isFound());
+        assertNull(safeExecute(GetStoredScriptAction.INSTANCE, new GetStoredScriptRequest(TEST_REQUEST_TIMEOUT, "foobar")).getSource());
         assertDocCount("test-idx", 100L);
     }
 }

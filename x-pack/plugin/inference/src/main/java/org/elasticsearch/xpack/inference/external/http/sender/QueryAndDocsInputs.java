@@ -12,7 +12,15 @@ import java.util.Objects;
 
 public class QueryAndDocsInputs extends InferenceInputs {
 
-    String query;
+    public static QueryAndDocsInputs of(InferenceInputs inferenceInputs) {
+        if (inferenceInputs instanceof QueryAndDocsInputs == false) {
+            throw createUnsupportedTypeException(inferenceInputs);
+        }
+
+        return (QueryAndDocsInputs) inferenceInputs;
+    }
+
+    private final String query;
 
     public String getQuery() {
         return query;

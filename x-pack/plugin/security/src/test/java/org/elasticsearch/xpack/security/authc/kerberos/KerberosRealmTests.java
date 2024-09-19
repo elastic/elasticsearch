@@ -97,7 +97,7 @@ public class KerberosRealmTests extends KerberosRealmTestCase {
             eq(krbDebug),
             anyActionListener()
         );
-        verify(mockNativeRoleMappingStore).refreshRealmOnChange(kerberosRealm);
+        verify(mockNativeRoleMappingStore).clearRealmCacheOnChange(kerberosRealm);
         verify(mockNativeRoleMappingStore).resolveRoles(any(UserData.class), anyActionListener());
         verifyNoMoreInteractions(mockKerberosTicketValidator, mockNativeRoleMappingStore);
     }
@@ -255,7 +255,7 @@ public class KerberosRealmTests extends KerberosRealmTestCase {
             eq(krbDebug),
             anyActionListener()
         );
-        verify(mockNativeRoleMappingStore).refreshRealmOnChange(kerberosRealm);
+        verify(mockNativeRoleMappingStore).clearRealmCacheOnChange(kerberosRealm);
         verifyNoMoreInteractions(mockKerberosTicketValidator, mockNativeRoleMappingStore);
         verify(otherRealm, times(2)).lookupUser(eq(expectedUsername), anyActionListener());
     }

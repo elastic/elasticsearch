@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.shard;
@@ -36,6 +37,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -197,6 +199,10 @@ public final class StoreRecovery {
             .setIndexCreatedVersionMajor(luceneIndexCreatedVersionMajor);
         if (indexSort != null) {
             iwc.setIndexSort(indexSort);
+            if (indexMetadata != null && indexMetadata.getCreationVersion().onOrAfter(IndexVersions.INDEX_SORTING_ON_NESTED)) {
+                // Needed to support index sorting in the presence of nested objects.
+                iwc.setParentField(Engine.ROOT_DOC_FIELD_NAME);
+            }
         }
 
         try (IndexWriter writer = new IndexWriter(new StatsDirectoryWrapper(hardLinkOrCopyTarget, indexRecoveryStats), iwc)) {
@@ -414,7 +420,7 @@ public final class StoreRecovery {
 
             .newForked(indexShard::preRecovery)
 
-            .<Void>andThen((l, ignored) -> {
+            .<Void>andThen(l -> {
                 final RecoveryState recoveryState = indexShard.recoveryState();
                 final boolean indexShouldExists = recoveryState.getRecoverySource().getType() != RecoverySource.Type.EMPTY_STORE;
                 indexShard.prepareForIndexRecovery();
@@ -485,7 +491,7 @@ public final class StoreRecovery {
                 indexShard.openEngineAndRecoverFromTranslog(l);
             })
 
-            .<Void>andThen((l, ignored) -> {
+            .<Void>andThen(l -> {
                 indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
                 indexShard.finalizeRecovery();
                 indexShard.postRecovery("post recovery from shard_store", l);
@@ -531,7 +537,7 @@ public final class StoreRecovery {
 
             .newForked(indexShard::preRecovery)
 
-            .<ShardAndIndexIds>andThen((shardAndIndexIdsListener, ignored) -> {
+            .<ShardAndIndexIds>andThen(shardAndIndexIdsListener -> {
                 final RecoveryState.Translog translogState = indexShard.recoveryState().getTranslog();
                 if (restoreSource == null) {
                     throw new IndexShardRestoreFailedException(shardId, "empty restore source");
@@ -580,7 +586,7 @@ public final class StoreRecovery {
                 );
             })
 
-            .<Void>andThen((l, ignored) -> {
+            .<Void>andThen(l -> {
                 indexShard.getIndexEventListener().afterFilesRestoredFromRepository(indexShard);
                 final Store store = indexShard.store();
                 bootstrap(indexShard, store);
@@ -589,7 +595,7 @@ public final class StoreRecovery {
                 indexShard.openEngineAndRecoverFromTranslog(l);
             })
 
-            .<Void>andThen((l, ignored) -> {
+            .<Void>andThen(l -> {
                 indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
                 indexShard.finalizeRecovery();
                 indexShard.postRecovery("restore done", l);

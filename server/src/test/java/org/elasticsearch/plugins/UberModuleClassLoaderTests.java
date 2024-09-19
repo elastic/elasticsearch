@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugins;
@@ -427,12 +428,12 @@ public class UberModuleClassLoaderTests extends ESTestCase {
             package p;
 
             import java.util.ServiceLoader;
-            import java.util.random.RandomGenerator;
+            import java.nio.file.spi.FileSystemProvider;
 
             public class ServiceCaller {
                 public static String demo() {
                     // check no error if we load a service from the jdk
-                    ServiceLoader<RandomGenerator> randomLoader = ServiceLoader.load(RandomGenerator.class);
+                    ServiceLoader<FileSystemProvider> fileSystemLoader = ServiceLoader.load(FileSystemProvider.class);
 
                     ServiceLoader<MyService> loader = ServiceLoader.load(MyService.class, ServiceCaller.class.getClassLoader());
                     return loader.findFirst().get().getTestString();

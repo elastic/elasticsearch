@@ -48,7 +48,7 @@ Where the file looks like:
 
 [source,stemmer_override]
 --------------------------------------------------
-include::{es-test-dir}/cluster/config/analysis/stemmer_override.txt[]
+include::{elasticsearch-root}/docs/src/test/cluster/config/analysis/stemmer_override.txt[]
 --------------------------------------------------
 
 You can also define the overrides rules inline:

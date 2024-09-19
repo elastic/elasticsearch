@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters;
@@ -25,7 +24,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
@@ -33,6 +31,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.ingest.IngestStats;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.Task;
@@ -74,7 +73,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.ml.utils.InferenceProcessorInfoExtractor.pipelineIdsByResource;
+import static org.elasticsearch.xpack.core.ml.utils.InferenceProcessorInfoExtractor.pipelineIdsByResource;
 
 public class TransportGetTrainedModelsStatsAction extends TransportAction<
     GetTrainedModelsStatsAction.Request,
@@ -96,24 +95,33 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
         TrainedModelProvider trainedModelProvider,
         Client client
     ) {
-        super(GetTrainedModelsStatsAction.NAME, actionFilters, transportService.getTaskManager());
+        this(
+            transportService,
+            actionFilters,
+            clusterService,
+            trainedModelProvider,
+            client,
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+        );
+    }
+
+    private TransportGetTrainedModelsStatsAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ClusterService clusterService,
+        TrainedModelProvider trainedModelProvider,
+        Client client,
+        Executor executor
+    ) {
+        super(GetTrainedModelsStatsAction.NAME, actionFilters, transportService.getTaskManager(), executor);
         this.client = client;
         this.clusterService = clusterService;
         this.trainedModelProvider = trainedModelProvider;
-        this.executor = threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME);
+        this.executor = executor;
     }
 
     @Override
     protected void doExecute(
-        Task task,
-        GetTrainedModelsStatsAction.Request request,
-        ActionListener<GetTrainedModelsStatsAction.Response> listener
-    ) {
-        // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
-        executor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(task, request, l)));
-    }
-
-    protected void doExecuteForked(
         Task task,
         GetTrainedModelsStatsAction.Request request,
         ActionListener<GetTrainedModelsStatsAction.Response> listener
@@ -151,7 +159,7 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
             .andThenAccept(tuple -> responseBuilder.setExpandedModelIdsWithAliases(tuple.v2()).setTotalModelCount(tuple.v1()))
 
             .<NodesStatsResponse>andThen(
-                (l, ignored) -> executeAsyncWithOrigin(
+                l -> executeAsyncWithOrigin(
                     client,
                     ML_ORIGIN,
                     TransportNodesStatsAction.TYPE,
@@ -406,7 +414,7 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
     static NodesStatsRequest nodeStatsRequest(ClusterState state, TaskId parentTaskId) {
         String[] ingestNodes = state.nodes().getIngestNodes().keySet().toArray(String[]::new);
         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(ingestNodes).clear()
-            .addMetric(NodesStatsRequestParameters.Metric.INGEST.metricName());
+            .addMetric(NodesStatsRequestParameters.Metric.INGEST);
         nodesStatsRequest.setIncludeShardsStats(false);
         nodesStatsRequest.setParentTask(parentTaskId);
         return nodesStatsRequest;
@@ -442,15 +450,15 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
 
     private static IngestStats mergeStats(List<IngestStats> ingestStatsList) {
 
-        Map<String, IngestStatsAccumulator> pipelineStatsAcc = Maps.newLinkedHashMapWithExpectedSize(ingestStatsList.size());
+        Map<String, PipelineStatsAccumulator> pipelineStatsAcc = Maps.newLinkedHashMapWithExpectedSize(ingestStatsList.size());
         Map<String, Map<String, IngestStatsAccumulator>> processorStatsAcc = Maps.newLinkedHashMapWithExpectedSize(ingestStatsList.size());
         IngestStatsAccumulator totalStats = new IngestStatsAccumulator();
         ingestStatsList.forEach(ingestStats -> {
 
             ingestStats.pipelineStats()
                 .forEach(
-                    pipelineStat -> pipelineStatsAcc.computeIfAbsent(pipelineStat.pipelineId(), p -> new IngestStatsAccumulator())
-                        .inc(pipelineStat.stats())
+                    pipelineStat -> pipelineStatsAcc.computeIfAbsent(pipelineStat.pipelineId(), p -> new PipelineStatsAccumulator())
+                        .inc(pipelineStat)
                 );
 
             ingestStats.processorStats().forEach((pipelineId, processorStat) -> {
@@ -468,7 +476,9 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
 
         List<IngestStats.PipelineStat> pipelineStatList = new ArrayList<>(pipelineStatsAcc.size());
         pipelineStatsAcc.forEach(
-            (pipelineId, accumulator) -> pipelineStatList.add(new IngestStats.PipelineStat(pipelineId, accumulator.build()))
+            (pipelineId, accumulator) -> pipelineStatList.add(
+                new IngestStats.PipelineStat(pipelineId, accumulator.buildStats(), accumulator.buildByteStats())
+            )
         );
 
         Map<String, List<IngestStats.ProcessorStat>> processorStatList = Maps.newLinkedHashMapWithExpectedSize(processorStatsAcc.size());
@@ -507,6 +517,27 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
         IngestStats.Stats build() {
             return new IngestStats.Stats(ingestCount.count(), ingestTimeInMillis.count(), ingestCurrent.count(), ingestFailedCount.count());
         }
+    }
+
+    private static class PipelineStatsAccumulator {
+        IngestStatsAccumulator ingestStatsAccumulator = new IngestStatsAccumulator();
+        CounterMetric ingestBytesConsumed = new CounterMetric();
+        CounterMetric ingestBytesProduced = new CounterMetric();
+
+        void inc(IngestStats.PipelineStat s) {
+            ingestStatsAccumulator.inc(s.stats());
+            ingestBytesConsumed.inc(s.byteStats().bytesIngested());
+            ingestBytesProduced.inc(s.byteStats().bytesProduced());
+        }
+
+        IngestStats.Stats buildStats() {
+            return ingestStatsAccumulator.build();
+        }
+
+        IngestStats.ByteStats buildByteStats() {
+            return new IngestStats.ByteStats(ingestBytesConsumed.count(), ingestBytesProduced.count());
+        }
+
     }
 
 }

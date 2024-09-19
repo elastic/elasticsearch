@@ -48,7 +48,8 @@ public class DeleteDataFrameAnalyticsAction extends ActionType<AcknowledgedRespo
         }
 
         public Request() {
-            timeout(DEFAULT_TIMEOUT);
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+            ackTimeout(DEFAULT_TIMEOUT);
         }
 
         public Request(String id) {
@@ -78,7 +79,7 @@ public class DeleteDataFrameAnalyticsAction extends ActionType<AcknowledgedRespo
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             DeleteDataFrameAnalyticsAction.Request request = (DeleteDataFrameAnalyticsAction.Request) o;
-            return Objects.equals(id, request.id) && force == request.force && Objects.equals(timeout, request.timeout);
+            return Objects.equals(id, request.id) && force == request.force && Objects.equals(ackTimeout(), request.ackTimeout());
         }
 
         @Override
@@ -90,7 +91,7 @@ public class DeleteDataFrameAnalyticsAction extends ActionType<AcknowledgedRespo
 
         @Override
         public int hashCode() {
-            return Objects.hash(id, force, timeout);
+            return Objects.hash(id, force, ackTimeout());
         }
     }
 }

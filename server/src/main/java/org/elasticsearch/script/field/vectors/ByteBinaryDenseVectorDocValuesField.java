@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script.field.vectors;
@@ -17,11 +18,11 @@ import java.io.IOException;
 
 public class ByteBinaryDenseVectorDocValuesField extends DenseVectorDocValuesField {
 
-    private final BinaryDocValues input;
-    private final int dims;
-    private final byte[] vectorValue;
-    private boolean decoded;
-    private BytesRef value;
+    protected final BinaryDocValues input;
+    protected final int dims;
+    protected final byte[] vectorValue;
+    protected boolean decoded;
+    protected BytesRef value;
 
     public ByteBinaryDenseVectorDocValuesField(BinaryDocValues input, String name, ElementType elementType, int dims) {
         super(name, elementType);
@@ -50,13 +51,17 @@ public class ByteBinaryDenseVectorDocValuesField extends DenseVectorDocValuesFie
         return value == null;
     }
 
+    protected DenseVector getVector() {
+        return new ByteBinaryDenseVector(vectorValue, value, dims);
+    }
+
     @Override
     public DenseVector get() {
         if (isEmpty()) {
             return DenseVector.EMPTY;
         }
         decodeVectorIfNecessary();
-        return new ByteBinaryDenseVector(vectorValue, value, dims);
+        return getVector();
     }
 
     @Override
@@ -65,7 +70,7 @@ public class ByteBinaryDenseVectorDocValuesField extends DenseVectorDocValuesFie
             return defaultValue;
         }
         decodeVectorIfNecessary();
-        return new ByteBinaryDenseVector(vectorValue, value, dims);
+        return getVector();
     }
 
     @Override

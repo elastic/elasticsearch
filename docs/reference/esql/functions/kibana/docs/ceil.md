@@ -9,4 +9,4 @@ Round a number up to the nearest integer.
 ROW a=1.8
 | EVAL a=CEIL(a)
 ```
-Note: This is a noop for `long` (including unsigned) and `integer`. For `double` this picks the closest `double` value to the integer similar to {javadoc}/java.base/java/lang/Math.html#ceil(double)[Math.ceil].
+Note: This is a noop for `long` (including unsigned) and `integer`. For `double` this picks the closest `double` value to the integer similar to Math.ceil.

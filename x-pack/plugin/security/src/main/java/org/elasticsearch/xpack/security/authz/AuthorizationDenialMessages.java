@@ -116,11 +116,12 @@ public interface AuthorizationDenialMessages {
             String action,
             String clusterAlias
         ) {
-            assert isIndexAction(action);
             String userText = successfulAuthenticationDescription(authentication, authorizationInfo);
             String remoteClusterText = remoteClusterText(clusterAlias);
-            return actionIsUnauthorizedMessage(action, remoteClusterText, userText)
-                + " because no remote indices privileges apply for the target cluster";
+            String message = isIndexAction(action)
+                ? " because no remote indices privileges apply for the target cluster"
+                : " because no remote cluster privileges apply for the target cluster";
+            return actionIsUnauthorizedMessage(action, remoteClusterText, userText) + message;
         }
 
         protected Collection<String> findClusterPrivilegesThatGrant(

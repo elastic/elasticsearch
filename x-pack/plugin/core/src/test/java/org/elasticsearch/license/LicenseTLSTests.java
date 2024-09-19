@@ -31,7 +31,7 @@ public class LicenseTLSTests extends AbstractClusterStateLicenseServiceTestCase 
 
     public void testApplyLicenseInDevMode() throws Exception {
         License newLicense = TestUtils.generateSignedLicense(randomFrom("gold", "platinum"), TimeValue.timeValueHours(24L));
-        PutLicenseRequest request = new PutLicenseRequest();
+        PutLicenseRequest request = new PutLicenseRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         request.acknowledge(true);
         request.license(newLicense);
         Settings settings = Settings.builder().put("xpack.security.enabled", true).build();

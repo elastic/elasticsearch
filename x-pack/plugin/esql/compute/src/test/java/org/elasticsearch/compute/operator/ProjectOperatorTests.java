@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Tuple;
+import org.hamcrest.Matcher;
 
 import java.util.Arrays;
 import java.util.List;
@@ -69,12 +70,12 @@ public class ProjectOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected String expectedDescriptionOfSimple() {
-        return "ProjectOperator[projection = [1]]";
+    protected Matcher<String> expectedDescriptionOfSimple() {
+        return equalTo("ProjectOperator[projection = [1]]");
     }
 
     @Override
-    protected String expectedToStringOfSimple() {
+    protected Matcher<String> expectedToStringOfSimple() {
         return expectedDescriptionOfSimple();
     }
 

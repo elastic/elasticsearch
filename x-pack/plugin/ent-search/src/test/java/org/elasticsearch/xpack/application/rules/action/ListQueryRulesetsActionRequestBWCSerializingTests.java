@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.application.rules.action;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.application.search.SearchApplicationTestUtils;
+import org.elasticsearch.xpack.application.EnterpriseSearchModuleTestUtils;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
@@ -26,7 +26,7 @@ public class ListQueryRulesetsActionRequestBWCSerializingTests extends AbstractB
     @Override
     protected ListQueryRulesetsAction.Request createTestInstance() {
 
-        PageParams pageParams = SearchApplicationTestUtils.randomPageParams();
+        PageParams pageParams = EnterpriseSearchModuleTestUtils.randomPageParams();
         return new ListQueryRulesetsAction.Request(pageParams);
     }
 

@@ -32,7 +32,7 @@ public class OpenAiEmbeddingsRequestTaskSettingsTests extends ESTestCase {
         assertThat(settings.user(), is("user"));
     }
 
-    public static Map<String, Object> getRequestTaskSettingsMap(@Nullable String user) {
+    public static Map<String, Object> createRequestTaskSettingsMap(@Nullable String user) {
         var map = new HashMap<String, Object>();
 
         if (user != null) {

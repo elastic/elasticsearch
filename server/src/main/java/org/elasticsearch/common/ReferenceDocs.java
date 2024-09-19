@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common;
@@ -43,6 +44,7 @@ public enum ReferenceDocs {
     UNSTABLE_CLUSTER_TROUBLESHOOTING,
     LAGGING_NODE_TROUBLESHOOTING,
     SHARD_LOCK_TROUBLESHOOTING,
+    NETWORK_DISCONNECT_TROUBLESHOOTING,
     CONCURRENT_REPOSITORY_WRITERS,
     ARCHIVE_INDICES,
     HTTP_TRACER,
@@ -72,6 +74,16 @@ public enum ReferenceDocs {
     CONTACT_SUPPORT,
     UNASSIGNED_SHARDS,
     EXECUTABLE_JNA_TMPDIR,
+    NETWORK_THREADING_MODEL,
+    ALLOCATION_EXPLAIN_API,
+    NETWORK_BINDING_AND_PUBLISHING,
+    SNAPSHOT_REPOSITORY_ANALYSIS,
+    S3_COMPATIBLE_REPOSITORIES,
+    LUCENE_MAX_DOCS_LIMIT,
+    MAX_SHARDS_PER_NODE,
+    FLOOD_STAGE_WATERMARK,
+    X_OPAQUE_ID,
+    FORMING_SINGLE_NODE_CLUSTERS,
     // this comment keeps the ';' on the next line so every entry above has a trailing ',' which makes the diff for adding new links cleaner
     ;
 

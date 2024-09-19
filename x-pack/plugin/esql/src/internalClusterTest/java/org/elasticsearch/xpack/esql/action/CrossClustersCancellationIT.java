@@ -68,7 +68,7 @@ public class CrossClustersCancellationIT extends AbstractMultiClustersTestCase {
             return List.of(
                 Setting.timeSetting(
                     ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING,
-                    TimeValue.timeValueMillis(between(1000, 3000)),
+                    TimeValue.timeValueMillis(between(3000, 4000)),
                     Setting.Property.NodeScope
                 )
             );
@@ -159,7 +159,7 @@ public class CrossClustersCancellationIT extends AbstractMultiClustersTestCase {
 
     public void testCancel() throws Exception {
         createRemoteIndex(between(10, 100));
-        EsqlQueryRequest request = new EsqlQueryRequest();
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
         request.query("FROM *:test | STATS total=sum(const) | LIMIT 1");
         request.pragmas(randomPragmas());
         PlainActionFuture<EsqlQueryResponse> requestFuture = new PlainActionFuture<>();

@@ -11,6 +11,7 @@ import joptsimple.internal.Strings;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
@@ -19,14 +20,14 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -35,31 +36,34 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTypeOrUnionType;
 
 /**
  * Base class for functions that converts a field into a function-specific type.
+ * <p>
+ *     We have a guide for writing these in the javadoc for
+ *     {@link org.elasticsearch.xpack.esql.expression.function.scalar}.
+ * </p>
  */
 public abstract class AbstractConvertFunction extends UnaryScalarFunction {
 
     // the numeric types convert functions need to handle; the other numeric types are converted upstream to one of these
-    private static final List<DataType> NUMERIC_TYPES = List.of(
-        DataTypes.INTEGER,
-        DataTypes.LONG,
-        DataTypes.UNSIGNED_LONG,
-        DataTypes.DOUBLE
-    );
-    public static final List<DataType> STRING_TYPES = DataTypes.types().stream().filter(EsqlDataTypes::isString).toList();
+    private static final List<DataType> NUMERIC_TYPES = List.of(DataType.INTEGER, DataType.LONG, DataType.UNSIGNED_LONG, DataType.DOUBLE);
+    public static final List<DataType> STRING_TYPES = DataType.types().stream().filter(DataType::isString).toList();
 
     protected AbstractConvertFunction(Source source, Expression field) {
         super(source, field);
     }
 
+    protected AbstractConvertFunction(StreamInput in) throws IOException {
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class));
+    }
+
     /**
      * Build the evaluator given the evaluator a multivalued field.
      */
-    protected ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
-        DataType sourceType = field().dataType();
+    protected final ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
+        DataType sourceType = field().dataType().widenSmallNumeric();
         var factory = factories().get(sourceType);
         if (factory == null) {
             throw EsqlIllegalArgumentException.illegalDataType(sourceType);
@@ -68,14 +72,18 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
     }
 
     @Override
-    protected final TypeResolution resolveType() {
+    protected TypeResolution resolveType() {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-        return isType(field(), factories()::containsKey, sourceText(), null, supportedTypesNames(factories().keySet()));
+        return isTypeOrUnionType(field(), factories()::containsKey, sourceText(), null, supportedTypesNames(supportedTypes()));
     }
 
-    public static String supportedTypesNames(Set<DataType> types) {
+    public Set<DataType> supportedTypes() {
+        return factories().keySet();
+    }
+
+    private static String supportedTypesNames(Set<DataType> types) {
         List<String> supportedTypesNames = new ArrayList<>(types.size());
         HashSet<DataType> supportTypes = new HashSet<>(types);
         if (supportTypes.containsAll(NUMERIC_TYPES)) {
@@ -88,7 +96,7 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
             STRING_TYPES.forEach(supportTypes::remove);
         }
 
-        supportTypes.forEach(t -> supportedTypesNames.add(t.name().toLowerCase(Locale.ROOT)));
+        supportTypes.forEach(t -> supportedTypesNames.add(t.nameUpper().toLowerCase(Locale.ROOT)));
         supportedTypesNames.sort(String::compareTo);
         return Strings.join(supportedTypesNames, " or ");
     }
@@ -98,6 +106,21 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
         ExpressionEvaluator.Factory build(ExpressionEvaluator.Factory field, Source source);
     }
 
+    /**
+     * A map from input type to {@link ExpressionEvaluator} ctor. Usually implemented like:
+     * <pre>{@code
+     *     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
+     *         Map.entry(BOOLEAN, (field, source) -> field),
+     *         Map.entry(KEYWORD, ToBooleanFromStringEvaluator.Factory::new),
+     *         ...
+     *     );
+     *
+     *     @Override
+     *     protected Map<DataType, BuildFactory> factories() {
+     *         return EVALUATORS;
+     *     }
+     * }</pre>
+     */
     protected abstract Map<DataType, BuildFactory> factories();
 
     @Override

@@ -866,10 +866,6 @@ final class ES812PostingsReader extends PostingsReaderBase {
         private void skipPositions() throws IOException {
             // Skip positions now:
             int toSkip = posPendingCount - freq;
-            // if (DEBUG) {
-            // System.out.println(" FPR.skipPositions: toSkip=" + toSkip);
-            // }
-
             final int leftInBlock = BLOCK_SIZE - posBufferUpto;
             if (toSkip < leftInBlock) {
                 int end = posBufferUpto + toSkip;
@@ -1814,10 +1810,6 @@ final class ES812PostingsReader extends PostingsReaderBase {
         private void skipPositions() throws IOException {
             // Skip positions now:
             int toSkip = posPendingCount - (int) freqBuffer[docBufferUpto - 1];
-            // if (DEBUG) {
-            // System.out.println(" FPR.skipPositions: toSkip=" + toSkip);
-            // }
-
             final int leftInBlock = BLOCK_SIZE - posBufferUpto;
             if (toSkip < leftInBlock) {
                 int end = posBufferUpto + toSkip;

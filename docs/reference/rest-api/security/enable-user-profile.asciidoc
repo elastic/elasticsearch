@@ -42,7 +42,7 @@ enable user profile API to make the profile visible in these searches again.
 [[security-api-enable-user-profile-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=refresh]
 
 [[security-api-enable-user-profile-example]]
 ==== {api-examples-title}

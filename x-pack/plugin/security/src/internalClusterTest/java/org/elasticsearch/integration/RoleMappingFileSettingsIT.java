@@ -7,11 +7,13 @@
 
 package org.elasticsearch.integration;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
-import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
+import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
@@ -25,10 +27,15 @@ import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingAction;
+import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
+import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequestBuilder;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.security.action.rolemapping.ReservedRoleMappingAction;
 import org.junit.After;
@@ -39,25 +46,31 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 import static org.elasticsearch.xcontent.XContentType.JSON;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.mock;
 
 /**
- * Tests that file settings service can properly add role mappings and detect REST clashes
- * with the reserved role mappings.
+ * Tests that file settings service can properly add role mappings.
  */
 public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
 
@@ -135,12 +148,21 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
              }
         }""";
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        Settings.Builder builder = Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            // some tests make use of cluster-state based role mappings
+            .put("xpack.security.authc.cluster_state_role_mappings.enabled", true);
+        return builder.build();
+    }
+
     @After
     public void cleanUp() {
         updateClusterSettings(Settings.builder().putNull("indices.recovery.max_bytes_per_sec"));
     }
 
-    private void writeJSONFile(String node, String json) throws Exception {
+    public static void writeJSONFile(String node, String json, Logger logger, AtomicLong versionCounter) throws Exception {
         long version = versionCounter.incrementAndGet();
 
         FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
@@ -151,13 +173,14 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         Files.createDirectories(fileSettingsService.watchedFileDir());
         Path tempFilePath = createTempFile();
 
-        logger.info("--> writing JSON config to node {} with path {}", node, tempFilePath);
+        logger.info("--> before writing JSON config to node {} with path {}", node, tempFilePath);
         logger.info(Strings.format(json, version));
         Files.write(tempFilePath, Strings.format(json, version).getBytes(StandardCharsets.UTF_8));
         Files.move(tempFilePath, fileSettingsService.watchedFile(), StandardCopyOption.ATOMIC_MOVE);
+        logger.info("--> after writing JSON config to node {} with path {}", node, tempFilePath);
     }
 
-    private Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node, String expectedKey) {
+    public static Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node, String expectedKey) {
         ClusterService clusterService = internalCluster().clusterService(node);
         CountDownLatch savedClusterState = new CountDownLatch(1);
         AtomicLong metadataVersion = new AtomicLong(-1);
@@ -179,7 +202,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         return new Tuple<>(savedClusterState, metadataVersion);
     }
 
-    private Tuple<CountDownLatch, AtomicLong> setupClusterStateListenerForCleanup(String node) {
+    public static Tuple<CountDownLatch, AtomicLong> setupClusterStateListenerForCleanup(String node) {
         ClusterService clusterService = internalCluster().clusterService(node);
         CountDownLatch savedClusterState = new CountDownLatch(1);
         AtomicLong metadataVersion = new AtomicLong(-1);
@@ -206,7 +229,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         assertTrue(awaitSuccessful);
 
         final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
-            new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get())
+            new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(metadataVersion.get())
         ).get();
 
         ReservedStateMetadata reservedState = clusterStateResponse.getState()
@@ -228,7 +251,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
             equalTo("50mb")
         );
 
-        ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest().persistentSettings(
+        ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).persistentSettings(
             Settings.builder().put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "1234kb")
         );
         assertEquals(
@@ -238,100 +261,116 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
             expectThrows(ExecutionException.class, () -> clusterAdmin().updateSettings(req).get()).getMessage()
         );
 
+        for (UserRoleMapper userRoleMapper : internalCluster().getInstances(UserRoleMapper.class)) {
+            PlainActionFuture<Set<String>> resolveRolesFuture = new PlainActionFuture<>();
+            userRoleMapper.resolveRoles(
+                new UserRoleMapper.UserData("anyUsername", null, List.of(), Map.of(), mock(RealmConfig.class)),
+                resolveRolesFuture
+            );
+            assertThat(resolveRolesFuture.get(), containsInAnyOrder("kibana_user", "fleet_user"));
+        }
+
+        // the role mappings are not retrievable by the role mapping action (which only accesses "native" i.e. index-based role mappings)
         var request = new GetRoleMappingsRequest();
         request.setNames("everyone_kibana", "everyone_fleet");
         var response = client().execute(GetRoleMappingsAction.INSTANCE, request).get();
-        assertTrue(response.hasMappings());
-        assertThat(
-            Arrays.stream(response.mappings()).map(r -> r.getName()).collect(Collectors.toSet()),
-            allOf(notNullValue(), containsInAnyOrder("everyone_kibana", "everyone_fleet"))
-        );
+        assertFalse(response.hasMappings());
+        assertThat(response.mappings(), emptyArray());
 
-        // Try using the REST API to update the everyone_kibana role mapping
-        // This should fail, we have reserved certain role mappings in operator mode
-        assertEquals(
-            "Failed to process request "
-                + "[org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest/unset] "
-                + "with errors: [[everyone_kibana] set as read-only by [file_settings]]",
-            expectThrows(
-                IllegalArgumentException.class,
-                () -> client().execute(PutRoleMappingAction.INSTANCE, sampleRestRequest("everyone_kibana")).actionGet()
-            ).getMessage()
-        );
-        assertEquals(
-            "Failed to process request "
-                + "[org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest/unset] "
-                + "with errors: [[everyone_fleet] set as read-only by [file_settings]]",
-            expectThrows(
-                IllegalArgumentException.class,
-                () -> client().execute(PutRoleMappingAction.INSTANCE, sampleRestRequest("everyone_fleet")).actionGet()
-            ).getMessage()
-        );
+        // role mappings (with the same names) can also be stored in the "native" store
+        var putRoleMappingResponse = client().execute(PutRoleMappingAction.INSTANCE, sampleRestRequest("everyone_kibana")).actionGet();
+        assertTrue(putRoleMappingResponse.isCreated());
+        putRoleMappingResponse = client().execute(PutRoleMappingAction.INSTANCE, sampleRestRequest("everyone_fleet")).actionGet();
+        assertTrue(putRoleMappingResponse.isCreated());
     }
 
     public void testRoleMappingsApplied() throws Exception {
         ensureGreen();
 
         var savedClusterState = setupClusterStateListener(internalCluster().getMasterName(), "everyone_kibana");
-        writeJSONFile(internalCluster().getMasterName(), testJSON);
+        writeJSONFile(internalCluster().getMasterName(), testJSON, logger, versionCounter);
 
         assertRoleMappingsSaveOK(savedClusterState.v1(), savedClusterState.v2());
         logger.info("---> cleanup cluster settings...");
 
         savedClusterState = setupClusterStateListenerForCleanup(internalCluster().getMasterName());
 
-        writeJSONFile(internalCluster().getMasterName(), emptyJSON);
+        writeJSONFile(internalCluster().getMasterName(), emptyJSON, logger, versionCounter);
         boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
         final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
-            new ClusterStateRequest().waitForMetadataVersion(savedClusterState.v2().get())
+            new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(savedClusterState.v2().get())
         ).get();
 
         assertNull(
             clusterStateResponse.getState().metadata().persistentSettings().get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey())
         );
 
-        var request = new GetRoleMappingsRequest();
-        request.setNames("everyone_kibana", "everyone_fleet");
-        var response = client().execute(GetRoleMappingsAction.INSTANCE, request).get();
-        assertFalse(response.hasMappings());
+        // native role mappings are not affected by the removal of the cluster-state based ones
+        {
+            var request = new GetRoleMappingsRequest();
+            request.setNames("everyone_kibana", "everyone_fleet");
+            var response = client().execute(GetRoleMappingsAction.INSTANCE, request).get();
+            assertTrue(response.hasMappings());
+            assertThat(
+                Arrays.stream(response.mappings()).map(ExpressionRoleMapping::getName).toList(),
+                containsInAnyOrder("everyone_kibana", "everyone_fleet")
+            );
+        }
+
+        // and roles are resolved based on the native role mappings
+        for (UserRoleMapper userRoleMapper : internalCluster().getInstances(UserRoleMapper.class)) {
+            PlainActionFuture<Set<String>> resolveRolesFuture = new PlainActionFuture<>();
+            userRoleMapper.resolveRoles(
+                new UserRoleMapper.UserData("anyUsername", null, List.of(), Map.of(), mock(RealmConfig.class)),
+                resolveRolesFuture
+            );
+            assertThat(resolveRolesFuture.get(), contains("kibana_user_native"));
+        }
+
+        {
+            var request = new DeleteRoleMappingRequest();
+            request.setName("everyone_kibana");
+            var response = client().execute(DeleteRoleMappingAction.INSTANCE, request).get();
+            assertTrue(response.isFound());
+            request = new DeleteRoleMappingRequest();
+            request.setName("everyone_fleet");
+            response = client().execute(DeleteRoleMappingAction.INSTANCE, request).get();
+            assertTrue(response.isFound());
+        }
+
+        // no roles are resolved now, because both native and cluster-state based stores have been cleared
+        for (UserRoleMapper userRoleMapper : internalCluster().getInstances(UserRoleMapper.class)) {
+            PlainActionFuture<Set<String>> resolveRolesFuture = new PlainActionFuture<>();
+            userRoleMapper.resolveRoles(
+                new UserRoleMapper.UserData("anyUsername", null, List.of(), Map.of(), mock(RealmConfig.class)),
+                resolveRolesFuture
+            );
+            assertThat(resolveRolesFuture.get(), empty());
+        }
     }
 
-    private Tuple<CountDownLatch, AtomicLong> setupClusterStateListenerForError(String node) {
-        ClusterService clusterService = internalCluster().clusterService(node);
+    public static Tuple<CountDownLatch, AtomicLong> setupClusterStateListenerForError(
+        ClusterService clusterService,
+        Consumer<ReservedStateErrorMetadata> errorMetadataConsumer
+    ) {
         CountDownLatch savedClusterState = new CountDownLatch(1);
         AtomicLong metadataVersion = new AtomicLong(-1);
         clusterService.addListener(new ClusterStateListener() {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
                 ReservedStateMetadata reservedState = event.state().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
-                if (reservedState != null
-                    && reservedState.errorMetadata() != null
-                    && reservedState.errorMetadata().errorKind() == ReservedStateErrorMetadata.ErrorKind.PARSING) {
+                if (reservedState != null && reservedState.errorMetadata() != null) {
                     clusterService.removeListener(this);
                     metadataVersion.set(event.state().metadata().version());
                     savedClusterState.countDown();
-                    assertEquals(ReservedStateErrorMetadata.ErrorKind.PARSING, reservedState.errorMetadata().errorKind());
-                    assertThat(reservedState.errorMetadata().errors(), allOf(notNullValue(), hasSize(1)));
-                    assertThat(
-                        reservedState.errorMetadata().errors().get(0),
-                        containsString("failed to parse role-mapping [everyone_kibana_bad]. missing field [rules]")
-                    );
+                    errorMetadataConsumer.accept(reservedState.errorMetadata());
                 }
             }
         });
 
         return new Tuple<>(savedClusterState, metadataVersion);
-    }
-
-    private void assertRoleMappingsNotSaved(CountDownLatch savedClusterState, AtomicLong metadataVersion) throws Exception {
-        boolean awaitSuccessful = savedClusterState.await(20, TimeUnit.SECONDS);
-        assertTrue(awaitSuccessful);
-
-        // This should succeed, nothing was reserved
-        client().execute(PutRoleMappingAction.INSTANCE, sampleRestRequest("everyone_kibana_bad")).get();
-        client().execute(PutRoleMappingAction.INSTANCE, sampleRestRequest("everyone_fleet_ok")).get();
     }
 
     public void testErrorSaved() throws Exception {
@@ -340,12 +379,12 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         // save an empty file to clear any prior state, this ensures we don't get a stale file left over by another test
         var savedClusterState = setupClusterStateListenerForCleanup(internalCluster().getMasterName());
 
-        writeJSONFile(internalCluster().getMasterName(), emptyJSON);
+        writeJSONFile(internalCluster().getMasterName(), emptyJSON, logger, versionCounter);
         boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
         final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
-            new ClusterStateRequest().waitForMetadataVersion(savedClusterState.v2().get())
+            new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(savedClusterState.v2().get())
         ).get();
 
         assertNull(
@@ -353,76 +392,95 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         );
 
         // save a bad file
-        savedClusterState = setupClusterStateListenerForError(internalCluster().getMasterName());
-
-        writeJSONFile(internalCluster().getMasterName(), testErrorJSON);
-        assertRoleMappingsNotSaved(savedClusterState.v1(), savedClusterState.v2());
-    }
-
-    private Tuple<CountDownLatch, AtomicLong> setupClusterStateListenerForSecurityWriteError(String node) {
-        ClusterService clusterService = internalCluster().clusterService(node);
-        CountDownLatch savedClusterState = new CountDownLatch(1);
-        AtomicLong metadataVersion = new AtomicLong(-1);
-        clusterService.addListener(new ClusterStateListener() {
-            @Override
-            public void clusterChanged(ClusterChangedEvent event) {
-                ReservedStateMetadata reservedState = event.state().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
-                if (reservedState != null
-                    && reservedState.errorMetadata() != null
-                    && reservedState.errorMetadata().errorKind() == ReservedStateErrorMetadata.ErrorKind.VALIDATION) {
-                    clusterService.removeListener(this);
-                    metadataVersion.set(event.state().metadata().version());
-                    savedClusterState.countDown();
-                    assertEquals(ReservedStateErrorMetadata.ErrorKind.VALIDATION, reservedState.errorMetadata().errorKind());
-                    assertThat(reservedState.errorMetadata().errors(), allOf(notNullValue(), hasSize(1)));
-                    assertThat(reservedState.errorMetadata().errors().get(0), containsString("closed"));
-                }
+        savedClusterState = setupClusterStateListenerForError(
+            internalCluster().getCurrentMasterNodeInstance(ClusterService.class),
+            errorMetadata -> {
+                assertEquals(ReservedStateErrorMetadata.ErrorKind.PARSING, errorMetadata.errorKind());
+                assertThat(errorMetadata.errors(), allOf(notNullValue(), hasSize(1)));
+                assertThat(
+                    errorMetadata.errors().get(0),
+                    containsString("failed to parse role-mapping [everyone_kibana_bad]. missing field [rules]")
+                );
             }
-        });
-
-        return new Tuple<>(savedClusterState, metadataVersion);
-    }
-
-    public void testRoleMappingFailsToWriteToStore() throws Exception {
-        ensureGreen();
-
-        var savedClusterState = setupClusterStateListenerForSecurityWriteError(internalCluster().getMasterName());
-
-        final CloseIndexResponse closeIndexResponse = indicesAdmin().close(new CloseIndexRequest(INTERNAL_SECURITY_MAIN_INDEX_7)).get();
-        assertTrue(closeIndexResponse.isAcknowledged());
-
-        writeJSONFile(internalCluster().getMasterName(), testJSON);
-        boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
-        assertTrue(awaitSuccessful);
-
-        var request = new GetRoleMappingsRequest();
-        request.setNames("everyone_kibana", "everyone_fleet");
-
-        var response = client().execute(GetRoleMappingsAction.INSTANCE, request).get();
-        assertFalse(response.hasMappings());
-
-        final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
-            new ClusterStateRequest().waitForMetadataVersion(savedClusterState.v2().get())
-        ).get();
-
-        assertNull(
-            clusterStateResponse.getState().metadata().persistentSettings().get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey())
         );
 
-        ReservedStateMetadata reservedState = clusterStateResponse.getState()
-            .metadata()
-            .reservedStateMetadata()
-            .get(FileSettingsService.NAMESPACE);
+        writeJSONFile(internalCluster().getMasterName(), testErrorJSON, logger, versionCounter);
+        awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
+        assertTrue(awaitSuccessful);
 
-        ReservedStateHandlerMetadata handlerMetadata = reservedState.handlers().get(ReservedRoleMappingAction.NAME);
-        assertTrue(handlerMetadata == null || handlerMetadata.keys().isEmpty());
+        // no roles are resolved because both role mapping stores are empty
+        for (UserRoleMapper userRoleMapper : internalCluster().getInstances(UserRoleMapper.class)) {
+            PlainActionFuture<Set<String>> resolveRolesFuture = new PlainActionFuture<>();
+            userRoleMapper.resolveRoles(
+                new UserRoleMapper.UserData("anyUsername", null, List.of(), Map.of(), mock(RealmConfig.class)),
+                resolveRolesFuture
+            );
+            assertThat(resolveRolesFuture.get(), empty());
+        }
+    }
+
+    public void testRoleMappingApplyWithSecurityIndexClosed() throws Exception {
+        ensureGreen();
+
+        // expect the role mappings to apply even if the .security index is closed
+        var savedClusterState = setupClusterStateListener(internalCluster().getMasterName(), "everyone_kibana");
+
+        try {
+            var closeIndexResponse = indicesAdmin().close(new CloseIndexRequest(INTERNAL_SECURITY_MAIN_INDEX_7)).get();
+            assertTrue(closeIndexResponse.isAcknowledged());
+
+            writeJSONFile(internalCluster().getMasterName(), testJSON, logger, versionCounter);
+            boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
+            assertTrue(awaitSuccessful);
+
+            // no native role mappings exist
+            var request = new GetRoleMappingsRequest();
+            request.setNames("everyone_kibana", "everyone_fleet");
+            var response = client().execute(GetRoleMappingsAction.INSTANCE, request).get();
+            assertFalse(response.hasMappings());
+
+            // cluster state settings are also applied
+            var clusterStateResponse = clusterAdmin().state(
+                new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(savedClusterState.v2().get())
+            ).get();
+            assertThat(
+                clusterStateResponse.getState().metadata().persistentSettings().get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()),
+                equalTo("50mb")
+            );
+
+            ReservedStateMetadata reservedState = clusterStateResponse.getState()
+                .metadata()
+                .reservedStateMetadata()
+                .get(FileSettingsService.NAMESPACE);
+
+            ReservedStateHandlerMetadata handlerMetadata = reservedState.handlers().get(ReservedRoleMappingAction.NAME);
+            assertThat(handlerMetadata.keys(), containsInAnyOrder("everyone_kibana", "everyone_fleet"));
+
+            // and roles are resolved based on the cluster-state role mappings
+            for (UserRoleMapper userRoleMapper : internalCluster().getInstances(UserRoleMapper.class)) {
+                PlainActionFuture<Set<String>> resolveRolesFuture = new PlainActionFuture<>();
+                userRoleMapper.resolveRoles(
+                    new UserRoleMapper.UserData("anyUsername", null, List.of(), Map.of(), mock(RealmConfig.class)),
+                    resolveRolesFuture
+                );
+                assertThat(resolveRolesFuture.get(), containsInAnyOrder("kibana_user", "fleet_user"));
+            }
+        } finally {
+            savedClusterState = setupClusterStateListenerForCleanup(internalCluster().getMasterName());
+            writeJSONFile(internalCluster().getMasterName(), emptyJSON, logger, versionCounter);
+            boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
+            assertTrue(awaitSuccessful);
+
+            var openIndexResponse = indicesAdmin().open(new OpenIndexRequest(INTERNAL_SECURITY_MAIN_INDEX_7)).get();
+            assertTrue(openIndexResponse.isAcknowledged());
+        }
     }
 
     private PutRoleMappingRequest sampleRestRequest(String name) throws Exception {
         var json = """
             {
-                "enabled": false,
-                "roles": [ "kibana_user" ],
+                "enabled": true,
+                "roles": [ "kibana_user_native" ],
                 "rules": { "field": { "username": "*" } },
                 "metadata": {
                     "uuid" : "b9a59ba9-6b92-4be2-bb8d-02bb270cb3a7"
@@ -433,8 +491,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
             var bis = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
             var parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bis)
         ) {
-            ExpressionRoleMapping mapping = ExpressionRoleMapping.parse(name, parser);
-            return PutRoleMappingRequest.fromMapping(mapping);
+            return new PutRoleMappingRequestBuilder(null).source(name, parser).request();
         }
     }
 }

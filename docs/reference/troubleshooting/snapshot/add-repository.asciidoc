@@ -2,8 +2,12 @@
 == Troubleshooting broken repositories
 
 There are several situations where the <<health-api, Health API>> might report an issue
-regarding the integrity of snapshot repositories in the cluster. This page explains
-the recommended actions for diagnosing corrupted, unknown, and invalid repositories.
+regarding the integrity of snapshot repositories in the cluster. The following pages explain
+the recommended actions for diagnosing corrupted, unknown, and invalid repositories:
+
+- <<diagnosing-corrupted-repositories>>
+- <<diagnosing-unknown-repositories>>
+- <<diagnosing-invalid-repositories>>
 
 [[diagnosing-corrupted-repositories]]
 === Diagnosing corrupted repositories
@@ -16,7 +20,7 @@ guide.
 To remedy the situation mark the repository as read-only or remove it from all the
 other deployments, and re-add (recreate) the repository in the current deployment:
 
-include::{es-repo-dir}/tab-widgets/troubleshooting/snapshot/corrupt-repository-widget.asciidoc[]
+include::{es-ref-dir}/tab-widgets/troubleshooting/snapshot/corrupt-repository-widget.asciidoc[]
 
 
 [[diagnosing-unknown-repositories]]

@@ -41,11 +41,11 @@ resources significantly.
 [[analyze-index-disk-usage-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 +
 Defaults to `true`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
@@ -53,13 +53,13 @@ Defaults to `open`.
 (Optional, Boolean) If `true`, the API performs a flush before analysis. If
 `false`, the response may not include uncommitted data. Defaults to `true`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
 `run_expensive_tasks`::
 (Required, Boolean) Analyzing field disk usage is resource-intensive. To use the
 API, this parameter must be set to `true`. Defaults to `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
 
 [[analyze-index-disk-usage-api-example]]

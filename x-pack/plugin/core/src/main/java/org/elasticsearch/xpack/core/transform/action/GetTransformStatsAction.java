@@ -77,7 +77,7 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
             expandedIds = in.readCollectionAsImmutableList(StreamInput::readString);
             pageParams = new PageParams(in);
             allowNoMatch = in.readBoolean();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.TRANSFORM_GET_BASIC_STATS)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
                 basic = in.readBoolean();
             } else {
                 basic = false;
@@ -130,7 +130,7 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
             out.writeStringCollection(expandedIds);
             pageParams.writeTo(out);
             out.writeBoolean(allowNoMatch);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.TRANSFORM_GET_BASIC_STATS)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
                 out.writeBoolean(basic);
             }
         }

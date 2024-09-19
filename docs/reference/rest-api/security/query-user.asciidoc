@@ -40,7 +40,10 @@ You can specify the following parameters in the request body:
 The query supports a subset of query types, including
 <<query-dsl-match-all-query,`match_all`>>, <<query-dsl-bool-query,`bool`>>,
 <<query-dsl-term-query,`term`>>, <<query-dsl-terms-query,`terms`>>,
-<<query-dsl-prefix-query,`prefix`>>, <<query-dsl-wildcard-query,`wildcard`>> and <<query-dsl-exists-query,`exists`>>.
+<<query-dsl-match-query,`match`>>, <<query-dsl-ids-query,`ids`>>,
+<<query-dsl-prefix-query,`prefix`>>, <<query-dsl-wildcard-query,`wildcard`>>,
+<<query-dsl-exists-query,`exists`>>, <<query-dsl-range-query,`range`>>,
+and <<query-dsl-simple-query-string-query,`simple query string`>>.
 +
 You can query the following public values associated with a user.
 +
@@ -63,14 +66,7 @@ The email of the user.
 Specifies whether the user is enabled.
 ====
 
-[[security-api-query-user-query-params]]
-==== {api-query-parms-title}
-
-`with_profile_uid`::
-(Optional, boolean) Determines whether to retrieve the <<user-profile,user profile>> `uid`,
-if exists, for the users. Defaults to `false`.
-
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=from]
 +
 By default, you cannot page through more than 10,000 hits using the `from` and
 `size` parameters. To page through more hits, use the
@@ -90,6 +86,12 @@ In addition, sort can also be applied to the `_doc` field to sort by index order
 `search_after`::
 (Optional, array) <<search-after,Search after>> definition.
 
+[[security-api-query-user-query-params]]
+==== {api-query-parms-title}
+
+`with_profile_uid`::
+(Optional, boolean) Determines whether to retrieve the <<user-profile,user profile>> `uid`,
+if exists, for the users. Defaults to `false`.
 
 [[security-api-query-user-response-body]]
 ==== {api-response-body-title}
@@ -188,7 +190,7 @@ Use the user information retrieve the user with a query:
 
 [source,console]
 ----
-GET /_security/_query/user
+POST /_security/_query/user
 {
     "query": {
         "prefix": {
@@ -228,7 +230,7 @@ To retrieve the user `profile_uid` as part of the response:
 
 [source,console]
 --------------------------------------------------
-GET /_security/_query/user?with_profile_uid=true
+POST /_security/_query/user?with_profile_uid=true
 {
     "query": {
         "prefix": {
@@ -269,7 +271,7 @@ Use a `bool` query to issue complex logical conditions and use
 
 [source,js]
 ----
-GET /_security/_query/user
+POST /_security/_query/user
 {
   "query": {
     "bool": {

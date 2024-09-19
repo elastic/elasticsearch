@@ -9,6 +9,8 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.IntroSorter;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.util.Objects;
@@ -18,7 +20,7 @@ import java.util.Objects;
  */
 public final class DocVector extends AbstractVector implements Vector {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DocVector.class);
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DocVector.class);
 
     /**
      * Per position memory cost to build the shard segment doc map required
@@ -233,6 +235,16 @@ public final class DocVector extends AbstractVector implements Vector {
                 Releasables.closeExpectNoException(filteredShards, filteredSegments, filteredDocs);
             }
         }
+    }
+
+    @Override
+    public DocBlock keepMask(BooleanVector mask) {
+        throw new UnsupportedOperationException("can't mask DocVector because it can't contain nulls");
+    }
+
+    @Override
+    public ReleasableIterator<? extends Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        throw new UnsupportedOperationException("can't lookup values from DocVector");
     }
 
     @Override

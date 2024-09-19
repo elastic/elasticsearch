@@ -67,7 +67,7 @@ public class MultiNodesStatsTests extends MonitoringIntegTestCase {
         final int nbNodes = nodes;
         assertBusy(() -> {
             assertThat(cluster().size(), equalTo(nbNodes));
-            assertNoTimeout(clusterAdmin().prepareHealth().setWaitForNodes(Integer.toString(nbNodes)).get());
+            assertNoTimeout(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForNodes(Integer.toString(nbNodes)).get());
         });
 
         enableMonitoringCollection();
@@ -87,9 +87,7 @@ public class MultiNodesStatsTests extends MonitoringIntegTestCase {
                         assertThat(((StringTerms) aggregation).getBuckets().size(), equalTo(nbNodes));
 
                         for (String nodeName : internalCluster().getNodeNames()) {
-                            StringTerms.Bucket bucket = ((StringTerms) aggregation).getBucketByKey(
-                                internalCluster().clusterService(nodeName).localNode().getId()
-                            );
+                            StringTerms.Bucket bucket = ((StringTerms) aggregation).getBucketByKey(getNodeId(nodeName));
                             // At least 1 doc must exist per node, but it can be more than 1
                             // because the first node may have already collected many node stats documents
                             // whereas the last node just started to collect node stats.

@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.rest;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
@@ -28,58 +28,108 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Predicate;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static java.util.Collections.emptySet;
 
 class ESRestTestFeatureService implements TestFeatureService {
-    private final Set<String> allSupportedFeatures;
-    private final Set<String> knownHistoricalFeatureNames;
 
-    ESRestTestFeatureService(List<FeatureSpecification> featureSpecs, Collection<Version> nodeVersions, Set<String> clusterStateFeatures) {
+    /**
+     * In order to migrate from version checks to cluster feature checks,
+     * we provide synthetic features derived from versions, e.g. "gte_v8.0.0".
+     */
+    private static final Pattern VERSION_FEATURE_PATTERN = Pattern.compile("gte_v(\\d+\\.\\d+\\.\\d+)");
+
+    private final Set<String> knownHistoricalFeatureNames;
+    private final Collection<Version> nodeVersions;
+    private final Collection<Set<String>> nodeFeatures;
+    private final Collection<Set<String>> nodeHistoricalFeatures;
+
+    ESRestTestFeatureService(List<FeatureSpecification> featureSpecs, Set<Version> nodeVersions, Collection<Set<String>> nodeFeatures) {
         List<FeatureSpecification> specs = new ArrayList<>(featureSpecs);
         specs.add(new RestTestLegacyFeatures());
         if (MetadataHolder.HISTORICAL_FEATURES != null) {
             specs.add(MetadataHolder.HISTORICAL_FEATURES);
         }
-        var historicalFeatures = FeatureData.createFromSpecifications(specs).getHistoricalFeatures();
-        this.knownHistoricalFeatureNames = historicalFeatures.lastEntry().getValue();
-        var minVersion = nodeVersions.stream().min(Comparator.naturalOrder());
-        var supportedHistoricalFeatures = minVersion.map(v -> historicalFeatures.floorEntry(v).getValue())
-            .orElse(knownHistoricalFeatureNames);
-        this.allSupportedFeatures = Sets.union(clusterStateFeatures, supportedHistoricalFeatures);
+        FeatureData featureData = FeatureData.createFromSpecifications(specs);
+        assert featureData.getNodeFeatures().isEmpty()
+            : Strings.format(
+                "Only historical features can be injected via ESRestTestCase#additionalTestOnlyHistoricalFeatures(), rejecting %s",
+                featureData.getNodeFeatures().keySet()
+            );
+        this.knownHistoricalFeatureNames = featureData.getHistoricalFeatures().lastEntry().getValue();
+        this.nodeVersions = nodeVersions;
+        this.nodeFeatures = nodeFeatures;
+        this.nodeHistoricalFeatures = nodeVersions.stream()
+            .map(featureData.getHistoricalFeatures()::floorEntry)
+            .map(Map.Entry::getValue)
+            .toList();
     }
 
     public static boolean hasFeatureMetadata() {
         return MetadataHolder.HISTORICAL_FEATURES != null;
     }
 
-    @Override
-    public boolean clusterHasFeature(String featureId) {
-        if (hasFeatureMetadata()
-            && MetadataHolder.FEATURE_NAMES.contains(featureId) == false
-            && knownHistoricalFeatureNames.contains(featureId) == false) {
-            throw new IllegalArgumentException(
-                Strings.format(
-                    "Unknown feature %s: check the feature has been added to the correct FeatureSpecification in the relevant module or, "
-                        + "if this is a legacy feature used only in tests, to a test-only FeatureSpecification such as %s.",
-                    featureId,
-                    RestTestLegacyFeatures.class.getCanonicalName()
-                )
-            );
-        }
-        return allSupportedFeatures.contains(featureId);
+    private static <T> boolean checkCollection(Collection<T> coll, Predicate<T> pred, boolean any) {
+        return any ? coll.stream().anyMatch(pred) : coll.isEmpty() == false && coll.stream().allMatch(pred);
     }
 
     @Override
-    public Set<String> getAllSupportedFeatures() {
-        return allSupportedFeatures;
+    public boolean clusterHasFeature(String featureId, boolean any) {
+        if (checkCollection(nodeFeatures, s -> s.contains(featureId), any)
+            || checkCollection(nodeHistoricalFeatures, s -> s.contains(featureId), any)) {
+            return true;
+        }
+        if (MetadataHolder.FEATURE_NAMES.contains(featureId) || knownHistoricalFeatureNames.contains(featureId)) {
+            return false; // feature known but not present
+        }
+
+        // check synthetic version features (used to migrate from version checks to feature checks)
+        Matcher matcher = VERSION_FEATURE_PATTERN.matcher(featureId);
+        if (matcher.matches()) {
+            Version extractedVersion = Version.fromString(matcher.group(1));
+            if (extractedVersion.after(Version.CURRENT)) {
+                throw new IllegalArgumentException(
+                    Strings.format(
+                        "Cannot use a synthetic feature [%s] for a version after the current version [%s]",
+                        featureId,
+                        Version.CURRENT
+                    )
+                );
+            }
+
+            if (extractedVersion.equals(Version.CURRENT)) {
+                throw new IllegalArgumentException(
+                    Strings.format(
+                        "Cannot use a synthetic feature [%s] for the current version [%s]; "
+                            + "please define a test cluster feature alongside the corresponding code change instead",
+                        featureId,
+                        Version.CURRENT
+                    )
+                );
+            }
+
+            return checkCollection(nodeVersions, v -> v.onOrAfter(extractedVersion), any);
+        }
+
+        if (hasFeatureMetadata()) {
+            throw new IllegalArgumentException(
+                Strings.format(
+                    "Unknown feature %s: check the respective FeatureSpecification is provided both in module-info.java "
+                        + "as well as in META-INF/services and verify the module is loaded during tests.",
+                    featureId
+                )
+            );
+        }
+        return false;
     }
 
     private static class MetadataHolder {

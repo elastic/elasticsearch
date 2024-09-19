@@ -1,0 +1,86 @@
+setup:
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
+      reason: "Displaying matched complex named queries within percolator queries was fixed in 8.14"
+  - do:
+      indices.create:
+        index: houses
+        body:
+          mappings:
+            dynamic: strict
+            properties:
+              my_query:
+                type: percolator
+              description:
+                type: text
+              num_of_bedrooms:
+                type: integer
+              type:
+                type: keyword
+              price:
+                type: integer
+
+  - do:
+      index:
+        refresh: true
+        index: houses
+        id: query_cheap_houses_with_swimming_pool
+        body:
+          my_query:
+            {
+              "bool": {
+                "should": [
+                  { "range": { "price": { "lte": 399999, "_name": "cheap_query" } } },
+                  { "wildcard": { "description": { "value": "swim*", "_name": "swimming_pool_query" } } }
+                ]
+              }
+            }
+
+  - do:
+      index:
+        refresh: true
+        index: houses
+        id: query_big_houses_with_fireplace
+        body:
+          my_query:
+            {
+              "bool": {
+                "should": [
+                  { "range": { "num_of_bedrooms": { "gte": 3, "_name": "big_house_query" } } },
+                  { "query_string": { "query": "fire*", "fields" : ["description"],  "_name": "fireplace_query" } }
+                ]
+              }
+            }
+
+---
+"Matched named queries within percolator queries: percolate existing document":
+  - do:
+      index:
+        refresh: true
+        index: houses
+        id: house1
+        body:
+          description: "house with a beautiful fireplace and swimming pool"
+          num_of_bedrooms: 3
+          type: detached
+          price: 1000000
+
+  - do:
+      search:
+        index: houses
+        body:
+          query:
+            percolate:
+              field: my_query
+              index: houses
+              id: house1
+
+  - match: { hits.total.value: 2 }
+
+  - match: { hits.hits.0._id: query_big_houses_with_fireplace }
+  - match: { hits.hits.0.fields._percolator_document_slot: [ 0 ] }
+  - match: { hits.hits.0.fields._percolator_document_slot_0_matched_queries: [ "big_house_query", "fireplace_query" ] }
+
+  - match: { hits.hits.1._id: query_cheap_houses_with_swimming_pool }
+  - match: { hits.hits.1.fields._percolator_document_slot: [ 0 ] }
+  - match: { hits.hits.1.fields._percolator_document_slot_0_matched_queries: [ "swimming_pool_query" ] }

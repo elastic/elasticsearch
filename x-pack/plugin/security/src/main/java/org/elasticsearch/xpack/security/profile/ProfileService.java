@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.profile;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
@@ -40,6 +39,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -265,11 +265,7 @@ public class ProfileService {
     public void suggestProfile(SuggestProfilesRequest request, TaskId parentTaskId, ActionListener<SuggestProfilesResponse> listener) {
         tryFreezeAndCheckIndex(listener.map(response -> {
             assert response == null : "only null response can reach here";
-            return new SuggestProfilesResponse(
-                new SuggestProfilesResponse.ProfileHit[] {},
-                0,
-                new TotalHits(0, TotalHits.Relation.EQUAL_TO)
-            );
+            return new SuggestProfilesResponse(new SuggestProfilesResponse.ProfileHit[] {}, 0, Lucene.TOTAL_HITS_EQUAL_TO_ZERO);
         }), SEARCH_SHARDS).ifPresent(frozenProfileIndex -> {
             final SearchRequest searchRequest = buildSearchRequestForSuggest(request, parentTaskId);
 

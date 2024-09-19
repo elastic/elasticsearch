@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -83,13 +84,16 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index.getName());
         assert indexAbstraction != null : "invalid cluster metadata. index [" + index.getName() + "] was not found";
         final String rolloverTarget;
+        final boolean targetFailureStore;
         DataStream dataStream = indexAbstraction.getParentDataStream();
         if (dataStream != null) {
-            assert dataStream.getWriteIndex() != null : "datastream " + dataStream.getName() + " has no write index";
-            if (dataStream.getWriteIndex().equals(index) == false) {
+            targetFailureStore = dataStream.isFailureStoreIndex(index.getName());
+            boolean isFailureStoreWriteIndex = index.equals(dataStream.getFailureStoreWriteIndex());
+            if (isFailureStoreWriteIndex == false && dataStream.getWriteIndex().equals(index) == false) {
                 logger.warn(
-                    "index [{}] is not the write index for data stream [{}]. skipping rollover for policy [{}]",
+                    "index [{}] is not the {}write index for data stream [{}]. skipping rollover for policy [{}]",
                     index.getName(),
+                    targetFailureStore ? "failure store " : "",
                     dataStream.getName(),
                     metadata.index(index).getLifecyclePolicyName()
                 );
@@ -194,12 +198,18 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
             }
 
             rolloverTarget = rolloverAlias;
+            targetFailureStore = false;
         }
 
         // if we should only rollover if not empty, *and* if neither an explicit min_docs nor an explicit min_primary_shard_docs
         // has been specified on this policy, then inject a default min_docs: 1 condition so that we do not rollover empty indices
         boolean rolloverOnlyIfHasDocuments = LifecycleSettings.LIFECYCLE_ROLLOVER_ONLY_IF_HAS_DOCUMENTS_SETTING.get(metadata.settings());
-        RolloverRequest rolloverRequest = createRolloverRequest(rolloverTarget, masterTimeout, rolloverOnlyIfHasDocuments);
+        RolloverRequest rolloverRequest = createRolloverRequest(
+            rolloverTarget,
+            masterTimeout,
+            rolloverOnlyIfHasDocuments,
+            targetFailureStore
+        );
 
         getClient().admin().indices().rolloverIndex(rolloverRequest, ActionListener.wrap(response -> {
             final var conditionStatus = response.getConditionStatus();
@@ -226,10 +236,22 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
      * @return A RolloverRequest suitable for passing to {@code rolloverIndex(...) }.
      */
     // visible for testing
-    RolloverRequest createRolloverRequest(String rolloverTarget, TimeValue masterTimeout, boolean rolloverOnlyIfHasDocuments) {
+    RolloverRequest createRolloverRequest(
+        String rolloverTarget,
+        TimeValue masterTimeout,
+        boolean rolloverOnlyIfHasDocuments,
+        boolean targetFailureStore
+    ) {
         RolloverRequest rolloverRequest = new RolloverRequest(rolloverTarget, null).masterNodeTimeout(masterTimeout);
         rolloverRequest.dryRun(true);
         rolloverRequest.setConditions(applyDefaultConditions(conditions, rolloverOnlyIfHasDocuments));
+        if (targetFailureStore) {
+            rolloverRequest.setIndicesOptions(
+                IndicesOptions.builder(rolloverRequest.indicesOptions())
+                    .failureStoreOptions(opts -> opts.includeFailureIndices(true).includeRegularIndices(false))
+                    .build()
+            );
+        }
         return rolloverRequest;
     }
 

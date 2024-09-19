@@ -12,8 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -78,21 +77,8 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
 
         final String shutdownNode;
         final String candidateNode;
-        NodesInfoResponse nodes = clusterAdmin().prepareNodesInfo().clear().get();
-        final String node1Id = nodes.getNodes()
-            .stream()
-            .map(NodeInfo::getNode)
-            .filter(node -> node.getName().equals(node1))
-            .map(DiscoveryNode::getId)
-            .findFirst()
-            .orElseThrow();
-        final String node2Id = nodes.getNodes()
-            .stream()
-            .map(NodeInfo::getNode)
-            .filter(node -> node.getName().equals(node2))
-            .map(DiscoveryNode::getId)
-            .findFirst()
-            .orElseThrow();
+        final String node1Id = getNodeId(node1);
+        final String node2Id = getNodeId(node2);
 
         if (randomBoolean()) {
             shutdownNode = node1Id;
@@ -106,13 +92,22 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
         // Mark the node as shutting down
         client().execute(
             PutShutdownNodeAction.INSTANCE,
-            new PutShutdownNodeAction.Request(shutdownNode, SingleNodeShutdownMetadata.Type.REMOVE, "removal for testing", null, null, null)
+            new PutShutdownNodeAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                shutdownNode,
+                SingleNodeShutdownMetadata.Type.REMOVE,
+                "removal for testing",
+                null,
+                null,
+                null
+            )
         ).get();
 
         // Tell the persistent task executor it can start allocating the task
         startTask.set(true);
         // Issue a new cluster state update to force task assignment
-        clusterAdmin().prepareReroute().get();
+        ClusterRerouteUtils.reroute(client());
         // Wait until the task has been assigned to a node
         assertBusy(() -> assertNotNull("expected to have candidate nodes chosen for task", candidates.get()));
         // Check that the node that is not shut down is the only candidate

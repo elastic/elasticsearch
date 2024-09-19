@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.query;
@@ -22,7 +23,6 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
@@ -37,7 +37,7 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rank.RankSearchContext;
-import org.elasticsearch.search.rank.RankShardContext;
+import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestPhase;
@@ -59,7 +59,7 @@ public class QueryPhase {
     private QueryPhase() {}
 
     public static void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
-        if (searchContext.rankShardContext() == null) {
+        if (searchContext.queryPhaseRankShardContext() == null) {
             executeQuery(searchContext);
         } else {
             executeRank(searchContext);
@@ -67,7 +67,7 @@ public class QueryPhase {
     }
 
     static void executeRank(SearchContext searchContext) throws QueryPhaseExecutionException {
-        RankShardContext rankShardContext = searchContext.rankShardContext();
+        QueryPhaseRankShardContext queryPhaseRankShardContext = searchContext.queryPhaseRankShardContext();
         QuerySearchResult querySearchResult = searchContext.queryResult();
 
         // run the combined boolean query total hits or aggregations
@@ -76,50 +76,51 @@ public class QueryPhase {
             searchContext.size(0);
             QueryPhase.executeQuery(searchContext);
         } else {
-            searchContext.queryResult()
-                .topDocs(
-                    new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
-                    new DocValueFormat[0]
-                );
+            searchContext.queryResult().topDocs(new TopDocsAndMaxScore(Lucene.EMPTY_TOP_DOCS, Float.NaN), new DocValueFormat[0]);
         }
 
         List<TopDocs> rrfRankResults = new ArrayList<>();
         boolean searchTimedOut = querySearchResult.searchTimedOut();
         long serviceTimeEWMA = querySearchResult.serviceTimeEWMA();
         int nodeQueueSize = querySearchResult.nodeQueueSize();
+        try {
+            // run each of the rank queries
+            for (Query rankQuery : queryPhaseRankShardContext.queries()) {
+                // if a search timeout occurs, exit with partial results
+                if (searchTimedOut) {
+                    break;
+                }
+                try (
+                    RankSearchContext rankSearchContext = new RankSearchContext(
+                        searchContext,
+                        rankQuery,
+                        queryPhaseRankShardContext.rankWindowSize()
+                    )
+                ) {
+                    QueryPhase.addCollectorsAndSearch(rankSearchContext);
+                    QuerySearchResult rrfQuerySearchResult = rankSearchContext.queryResult();
+                    rrfRankResults.add(rrfQuerySearchResult.topDocs().topDocs);
+                    serviceTimeEWMA += rrfQuerySearchResult.serviceTimeEWMA();
+                    nodeQueueSize = Math.max(nodeQueueSize, rrfQuerySearchResult.nodeQueueSize());
+                    searchTimedOut = rrfQuerySearchResult.searchTimedOut();
+                }
+            }
 
-        // run each of the rank queries
-        for (Query rankQuery : rankShardContext.queries()) {
-            // if a search timeout occurs, exit with partial results
-            if (searchTimedOut) {
-                break;
-            }
-            try (RankSearchContext rankSearchContext = new RankSearchContext(searchContext, rankQuery, rankShardContext.windowSize())) {
-                QueryPhase.addCollectorsAndSearch(rankSearchContext);
-                QuerySearchResult rrfQuerySearchResult = rankSearchContext.queryResult();
-                rrfRankResults.add(rrfQuerySearchResult.topDocs().topDocs);
-                serviceTimeEWMA += rrfQuerySearchResult.serviceTimeEWMA();
-                nodeQueueSize = Math.max(nodeQueueSize, rrfQuerySearchResult.nodeQueueSize());
-                searchTimedOut = rrfQuerySearchResult.searchTimedOut();
-            }
+            querySearchResult.setRankShardResult(queryPhaseRankShardContext.combineQueryPhaseResults(rrfRankResults));
+
+            // record values relevant to all queries
+            querySearchResult.searchTimedOut(searchTimedOut);
+            querySearchResult.serviceTimeEWMA(serviceTimeEWMA);
+            querySearchResult.nodeQueueSize(nodeQueueSize);
+        } catch (Exception e) {
+            throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Failed to execute rank query", e);
         }
-
-        querySearchResult.setRankShardResult(rankShardContext.combine(rrfRankResults));
-
-        // record values relevant to all queries
-        querySearchResult.searchTimedOut(searchTimedOut);
-        querySearchResult.serviceTimeEWMA(serviceTimeEWMA);
-        querySearchResult.nodeQueueSize(nodeQueueSize);
     }
 
     static void executeQuery(SearchContext searchContext) throws QueryPhaseExecutionException {
         if (searchContext.hasOnlySuggest()) {
             SuggestPhase.execute(searchContext);
-            searchContext.queryResult()
-                .topDocs(
-                    new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
-                    new DocValueFormat[0]
-                );
+            searchContext.queryResult().topDocs(new TopDocsAndMaxScore(Lucene.EMPTY_TOP_DOCS, Float.NaN), new DocValueFormat[0]);
             return;
         }
 

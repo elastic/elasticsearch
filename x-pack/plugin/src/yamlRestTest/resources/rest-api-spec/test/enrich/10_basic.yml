@@ -62,10 +62,10 @@ setup:
 
 ---
 "Test using the deprecated elasticsearch_version field results in a warning":
-  - skip:
-      version: " - 8.11.99"
+  - requires:
+      cluster_features: ["gte_v8.12.0"]
       reason: "elasticsearch_version field deprecated in 8.12.0, to be removed in 9.0"
-      features: warnings
+      test_runner_features: warnings
 
   - do:
       warnings:

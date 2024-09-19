@@ -25,13 +25,14 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -188,15 +189,20 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Transpo
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
+
+        public interface Factory {
+            Request create(Step.StepKey currentStepKey, PartialStepKey nextStepKey);
+        }
+
         static final ParseField CURRENT_KEY_FIELD = new ParseField("current_step");
         static final ParseField NEXT_KEY_FIELD = new ParseField("next_step");
-        private static final ConstructingObjectParser<Request, String> PARSER = new ConstructingObjectParser<>(
+        private static final ConstructingObjectParser<Request, Factory> PARSER = new ConstructingObjectParser<>(
             "move_to_step_request",
             false,
-            (a, index) -> {
+            (a, factory) -> {
                 Step.StepKey currentStepKey = (Step.StepKey) a[0];
                 PartialStepKey nextStepKey = (PartialStepKey) a[1];
-                return new Request(index, currentStepKey, nextStepKey);
+                return factory.create(currentStepKey, nextStepKey);
             }
         );
 
@@ -207,11 +213,18 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Transpo
             PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, name) -> PartialStepKey.parse(p), NEXT_KEY_FIELD);
         }
 
-        private String index;
-        private Step.StepKey currentStepKey;
-        private PartialStepKey nextStepKey;
+        private final String index;
+        private final Step.StepKey currentStepKey;
+        private final PartialStepKey nextStepKey;
 
-        public Request(String index, Step.StepKey currentStepKey, PartialStepKey nextStepKey) {
+        public Request(
+            TimeValue masterNodeTimeout,
+            TimeValue ackTimeout,
+            String index,
+            Step.StepKey currentStepKey,
+            PartialStepKey nextStepKey
+        ) {
+            super(masterNodeTimeout, ackTimeout);
             this.index = index;
             this.currentStepKey = currentStepKey;
             this.nextStepKey = nextStepKey;
@@ -223,8 +236,6 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Transpo
             this.currentStepKey = Step.StepKey.readFrom(in);
             this.nextStepKey = new PartialStepKey(in);
         }
-
-        public Request() {}
 
         public String getIndex() {
             return index;
@@ -243,8 +254,8 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Transpo
             return null;
         }
 
-        public static Request parseRequest(String name, XContentParser parser) {
-            return PARSER.apply(parser, name);
+        public static Request parseRequest(Factory factory, XContentParser parser) {
+            return PARSER.apply(parser, factory);
         }
 
         @Override

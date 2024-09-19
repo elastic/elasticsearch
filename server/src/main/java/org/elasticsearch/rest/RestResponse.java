@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest;
@@ -37,6 +38,7 @@ import static org.elasticsearch.rest.RestController.ELASTIC_PRODUCT_HTTP_HEADER;
 public final class RestResponse implements Releasable {
 
     public static final String TEXT_CONTENT_TYPE = "text/plain; charset=UTF-8";
+    public static final Set<String> RESPONSE_PARAMS = Set.of("error_trace");
 
     static final String STATUS = "status";
 
@@ -48,7 +50,7 @@ public final class RestResponse implements Releasable {
     private final BytesReference content;
 
     @Nullable
-    private final ChunkedRestResponseBody chunkedResponseBody;
+    private final ChunkedRestResponseBodyPart chunkedResponseBody;
     private final String responseMediaType;
     private Map<String, List<String>> customHeaders;
 
@@ -84,8 +86,9 @@ public final class RestResponse implements Releasable {
         this(status, responseMediaType, content, null, releasable);
     }
 
-    public static RestResponse chunked(RestStatus restStatus, ChunkedRestResponseBody content, @Nullable Releasable releasable) {
-        if (content.isDone()) {
+    public static RestResponse chunked(RestStatus restStatus, ChunkedRestResponseBodyPart content, @Nullable Releasable releasable) {
+        if (content.isPartComplete()) {
+            assert content.isLastPart() : "response with continuations must have at least one (possibly-empty) chunk in each part";
             return new RestResponse(restStatus, content.getResponseContentTypeString(), BytesArray.EMPTY, releasable);
         } else {
             return new RestResponse(restStatus, content.getResponseContentTypeString(), null, content, releasable);
@@ -99,7 +102,7 @@ public final class RestResponse implements Releasable {
         RestStatus status,
         String responseMediaType,
         @Nullable BytesReference content,
-        @Nullable ChunkedRestResponseBody chunkedResponseBody,
+        @Nullable ChunkedRestResponseBodyPart chunkedResponseBody,
         @Nullable Releasable releasable
     ) {
         this.status = status;
@@ -161,7 +164,7 @@ public final class RestResponse implements Releasable {
     }
 
     @Nullable
-    public ChunkedRestResponseBody chunkedContent() {
+    public ChunkedRestResponseBodyPart chunkedContent() {
         return chunkedResponseBody;
     }
 

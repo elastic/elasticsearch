@@ -5,8 +5,10 @@
   "composed_of": [
     "metrics@mappings",
     "data-streams@mappings",
-    "metrics@settings"
+    "metrics@settings",
+    "metrics@custom"
   ],
+  "ignore_missing_component_templates": ["metrics@custom"],
   "allow_auto_create": true,
   "_meta": {
     "description": "default metrics template installed by x-pack",

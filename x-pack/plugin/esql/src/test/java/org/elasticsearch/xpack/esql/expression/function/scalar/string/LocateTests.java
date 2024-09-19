@@ -12,12 +12,11 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -31,12 +30,12 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Tests for {@link Locate} function.
  */
-public class LocateTests extends AbstractFunctionTestCase {
+public class LocateTests extends AbstractScalarFunctionTestCase {
     public LocateTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
-    private static final DataType[] STRING_TYPES = new DataType[] { DataTypes.KEYWORD, DataTypes.TEXT };
+    private static final DataType[] STRING_TYPES = new DataType[] { DataType.KEYWORD, DataType.TEXT };
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
@@ -79,7 +78,12 @@ public class LocateTests extends AbstractFunctionTestCase {
             }
         }
 
-        suppliers = errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers));
+        suppliers = errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), (v, p) -> {
+            if (p == 0 || p == 1) {
+                return "string";
+            }
+            return "integer";
+        });
 
         // Here follows some non-randomized examples that we want to cover on every run
         suppliers.add(supplier("a tiger", "a t", null, 1));
@@ -147,8 +151,8 @@ public class LocateTests extends AbstractFunctionTestCase {
 
         return new TestCaseSupplier(
             name,
-            types(DataTypes.KEYWORD, DataTypes.KEYWORD, start != null),
-            () -> testCase(DataTypes.KEYWORD, DataTypes.KEYWORD, str, substr, start, expectedValue)
+            types(DataType.KEYWORD, DataType.KEYWORD, start != null),
+            () -> testCase(DataType.KEYWORD, DataType.KEYWORD, str, substr, start, expectedValue)
         );
     }
 
@@ -186,7 +190,7 @@ public class LocateTests extends AbstractFunctionTestCase {
         types.add(firstType);
         types.add(secondType);
         if (hasStart) {
-            types.add(DataTypes.INTEGER);
+            types.add(DataType.INTEGER);
         }
         return types;
     }
@@ -203,8 +207,8 @@ public class LocateTests extends AbstractFunctionTestCase {
         values.add(new TestCaseSupplier.TypedData(str == null ? null : new BytesRef(str), strType, "str"));
         values.add(new TestCaseSupplier.TypedData(substr == null ? null : new BytesRef(substr), substrType, "substr"));
         if (start != null) {
-            values.add(new TestCaseSupplier.TypedData(start, DataTypes.INTEGER, "start"));
+            values.add(new TestCaseSupplier.TypedData(start, DataType.INTEGER, "start"));
         }
-        return new TestCaseSupplier.TestCase(values, expectedToString(start != null), DataTypes.INTEGER, equalTo(expectedValue));
+        return new TestCaseSupplier.TestCase(values, expectedToString(start != null), DataType.INTEGER, equalTo(expectedValue));
     }
 }

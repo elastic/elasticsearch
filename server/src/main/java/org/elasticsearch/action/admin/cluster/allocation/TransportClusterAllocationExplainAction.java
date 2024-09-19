@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.allocation;
@@ -28,7 +29,9 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation.DebugMode;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -160,11 +163,10 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
                 }
             }
             if (foundShard == null) {
-                throw new IllegalArgumentException(
-                    "No shard was specified in the request which means the response should explain a randomly-chosen unassigned shard, "
-                        + "but there are no unassigned shards in this cluster. To explain the allocation of an assigned shard you must "
-                        + "specify the target shard in the request."
-                );
+                throw new IllegalArgumentException(Strings.format("""
+                    No shard was specified in the request which means the response should explain a randomly-chosen unassigned shard, but \
+                    there are no unassigned shards in this cluster. To explain the allocation of an assigned shard you must specify the \
+                    target shard in the request. See %s for more information.""", ReferenceDocs.ALLOCATION_EXPLAIN_API));
             }
         } else {
             String index = request.getIndex();

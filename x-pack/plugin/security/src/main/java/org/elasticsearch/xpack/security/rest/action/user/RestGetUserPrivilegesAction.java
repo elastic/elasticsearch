@@ -96,7 +96,9 @@ public class RestGetUserPrivilegesAction extends SecurityBaseRestHandler {
             if (response.hasRemoteIndicesPrivileges()) {
                 builder.field(RoleDescriptor.Fields.REMOTE_INDICES.getPreferredName(), response.getRemoteIndexPrivileges());
             }
-
+            if (response.hasRemoteClusterPrivileges()) {
+                builder.array(RoleDescriptor.Fields.REMOTE_CLUSTER.getPreferredName(), response.getRemoteClusterPermissions());
+            }
             builder.endObject();
             return new RestResponse(RestStatus.OK, builder);
         }

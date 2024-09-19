@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.vectors;
 
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.search.VectorScorer;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.script.field.vectors.ByteKnnDenseVectorDocValuesField;
 import org.elasticsearch.script.field.vectors.DenseVector;
@@ -230,6 +232,11 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
                 }
                 return index = target;
             }
+
+            @Override
+            public VectorScorer scorer(byte[] floats) throws IOException {
+                throw new UnsupportedOperationException();
+            }
         };
     }
 
@@ -269,6 +276,11 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
                     return NO_MORE_DOCS;
                 }
                 return index = target;
+            }
+
+            @Override
+            public VectorScorer scorer(float[] floats) throws IOException {
+                throw new UnsupportedOperationException();
             }
         };
     }

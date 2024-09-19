@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.indices;
 
@@ -247,12 +248,13 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         ensureGreen("test1");
         waitForRelocation();
 
-        AcknowledgedResponse putRepositoryResponse = clusterAdmin().preparePutRepository("dummy-repo")
-            .setType("fs")
-            .setSettings(Settings.builder().put("location", randomRepoPath()))
-            .get();
+        AcknowledgedResponse putRepositoryResponse = clusterAdmin().preparePutRepository(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            "dummy-repo"
+        ).setType("fs").setSettings(Settings.builder().put("location", randomRepoPath())).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
-        clusterAdmin().prepareCreateSnapshot("dummy-repo", "snap1").setWaitForCompletion(true).get();
+        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "dummy-repo", "snap1").setWaitForCompletion(true).get();
 
         verify(snapshot("snap2", "test1", "test2"), true);
         verify(restore("snap1", "test1", "test2"), true);
@@ -364,12 +366,13 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         ensureGreen("foobar");
         waitForRelocation();
 
-        AcknowledgedResponse putRepositoryResponse = clusterAdmin().preparePutRepository("dummy-repo")
-            .setType("fs")
-            .setSettings(Settings.builder().put("location", randomRepoPath()))
-            .get();
+        AcknowledgedResponse putRepositoryResponse = clusterAdmin().preparePutRepository(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            "dummy-repo"
+        ).setType("fs").setSettings(Settings.builder().put("location", randomRepoPath())).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
-        clusterAdmin().prepareCreateSnapshot("dummy-repo", "snap1").setWaitForCompletion(true).get();
+        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "dummy-repo", "snap1").setWaitForCompletion(true).get();
 
         IndicesOptions options = IndicesOptions.fromOptions(false, false, true, false);
         verify(snapshot("snap2", "foo*", "bar*").setIndicesOptions(options), true);
@@ -640,7 +643,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
     }
 
     static GetAliasesRequestBuilder getAliases(String... indices) {
-        return indicesAdmin().prepareGetAliases("dummy").addIndices(indices);
+        return indicesAdmin().prepareGetAliases("dummy").setIndices(indices);
     }
 
     static GetFieldMappingsRequestBuilder getFieldMapping(String... indices) {
@@ -656,11 +659,13 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
     }
 
     private static CreateSnapshotRequestBuilder snapshot(String name, String... indices) {
-        return clusterAdmin().prepareCreateSnapshot("dummy-repo", name).setWaitForCompletion(true).setIndices(indices);
+        return clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "dummy-repo", name)
+            .setWaitForCompletion(true)
+            .setIndices(indices);
     }
 
     private static RestoreSnapshotRequestBuilder restore(String name, String... indices) {
-        return clusterAdmin().prepareRestoreSnapshot("dummy-repo", name)
+        return clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "dummy-repo", name)
             .setRenamePattern("(.+)")
             .setRenameReplacement("$1-copy-" + name)
             .setWaitForCompletion(true)

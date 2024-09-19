@@ -19,11 +19,9 @@ import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.AnyOperatorTestCase;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
@@ -32,7 +30,6 @@ import org.elasticsearch.compute.operator.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -50,13 +47,13 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.matchesRegex;
 
-public class ScoringLuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
+public class ScoringLuceneTopNSourceOperatorTests extends LuceneTopNSourceOperatorTests {
     private static final MappedFieldType S_FIELD = new NumberFieldMapper.NumberFieldType("s", NumberFieldMapper.NumberType.LONG);
     private Directory directory = newDirectory();
     private IndexReader reader;
 
     @After
-    public void closeIndex() throws IOException {
+    private void closeIndex() throws IOException {
         IOUtils.close(reader, directory);
     }
 
@@ -121,47 +118,8 @@ public class ScoringLuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
         );
     }
 
-    // TODO tests for the other data partitioning configurations
-
-    public void testShardDataPartitioning() {
-        testShardDataPartitioning(driverContext());
-    }
-
-    public void testShardDataPartitioningWithCranky() {
-        try {
-            testShardDataPartitioning(crankyDriverContext());
-            logger.info("cranky didn't break");
-        } catch (CircuitBreakingException e) {
-            logger.info("broken", e);
-            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
-        }
-    }
-
-    private void testShardDataPartitioning(DriverContext context) {
-        int size = between(1_000, 20_000);
-        int limit = between(10, size);
-        testSimple(context, size, limit);
-    }
-
-    public void testEmpty() {
-        testEmpty(driverContext());
-    }
-
-    public void testEmptyWithCranky() {
-        try {
-            testEmpty(crankyDriverContext());
-            logger.info("cranky didn't break");
-        } catch (CircuitBreakingException e) {
-            logger.info("broken", e);
-            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
-        }
-    }
-
-    private void testEmpty(DriverContext context) {
-        testSimple(context, 0, between(10, 10_000));
-    }
-
-    private void testSimple(DriverContext ctx, int size, int limit) {
+    @Override
+    protected void testSimple(DriverContext ctx, int size, int limit) {
         ScoringLuceneTopNSourceOperator.Factory factory = simple(DataPartitioning.SHARD, size, limit);
         Operator.OperatorFactory readS = ValuesSourceReaderOperatorTests.factory(reader, S_FIELD, ElementType.LONG);
 

@@ -1819,11 +1819,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
         // TODO add more complicated patterns here
     }
 
-    public void testInvalidParamPosition() {
+    public void testParamInInvalidPosition() {
         // param for pattern is not supported in eval/where/stats/sort/rename/dissect/grok/enrich/mvexpand
         // where/stats/sort/dissect/grok are covered in RestEsqlTestCase
         for (String invalidParamPosition : List.of("eval ?f1 = 1", "stats x = ?f1(*)", "mv_expand ?f1", "rename ?f1 as ?f2")) {
-            for (String pattern : List.of("f1*", "*")) {
+            for (String pattern : List.of("f1*", "*", "`f1*`", "`*`")) {
                 // pattern is not supported
                 expectError(
                     "from test | " + invalidParamPosition,
@@ -1868,28 +1868,28 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testMissingParam() {
-        // eval/where/stats/sort/rename/dissect/grok/enrich/mvexpand/keep/drop
-        String error = "Unknown query parameter [n1], did you mean [n4]?";
-        String errorMvExpand = "Unsupported or unknown query parameter [?n1]";
+        // cover all processing commands eval/where/stats/sort/rename/dissect/grok/enrich/mvexpand/keep/drop
+        String error = "Unknown query parameter [f1], did you mean [f4]?";
+        String errorMvExpand = "Unsupported or unknown query parameter [?f1]";
         for (String missingParam : List.of(
-            "eval x = ?n1",
-            "where ?n1 == \"a\"",
-            "stats x = count(?n1)",
-            "sort ?n1",
-            "rename ?n1 as ?n2",
-            "dissect ?n1 \"%{bar}\"",
-            "grok ?n1 \"%{WORD:foo}\"",
-            "enrich idx2 ON ?n1 WITH ?n2 = ?n3",
-            "mv_expand ?n1",
-            "keep ?n1",
-            "drop ?n1"
+            "eval x = ?f1",
+            "where ?f1 == \"a\"",
+            "stats x = count(?f1)",
+            "sort ?f1",
+            "rename ?f1 as ?f2",
+            "dissect ?f1 \"%{bar}\"",
+            "grok ?f1 \"%{WORD:foo}\"",
+            "enrich idx2 ON ?f1 WITH ?f2 = ?f3",
+            "mv_expand ?f1",
+            "keep ?f1",
+            "drop ?f1"
         )) {
             for (String identifierOrPattern : List.of("identifier", "identifierpattern")) {
                 expectError(
                     "from test | " + missingParam,
                     List.of(
                         new QueryParam(
-                            "n4",
+                            "f4",
                             "f1*",
                             NULL,
                             identifierOrPattern.equals("identifier"),

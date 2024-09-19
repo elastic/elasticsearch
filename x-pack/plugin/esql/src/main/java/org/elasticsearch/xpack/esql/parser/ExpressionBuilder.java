@@ -341,7 +341,15 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                         throw new ParsingException(src, "Constant [{}] is unsupported for [{}]", patterns.get(i), ctx.getText());
                     }
                 } else if (exp instanceof UnresolvedAttribute ua) {
-                    patternContext = "`" + ua.name() + "`";
+                    String identifier = ua.name();
+                    if (identifier != null) {
+                        if (identifier.contains(WILDCARD) && (identifier.charAt(0) == '`') == false) {
+                            // identifier with star need to be quoted
+                            patternContext = "`" + identifier.replace("`", "``") + "`";
+                        } else {
+                            patternContext = identifier;
+                        }
+                    }
                 } else if (exp instanceof UnresolvedNamePattern up) {
                     patternContext = up.name();
                 }

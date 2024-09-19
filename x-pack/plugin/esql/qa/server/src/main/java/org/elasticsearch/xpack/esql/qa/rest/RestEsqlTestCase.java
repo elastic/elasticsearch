@@ -690,7 +690,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             )
         );
         String error = re.getMessage();
-        assertThat(error, containsString(": Unknown query parameter [n1]"));
+        assertThat(error, containsString("Unknown query parameter [n1]"));
 
         // field name pattern is not supported in where/stats/sort/dissect/grok
         // eval/rename/enrich/mvexpand are covered in StatementParserTests
@@ -727,6 +727,58 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             error = re.getMessage();
             assertThat(error, containsString("VerificationException"));
             assertThat(error, containsString("Unknown function [" + pattern + "]"));
+        }
+
+        // param inside backquote is not recognized as a param
+        re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(
+                requestObjectBuilder().query(
+                    format(
+                        null,
+                        "from {} | eval x1 = `?n1` | where `?n2` == x1 | stats xx2 = max(`?n3`) by `?n4` | keep `?n4`, `?n5` | sort `?n4`",
+                        testIndexName()
+                    )
+                )
+                    .params(
+                        "[{\"n1\" : {\"value\" : \"integer\" , \"identifier\" : true}},"
+                            + "{\"n2\" : {\"value\" : \"short\" , \"identifier\" : true}}, "
+                            + "{\"n3\" : {\"value\" : \"double\" , \"identifier\" : true}},"
+                            + "{\"n4\" : {\"value\" : \"boolean\" , \"identifier\" : true}}, "
+                            + "{\"n5\" : {\"value\" : \"xx*\" , \"identifierpattern\" : true}}]"
+                    )
+            )
+        );
+        error = re.getMessage();
+        assertThat(error, containsString("Unknown column [?n1]"));
+
+        List<String> commandsQuoted = List.of(
+            "eval x = ?n1",
+            "where ?n1 == \"a\"",
+            "stats x = count(?n1)",
+            "sort ?n1",
+            "dissect ?n1 \"%{bar}\"",
+            "grok ?n1 \"%{WORD:foo}\"",
+            "mv_expand ?n1"
+        );
+        List<String> commandsUnquoted = List.of("rename ?n1 as ?n2", "enrich idx2 ON ?n1 WITH ?n2 = ?n3", "keep ?n1", "drop ?n1");
+        List<String> allCommands = new ArrayList<>();
+        allCommands.addAll(commandsUnquoted);
+        allCommands.addAll(commandsQuoted);
+        for (Object command : allCommands) {
+            re = expectThrows(
+                ResponseException.class,
+                () -> runEsqlSync(
+                    requestObjectBuilder().query(format(null, "from {} | {}", testIndexName(), command))
+                        .params(
+                            "[{\"n1\" : {\"value\" : \"`n1`\" , \"identifier\" : true}},"
+                                + "{\"n2\" : {\"value\" : \"`n2`\" , \"identifier\" : true}}, "
+                                + "{\"n3\" : {\"value\" : \"`n3`\" , \"identifier\" : true}}]"
+                        )
+                )
+            );
+            error = re.getMessage();
+            assertThat(error, containsString("Unknown column " + (commandsUnquoted.contains(command) ? "[n1]" : "[`n1`]")));
         }
     }
 

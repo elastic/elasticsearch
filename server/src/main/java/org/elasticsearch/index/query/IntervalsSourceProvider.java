@@ -14,11 +14,13 @@ import org.apache.lucene.queries.intervals.IntervalIterator;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -753,7 +755,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
     }
 
-    public static class Regexp extends IntervalsSourceProvider {
+    public static class Regexp extends IntervalsSourceProvider implements VersionedNamedWriteable {
 
         public static final String NAME = "regexp";
 
@@ -822,15 +824,12 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
 
         @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersions.REGEX_AND_RANGE_INTERVAL_QUERIES;
+        }
+
+        @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().before(TransportVersions.REGEX_AND_RANGE_INTERVAL_QUERIES)) {
-                throw new UnsupportedOperationException(
-                    "regex interval requires at least version "
-                        + TransportVersions.REGEX_AND_RANGE_INTERVAL_QUERIES
-                        + " but was "
-                        + out.getTransportVersion()
-                );
-            }
             out.writeString(pattern);
             out.writeOptionalString(analyzer);
             out.writeOptionalString(useField);
@@ -1040,7 +1039,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
     }
 
-    public static class Range extends IntervalsSourceProvider {
+    public static class Range extends IntervalsSourceProvider implements VersionedNamedWriteable {
 
         public static final String NAME = "range";
 
@@ -1129,15 +1128,12 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
 
         @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersions.REGEX_AND_RANGE_INTERVAL_QUERIES;
+        }
+
+        @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().before(TransportVersions.REGEX_AND_RANGE_INTERVAL_QUERIES)) {
-                throw new UnsupportedOperationException(
-                    "range interval requires at least version "
-                        + TransportVersions.REGEX_AND_RANGE_INTERVAL_QUERIES
-                        + " but was "
-                        + out.getTransportVersion()
-                );
-            }
             out.writeString(lowerTerm);
             out.writeString(upperTerm);
             out.writeBoolean(includeLower);

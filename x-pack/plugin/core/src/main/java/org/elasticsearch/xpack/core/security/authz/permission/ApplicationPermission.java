@@ -204,7 +204,9 @@ public final class ApplicationPermission {
                 return false;
             }
 
-            return privilege.patternsEmpty() == false && other.patternsEmpty() == false && privilege.supersetOfPatterns(other);
+            return privilege.patternsEmpty() == false
+                && other.patternsEmpty() == false
+                && privilege.supersetOfPatterns(other.getPatterns());
         }
 
         @Override

@@ -42,7 +42,7 @@ public class ApplicationPrivilegeTests extends ESTestCase {
         final String... patterns
     ) {
         // TODO rewrite this to use `ApplicationPrivilege.get()`
-        return new StringMatchingApplicationPrivilege(applicationName, privilegeNames, patterns);
+        return new ApplicationPrivilege(applicationName, privilegeNames, patterns);
     }
 
     public void testValidationOfApplicationName() {

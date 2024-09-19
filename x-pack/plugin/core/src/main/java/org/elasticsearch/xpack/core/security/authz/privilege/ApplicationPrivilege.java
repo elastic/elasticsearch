@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.support.Automatons;
+import org.elasticsearch.xpack.core.security.support.StringMatcher;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -31,7 +32,7 @@ import java.util.stream.Collectors;
  * The action patterns are entirely optional - many application will find that simple "privilege names" are sufficient, but
  * they allow applications to define high level abstract privileges that map to multiple low level capabilities.
  */
-public abstract class ApplicationPrivilege {
+public final class ApplicationPrivilege {
 
     private static final Pattern VALID_APPLICATION_PREFIX = Pattern.compile("^[a-z][A-Za-z0-9]*$");
     private static final Pattern WHITESPACE = Pattern.compile("[\\v\\h]");
@@ -43,20 +44,19 @@ public abstract class ApplicationPrivilege {
      */
     private static final Pattern VALID_NAME_OR_ACTION = Pattern.compile("^\\p{Graph}*$");
 
-    public static final Function<String, ApplicationPrivilege> NONE = app -> new StringMatchingApplicationPrivilege(
-        app,
-        Collections.singleton("none")
-    );
+    public static final Function<String, ApplicationPrivilege> NONE = app -> new ApplicationPrivilege(app, Collections.singleton("none"));
 
     private final String application;
     private final String[] patterns;
     public final Set<String> name;
+    private final StringMatcher patternMatcher;
 
     // TODO make this private once ApplicationPrivilegeTests::createPrivilege uses ApplicationPrivilege::get
     ApplicationPrivilege(String application, Set<String> name, String... patterns) {
         this.application = application;
         this.patterns = patterns;
         this.name = name;
+        this.patternMatcher = StringMatcher.of(patterns);
     }
 
     public String getApplication() {
@@ -67,13 +67,22 @@ public abstract class ApplicationPrivilege {
         return patterns;
     }
 
-    public abstract boolean patternsTotal();
+    public boolean patternsTotal() {
+        return patternMatcher.isTotal();
+    }
 
-    public abstract boolean patternsEmpty();
+    public boolean patternsEmpty() {
+        return patternMatcher.isEmpty();
+    }
 
-    public abstract boolean supersetOfPatterns(ApplicationPrivilege other);
-
-    public abstract boolean supersetOfPatterns(String... patterns);
+    public boolean supersetOfPatterns(String... patterns) {
+        for (var pattern : patterns) {
+            if (false == patternMatcher.test(pattern)) {
+                return false;
+            }
+        }
+        return true;
+    }
 
     /**
      * Validate that the provided application name is valid, and throws an exception otherwise
@@ -262,19 +271,7 @@ public abstract class ApplicationPrivilege {
 
         patterns.addAll(actions);
 
-        // TODO
-        return true || useStringMatcher(patterns)
-            ? new StringMatchingApplicationPrivilege(application, names, patterns.toArray(new String[0]))
-            : new AutomatonBasedApplicationPrivilege(application, names, patterns.toArray(new String[0]));
-    }
-
-    private static boolean useStringMatcher(Set<String> patterns) {
-        for (var pattern : patterns) {
-            if (pattern.startsWith("/") || pattern.contains("*") || pattern.contains("?")) {
-                return false;
-            }
-        }
-        return true;
+        return new ApplicationPrivilege(application, names, patterns.toArray(new String[0]));
     }
 
     public Set<String> name() {

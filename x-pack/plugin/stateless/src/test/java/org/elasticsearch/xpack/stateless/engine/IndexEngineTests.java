@@ -484,6 +484,36 @@ public class IndexEngineTests extends AbstractEngineTestCase {
         }
     }
 
+    public void testRefreshCanReleaseFlushListener() throws IOException {
+        try (
+            var engine = newIndexEngine(
+                indexConfig(
+                    Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build(),
+                    Settings.builder().put(Stateless.STATELESS_ENABLED.getKey(), true).build(),
+                    () -> 1L,
+                    NoMergePolicy.INSTANCE
+                )
+            )
+        ) {
+            final var statelessCommitService = engine.getStatelessCommitService();
+            engine.index(randomDoc(String.valueOf(0)));
+            final Translog.Location location = engine.getTranslogLastWriteLocation();
+            // Refresh for a new commit generation. It is not uploaded.
+            var future = new PlainActionFuture<Engine.RefreshResult>();
+            engine.externalRefresh("test", future);
+            final long generation = safeGet(future).generation();
+
+            // Add a flush listener for the flushed translog location. It should be completed without
+            // the need to register and wait for the commit generation to be uploaded.
+            final PlainActionFuture<Long> flushListener = new PlainActionFuture<>();
+            engine.addFlushListener(location, flushListener);
+            // No commit should be uploaded and no listener should be registered for waiting any uploads
+            verify(statelessCommitService, never()).ensureMaxGenerationToUploadForFlush(any(), anyLong());
+            verify(statelessCommitService, never()).addListenerForUploadedGeneration(any(), anyLong(), anyActionListener());
+            assertThat(safeGet(flushListener), equalTo(generation));
+        }
+    }
+
     private static Engine.Index versionConflictingIndexOperation(Engine.Index indexOp) throws IOException {
         return new Engine.Index(
             newUid(indexOp.parsedDoc()),

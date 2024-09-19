@@ -24,18 +24,24 @@ import co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetric
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 
 import org.apache.lucene.index.IndexWriter;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -67,6 +73,8 @@ public class StatelessConcurrentRefreshIT extends AbstractStatelessIntegTestCase
 
         public final AtomicReference<CyclicBarrier> commitIndexWriterBarrierReference = new AtomicReference<>();
         public final AtomicReference<CyclicBarrier> indexBarrierReference = new AtomicReference<>();
+        public final AtomicReference<CyclicBarrier> afterFlushCompletedBarrierReference = new AtomicReference<>();
+        public final AtomicReference<CountDownLatch> refreshCompletedLatchReference = new AtomicReference<>();
         public final AtomicInteger indexCounter = new AtomicInteger();
 
         public TestStateless(Settings settings) {
@@ -115,6 +123,26 @@ public class StatelessConcurrentRefreshIT extends AbstractStatelessIntegTestCase
                     indexCounter.incrementAndGet();
                     return indexResult;
                 }
+
+                @Override
+                protected void afterFlush(long generation) {
+                    super.afterFlush(generation);
+                    final CyclicBarrier barrier = afterFlushCompletedBarrierReference.get();
+                    if (barrier != null) {
+                        safeAwait(barrier);
+                        safeAwait(barrier);
+                    }
+                }
+
+                @Override
+                public RefreshResult refresh(String source) throws EngineException {
+                    final RefreshResult result = super.refresh(source);
+                    final CountDownLatch latch = refreshCompletedLatchReference.get();
+                    if (latch != null) {
+                        latch.countDown();
+                    }
+                    return result;
+                }
             };
         }
     }
@@ -145,10 +173,7 @@ public class StatelessConcurrentRefreshIT extends AbstractStatelessIntegTestCase
         final String newIndexNode = startIndexNode();
         ensureStableCluster(4);
 
-        final var testStateless = internalCluster().getInstance(PluginsService.class, indexNode)
-            .filterPlugins(TestStateless.class)
-            .findFirst()
-            .orElseThrow(() -> new AssertionError("plugin not found"));
+        final var testStateless = findPlugin(indexNode, TestStateless.class);
 
         final var indexBarrier = new CyclicBarrier(2);
         testStateless.indexBarrierReference.set(indexBarrier);
@@ -206,10 +231,7 @@ public class StatelessConcurrentRefreshIT extends AbstractStatelessIntegTestCase
         bulkIndexDocsWithRefresh(indexName, 20, WriteRequest.RefreshPolicy.IMMEDIATE);
         bulkIndexDocsWithRefresh(indexName, 20, WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        final var testStateless = internalCluster().getInstance(PluginsService.class, indexNode)
-            .filterPlugins(TestStateless.class)
-            .findFirst()
-            .orElseThrow(() -> new AssertionError("plugin not found"));
+        final var testStateless = findPlugin(indexNode, TestStateless.class);
 
         final var indexBarrier = new CyclicBarrier(2);
         testStateless.indexBarrierReference.set(indexBarrier);
@@ -249,6 +271,87 @@ public class StatelessConcurrentRefreshIT extends AbstractStatelessIntegTestCase
         logger.info("--> wait for bulk indexing to complete");
         indexingThread.join(10_000);
         assertThat(indexingThread.isAlive(), is(false));
+    }
+
+    @TestLogging(
+        value = "org.elasticsearch.blobcache.shared.SharedBlobCacheService:warn," // disable logs of "No free regions ..."
+            + "co.elastic.elasticsearch.stateless.commits.StatelessCommitService:debug,"
+            + "co.elastic.elasticsearch.stateless.recovery:debug,"
+            + "org.elasticsearch.indices.recovery:debug",
+        reason = "ensure detailed shard relocation information"
+    )
+    public void testWaitUntilShouldNotWaitForUpload() throws InterruptedException {
+        startMasterOnlyNode();
+        final String indexNode = startIndexNode();
+        startSearchNode();
+        ensureStableCluster(3);
+
+        var indexName = "index";
+        createIndex(
+            indexName,
+            indexSettings(1, 1).put(INDEX_TRANSLOG_FLUSH_THRESHOLD_AGE_SETTING.getKey(), "1h")
+                // The test should pass with scheduled refresh disabled. Randomly enable it for closer resemblance to production
+                .put(
+                    IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(),
+                    randomFrom(TimeValue.MINUS_ONE, IndexSettings.STATELESS_MIN_NON_FAST_REFRESH_INTERVAL)
+                )
+                .build()
+        );
+        ensureGreen(indexName);
+
+        bulkIndexDocsWithRefresh(indexName, 20, WriteRequest.RefreshPolicy.IMMEDIATE);
+        bulkIndexDocsWithRefresh(indexName, 20, WriteRequest.RefreshPolicy.IMMEDIATE);
+
+        final String newIndexNode = startIndexNode();
+        ensureStableCluster(4);
+        final var testStateless = findPlugin(indexNode, TestStateless.class);
+
+        // 1. Issue an indexing request with wait_until. It should register a refresh listener and wait for it to be notified.
+        // It holds 1 index operation permits while waiting
+        logger.info("--> Starting the bulk indexing thread with wait_until");
+        final var indexingThread = new Thread(() -> bulkIndexDocsWithRefresh(indexName, 20, WriteRequest.RefreshPolicy.WAIT_UNTIL));
+        indexingThread.start();
+
+        // 2. Start the relocation and block it right after the pre-flush. The pre-flush creates and uploads generation N
+        final var afterFlushCompletedBarrierForPreFlush = new CyclicBarrier(2);
+        testStateless.afterFlushCompletedBarrierReference.set(afterFlushCompletedBarrierForPreFlush);
+        logger.info("--> Relocating index shard into [{}]", newIndexNode);
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", newIndexNode), indexName);
+        safeAwait(afterFlushCompletedBarrierForPreFlush);
+
+        // 3. Issue an external refresh and block it at the end of the (converted) flush and before it notifies refresh listener.
+        // It creates generation N+1 which is not uploaded (since it's a refresh)
+        logger.info("--> Starting external refresh to creates a new generation ");
+        final var afterFlushCompletedBarrierForExternalRefresh = new CyclicBarrier(2);
+        testStateless.afterFlushCompletedBarrierReference.set(afterFlushCompletedBarrierForExternalRefresh);
+        final ActionFuture<BroadcastResponse> refreshFuture = indicesAdmin().prepareRefresh(indexName).execute();
+        safeAwait(afterFlushCompletedBarrierForExternalRefresh);
+
+        // 4. Resume the relocation, it proceeds to acquireAll index operation permits which calls RefreshListeners#forceRefreshes.
+        // This in turn notifies the refresh listener registered by the indexing request in step 1. That is, it notifies the
+        // refresh listener before the external refresh in step 3 can reach it. Upon notification, the refresh listener registers
+        // a flushListener and will be notified with the latest flushed generation of N+1. This generation is NOT uploaded and
+        // the indexing request should NOT wait for it. Otherwise, the indexing request would not release its permit which leads
+        // to relocation failure.
+        logger.info("--> Resume relocation");
+        final CountDownLatch afterRefreshLatch = new CountDownLatch(1);
+        testStateless.refreshCompletedLatchReference.set(afterRefreshLatch);
+        testStateless.afterFlushCompletedBarrierReference.set(null);
+        safeAwait(afterFlushCompletedBarrierForPreFlush); // resumes relocation
+        safeAwait(afterRefreshLatch);
+
+        // 5. Resume the external refresh and it does not notify any refresh listeners
+        logger.info("--> Resume external refresh");
+        safeAwait(afterFlushCompletedBarrierForExternalRefresh);
+        safeGet(refreshFuture);
+
+        // 6. The bulk indexing should complete and release its index operation permit which allows relocation to progress
+        logger.info("--> wait for bulk indexing to complete");
+        indexingThread.join(10_000);
+        assertThat(indexingThread.isAlive(), is(false));
+
+        // 7. The relocation should be successful after indexing request completes
+        ensureGreen(indexName);
     }
 
     private void bulkIndexDocsWithRefresh(String indexName, int numDocs, WriteRequest.RefreshPolicy refreshPolicy) {

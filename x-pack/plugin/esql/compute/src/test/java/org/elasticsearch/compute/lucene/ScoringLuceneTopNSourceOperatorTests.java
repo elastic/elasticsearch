@@ -181,7 +181,7 @@ public class ScoringLuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
             }
             IntBlock sBlock = page.getBlock(1);
             for (int p = 0; p < page.getPositionCount(); p++) {
-                assertThat(sBlock.getInt(sBlock.getFirstValueIndex(p)), equalTo(1065353216));
+                assertThat(sBlock.getInt(sBlock.getFirstValueIndex(p)), equalTo(1065353216)); // corresponds to 1.0f
                 expectedS++;
             }
         }

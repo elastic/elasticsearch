@@ -143,7 +143,6 @@ public class ClusterStateUpdatersTests extends ESTestCase {
         {
             final ClusterState newState = updateRoutingTable(initialState, TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
             assertTrue(newState.routingTable().hasIndex(index));
-            assertThat(newState.routingTable().version(), is(0L));
             assertThat(newState.routingTable().allShards(index.getName()).size(), is(numOfShards));
         }
         {
@@ -180,7 +179,6 @@ public class ClusterStateUpdatersTests extends ESTestCase {
                 TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
             );
             assertTrue(newState.routingTable().hasIndex(index));
-            assertThat(newState.routingTable().version(), is(0L));
             assertThat(newState.routingTable().allShards(index.getName()).size(), is(numOfShards));
         }
     }

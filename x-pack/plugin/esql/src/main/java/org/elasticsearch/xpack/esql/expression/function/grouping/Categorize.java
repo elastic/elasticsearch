@@ -47,13 +47,15 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.ml.aggs.categorization.CategorizationBytesRefHash;
 import org.elasticsearch.xpack.ml.aggs.categorization.CategorizationPartOfSpeechDictionary;
-import org.elasticsearch.xpack.ml.aggs.categorization.InternalCategorizationAggregation;
 import org.elasticsearch.xpack.ml.aggs.categorization.SerializableTokenListCategory;
 import org.elasticsearch.xpack.ml.aggs.categorization.TokenListCategorizer;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
@@ -208,7 +210,11 @@ public class Categorize extends GroupingFunction implements Validatable {
                     context
                 );
                 field = null;
-                GroupingKey result = new GroupingKey(mode, new GroupingKeyThing(resultOffset, evaluator, categorizer));
+                GroupingKey result = new GroupingKey(
+                    mode,
+                    new GroupingKeyThing(resultOffset, evaluator, categorizer),
+                    context.blockFactory()
+                );
                 categorizer = null;
                 evaluator = null;
                 return result;
@@ -260,15 +266,21 @@ public class Categorize extends GroupingFunction implements Validatable {
         }
 
         @Override
-        public Block evalIntermediateInput(Page page) {
+        public Block evalIntermediateInput(BlockFactory blockFactory, Page page) {
             BytesRefBlock intermediate = page.getBlock(resultOffset + 1);
+            Map<Integer, Integer> idMap;
             if (intermediate.areAllValuesNull() == false) {
-                readIntermediate(intermediate.getBytesRef(0, new BytesRef()));
+                idMap = readIntermediate(intermediate.getBytesRef(0, new BytesRef()));
+            } else {
+                idMap = Collections.emptyMap();
             }
-            // NOCOMMIT this should remap the ints in the input block to whatever the *new* ids are
-            Block result = page.getBlock(resultOffset);
-            result.incRef();
-            return result;
+            IntBlock oldIds = page.getBlock(resultOffset);
+            try (IntBlock.Builder newIds = blockFactory.newIntBlockBuilder(oldIds.getTotalValueCount())) {
+                for (int i = 0; i < oldIds.getTotalValueCount(); i++) {
+                    newIds.appendInt(idMap.get(i));
+                }
+                return newIds.build();
+            }
         }
 
         @Override
@@ -300,20 +312,23 @@ public class Categorize extends GroupingFunction implements Validatable {
             }
         }
 
-        private void readIntermediate(BytesRef bytes) {
+        private Map<Integer, Integer> readIntermediate(BytesRef bytes) {
+            Map<Integer, Integer> idMap = new HashMap<>();
             try (StreamInput in = new BytesArray(bytes).streamInput()) {
                 int count = in.readVInt();
-                for (int i = 0; i < count; i++) {
+                for (int oldCategoryId = 0; oldCategoryId < count; oldCategoryId++) {
                     SerializableTokenListCategory category = new SerializableTokenListCategory(in);
-                    categorizer.mergeWireCategory(category);
+                    int newCategoryId = categorizer.mergeWireCategory(category).getId();
+                    System.err.println("category id map: " + oldCategoryId + " -> " + newCategoryId + " (" + category.getRegex() + ")");
+                    idMap.put(oldCategoryId, newCategoryId);
                 }
+                return idMap;
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
         }
 
         private OrdinalBytesRefBlock finalKeys(BlockFactory blockFactory, IntBlock keys) {
-            keys.incRef();
             return new OrdinalBytesRefBlock(keys, finalBytes(blockFactory));
         }
 
@@ -324,22 +339,7 @@ public class Categorize extends GroupingFunction implements Validatable {
             try (BytesRefVector.Builder result = blockFactory.newBytesRefVectorBuilder(categorizer.getCategoryCount())) {
                 BytesRefBuilder scratch = new BytesRefBuilder();
                 for (SerializableTokenListCategory category : categorizer.toCategories(categorizer.getCategoryCount())) {
-                    // NOCOMMIT build tokens properly
-                    BytesRef[] tokens = category.getKeyTokens();
-                    if (tokens.length == 0) {
-                        scratch.append((byte) '*');
-                        result.appendBytesRef(scratch.get());
-                        scratch.clear();
-                        continue;
-                    }
-                    scratch.append(tokens[0]);
-                    for (int i = 1; i < tokens.length; i++) {
-                        scratch.append((byte) ' ');
-                        scratch.append(tokens[i]);
-                    }
-                    scratch.append((byte) ' ');
-                    scratch.append((byte) '.');
-                    scratch.append((byte) '*');
+                    scratch.copyChars(category.getRegex());
                     result.appendBytesRef(scratch.get());
                     scratch.clear();
                 }

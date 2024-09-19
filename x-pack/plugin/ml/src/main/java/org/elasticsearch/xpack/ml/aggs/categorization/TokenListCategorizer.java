@@ -206,7 +206,8 @@ public class TokenListCategorizer implements Accountable {
         return mergedCategory;
     }
 
-    private synchronized TokenListCategory computeCategory( // NOCOMMIT why synchronized? in ESQL at least there are no threads around
+    private synchronized TokenListCategory computeCategory(
+        // NOCOMMIT why synchronized? in ESQL at least there are no threads around
         List<TokenAndWeight> weightedTokenIds,
         List<TokenAndWeight> workTokenUniqueIds,
         int workWeight,

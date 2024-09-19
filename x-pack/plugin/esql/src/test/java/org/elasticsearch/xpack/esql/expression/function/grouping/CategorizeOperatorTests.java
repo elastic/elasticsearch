@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.grouping;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
@@ -33,6 +32,7 @@ import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
+import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.core.Releasables;
@@ -48,9 +48,8 @@ import org.junit.After;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
-import java.util.stream.LongStream;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.compute.aggregation.AggregatorMode.FINAL;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.INITIAL;
@@ -115,12 +114,165 @@ public class CategorizeOperatorTests extends ESTestCase {
             for (int p = 0; p < vector.getPositionCount(); p++) {
                 values.add(vector.getBytesRef(p, new BytesRef()).utf8ToString());
             }
-            assertThat(values, equalTo(List.of(
-                "words words words goodbye .*",
-                "words words words goodbye blue sky .*",
-                "words words words hello .+")));
+            assertThat(
+                values,
+                equalTo(
+                    List.of(
+                        ".*?words.+?words.+?words.+?goodbye.*?",
+                        ".*?words.+?words.+?words.+?goodbye.+?blue.+?sky.*?",
+                        ".*?words.+?words.+?words.+?hello.*?"
+                    )
+                )
+            );
         } finally {
             Releasables.close(() -> Iterators.map(output.iterator(), (Page p) -> p::releaseBlocks));
+        }
+    }
+
+    /**
+     * {@link SourceOperator} that returns a sequence of pre-built {@link Page}s.
+     * TODO: this class is copy-pasted from the esql:compute plugin; fix that
+     */
+    public static class CannedSourceOperator extends SourceOperator {
+
+        private final Iterator<Page> page;
+
+        public CannedSourceOperator(Iterator<Page> page) {
+            this.page = page;
+        }
+
+        @Override
+        public void finish() {
+            while (page.hasNext()) {
+                page.next();
+            }
+        }
+
+        @Override
+        public boolean isFinished() {
+            return false == page.hasNext();
+        }
+
+        @Override
+        public Page getOutput() {
+            return page.next();
+        }
+
+        @Override
+        public void close() {
+            // release pages in the case of early termination - failure
+            while (page.hasNext()) {
+                page.next().releaseBlocks();
+            }
+        }
+    }
+
+    public void testCategorization_multipleNodes() {
+        DriverContext driverContext = driverContext();
+        LocalSourceOperator.BlockSupplier input1 = () -> {
+            try (BytesRefVector.Builder builder = driverContext.blockFactory().newBytesRefVectorBuilder(10)) {
+                builder.appendBytesRef(new BytesRef("a"));
+                builder.appendBytesRef(new BytesRef("b"));
+                builder.appendBytesRef(new BytesRef("words words words goodbye jan"));
+                builder.appendBytesRef(new BytesRef("words words words goodbye nik"));
+                builder.appendBytesRef(new BytesRef("words words words hello jan"));
+                builder.appendBytesRef(new BytesRef("c"));
+                return new Block[] { builder.build().asBlock() };
+            }
+        };
+
+        LocalSourceOperator.BlockSupplier input2 = () -> {
+            try (BytesRefVector.Builder builder = driverContext.blockFactory().newBytesRefVectorBuilder(10)) {
+                builder.appendBytesRef(new BytesRef("words words words hello nik"));
+                builder.appendBytesRef(new BytesRef("c"));
+                builder.appendBytesRef(new BytesRef("words words words goodbye chris"));
+                builder.appendBytesRef(new BytesRef("d"));
+                builder.appendBytesRef(new BytesRef("e"));
+                return new Block[] { builder.build().asBlock() };
+            }
+        };
+
+        List<Page> intermediateOutput = new ArrayList<>();
+        List<Page> finalOutput = new ArrayList<>();
+
+        try {
+            Categorize cat = new Categorize(Source.EMPTY, AbstractFunctionTestCase.field("f", DataType.KEYWORD));
+            GroupingKey.Supplier key = cat.groupingKey(AbstractFunctionTestCase::evaluator);
+
+            Driver driver = new Driver(
+                driverContext,
+                new LocalSourceOperator(input1),
+                List.of(
+                    new HashAggregationOperator.HashAggregationOperatorFactory(List.of(key.get(INITIAL)), List.of(), 16 * 1024).get(
+                        driverContext
+                    )
+                ),
+                new PageConsumerOperator(intermediateOutput::add),
+                () -> {}
+            );
+            runDriver(driver);
+
+            driver = new Driver(
+                driverContext,
+                new LocalSourceOperator(input2),
+                List.of(
+                    new HashAggregationOperator.HashAggregationOperatorFactory(List.of(key.get(INITIAL)), List.of(), 16 * 1024).get(
+                        driverContext
+                    )
+                ),
+                new PageConsumerOperator(intermediateOutput::add),
+                () -> {}
+            );
+            runDriver(driver);
+
+            assertThat(intermediateOutput, hasSize(2));
+
+            driver = new Driver(
+                driverContext,
+                new CannedSourceOperator(intermediateOutput.iterator()),
+                List.of(
+                    new HashAggregationOperator.HashAggregationOperatorFactory(List.of(key.get(FINAL)), List.of(), 16 * 1024).get(
+                        driverContext
+                    ),
+                    new TopNOperator(
+                        driverContext.blockFactory(),
+                        driverContext.breaker(),
+                        10,
+                        List.of(ElementType.BYTES_REF),
+                        List.of(TopNEncoder.UTF8),
+                        List.of(new TopNOperator.SortOrder(0, true, true)),
+                        16 * 1024
+                    )
+                ),
+                new PageConsumerOperator(finalOutput::add),
+                () -> {}
+            );
+            runDriver(driver);
+
+            assertThat(finalOutput, hasSize(1));
+            assertThat(finalOutput.get(0).getBlockCount(), equalTo(1));
+            BytesRefBlock block = finalOutput.get(0).getBlock(0);
+            BytesRefVector vector = block.asVector();
+            List<String> values = new ArrayList<>();
+            for (int p = 0; p < vector.getPositionCount(); p++) {
+                values.add(vector.getBytesRef(p, new BytesRef()).utf8ToString());
+            }
+            assertThat(
+                values,
+                equalTo(
+                    List.of(
+                        ".*?a.*?",
+                        ".*?b.*?",
+                        ".*?c.*?",
+                        ".*?d.*?",
+                        ".*?e.*?",
+                        ".*?words.+?words.+?words.+?goodbye.*?",
+                        ".*?words.+?words.+?words.+?hello.*?"
+                    )
+                )
+            );
+        } finally {
+            Releasables.close(() -> Iterators.map(finalOutput.iterator(), (Page p) -> p::releaseBlocks));
         }
     }
 

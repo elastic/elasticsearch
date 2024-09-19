@@ -32,8 +32,6 @@ include::ingest.asciidoc[]
 
 include::alias.asciidoc[]
 
-include::search/search-your-data/search-your-data.asciidoc[]
-
 include::reranking/index.asciidoc[]
 
 include::query-dsl.asciidoc[]

@@ -219,20 +219,6 @@ public class DiscoveryModuleTests extends ESTestCase {
         assertTrue(onJoinValidators.contains(consumer));
     }
 
-    public void testLegacyDiscoveryType() {
-        newModule(
-            Settings.builder()
-                .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), DiscoveryModule.LEGACY_MULTI_NODE_DISCOVERY_TYPE)
-                .build(),
-            List.of(),
-            List.of()
-        );
-        assertCriticalWarnings(
-            "Support for setting [discovery.type] to [zen] is deprecated and will be removed in a future version. Set this setting to "
-                + "[multi-node] instead."
-        );
-    }
-
     public void testRejectsMultipleReconfigurators() {
         assertThat(
             expectThrows(

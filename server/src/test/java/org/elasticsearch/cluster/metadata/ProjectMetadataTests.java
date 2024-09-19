@@ -346,7 +346,7 @@ public class ProjectMetadataTests extends ESTestCase {
             } else if (custom instanceof ComposableIndexTemplateMetadata composableIndexTemplateMetadata) {
                 count += 2 + composableIndexTemplateMetadata.indexTemplates().size();
             } else if (custom instanceof DataStreamMetadata dataStreamMetadata) {
-                count += 4 + dataStreamMetadata.dataStreams().size() + dataStreamMetadata.getDataStreamAliases().size();
+                count += 4 + (dataStreamMetadata.dataStreams().size() * 2L) + dataStreamMetadata.getDataStreamAliases().size();
             } else if (custom instanceof FeatureMigrationResults featureMigrationResults) {
                 count += 2 + featureMigrationResults.getFeatureStatuses().size();
             } else if (custom instanceof IndexGraveyard indexGraveyard) {

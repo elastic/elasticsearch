@@ -524,6 +524,13 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
      * Delete the ingest pipeline with the given {@code id}, the default {@link ESSingleNodeTestCase#client()}.
      */
     protected final void deletePipeline(String id) {
-        assertAcked(safeGet(client().execute(DeletePipelineTransportAction.TYPE, new DeletePipelineRequest(id))));
+        assertAcked(
+            safeGet(
+                client().execute(
+                    DeletePipelineTransportAction.TYPE,
+                    new DeletePipelineRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, id)
+                )
+            )
+        );
     }
 }

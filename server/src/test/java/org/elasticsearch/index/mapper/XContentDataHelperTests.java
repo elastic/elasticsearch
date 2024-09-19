@@ -169,11 +169,12 @@ public class XContentDataHelperTests extends ESTestCase {
         XContentParser xContentParser = createParser(JsonXContent.jsonXContent, data);
         xContentParser.nextToken();
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
-        assertFalse(context.getClonedSource());
+        assertFalse(context.getRecordedSource());
         var tuple = XContentDataHelper.cloneSubContextWithParser(context);
         assertEquals(data, dataInParser(tuple.v1().parser()));
         assertEquals(data, dataInParser(tuple.v2()));
-        assertTrue(tuple.v1().getClonedSource());
+        assertTrue(tuple.v1().getRecordedSource());
+        assertFalse(context.getRecordedSource());
     }
 
     public void testWriteMergedWithSingleValue() throws IOException {

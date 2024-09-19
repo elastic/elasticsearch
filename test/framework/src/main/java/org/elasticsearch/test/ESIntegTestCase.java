@@ -26,6 +26,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
@@ -48,6 +49,8 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.IncrementalBulkService;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.DeletePipelineTransportAction;
@@ -122,6 +125,7 @@ import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
@@ -192,6 +196,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -1776,11 +1781,49 @@ public abstract class ESIntegTestCase extends ESTestCase {
             );
             logger.info("Index [{}] docs async: [{}] bulk: [{}] partitions [{}]", builders.size(), false, true, partition.size());
             for (List<IndexRequestBuilder> segmented : partition) {
-                BulkRequestBuilder bulkBuilder = client().prepareBulk();
-                for (IndexRequestBuilder indexRequestBuilder : segmented) {
-                    bulkBuilder.add(indexRequestBuilder);
+                BulkResponse actionGet;
+                if (randomBoolean()) {
+                    BulkRequestBuilder bulkBuilder = client().prepareBulk();
+                    for (IndexRequestBuilder indexRequestBuilder : segmented) {
+                        bulkBuilder.add(indexRequestBuilder);
+                    }
+                    actionGet = bulkBuilder.get();
+                } else {
+                    IncrementalBulkService bulkService = internalCluster().getInstance(IncrementalBulkService.class);
+                    IncrementalBulkService.Handler handler = bulkService.newBulkRequest();
+
+                    ConcurrentLinkedQueue<IndexRequest> queue = new ConcurrentLinkedQueue<>();
+                    segmented.forEach(b -> queue.add(b.request()));
+
+                    PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
+                    AtomicInteger runs = new AtomicInteger(0);
+                    Runnable r = new Runnable() {
+
+                        @Override
+                        public void run() {
+                            int toRemove = Math.min(randomIntBetween(5, 10), queue.size());
+                            ArrayList<DocWriteRequest<?>> docs = new ArrayList<>();
+                            for (int i = 0; i < toRemove; i++) {
+                                docs.add(queue.poll());
+                            }
+
+                            if (queue.isEmpty()) {
+                                handler.lastItems(docs, () -> {}, future);
+                            } else {
+                                handler.addItems(docs, () -> {}, () -> {
+                                    // Every 10 runs dispatch to new thread to prevent stackoverflow
+                                    if (runs.incrementAndGet() % 10 == 0) {
+                                        new Thread(this).start();
+                                    } else {
+                                        this.run();
+                                    }
+                                });
+                            }
+                        }
+                    };
+                    r.run();
+                    actionGet = future.actionGet();
                 }
-                BulkResponse actionGet = bulkBuilder.get();
                 assertThat(actionGet.hasFailures() ? actionGet.buildFailureMessage() : "", actionGet.hasFailures(), equalTo(false));
             }
         }
@@ -1864,7 +1907,15 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
         while (inFlightAsyncOperations.size() > MAX_IN_FLIGHT_ASYNC_INDEXES) {
             int waitFor = between(0, inFlightAsyncOperations.size() - 1);
-            safeAwait(inFlightAsyncOperations.remove(waitFor));
+            try {
+                assertTrue(
+                    "operation did not complete within timeout",
+                    inFlightAsyncOperations.remove(waitFor).await(60, TimeUnit.SECONDS)
+                );
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                fail(e, "interrupted while waiting for operation to complete");
+            }
         }
     }
 
@@ -2053,6 +2104,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 TransportSearchAction.DEFAULT_PRE_FILTER_SHARD_SIZE.getKey(),
                 randomFrom(1, 2, SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE)
             );
+        if (randomBoolean()) {
+            builder.put(IndexingPressure.SPLIT_BULK_THRESHOLD.getKey(), randomFrom("256B", "1KB", "64KB"));
+        }
         return builder.build();
     }
 
@@ -2657,13 +2711,20 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * @return the result of running the {@link GetPipelineAction} on the given IDs, using the default {@link ESIntegTestCase#client()}.
      */
     protected static GetPipelineResponse getPipelines(String... ids) {
-        return safeGet(client().execute(GetPipelineAction.INSTANCE, new GetPipelineRequest(ids)));
+        return safeGet(client().execute(GetPipelineAction.INSTANCE, new GetPipelineRequest(TEST_REQUEST_TIMEOUT, ids)));
     }
 
     /**
      * Delete the ingest pipeline with the given {@code id}, the default {@link ESIntegTestCase#client()}.
      */
     protected static void deletePipeline(String id) {
-        assertAcked(safeGet(client().execute(DeletePipelineTransportAction.TYPE, new DeletePipelineRequest(id))));
+        assertAcked(
+            safeGet(
+                client().execute(
+                    DeletePipelineTransportAction.TYPE,
+                    new DeletePipelineRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, id)
+                )
+            )
+        );
     }
 }

@@ -10,6 +10,7 @@
 package org.elasticsearch.ingest.geoip.direct;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
@@ -17,6 +18,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.ingest.geoip.IngestGeoIpMetadata;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
@@ -38,12 +41,19 @@ public class TransportGetDatabaseConfigurationAction extends TransportNodesActio
     GetDatabaseConfigurationAction.NodeResponse,
     Void> {
 
+    public static final NodeFeature GET_DATABASE_CONFIGURATION_ACTION_MULTI_NODE = new NodeFeature(
+        "get_database_configuration_action.multi_node"
+    );
+
+    private final FeatureService featureService;
+
     @Inject
     public TransportGetDatabaseConfigurationAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        FeatureService featureService
     ) {
         super(
             GetDatabaseConfigurationAction.NAME,
@@ -53,6 +63,26 @@ public class TransportGetDatabaseConfigurationAction extends TransportNodesActio
             GetDatabaseConfigurationAction.NodeRequest::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
+        this.featureService = featureService;
+    }
+
+    @Override
+    protected void doExecute(
+        Task task,
+        GetDatabaseConfigurationAction.Request request,
+        ActionListener<GetDatabaseConfigurationAction.Response> listener
+    ) {
+        if (featureService.clusterHasFeature(clusterService.state(), GET_DATABASE_CONFIGURATION_ACTION_MULTI_NODE) == false) {
+            /*
+             * TransportGetDatabaseConfigurationAction used to be a TransportMasterNodeAction, and not all nodes in the cluster have been
+             * updated. So we don't want to send node requests to the other nodes because they will blow up. Instead, we just return
+             * the information that we used to return from the master node (it doesn't make any difference that this might not be the master
+             * node, because we're only reading the clsuter state).
+             */
+            listener.onResponse(newResponse(request, List.of(), List.of()));
+        } else {
+            super.doExecute(task, request, listener);
+        }
     }
 
     @Override

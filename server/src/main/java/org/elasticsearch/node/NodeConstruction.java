@@ -1068,7 +1068,8 @@ class NodeConstruction {
             responseCollectorService,
             circuitBreakerService,
             systemIndices.getExecutorSelector(),
-            telemetryProvider.getTracer()
+            telemetryProvider.getTracer(),
+            searchTransportAPMMetrics
         );
 
         modules.add(

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.node;
 
+import org.elasticsearch.action.search.SearchTransportAPMMetrics;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;
@@ -119,7 +120,8 @@ public class MockNode extends Node {
                     responseCollectorService,
                     circuitBreakerService,
                     executorSelector,
-                    tracer
+                    tracer,
+                    new SearchTransportAPMMetrics.NoopSearchTransportAPMMetrics()
                 );
             }
             return new MockSearchService(

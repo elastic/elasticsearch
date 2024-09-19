@@ -12,6 +12,8 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
+import java.util.Map;
+
 public class SearchTransportAPMMetrics {
     public static final String SEARCH_ACTION_LATENCY_BASE_METRIC = "es.search.nodes.transport_actions.latency.histogram";
     public static final String ACTION_ATTRIBUTE_NAME = "action";
@@ -42,11 +44,24 @@ public class SearchTransportAPMMetrics {
         );
     }
 
-    private SearchTransportAPMMetrics(LongHistogram actionLatencies) {
+    protected SearchTransportAPMMetrics(LongHistogram actionLatencies) {
         this.actionLatencies = actionLatencies;
     }
 
-    public LongHistogram getActionLatencies() {
-        return actionLatencies;
+    public void recordPhaseLatency(String phaseName, long latency, boolean isSystem) {
+        Map<String, Object> attributes = Map.of(ACTION_ATTRIBUTE_NAME, phaseName, SYSTEM_THREAD_ATTRIBUTE_NAME, isSystem);
+        actionLatencies.record(latency, attributes);
     }
+
+    public static class NoopSearchTransportAPMMetrics extends SearchTransportAPMMetrics {
+        public NoopSearchTransportAPMMetrics() {
+            super((LongHistogram) null);
+        }
+
+        @Override
+        public void recordPhaseLatency(String phaseName, long latency, boolean isSystem) {
+            // no-op
+        }
+    }
+
 }

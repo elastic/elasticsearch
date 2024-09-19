@@ -175,8 +175,6 @@ public class XContentDataHelperTests extends ESTestCase {
         assertEquals(data, dataInParser(tuple.v2()));
         assertTrue(tuple.v1().getRecordedSource());
         assertFalse(context.getRecordedSource());
-        DocumentParserContext parser = XContentDataHelper.cloneSubContextWithRecordedSource(context);
-        assertTrue(parser.getRecordedSource());
     }
 
     public void testWriteMergedWithSingleValue() throws IOException {

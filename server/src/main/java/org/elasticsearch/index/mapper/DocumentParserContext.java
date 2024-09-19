@@ -307,7 +307,7 @@ public abstract class DocumentParserContext {
      * In case of nested arrays, i.e. capturing an array within an array, elements tracked as ignored fields may interfere with
      * the rest, as ignored source contents take precedence over regular field contents with the same leaf name. To prevent
      * missing array elements from synthetic source, all array elements get recorded in ignored source. Otherwise, just the value in
-     * current parsing context gets captured.
+     * the current parsing context gets captured.
      *
      * In both cases, a new parser sub-context gets created from the current {@link DocumentParserContext} and returned, indicating
      * that the source for the sub-context has been captured, to avoid double-storing parts of its contents to ignored source.
@@ -319,9 +319,9 @@ public abstract class DocumentParserContext {
                 && parent != null
                 && parentArrayField.equals(parent.fullPath())
                 && parent instanceof NestedObjectMapper == false) {
-                // The field is an array element, store all the array elements.
+                // The field is an array within an array, store all sub-array elements.
                 ignoredFieldsMissingValues.add(ignoredFieldWithNoSource);
-                return XContentDataHelper.cloneSubContextWithRecordedSource(this);
+                return cloneWithRecordedSource();
             } else {
                 assert ignoredFieldWithNoSource != null;
                 assert ignoredFieldWithNoSource.value() == null;
@@ -341,14 +341,26 @@ public abstract class DocumentParserContext {
     }
 
     /**
-     * Clones the current context if this is the first array in the stack.
-     * Records the full name of the array field, to check for sub-arrays.
+     * Clones the current context to mark it as an array. Records the full name of the array field, to check for sub-arrays.
      * Applies to synthetic source only.
      */
-    public final DocumentParserContext maybeCloneForArray(String fullName) throws IOException {
+    public final DocumentParserContext cloneForArray(String fullName) throws IOException {
         if (canAddIgnoredField()) {
             DocumentParserContext subcontext = switchParser(parser());
             subcontext.parentArrayField = fullName;
+            return subcontext;
+        }
+        return this;
+    }
+
+    /**
+     * Creates a sub-context from the current {@link DocumentParserContext} to indicate that the source for the sub-context has been
+     * recorded and avoid duplicate recording for parts of the sub-context. Applies to synthetic source only.
+     */
+    public final DocumentParserContext cloneWithRecordedSource() throws IOException {
+        if (canAddIgnoredField()) {
+            DocumentParserContext subcontext = createChildContext(parent());
+            subcontext.setRecordedSource();  // Avoids double-storing parts of the source for the same parser subtree.
             return subcontext;
         }
         return this;

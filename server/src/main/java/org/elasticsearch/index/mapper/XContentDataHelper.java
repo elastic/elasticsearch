@@ -257,16 +257,6 @@ public final class XContentDataHelper {
         return subcontext;
     }
 
-    /**
-     * Creates a sub-context from the current {@link DocumentParserContext} to indicate that the source for the sub-context has been
-     * recorded and avoid duplicate recording for parts of the sub-context.
-     */
-    static DocumentParserContext cloneSubContextWithRecordedSource(DocumentParserContext context) throws IOException {
-        DocumentParserContext subcontext = context.createChildContext(context.parent());
-        subcontext.setRecordedSource();  // Avoids double-storing parts of the source for the same parser subtree.
-        return subcontext;
-    }
-
     private static Object processToken(XContentParser parser, CheckedFunction<TypeUtils, Object, IOException> visitor) throws IOException {
         return switch (parser.currentToken()) {
             case VALUE_STRING -> visitor.apply(TypeUtils.STRING);

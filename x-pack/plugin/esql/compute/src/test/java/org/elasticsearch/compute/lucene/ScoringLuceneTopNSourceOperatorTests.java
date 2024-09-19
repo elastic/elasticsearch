@@ -21,7 +21,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AnyOperatorTestCase;
 import org.elasticsearch.compute.operator.Driver;
@@ -172,18 +172,19 @@ public class ScoringLuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
         OperatorTestCase.assertDriverContext(ctx);
 
         long expectedS = 0;
+        int maxPageSize = factory.maxPageSize();
         for (Page page : results) {
-            if (limit - expectedS < factory.maxPageSize()) {
+            if (limit - expectedS < maxPageSize) {
                 assertThat(page.getPositionCount(), equalTo((int) (limit - expectedS)));
             } else {
-                assertThat(page.getPositionCount(), equalTo(factory.maxPageSize()));
+                assertThat(page.getPositionCount(), equalTo(maxPageSize));
             }
-            LongBlock sBlock = page.getBlock(1);
+            IntBlock sBlock = page.getBlock(1);
             for (int p = 0; p < page.getPositionCount(); p++) {
-                assertThat(sBlock.getLong(sBlock.getFirstValueIndex(p)), equalTo(expectedS++));
+                assertThat(sBlock.getInt(sBlock.getFirstValueIndex(p)), equalTo(1065353216));
             }
         }
-        int pages = (int) Math.ceil((float) Math.min(size, limit) / factory.maxPageSize());
+        int pages = (int) Math.ceil((float) Math.min(size, limit) / maxPageSize);
         assertThat(results, hasSize(pages));
     }
 }

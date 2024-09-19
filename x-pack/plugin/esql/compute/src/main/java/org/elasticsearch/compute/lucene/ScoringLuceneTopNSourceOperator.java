@@ -126,9 +126,4 @@ public final class ScoringLuceneTopNSourceOperator extends LuceneTopNSourceOpera
             super(shardContext, sort, limit);
         }
     }
-
-    @Override
-    protected void describe(StringBuilder sb) {
-        sb.append("scoring"); // #### test and verify description
-    }
 }

@@ -41,7 +41,7 @@ public class MapperFeatures implements FeatureSpecification {
             SourceFieldMapper.SYNTHETIC_SOURCE_WITH_COPY_TO_AND_DOC_VALUES_FALSE_SUPPORT,
             SourceFieldMapper.SYNTHETIC_SOURCE_COPY_TO_FIX,
             FlattenedFieldMapper.IGNORE_ABOVE_SUPPORT,
-            Mapper.VALIDATE_IGNORE_ABOVE_VALUE
+            Mapper.IGNORE_ABOVE_INDEX_LEVEL_SETTING
         );
     }
 }

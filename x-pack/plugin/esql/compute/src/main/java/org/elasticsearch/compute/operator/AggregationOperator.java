@@ -117,6 +117,7 @@ public class AggregationOperator implements Operator {
         if (finished) {
             return;
         }
+        long start = System.nanoTime();
         finished = true;
         Block[] blocks = null;
         boolean success = false;
@@ -136,6 +137,7 @@ public class AggregationOperator implements Operator {
             if (success == false && blocks != null) {
                 Releasables.closeExpectNoException(blocks);
             }
+            aggregationNanos += System.nanoTime() - start;
         }
     }
 

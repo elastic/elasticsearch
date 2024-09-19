@@ -97,9 +97,7 @@ public class BytesRefBucketedSort implements Releasable {
             throw new AssertionError("new gather offset can't be null");
         }
         if (common.inHeapMode(bucket) == false) {
-            if (getNextGatherOffset(rootIndex) >= common.bucketSize) {
-                throw new AssertionError("values too short " + values.size() + " < " + requiredSize);
-            }
+            common.assertValidNextOffset(getNextGatherOffset(rootIndex));
         } else {
             for (long l = rootIndex; l < common.endIndex(rootIndex); l++) {
                 if (values.get(rootIndex) == null) {

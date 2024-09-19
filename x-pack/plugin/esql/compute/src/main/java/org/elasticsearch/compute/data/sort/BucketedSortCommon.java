@@ -13,7 +13,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.search.sort.SortOrder;
 
 /**
- * Components common to BucketedSort classes.
+ * Components common to BucketedSort implementations.
  */
 class BucketedSortCommon implements Releasable {
     final BigArrays bigArrays;
@@ -24,7 +24,7 @@ class BucketedSortCommon implements Releasable {
      * {@code true} if the bucket is in heap mode, {@code false} if
      * it is still gathering.
      */
-    final BitArray heapMode;
+    private final BitArray heapMode;
 
     BucketedSortCommon(BigArrays bigArrays, SortOrder order, int bucketSize) {
         this.bigArrays = bigArrays;

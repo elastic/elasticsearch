@@ -7,8 +7,15 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-module org.elasticsearch.entitlements.runtime {
-    requires org.elasticsearch.base;
+package org.elasticsearch.entitlement.agent;
 
-    exports org.elasticsearch.entitlements.runtime.api to org.elasticsearch.entitlements.agent;
+import org.elasticsearch.entitlement.runtime.api.EntitlementChecks;
+
+import java.lang.instrument.Instrumentation;
+
+public class EntitlementAgent {
+
+    public static void premain(String agentArgs, Instrumentation inst) throws Exception {
+        EntitlementChecks.setAgentBooted();
+    }
 }

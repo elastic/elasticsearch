@@ -7,9 +7,9 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlements.agent;
+package org.elasticsearch.entitlement.agent;
 
-import org.elasticsearch.entitlements.runtime.api.EntitlementChecks;
+import org.elasticsearch.entitlement.runtime.api.EntitlementChecks;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTestCase.WithoutSecurityManager;
 
@@ -20,7 +20,7 @@ import org.elasticsearch.test.ESTestCase.WithoutSecurityManager;
  * See {@code build.gradle} for how we set the command line arguments for this test.
  */
 @WithoutSecurityManager
-public class AgentTests extends ESTestCase {
+public class EntitlementAgentTests extends ESTestCase {
 
     public void testAgentSaidHello() {
         assertTrue(EntitlementChecks.isAgentBooted());

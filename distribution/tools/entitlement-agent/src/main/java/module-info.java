@@ -7,15 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlements.agent;
-
-import org.elasticsearch.entitlements.runtime.api.EntitlementChecks;
-
-import java.lang.instrument.Instrumentation;
-
-public class Agent {
-
-    public static void premain(String agentArgs, Instrumentation inst) throws Exception {
-        EntitlementChecks.setAgentBooted();
-    }
+module org.elasticsearch.entitlement.agent {
+    requires java.instrument;
+    requires org.elasticsearch.entitlements.runtime;
 }

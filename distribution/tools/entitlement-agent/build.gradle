@@ -14,8 +14,8 @@ configurations {
 }
 
 dependencies {
-  entitlementRuntime project(":libs:elasticsearch-entitlements-runtime")
-  implementation project(":libs:elasticsearch-entitlements-runtime")
+  entitlementRuntime project(":libs:elasticsearch-entitlement-runtime")
+  implementation project(":libs:elasticsearch-entitlement-runtime")
   testImplementation project(":test:framework")
 }
 
@@ -27,7 +27,7 @@ test {
 jar {
   manifest {
     attributes(
-      'Premain-Class': 'org.elasticsearch.entitlements.agent.Agent'
+      'Premain-Class': 'org.elasticsearch.entitlement.agent.Agent'
       , 'Can-Retransform-Classes': 'true'
     )
   }

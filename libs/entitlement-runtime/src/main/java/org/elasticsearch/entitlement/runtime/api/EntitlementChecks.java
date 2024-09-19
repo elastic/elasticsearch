@@ -7,7 +7,16 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-module org.elasticsearch.entitlements.agent {
-    requires java.instrument;
-    requires org.elasticsearch.entitlements.runtime;
+package org.elasticsearch.entitlement.runtime.api;
+
+public class EntitlementChecks {
+    static boolean isAgentBooted = false;
+
+    public static void setAgentBooted() {
+        isAgentBooted = true;
+    }
+
+    public static boolean isAgentBooted() {
+        return isAgentBooted;
+    }
 }

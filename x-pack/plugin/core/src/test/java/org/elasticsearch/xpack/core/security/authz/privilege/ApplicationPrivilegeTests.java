@@ -224,10 +224,10 @@ public class ApplicationPrivilegeTests extends ESTestCase {
     }
 
     private String getPrivilegeName(ApplicationPrivilege privilege) {
-        if (privilege.name.size() == 1) {
-            return privilege.name.iterator().next();
+        if (privilege.name().size() == 1) {
+            return privilege.name().iterator().next();
         } else {
-            throw new IllegalStateException(privilege + " has a multivariate name: " + collectionToCommaDelimitedString(privilege.name));
+            throw new IllegalStateException(privilege + " has a multivariate name: " + collectionToCommaDelimitedString(privilege.name()));
         }
     }
 

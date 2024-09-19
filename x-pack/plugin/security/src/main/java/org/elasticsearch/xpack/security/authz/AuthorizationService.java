@@ -173,7 +173,8 @@ public class AuthorizationService {
             settings,
             rolesStore,
             fieldPermissionsCache,
-            new LoadAuthorizedIndicesTimeChecker.Factory(logger, settings, clusterService.getClusterSettings())
+            new LoadAuthorizedIndicesTimeChecker.Factory(logger, settings, clusterService.getClusterSettings()),
+            threadPool.executor(Security.SECURITY_CRYPTO_THREAD_POOL_NAME)
         );
         this.authorizationEngine = authorizationEngine == null ? this.rbacEngine : authorizationEngine;
         this.requestInterceptors = requestInterceptors;

@@ -43,6 +43,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.eql.EqlAsyncActionNames;
 import org.elasticsearch.xpack.core.esql.EsqlAsyncActionNames;
@@ -103,6 +104,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -132,17 +134,20 @@ public class RBACEngine implements AuthorizationEngine {
     private final CompositeRolesStore rolesStore;
     private final FieldPermissionsCache fieldPermissionsCache;
     private final LoadAuthorizedIndicesTimeChecker.Factory authzIndicesTimerFactory;
+    private final ExecutorService applicationPrivilegeCheckExecutor;
 
     public RBACEngine(
         Settings settings,
         CompositeRolesStore rolesStore,
         FieldPermissionsCache fieldPermissionsCache,
-        LoadAuthorizedIndicesTimeChecker.Factory authzIndicesTimerFactory
+        LoadAuthorizedIndicesTimeChecker.Factory authzIndicesTimerFactory,
+        ExecutorService applicationPrivilegeCheckExecutor
     ) {
         this.settings = settings;
         this.rolesStore = rolesStore;
         this.fieldPermissionsCache = fieldPermissionsCache;
         this.authzIndicesTimerFactory = authzIndicesTimerFactory;
+        this.applicationPrivilegeCheckExecutor = applicationPrivilegeCheckExecutor;
     }
 
     @Override
@@ -615,6 +620,23 @@ public class RBACEngine implements AuthorizationEngine {
             listener = originalListener;
         }
 
+        // could also check role has application privilege here
+        if (applicationPrivileges.isEmpty() && false == Transports.isTransportThread(Thread.currentThread())) {
+            innerCheckPrivileges(privilegesToCheck, applicationPrivileges, userRole, listener);
+        } else {
+            // application privilege check can be expensive; fork
+            applicationPrivilegeCheckExecutor.execute(
+                ActionRunnable.wrap(listener, l -> innerCheckPrivileges(privilegesToCheck, applicationPrivileges, userRole, l))
+            );
+        }
+    }
+
+    private void innerCheckPrivileges(
+        PrivilegesToCheck privilegesToCheck,
+        Collection<ApplicationPrivilegeDescriptor> applicationPrivileges,
+        Role userRole,
+        ActionListener<PrivilegesCheckResult> listener
+    ) {
         boolean allMatch = true;
 
         final Map<String, Boolean> clusterPrivilegesCheckResults = new HashMap<>();

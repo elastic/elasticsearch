@@ -30,6 +30,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
@@ -167,7 +168,13 @@ public class RBACEngineTests extends ESTestCase {
         final LoadAuthorizedIndicesTimeChecker.Factory timerFactory = mock(LoadAuthorizedIndicesTimeChecker.Factory.class);
         when(timerFactory.newTimer(any())).thenReturn(LoadAuthorizedIndicesTimeChecker.NO_OP_CONSUMER);
         rolesStore = mock(CompositeRolesStore.class);
-        engine = new RBACEngine(Settings.EMPTY, rolesStore, new FieldPermissionsCache(Settings.EMPTY), timerFactory);
+        engine = new RBACEngine(
+            Settings.EMPTY,
+            rolesStore,
+            new FieldPermissionsCache(Settings.EMPTY),
+            timerFactory,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
     }
 
     public void testResolveAuthorizationInfoForEmptyRolesWithAuthentication() {
@@ -1220,10 +1227,9 @@ public class RBACEngineTests extends ESTestCase {
                     .build() },
             randomBoolean()
         );
-        final RuntimeException e1 = expectThrows(
-            RuntimeException.class,
-            () -> engine.checkPrivileges(authzInfo, privilegesToCheck2, privs, new PlainActionFuture<>())
-        );
+        final PlainActionFuture<PrivilegesCheckResult> future = new PlainActionFuture<>();
+        engine.checkPrivileges(authzInfo, privilegesToCheck2, privs, future);
+        final RuntimeException e1 = expectThrows(RuntimeException.class, future::actionGet);
         assertThat(e1, is(stallCheckException));
     }
 

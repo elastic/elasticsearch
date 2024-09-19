@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.datastreams;
 
@@ -586,7 +587,7 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(dataStreamName, indicesAdmin().prepareForceMerge(dataStreamName), false);
         verifyResolvability(dataStreamName, indicesAdmin().prepareValidateQuery(dataStreamName), false);
         verifyResolvability(dataStreamName, indicesAdmin().prepareRecoveries(dataStreamName), false);
-        verifyResolvability(dataStreamName, indicesAdmin().prepareGetAliases("dummy").addIndices(dataStreamName), false);
+        verifyResolvability(dataStreamName, indicesAdmin().prepareGetAliases("dummy").setIndices(dataStreamName), false);
         verifyResolvability(dataStreamName, indicesAdmin().prepareGetFieldMappings(dataStreamName), false);
         verifyResolvability(dataStreamName, indicesAdmin().preparePutMapping(dataStreamName).setSource("""
             {"_doc":{"properties": {"my_field":{"type":"keyword"}}}}""", XContentType.JSON), false);

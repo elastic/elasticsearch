@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
@@ -32,6 +33,7 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
@@ -42,6 +44,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.security.SecurityFeatures;
 
@@ -341,16 +344,65 @@ public class SecurityIndexManager implements ClusterStateListener {
     }
 
     public void onStateRecovered(Consumer<State> recoveredStateConsumer) {
-        BiConsumer<State, State> stateChangeListener = (previousState, nextState) -> {
-            boolean stateJustRecovered = previousState == UNRECOVERED_STATE && nextState != UNRECOVERED_STATE;
-            boolean stateAlreadyRecovered = previousState != UNRECOVERED_STATE;
-            if (stateJustRecovered) {
-                recoveredStateConsumer.accept(nextState);
-            } else if (stateAlreadyRecovered) {
-                stateChangeListeners.remove(this);
+        BiConsumer<State, State> stateChangeListener = new BiConsumer<>() {
+            @Override
+            public void accept(State previousState, State nextState) {
+                boolean stateJustRecovered = previousState == UNRECOVERED_STATE && nextState != UNRECOVERED_STATE;
+                boolean stateAlreadyRecovered = previousState != UNRECOVERED_STATE;
+                if (stateJustRecovered) {
+                    recoveredStateConsumer.accept(nextState);
+                } else if (stateAlreadyRecovered) {
+                    stateChangeListeners.remove(this);
+                }
             }
         };
         stateChangeListeners.add(stateChangeListener);
+    }
+
+    /**
+     * Waits up to {@code timeout} for the security index to become available for search, based on cluster state updates.
+     * Notifies {@code listener} once the security index is available, or calls {@code onFailure} on {@code timeout}.
+     */
+    public void onIndexAvailableForSearch(ActionListener<Void> listener, TimeValue timeout) {
+        logger.info("Will wait for security index [{}] to become available for search", getConcreteIndexName());
+
+        final ActionListener<Void> notifyOnceListener = ActionListener.notifyOnce(listener);
+
+        final var indexAvailableForSearchListener = new StateConsumerWithCancellable() {
+            @Override
+            public void accept(SecurityIndexManager.State previousState, SecurityIndexManager.State nextState) {
+                if (nextState.indexAvailableForSearch) {
+                    assert cancellable != null;
+                    // cancel and removeStateListener are idempotent
+                    cancellable.cancel();
+                    removeStateListener(this);
+                    notifyOnceListener.onResponse(null);
+                }
+            }
+        };
+        // schedule failure handling on timeout -- keep reference to cancellable so a successful completion can cancel the timeout
+        indexAvailableForSearchListener.cancellable = client.threadPool().schedule(() -> {
+            removeStateListener(indexAvailableForSearchListener);
+            notifyOnceListener.onFailure(
+                new ElasticsearchTimeoutException(
+                    "timed out waiting for security index [" + getConcreteIndexName() + "] to become available for search"
+                )
+            );
+        }, timeout, client.threadPool().generic());
+
+        // in case the state has meanwhile changed to available, return immediately
+        if (state.indexAvailableForSearch) {
+            indexAvailableForSearchListener.cancellable.cancel();
+            notifyOnceListener.onResponse(null);
+        } else {
+            addStateListener(indexAvailableForSearchListener);
+        }
+    }
+
+    private abstract static class StateConsumerWithCancellable
+        implements
+            BiConsumer<SecurityIndexManager.State, SecurityIndexManager.State> {
+        volatile Scheduler.ScheduledCancellable cancellable;
     }
 
     private Tuple<Boolean, Boolean> checkIndexAvailable(ClusterState state) {
@@ -717,6 +769,42 @@ public class SecurityIndexManager implements ClusterStateListener {
                 indexHealth,
                 securityFeatures
             );
+        }
+
+        @Override
+        public String toString() {
+            return "State{"
+                + "creationTime="
+                + creationTime
+                + ", isIndexUpToDate="
+                + isIndexUpToDate
+                + ", indexAvailableForSearch="
+                + indexAvailableForSearch
+                + ", indexAvailableForWrite="
+                + indexAvailableForWrite
+                + ", mappingUpToDate="
+                + mappingUpToDate
+                + ", createdOnLatestVersion="
+                + createdOnLatestVersion
+                + ", migrationsVersion="
+                + migrationsVersion
+                + ", minClusterMappingVersion="
+                + minClusterMappingVersion
+                + ", indexMappingVersion="
+                + indexMappingVersion
+                + ", concreteIndexName='"
+                + concreteIndexName
+                + '\''
+                + ", indexHealth="
+                + indexHealth
+                + ", indexState="
+                + indexState
+                + ", indexUUID='"
+                + indexUUID
+                + '\''
+                + ", securityFeatures="
+                + securityFeatures
+                + '}';
         }
     }
 }

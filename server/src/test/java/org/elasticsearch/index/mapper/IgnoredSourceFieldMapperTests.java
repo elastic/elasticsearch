@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -881,6 +882,49 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         });
         assertEquals(String.format(Locale.ROOT, """
             {"path":[{"to":[{"name":"A"},{"name":"B"}]},{"to":[{"name":"C"},{"name":"D"}]}]}""", booleanValue), syntheticSource);
+    }
+
+    public void testObjectArrayAndValue() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path");
+            {
+                b.field("type", "object");
+                b.startObject("properties");
+                {
+                    b.startObject("stored");
+                    {
+                        b.field("type", "object").field("store_array_source", true);
+                        b.startObject("properties").startObject("leaf").field("type", "integer").endObject().endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+        // { "path": [ { "stored":[ { "leaf": 10 } ] }, { "stored": { "leaf": 20 } } ] }
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startArray("path");
+            {
+                b.startObject();
+                {
+                    b.startArray("stored");
+                    {
+                        b.startObject().field("leaf", 10).endObject();
+                    }
+                    b.endArray();
+                }
+                b.endObject();
+                b.startObject();
+                {
+                    b.startObject("stored").field("leaf", 20).endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        });
+        assertEquals("""
+            {"path":{"stored":[{"leaf":10},{"leaf":20}]}}""", syntheticSource);
     }
 
     public void testDisabledObjectWithinHigherLevelArray() throws IOException {

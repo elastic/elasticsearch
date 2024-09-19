@@ -46,34 +46,13 @@ public class TopTests extends AbstractAggregationTestCase {
                     MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true),
                     MultiRowTestCaseSupplier.dateCases(1, 1000),
                     MultiRowTestCaseSupplier.booleanCases(1, 1000),
-                    MultiRowTestCaseSupplier.ipCases(1, 1000)
+                    MultiRowTestCaseSupplier.ipCases(1, 1000),
+                    MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
+                    MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT)
                 )
                     .flatMap(List::stream)
                     .map(fieldCaseSupplier -> TopTests.makeSupplier(fieldCaseSupplier, limitCaseSupplier, order))
                     .collect(Collectors.toCollection(() -> suppliers));
-            }
-        }
-        for (DataType valueType : DataType.values()) {
-            if (DataType.isString(valueType) == false) {
-                continue;
-            }
-            for (TestCaseSupplier.TypedDataSupplier valuesSupplier : MultiRowTestCaseSupplier.stringCases(1, 1000, valueType)) {
-                suppliers.add(new TestCaseSupplier(List.of(valueType), () -> {
-                    int limit = 3;
-                    @SuppressWarnings("unchecked")
-                    List<BytesRef> values = (List<BytesRef>) valuesSupplier.get().getValue();
-                    List<BytesRef> expected = values.stream().sorted().limit(limit).toList();
-                    return new TestCaseSupplier.TestCase(
-                        List.of(
-                            TestCaseSupplier.TypedData.multiRow(values, valueType, "field"),
-                            new TestCaseSupplier.TypedData(limit, DataType.INTEGER, "limit").forceLiteral(),
-                            new TestCaseSupplier.TypedData(new BytesRef("asc"), DataType.KEYWORD, "order").forceLiteral()
-                        ),
-                        "Top[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
-                        valueType,
-                        equalTo(expected)
-                    );
-                }));
             }
         }
 

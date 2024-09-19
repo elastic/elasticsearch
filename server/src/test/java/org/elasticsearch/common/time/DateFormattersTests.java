@@ -29,7 +29,6 @@ import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAccessor;
 import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.LambdaMatchers.transformedItemsMatch;
 import static org.hamcrest.Matchers.containsString;
@@ -88,8 +87,9 @@ public class DateFormattersTests extends ESTestCase {
 
     private void assertDateMathEquals(String text, String expected, String pattern, Locale locale) {
         Instant gotInstant = dateMathToInstant(text, DateFormatter.forPattern(pattern), locale).truncatedTo(ChronoUnit.MILLIS);
-        Instant expectedInstant = DateFormatters.from(DateFormatter.forPattern("strict_date_optional_time").withLocale(locale).parse(expected))
-            .toInstant().truncatedTo(ChronoUnit.MILLIS);
+        Instant expectedInstant = DateFormatters.from(
+            DateFormatter.forPattern("strict_date_optional_time").withLocale(locale).parse(expected)
+        ).toInstant().truncatedTo(ChronoUnit.MILLIS);
 
         assertThat(gotInstant, equalTo(expectedInstant));
     }

@@ -165,6 +165,13 @@ public final class DocumentParser {
             return;
         }
 
+        // Clean up any conflicting ignored values, to avoid double-printing them as array elements in synthetic source.
+        Map<String, IgnoredSourceFieldMapper.NameValue> fields = new HashMap<>(ignoredFieldsMissingValues.size());
+        for (var field : ignoredFieldsMissingValues) {
+            fields.put(field.name(), field);
+        }
+        context.deduplicateIgnoredFieldValues(fields.keySet());
+
         assert context.mappingLookup().isSourceSynthetic();
         try (
             XContentParser parser = XContentHelper.createParser(
@@ -179,7 +186,7 @@ public final class DocumentParser {
                 context.sourceToParse(),
                 parser
             );
-            var nameValues = parseDocForMissingValues(newContext, ignoredFieldsMissingValues);
+            var nameValues = parseDocForMissingValues(newContext, fields);
             for (var nameValue : nameValues) {
                 context.addIgnoredField(nameValue);
             }
@@ -191,14 +198,8 @@ public final class DocumentParser {
      */
     private static List<IgnoredSourceFieldMapper.NameValue> parseDocForMissingValues(
         DocumentParserContext context,
-        Collection<IgnoredSourceFieldMapper.NameValue> ignoredFieldsMissingValues
+        Map<String, IgnoredSourceFieldMapper.NameValue> fields
     ) throws IOException {
-        // Maps full name to the corresponding NameValue entry.
-        Map<String, IgnoredSourceFieldMapper.NameValue> fields = new HashMap<>(ignoredFieldsMissingValues.size());
-        for (var field : ignoredFieldsMissingValues) {
-            fields.put(field.name(), field);
-        }
-
         // Generate all possible parent names for the given fields.
         // This is used to skip processing objects that can't generate missing values.
         Set<String> parentNames = getPossibleParentNames(fields.keySet());

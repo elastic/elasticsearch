@@ -268,6 +268,9 @@ tests:
 - class: org.elasticsearch.index.mapper.FloatRangeFieldMapperTests
   method: testSyntheticSourceKeepArrays
   issue: https://github.com/elastic/elasticsearch/issues/113220
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.AvgTests
+  method: "testFold {TestCase=<double> #2}"
+  issue: https://github.com/elastic/elasticsearch/issues/113225
 
 # Examples:
 #

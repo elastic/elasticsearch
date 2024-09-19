@@ -82,6 +82,11 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
         if (mapper == null) {
             term = new Term(fieldName, BytesRefs.toBytesRef(value));
         } else {
+            if (mapper.getTextSearchInfo().hasPositions() == false) {
+                throw new IllegalArgumentException(
+                    "Span term query requires position data, but field " + fieldName + " was indexed without position data"
+                );
+            }
             Query termQuery = mapper.termQuery(value, context);
             List<Term> termsList = new ArrayList<>();
             termQuery.visit(new QueryVisitor() {
@@ -99,6 +104,7 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
                 }
             });
             if (termsList.size() != 1) {
+                // This is for safety, but we have called mapper.termQuery above: we really should get one and only one term from the query?
                 throw new IllegalArgumentException("Cannot extract a term from a query of type " + termQuery.getClass() + ": " + termQuery);
             }
             term = termsList.get(0);

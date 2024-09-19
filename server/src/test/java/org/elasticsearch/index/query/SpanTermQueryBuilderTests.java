@@ -15,6 +15,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 
@@ -123,5 +124,12 @@ public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTer
             Query expected = new SpanTermQuery(new Term(field, "toto"));
             assertEquals(expected, query);
         }
+    }
+
+    public void testFieldWithoutPositions() {
+        SearchExecutionContext context = createSearchExecutionContext();
+        SpanTermQueryBuilder spanTermQueryBuilder = new SpanTermQueryBuilder(IdFieldMapper.NAME, "1234");
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> spanTermQueryBuilder.toQuery(context));
+        assertEquals("Span term query requires position data, but field _id was indexed without position data", iae.getMessage());
     }
 }

@@ -3,5 +3,6 @@
   "type" : "eval",
   "name" : "to_date_nanos",
   "description" : "Converts an input to a nanosecond-resolution date value (aka date_nanos).",
-  "signatures" : [ ]
+  "signatures" : [ ],
+  "preview" : true
 }

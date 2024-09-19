@@ -24,8 +24,6 @@ import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
@@ -35,7 +33,6 @@ import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
@@ -78,7 +75,6 @@ import static org.elasticsearch.common.time.DateUtils.toLong;
 /** A {@link FieldMapper} for dates. */
 public final class DateFieldMapper extends FieldMapper {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(DateFieldMapper.class);
     private static final Logger logger = LogManager.getLogger(DateFieldMapper.class);
 
     public static final String CONTENT_TYPE = "date";
@@ -340,20 +336,7 @@ public final class DateFieldMapper extends FieldMapper {
             try {
                 return fieldType.parse(nullValue.getValue());
             } catch (Exception e) {
-                if (indexCreatedVersion.onOrAfter(IndexVersions.V_8_0_0)) {
-                    throw new MapperParsingException("Error parsing [null_value] on field [" + leafName() + "]: " + e.getMessage(), e);
-                } else {
-                    DEPRECATION_LOGGER.warn(
-                        DeprecationCategory.MAPPINGS,
-                        "date_mapper_null_field",
-                        "Error parsing ["
-                            + nullValue.getValue()
-                            + "] as date in [null_value] on field ["
-                            + leafName()
-                            + "]); [null_value] will be ignored"
-                    );
-                    return null;
-                }
+                throw new MapperParsingException("Error parsing [null_value] on field [" + leafName() + "]: " + e.getMessage(), e);
             }
         }
 

@@ -114,9 +114,9 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         ActionListener<BulkResponse> listener,
         long relativeStartTimeNanos
     ) throws IOException {
-        final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
         assert bulkRequest instanceof SimulateBulkRequest
             : "TransportSimulateBulkAction should only ever be called with a SimulateBulkRequest but got a " + bulkRequest.getClass();
+        final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
         Map<String, ComponentTemplate> componentTemplateSubstitutions = bulkRequest.getComponentTemplateSubstitutions();
         for (int i = 0; i < bulkRequest.requests.size(); i++) {
             DocWriteRequest<?> docRequest = bulkRequest.requests.get(i);
@@ -148,6 +148,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
     /**
      * This creates a temporary index with the mappings of the index in the request, and then attempts to index the source from the request
      * into it. If there is a mapping exception, that exception is returned. On success the returned exception is null.
+     * @parem componentTemplateSubstitutions The component template definitions to use in place of existing ones for validation
      * @param request The IndexRequest whose source will be validated against the mapping (if it exists) of its index
      * @return a mapping exception if the source does not match the mappings, otherwise null
      */
@@ -199,8 +200,8 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                 // First, we remove the index from the cluster state if necessary (since we're going to use the templates)
                 ClusterState simulatedState = indexAbstraction == null
                     ? state
-                    : new ClusterState.Builder(state).metadata(new Metadata.Builder(state.metadata()).remove(request.index()).build())
-                        .build();
+                    : new ClusterState.Builder(state).metadata(Metadata.builder(state.metadata()).remove(request.index()).build()).build();
+
                 String matchingTemplate = findV2Template(state.metadata(), request.index(), false);
                 if (matchingTemplate != null) {
                     final Template template = TransportSimulateIndexTemplateAction.resolveTemplate(

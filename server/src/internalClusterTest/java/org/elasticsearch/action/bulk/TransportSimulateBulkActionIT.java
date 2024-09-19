@@ -176,7 +176,18 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
                 Map.of(),
                 Map.of(
                     "test-component-template",
-                    Map.of("dynamic", "strict", "properties", Map.of("foo1", Map.of("type", "text"), "foo3", Map.of("type", "text")))
+                    Map.of(
+                        "template",
+                        Map.of(
+                            "mappings",
+                            Map.of(
+                                "dynamic",
+                                "strict",
+                                "properties",
+                                Map.of("foo1", Map.of("type", "text"), "foo3", Map.of("type", "text"))
+                            )
+                        )
+                    )
                 )
             );
             bulkRequest.add(indexRequest1);

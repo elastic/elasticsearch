@@ -1470,6 +1470,7 @@ public class MetadataIndexTemplateService {
         Objects.requireNonNull(componentTemplates, "attempted to resolve settings with null component templates");
         Map<String, ComponentTemplate> combinedComponentTemplates = new HashMap<>();
         combinedComponentTemplates.putAll(componentTemplates);
+        // We want any substitutions to take precedence:
         combinedComponentTemplates.putAll(templateSubstitutions);
         List<Settings> componentSettings = template.composedOf()
             .stream()

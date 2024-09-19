@@ -111,7 +111,7 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
         }
     }
 
-    public static class TransportAction extends TransportNodesAction<Request, Response, NodeRequest, NodeResponse> {
+    public static class TransportAction extends TransportNodesAction<Request, Response, NodeRequest, NodeResponse, Void> {
 
         private final EnrichCache enrichCache;
         private final EnrichCoordinatorProxyAction.Coordinator coordinator;

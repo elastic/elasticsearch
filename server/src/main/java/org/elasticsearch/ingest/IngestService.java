@@ -278,9 +278,15 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final DocWriteRequest<?> originalRequest,
         final IndexRequest indexRequest,
         final Metadata metadata,
-        Map<String, ComponentTemplate> templateSubstitutions
+        Map<String, ComponentTemplate> componentTemplateSubstitutions
     ) {
-        resolvePipelinesAndUpdateIndexRequest(originalRequest, indexRequest, metadata, System.currentTimeMillis(), templateSubstitutions);
+        resolvePipelinesAndUpdateIndexRequest(
+            originalRequest,
+            indexRequest,
+            metadata,
+            System.currentTimeMillis(),
+            componentTemplateSubstitutions
+        );
     }
 
     static void resolvePipelinesAndUpdateIndexRequest(
@@ -1463,7 +1469,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private static Optional<Pipelines> resolvePipelinesFromIndexTemplates(
         IndexRequest indexRequest,
         Metadata metadata,
-        Map<String, ComponentTemplate> templateSubstitutions
+        Map<String, ComponentTemplate> componentTemplateSubstitutions
     ) {
         if (indexRequest.index() == null) {
             return Optional.empty();
@@ -1474,7 +1480,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         // precedence), or if a V2 template does not match, any V1 templates
         String v2Template = MetadataIndexTemplateService.findV2Template(metadata, indexRequest.index(), false);
         if (v2Template != null) {
-            final Settings settings = MetadataIndexTemplateService.resolveSettings(metadata, v2Template, templateSubstitutions);
+            final Settings settings = MetadataIndexTemplateService.resolveSettings(metadata, v2Template, componentTemplateSubstitutions);
             return Optional.of(new Pipelines(IndexSettings.DEFAULT_PIPELINE.get(settings), IndexSettings.FINAL_PIPELINE.get(settings)));
         }
 

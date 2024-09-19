@@ -45,7 +45,7 @@ Hybrid search techniques combine results from full-text and vector search pipeli
 
 [float]
 [[re-ranking-overview-second-stage]]
-=== Second Stage: Re-ranking
+=== Second stage: Re-ranking
 
 When using the following advanced re-ranking pipelines, first-stage retrieval mechanisms effectively generate a set of candidates.
 These candidates are funneled into the re-ranker to perform more computationally expensive re-ranking tasks.

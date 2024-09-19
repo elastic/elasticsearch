@@ -231,7 +231,7 @@ public class AggregationOperator implements Operator {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(aggregationNanos);
             if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_AGGREGATION_OPERATOR_STATUS_FINISH_NANOS)) {
-                out.writeOptionalLong(aggregationFinishNanos);
+                out.writeOptionalVLong(aggregationFinishNanos);
             }
             out.writeVInt(pagesProcessed);
         }

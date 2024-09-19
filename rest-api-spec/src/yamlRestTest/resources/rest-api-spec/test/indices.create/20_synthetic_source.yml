@@ -1803,6 +1803,7 @@ synthetic_source with copy_to pointing to ambiguous field and subobjects auto:
 ---
 synthetic_source with copy_to pointing at dynamic field:
   - requires:
+      test_runner_features: contains
       cluster_features: ["mapper.source.synthetic_source_copy_to_inside_objects_fix"]
       reason: requires copy_to support in synthetic source
 
@@ -1852,21 +1853,21 @@ synthetic_source with copy_to pointing at dynamic field:
       search:
         index: test
         body:
-          fields: [ "c.copy" ]
+          docvalue_fields: [ "c.copy.keyword" ]
 
   - match:
       hits.hits.0._source:
         k: "hello"
   - match:
       hits.hits.0.fields:
-        c.copy: [ "hello" ]
+        c.copy.keyword: [ "hello" ]
 
   - match:
       hits.hits.1._source:
         k: ["55", "66"]
   - match:
       hits.hits.1.fields:
-        c.copy: [ "55", "66" ]
+        c.copy.keyword: [ "55", "66" ]
 
   - match:
       hits.hits.2._source:
@@ -1875,7 +1876,7 @@ synthetic_source with copy_to pointing at dynamic field:
           copy: "zap"
   - match:
       hits.hits.2.fields:
-        c.copy: [ "hello", "zap" ]
+        c.copy.keyword: [ "hello", "zap" ]
 
 ---
 synthetic_source with copy_to pointing inside dynamic object:
@@ -1925,21 +1926,21 @@ synthetic_source with copy_to pointing inside dynamic object:
       search:
         index: test
         body:
-          fields: [ "c.copy" ]
+          docvalue_fields: [ "c.copy.keyword" ]
 
   - match:
       hits.hits.0._source:
         k: "hello"
   - match:
       hits.hits.0.fields:
-        c.copy: [ "hello" ]
+        c.copy.keyword: [ "hello" ]
 
   - match:
       hits.hits.1._source:
         k: ["55", "66"]
   - match:
       hits.hits.1.fields:
-        c.copy: [ "55", "66" ]
+        c.copy.keyword: [ "55", "66" ]
 
   - match:
       hits.hits.2._source:
@@ -1948,5 +1949,5 @@ synthetic_source with copy_to pointing inside dynamic object:
           copy: "zap"
   - match:
       hits.hits.2.fields:
-        c.copy: [ "hello", "zap" ]
+        c.copy.keyword: [ "hello", "zap" ]
 

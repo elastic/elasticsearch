@@ -7,11 +7,9 @@
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.support.Automatons;
-import org.elasticsearch.xpack.core.security.support.StringMatcher;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -25,8 +23,6 @@ import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.security.support.Automatons.patterns;
-
 /**
  * An application privilege has an application name (e.g. {@code "my-app"}) that identifies an application (that exists
  * outside of elasticsearch), a privilege name (e.g. {@code "admin}) that is meaningful to that application, and one or
@@ -36,7 +32,7 @@ import static org.elasticsearch.xpack.core.security.support.Automatons.patterns;
  * The action patterns are entirely optional - many application will find that simple "privilege names" are sufficient, but
  * they allow applications to define high level abstract privileges that map to multiple low level capabilities.
  */
-public final class ApplicationPrivilege {
+public abstract class ApplicationPrivilege {
 
     private static final Pattern VALID_APPLICATION_PREFIX = Pattern.compile("^[a-z][A-Za-z0-9]*$");
     private static final Pattern WHITESPACE = Pattern.compile("[\\v\\h]");
@@ -48,25 +44,20 @@ public final class ApplicationPrivilege {
      */
     private static final Pattern VALID_NAME_OR_ACTION = Pattern.compile("^\\p{Graph}*$");
 
-    public static final Function<String, ApplicationPrivilege> NONE = app -> new ApplicationPrivilege(app, Collections.singleton("none"));
+    public static final Function<String, ApplicationPrivilege> NONE = app -> new DefaultApplicationPrivilege(
+        app,
+        Collections.singleton("none")
+    );
 
     private final String application;
     private final String[] patterns;
-
     public final Set<String> name;
-    private Automaton automaton;
-    private StringMatcher exactMatcher;
 
     // TODO make this private once ApplicationPrivilegeTests::createPrivilege uses ApplicationPrivilege::get
     ApplicationPrivilege(String application, Set<String> name, String... patterns) {
         this.application = application;
         this.patterns = patterns;
         this.name = name;
-        if (allPatternsExactMatches(patterns)) {
-            this.exactMatcher = StringMatcher.of(patterns);
-        } else {
-            this.automaton = patterns(patterns);
-        }
     }
 
     public String getApplication() {
@@ -77,21 +68,13 @@ public final class ApplicationPrivilege {
         return patterns;
     }
 
-    public StringMatcher matcher() {
-        return exactMatcher;
-    }
+    public abstract boolean patternsTotal();
 
-    public boolean isTotal() {
-        if (exactMatcher != null) {
-            return exactMatcher.isTotal();
-        } else {
-            return Operations.isTotal(getAutomaton());
-        }
-    }
+    public abstract boolean patternsEmpty();
 
-    public boolean isExact() {
-        return exactMatcher != null;
-    }
+    public abstract boolean supersetOfPatterns(ApplicationPrivilege other);
+
+    public abstract Automaton getAutomaton();
 
     /**
      * Validate that the provided application name is valid, and throws an exception otherwise
@@ -280,10 +263,12 @@ public final class ApplicationPrivilege {
 
         patterns.addAll(actions);
 
-        return new ApplicationPrivilege(application, names, patterns.toArray(new String[0]));
+        return allPatternsExactMatches(patterns)
+            ? new ExactMatchApplicationPrivilege(application, names, patterns.toArray(new String[0]))
+            : new DefaultApplicationPrivilege(application, names, patterns.toArray(new String[0]));
     }
 
-    private static boolean allPatternsExactMatches(String... patterns) {
+    private static boolean allPatternsExactMatches(Set<String> patterns) {
         for (var pattern : patterns) {
             if (pattern.contains("*")) {
                 return false;
@@ -296,14 +281,6 @@ public final class ApplicationPrivilege {
         return name;
     }
 
-    public Automaton getAutomaton() {
-        // Lazy init
-        if (automaton == null) {
-            automaton = patterns(patterns);
-        }
-        return automaton;
-    }
-
     @Override
     public String toString() {
         return application + ":" + super.toString() + "(" + Strings.arrayToCommaDelimitedString(patterns) + ")";
@@ -311,7 +288,7 @@ public final class ApplicationPrivilege {
 
     @Override
     public int hashCode() {
-        int result = super.hashCode();
+        int result = Objects.hashCode(name);
         result = 31 * result + Objects.hashCode(application);
         result = 31 * result + Arrays.hashCode(patterns);
         return result;

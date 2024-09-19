@@ -322,7 +322,6 @@ public class EsqlCapabilities {
          */
         FIXED_WRONG_IS_NOT_NULL_CHECK_ON_CASE;
 
-
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;
 

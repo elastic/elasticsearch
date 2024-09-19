@@ -263,12 +263,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         throwIfNotEmptyMap(serviceSettingsMap, name());
 
         modelListener.onResponse(
-            new MultilingualE5SmallModel(
-                inferenceEntityId,
-                taskType,
-                NAME,
-                new MultilingualE5SmallInternalServiceSettings(esServiceSettingsBuilder.build())
-            )
+            new ElserInternalModel(inferenceEntityId, taskType, NAME, new ElserInternalServiceSettings(esServiceSettingsBuilder.build()))
         );
     }
 

@@ -26,7 +26,7 @@ public final class BucketReducer<B extends MultiBucketsAggregation.Bucket> imple
     private long count = 0;
 
     public BucketReducer(B proto, AggregationReduceContext context, int size) {
-        this.aggregatorsReducer = new AggregatorsReducer(context, size);
+        this.aggregatorsReducer = new AggregatorsReducer(proto.getAggregations(), context, size);
         this.proto = proto;
     }
 

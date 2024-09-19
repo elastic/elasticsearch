@@ -307,6 +307,11 @@ public class EsqlCapabilities {
         CAST_STRING_LITERAL_TO_TEMPORAL_AMOUNT,
 
         /**
+         * Supported the text categorization function "CATEGORIZE".
+         */
+        CATEGORIZE(true),
+
+        /**
          * Support named parameters for field names.
          */
         NAMED_PARAMETER_FOR_FIELD_NAME;

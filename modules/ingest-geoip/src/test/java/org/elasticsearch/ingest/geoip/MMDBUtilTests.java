@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.is;
 public class MMDBUtilTests extends ESTestCase {
 
     // a temporary directory that mmdb files can be copied to and read from
-    Path tmpDir;
+    private Path tmpDir;
 
     @Before
     public void setup() {

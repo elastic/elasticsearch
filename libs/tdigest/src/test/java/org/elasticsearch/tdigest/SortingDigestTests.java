@@ -24,7 +24,7 @@ package org.elasticsearch.tdigest;
 public class SortingDigestTests extends TDigestTests {
 
     protected DigestFactory factory(final double compression) {
-        return SortingDigest::new;
+        return () -> new SortingDigest(arrays());
     }
 
     // Make this test a noop to avoid OOMs.

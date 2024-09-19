@@ -479,11 +479,11 @@ setup:
 ---
 "Test regexp":
   - requires:
-      test_runner_features: [ capabilities ]
       capabilities:
         - method: POST
           path: /_search
           capabilities: [ range_regexp_interval_queries ]
+      test_runner_features: capabilities
       reason: "Support for range and regexp interval queries capability required"
   - do:
       search:
@@ -504,11 +504,11 @@ setup:
 ---
 "Test range":
   - requires:
-      test_runner_features: [ capabilities ]
       capabilities:
         - method: POST
           path: /_search
           capabilities: [ range_regexp_interval_queries ]
+      test_runner_features: capabilities
       reason: "Support for range and regexp interval queries capability required"
   - do:
       search:

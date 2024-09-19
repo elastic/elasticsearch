@@ -25,7 +25,7 @@ Because the resource-intensive model is only applied to the smaller set of pre-f
 ==== Full-text search: BM25 scoring
 
 {es} ranks documents based on term frequency and inverse document frequency, adjusted for document length.
-https://en.wikipedia.org/wiki/Okapi_BM25[BM25] is the default statistical scoring algorithm in {es} and works out-of-the-box.
+https://en.wikipedia.org/wiki/Okapi_BM25[BM25] is the default statistical scoring algorithm in {es}.
 
 [float]
 [[re-ranking-ranking-overview-vector]]

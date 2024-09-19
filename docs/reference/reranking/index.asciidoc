@@ -2,15 +2,60 @@
 = Reranking
 
 Rerankers improve the relevance of results from earlier-stage retrieval mechanisms.
-First-stage rankers must be very fast and efficient because they process either the entire corpus, or all matching documents.
+{es} supports a number of <<reranking-ranking-overview-advanced, advanced reranking techniques>>.
 
-In a multi-stage pipeline, you can progressively use more computationally intensive ranking functions and techniques, as they will operate on smaller result sets at each step.
-This helps avoid query latency degradation and keeps costs manageable.
+We provide a brief overview of ranking mechanisms below, from the simplest to the most complex, to help you choose the right workflow for your use case.
 
-Currently, the following reranking techniques are available in {es}:
+[float]
+[[reranking-ranking-overview-bm25]]
+== Full-text search: BM25 scoring
 
-* <<semantic-reranking>>: Use machine learning models to reorder search results based on their semantic similarity to a query. Models can be hosted directly in your {es} cluster, or you can use <<inference-apis,inference endpoints>> to use models provided by third-party services. Enables out-of-the-box semantic search capabilities on existing indices.
-* <<learning-to-rank>>: Train a machine learning model to build a ranking function for your search experience that updates over time. For advanced use cases.
+{es} ranks documents based on term frequency and inverse document frequency, adjusted for document length.
+
+BM25 is the default statistical scoring algorithm in {es} and works out-of-the-box.
+
+[float]
+[[reranking-ranking-overview-vector]]
+== Vector search: similarity scoring
+
+Vector search involves transforming data into dense or sparse vector embeddings to capture semantic meanings, and computing similarity scores for query vectors.
+
+Store vectors using `semantic` fields for automatic vectorization or `dense_vector` and `sparse_vector` fields when you need more control over the underlying embedding model.
+
+Query vectors with `semantic` queries or `knn` and `sparse_vector` queries to compute similarity scores.
+
+Refer to <<semantic-search,semantic search>> for more information.
+
+[float]
+[[reranking-ranking-overview-hybrid]]
+== Hybrid techniques
+
+Hybrid search techniques combine results from full-text and vector search pipelines.
+
+{es} enables combining lexical matching (BM25) and vector search scores using the advanced <<rrf,Reciprocal Rank Fusion (RRF)>> algorithm.
+
+[float]
+[[reranking-ranking-overview-advanced]]
+== Advanced reranking
+
+When using the following advanced reranking pipelines, early retrieval mechanisms effectively generate a set of candidates. 
+These candidates are funneled into a late stage reranker that performs more computationally expensive reranking tasks.
+
+[float]
+[[reranking-ranking-overview-semantic]]
+=== Semantic reranking
+
+<<semantic-reranking>> uses machine learning models to reorder search results based on their semantic similarity to a query.
+
+Models can be hosted directly in your {es} cluster, or you can use <<inference-apis,inference endpoints>> to use models provided by third-party services. Enables out-of-the-box semantic search capabilities on existing full-text search indices.
+
+[float]
+[[reranking-ranking-overview-ltr]]
+=== Learning to Rank (LTR)
+
+<<learning-to-rank>> is for advanced users. Train a machine learning model to build a ranking function for your search experience that updates over time.
+
+Best suited for when you have ample training data and need highly customized relevance tuning.
 
 include::semantic-reranking.asciidoc[]
 include::learning-to-rank.asciidoc[]

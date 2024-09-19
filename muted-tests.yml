@@ -247,6 +247,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {date.DateFormatLocale ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/113200
+- class: org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests
+  method: testHasPrivilegesOtherThanIndex
+  issue: https://github.com/elastic/elasticsearch/issues/113202
 
 # Examples:
 #

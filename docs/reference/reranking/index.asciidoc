@@ -1,60 +1,70 @@
-[[reranking-overview]]
-= Reranking
+[[re-ranking-overview]]
+= Re-ranking
 
-Rerankers improve the relevance of results from earlier-stage retrieval mechanisms.
-{es} supports a number of <<reranking-ranking-overview-advanced, advanced reranking techniques>>.
+Many search systems are built on two-stage retrieval pipelines.
 
-We provide a brief overview of ranking mechanisms below, from the simplest to the most complex, to help you choose the right workflow for your use case.
+The first stage uses cheap, fast algorithms to find a subset of possible matches.
+
+The second stage uses a more powerful model, often machine learning-based, to reorder the documents.
+This second step is called re-ranking.
+This approach balances computational costs, because the resource-intensive model is only applied to a smaller set of pre-filtered results.
+
+{es} supports various ranking and re-ranking techniques to optimize search relevance and performance.
 
 [float]
-[[reranking-ranking-overview-bm25]]
-== Full-text search: BM25 scoring
+[[re-ranking-two-stage-pipeline]]
+== Two-stage retrieval pipelines
+
+Learn about retrieval pipelines and how re-ranking can be applied to your existing search experience.
+
+[float]
+[[re-ranking-first-stage-pipeline]]
+=== First stage: initial retrieval
+
+[float]
+[[re-ranking-ranking-overview-bm25]]
+==== Full-text search: BM25 scoring
 
 {es} ranks documents based on term frequency and inverse document frequency, adjusted for document length.
-
 BM25 is the default statistical scoring algorithm in {es} and works out-of-the-box.
 
 [float]
-[[reranking-ranking-overview-vector]]
-== Vector search: similarity scoring
+[[re-ranking-ranking-overview-vector]]
+==== Vector search: similarity scoring
 
 Vector search involves transforming data into dense or sparse vector embeddings to capture semantic meanings, and computing similarity scores for query vectors.
-
 Store vectors using `semantic` fields for automatic vectorization or `dense_vector` and `sparse_vector` fields when you need more control over the underlying embedding model.
-
 Query vectors with `semantic` queries or `knn` and `sparse_vector` queries to compute similarity scores.
-
 Refer to <<semantic-search,semantic search>> for more information.
 
 [float]
-[[reranking-ranking-overview-hybrid]]
-== Hybrid techniques
+[[re-ranking-ranking-overview-hybrid]]
+==== Hybrid techniques
 
 Hybrid search techniques combine results from full-text and vector search pipelines.
-
 {es} enables combining lexical matching (BM25) and vector search scores using the advanced <<rrf,Reciprocal Rank Fusion (RRF)>> algorithm.
 
 [float]
-[[reranking-ranking-overview-advanced]]
-== Advanced reranking
+[[re-ranking-overview-second-stage]]
+=== Second Stage: Re-ranking
 
-When using the following advanced reranking pipelines, early retrieval mechanisms effectively generate a set of candidates. 
-These candidates are funneled into a late stage reranker that performs more computationally expensive reranking tasks.
+When using the following advanced re-ranking pipelines, early retrieval mechanisms effectively generate a set of candidates.
+These candidates are funneled into a late stage reranker that performs more computationally expensive re-ranking tasks.
 
 [float]
-[[reranking-ranking-overview-semantic]]
-=== Semantic reranking
+[[re-ranking-overview-semantic]]
+==== Semantic re-ranking
 
 <<semantic-reranking>> uses machine learning models to reorder search results based on their semantic similarity to a query.
-
-Models can be hosted directly in your {es} cluster, or you can use <<inference-apis,inference endpoints>> to call models provided by third-party services. Enables out-of-the-box semantic search capabilities on existing full-text search indices.
+Models can be hosted directly in your {es} cluster, or you can use <<inference-apis,inference endpoints>> to call models provided by third-party services.
+Enables out-of-the-box semantic search capabilities on existing full-text search indices.
 
 [float]
-[[reranking-ranking-overview-ltr]]
-=== Learning to Rank (LTR)
+[[re-ranking-overview-ltr]]
+==== Learning to Rank (LTR)
 
-<<learning-to-rank>> is for advanced users. Train a machine learning model to build a ranking function for your search experience that updates over time.
-
+<<learning-to-rank>> is for advanced users.
+Train a machine learning model to build a ranking function for your search experience that updates over time.
 Best suited for when you have ample training data and need highly customized relevance tuning.
 
 include::semantic-reranking.asciidoc[]

@@ -399,7 +399,7 @@ public class DateUtils {
             deprecationLogger.warn(
                 DeprecationCategory.PARSING,
                 "cldr_date_formats_" + format,
-                "Date format [{}] contains textual field specifiers that could change in JDK 23",
+                "Date format [{}] contains field specifiers that could change in JDK 23",
                 format
             );
         }

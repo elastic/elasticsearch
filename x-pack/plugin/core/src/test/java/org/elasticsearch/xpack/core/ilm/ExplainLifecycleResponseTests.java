@@ -18,9 +18,6 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -53,7 +50,7 @@ public class ExplainLifecycleResponseTests extends AbstractXContentSerializingTe
         for (int i = 0; i < randomIntBetween(0, 2); i++) {
             IndexLifecycleExplainResponse indexResponse = IndexLifecycleExplainResponseTests.randomIndexExplainResponse();
             // Since the age is calculated from now, we make now constant so that we don't get changes in age during the run of the test:
-            indexResponse.clock = Clock.fixed(Instant.now(), ZoneOffset.UTC);
+            indexResponse.nowSupplier = () -> now;
             indexResponses.put(indexResponse.getIndex(), indexResponse);
         }
         return new ExplainLifecycleResponse(indexResponses);

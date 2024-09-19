@@ -22,8 +22,8 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
-import java.time.Clock;
 import java.util.Objects;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public class IndexLifecycleExplainResponse implements ToXContentObject, Writeable {
@@ -141,7 +141,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
     private final String snapshotName;
     private final String shrinkIndexName;
 
-    Clock clock = Clock.systemUTC(); // Can be changed for testing
+    Supplier<Long> nowSupplier = System::currentTimeMillis; // Can be changed for testing
 
     public static IndexLifecycleExplainResponse newManagedIndexResponse(
         String index,
@@ -393,11 +393,11 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         return indexCreationDate;
     }
 
-    public TimeValue getTimeSinceIndexCreation(Clock clock) {
+    public TimeValue getTimeSinceIndexCreation(Supplier<Long> now) {
         if (indexCreationDate == null) {
             return null;
         } else {
-            return TimeValue.timeValueMillis(Math.max(0L, clock.millis() - indexCreationDate));
+            return TimeValue.timeValueMillis(Math.max(0L, now.get() - indexCreationDate));
         }
     }
 
@@ -461,11 +461,11 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         return failedStepRetryCount;
     }
 
-    public TimeValue getAge(Clock clock) {
+    public TimeValue getAge(Supplier<Long> now) {
         if (lifecycleDate == null) {
             return TimeValue.MINUS_ONE;
         } else {
-            return TimeValue.timeValueMillis(Math.max(0L, clock.millis() - lifecycleDate));
+            return TimeValue.timeValueMillis(Math.max(0L, now.get() - lifecycleDate));
         }
     }
 
@@ -496,12 +496,12 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
                 );
                 builder.field(
                     TIME_SINCE_INDEX_CREATION_FIELD.getPreferredName(),
-                    getTimeSinceIndexCreation(clock).toHumanReadableString(2)
+                    getTimeSinceIndexCreation(nowSupplier).toHumanReadableString(2)
                 );
             }
             if (lifecycleDate != null) {
                 builder.timeField(LIFECYCLE_DATE_MILLIS_FIELD.getPreferredName(), LIFECYCLE_DATE_FIELD.getPreferredName(), lifecycleDate);
-                builder.field(AGE_FIELD.getPreferredName(), getAge(clock).toHumanReadableString(2));
+                builder.field(AGE_FIELD.getPreferredName(), getAge(nowSupplier).toHumanReadableString(2));
             }
             if (phase != null) {
                 builder.field(PHASE_FIELD.getPreferredName(), phase);

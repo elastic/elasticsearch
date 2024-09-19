@@ -235,6 +235,9 @@ tests:
 - class: org.elasticsearch.packaging.test.WindowsServiceTests
   method: test33JavaChanged
   issue: https://github.com/elastic/elasticsearch/issues/113177
+- class: org.elasticsearch.xpack.inference.rest.ServerSentEventsRestActionListenerTests
+  method: testErrorMidStream
+  issue: https://github.com/elastic/elasticsearch/issues/113179
 
 # Examples:
 #

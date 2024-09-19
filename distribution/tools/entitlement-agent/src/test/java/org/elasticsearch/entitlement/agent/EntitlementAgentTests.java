@@ -22,7 +22,7 @@ import org.elasticsearch.test.ESTestCase.WithoutSecurityManager;
 @WithoutSecurityManager
 public class EntitlementAgentTests extends ESTestCase {
 
-    public void testAgentSaidHello() {
+    public void testAgentBooted() {
         assertTrue(EntitlementChecks.isAgentBooted());
     }
 

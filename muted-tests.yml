@@ -265,6 +265,9 @@ tests:
 - class: org.elasticsearch.packaging.test.WindowsServiceTests
   method: test80JavaOptsInEnvVar
   issue: https://github.com/elastic/elasticsearch/issues/113219
+- class: org.elasticsearch.index.mapper.FloatRangeFieldMapperTests
+  method: testSyntheticSourceKeepArrays
+  issue: https://github.com/elastic/elasticsearch/issues/113220
 
 # Examples:
 #

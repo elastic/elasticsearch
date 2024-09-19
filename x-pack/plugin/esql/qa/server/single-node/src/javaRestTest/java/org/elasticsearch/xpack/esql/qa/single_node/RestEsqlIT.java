@@ -276,7 +276,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
     public void testProfile() throws IOException {
         indexTimestampData(1);
 
-        RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | STATS AVG(value) BY test.keyword");
+        RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | STATS AVG(value)");
         builder.profile(true);
         if (Build.current().isSnapshot()) {
             // Lock to shard level partitioning, so we get consistent profile output

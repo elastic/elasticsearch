@@ -35,9 +35,6 @@ tests:
 - class: org.elasticsearch.backwards.SearchWithMinCompatibleSearchNodeIT
   method: testCcsMinimizeRoundtripsIsFalse
   issue: https://github.com/elastic/elasticsearch/issues/101974
-- class: org.elasticsearch.backwards.SearchWithMinCompatibleSearchNodeIT
-  method: testMinVersionAsOldVersion
-  issue: https://github.com/elastic/elasticsearch/issues/109454
 - class: "org.elasticsearch.xpack.searchablesnapshots.FrozenSearchableSnapshotsIntegTests"
   issue: "https://github.com/elastic/elasticsearch/issues/110408"
   method: "testCreateAndRestorePartialSearchableSnapshot"
@@ -160,9 +157,6 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestIngestWithAllDepsClientYamlTestSuiteIT
   method: test {yaml=ingest/80_ingest_simulate/Test ingest simulate with reroute and mapping validation from templates}
   issue: https://github.com/elastic/elasticsearch/issues/112575
-- class: org.elasticsearch.script.mustache.LangMustacheClientYamlTestSuiteIT
-  method: test {yaml=lang_mustache/50_multi_search_template/Multi-search template with errors}
-  issue: https://github.com/elastic/elasticsearch/issues/112580
 - class: org.elasticsearch.xpack.security.authc.kerberos.SimpleKdcLdapServerTests
   method: testClientServiceMutualAuthentication
   issue: https://github.com/elastic/elasticsearch/issues/112529
@@ -175,17 +169,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.EsqlAsyncSecurityIT
   method: testIndexPatternErrorMessageComparison_ESQL_SearchDSL
   issue: https://github.com/elastic/elasticsearch/issues/112630
-- class: org.elasticsearch.compute.aggregation.blockhash.BlockHashTests
-  method: testBytesRefLongHashHugeCombinatorialExplosion {forcePackedHash=false}
-  issue: https://github.com/elastic/elasticsearch/issues/112442
-- class: org.elasticsearch.compute.aggregation.blockhash.BlockHashTests
-  method: testBytesRefLongHashHugeCombinatorialExplosion {forcePackedHash=true}
-  issue: https://github.com/elastic/elasticsearch/issues/112443
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testPutJob_GivenFarequoteConfig
   issue: https://github.com/elastic/elasticsearch/issues/112382
-- class: org.elasticsearch.xpack.eql.EqlClientYamlIT
-  issue: https://github.com/elastic/elasticsearch/issues/112617
 - class: org.elasticsearch.xpack.security.authc.kerberos.KerberosTicketValidatorTests
   method: testWhenKeyTabWithInvalidContentFailsValidation
   issue: https://github.com/elastic/elasticsearch/issues/112631
@@ -210,6 +196,34 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.single_node.JdbcSqlSpecIT
   method: test {case-functions.testUcaseInline3}
   issue: https://github.com/elastic/elasticsearch/issues/112643
+- class: org.elasticsearch.xpack.ml.integration.MlJobIT
+  method: testDelete_multipleRequest
+  issue: https://github.com/elastic/elasticsearch/issues/112701
+- class: org.elasticsearch.xpack.ml.integration.MlJobIT
+  method: testCreateJobInSharedIndexUpdatesMapping
+  issue: https://github.com/elastic/elasticsearch/issues/112729
+- class: org.elasticsearch.xpack.ml.integration.MlJobIT
+  method: testGetJob_GivenNoSuchJob
+  issue: https://github.com/elastic/elasticsearch/issues/112730
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/cluster/stats/line_1450}
+  issue: https://github.com/elastic/elasticsearch/issues/112732
+- class: org.elasticsearch.script.StatsSummaryTests
+  method: testEqualsAndHashCode
+  issue: https://github.com/elastic/elasticsearch/issues/112439
+- class: org.elasticsearch.snapshots.ConcurrentSnapshotsIT
+  method: testMasterFailoverOnFinalizationLoop
+  issue: https://github.com/elastic/elasticsearch/issues/112811
+- class: org.elasticsearch.xpack.ml.integration.MlJobIT
+  method: testDeleteJobAfterMissingAliases
+  issue: https://github.com/elastic/elasticsearch/issues/112823
+- class: org.elasticsearch.repositories.blobstore.testkit.analyze.HdfsRepositoryAnalysisRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/112889
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/111944
+- class: org.elasticsearch.datastreams.logsdb.qa.StandardVersusLogsIndexModeRandomDataChallengeRestIT
+  method: testDateHistogramAggregation
+  issue: https://github.com/elastic/elasticsearch/issues/112919
 
 # Examples:
 #

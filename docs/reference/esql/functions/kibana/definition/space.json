@@ -19,5 +19,6 @@
   ],
   "examples" : [
     "ROW message = CONCAT(\"Hello\", SPACE(1), \"World!\");"
-  ]
+  ],
+  "preview" : false
 }

@@ -21,6 +21,7 @@ import co.elastic.elasticsearch.serverless.constants.ProjectType;
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -107,6 +108,7 @@ public class MemoryMetricsService implements ClusterStateListener {
 
     private volatile long lastStaleMetricsCheckTimeNs = Long.MIN_VALUE;
     private volatile TimeValue staleMetricsCheckInterval;
+    private volatile long clusterStateVersion = ClusterState.UNKNOWN_VERSION;
 
     public MemoryMetricsService(LongSupplier relativeTimeInNanosSupplier, ClusterSettings clusterSettings, ProjectType projectType) {
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
@@ -192,7 +194,25 @@ public class MemoryMetricsService implements ClusterStateListener {
         return shardMemoryMetrics;
     }
 
+    /**
+     * Apply the received {@link HeapMemoryUsage}
+     *
+     * NOTE: We may be concurrently applying a cluster state (see comment on {@link #clusterChanged(ClusterChangedEvent)})
+     * so we perform the should-retry-on-conflict check before attempting to update any of the metrics. This is so the
+     * stale-ness check is conservatively performed using the last cluster state version applied before we start processing
+     * the updates.
+     *
+     * This prevents the following sequence of events:
+     * <ol>
+     *     <li>Received metrics for cluster state version 5 are applied, conflicts are detected because local state is
+     *          representative of version 4 (and a shard primary changed)</li>
+     *     <li>Cluster state 5 is applied, version is bumped</li>
+     *     <li>Retry check performed, indicates we should silently ignore conflicts because local state version >= update version</li>
+     *     <li>Valid updates silently ignored</li>
+     * </ol>
+     */
     void updateShardsMappingSize(final HeapMemoryUsage heapMemoryUsage) {
+        final boolean shouldRequestRetryOnConflict = shouldRequestRetryForHeapMemoryMetrics(heapMemoryUsage);
         List<ShardId> missedUpdates = new ArrayList<>();
         for (var entry : heapMemoryUsage.shardMappingSizes().entrySet()) {
             ShardId shardId = entry.getKey();
@@ -213,19 +233,35 @@ public class MemoryMetricsService implements ClusterStateListener {
                 missedUpdates.add(shardId);
             }
         }
-        if (missedUpdates.size() > 0) {
+        if (missedUpdates.size() > 0 && shouldRequestRetryOnConflict) {
             throw new AutoscalingMissedIndicesUpdateException(
                 "Failed to fully apply " + heapMemoryUsage + " due to missed shards: " + missedUpdates
             );
         }
     }
 
+    /**
+     * Update our map of {@link ShardMemoryMetrics} to represent the new cluster state. This includes:
+     *
+     * <ul>
+     *     <li>Creating instances for new shards</li>
+     *     <li>Removing instances for deleted shards</li>
+     *     <li>Updating {@link ShardMemoryMetrics#getMetricShardNodeId()} to reflect changes in the location of the primary</li>
+     *     <li>Setting quality to {@link MetricQuality#MINIMUM} when mapping changes are applied</li>
+     *     <li>Populating the whole map on a new master</li>
+     *     <li>Clearing the map on a demoted master</li>
+     * </ul>
+     *
+     * We update the {@link #clusterStateVersion} only once the cluster state has been fully processed. This means it always reflects
+     * the last cluster state version fully reflected in the state of the map (i.e. not a version that we might be currently processing).
+     */
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-
         if (event.localNodeMaster() == false || event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             shardMemoryMetrics.clear();
             initialized = false;
+            // Set the cluster state to unknown so we don't ignore valid updates that arrive during our next promotion
+            clusterStateVersion = ClusterState.UNKNOWN_VERSION;
             return;
         }
         this.totalIndices = event.state().metadata().indices().size();
@@ -253,6 +289,7 @@ public class MemoryMetricsService implements ClusterStateListener {
                 }
             }
             initialized = true;
+            clusterStateVersion = event.state().version();
             return;
         }
 
@@ -311,6 +348,20 @@ public class MemoryMetricsService implements ClusterStateListener {
                 }
             }
         }
+
+        clusterStateVersion = event.state().version();
+    }
+
+    /**
+     * Should we request a retry for a {@link HeapMemoryUsage} that failed to fully process?
+     *
+     * @param heapMemoryUsage The heapMemoryUsage
+     * @return true if it may be correctly applied on retry, false otherwise
+     */
+    private boolean shouldRequestRetryForHeapMemoryMetrics(HeapMemoryUsage heapMemoryUsage) {
+        return heapMemoryUsage.clusterStateVersion() == ClusterState.UNKNOWN_VERSION
+            || clusterStateVersion == ClusterState.UNKNOWN_VERSION
+            || clusterStateVersion < heapMemoryUsage.clusterStateVersion();
     }
 
     private long relativeTimeInNanos() {

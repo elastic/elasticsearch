@@ -44,18 +44,25 @@ public class HeapMemoryUsageTests extends AbstractWireSerializingTestCase<HeapMe
     }
 
     public static HeapMemoryUsage randomHeapMemoryUsage() {
-        return new HeapMemoryUsage(randomNonNegativeLong(), randomShardMappingSizes());
+        return new HeapMemoryUsage(randomNonNegativeLong(), randomShardMappingSizes(), randomNonNegativeLong());
     }
 
-    public static HeapMemoryUsage mutate(HeapMemoryUsage in) throws IOException {
-        return switch (between(0, 1)) {
+    public static HeapMemoryUsage mutate(HeapMemoryUsage in) {
+        return switch (between(0, 2)) {
             case 0 -> new HeapMemoryUsage(
                 randomValueOtherThan(in.publicationSeqNo(), ESTestCase::randomNonNegativeLong),
-                in.shardMappingSizes()
+                in.shardMappingSizes(),
+                in.clusterStateVersion()
             );
             case 1 -> new HeapMemoryUsage(
                 in.publicationSeqNo(),
-                randomValueOtherThan(in.shardMappingSizes(), HeapMemoryUsageTests::randomShardMappingSizes)
+                randomValueOtherThan(in.shardMappingSizes(), HeapMemoryUsageTests::randomShardMappingSizes),
+                in.clusterStateVersion()
+            );
+            case 2 -> new HeapMemoryUsage(
+                in.publicationSeqNo(),
+                in.shardMappingSizes(),
+                randomValueOtherThan(in.clusterStateVersion(), ESTestCase::randomNonNegativeLong)
             );
             default -> throw new AssertionError("invalid option");
         };

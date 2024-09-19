@@ -19,10 +19,12 @@ package co.elastic.elasticsearch.stateless.autoscaling.memory;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -39,6 +41,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 
 import java.util.List;
 import java.util.Map;
@@ -47,7 +50,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.ShardsMappingSizeCollector.CUT_OFF_TIMEOUT_SETTING;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.ShardsMappingSizeCollector.RETRY_INITIAL_DELAY_SETTING;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
@@ -67,16 +70,14 @@ public class ShardsMappingSizeCollectorTests extends ESTestCase {
         .build();
 
     private final ThreadPool testThreadPool = new TestThreadPool(ShardsMappingSizeCollectorTests.class.getSimpleName());
-
     private IndicesService indicesService;
-
     private IndexService indexService;
-
     private IndexMetadata indexMetadata;
+    private ClusterService clusterService;
 
     @Before
     public void setup() {
-
+        clusterService = mock(ClusterService.class);
         indicesService = mock(IndicesService.class);
         when(indicesService.iterator()).thenReturn(List.<IndexService>of().iterator());
 
@@ -94,7 +95,7 @@ public class ShardsMappingSizeCollectorTests extends ESTestCase {
         testThreadPool.shutdownNow();
     }
 
-    public void testPublicationAfterIndexShardStarted() {
+    public void testPublicationAfterIndexShardStartedWithUnknownVersion() throws Exception {
 
         ShardId shardId = new ShardId(TEST_INDEX, randomIntBetween(0, 2));
         ShardRouting shardRoutingStub = TestShardRouting.newShardRouting(shardId, "node-0", true, ShardRoutingState.STARTED);
@@ -103,16 +104,24 @@ public class ShardsMappingSizeCollectorTests extends ESTestCase {
         when(indexShard.shardId()).thenReturn(shardId);
         when(indexShard.routingEntry()).thenReturn(shardRoutingStub);
 
-        when(indexService.getShardOrNull(0)).thenReturn(indexShard);
+        when(indexService.getShardOrNull(shardId.getId())).thenReturn(indexShard);
         final long testIndexMappingSizeInBytes = 1024;
         when(indexService.getNodeMappingStats()).thenReturn(new NodeMappingStats(1, testIndexMappingSizeInBytes, 1, 1));
+        when(indicesService.indexService(shardId.getIndex())).thenReturn(indexService);
 
         var publisher = mock(HeapMemoryUsagePublisher.class);
-        var collector = spy(new ShardsMappingSizeCollector(IS_INDEX_NODE, indicesService, publisher, testThreadPool, TEST_SETTINGS));
+        var collector = spy(
+            new ShardsMappingSizeCollector(IS_INDEX_NODE, indicesService, publisher, testThreadPool, TEST_SETTINGS, clusterService)
+        );
 
-        // simulate event
+        // simulate afterIndexShardStarted
         collector.afterIndexShardStarted(indexShard);
-        verify(collector).updateMappingMetricsForShard(eq(shardId));
+        ArgumentCaptor<HeapMemoryUsage> heapUsageCaptor = ArgumentCaptor.forClass(HeapMemoryUsage.class);
+        // need to assertBusy here because the publish is done asynchronously
+        assertBusy(() -> {
+            verify(publisher).publishIndicesMappingSize(heapUsageCaptor.capture(), any());
+            assertEquals(ClusterState.UNKNOWN_VERSION, heapUsageCaptor.getValue().clusterStateVersion());
+        });
     }
 
     public void testPublishHeapMemoryUsagesAreRetried() {
@@ -139,7 +148,7 @@ public class ShardsMappingSizeCollectorTests extends ESTestCase {
             .put(CUT_OFF_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(5))
             .put(RETRY_INITIAL_DELAY_SETTING.getKey(), TimeValue.timeValueMillis(50))
             .build();
-        var collector = new ShardsMappingSizeCollector(IS_INDEX_NODE, indicesService, publisher, testThreadPool, setting);
+        var collector = new ShardsMappingSizeCollector(IS_INDEX_NODE, indicesService, publisher, testThreadPool, setting, clusterService);
         var shards = Map.of(new ShardId(TEST_INDEX, 0), new ShardMappingSize(randomNonNegativeInt(), 0, 0, "newTestShardNodeId"));
         var heapUsage = new HeapMemoryUsage(randomNonNegativeLong(), shards);
         collector.publishHeapUsage(heapUsage);
@@ -160,7 +169,14 @@ public class ShardsMappingSizeCollectorTests extends ESTestCase {
                 );
             }
         };
-        var collector = new ShardsMappingSizeCollector(IS_INDEX_NODE, indicesService, publisher, testThreadPool, TEST_SETTINGS);
+        var collector = new ShardsMappingSizeCollector(
+            IS_INDEX_NODE,
+            indicesService,
+            publisher,
+            testThreadPool,
+            TEST_SETTINGS,
+            clusterService
+        );
         var shards = Map.of(new ShardId(TEST_INDEX, 0), new ShardMappingSize(randomNonNegativeInt(), 0, 0, "newTestShardNodeId"));
         var heapUsage = new HeapMemoryUsage(randomNonNegativeLong(), shards);
         collector.publishHeapUsage(heapUsage, TimeValue.timeValueMillis(500), new ActionListener<ActionResponse.Empty>() {
@@ -178,5 +194,40 @@ public class ShardsMappingSizeCollectorTests extends ESTestCase {
         });
 
         safeAwait(unableToPublishMetricsLatch);
+    }
+
+    public void testCurrentClusterStateVersionSentWhenSendingUpdatesForShards() throws Exception {
+        ShardId shardId = new ShardId(TEST_INDEX, randomIntBetween(0, 2));
+        ShardRouting shardRoutingStub = TestShardRouting.newShardRouting(shardId, "node-0", true, ShardRoutingState.STARTED);
+
+        IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.shardId()).thenReturn(shardId);
+        when(indexShard.routingEntry()).thenReturn(shardRoutingStub);
+
+        when(indexService.getShardOrNull(shardId.id())).thenReturn(indexShard);
+        final long testIndexMappingSizeInBytes = 1024;
+        when(indexService.getNodeMappingStats()).thenReturn(new NodeMappingStats(1, testIndexMappingSizeInBytes, 1, 1));
+        when(indicesService.indexService(shardId.getIndex())).thenReturn(indexService);
+
+        long currentClusterStateVersion = randomNonNegativeLong();
+        when(clusterService.state()).thenReturn(new ClusterState(currentClusterStateVersion, randomUUID(), ClusterState.EMPTY_STATE));
+
+        var publisher = mock(HeapMemoryUsagePublisher.class);
+        var collector = new ShardsMappingSizeCollector(
+            IS_INDEX_NODE,
+            indicesService,
+            publisher,
+            testThreadPool,
+            TEST_SETTINGS,
+            clusterService
+        );
+
+        collector.updateMappingMetricsForShard(shardId);
+        ArgumentCaptor<HeapMemoryUsage> heapUsageCaptor = ArgumentCaptor.forClass(HeapMemoryUsage.class);
+        // need to assertBusy here because the publish is done asynchronously
+        assertBusy(() -> {
+            verify(publisher).publishIndicesMappingSize(heapUsageCaptor.capture(), any());
+            assertEquals(currentClusterStateVersion, heapUsageCaptor.getValue().clusterStateVersion());
+        });
     }
 }

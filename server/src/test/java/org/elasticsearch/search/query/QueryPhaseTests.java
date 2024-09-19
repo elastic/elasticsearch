@@ -699,9 +699,9 @@ public class QueryPhaseTests extends IndexShardTestCase {
                 assertThat(context.terminateAfter(), equalTo(0));
                 assertThat(context.queryResult().getTotalHits().value, equalTo((long) numDocs));
                 FieldDoc firstDoc = (FieldDoc) context.queryResult().topDocs().topDocs.scoreDocs[0];
-                for (int i = 0; i < searchSortAndFormat.sort.getSort().length; i++) {
+                for (int i = 0; i < searchSortAndFormat.sort().getSort().length; i++) {
                     @SuppressWarnings("unchecked")
-                    FieldComparator<Object> comparator = (FieldComparator<Object>) searchSortAndFormat.sort.getSort()[i].getComparator(
+                    FieldComparator<Object> comparator = (FieldComparator<Object>) searchSortAndFormat.sort().getSort()[i].getComparator(
                         1,
                         i == 0 ? Pruning.GREATER_THAN : Pruning.NONE
                     );
@@ -821,7 +821,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             searchContext.trackTotalHitsUpTo(10);
             searchContext.setSize(10);
             QueryPhase.addCollectorsAndSearch(searchContext);
-            assertTrue(searchContext.sort().sort.getSort()[0].getOptimizeSortWithPoints());
+            assertTrue(searchContext.sort().sort().getSort()[0].getOptimizeSortWithPoints());
             assertSortResults(searchContext.queryResult().topDocs().topDocs, numDocs, false);
         }
 
@@ -835,7 +835,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             searchContext.trackTotalHitsUpTo(10);
             searchContext.setSize(10);
             QueryPhase.addCollectorsAndSearch(searchContext);
-            assertTrue(searchContext.sort().sort.getSort()[0].getOptimizeSortWithPoints());
+            assertTrue(searchContext.sort().sort().getSort()[0].getOptimizeSortWithPoints());
             final TopDocs topDocs = searchContext.queryResult().topDocs().topDocs;
             long firstResult = (long) ((FieldDoc) topDocs.scoreDocs[0]).fields[0];
             assertThat(firstResult, greaterThan(afterValue));
@@ -848,7 +848,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             searchContext.trackTotalHitsUpTo(10);
             searchContext.setSize(10);
             QueryPhase.addCollectorsAndSearch(searchContext);
-            assertTrue(searchContext.sort().sort.getSort()[0].getOptimizeSortWithPoints());
+            assertTrue(searchContext.sort().sort().getSort()[0].getOptimizeSortWithPoints());
             assertSortResults(searchContext.queryResult().topDocs().topDocs, numDocs, true);
         }
 
@@ -858,7 +858,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             searchContext.trackTotalHitsUpTo(10);
             searchContext.setSize(10);
             QueryPhase.addCollectorsAndSearch(searchContext);
-            assertTrue(searchContext.sort().sort.getSort()[0].getOptimizeSortWithPoints());
+            assertTrue(searchContext.sort().sort().getSort()[0].getOptimizeSortWithPoints());
             assertSortResults(searchContext.queryResult().topDocs().topDocs, numDocs, false);
         }
 
@@ -868,7 +868,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             searchContext.trackTotalHitsUpTo(10);
             searchContext.setSize(10);
             QueryPhase.addCollectorsAndSearch(searchContext);
-            assertTrue(searchContext.sort().sort.getSort()[0].getOptimizeSortWithPoints());
+            assertTrue(searchContext.sort().sort().getSort()[0].getOptimizeSortWithPoints());
             assertSortResults(searchContext.queryResult().topDocs().topDocs, numDocs, true);
         }
 
@@ -879,7 +879,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             searchContext.from(5);
             searchContext.setSize(0);
             QueryPhase.addCollectorsAndSearch(searchContext);
-            assertTrue(searchContext.sort().sort.getSort()[0].getOptimizeSortWithPoints());
+            assertTrue(searchContext.sort().sort().getSort()[0].getOptimizeSortWithPoints());
             assertThat(searchContext.queryResult().topDocs().topDocs.scoreDocs, arrayWithSize(0));
             assertThat(searchContext.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
             assertThat(searchContext.queryResult().topDocs().topDocs.totalHits.relation, equalTo(TotalHits.Relation.EQUAL_TO));

@@ -21,9 +21,7 @@ import java.util.Objects;
 /**
  * A class that encapsulates a minimum and a maximum, that are of the same type and {@link Comparable}.
  */
-public class MinAndMax<T extends Comparable<? super T>> implements Writeable {
-    private final T minValue;
-    private final T maxValue;
+public record MinAndMax<T extends Comparable<? super T>>(T minValue, T maxValue) implements Writeable {
 
     public MinAndMax(T minValue, T maxValue) {
         this.minValue = Objects.requireNonNull(minValue);
@@ -31,9 +29,8 @@ public class MinAndMax<T extends Comparable<? super T>> implements Writeable {
     }
 
     @SuppressWarnings("unchecked")
-    public MinAndMax(StreamInput in) throws IOException {
-        this.minValue = (T) Lucene.readSortValue(in);
-        this.maxValue = (T) Lucene.readSortValue(in);
+    public static <T extends Comparable<? super T>> MinAndMax<T> readFrom(StreamInput in) throws IOException {
+        return new MinAndMax<>((T) Lucene.readSortValue(in), (T) Lucene.readSortValue(in));
     }
 
     @Override
@@ -42,26 +39,12 @@ public class MinAndMax<T extends Comparable<? super T>> implements Writeable {
         Lucene.writeSortValue(out, maxValue);
     }
 
-    /**
-     * Return the minimum value.
-     */
-    public T getMin() {
-        return minValue;
-    }
-
-    /**
-     * Return the maximum value.
-     */
-    public T getMax() {
-        return maxValue;
-    }
-
     @SuppressWarnings({ "unchecked", "rawtypes" })
     private static final Comparator<MinAndMax> ASC_COMPARATOR = (left, right) -> {
         if (left == null) {
             return right == null ? 0 : -1; // nulls last
         }
-        return right == null ? 1 : left.getMin().compareTo(right.getMin());
+        return right == null ? 1 : left.minValue.compareTo(right.minValue);
     };
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -69,7 +52,7 @@ public class MinAndMax<T extends Comparable<? super T>> implements Writeable {
         if (left == null) {
             return right == null ? 0 : 1; // nulls first
         }
-        return right == null ? -1 : right.getMax().compareTo(left.getMax());
+        return right == null ? -1 : right.maxValue.compareTo(left.maxValue);
     };
 
     /**

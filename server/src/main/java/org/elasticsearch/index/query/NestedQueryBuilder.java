@@ -443,7 +443,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                 TopDocsCollector<?> topDocsCollector;
                 MaxScoreCollector maxScoreCollector = null;
                 if (sort() != null) {
-                    topDocsCollector = TopFieldCollector.create(sort().sort, topN, Integer.MAX_VALUE);
+                    topDocsCollector = TopFieldCollector.create(sort().sort(), topN, Integer.MAX_VALUE);
                     if (trackScores()) {
                         maxScoreCollector = new MaxScoreCollector();
                     }

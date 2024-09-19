@@ -40,3 +40,7 @@ if (BuildParams.isSnapshotBuild() == false) {
     systemProperty 'es.failure_store_feature_flag_enabled', 'true'
   }
 }
+
+tasks.named("yamlRestCompatTestTransform").configure({ task ->
+  task.skipTest("data_stream/10_basic/Create hidden data stream", "warning does not exist for compatibility")
+})

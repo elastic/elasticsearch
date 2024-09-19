@@ -216,7 +216,10 @@ public class TransportVersions {
     public static final TransportVersion GLOBAL_RETENTION_TELEMETRY = def(8_740_00_0);
     public static final TransportVersion ROUTING_TABLE_VERSION_REMOVED = def(8_741_00_0);
     public static final TransportVersion ML_SCHEDULED_EVENT_TIME_SHIFT_CONFIGURATION = def(8_742_00_0);
-    public static final TransportVersion HIDE_VECTORS_FROM_SOURCE = def(8_743_00_0);
+    public static final TransportVersion SIMULATE_COMPONENT_TEMPLATES_SUBSTITUTIONS = def(8_743_00_0);
+    public static final TransportVersion ML_INFERENCE_IBM_WATSONX_EMBEDDINGS_ADDED = def(8_744_00_0);
+    public static final TransportVersion BULK_INCREMENTAL_STATE = def(8_745_00_0);
+    public static final TransportVersion HIDE_VECTORS_FROM_SOURCE = def(8_746_00_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

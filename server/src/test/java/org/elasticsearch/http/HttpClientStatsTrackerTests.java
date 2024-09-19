@@ -120,7 +120,7 @@ public class HttpClientStatsTrackerTests extends ESTestCase {
             assertThat(clientStats.remoteAddress(), equalTo(NetworkAddress.format(httpChannel.getRemoteAddress())));
             assertThat(clientStats.lastUri(), equalTo(httpRequest1.uri()));
             assertThat(clientStats.requestCount(), equalTo(1L));
-            requestLength += httpRequest1.content().length();
+            requestLength += httpRequest1.body().asFull().bytes().length();
             assertThat(clientStats.requestSizeBytes(), equalTo(requestLength));
             assertThat(clientStats.closedTimeMillis(), equalTo(-1L));
             assertThat(clientStats.openedTimeMillis(), equalTo(openTimeMillis));
@@ -150,7 +150,7 @@ public class HttpClientStatsTrackerTests extends ESTestCase {
             assertThat(clientStats.remoteAddress(), equalTo(NetworkAddress.format(httpChannel.getRemoteAddress())));
             assertThat(clientStats.lastUri(), equalTo(httpRequest2.uri()));
             assertThat(clientStats.requestCount(), equalTo(2L));
-            requestLength += httpRequest2.content().length();
+            requestLength += httpRequest2.body().asFull().bytes().length();
             assertThat(clientStats.requestSizeBytes(), equalTo(requestLength));
             assertThat(clientStats.closedTimeMillis(), equalTo(-1L));
             assertThat(clientStats.openedTimeMillis(), equalTo(openTimeMillis));

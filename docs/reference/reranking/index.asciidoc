@@ -47,7 +47,7 @@ These candidates are funneled into a late stage reranker that performs more comp
 
 <<semantic-reranking>> uses machine learning models to reorder search results based on their semantic similarity to a query.
 
-Models can be hosted directly in your {es} cluster, or you can use <<inference-apis,inference endpoints>> to use models provided by third-party services. Enables out-of-the-box semantic search capabilities on existing full-text search indices.
+Models can be hosted directly in your {es} cluster, or you can use <<inference-apis,inference endpoints>> to call models provided by third-party services. Enables out-of-the-box semantic search capabilities on existing full-text search indices.
 
 [float]
 [[reranking-ranking-overview-ltr]]

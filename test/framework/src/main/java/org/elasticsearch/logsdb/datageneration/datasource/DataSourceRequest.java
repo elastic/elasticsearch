@@ -104,7 +104,7 @@ public interface DataSourceRequest<TResponse extends DataSourceResponse> {
         }
     }
 
-    record LeafMappingParametersGenerator(String fieldName, FieldType fieldType, Set<String> eligibleCopyToFields)
+    record LeafMappingParametersGenerator(String fieldName, FieldType fieldType, Set<String> eligibleCopyToFields, DynamicMapping dynamicMapping)
         implements
             DataSourceRequest<DataSourceResponse.LeafMappingParametersGenerator> {
         public DataSourceResponse.LeafMappingParametersGenerator accept(DataSourceHandler handler) {

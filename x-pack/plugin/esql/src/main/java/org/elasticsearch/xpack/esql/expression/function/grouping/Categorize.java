@@ -319,7 +319,7 @@ public class Categorize extends GroupingFunction implements Validatable {
                 for (int oldCategoryId = 0; oldCategoryId < count; oldCategoryId++) {
                     SerializableTokenListCategory category = new SerializableTokenListCategory(in);
                     int newCategoryId = categorizer.mergeWireCategory(category).getId();
-                    System.err.println("category id map: " + oldCategoryId + " -> " + newCategoryId);
+                    System.err.println("category id map: " + oldCategoryId + " -> " + newCategoryId + " (" + category.getRegex() + ")");
                     idMap.put(oldCategoryId, newCategoryId);
                 }
                 return idMap;

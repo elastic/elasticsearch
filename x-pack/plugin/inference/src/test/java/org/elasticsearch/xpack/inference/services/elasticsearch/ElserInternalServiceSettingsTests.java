@@ -10,56 +10,45 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.inference.services.elser.ElserInternalServiceSettings;
-import org.elasticsearch.xpack.inference.services.elser.ElserModels;
 
 import java.io.IOException;
 import java.util.HashSet;
 
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModelsTests.randomElserModel;
 
-public class ElserInternalServiceSettingsTests extends AbstractWireSerializingTestCase<
-    org.elasticsearch.xpack.inference.services.elser.ElserInternalServiceSettings> {
+public class ElserInternalServiceSettingsTests extends AbstractWireSerializingTestCase<ElserInternalServiceSettings> {
 
-    public static org.elasticsearch.xpack.inference.services.elser.ElserInternalServiceSettings createRandom() {
-        return new org.elasticsearch.xpack.inference.services.elser.ElserInternalServiceSettings(
-            ElasticsearchInternalServiceSettingsTests.validInstance(randomElserModel())
-        );
+    public static ElserInternalServiceSettings createRandom() {
+        return new ElserInternalServiceSettings(ElasticsearchInternalServiceSettingsTests.validInstance(randomElserModel()));
     }
 
     public void testBwcWrite() throws IOException {
         {
-            var settings = new org.elasticsearch.xpack.inference.services.elser.ElserInternalServiceSettings(
-                new ElasticsearchInternalServiceSettings(1, 1, ".elser_model_1", null)
-            );
+            var settings = new ElserInternalServiceSettings(new ElasticsearchInternalServiceSettings(1, 1, ".elser_model_1", null));
             var copy = copyInstance(settings, TransportVersions.V_8_12_0);
             assertEquals(settings, copy);
         }
         {
-            var settings = new org.elasticsearch.xpack.inference.services.elser.ElserInternalServiceSettings(
-                new ElasticsearchInternalServiceSettings(1, 1, ".elser_model_1", null)
-            );
+            var settings = new ElserInternalServiceSettings(new ElasticsearchInternalServiceSettings(1, 1, ".elser_model_1", null));
             var copy = copyInstance(settings, TransportVersions.V_8_11_X);
             assertEquals(settings, copy);
         }
     }
 
     @Override
-    protected Writeable.Reader<org.elasticsearch.xpack.inference.services.elser.ElserInternalServiceSettings> instanceReader() {
-        return org.elasticsearch.xpack.inference.services.elser.ElserInternalServiceSettings::new;
+    protected Writeable.Reader<ElserInternalServiceSettings> instanceReader() {
+        return ElserInternalServiceSettings::new;
     }
 
     @Override
-    protected org.elasticsearch.xpack.inference.services.elser.ElserInternalServiceSettings createTestInstance() {
+    protected ElserInternalServiceSettings createTestInstance() {
         return createRandom();
     }
 
     @Override
-    protected org.elasticsearch.xpack.inference.services.elser.ElserInternalServiceSettings mutateInstance(
-        org.elasticsearch.xpack.inference.services.elser.ElserInternalServiceSettings instance
-    ) {
+    protected ElserInternalServiceSettings mutateInstance(ElserInternalServiceSettings instance) {
         return switch (randomIntBetween(0, 2)) {
-            case 0 -> new org.elasticsearch.xpack.inference.services.elser.ElserInternalServiceSettings(
+            case 0 -> new ElserInternalServiceSettings(
                 new ElasticsearchInternalServiceSettings(
                     instance.getNumAllocations() == null ? 1 : instance.getNumAllocations() + 1,
                     instance.getNumThreads(),
@@ -67,7 +56,7 @@ public class ElserInternalServiceSettingsTests extends AbstractWireSerializingTe
                     null
                 )
             );
-            case 1 -> new org.elasticsearch.xpack.inference.services.elser.ElserInternalServiceSettings(
+            case 1 -> new ElserInternalServiceSettings(
                 new ElasticsearchInternalServiceSettings(
                     instance.getNumAllocations(),
                     instance.getNumThreads() + 1,

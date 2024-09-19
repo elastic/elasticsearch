@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.services.elser.ElserModels;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels;
 
 public class ElserModelsTests extends ESTestCase {
 

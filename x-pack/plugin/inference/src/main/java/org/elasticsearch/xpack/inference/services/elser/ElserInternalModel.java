@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.elser;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -17,14 +18,8 @@ import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInt
 
 public class ElserInternalModel extends ElasticsearchInternalModel {
 
-    public ElserInternalModel(
-        String inferenceEntityId,
-        TaskType taskType,
-        String service,
-        ElserInternalServiceSettings serviceSettings,
-        ElserMlNodeTaskSettings taskSettings
-    ) {
-        super(inferenceEntityId, taskType, service, serviceSettings, taskSettings);
+    public ElserInternalModel(String inferenceEntityId, TaskType taskType, String service, ElserInternalServiceSettings serviceSettings) {
+        super(inferenceEntityId, taskType, service, serviceSettings);
     }
 
     @Override
@@ -33,8 +28,8 @@ public class ElserInternalModel extends ElasticsearchInternalModel {
     }
 
     @Override
-    public ElserMlNodeTaskSettings getTaskSettings() {
-        return (ElserMlNodeTaskSettings) super.getTaskSettings();
+    public TaskSettings getTaskSettings() {
+        return super.getTaskSettings();
     }
 
     @Override

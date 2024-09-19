@@ -14,10 +14,10 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.core.security.support.Automatons.patterns;
 
-public class DefaultApplicationPrivilege extends ApplicationPrivilege {
+public class AutomatonBasedApplicationPrivilege extends ApplicationPrivilege {
     private final Automaton automaton;
 
-    DefaultApplicationPrivilege(String application, Set<String> name, String... patterns) {
+    AutomatonBasedApplicationPrivilege(String application, Set<String> name, String... patterns) {
         super(application, name, patterns);
         this.automaton = patterns(patterns);
     }
@@ -34,11 +34,13 @@ public class DefaultApplicationPrivilege extends ApplicationPrivilege {
 
     @Override
     public boolean supersetOfPatterns(ApplicationPrivilege other) {
-        return Operations.subsetOf(other.getAutomaton(), automaton);
+        final String[] patterns = other.getPatterns();
+        final Automaton otherAutomaton = other instanceof AutomatonBasedApplicationPrivilege def ? def.automaton : patterns(patterns);
+        return Operations.subsetOf(otherAutomaton, automaton);
     }
 
     @Override
-    public Automaton getAutomaton() {
-        return automaton;
+    public boolean supersetOfPatterns(String... patterns) {
+        return Operations.subsetOf(patterns(patterns), automaton);
     }
 }

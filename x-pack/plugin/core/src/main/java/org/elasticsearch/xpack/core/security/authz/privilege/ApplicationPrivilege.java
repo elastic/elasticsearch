@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
-import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.support.Automatons;
@@ -44,7 +43,7 @@ public abstract class ApplicationPrivilege {
      */
     private static final Pattern VALID_NAME_OR_ACTION = Pattern.compile("^\\p{Graph}*$");
 
-    public static final Function<String, ApplicationPrivilege> NONE = app -> new DefaultApplicationPrivilege(
+    public static final Function<String, ApplicationPrivilege> NONE = app -> new AutomatonBasedApplicationPrivilege(
         app,
         Collections.singleton("none")
     );
@@ -74,7 +73,7 @@ public abstract class ApplicationPrivilege {
 
     public abstract boolean supersetOfPatterns(ApplicationPrivilege other);
 
-    public abstract Automaton getAutomaton();
+    public abstract boolean supersetOfPatterns(String... patterns);
 
     /**
      * Validate that the provided application name is valid, and throws an exception otherwise
@@ -263,14 +262,15 @@ public abstract class ApplicationPrivilege {
 
         patterns.addAll(actions);
 
-        return allPatternsExactMatches(patterns)
-            ? new ExactMatchApplicationPrivilege(application, names, patterns.toArray(new String[0]))
-            : new DefaultApplicationPrivilege(application, names, patterns.toArray(new String[0]));
+        // TODO
+        return true || useStringMatcher(patterns)
+            ? new StringMatchingApplicationPrivilege(application, names, patterns.toArray(new String[0]))
+            : new AutomatonBasedApplicationPrivilege(application, names, patterns.toArray(new String[0]));
     }
 
-    private static boolean allPatternsExactMatches(Set<String> patterns) {
+    private static boolean useStringMatcher(Set<String> patterns) {
         for (var pattern : patterns) {
-            if (pattern.contains("*")) {
+            if (pattern.startsWith("/") || pattern.contains("*") || pattern.contains("?")) {
                 return false;
             }
         }
@@ -304,5 +304,4 @@ public abstract class ApplicationPrivilege {
             && Objects.equals(this.application, ((ApplicationPrivilege) o).application)
             && Arrays.equals(this.patterns, ((ApplicationPrivilege) o).patterns);
     }
-
 }

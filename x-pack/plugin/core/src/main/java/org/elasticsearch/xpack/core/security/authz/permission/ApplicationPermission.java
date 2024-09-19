@@ -73,7 +73,7 @@ public final class ApplicationPermission {
      * <li>The entry's application, when interpreted as an {@link Automaton} {@link Automatons#pattern(String) pattern} matches the
      * application given in the argument (interpreted as a raw string)
      * </li>
-     * <li>The {@link ApplicationPrivilege#getAutomaton automaton that defines the entry's actions} entirely covers the
+     * <li>The {@code ApplicationPrivilege# TODO automaton that defines the entry's actions} entirely covers the
      * automaton given in the argument (that is, the argument is a subset of the entry's automaton)
      * </li>
      * <li>The entry's resources, when interpreted as an {@link Automaton} {@link Automatons#patterns(String...)} set of patterns} entirely

@@ -112,7 +112,7 @@ public class AnalysisTests extends ESTestCase {
         Settings nodeSettings = Settings.builder()
             .put("foo.path", tempDir.resolve(dict))
             .put("bar.list", "")
-            .put("soup.deduplicate", "true")
+            .put("soup.lenient", "true")
             .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
             .build();
         try (BufferedWriter writer = Files.newBufferedWriter(dict, StandardCharsets.UTF_8)) {
@@ -128,7 +128,7 @@ public class AnalysisTests extends ESTestCase {
             writer.write('\n');
         }
         Environment env = TestEnvironment.newEnvironment(nodeSettings);
-        List<String> wordList = Analysis.getWordList(env, nodeSettings, "foo.path", "bar.list", "soup.deduplicate", true, true);
+        List<String> wordList = Analysis.getWordList(env, nodeSettings, "foo.path", "bar.list", "soup.lenient", true, true);
         assertEquals(List.of("最終契約,最終契約,最終契約,カスタム名 詞"), wordList);
     }
 
@@ -138,7 +138,7 @@ public class AnalysisTests extends ESTestCase {
         Settings nodeSettings = Settings.builder()
             .put("foo.path", tempDir.resolve(dict))
             .put("bar.list", "")
-            .put("soup.deduplicate", "false")
+            .put("soup.lenient", "false")
             .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
             .build();
         try (BufferedWriter writer = Files.newBufferedWriter(dict, StandardCharsets.UTF_8)) {
@@ -156,7 +156,7 @@ public class AnalysisTests extends ESTestCase {
         Environment env = TestEnvironment.newEnvironment(nodeSettings);
         IllegalArgumentException exc = expectThrows(
             IllegalArgumentException.class,
-            () -> Analysis.getWordList(env, nodeSettings, "foo.path", "bar.list", "soup.deduplicate", false, true)
+            () -> Analysis.getWordList(env, nodeSettings, "foo.path", "bar.list", "soup.lenient", false, true)
         );
         assertThat(exc.getMessage(), containsString("[最終契約] in user dictionary at line [5]"));
     }
@@ -167,7 +167,7 @@ public class AnalysisTests extends ESTestCase {
         Settings nodeSettings = Settings.builder()
             .put("foo.path", tempDir.resolve(dict))
             .put("bar.list", "")
-            .put("soup.deduplicate", "true")
+            .put("soup.lenient", "true")
             .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
             .build();
         try (BufferedWriter writer = Files.newBufferedWriter(dict, StandardCharsets.UTF_8)) {
@@ -183,7 +183,7 @@ public class AnalysisTests extends ESTestCase {
             writer.write('\n');
         }
         Environment env = TestEnvironment.newEnvironment(nodeSettings);
-        List<String> wordList = Analysis.getWordList(env, nodeSettings, "foo.path", "bar.list", "soup.deduplicate", false, true);
+        List<String> wordList = Analysis.getWordList(env, nodeSettings, "foo.path", "bar.list", "soup.lenient", false, true);
         assertEquals(
             List.of(
                 "# This is a test of the emergency broadcast system",

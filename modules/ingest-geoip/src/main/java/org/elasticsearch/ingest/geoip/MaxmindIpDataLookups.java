@@ -37,10 +37,10 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * A collection of {@link GeoDataLookup} implementations for Maxmind databases
+ * A collection of {@link IpDataLookup} implementations for MaxMind databases
  */
-class MaxmindGeoDataLookups {
-    private MaxmindGeoDataLookups() {}
+class MaxmindIpDataLookups {
+    private MaxmindIpDataLookups() {}
 
     static class AnonymousIp extends AbstractBase<AnonymousIpResponse> {
         AnonymousIp(final Set<Database.Property> properties) {
@@ -557,12 +557,12 @@ class MaxmindGeoDataLookups {
     }
 
     /**
-     * The {@code MaxmindGeoDataLookups.AbstractBase} is an abstract base implementation of {@link GeoDataLookup} that
+     * The {@code MaxmindIpDataLookups.AbstractBase} is an abstract base implementation of {@link IpDataLookup} that
      * provides common functionality for getting a specific kind of {@link AbstractResponse} from a {@link IpDatabase}.
      *
      * @param <RESPONSE> the intermediate type of {@link AbstractResponse}
      */
-    private abstract static class AbstractBase<RESPONSE extends AbstractResponse> implements GeoDataLookup {
+    private abstract static class AbstractBase<RESPONSE extends AbstractResponse> implements IpDataLookup {
 
         protected final Set<Database.Property> properties;
         protected final Class<RESPONSE> clazz;
@@ -580,7 +580,7 @@ class MaxmindGeoDataLookups {
         }
 
         @Override
-        public final Map<String, Object> getGeoData(final IpDatabase ipDatabase, final String ipAddress) {
+        public final Map<String, Object> getData(final IpDatabase ipDatabase, final String ipAddress) {
             final RESPONSE response = ipDatabase.getResponse(ipAddress, this::lookup);
             return (response == null) ? Map.of() : transform(response);
         }

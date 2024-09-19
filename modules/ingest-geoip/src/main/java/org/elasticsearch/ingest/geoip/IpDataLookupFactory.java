@@ -12,19 +12,19 @@ package org.elasticsearch.ingest.geoip;
 import java.util.Set;
 
 @FunctionalInterface
-interface GeoDataLookupFactory<PROVIDER extends GeoDataLookup> {
+interface IpDataLookupFactory<PROVIDER extends IpDataLookup> {
     PROVIDER create(Set<Database.Property> properties);
 
-    static GeoDataLookupFactory<?> get(final Database database) {
+    static IpDataLookupFactory<?> get(final Database database) {
         return switch (database) {
-            case City -> MaxmindGeoDataLookups.City::new;
-            case Country -> MaxmindGeoDataLookups.Country::new;
-            case Asn -> MaxmindGeoDataLookups.Asn::new;
-            case AnonymousIp -> MaxmindGeoDataLookups.AnonymousIp::new;
-            case ConnectionType -> MaxmindGeoDataLookups.ConnectionType::new;
-            case Domain -> MaxmindGeoDataLookups.Domain::new;
-            case Enterprise -> MaxmindGeoDataLookups.Enterprise::new;
-            case Isp -> MaxmindGeoDataLookups.Isp::new;
+            case City -> MaxmindIpDataLookups.City::new;
+            case Country -> MaxmindIpDataLookups.Country::new;
+            case Asn -> MaxmindIpDataLookups.Asn::new;
+            case AnonymousIp -> MaxmindIpDataLookups.AnonymousIp::new;
+            case ConnectionType -> MaxmindIpDataLookups.ConnectionType::new;
+            case Domain -> MaxmindIpDataLookups.Domain::new;
+            case Enterprise -> MaxmindIpDataLookups.Enterprise::new;
+            case Isp -> MaxmindIpDataLookups.Isp::new;
         };
     }
 }

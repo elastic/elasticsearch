@@ -42,7 +42,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
     private final Supplier<Boolean> isValid;
     private final String targetField;
     private final CheckedSupplier<IpDatabase, IOException> supplier;
-    private final GeoDataLookup geoDataLookup;
+    private final IpDataLookup ipDataLookup;
     private final boolean ignoreMissing;
     private final boolean firstOnly;
     private final String databaseFile;
@@ -55,7 +55,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
      * @param supplier      a supplier of a geo-IP database reader; ideally this is lazily-loaded once on first use
      * @param isValid       a supplier that determines if the available database files are up-to-date and license compliant
      * @param targetField   the target field
-     * @param geoDataLookup a lookup capable of retrieving a result from an available geo-IP database reader
+     * @param ipDataLookup a lookup capable of retrieving a result from an available geo-IP database reader
      * @param ignoreMissing true if documents with a missing value for the field should be ignored
      * @param firstOnly     true if only first result should be returned in case of array
      * @param databaseFile  the name of the database file being queried; used only for tagging documents if the database is unavailable
@@ -67,7 +67,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         final CheckedSupplier<IpDatabase, IOException> supplier,
         final Supplier<Boolean> isValid,
         final String targetField,
-        final GeoDataLookup geoDataLookup,
+        final IpDataLookup ipDataLookup,
         final boolean ignoreMissing,
         final boolean firstOnly,
         final String databaseFile
@@ -77,7 +77,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         this.isValid = isValid;
         this.targetField = targetField;
         this.supplier = supplier;
-        this.geoDataLookup = geoDataLookup;
+        this.ipDataLookup = ipDataLookup;
         this.ignoreMissing = ignoreMissing;
         this.firstOnly = firstOnly;
         this.databaseFile = databaseFile;
@@ -144,7 +144,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
     }
 
     private Map<String, Object> getGeoData(IpDatabase ipDatabase, String ipAddress) throws IOException {
-        return geoDataLookup.getGeoData(ipDatabase, ipAddress);
+        return ipDataLookup.getData(ipDatabase, ipAddress);
     }
 
     @Override
@@ -165,7 +165,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
     }
 
     Set<Property> getProperties() {
-        return geoDataLookup.getProperties();
+        return ipDataLookup.getProperties();
     }
 
     /**
@@ -261,7 +261,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 throw newConfigurationException(TYPE, processorTag, "properties", e.getMessage());
             }
 
-            final GeoDataLookup geoDataLookup = GeoDataLookupFactory.get(database).create(properties);
+            final IpDataLookup ipDataLookup = IpDataLookupFactory.get(database).create(properties);
 
             return new GeoIpProcessor(
                 processorTag,
@@ -270,7 +270,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 new DatabaseVerifyingSupplier(ipDatabaseProvider, databaseFile, databaseType),
                 () -> ipDatabaseProvider.isValid(databaseFile),
                 targetField,
-                geoDataLookup,
+                ipDataLookup,
                 ignoreMissing,
                 firstOnly,
                 databaseFile

@@ -38,8 +38,8 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class GeoIpProcessorTests extends ESTestCase {
 
-    private static GeoDataLookup geoDataLookupAll(final Database database) {
-        return GeoDataLookupFactory.get(database).create(database.properties());
+    private static IpDataLookup ipDataLookupAll(final Database database) {
+        return IpDataLookupFactory.get(database).create(database.properties());
     }
 
     // a temporary directory that mmdb files can be copied to and read from
@@ -82,7 +82,7 @@ public class GeoIpProcessorTests extends ESTestCase {
             loader("GeoLite2-City.mmdb"),
             () -> true,
             "target_field",
-            geoDataLookupAll(Database.City),
+            ipDataLookupAll(Database.City),
             false,
             false,
             "filename"
@@ -115,7 +115,7 @@ public class GeoIpProcessorTests extends ESTestCase {
             loader("GeoLite2-City.mmdb"),
             () -> true,
             "target_field",
-            geoDataLookupAll(Database.City),
+            ipDataLookupAll(Database.City),
             true,
             false,
             "filename"
@@ -137,7 +137,7 @@ public class GeoIpProcessorTests extends ESTestCase {
             loader("GeoLite2-City.mmdb"),
             () -> true,
             "target_field",
-            geoDataLookupAll(Database.City),
+            ipDataLookupAll(Database.City),
             true,
             false,
             "filename"
@@ -156,7 +156,7 @@ public class GeoIpProcessorTests extends ESTestCase {
             loader("GeoLite2-City.mmdb"),
             () -> true,
             "target_field",
-            geoDataLookupAll(Database.City),
+            ipDataLookupAll(Database.City),
             false,
             false,
             "filename"
@@ -178,7 +178,7 @@ public class GeoIpProcessorTests extends ESTestCase {
             loader("GeoLite2-City.mmdb"),
             () -> true,
             "target_field",
-            geoDataLookupAll(Database.City),
+            ipDataLookupAll(Database.City),
             false,
             false,
             "filename"
@@ -198,7 +198,7 @@ public class GeoIpProcessorTests extends ESTestCase {
             loader("GeoLite2-City.mmdb"),
             () -> true,
             "target_field",
-            geoDataLookupAll(Database.City),
+            ipDataLookupAll(Database.City),
             false,
             false,
             "filename"
@@ -235,7 +235,7 @@ public class GeoIpProcessorTests extends ESTestCase {
             loader("GeoLite2-City.mmdb"),
             () -> true,
             "target_field",
-            geoDataLookupAll(Database.City),
+            ipDataLookupAll(Database.City),
             false,
             false,
             "filename"
@@ -263,7 +263,7 @@ public class GeoIpProcessorTests extends ESTestCase {
             loader("GeoLite2-Country.mmdb"),
             () -> true,
             "target_field",
-            geoDataLookupAll(Database.Country),
+            ipDataLookupAll(Database.Country),
             false,
             false,
             "filename"
@@ -295,7 +295,7 @@ public class GeoIpProcessorTests extends ESTestCase {
             loader("GeoLite2-Country.mmdb"),
             () -> true,
             "target_field",
-            geoDataLookupAll(Database.Country),
+            ipDataLookupAll(Database.Country),
             false,
             false,
             "filename"
@@ -323,7 +323,7 @@ public class GeoIpProcessorTests extends ESTestCase {
             loader("GeoLite2-ASN.mmdb"),
             () -> true,
             "target_field",
-            geoDataLookupAll(Database.Asn),
+            ipDataLookupAll(Database.Asn),
             false,
             false,
             "filename"
@@ -354,7 +354,7 @@ public class GeoIpProcessorTests extends ESTestCase {
             loader("GeoIP2-Anonymous-IP-Test.mmdb"),
             () -> true,
             "target_field",
-            geoDataLookupAll(Database.AnonymousIp),
+            ipDataLookupAll(Database.AnonymousIp),
             false,
             false,
             "filename"
@@ -388,7 +388,7 @@ public class GeoIpProcessorTests extends ESTestCase {
             loader("GeoIP2-Connection-Type-Test.mmdb"),
             () -> true,
             "target_field",
-            geoDataLookupAll(Database.ConnectionType),
+            ipDataLookupAll(Database.ConnectionType),
             false,
             false,
             "filename"
@@ -417,7 +417,7 @@ public class GeoIpProcessorTests extends ESTestCase {
             loader("GeoIP2-Domain-Test.mmdb"),
             () -> true,
             "target_field",
-            geoDataLookupAll(Database.Domain),
+            ipDataLookupAll(Database.Domain),
             false,
             false,
             "filename"
@@ -446,7 +446,7 @@ public class GeoIpProcessorTests extends ESTestCase {
             loader("GeoIP2-Enterprise-Test.mmdb"),
             () -> true,
             "target_field",
-            geoDataLookupAll(Database.Enterprise),
+            ipDataLookupAll(Database.Enterprise),
             false,
             false,
             "filename"
@@ -497,7 +497,7 @@ public class GeoIpProcessorTests extends ESTestCase {
             loader("GeoIP2-ISP-Test.mmdb"),
             () -> true,
             "target_field",
-            geoDataLookupAll(Database.Isp),
+            ipDataLookupAll(Database.Isp),
             false,
             false,
             "filename"
@@ -531,7 +531,7 @@ public class GeoIpProcessorTests extends ESTestCase {
             loader("GeoLite2-City.mmdb"),
             () -> true,
             "target_field",
-            geoDataLookupAll(Database.City),
+            ipDataLookupAll(Database.City),
             false,
             false,
             "filename"
@@ -555,7 +555,7 @@ public class GeoIpProcessorTests extends ESTestCase {
             loader("GeoLite2-City.mmdb"),
             () -> true,
             "target_field",
-            geoDataLookupAll(Database.City),
+            ipDataLookupAll(Database.City),
             false,
             false,
             "filename"
@@ -576,7 +576,7 @@ public class GeoIpProcessorTests extends ESTestCase {
             loader("GeoLite2-City.mmdb"),
             () -> true,
             "target_field",
-            geoDataLookupAll(Database.City),
+            ipDataLookupAll(Database.City),
             false,
             false,
             "filename"
@@ -603,7 +603,7 @@ public class GeoIpProcessorTests extends ESTestCase {
             loader("GeoLite2-City.mmdb"),
             () -> true,
             "target_field",
-            geoDataLookupAll(Database.City),
+            ipDataLookupAll(Database.City),
             false,
             false,
             "filename"
@@ -630,7 +630,7 @@ public class GeoIpProcessorTests extends ESTestCase {
             loader("GeoLite2-City.mmdb"),
             () -> true,
             "target_field",
-            geoDataLookupAll(Database.City),
+            ipDataLookupAll(Database.City),
             false,
             false,
             "filename"
@@ -650,7 +650,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), null, "source_field", () -> {
             loader.preLookup();
             return loader;
-        }, () -> true, "target_field", geoDataLookupAll(Database.City), false, false, "filename");
+        }, () -> true, "target_field", ipDataLookupAll(Database.City), false, false, "filename");
 
         Map<String, Object> document = new HashMap<>();
         document.put("source_field", List.of("8.8.8.8", "82.171.64.0"));
@@ -678,7 +678,7 @@ public class GeoIpProcessorTests extends ESTestCase {
             loader("GeoLite2-City.mmdb"),
             () -> true,
             "target_field",
-            geoDataLookupAll(Database.City),
+            ipDataLookupAll(Database.City),
             false,
             true,
             "filename"
@@ -703,7 +703,7 @@ public class GeoIpProcessorTests extends ESTestCase {
             loader("GeoLite2-City.mmdb"),
             () -> true,
             "target_field",
-            geoDataLookupAll(Database.City),
+            ipDataLookupAll(Database.City),
             false,
             true,
             "filename"
@@ -725,7 +725,7 @@ public class GeoIpProcessorTests extends ESTestCase {
             loader("GeoLite2-City.mmdb"),
             () -> false,
             "target_field",
-            geoDataLookupAll(Database.City),
+            ipDataLookupAll(Database.City),
             false,
             true,
             "filename"
@@ -748,7 +748,7 @@ public class GeoIpProcessorTests extends ESTestCase {
             () -> null,
             () -> true,
             "target_field",
-            geoDataLookupAll(Database.City),
+            ipDataLookupAll(Database.City),
             false,
             false,
             "GeoLite2-City"
@@ -771,7 +771,7 @@ public class GeoIpProcessorTests extends ESTestCase {
             () -> null,
             () -> true,
             "target_field",
-            geoDataLookupAll(Database.City),
+            ipDataLookupAll(Database.City),
             true,
             false,
             "GeoLite2-City"

@@ -20,8 +20,40 @@ setup:
 
   - do:
       inference.put:
+        task_type: sparse_embedding
+        inference_id: sparse-inference-id-2
+        body: >
+          {
+            "service": "test_service",
+            "service_settings": {
+              "model": "my_model",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      inference.put:
         task_type: text_embedding
         inference_id: dense-inference-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 10,
+              "api_key": "abc64",
+              "similarity": "COSINE"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-inference-id-2
         body: >
           {
             "service": "text_embedding_test_service",
@@ -141,6 +173,51 @@ setup:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
   - length: { hits.hits.0._source.inference_field.inference.chunks: 1 }
+
+---
+"Query using a sparse embedding model via a search inference id":
+  - requires:
+      cluster_features: "gte_v8.16.0"
+      reason: search_inference_id introduced in 8.16.0
+
+  - skip:
+      features: [ "headers", "close_to" ]
+
+  - do:
+      indices.put_mapping:
+        index: test-sparse-index
+        body:
+          properties:
+            inference_field:
+              type: semantic_text
+              inference_id: sparse-inference-id
+              search_inference_id: sparse-inference-id-2
+
+  - do:
+      index:
+        index: test-sparse-index
+        id: doc_1
+        body:
+          inference_field: [ "inference test", "another inference test" ]
+          non_inference_field: "non inference test"
+        refresh: true
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-sparse-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - close_to: { hits.hits.0._score: { value: 3.7837332e17, error: 1e10 } }
+  - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
 
 ---
 "Query using a dense embedding model":
@@ -275,6 +352,51 @@ setup:
         Content-Type: application/json
       search:
         index: test-dense-byte-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
+  - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
+
+---
+"Query using a dense embedding model via a search inference id":
+  - requires:
+      cluster_features: "gte_v8.16.0"
+      reason: search_inference_id introduced in 8.16.0
+
+  - skip:
+      features: [ "headers", "close_to" ]
+
+  - do:
+      indices.put_mapping:
+        index: test-dense-index
+        body:
+          properties:
+            inference_field:
+              type: semantic_text
+              inference_id: dense-inference-id
+              search_inference_id: dense-inference-id-2
+
+  - do:
+      index:
+        index: test-dense-index
+        id: doc_1
+        body:
+          inference_field: ["inference test", "another inference test"]
+          non_inference_field: "non inference test"
+        refresh: true
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-dense-index
         body:
           query:
             semantic:

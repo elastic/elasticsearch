@@ -21,11 +21,11 @@ import java.util.Objects;
 /**
  * A class that encapsulates a minimum and a maximum, that are of the same type and {@link Comparable}.
  */
-public record MinAndMax<T extends Comparable<? super T>>(T minValue, T maxValue) implements Writeable {
+public record MinAndMax<T extends Comparable<? super T>>(T min, T max) implements Writeable {
 
-    public MinAndMax(T minValue, T maxValue) {
-        this.minValue = Objects.requireNonNull(minValue);
-        this.maxValue = Objects.requireNonNull(maxValue);
+    public MinAndMax(T min, T max) {
+        this.min = Objects.requireNonNull(min);
+        this.max = Objects.requireNonNull(max);
     }
 
     @SuppressWarnings("unchecked")
@@ -35,8 +35,8 @@ public record MinAndMax<T extends Comparable<? super T>>(T minValue, T maxValue)
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        Lucene.writeSortValue(out, minValue);
-        Lucene.writeSortValue(out, maxValue);
+        Lucene.writeSortValue(out, min);
+        Lucene.writeSortValue(out, max);
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -44,7 +44,7 @@ public record MinAndMax<T extends Comparable<? super T>>(T minValue, T maxValue)
         if (left == null) {
             return right == null ? 0 : -1; // nulls last
         }
-        return right == null ? 1 : left.minValue.compareTo(right.minValue);
+        return right == null ? 1 : left.min.compareTo(right.min);
     };
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -52,7 +52,7 @@ public record MinAndMax<T extends Comparable<? super T>>(T minValue, T maxValue)
         if (left == null) {
             return right == null ? 0 : 1; // nulls first
         }
-        return right == null ? -1 : right.maxValue.compareTo(left.maxValue);
+        return right == null ? -1 : right.max.compareTo(left.max);
     };
 
     /**

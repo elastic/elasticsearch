@@ -307,6 +307,16 @@ public class EsqlCapabilities {
         CAST_STRING_LITERAL_TO_TEMPORAL_AMOUNT,
 
         /**
+         * Supported the text categorization function "CATEGORIZE".
+         */
+        CATEGORIZE(true),
+
+        /**
+         * QSTR function
+         */
+        QSTR_FUNCTION(true),
+
+        /**
          * Compute year differences in full calendar years.
          */
         DATE_DIFF_YEAR_CALENDARIAL;

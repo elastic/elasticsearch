@@ -170,6 +170,8 @@ teardown:
   - match: { acknowledged: true }
 
   - do:
+      allowed_warnings:
+        - 'Date format [dd/MMM/yyyy:H:m:s Z] contains textual field specifiers that could change in JDK 23'
       index:
         index: test
         id: "1"

@@ -27,6 +27,7 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
+import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.IndexStorePlugin;
@@ -74,6 +75,7 @@ public class IndicesServiceBuilder {
     @Nullable
     CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> requestCacheKeyDifferentiator;
     MapperMetrics mapperMetrics;
+    List<SearchOperationListener> searchOperationListener;
 
     public IndicesServiceBuilder settings(Settings settings) {
         this.settings = settings;
@@ -177,6 +179,15 @@ public class IndicesServiceBuilder {
         return this;
     }
 
+    public List<SearchOperationListener> searchOperationListeners() {
+        return searchOperationListener;
+    }
+
+    public IndicesServiceBuilder searchOperationListeners(List<SearchOperationListener> searchOperationListener) {
+        this.searchOperationListener = searchOperationListener;
+        return this;
+    }
+
     public IndicesService build() {
         Objects.requireNonNull(settings);
         Objects.requireNonNull(pluginsService);
@@ -201,6 +212,7 @@ public class IndicesServiceBuilder {
         Objects.requireNonNull(indexFoldersDeletionListeners);
         Objects.requireNonNull(snapshotCommitSuppliers);
         Objects.requireNonNull(mapperMetrics);
+        Objects.requireNonNull(searchOperationListener);
 
         // collect engine factory providers from plugins
         engineFactoryProviders = pluginsService.filterPlugins(EnginePlugin.class)

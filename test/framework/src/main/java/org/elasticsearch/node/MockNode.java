@@ -120,8 +120,7 @@ public class MockNode extends Node {
                     responseCollectorService,
                     circuitBreakerService,
                     executorSelector,
-                    tracer,
-                    new SearchTransportAPMMetrics.NoopSearchTransportAPMMetrics()
+                    tracer
                 );
             }
             return new MockSearchService(

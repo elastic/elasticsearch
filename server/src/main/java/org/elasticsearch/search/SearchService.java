@@ -25,7 +25,6 @@ import org.elasticsearch.action.search.CanMatchNodeRequest;
 import org.elasticsearch.action.search.CanMatchNodeResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchShardTask;
-import org.elasticsearch.action.search.SearchTransportAPMMetrics;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
@@ -313,7 +312,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final String sessionId = UUIDs.randomBase64UUID();
 
     private final Tracer tracer;
-    private final SearchTransportAPMMetrics searchPhaseMetrics;
 
     public SearchService(
         ClusterService clusterService,
@@ -326,8 +324,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ResponseCollectorService responseCollectorService,
         CircuitBreakerService circuitBreakerService,
         ExecutorSelector executorSelector,
-        Tracer tracer,
-        SearchTransportAPMMetrics searchPhaseMetrics
+        Tracer tracer
     ) {
         Settings settings = clusterService.getSettings();
         this.threadPool = threadPool;
@@ -344,7 +341,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             circuitBreakerService.getBreaker(CircuitBreaker.REQUEST)
         );
         this.executorSelector = executorSelector;
-        this.searchPhaseMetrics = searchPhaseMetrics;
         this.tracer = tracer;
 
         TimeValue keepAliveInterval = KEEPALIVE_INTERVAL_SETTING.get(settings);
@@ -506,7 +502,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final IndexShard shard = getShard(request);
         rewriteAndFetchShardRequest(shard, request, listener.delegateFailure((l, rewritten) -> {
             // fork the execution in the search thread pool
-            ensureAfterSeqNoRefreshed(shard, request, () -> executeDfsPhase(request, task), SearchTransportAPMMetrics.DFS_ACTION_METRIC, l);
+            ensureAfterSeqNoRefreshed(shard, request, () -> executeDfsPhase(request, task), l);
         }));
     }
 
@@ -562,7 +558,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
             // TODO: i think it makes sense to always do a canMatch here and
             // return an empty response (not null response) in case canMatch is false?
-            ensureAfterSeqNoRefreshed(shard, orig, () -> executeQueryPhase(orig, task), SearchTransportAPMMetrics.QUERY_ACTION_METRIC, l);
+            ensureAfterSeqNoRefreshed(shard, orig, () -> executeQueryPhase(orig, task), l);
         }));
     }
 
@@ -570,14 +566,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         IndexShard shard,
         ShardSearchRequest request,
         CheckedSupplier<T, Exception> executable,
-        String metricName,
         ActionListener<T> listener
     ) {
         final long waitForCheckpoint = request.waitForCheckpoint();
         final Executor executor = getExecutor(shard);
         try {
             if (waitForCheckpoint <= UNASSIGNED_SEQ_NO) {
-                runAsync(executor, executable, metricName, listener);
+                runAsync(executor, executable, listener);
                 return;
             }
             if (shard.indexSettings().getRefreshInterval().getMillis() <= 0) {
@@ -649,7 +644,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         if (timeoutTask != null) {
                             timeoutTask.cancel();
                         }
-                        runAsync(executor, executable, metricName, listener);
+                        runAsync(executor, executable, listener);
                     }
                 }
             });
@@ -669,27 +664,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
     }
 
-    private <T extends RefCounted> void runAsync(
+    private static <T extends RefCounted> void runAsync(
         Executor executor,
         CheckedSupplier<T, Exception> executable,
-        String metricName,
         ActionListener<T> listener
     ) {
-        CheckedSupplier<T, Exception> metricSupplier = new CheckedSupplier<>() {
-            @Override
-            public T get() throws Exception {
-                var startTime = threadPool.relativeTimeInMillis();
-                try {
-                    return executable.get();
-                } finally {
-                    long duration = threadPool.relativeTimeInMillis() - startTime;
-                    boolean isSystem = ThreadPool.isSystemThreadPool();
-                    searchPhaseMetrics.recordPhaseLatency(metricName, duration, isSystem);
-                }
-            }
-        };
-
-        executor.execute(ActionRunnable.supplyAndDecRef(listener, metricSupplier));
+        executor.execute(ActionRunnable.supplyAndDecRef(listener, executable));
     }
 
     /**
@@ -765,7 +745,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 // we handle the failure in the failure listener below
                 throw e;
             }
-        }, SearchTransportAPMMetrics.RANK_SHARD_FEATURE_ACTION_METRIC, wrapFailureListener(listener, readerContext, markAsUsed));
+        }, wrapFailureListener(listener, readerContext, markAsUsed));
     }
 
     private QueryFetchSearchResult executeFetchPhase(ReaderContext reader, SearchContext context, long afterQueryTime) {
@@ -815,7 +795,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 // we handle the failure in the failure listener below
                 throw e;
             }
-        }, SearchTransportAPMMetrics.QUERY_ACTION_METRIC, wrapFailureListener(listener, readerContext, markAsUsed));
+        }, wrapFailureListener(listener, readerContext, markAsUsed));
     }
 
     /**
@@ -858,7 +838,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     // we handle the failure in the failure listener below
                     throw e;
                 }
-            }, SearchTransportAPMMetrics.QUERY_ACTION_METRIC, wrapFailureListener(l, readerContext, markAsUsed));
+            }, wrapFailureListener(l, readerContext, markAsUsed));
         }));
     }
 
@@ -909,7 +889,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 // we handle the failure in the failure listener below
                 throw e;
             }
-        }, SearchTransportAPMMetrics.FETCH_ID_ACTION_METRIC, wrapFailureListener(listener, readerContext, markAsUsed));
+        }, wrapFailureListener(listener, readerContext, markAsUsed));
     }
 
     public void executeFetchPhase(ShardFetchRequest request, SearchShardTask task, ActionListener<FetchSearchResult> listener) {
@@ -941,7 +921,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 // we handle the failure in the failure listener below
                 throw e;
             }
-        }, SearchTransportAPMMetrics.FETCH_ID_ACTION_METRIC, wrapFailureListener(listener, readerContext, markAsUsed));
+        }, wrapFailureListener(listener, readerContext, markAsUsed));
     }
 
     protected void checkCancelled(SearchShardTask task) {

@@ -226,10 +226,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
          */
         private SemanticTextFieldMapper copySettings(SemanticTextFieldMapper mapper, MapperMergeContext mapperMergeContext) {
             SemanticTextFieldMapper returnedMapper = mapper;
-            if (mapper.fieldType().getModelSettings() == null && mapper.fieldType().getEmbeddingsField() == null) {
-                // The mapper doesn't have model settings or a definition for the embeddings field, indicating that it was not created via
-                // the inference on ingest code path. In this case, copy the existing model settings to the mapper so they are persisted
-                // when it is applied.
+            if (mapper.fieldType().getModelSettings() == null) {
+                // Copy the existing model settings to the mapper so they are persisted when it is applied.
                 Builder builder = from(mapper);
                 builder.setModelSettings(modelSettings.getValue());
                 returnedMapper = builder.build(mapperMergeContext.getMapperBuilderContext());

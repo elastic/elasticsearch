@@ -60,31 +60,31 @@ class MaxmindIpDataLookups {
             boolean isPublicProxy = response.isPublicProxy();
             boolean isResidentialProxy = response.isResidentialProxy();
 
-            Map<String, Object> geoData = new HashMap<>();
+            Map<String, Object> data = new HashMap<>();
             for (Database.Property property : this.properties) {
                 switch (property) {
-                    case IP -> geoData.put("ip", response.getIpAddress());
+                    case IP -> data.put("ip", response.getIpAddress());
                     case HOSTING_PROVIDER -> {
-                        geoData.put("hosting_provider", isHostingProvider);
+                        data.put("hosting_provider", isHostingProvider);
                     }
                     case TOR_EXIT_NODE -> {
-                        geoData.put("tor_exit_node", isTorExitNode);
+                        data.put("tor_exit_node", isTorExitNode);
                     }
                     case ANONYMOUS_VPN -> {
-                        geoData.put("anonymous_vpn", isAnonymousVpn);
+                        data.put("anonymous_vpn", isAnonymousVpn);
                     }
                     case ANONYMOUS -> {
-                        geoData.put("anonymous", isAnonymous);
+                        data.put("anonymous", isAnonymous);
                     }
                     case PUBLIC_PROXY -> {
-                        geoData.put("public_proxy", isPublicProxy);
+                        data.put("public_proxy", isPublicProxy);
                     }
                     case RESIDENTIAL_PROXY -> {
-                        geoData.put("residential_proxy", isResidentialProxy);
+                        data.put("residential_proxy", isResidentialProxy);
                     }
                 }
             }
-            return geoData;
+            return data;
         }
     }
 
@@ -99,28 +99,28 @@ class MaxmindIpDataLookups {
             String organizationName = response.getAutonomousSystemOrganization();
             Network network = response.getNetwork();
 
-            Map<String, Object> geoData = new HashMap<>();
+            Map<String, Object> data = new HashMap<>();
             for (Database.Property property : this.properties) {
                 switch (property) {
-                    case IP -> geoData.put("ip", response.getIpAddress());
+                    case IP -> data.put("ip", response.getIpAddress());
                     case ASN -> {
                         if (asn != null) {
-                            geoData.put("asn", asn);
+                            data.put("asn", asn);
                         }
                     }
                     case ORGANIZATION_NAME -> {
                         if (organizationName != null) {
-                            geoData.put("organization_name", organizationName);
+                            data.put("organization_name", organizationName);
                         }
                     }
                     case NETWORK -> {
                         if (network != null) {
-                            geoData.put("network", network.toString());
+                            data.put("network", network.toString());
                         }
                     }
                 }
             }
-            return geoData;
+            return data;
         }
     }
 
@@ -137,32 +137,32 @@ class MaxmindIpDataLookups {
             Continent continent = response.getContinent();
             Subdivision subdivision = response.getMostSpecificSubdivision();
 
-            Map<String, Object> geoData = new HashMap<>();
+            Map<String, Object> data = new HashMap<>();
             for (Database.Property property : this.properties) {
                 switch (property) {
-                    case IP -> geoData.put("ip", response.getTraits().getIpAddress());
+                    case IP -> data.put("ip", response.getTraits().getIpAddress());
                     case COUNTRY_ISO_CODE -> {
                         String countryIsoCode = country.getIsoCode();
                         if (countryIsoCode != null) {
-                            geoData.put("country_iso_code", countryIsoCode);
+                            data.put("country_iso_code", countryIsoCode);
                         }
                     }
                     case COUNTRY_NAME -> {
                         String countryName = country.getName();
                         if (countryName != null) {
-                            geoData.put("country_name", countryName);
+                            data.put("country_name", countryName);
                         }
                     }
                     case CONTINENT_CODE -> {
                         String continentCode = continent.getCode();
                         if (continentCode != null) {
-                            geoData.put("continent_code", continentCode);
+                            data.put("continent_code", continentCode);
                         }
                     }
                     case CONTINENT_NAME -> {
                         String continentName = continent.getName();
                         if (continentName != null) {
-                            geoData.put("continent_name", continentName);
+                            data.put("continent_name", continentName);
                         }
                     }
                     case REGION_ISO_CODE -> {
@@ -172,25 +172,25 @@ class MaxmindIpDataLookups {
                         String subdivisionIso = subdivision.getIsoCode();
                         if (countryIso != null && subdivisionIso != null) {
                             String regionIsoCode = countryIso + "-" + subdivisionIso;
-                            geoData.put("region_iso_code", regionIsoCode);
+                            data.put("region_iso_code", regionIsoCode);
                         }
                     }
                     case REGION_NAME -> {
                         String subdivisionName = subdivision.getName();
                         if (subdivisionName != null) {
-                            geoData.put("region_name", subdivisionName);
+                            data.put("region_name", subdivisionName);
                         }
                     }
                     case CITY_NAME -> {
                         String cityName = city.getName();
                         if (cityName != null) {
-                            geoData.put("city_name", cityName);
+                            data.put("city_name", cityName);
                         }
                     }
                     case TIMEZONE -> {
                         String locationTimeZone = location.getTimeZone();
                         if (locationTimeZone != null) {
-                            geoData.put("timezone", locationTimeZone);
+                            data.put("timezone", locationTimeZone);
                         }
                     }
                     case LOCATION -> {
@@ -200,12 +200,12 @@ class MaxmindIpDataLookups {
                             Map<String, Object> locationObject = new HashMap<>();
                             locationObject.put("lat", latitude);
                             locationObject.put("lon", longitude);
-                            geoData.put("location", locationObject);
+                            data.put("location", locationObject);
                         }
                     }
                 }
             }
-            return geoData;
+            return data;
         }
     }
 
@@ -222,18 +222,18 @@ class MaxmindIpDataLookups {
         protected Map<String, Object> transform(final ConnectionTypeResponse response) {
             ConnectionTypeResponse.ConnectionType connectionType = response.getConnectionType();
 
-            Map<String, Object> geoData = new HashMap<>();
+            Map<String, Object> data = new HashMap<>();
             for (Database.Property property : this.properties) {
                 switch (property) {
-                    case IP -> geoData.put("ip", response.getIpAddress());
+                    case IP -> data.put("ip", response.getIpAddress());
                     case CONNECTION_TYPE -> {
                         if (connectionType != null) {
-                            geoData.put("connection_type", connectionType.toString());
+                            data.put("connection_type", connectionType.toString());
                         }
                     }
                 }
             }
-            return geoData;
+            return data;
         }
     }
 
@@ -247,37 +247,37 @@ class MaxmindIpDataLookups {
             com.maxmind.geoip2.record.Country country = response.getCountry();
             Continent continent = response.getContinent();
 
-            Map<String, Object> geoData = new HashMap<>();
+            Map<String, Object> data = new HashMap<>();
             for (Database.Property property : this.properties) {
                 switch (property) {
-                    case IP -> geoData.put("ip", response.getTraits().getIpAddress());
+                    case IP -> data.put("ip", response.getTraits().getIpAddress());
                     case COUNTRY_ISO_CODE -> {
                         String countryIsoCode = country.getIsoCode();
                         if (countryIsoCode != null) {
-                            geoData.put("country_iso_code", countryIsoCode);
+                            data.put("country_iso_code", countryIsoCode);
                         }
                     }
                     case COUNTRY_NAME -> {
                         String countryName = country.getName();
                         if (countryName != null) {
-                            geoData.put("country_name", countryName);
+                            data.put("country_name", countryName);
                         }
                     }
                     case CONTINENT_CODE -> {
                         String continentCode = continent.getCode();
                         if (continentCode != null) {
-                            geoData.put("continent_code", continentCode);
+                            data.put("continent_code", continentCode);
                         }
                     }
                     case CONTINENT_NAME -> {
                         String continentName = continent.getName();
                         if (continentName != null) {
-                            geoData.put("continent_name", continentName);
+                            data.put("continent_name", continentName);
                         }
                     }
                 }
             }
-            return geoData;
+            return data;
         }
     }
 
@@ -294,18 +294,18 @@ class MaxmindIpDataLookups {
         protected Map<String, Object> transform(final DomainResponse response) {
             String domain = response.getDomain();
 
-            Map<String, Object> geoData = new HashMap<>();
+            Map<String, Object> data = new HashMap<>();
             for (Database.Property property : this.properties) {
                 switch (property) {
-                    case IP -> geoData.put("ip", response.getIpAddress());
+                    case IP -> data.put("ip", response.getIpAddress());
                     case DOMAIN -> {
                         if (domain != null) {
-                            geoData.put("domain", domain);
+                            data.put("domain", domain);
                         }
                     }
                 }
             }
-            return geoData;
+            return data;
         }
     }
 
@@ -344,32 +344,32 @@ class MaxmindIpDataLookups {
 
             ConnectionTypeResponse.ConnectionType connectionType = response.getTraits().getConnectionType();
 
-            Map<String, Object> geoData = new HashMap<>();
+            Map<String, Object> data = new HashMap<>();
             for (Database.Property property : this.properties) {
                 switch (property) {
-                    case IP -> geoData.put("ip", response.getTraits().getIpAddress());
+                    case IP -> data.put("ip", response.getTraits().getIpAddress());
                     case COUNTRY_ISO_CODE -> {
                         String countryIsoCode = country.getIsoCode();
                         if (countryIsoCode != null) {
-                            geoData.put("country_iso_code", countryIsoCode);
+                            data.put("country_iso_code", countryIsoCode);
                         }
                     }
                     case COUNTRY_NAME -> {
                         String countryName = country.getName();
                         if (countryName != null) {
-                            geoData.put("country_name", countryName);
+                            data.put("country_name", countryName);
                         }
                     }
                     case CONTINENT_CODE -> {
                         String continentCode = continent.getCode();
                         if (continentCode != null) {
-                            geoData.put("continent_code", continentCode);
+                            data.put("continent_code", continentCode);
                         }
                     }
                     case CONTINENT_NAME -> {
                         String continentName = continent.getName();
                         if (continentName != null) {
-                            geoData.put("continent_name", continentName);
+                            data.put("continent_name", continentName);
                         }
                     }
                     case REGION_ISO_CODE -> {
@@ -379,25 +379,25 @@ class MaxmindIpDataLookups {
                         String subdivisionIso = subdivision.getIsoCode();
                         if (countryIso != null && subdivisionIso != null) {
                             String regionIsoCode = countryIso + "-" + subdivisionIso;
-                            geoData.put("region_iso_code", regionIsoCode);
+                            data.put("region_iso_code", regionIsoCode);
                         }
                     }
                     case REGION_NAME -> {
                         String subdivisionName = subdivision.getName();
                         if (subdivisionName != null) {
-                            geoData.put("region_name", subdivisionName);
+                            data.put("region_name", subdivisionName);
                         }
                     }
                     case CITY_NAME -> {
                         String cityName = city.getName();
                         if (cityName != null) {
-                            geoData.put("city_name", cityName);
+                            data.put("city_name", cityName);
                         }
                     }
                     case TIMEZONE -> {
                         String locationTimeZone = location.getTimeZone();
                         if (locationTimeZone != null) {
-                            geoData.put("timezone", locationTimeZone);
+                            data.put("timezone", locationTimeZone);
                         }
                     }
                     case LOCATION -> {
@@ -407,80 +407,80 @@ class MaxmindIpDataLookups {
                             Map<String, Object> locationObject = new HashMap<>();
                             locationObject.put("lat", latitude);
                             locationObject.put("lon", longitude);
-                            geoData.put("location", locationObject);
+                            data.put("location", locationObject);
                         }
                     }
                     case ASN -> {
                         if (asn != null) {
-                            geoData.put("asn", asn);
+                            data.put("asn", asn);
                         }
                     }
                     case ORGANIZATION_NAME -> {
                         if (organizationName != null) {
-                            geoData.put("organization_name", organizationName);
+                            data.put("organization_name", organizationName);
                         }
                     }
                     case NETWORK -> {
                         if (network != null) {
-                            geoData.put("network", network.toString());
+                            data.put("network", network.toString());
                         }
                     }
                     case HOSTING_PROVIDER -> {
-                        geoData.put("hosting_provider", isHostingProvider);
+                        data.put("hosting_provider", isHostingProvider);
                     }
                     case TOR_EXIT_NODE -> {
-                        geoData.put("tor_exit_node", isTorExitNode);
+                        data.put("tor_exit_node", isTorExitNode);
                     }
                     case ANONYMOUS_VPN -> {
-                        geoData.put("anonymous_vpn", isAnonymousVpn);
+                        data.put("anonymous_vpn", isAnonymousVpn);
                     }
                     case ANONYMOUS -> {
-                        geoData.put("anonymous", isAnonymous);
+                        data.put("anonymous", isAnonymous);
                     }
                     case PUBLIC_PROXY -> {
-                        geoData.put("public_proxy", isPublicProxy);
+                        data.put("public_proxy", isPublicProxy);
                     }
                     case RESIDENTIAL_PROXY -> {
-                        geoData.put("residential_proxy", isResidentialProxy);
+                        data.put("residential_proxy", isResidentialProxy);
                     }
                     case DOMAIN -> {
                         if (domain != null) {
-                            geoData.put("domain", domain);
+                            data.put("domain", domain);
                         }
                     }
                     case ISP -> {
                         if (isp != null) {
-                            geoData.put("isp", isp);
+                            data.put("isp", isp);
                         }
                     }
                     case ISP_ORGANIZATION_NAME -> {
                         if (ispOrganization != null) {
-                            geoData.put("isp_organization_name", ispOrganization);
+                            data.put("isp_organization_name", ispOrganization);
                         }
                     }
                     case MOBILE_COUNTRY_CODE -> {
                         if (mobileCountryCode != null) {
-                            geoData.put("mobile_country_code", mobileCountryCode);
+                            data.put("mobile_country_code", mobileCountryCode);
                         }
                     }
                     case MOBILE_NETWORK_CODE -> {
                         if (mobileNetworkCode != null) {
-                            geoData.put("mobile_network_code", mobileNetworkCode);
+                            data.put("mobile_network_code", mobileNetworkCode);
                         }
                     }
                     case USER_TYPE -> {
                         if (userType != null) {
-                            geoData.put("user_type", userType);
+                            data.put("user_type", userType);
                         }
                     }
                     case CONNECTION_TYPE -> {
                         if (connectionType != null) {
-                            geoData.put("connection_type", connectionType.toString());
+                            data.put("connection_type", connectionType.toString());
                         }
                     }
                 }
             }
-            return geoData;
+            return data;
         }
     }
 
@@ -499,48 +499,48 @@ class MaxmindIpDataLookups {
             String organizationName = response.getAutonomousSystemOrganization();
             Network network = response.getNetwork();
 
-            Map<String, Object> geoData = new HashMap<>();
+            Map<String, Object> data = new HashMap<>();
             for (Database.Property property : this.properties) {
                 switch (property) {
-                    case IP -> geoData.put("ip", response.getIpAddress());
+                    case IP -> data.put("ip", response.getIpAddress());
                     case ASN -> {
                         if (asn != null) {
-                            geoData.put("asn", asn);
+                            data.put("asn", asn);
                         }
                     }
                     case ORGANIZATION_NAME -> {
                         if (organizationName != null) {
-                            geoData.put("organization_name", organizationName);
+                            data.put("organization_name", organizationName);
                         }
                     }
                     case NETWORK -> {
                         if (network != null) {
-                            geoData.put("network", network.toString());
+                            data.put("network", network.toString());
                         }
                     }
                     case ISP -> {
                         if (isp != null) {
-                            geoData.put("isp", isp);
+                            data.put("isp", isp);
                         }
                     }
                     case ISP_ORGANIZATION_NAME -> {
                         if (ispOrganization != null) {
-                            geoData.put("isp_organization_name", ispOrganization);
+                            data.put("isp_organization_name", ispOrganization);
                         }
                     }
                     case MOBILE_COUNTRY_CODE -> {
                         if (mobileCountryCode != null) {
-                            geoData.put("mobile_country_code", mobileCountryCode);
+                            data.put("mobile_country_code", mobileCountryCode);
                         }
                     }
                     case MOBILE_NETWORK_CODE -> {
                         if (mobileNetworkCode != null) {
-                            geoData.put("mobile_network_code", mobileNetworkCode);
+                            data.put("mobile_network_code", mobileNetworkCode);
                         }
                     }
                 }
             }
-            return geoData;
+            return data;
         }
     }
 

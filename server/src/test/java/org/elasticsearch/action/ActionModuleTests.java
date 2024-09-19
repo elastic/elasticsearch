@@ -10,6 +10,7 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
+import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -129,7 +130,8 @@ public class ActionModuleTests extends ESTestCase {
             mock(ClusterService.class),
             null,
             List.of(),
-            RestExtension.allowAll()
+            RestExtension.allowAll(),
+            new IncrementalBulkService(null, null, new ThreadContext(Settings.EMPTY))
         );
         actionModule.initRestHandlers(null, null);
         // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
@@ -193,7 +195,8 @@ public class ActionModuleTests extends ESTestCase {
                 mock(ClusterService.class),
                 null,
                 List.of(),
-                RestExtension.allowAll()
+                RestExtension.allowAll(),
+                new IncrementalBulkService(null, null, new ThreadContext(Settings.EMPTY))
             );
             Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null, null));
             assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/_nodes] for method: GET"));
@@ -250,7 +253,8 @@ public class ActionModuleTests extends ESTestCase {
                 mock(ClusterService.class),
                 null,
                 List.of(),
-                RestExtension.allowAll()
+                RestExtension.allowAll(),
+                new IncrementalBulkService(null, null, new ThreadContext(Settings.EMPTY))
             );
             actionModule.initRestHandlers(null, null);
             // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
@@ -300,7 +304,8 @@ public class ActionModuleTests extends ESTestCase {
                     mock(ClusterService.class),
                     null,
                     List.of(),
-                    RestExtension.allowAll()
+                    RestExtension.allowAll(),
+                    new IncrementalBulkService(null, null, new ThreadContext(Settings.EMPTY))
                 )
             );
             assertThat(
@@ -341,7 +346,8 @@ public class ActionModuleTests extends ESTestCase {
                     mock(ClusterService.class),
                     null,
                     List.of(),
-                    RestExtension.allowAll()
+                    RestExtension.allowAll(),
+                    new IncrementalBulkService(null, null, new ThreadContext(Settings.EMPTY))
                 )
             );
             assertThat(

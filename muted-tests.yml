@@ -235,6 +235,14 @@ tests:
 - class: org.elasticsearch.packaging.test.WindowsServiceTests
   method: test33JavaChanged
   issue: https://github.com/elastic/elasticsearch/issues/113177
+- class: org.elasticsearch.xpack.inference.rest.ServerSentEventsRestActionListenerTests
+  method: testErrorMidStream
+  issue: https://github.com/elastic/elasticsearch/issues/113179
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/113186
+- class: org.elasticsearch.logsdb.datageneration.DataGeneratorTests
+  method: testDataGeneratorProducesValidMappingAndDocument
+  issue: https://github.com/elastic/elasticsearch/issues/112966
 
 # Examples:
 #

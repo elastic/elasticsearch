@@ -314,7 +314,12 @@ public class EsqlCapabilities {
         /**
          * Supported the text categorization function "CATEGORIZE".
          */
-        CATEGORIZE(true);
+        CATEGORIZE(true),
+
+        /**
+         * QSTR function
+         */
+        QSTR_FUNCTION(true);
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

@@ -27,7 +27,7 @@ test {
 jar {
   manifest {
     attributes(
-      'Premain-Class': 'org.elasticsearch.entitlement.agent.Agent'
+      'Premain-Class': 'org.elasticsearch.entitlement.agent.EntitlementAgent'
       , 'Can-Retransform-Classes': 'true'
     )
   }

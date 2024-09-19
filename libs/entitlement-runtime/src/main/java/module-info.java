@@ -10,5 +10,5 @@
 module org.elasticsearch.entitlement.runtime {
     requires org.elasticsearch.base;
 
-    exports org.elasticsearch.entitlement.runtime.api to org.elasticsearch.entitlements.agent;
+    exports org.elasticsearch.entitlement.runtime.api to org.elasticsearch.entitlement.agent;
 }

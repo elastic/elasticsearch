@@ -3936,6 +3936,125 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
+     * Plan:
+     * <code>
+     * TopNExec[[Order[count{r}#10,DESC,FIRST], Order[country{f}#21,ASC,LAST]],1000[INTEGER],null]
+     * \_AggregateExec[[country{f}#21],[COUNT([2a][KEYWORD]) AS count, SPATIALCENTROID(location{f}#20) AS centroid, country{f}#21],FINA
+     * L,[country{f}#21, count{r}#24, seen{r}#25, xVal{r}#26, xDel{r}#27, yVal{r}#28, yDel{r}#29, count{r}#30],null]
+     *   \_ExchangeExec[[country{f}#21, count{r}#24, seen{r}#25, xVal{r}#26, xDel{r}#27, yVal{r}#28, yDel{r}#29, count{r}#30],true]
+     *     \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[
+     * Aggregate[STANDARD,[country{f}#21],[COUNT([2a][KEYWORD]) AS count, SPATIALCENTROID(location{f}#20) AS centroid, country{f}
+     * #21]]
+     * \_Filter[distance{r}#4 lt 1000000[INTEGER] AND distance{r}#4 gt 10000[INTEGER]]
+     *   \_Eval[[STDISTANCE(location{f}#20,[1 1 0 0 0 e1 7a 14 ae 47 21 29 40 a0 1a 2f dd 24 d6 4b 40][GEO_POINT])
+     *     AS distance]]
+     *     \_Filter[scalerank{f}#18 lt 6[INTEGER]]
+     *       \_EsRelation[airports][abbrev{f}#16, city{f}#22, city_location{f}#23, coun..]]]
+     * </code>
+     * Optimized:
+     * <code>
+     * TopNExec[[Order[count{r}#10,DESC,FIRST], Order[country{f}#21,ASC,LAST]],1000[INTEGER],0]
+     * \_AggregateExec[[country{f}#21],[COUNT([2a][KEYWORD]) AS count, SPATIALCENTROID(location{f}#20) AS centroid, country{f}#21],FINA
+     * L,[country{f}#21, count{r}#24, seen{r}#25, xVal{r}#26, xDel{r}#27, yVal{r}#28, yDel{r}#29, count{r}#30],79]
+     *   \_ExchangeExec[[country{f}#21, count{r}#24, seen{r}#25, xVal{r}#26, xDel{r}#27, yVal{r}#28, yDel{r}#29, count{r}#30],true]
+     *     \_AggregateExec[[country{f}#21],[COUNT([2a][KEYWORD]) AS count, SPATIALCENTROID(location{f}#20) AS centroid, country{f}#21],INIT
+     * IAL,[country{f}#21, count{r}#49, seen{r}#50, xVal{r}#51, xDel{r}#52, yVal{r}#53, yDel{r}#54, count{r}#55],79]
+     *       \_EvalExec[[STDISTANCE(location{f}#20,[1 1 0 0 0 e1 7a 14 ae 47 21 29 40 a0 1a 2f dd 24 d6 4b 40][GEO_POINT])
+     *         AS distance]]
+     *         \_FieldExtractExec[location{f}#20][location{f}#20]
+     *           \_EsQueryExec[airports], indexMode[standard], query[{
+     *               "bool":{
+     *                 "filter":[
+     *                   {
+     *                     "esql_single_value":{
+     *                       "field":"scalerank",
+     *                       "next":{"range":{"scalerank":{"lt":6,"boost":1.0}}},
+     *                       "source":"scalerank lt 6@3:31"
+     *                     }
+     *                   },
+     *                   {
+     *                     "bool":{
+     *                       "must":[
+     *                         {"geo_shape":{
+     *                           "location":{
+     *                             "relation":"INTERSECTS",
+     *                             "shape":{"type":"Circle","radius":"1000000m","coordinates":[12.565,55.673]}
+     *                           }
+     *                         }},
+     *                         {"geo_shape":{
+     *                           "location":{
+     *                             "relation":"DISJOINT",
+     *                             "shape":{"type":"Circle","radius":"10000m","coordinates":[12.565,55.673]}
+     *                           }
+     *                         }}
+     *                       ],
+     *                       "boost":1.0
+     *                     }
+     *                   }
+     *                 ],
+     *                 "boost":1.0
+     *             }}][_doc{f}#56], limit[], sort[] estimatedRowSize[33]
+     * </code>
+     */
+    public void testPushSpatialDistanceEvalWithStatsToSource() {
+        var query = """
+            FROM airports
+            | EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)"))
+            | WHERE distance < 1000000 AND scalerank < 6 AND distance > 10000
+            | STATS count=COUNT(*), centroid=ST_CENTROID_AGG(location) BY country
+            | SORT count DESC, country ASC
+            """;
+        var plan = this.physicalPlan(query, airports);
+        var topN = as(plan, TopNExec.class);
+        var agg = as(topN.child(), AggregateExec.class);
+        var exchange = as(agg.child(), ExchangeExec.class);
+        var fragment = as(exchange.child(), FragmentExec.class);
+        var agg2 = as(fragment.fragment(), Aggregate.class);
+        var filter = as(agg2.child(), Filter.class);
+
+        // Validate the filter condition (two distance filters)
+        var and = as(filter.condition(), And.class);
+        for (Expression expression : and.arguments()) {
+            var comp = as(expression, EsqlBinaryComparison.class);
+            var expectedComp = comp.equals(and.left()) ? LessThan.class : GreaterThan.class;
+            assertThat("filter contains expected binary comparison", comp, instanceOf(expectedComp));
+            var distance = as(comp.left(), ReferenceAttribute.class);
+            assertThat(distance.name(), is("distance"));
+        }
+
+        // Validate the eval (calculating distance)
+        var eval = as(filter.child(), Eval.class);
+        var alias = as(eval.fields().get(0), Alias.class);
+        assertThat(alias.name(), is("distance"));
+        var filter2 = as(eval.child(), Filter.class);
+
+        // Now optimize the plan
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, TopNExec.class);
+        var aggExec = as(topLimit.child(), AggregateExec.class);
+        var exchangeExec = as(aggExec.child(), ExchangeExec.class);
+        var aggExec2 = as(exchangeExec.child(), AggregateExec.class);
+        var evalExec = as(aggExec2.child(), EvalExec.class);
+        var stDistance = as(evalExec.fields().get(0).child(), StDistance.class);
+        assertThat("Expect distance function to expect doc-values", stDistance.leftDocValues(), is(true));
+        var source = assertChildIsGeoPointExtract(evalExec, true);
+
+        // No sort is pushed down
+        assertThat(source.limit(), nullValue());
+        assertThat(source.sorts(), nullValue());
+
+        // Fine-grained checks on the pushed down query
+        var bool = as(source.query(), BoolQueryBuilder.class);
+        var rangeQueryBuilders = bool.filter().stream().filter(p -> p instanceof SingleValueQuery.Builder).toList();
+        assertThat("Expected one range query builder", rangeQueryBuilders.size(), equalTo(1));
+        assertThat(((SingleValueQuery.Builder) rangeQueryBuilders.get(0)).field(), equalTo("scalerank"));
+        var filterBool = bool.filter().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
+        var fb = as(filterBool.get(0), BoolQueryBuilder.class);
+        var shapeQueryBuilders = fb.must().stream().filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder).toList();
+        assertShapeQueryRange(shapeQueryBuilders, 10000.0, 1000000.0);
+    }
+
+    /**
      * ProjectExec[[languages{f}#8, salary{f}#10]]
      * \_TopNExec[[Order[salary{f}#10,DESC,FIRST]],10[INTEGER],0]
      *   \_ExchangeExec[[languages{f}#8, salary{f}#10],false]

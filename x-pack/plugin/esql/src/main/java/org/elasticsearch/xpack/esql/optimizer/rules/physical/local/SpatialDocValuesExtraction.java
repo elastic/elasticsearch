@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.BinarySpatialFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -67,10 +68,10 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Optimizer
                 List<Alias> changed = fields.stream()
                     .map(
                         f -> (Alias) f.transformDown(
-                            SpatialRelatesFunction.class,
-                            spatialRelatesFunction -> (spatialRelatesFunction.hasFieldAttribute(foundAttributes))
-                                ? spatialRelatesFunction.withDocValues(foundAttributes)
-                                : spatialRelatesFunction
+                            BinarySpatialFunction.class,
+                            spatialFunction -> spatialFunction.hasFieldAttribute(foundAttributes)
+                                ? spatialFunction.withDocValues(foundAttributes)
+                                : spatialFunction
                         )
                     )
                     .toList();

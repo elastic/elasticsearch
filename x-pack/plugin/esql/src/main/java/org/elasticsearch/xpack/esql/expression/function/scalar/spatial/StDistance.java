@@ -20,6 +20,7 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
+import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
@@ -147,6 +149,14 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
 
     private StDistance(StreamInput in) throws IOException {
         super(in, false, false, true);
+    }
+
+    @Override
+    public StDistance withDocValues(Set<FieldAttribute> attributes) {
+        // Only update the docValues flags if the field is found in the attributes
+        boolean leftDV = leftDocValues || foundField(left(), attributes);
+        boolean rightDV = rightDocValues || foundField(right(), attributes);
+        return new StDistance(source(), left(), right(), leftDV, rightDV);
     }
 
     @Override

@@ -30,8 +30,6 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
@@ -59,11 +57,6 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
     }
 
     /**
-     * Mark the function as expecting the specified fields to arrive as doc-values.
-     */
-    public abstract SpatialRelatesFunction withDocValues(Set<FieldAttribute> attributes);
-
-    /**
      * Push-down to Lucene is only possible if one field is an indexed spatial field, and the other is a constant spatial or string column.
      */
     public boolean canPushToSource(Predicate<FieldAttribute> isAggregatable) {
@@ -79,24 +72,6 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
             && fa.getExactInfo().hasExact()
             && isAggregatable.test(fa)
             && DataType.isSpatial(fa.dataType());
-    }
-
-    @Override
-    public int hashCode() {
-        // NB: the hashcode is currently used for key generation so
-        // to avoid clashes between aggs with the same arguments, add the class name as variation
-        return Objects.hash(getClass(), children(), leftDocValues, rightDocValues);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (super.equals(obj)) {
-            SpatialRelatesFunction other = (SpatialRelatesFunction) obj;
-            return Objects.equals(other.children(), children())
-                && Objects.equals(other.leftDocValues, leftDocValues)
-                && Objects.equals(other.rightDocValues, rightDocValues);
-        }
-        return false;
     }
 
     /**
@@ -116,19 +91,6 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
         Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
     ) {
         return SpatialEvaluatorFactory.makeSpatialEvaluator(this, evaluatorRules(), toEvaluator);
-    }
-
-    /**
-     * When performing local physical plan optimization, it is necessary to know if this function has a field attribute.
-     * This is because the planner might push down a spatial aggregation to lucene, which results in the field being provided
-     * as doc-values instead of source values, and this function needs to know if it should use doc-values or not.
-     */
-    public boolean hasFieldAttribute(Set<FieldAttribute> foundAttributes) {
-        return foundField(left(), foundAttributes) || foundField(right(), foundAttributes);
-    }
-
-    protected boolean foundField(Expression expression, Set<FieldAttribute> foundAttributes) {
-        return expression instanceof FieldAttribute field && foundAttributes.contains(field);
     }
 
     protected static class SpatialRelations extends BinarySpatialComparator<Boolean> {

@@ -238,35 +238,35 @@ public class EsqlBaseLexer extends LexerConfig {
   private boolean DEV_INLINESTATS_sempred(RuleContext _localctx, int predIndex) {
     switch (predIndex) {
     case 0:
-      return isDevVersion();
+      return this.isDevVersion();
     }
     return true;
   }
   private boolean DEV_LOOKUP_sempred(RuleContext _localctx, int predIndex) {
     switch (predIndex) {
     case 1:
-      return isDevVersion();
+      return this.isDevVersion();
     }
     return true;
   }
   private boolean DEV_MATCH_sempred(RuleContext _localctx, int predIndex) {
     switch (predIndex) {
     case 2:
-      return isDevVersion();
+      return this.isDevVersion();
     }
     return true;
   }
   private boolean DEV_METRICS_sempred(RuleContext _localctx, int predIndex) {
     switch (predIndex) {
     case 3:
-      return isDevVersion();
+      return this.isDevVersion();
     }
     return true;
   }
   private boolean DEV_MATCH_OP_sempred(RuleContext _localctx, int predIndex) {
     switch (predIndex) {
     case 4:
-      return isDevVersion();
+      return this.isDevVersion();
     }
     return true;
   }

@@ -23,7 +23,7 @@ import java.util.List;
 
 public abstract class AbstractExpressionSerializationTests<T extends Expression> extends AbstractNodeSerializationTests<T> {
     public static Expression randomChild() {
-        return ReferenceAttributeTests.randomReferenceAttribute();
+        return ReferenceAttributeTests.randomReferenceAttribute(false);
     }
 
     @Override

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.threadpool;
@@ -183,7 +184,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     // EWMA value is at least within 90% of the new increased task duration. This value also determines the impact of a single
     // long-running task on the moving average and limits it roughly to 2% of the (long) task duration, e.g. if the current
     // moving average is 100ms, and we get one task which takes 20s the new EWMA will be ~500ms.
-    public static final double indexAutoscalingEWMA = 0.02;
+    public static final double DEFAULT_INDEX_AUTOSCALING_EWMA_ALPHA = 0.02;
 
     private final Map<String, ExecutorHolder> executors;
 
@@ -227,6 +228,15 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         "thread_pool.scheduler.warn_threshold",
         TimeValue.timeValueSeconds(5),
         TimeValue.ZERO,
+        Setting.Property.NodeScope
+    );
+
+    // A setting to change the alpha parameter of the EWMA used in WRITE, SYSTEM_WRITE and SYSTEM_CRITICAL_WRITE thread pools
+    public static final Setting<Double> WRITE_THREAD_POOLS_EWMA_ALPHA_SETTING = Setting.doubleSetting(
+        "thread_pool.write.ewma_alpha",
+        DEFAULT_INDEX_AUTOSCALING_EWMA_ALPHA,
+        0.0,
+        1.0,
         Setting.Property.NodeScope
     );
 

@@ -1,0 +1,14 @@
+categorize
+required_capability: categorize
+
+FROM sample_data
+  | SORT message ASC
+  | STATS count=COUNT(), values=MV_SORT(VALUES(message)) BY category=CATEGORIZE(message)
+  | SORT category
+;
+
+count:long | values:keyword                                                        | category:integer
+3          | [Connected to 10.1.0.1, Connected to 10.1.0.2, Connected to 10.1.0.3] | 0
+3          | [Connection error]                                                    | 1
+1          | [Disconnected]                                                        | 2
+;

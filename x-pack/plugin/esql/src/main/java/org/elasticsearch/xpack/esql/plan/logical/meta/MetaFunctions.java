@@ -117,6 +117,11 @@ public class MetaFunctions extends LeafPlan {
     }
 
     @Override
+    public String commandName() {
+        return "META FUNCTIONS";
+    }
+
+    @Override
     public boolean expressionsResolved() {
         return true;
     }

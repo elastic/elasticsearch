@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 public class ResourceUtils {
+
     static byte[] loadVersionedResourceUTF8(Class<?> clazz, String name, int version, String versionProperty) {
         return loadVersionedResourceUTF8(clazz, name, version, versionProperty, Map.of());
     }

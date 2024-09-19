@@ -95,7 +95,8 @@ public class AnalyzerTests extends ESTestCase {
         false,
         List.of(),
         IndexMode.STANDARD,
-        null
+        null,
+        "FROM"
     );
 
     private static final int MAX_LIMIT = EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY);
@@ -1903,9 +1904,9 @@ public class AnalyzerTests extends ESTestCase {
             | RENAME languages AS int
             | LOOKUP int_number_names ON int
             """;
-        if (Build.current().isProductionRelease()) {
+        if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 3:4: LOOKUP is in preview and only available in SNAPSHOT build"));
+            assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
             return;
         }
         LogicalPlan plan = analyze(query);
@@ -1959,9 +1960,9 @@ public class AnalyzerTests extends ESTestCase {
               FROM test
             | LOOKUP int_number_names ON garbage
             """;
-        if (Build.current().isProductionRelease()) {
+        if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 2:4: LOOKUP is in preview and only available in SNAPSHOT build"));
+            assertThat(e.getMessage(), containsString("line 2:3: mismatched input 'LOOKUP' expecting {"));
             return;
         }
         var e = expectThrows(VerificationException.class, () -> analyze(query));
@@ -1973,9 +1974,9 @@ public class AnalyzerTests extends ESTestCase {
               FROM test
             | LOOKUP garbage ON a
             """;
-        if (Build.current().isProductionRelease()) {
+        if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 2:4: LOOKUP is in preview and only available in SNAPSHOT build"));
+            assertThat(e.getMessage(), containsString("line 2:3: mismatched input 'LOOKUP' expecting {"));
             return;
         }
         var e = expectThrows(VerificationException.class, () -> analyze(query));
@@ -1988,9 +1989,9 @@ public class AnalyzerTests extends ESTestCase {
             | RENAME last_name AS int
             | LOOKUP int_number_names ON int
             """;
-        if (Build.current().isProductionRelease()) {
+        if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 3:4: LOOKUP is in preview and only available in SNAPSHOT build"));
+            assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
             return;
         }
         var e = expectThrows(VerificationException.class, () -> analyze(query));
@@ -2122,7 +2123,9 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private static LogicalPlan analyzeWithEmptyFieldCapsResponse(String query) throws IOException {
-        List<FieldCapabilitiesIndexResponse> idxResponses = List.of(new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true));
+        List<FieldCapabilitiesIndexResponse> idxResponses = List.of(
+            new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true, IndexMode.STANDARD)
+        );
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(idxResponses, List.of());
         IndexResolution resolution = new IndexResolver(null).mergedMappings("test*", caps);
         var analyzer = analyzer(resolution, TEST_VERIFIER, configuration(query));

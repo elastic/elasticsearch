@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.snapshots;
 
@@ -1343,8 +1344,12 @@ public final class RestoreService implements ClusterStateApplier {
                 if (currentIndexMetadata == null) {
                     // Index doesn't exist - create it and start recovery
                     // Make sure that the index we are about to create has a valid name
-                    ensureValidIndexName(currentState, snapshotIndexMetadata, renamedIndexName);
-                    shardLimitValidator.validateShardLimit(snapshotIndexMetadata.getSettings(), currentState);
+                    ensureValidIndexName(currentState.metadata(), currentState.routingTable(), snapshotIndexMetadata, renamedIndexName);
+                    shardLimitValidator.validateShardLimit(
+                        snapshotIndexMetadata.getSettings(),
+                        currentState.nodes(),
+                        currentState.metadata()
+                    );
 
                     final IndexMetadata.Builder indexMdBuilder = restoreToCreateNewIndex(
                         snapshotIndexMetadata,
@@ -1789,9 +1794,14 @@ public final class RestoreService implements ClusterStateApplier {
         return indexMdBuilder;
     }
 
-    private void ensureValidIndexName(ClusterState currentState, IndexMetadata snapshotIndexMetadata, String renamedIndexName) {
+    private void ensureValidIndexName(
+        Metadata metadata,
+        RoutingTable routingTable,
+        IndexMetadata snapshotIndexMetadata,
+        String renamedIndexName
+    ) {
         final boolean isHidden = snapshotIndexMetadata.isHidden();
-        MetadataCreateIndexService.validateIndexName(renamedIndexName, currentState);
+        MetadataCreateIndexService.validateIndexName(renamedIndexName, metadata, routingTable);
         createIndexService.validateDotIndex(renamedIndexName, isHidden);
         createIndexService.validateIndexSettings(renamedIndexName, snapshotIndexMetadata.getSettings(), false);
     }

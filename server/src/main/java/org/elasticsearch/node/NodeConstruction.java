@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.node;
@@ -23,6 +24,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.repositories.reservedstate.ReservedRepositoryAction;
 import org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
+import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
 import org.elasticsearch.action.ingest.ReservedPipelineAction;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
@@ -80,6 +82,7 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -216,6 +219,7 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -228,6 +232,9 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.lang.invoke.MethodHandles.lookup;
+import static java.util.Collections.newSetFromMap;
+import static java.util.function.Predicate.not;
 import static org.elasticsearch.core.Types.forciblyCast;
 
 /**
@@ -831,27 +838,6 @@ class NodeConstruction {
             metadataCreateIndexService
         );
 
-        record PluginServiceInstances(
-            Client client,
-            ClusterService clusterService,
-            RerouteService rerouteService,
-            ThreadPool threadPool,
-            ResourceWatcherService resourceWatcherService,
-            ScriptService scriptService,
-            NamedXContentRegistry xContentRegistry,
-            Environment environment,
-            NodeEnvironment nodeEnvironment,
-            NamedWriteableRegistry namedWriteableRegistry,
-            IndexNameExpressionResolver indexNameExpressionResolver,
-            RepositoriesService repositoriesService,
-            TelemetryProvider telemetryProvider,
-            AllocationService allocationService,
-            IndicesService indicesService,
-            FeatureService featureService,
-            SystemIndices systemIndices,
-            DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings,
-            DocumentParsingProvider documentParsingProvider
-        ) implements Plugin.PluginServices {}
         PluginServiceInstances pluginServices = new PluginServiceInstances(
             client,
             clusterService,
@@ -871,15 +857,46 @@ class NodeConstruction {
             featureService,
             systemIndices,
             dataStreamGlobalRetentionSettings,
-            documentParsingProvider
+            documentParsingProvider,
+            taskManager
         );
 
-        Collection<?> pluginComponents = pluginsService.flatMap(p -> p.createComponents(pluginServices)).toList();
+        Collection<?> pluginComponents = pluginsService.flatMap(plugin -> {
+            Collection<?> allItems = plugin.createComponents(pluginServices);
+            List<?> componentObjects = allItems.stream().filter(not(x -> x instanceof Class<?>)).toList();
+            List<? extends Class<?>> classes = allItems.stream().filter(x -> x instanceof Class<?>).map(x -> (Class<?>) x).toList();
+
+            // Then, injection
+            Collection<?> componentsFromInjector;
+            if (classes.isEmpty()) {
+                componentsFromInjector = Set.of();
+            } else {
+                logger.debug("Using injector to instantiate classes for {}: {}", plugin.getClass().getSimpleName(), classes);
+                var injector = org.elasticsearch.injection.Injector.create();
+                injector.addInstances(componentObjects);
+                addRecordContents(injector, pluginServices);
+                var resultMap = injector.inject(classes);
+                // For now, assume we want all components added to the Guice injector
+                var distinctObjects = newSetFromMap(new IdentityHashMap<>());
+                distinctObjects.addAll(resultMap.values());
+                componentsFromInjector = distinctObjects;
+            }
+
+            // Return both
+            return Stream.of(componentObjects, componentsFromInjector).flatMap(Collection::stream).toList();
+        }).toList();
 
         var terminationHandlers = pluginsService.loadServiceProviders(TerminationHandlerProvider.class)
             .stream()
             .map(TerminationHandlerProvider::handler);
         terminationHandler = getSinglePlugin(terminationHandlers, TerminationHandler.class).orElse(null);
+
+        final IndexingPressure indexingLimits = new IndexingPressure(settings);
+        final IncrementalBulkService incrementalBulkService = new IncrementalBulkService(
+            client,
+            indexingLimits,
+            threadPool.getThreadContext()
+        );
 
         ActionModule actionModule = new ActionModule(
             settings,
@@ -906,7 +923,8 @@ class NodeConstruction {
                 metadataCreateIndexService,
                 dataStreamGlobalRetentionSettings
             ),
-            pluginsService.loadSingletonServiceProvider(RestExtension.class, RestExtension::allowAll)
+            pluginsService.loadSingletonServiceProvider(RestExtension.class, RestExtension::allowAll),
+            incrementalBulkService
         );
         modules.add(actionModule);
 
@@ -969,7 +987,6 @@ class NodeConstruction {
             SearchExecutionStatsCollector.makeWrapper(responseCollectorService)
         );
         final HttpServerTransport httpServerTransport = serviceProvider.newHttpTransport(pluginsService, networkModule);
-        final IndexingPressure indexingLimits = new IndexingPressure(settings);
 
         SnapshotsService snapshotsService = new SnapshotsService(
             settings,
@@ -1131,6 +1148,7 @@ class NodeConstruction {
             b.bind(PageCacheRecycler.class).toInstance(pageCacheRecycler);
             b.bind(IngestService.class).toInstance(ingestService);
             b.bind(IndexingPressure.class).toInstance(indexingLimits);
+            b.bind(IncrementalBulkService.class).toInstance(incrementalBulkService);
             b.bind(AggregationUsageService.class).toInstance(searchModule.getValuesSourceRegistry().getUsageService());
             b.bind(MetaStateService.class).toInstance(metaStateService);
             b.bind(IndicesService.class).toInstance(indicesService);
@@ -1173,6 +1191,24 @@ class NodeConstruction {
         injector = modules.createInjector();
 
         postInjection(clusterModule, actionModule, clusterService, transportService, featureService);
+    }
+
+    /**
+     * For each "component" (getter) <em>c</em> of a {@link Record},
+     * calls {@link org.elasticsearch.injection.Injector#addInstance(Object) Injector.addInstance}
+     * to register the value with the component's declared type.
+     */
+    @SuppressForbidden(reason = "Can't call invokeExact because we don't know the exact Record subtype statically")
+    private static <T> void addRecordContents(org.elasticsearch.injection.Injector injector, Record r) {
+        for (var c : r.getClass().getRecordComponents()) {
+            try {
+                @SuppressWarnings("unchecked")
+                Class<T> type = (Class<T>) c.getType(); // T represents the declared type of the record component, whatever it is
+                injector.addInstance(type, type.cast(lookup().unreflect(c.getAccessor()).invoke(r)));
+            } catch (Throwable e) {
+                throw new IllegalStateException("Unable to read record component " + c, e);
+            }
+        }
     }
 
     private ClusterService createClusterService(SettingsModule settingsModule, ThreadPool threadPool, TaskManager taskManager) {
@@ -1595,4 +1631,5 @@ class NodeConstruction {
             b.bind(PersistentTasksClusterService.class).toInstance(persistentTasksClusterService);
         };
     }
+
 }

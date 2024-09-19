@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.blobstore;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 
 import java.nio.file.Path;
 import java.util.regex.Pattern;
@@ -38,9 +40,9 @@ public enum RepositoryFileType {
                     // decimal numbers
                     .replace("NUM", "(0|[1-9][0-9]*)")
                     // 15-byte UUIDS from TimeBasedUUIDGenerator
-                    .replace("SHORTUUID", "[0-9a-zA-Z_-]{20}")
+                    .replace("SHORTUUID", "[0-9a-zA-Z_-]{" + UUIDs.TIME_BASED_UUID_STRING_LENGTH + "}")
                     // 16-byte UUIDs from RandomBasedUUIDGenerator
-                    .replace("UUID", "[0-9a-zA-Z_-]{22}")
+                    .replace("UUID", "[0-9a-zA-Z_-]{" + UUIDs.RANDOM_BASED_UUID_STRING_LENGTH + "}")
                 + ")$"
         );
     }

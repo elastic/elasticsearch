@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.retriever.rankdoc;
@@ -44,7 +45,7 @@ public class RankDocsSortBuilderTests extends AbstractSortTestCase<RankDocsSortB
     @Override
     protected RankDocsSortBuilder mutate(RankDocsSortBuilder original) throws IOException {
         RankDocsSortBuilder mutated = new RankDocsSortBuilder(original);
-        mutated.rankDocs(randomRankDocs(original.rankDocs().length + randomInt(100)));
+        mutated.rankDocs(randomRankDocs(original.rankDocs().length + randomIntBetween(10, 100)));
         return mutated;
     }
 

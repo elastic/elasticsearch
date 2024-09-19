@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 
@@ -114,7 +115,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         BlockFactory blockFactory = new BlockFactory(circuitBreaker, bigArrays, maxPrimitiveArrayBlockSize);
         setupSharedSecrets();
         return List.of(
-            new PlanExecutor(new IndexResolver(services.client())),
+            new PlanExecutor(new IndexResolver(services.client()), services.telemetryProvider().getMeterRegistry()),
             new ExchangeService(services.clusterService().getSettings(), services.threadPool(), ThreadPool.Names.SEARCH, blockFactory),
             blockFactory
         );
@@ -200,6 +201,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         entries.addAll(EsqlScalarFunction.getNamedWriteables());
         entries.addAll(AggregateFunction.getNamedWriteables());
         entries.addAll(LogicalPlan.getNamedWriteables());
+        entries.addAll(PhysicalPlan.getNamedWriteables());
         return entries;
     }
 

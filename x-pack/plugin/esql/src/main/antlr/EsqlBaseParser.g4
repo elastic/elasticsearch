@@ -36,7 +36,7 @@ sourceCommand
     | rowCommand
     | showCommand
     // in development
-    | {isDevVersion()}? metricsCommand
+    | {this.isDevVersion()}? metricsCommand
     ;
 
 processingCommand
@@ -53,9 +53,9 @@ processingCommand
     | enrichCommand
     | mvExpandCommand
     // in development
-    | {isDevVersion()}? inlinestatsCommand
-    | {isDevVersion()}? lookupCommand
-    | {isDevVersion()}? matchCommand
+    | {this.isDevVersion()}? inlinestatsCommand
+    | {this.isDevVersion()}? lookupCommand
+    | {this.isDevVersion()}? matchCommand
     ;
 
 whereCommand
@@ -70,7 +70,7 @@ booleanExpression
     | left=booleanExpression operator=OR right=booleanExpression                 #logicalBinary
     | valueExpression (NOT)? IN LP valueExpression (COMMA valueExpression)* RP   #logicalIn
     | valueExpression IS NOT? NULL                                               #isNull
-    | {isDevVersion()}? matchBooleanExpression                                   #matchExpression
+    | {this.isDevVersion()}? matchBooleanExpression                              #matchExpression
     ;
 
 regexBooleanExpression

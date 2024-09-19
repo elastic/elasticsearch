@@ -1,0 +1,6 @@
+pr: 113218
+summary: Forbid - in namespace in reroute processor
+area: Ingest Node
+type: bug
+issues:
+ - 112936

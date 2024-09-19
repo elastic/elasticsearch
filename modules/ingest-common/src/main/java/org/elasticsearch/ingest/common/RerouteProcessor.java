@@ -203,8 +203,7 @@ public final class RerouteProcessor extends AbstractProcessor {
 
         private static final int MAX_LENGTH = 100;
         private static final String REPLACEMENT = "_";
-        private static final Pattern DISALLOWED_IN_DATASET = Pattern.compile("[\\\\/*?\"<>| ,#:-]");
-        private static final Pattern DISALLOWED_IN_NAMESPACE = Pattern.compile("[\\\\/*?\"<>| ,#:]");
+        private static final Pattern DISALLOWED = Pattern.compile("[\\\\/*?\"<>| ,#:-]");
         static final DataStreamValueSource DATASET_VALUE_SOURCE = dataset("{{" + DATA_STREAM_DATASET + "}}");
         static final DataStreamValueSource NAMESPACE_VALUE_SOURCE = namespace("{{" + DATA_STREAM_NAMESPACE + "}}");
 
@@ -213,11 +212,11 @@ public final class RerouteProcessor extends AbstractProcessor {
         private final Function<String, String> sanitizer;
 
         public static DataStreamValueSource dataset(String dataset) {
-            return new DataStreamValueSource(dataset, ds -> sanitizeDataStreamField(ds, DISALLOWED_IN_DATASET));
+            return new DataStreamValueSource(dataset, ds -> sanitizeDataStreamField(ds, DISALLOWED));
         }
 
         public static DataStreamValueSource namespace(String namespace) {
-            return new DataStreamValueSource(namespace, nsp -> sanitizeDataStreamField(nsp, DISALLOWED_IN_NAMESPACE));
+            return new DataStreamValueSource(namespace, nsp -> sanitizeDataStreamField(nsp, DISALLOWED));
         }
 
         private static String sanitizeDataStreamField(String s, Pattern disallowedInDataset) {

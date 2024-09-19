@@ -2,4 +2,5 @@ pr: 113183
 summary: "ESQL: TOP support for strings"
 area: ES|QL
 type: feature
-issues: []
+issues:
+ - 109849

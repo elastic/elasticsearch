@@ -1600,7 +1600,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     protected BroadcastResponse forceMerge() {
         waitForRelocation();
-        BroadcastResponse actionGet = indicesAdmin().prepareForceMerge().setMaxNumSegments(1).get();
+        BroadcastResponse actionGet = indicesAdmin().prepareForceMerge().setMaxNumSegments(1).setFlush(true).get();
         assertNoFailures(actionGet);
         return actionGet;
     }

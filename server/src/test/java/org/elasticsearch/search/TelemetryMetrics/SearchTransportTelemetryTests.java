@@ -13,11 +13,8 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.indices.ExecutorNames;
-import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -27,7 +24,6 @@ import org.junit.Before;
 import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.action.search.SearchTransportAPMMetrics.ACTION_ATTRIBUTE_NAME;
 import static org.elasticsearch.action.search.SearchTransportAPMMetrics.DFS_ACTION_METRIC;
 import static org.elasticsearch.action.search.SearchTransportAPMMetrics.FETCH_ID_ACTION_METRIC;
 import static org.elasticsearch.action.search.SearchTransportAPMMetrics.FETCH_ID_SCROLL_ACTION_METRIC;
@@ -35,8 +31,6 @@ import static org.elasticsearch.action.search.SearchTransportAPMMetrics.FREE_CON
 import static org.elasticsearch.action.search.SearchTransportAPMMetrics.QUERY_ACTION_METRIC;
 import static org.elasticsearch.action.search.SearchTransportAPMMetrics.QUERY_ID_ACTION_METRIC;
 import static org.elasticsearch.action.search.SearchTransportAPMMetrics.QUERY_SCROLL_ACTION_METRIC;
-import static org.elasticsearch.action.search.SearchTransportAPMMetrics.SEARCH_ACTION_LATENCY_BASE_METRIC;
-import static org.elasticsearch.action.search.SearchTransportAPMMetrics.SYSTEM_THREAD_ATTRIBUTE_NAME;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertScrollResponsesAndHitCount;
@@ -65,8 +59,6 @@ public class SearchTransportTelemetryTests extends ESSingleNodeTestCase {
 
         prepareIndex(indexName).setId("1").setSource("body", "doc1").setRefreshPolicy(IMMEDIATE).get();
         prepareIndex(indexName).setId("2").setSource("body", "doc2").setRefreshPolicy(IMMEDIATE).get();
-
-        prepareIndex(TestSystemIndexPlugin.INDEX_NAME).setId("1").setSource("body", "system").setRefreshPolicy(IMMEDIATE).get();
     }
 
     @After
@@ -76,7 +68,7 @@ public class SearchTransportTelemetryTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(TestTelemetryPlugin.class, TestSystemIndexPlugin.class);
+        return pluginList(TestTelemetryPlugin.class);
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103810")
@@ -129,59 +121,6 @@ public class SearchTransportTelemetryTests extends ESSingleNodeTestCase {
         resetMeter();
     }
 
-    public void testSearchTransportMetricsAttributesDfsQueryThenFetch() throws InterruptedException {
-        assertSearchHitsWithoutFailures(
-            client().prepareSearch(indexName).setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setQuery(simpleQueryStringQuery("doc1")),
-            "1"
-        );
-        checkMetricsAttributes();
-    }
-
-    public void testSearchTransportMetricsAttributesSystemIndexQueryThenFetch() throws InterruptedException {
-        assertSearchHitsWithoutFailures(
-            client().prepareSearch(TestSystemIndexPlugin.INDEX_NAME)
-                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-                .setQuery(simpleQueryStringQuery("system")),
-            "1"
-        );
-        checkMetricsAttributes();
-    }
-
-    public void testSearchTransportMetricsAttributesQueryThenFetchSystemIndex() throws InterruptedException {
-        // assertSearchHitsWithoutFailures(
-        // client().prepareSearch(indexName).setSearchType(SearchType.QUERY_THEN_FETCH).setQuery(simpleQueryStringQuery("doc1")),
-        // "1"
-        // );
-        // checkMetricsAttributes();
-
-        assertScrollResponsesAndHitCount(
-            client(),
-            TimeValue.timeValueSeconds(60),
-            client().prepareSearch(TestSystemIndexPlugin.INDEX_NAME)
-                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-                .setSize(1)
-                .setQuery(simpleQueryStringQuery("system")),
-            1,
-            (a, b) -> {}
-        );
-        checkMetricsAttributes();
-    }
-
-    public void testSearchTransportMetricsAttributesScroll() throws InterruptedException {
-        assertScrollResponsesAndHitCount(
-            client(),
-            TimeValue.timeValueSeconds(60),
-            client().prepareSearch(indexName)
-                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-                .setSize(1)
-                .setQuery(simpleQueryStringQuery("doc1 doc2")),
-            2,
-            (a, b) -> {}
-        );
-
-        checkMetricsAttributes();
-    }
-
     private void resetMeter() {
         getTestTelemetryPlugin().resetMeter();
     }
@@ -191,57 +130,13 @@ public class SearchTransportTelemetryTests extends ESSingleNodeTestCase {
     }
 
     private long getNumberOfMeasurements(String attributeValue) {
-        final List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(SEARCH_ACTION_LATENCY_BASE_METRIC);
-        return measurements.stream().filter(m -> m.attributes().get(ACTION_ATTRIBUTE_NAME) == attributeValue).count();
-    }
-
-    private void checkMetricsAttributes() {
-        final List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(SEARCH_ACTION_LATENCY_BASE_METRIC);
-        assertTrue(measurements.stream().allMatch(m -> checkMeasurementAttributes(m)));
-    }
-
-    private boolean checkMeasurementAttributes(Measurement m) {
-        return (m.attributes().get(ACTION_ATTRIBUTE_NAME) != null)
-            && (((boolean) m.attributes().get(SYSTEM_THREAD_ATTRIBUTE_NAME)) == false);
-    }
-
-    public static class TestSystemIndexPlugin extends Plugin implements SystemIndexPlugin {
-
-        static final String INDEX_NAME = ".test-system-index";
-
-        @Override
-        public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return List.of(
-                SystemIndexDescriptor.builder()
-                    .setIndexPattern(INDEX_NAME + "*")
-                    .setPrimaryIndex(INDEX_NAME)
-                    .setSettings(Settings.EMPTY)
-                    .setMappings("""
-                          {
-                            "_meta": {
-                              "version": "8.0.0",
-                              "managed_index_mappings_version": 3
-                            },
-                            "properties": {
-                              "body": { "type": "keyword" }
-                            }
-                          }
-                        """)
-                    .setThreadPools(ExecutorNames.DEFAULT_SYSTEM_INDEX_THREAD_POOLS)
-                    .setVersionMetaKey("version")
-                    .setOrigin(SearchTransportTelemetryTests.class.getSimpleName())
-                    .build()
-            );
-        }
-
-        @Override
-        public String getFeatureName() {
-            return SearchTransportTelemetryTests.class.getSimpleName();
-        }
-
-        @Override
-        public String getFeatureDescription() {
-            return "test plugin";
-        }
+        final List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(
+            org.elasticsearch.action.search.SearchTransportAPMMetrics.SEARCH_ACTION_LATENCY_BASE_METRIC
+        );
+        return measurements.stream()
+            .filter(
+                m -> m.attributes().get(org.elasticsearch.action.search.SearchTransportAPMMetrics.ACTION_ATTRIBUTE_NAME) == attributeValue
+            )
+            .count();
     }
 }

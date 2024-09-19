@@ -22,7 +22,7 @@ public final class ShardSearchAPMMetrics implements SearchOperationListener {
 
     public static final String SEARCH_PHASES_DURATION_METRIC = "es.search.shards.phases.duration.histogram";
 
-    public static final String ACTION_ATTRIBUTE_NAME = "action";
+    public static final String PHASE_ATTRIBUTE_NAME = "phase";
     public static final String SYSTEM_THREAD_ATTRIBUTE_NAME = "system_thread";
     public static final String QUERY_PHASE = "query_phase";
     public static final String FETCH_PHASE = "fetch_phase";
@@ -49,7 +49,7 @@ public final class ShardSearchAPMMetrics implements SearchOperationListener {
 
     private void recordPhaseLatency(String phaseName, long tookInMillis) {
         boolean isSystem = ThreadPool.isSystemThreadPool();
-        Map<String, Object> attributes = Map.of(ACTION_ATTRIBUTE_NAME, phaseName, SYSTEM_THREAD_ATTRIBUTE_NAME, isSystem);
+        Map<String, Object> attributes = Map.of(PHASE_ATTRIBUTE_NAME, phaseName, SYSTEM_THREAD_ATTRIBUTE_NAME, isSystem);
         actionLatencies.record(tookInMillis, attributes);
     }
 }

@@ -222,10 +222,28 @@ public abstract class CoreTestTranslater {
          */
         protected abstract boolean modifySearch(ApiCallSection search);
 
+        private static Object getSetting(Object map, String... keys) {
+            Map<?, ?> current = (Map<?, ?>) map;
+            for (String key : keys) {
+                if (current != null) {
+                    current = (Map<?, ?>) current.get(key);
+                } else {
+                    return null;
+                }
+            }
+            return current;
+        }
+
         private boolean modifyCreateIndex(ApiCallSection createIndex) {
             String index = createIndex.getParams().get("index");
             for (Map<?, ?> body : createIndex.getBodies()) {
                 Object settings = body.get("settings");
+                Object ignoreAbove = getSetting(settings, "index", "mapping", "ignore_above");
+                if (ignoreAbove instanceof Integer ignoreAboveSettingValue) {
+                    if (ignoreAboveSettingValue >= 0) {
+                        continue;
+                    }
+                }
                 if (settings instanceof Map && ((Map<?, ?>) settings).containsKey("sort.field")) {
                     /*
                      * You can't sort the index on a runtime field

@@ -1818,7 +1818,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             this(Map.of(), 0);
         }
 
-        public Builder(Metadata metadata) {
+        Builder(Metadata metadata) {
             this.clusterUUID = metadata.clusterUUID;
             this.clusterUUIDCommitted = metadata.clusterUUIDCommitted;
             this.coordinationMetadata = metadata.coordinationMetadata;

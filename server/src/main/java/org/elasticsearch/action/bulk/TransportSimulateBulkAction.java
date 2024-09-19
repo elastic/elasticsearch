@@ -197,8 +197,8 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                 // First, we remove the index from the cluster state if necessary (since we're going to use the templates)
                 ClusterState simulatedState = indexAbstraction == null
                     ? state
-                    : new ClusterState.Builder(state).metadata(new Metadata.Builder(state.metadata()).remove(request.index()).build())
-                        .build();
+                    : new ClusterState.Builder(state).metadata(Metadata.builder(state.metadata()).remove(request.index()).build()).build();
+
                 String matchingTemplate = findV2Template(state.metadata(), request.index(), false);
                 if (matchingTemplate != null) {
                     final Template template = TransportSimulateIndexTemplateAction.resolveTemplate(

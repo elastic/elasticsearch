@@ -391,7 +391,7 @@ public class DateUtils {
     // check for all textual fields, and localized zone offset
     // the weird thing with Z is to ONLY match 4 in a row, with no Z before or after (but those groups can also be empty)
     private static final Predicate<String> CONTAINS_CHANGING_TEXT_SPECIFIERS = System.getProperty("java.locale.providers", "")
-        .contains("COMPAT") ? Pattern.compile("[BEGOavz]|LLL|MMM|QQQ|ccc|eee|(?<!Z)Z{4}(?!Z)").asPredicate() : Predicates.never();
+        .contains("COMPAT") ? Pattern.compile("[BEGOavz]|LLL|MMM|QQQ|qqq|ccc|eee|(?<!Z)Z{4}(?!Z)").asPredicate() : Predicates.never();
 
     @UpdateForV9    // this can be removed, we will only use CLDR on v9
     static void checkTextualDateFormats(String format) {

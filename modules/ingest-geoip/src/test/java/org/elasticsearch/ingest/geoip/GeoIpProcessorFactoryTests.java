@@ -83,7 +83,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
 
     @After
     public void closeDatabaseReaders() throws IOException {
-        databaseNodeService.close();
+        databaseNodeService.shutdown();
         databaseNodeService = null;
     }
 

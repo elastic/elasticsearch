@@ -124,8 +124,9 @@ unstemmed ones.
 ==== `prefix` rule parameters
 
 The `prefix` rule matches terms that start with a specified set of characters.
-This prefix can expand to match at most 128 terms. If the prefix matches more
-than 128 terms, {es} returns an error. You can use the
+This prefix can expand to match at most `indices.query.bool.max_clause_count`
+<<search-settings,search setting>> terms. If the prefix matches more terms,
+{es} returns an error. You can use the
 <<index-prefixes,`index-prefixes`>> option in the field mapping to avoid this
 limit.
 
@@ -151,7 +152,8 @@ separate `analyzer` is specified.
 ==== `wildcard` rule parameters
 
 The `wildcard` rule matches terms using a wildcard pattern. This pattern can
-expand to match at most 128 terms. If the pattern matches more than 128 terms,
+expand to match at most  `indices.query.bool.max_clause_count`
+<<search-settings,search setting>> terms. If the pattern matches more terms,
 {es} returns an error.
 
 `pattern`::
@@ -184,8 +186,9 @@ The `pattern` is normalized using the search analyzer from this field, unless
 ==== `regexp` rule parameters
 
 The `regexp` rule matches terms using a regular expression pattern.
-This pattern can expand to match at most 128 terms.
-If the pattern matches more than 128 terms,{es} returns an error.
+This pattern can expand to match at most  `indices.query.bool.max_clause_count`
+<<search-settings,search setting>> terms.
+If the pattern matches more terms,{es} returns an error.
 
 `pattern`::
 (Required, string) Regexp pattern used to find matching terms.
@@ -215,7 +218,8 @@ The `pattern` is normalized using the search analyzer from this field, unless
 
 The `fuzzy` rule matches terms that are similar to the provided term, within an
 edit distance defined by <<fuzziness>>. If the fuzzy expansion matches more than
-128 terms, {es} returns an error.
+`indices.query.bool.max_clause_count`
+<<search-settings,search setting>> terms, {es} returns an error.
 
 `term`::
 (Required, string) The term to match
@@ -250,8 +254,9 @@ The `term` is normalized using the search analyzer from this field, unless
 ==== `range` rule parameters
 
 The `range` rule matches terms contained within a provided range.
-This range can expand to match at most 128 terms.
-If the range matches more than 128 terms,{es} returns an error.
+This range can expand to match at most  `indices.query.bool.max_clause_count`
+<<search-settings,search setting>> terms.
+If the range matches more terms,{es} returns an error.
 
 `gt`::
 (Optional, string) Greater than: match terms greater than the provided term.

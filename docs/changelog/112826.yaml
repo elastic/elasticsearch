@@ -1,0 +1,6 @@
+pr: 112826
+summary: "Multi term intervals: increase max_expansions"
+area: Search
+type: enhancement
+issues:
+  - 110491

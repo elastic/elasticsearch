@@ -1,5 +1,7 @@
-metaFunctionsSynopsis#[skip:-8.15.99]
+metaFunctionsSynopsis
 required_capability: date_nanos_type
+required_capability: meta
+
 meta functions | keep synopsis;
 
 synopsis:keyword
@@ -124,8 +126,10 @@ double tau()
 "double weighted_avg(number:double|integer|long, weight:double|integer|long)"
 ;
 
-metaFunctionsArgs#[skip:-8.15.99]
+metaFunctionsArgs
+required_capability: meta
 required_capability: date_nanos_type
+
   META functions
 | EVAL name = SUBSTRING(name, 0, 14)
 | KEEP name, argNames, argTypes, argDescriptions;
@@ -252,7 +256,9 @@ values        |field                               |"boolean|date|double|integer
 weighted_avg  |[number, weight]                    |["double|integer|long", "double|integer|long"]                                                                                    |[A numeric value., A numeric weight.]
 ;
 
-metaFunctionsDescription#[skip:-8.15.99]
+metaFunctionsDescription
+required_capability: meta
+
   META functions
 | EVAL name = SUBSTRING(name, 0, 14)
 | KEEP name, description
@@ -380,8 +386,10 @@ values        |Returns all values in a group as a multivalued field. The order o
 weighted_avg  |The weighted average of a numeric expression.
 ;
 
-metaFunctionsRemaining#[skip:-8.15.99]
+metaFunctionsRemaining
+required_capability: meta
 required_capability: date_nanos_type
+
   META functions
 | EVAL name = SUBSTRING(name, 0, 14)
 | KEEP name, *
@@ -510,7 +518,9 @@ values        |"boolean|date|double|integer|ip|keyword|long|text|version"       
 weighted_avg  |"double"                                                                                                                    |[false, false]              |false           |true
 ;
 
-metaFunctionsFiltered#[skip:-8.15.99]
+metaFunctionsFiltered
+required_capability: meta
+
 META FUNCTIONS
 | WHERE STARTS_WITH(name, "sin")
 ;
@@ -520,7 +530,9 @@ sin          |"double sin(angle:double|integer|long|unsigned_long)"   |angle    
 sinh         |"double sinh(number:double|integer|long|unsigned_long)" |number            |"double|integer|long|unsigned_long" | "Numeric expression. If `null`, the function returns `null`."   | double             | "Returns the {wikipedia}/Hyperbolic_functions[hyperbolic sine] of a number." | false                | false            | false
 ;
 
-countFunctions#[skip:-8.15.99]
+countFunctions
+required_capability: meta
+
 meta functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
 
 a:long | b:long | c:long

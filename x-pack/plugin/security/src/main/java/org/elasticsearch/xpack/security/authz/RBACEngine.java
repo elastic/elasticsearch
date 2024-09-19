@@ -621,7 +621,7 @@ public class RBACEngine implements AuthorizationEngine {
         }
 
         // could also check role has application privilege here
-        if (applicationPrivileges.isEmpty() && false == Transports.isTransportThread(Thread.currentThread())) {
+        if (applicationPrivileges.isEmpty() || false == Transports.isTransportThread(Thread.currentThread())) {
             innerCheckPrivileges(privilegesToCheck, applicationPrivileges, userRole, listener);
         } else {
             // application privilege check can be expensive; fork

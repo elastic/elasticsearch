@@ -6,8 +6,10 @@
  */
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
+import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.Arrays;
@@ -22,6 +24,8 @@ import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.security.support.Automatons.patterns;
+
 /**
  * An application privilege has an application name (e.g. {@code "my-app"}) that identifies an application (that exists
  * outside of elasticsearch), a privilege name (e.g. {@code "admin}) that is meaningful to that application, and one or
@@ -31,7 +35,7 @@ import java.util.stream.Collectors;
  * The action patterns are entirely optional - many application will find that simple "privilege names" are sufficient, but
  * they allow applications to define high level abstract privileges that map to multiple low level capabilities.
  */
-public final class ApplicationPrivilege extends Privilege {
+public final class ApplicationPrivilege {
 
     private static final Pattern VALID_APPLICATION_PREFIX = Pattern.compile("^[a-z][A-Za-z0-9]*$");
     private static final Pattern WHITESPACE = Pattern.compile("[\\v\\h]");
@@ -46,17 +50,40 @@ public final class ApplicationPrivilege extends Privilege {
     public static final Function<String, ApplicationPrivilege> NONE = app -> new ApplicationPrivilege(app, Collections.singleton("none"));
 
     private final String application;
+    private final Set<String> name;
     private final String[] patterns;
+    @Nullable
+    private volatile Automaton automaton;
 
     // TODO make this private once ApplicationPrivilegeTests::createPrivilege uses ApplicationPrivilege::get
     ApplicationPrivilege(String application, Set<String> name, String... patterns) {
-        super(name, patterns);
+        this.name = name;
         this.application = application;
         this.patterns = patterns;
     }
 
     public String getApplication() {
         return application;
+    }
+
+    /**
+     * This method will build the automaton, if it isn't already built to avoid costly eager initialization.
+     */
+    public Automaton initOrGetAutomaton() {
+        if (automaton == null) {
+            initAutomaton();
+        }
+        return automaton;
+    }
+
+    private synchronized void initAutomaton() {
+        if (automaton == null) {
+            automaton = patterns(patterns);
+        }
+    }
+
+    public Set<String> name() {
+        return name;
     }
 
     // Package level for testing
@@ -250,17 +277,17 @@ public final class ApplicationPrivilege extends Privilege {
         }
 
         patterns.addAll(actions);
-        return new ApplicationPrivilege(application, names, patterns.toArray(new String[patterns.size()]));
+        return new ApplicationPrivilege(application, names, patterns.toArray(new String[0]));
     }
 
     @Override
     public String toString() {
-        return application + ":" + super.toString() + "(" + Strings.arrayToCommaDelimitedString(patterns) + ")";
+        return application + ":" + name + "(" + Strings.arrayToCommaDelimitedString(patterns) + ")";
     }
 
     @Override
     public int hashCode() {
-        int result = super.hashCode();
+        int result = Objects.hashCode(name);
         result = 31 * result + Objects.hashCode(application);
         result = 31 * result + Arrays.hashCode(patterns);
         return result;
@@ -268,7 +295,12 @@ public final class ApplicationPrivilege extends Privilege {
 
     @Override
     public boolean equals(Object o) {
-        return super.equals(o)
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        ApplicationPrivilege privilege = (ApplicationPrivilege) o;
+
+        return Objects.equals(name, privilege.name)
             && Objects.equals(this.application, ((ApplicationPrivilege) o).application)
             && Arrays.equals(this.patterns, ((ApplicationPrivilege) o).patterns);
     }

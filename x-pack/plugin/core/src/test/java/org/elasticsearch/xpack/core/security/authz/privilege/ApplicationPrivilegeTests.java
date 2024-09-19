@@ -115,7 +115,7 @@ public class ApplicationPrivilegeTests extends ESTestCase {
 
     public void testNonePrivilege() {
         final ApplicationPrivilege none = ApplicationPrivilege.NONE.apply("super-mega-app");
-        CharacterRunAutomaton run = new CharacterRunAutomaton(none.getAutomaton());
+        CharacterRunAutomaton run = new CharacterRunAutomaton(none.initOrGetAutomaton());
         for (int i = randomIntBetween(5, 10); i > 0; i--) {
             final String action;
             if (randomBoolean()) {
@@ -149,7 +149,7 @@ public class ApplicationPrivilegeTests extends ESTestCase {
         assertThat(readWrite.name(), containsInAnyOrder("read", "write"));
         assertThat(readWrite.getPatterns(), arrayContainingInAnyOrder("data:read/*", "data:write/*", "action:login"));
 
-        CharacterRunAutomaton run = new CharacterRunAutomaton(readWrite.getAutomaton());
+        CharacterRunAutomaton run = new CharacterRunAutomaton(readWrite.initOrGetAutomaton());
         for (String action : Arrays.asList("data:read/settings", "data:write/user/kimchy", "action:login")) {
             assertTrue(run.run(action));
         }

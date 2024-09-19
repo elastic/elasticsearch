@@ -13,7 +13,6 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.VersionType;
@@ -206,10 +205,10 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
     private static void lazyLoadReaders(DatabaseNodeService databaseNodeService) throws IOException {
         if (databaseNodeService.get("GeoLite2-City.mmdb") != null) {
             databaseNodeService.get("GeoLite2-City.mmdb").getDatabaseType();
-            databaseNodeService.get("GeoLite2-City.mmdb").getCity(InetAddresses.forString("2.125.160.216"));
+            databaseNodeService.get("GeoLite2-City.mmdb").getCity("2.125.160.216");
         }
         databaseNodeService.get("GeoLite2-City-Test.mmdb").getDatabaseType();
-        databaseNodeService.get("GeoLite2-City-Test.mmdb").getCity(InetAddresses.forString("2.125.160.216"));
+        databaseNodeService.get("GeoLite2-City-Test.mmdb").getCity("2.125.160.216");
     }
 
 }

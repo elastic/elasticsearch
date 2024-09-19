@@ -4484,9 +4484,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             FROM test
             | RENAME languages AS int
             | LOOKUP int_number_names ON int""";
-        if (Build.current().isProductionRelease()) {
+        if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 3:4: LOOKUP is in preview and only available in SNAPSHOT build"));
+            assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
             return;
         }
         PhysicalPlan plan = physicalPlan(query);
@@ -4533,9 +4533,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | LOOKUP int_number_names ON int
             | RENAME int AS languages, name AS lang_name
             | KEEP emp_no, languages, lang_name""";
-        if (Build.current().isProductionRelease()) {
+        if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 5:4: LOOKUP is in preview and only available in SNAPSHOT build"));
+            assertThat(e.getMessage(), containsString("line 5:3: mismatched input 'LOOKUP' expecting {"));
             return;
         }
         PhysicalPlan plan = optimizedPlan(physicalPlan(query));
@@ -4590,9 +4590,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | RENAME name AS languages
             | KEEP languages, emp_no
             | SORT languages ASC, emp_no ASC""";
-        if (Build.current().isProductionRelease()) {
+        if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 3:4: LOOKUP is in preview and only available in SNAPSHOT build"));
+            assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
             return;
         }
         var plan = physicalPlan(query);

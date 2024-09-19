@@ -191,6 +191,19 @@ public class BlobStoreRepositoryOperationPurposeIT extends AbstractSnapshotInteg
         }
 
         @Override
+        public void writeBlobAtomic(
+            OperationPurpose purpose,
+            String blobName,
+            InputStream inputStream,
+            long blobSize,
+            boolean failIfAlreadyExists
+        ) throws IOException {
+            assertEquals(blobName, OperationPurpose.SNAPSHOT_METADATA, purpose);
+            assertPurposeConsistency(purpose, blobName);
+            super.writeBlobAtomic(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
+        }
+
+        @Override
         public void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
             throws IOException {
             assertEquals(blobName, OperationPurpose.SNAPSHOT_METADATA, purpose);

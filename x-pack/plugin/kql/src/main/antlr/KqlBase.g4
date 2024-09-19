@@ -12,16 +12,16 @@ topLevelQuery
     ;
 
 query
-    : query (OR query)+                                  #logicalOr
-    | query (AND query)+                                 #logicalAnd
-    | NOT query                                          #logicalNot
-    | nestedQuery                                        #queryDefault
-    | expression                                         #queryDefault
-    | LEFT_PARENTHESIS query RIGHT_PARENTHESIS           #queryDefault
+    : query OR query                                 #logicalOr
+    | query AND query                                #logicalAnd
+    | NOT subQuery=query                             #logicalNot
+    | nestedQuery                                    #queryDefault
+    | expression                                     #queryDefault
+    | LEFT_PARENTHESIS query RIGHT_PARENTHESIS       #parenthesizedQuery
     ;
 
 expression
-    : fieldMTermQuery
+    : fieldTermQuery
     | fieldRangeQuery
     ;
 
@@ -32,7 +32,7 @@ fieldRangeQuery
     : fieldName operator=OP_COMPARE term
     ;
 
-fieldMTermQuery
+fieldTermQuery
     : ( fieldName ( COLON ))? ( term+ | groupingExpr)
     ;
 
@@ -43,7 +43,7 @@ term
     ;
 
 groupingExpr
-    : LEFT_PARENTHESIS term+ RIGHT_PARENTHESIS?
+    : LEFT_PARENTHESIS term+ RIGHT_PARENTHESIS
     ;
 
 fieldName
@@ -51,8 +51,8 @@ fieldName
     ;
 
 AND: [Aa][Nn][Dd];
-OR: 'OR' | '||';
-NOT: 'NOT' | '!';
+OR: [Oo][Rr];
+NOT: [Nn][Oo][Tt];
 LEFT_PARENTHESIS: '(';
 RIGHT_PARENTHESIS: ')';
 

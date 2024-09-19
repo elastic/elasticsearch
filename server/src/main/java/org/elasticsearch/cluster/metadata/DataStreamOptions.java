@@ -35,6 +35,9 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
         ToXContentObject {
 
     public static final ParseField FAILURE_STORE_FIELD = new ParseField("failure_store");
+    public static final DataStreamOptions FAILURE_STORE_ENABLED = new DataStreamOptions(new DataStreamFailureStore(true));
+    public static final DataStreamOptions FAILURE_STORE_DISABLED = new DataStreamOptions(new DataStreamFailureStore(false));
+    public static final DataStreamOptions DEFAULT = new DataStreamOptions();
 
     public static final ConstructingObjectParser<DataStreamOptions, Void> PARSER = new ConstructingObjectParser<>(
         "options",
@@ -57,11 +60,6 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
 
     public static DataStreamOptions read(StreamInput in) throws IOException {
         return new DataStreamOptions(in.readOptionalWriteable(DataStreamFailureStore::new));
-    }
-
-    @Nullable
-    public DataStreamFailureStore getFailureStore() {
-        return failureStore;
     }
 
     public static Diff<DataStreamOptions> readDiffFrom(StreamInput in) throws IOException {

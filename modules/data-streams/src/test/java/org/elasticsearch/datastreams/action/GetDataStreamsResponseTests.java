@@ -13,6 +13,7 @@ import org.elasticsearch.action.datastreams.GetDataStreamAction.Response.Managed
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -83,7 +84,7 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                 .setAllowCustomRouting(true)
                 .setIndexMode(IndexMode.STANDARD)
                 .setLifecycle(new DataStreamLifecycle())
-                .setFailureStoreEnabled(true)
+                .setDataStreamOptions(DataStreamOptions.FAILURE_STORE_ENABLED)
                 .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(failureStores).build())
                 .build();
 
@@ -186,7 +187,7 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                 .setAllowCustomRouting(true)
                 .setIndexMode(IndexMode.STANDARD)
                 .setLifecycle(new DataStreamLifecycle(null, null, false))
-                .setFailureStoreEnabled(true)
+                .setDataStreamOptions(DataStreamOptions.FAILURE_STORE_ENABLED)
                 .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(failureStores).build())
                 .build();
 

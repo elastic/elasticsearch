@@ -233,6 +233,7 @@ POST /_query
 }
 ----
 // TEST[setup:library]
+// TEST[skip:This can output a warning, and asciidoc doesn't support allowed_warnings]
 
 [discrete]
 [[esql-rest-params]]

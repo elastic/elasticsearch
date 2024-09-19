@@ -422,6 +422,25 @@ ROW from="2024-01-01T00:00:00Z"::DATETIME, to="2025-01-01T00:00:00"::DATETIME
 2024-01-01T00:00:00.000Z|2025-01-01T00:00:00.000Z|31622400         |1
 ;
 
+evalDateDiffYearForDocs
+required_capability: date_diff_year_calendarial
+
+// tag::evalDateDiffYearForDocs[]
+ROW end_23="2023-12-31T23:59:59.999Z"::DATETIME,
+  start_24="2024-01-01T00:00:00.000Z"::DATETIME,
+    end_24="2024-12-31T23:59:59.999"::DATETIME
+| EVAL end23_to_start24=DATE_DIFF("year", end_23, start_24)
+| EVAL end23_to_end24=DATE_DIFF("year", end_23, end_24)
+| EVAL start_to_end_24=DATE_DIFF("year", start_24, end_24)
+// end::evalDateDiffYearForDocs[]
+;
+
+// tag::evalDateDiffYearForDocs-result[]
+         end_23:date    |        start_24:date   |         end_24:date    |end23_to_start24:integer|end23_to_end24:integer|start_to_end_24:integer
+2023-12-31T23:59:59.999Z|2024-01-01T00:00:00.000Z|2024-12-31T23:59:59.999Z|0                       |1                     |0
+// end::evalDateDiffYearForDocs-result[]
+;
+
 evalDateParseWithSimpleDate
 row a = "2023-02-01" | eval b = date_parse("yyyy-MM-dd", a) | keep b;
 

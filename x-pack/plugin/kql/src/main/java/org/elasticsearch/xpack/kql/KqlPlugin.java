@@ -8,5 +8,16 @@
 package org.elasticsearch.xpack.kql;
 
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.xpack.kql.query.KqlQueryBuilder;
 
-public class KqlPlugin extends Plugin {}
+import java.util.List;
+
+import static java.util.Collections.singletonList;
+
+public class KqlPlugin extends Plugin implements SearchPlugin {
+    @Override
+    public List<SearchPlugin.QuerySpec<?>> getQueries() {
+        return singletonList(new SearchPlugin.QuerySpec<>(KqlQueryBuilder.NAME, KqlQueryBuilder::new, KqlQueryBuilder::fromXContent));
+    }
+}

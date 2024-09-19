@@ -38,7 +38,8 @@ public class TransportClearBlobCacheAction extends TransportNodesAction<
     ClearBlobCacheNodesRequest,
     ClearBlobCacheNodesResponse,
     ClearBlobCacheNodeRequest,
-    ClearBlobCacheNodeResponse> {
+    ClearBlobCacheNodeResponse,
+    Void> {
     SharedBlobCacheServiceSupplier sharedBlobCacheServiceSupplier;
 
     @Inject

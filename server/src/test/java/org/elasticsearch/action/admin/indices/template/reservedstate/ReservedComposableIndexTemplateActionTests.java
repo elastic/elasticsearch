@@ -166,8 +166,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
                           "type": "keyword"
                         },
                         "created_at": {
-                          "type": "date",
-                          "format": "EEE MMM dd HH:mm:ss Z yyyy"
+                          "type": "date"
                         }
                       }
                     },
@@ -208,8 +207,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
                           "type": "keyword"
                         },
                         "created_at": {
-                          "type": "date",
-                          "format": "EEE MMM dd HH:mm:ss Z yyyy"
+                          "type": "date"
                         }
                       }
                     },
@@ -362,8 +360,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
                             "type": "keyword"
                           },
                           "created_at": {
-                            "type": "date",
-                            "format": "EEE MMM dd HH:mm:ss Z yyyy"
+                            "type": "date"
                           }
                         }
                       },
@@ -393,8 +390,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
                             "type": "keyword"
                           },
                           "created_at": {
-                            "type": "date",
-                            "format": "EEE MMM dd HH:mm:ss Z yyyy"
+                            "type": "date"
                           }
                         }
                       },
@@ -466,8 +462,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
                             "type": "keyword"
                           },
                           "created_at": {
-                            "type": "date",
-                            "format": "EEE MMM dd HH:mm:ss Z yyyy"
+                            "type": "date"
                           }
                         }
                       },
@@ -531,8 +526,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
                             "type": "keyword"
                           },
                           "created_at": {
-                            "type": "date",
-                            "format": "EEE MMM dd HH:mm:ss Z yyyy"
+                            "type": "date"
                           }
                         }
                       },
@@ -561,8 +555,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
                             "type": "keyword"
                           },
                           "created_at": {
-                            "type": "date",
-                            "format": "EEE MMM dd HH:mm:ss Z yyyy"
+                            "type": "date"
                           }
                         }
                       },
@@ -606,8 +599,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
                             "type": "keyword"
                           },
                           "created_at": {
-                            "type": "date",
-                            "format": "EEE MMM dd HH:mm:ss Z yyyy"
+                            "type": "date"
                           }
                         }
                       },
@@ -647,8 +639,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
                             "type": "keyword"
                           },
                           "created_at": {
-                            "type": "date",
-                            "format": "EEE MMM dd HH:mm:ss Z yyyy"
+                            "type": "date"
                           }
                         }
                       },
@@ -787,8 +778,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
                             "type": "keyword"
                           },
                           "created_at": {
-                            "type": "date",
-                            "format": "EEE MMM dd HH:mm:ss Z yyyy"
+                            "type": "date"
                           }
                         }
                       },
@@ -852,8 +842,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
                             "type": "keyword"
                           },
                           "created_at": {
-                            "type": "date",
-                            "format": "EEE MMM dd HH:mm:ss Z yyyy"
+                            "type": "date"
                           }
                         }
                       },

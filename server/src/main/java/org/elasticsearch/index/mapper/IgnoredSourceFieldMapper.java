@@ -105,13 +105,13 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
             return (parentOffset == 0) ? MapperService.SINGLE_MAPPING_NAME : name.substring(0, parentOffset - 1);
         }
 
-        void write(XContentBuilder builder) throws IOException {
-            builder.field(getFieldName());
-            XContentDataHelper.decodeAndWrite(builder, value());
-        }
-
         String getFieldName() {
             return parentOffset() == 0 ? name() : name().substring(parentOffset());
+        }
+
+        NameValue cloneWithValue(BytesRef value) {
+            assert value() == null;
+            return new NameValue(name, parentOffset, value, doc);
         }
     }
 

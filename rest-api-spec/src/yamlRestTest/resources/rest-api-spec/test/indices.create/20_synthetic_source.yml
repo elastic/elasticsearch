@@ -553,6 +553,7 @@ object array in object with dynamic override:
         body:
           - '{ "create": { } }'
           - '{ "path_no": [ { "some_int": 10 }, {"name": "foo"} ], "path_runtime": [ { "some_int": 20 }, {"name": "bar"} ], "name": "baz" }'
+  - match: { errors: false }
 
   - do:
       search:

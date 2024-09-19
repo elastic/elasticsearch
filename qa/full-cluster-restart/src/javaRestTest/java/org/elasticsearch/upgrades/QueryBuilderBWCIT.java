@@ -93,8 +93,8 @@ public class QueryBuilderBWCIT extends ParameterizedFullClusterRestartTestCase {
 
     static {
         addCandidate("""
-            "match": { "text_field": "value"}
-            """, new MatchQueryBuilder("text_field", "value"));
+            "match": { "keyword_field": "value"}
+            """, new MatchQueryBuilder("keyword_field", "value"));
         addCandidate("""
             "match": { "text_field": {"query": "value", "operator": "and"} }
             """, new MatchQueryBuilder("text_field", "value").operator(Operator.AND));
@@ -154,29 +154,29 @@ public class QueryBuilderBWCIT extends ParameterizedFullClusterRestartTestCase {
         );
         addCandidate(
             """
-                "span_near": {"clauses": [{ "span_term": { "keyword_field": "value1" }}, \
-                { "span_term": { "keyword_field": "value2" }}]}
+                "span_near": {"clauses": [{ "span_term": { "text_field": "value1" }}, \
+                { "span_term": { "text_field": "value2" }}]}
                 """,
-            new SpanNearQueryBuilder(new SpanTermQueryBuilder("keyword_field", "value1"), 0).addClause(
-                new SpanTermQueryBuilder("keyword_field", "value2")
+            new SpanNearQueryBuilder(new SpanTermQueryBuilder("text_field", "value1"), 0).addClause(
+                new SpanTermQueryBuilder("text_field", "value2")
             )
         );
         addCandidate(
             """
-                "span_near": {"clauses": [{ "span_term": { "keyword_field": "value1" }}, \
-                { "span_term": { "keyword_field": "value2" }}], "slop": 2}
+                "span_near": {"clauses": [{ "span_term": { "text_field": "value1" }}, \
+                { "span_term": { "text_field": "value2" }}], "slop": 2}
                 """,
-            new SpanNearQueryBuilder(new SpanTermQueryBuilder("keyword_field", "value1"), 2).addClause(
-                new SpanTermQueryBuilder("keyword_field", "value2")
+            new SpanNearQueryBuilder(new SpanTermQueryBuilder("text_field", "value1"), 2).addClause(
+                new SpanTermQueryBuilder("text_field", "value2")
             )
         );
         addCandidate(
             """
-                "span_near": {"clauses": [{ "span_term": { "keyword_field": "value1" }}, \
-                { "span_term": { "keyword_field": "value2" }}], "slop": 2, "in_order": false}
+                "span_near": {"clauses": [{ "span_term": { "text_field": "value1" }}, \
+                { "span_term": { "text_field": "value2" }}], "slop": 2, "in_order": false}
                 """,
-            new SpanNearQueryBuilder(new SpanTermQueryBuilder("keyword_field", "value1"), 2).addClause(
-                new SpanTermQueryBuilder("keyword_field", "value2")
+            new SpanNearQueryBuilder(new SpanTermQueryBuilder("text_field", "value1"), 2).addClause(
+                new SpanTermQueryBuilder("text_field", "value2")
             ).inOrder(false)
         );
     }

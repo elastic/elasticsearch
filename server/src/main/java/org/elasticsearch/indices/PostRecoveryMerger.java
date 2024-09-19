@@ -9,6 +9,7 @@
 
 package org.elasticsearch.indices;
 
+import org.apache.lucene.index.IndexWriter;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -55,17 +56,19 @@ class PostRecoveryMerger {
         }
     }
 
+    /**
+     * Throttled runner to avoid multiple concurrent calls to {@link IndexWriter#maybeMerge()}: we do not need to execute these things
+     * especially quickly, as long as they happen eventually, and each such call may involve some IO (reading the soft-deletes doc values to
+     * count deleted docs). Note that we're not throttling any actual merges, just the checks to see what merges might be needed. Throttling
+     * merges across shards is a separate issue, but normally this mechanism won't trigger any new merges anyway.
+     */
     private final ThrottledTaskRunner postRecoveryMergeRunner;
+
     private final Function<ShardId, IndexShard> shardFunction;
     private final boolean enabled;
 
     PostRecoveryMerger(Settings settings, Executor executor, Function<ShardId, IndexShard> shardFunction) {
-        this.postRecoveryMergeRunner = new ThrottledTaskRunner(
-            getClass().getCanonicalName(),
-            // no need to execute these at high concurrency, we just need them to run eventually, so do them one-at-a-time
-            1,
-            executor
-        );
+        this.postRecoveryMergeRunner = new ThrottledTaskRunner(getClass().getCanonicalName(), 1, executor);
         this.shardFunction = shardFunction;
         this.enabled =
             // enabled globally ...

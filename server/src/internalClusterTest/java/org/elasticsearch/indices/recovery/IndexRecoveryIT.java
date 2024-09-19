@@ -152,6 +152,7 @@ import static org.elasticsearch.action.support.ActionTestUtils.assertNoFailureLi
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING;
 import static org.elasticsearch.index.MergePolicyConfig.INDEX_MERGE_ENABLED;
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
+import static org.elasticsearch.indices.IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 import static org.elasticsearch.node.RecoverySettingsChunkSizePlugin.CHUNK_SIZE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -2025,15 +2026,14 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                             Stream.of("data", "data_content", "data_hot", "data_warm", "data_cold").filter(p -> randomBoolean())
                         ).distinct().toList()
                     )
+                    // set the inactive time to zero so that we flush immediately after every merge, rather than having the test wait 5min
+                    .put(SHARD_INACTIVE_TIME_SETTING.getKey(), TimeValue.ZERO)
                     .build();
             }
         });
 
         ensureGreen(indexName);
-        assertBusy(() -> {
-            refresh(indexName); // pick up the result of any merges
-            assertThat(searchableSegmentCountSupplier.getAsLong(), lessThan((long) initialSegmentCount));
-        });
+        assertBusy(() -> assertThat(searchableSegmentCountSupplier.getAsLong(), lessThan((long) initialSegmentCount)));
     }
 
     private void assertGlobalCheckpointIsStableAndSyncedInAllNodes(String indexName, List<String> nodes, int shard) throws Exception {

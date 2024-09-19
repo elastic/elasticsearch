@@ -192,7 +192,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
                 final Response response = (Response) bulkItemResponse.getResponse();
                 l.onResponse(response);
             } else {
-                if (bulkItemResponse.getFailure().getFailureStoreStatus().equals(IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN)) {
+                if (IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN.equals(bulkItemResponse.getFailure().getFailureStoreStatus())) {
                     l.onFailure(bulkItemResponse.getFailure().getCause());
                 } else {
                     l.onFailure(new IndexDocFailureStoreStatus.ExceptionWithFailureStoreStatus(bulkItemResponse.getFailure()));
@@ -415,7 +415,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
 
                 @Override
                 public void onResponse(RolloverResponse result) {
-                    logger.info(
+                    logger.debug(
                         "Data stream{} {} has {} over, the latest index is {}",
                         rolloverRequest.targetsFailureStore() ? " failure store" : "",
                         dataStream,

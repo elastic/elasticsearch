@@ -498,9 +498,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             /**
              * This method checks the eligibility of the failed document to be redirected to the failure store and updates the metrics.
              * <p/>
-             * If the document is eligible it will call {@link BulkOperation#addDocumentToRedirectRequests} and will return that the
-             * failure store status is <code>USED</code> if it was successful. Otherwise, it will return the appropriate failure store
-             * status and count this document as rejected.
+             * If the document is eligible it will call {@link BulkOperation#addDocumentToRedirectRequests}. Otherwise, it will return
+             * the appropriate failure store status and count this document as rejected.
              * @return the status:
              * - NOT_ENABLED, if the data stream didn't have the data store enabled and
              * - FAILED if something went wrong in the preparation of the failure store request.
@@ -586,6 +585,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
      * @param request The bulk item request that failed
      * @param cause The exception for the experienced the failure
      * @param failureStoreReference The data stream that contains the failure store for this item
+     * @return true, if adding the request to the queue was successful, false otherwise.
      */
     private boolean addDocumentToRedirectRequests(BulkItemRequest request, Exception cause, String failureStoreReference) {
         // Convert the document into a failure document

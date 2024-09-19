@@ -23,6 +23,7 @@ import io.netty.handler.codec.http.cookie.ServerCookieEncoder;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.http.HttpBody;
+import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
@@ -48,6 +49,7 @@ public class Netty4HttpRequest implements HttpRequest {
     private final Exception inboundException;
     private final boolean pooled;
     private final int sequence;
+    private final String rawPath;
 
     Netty4HttpRequest(int sequence, io.netty.handler.codec.http.HttpRequest request, Netty4HttpRequestBodyStream contentStream) {
         this(
@@ -94,6 +96,7 @@ public class Netty4HttpRequest implements HttpRequest {
         this.pooled = pooled;
         this.released = released;
         this.inboundException = inboundException;
+        this.rawPath = HttpPreRequest.extractPathFromUri(uri());
     }
 
     @Override
@@ -104,6 +107,11 @@ public class Netty4HttpRequest implements HttpRequest {
     @Override
     public String uri() {
         return request.uri();
+    }
+
+    @Override
+    public String rawPath() {
+        return rawPath;
     }
 
     @Override

@@ -793,12 +793,6 @@ public final class DocumentParser {
     ) throws IOException {
         String fullPath = context.path().pathAsText(arrayFieldName);
 
-        // In synthetic source, if any array element requires storing its source as-is, it takes precedence over
-        // other elements that are then skipped from the synthesized array source.
-        // To prevent this, we pre-emptively track the top array (may contain more arrays in its elements),
-        // and store it as a whole when any sub-object or sub-array requires storing its source.
-        context = context.maybeCloneForArray(fullPath);
-
         // Check if we need to record the array source. This only applies to synthetic source.
         if (context.canAddIgnoredField()) {
             boolean objectRequiresStoringSource = mapper instanceof ObjectMapper objectMapper
@@ -826,6 +820,12 @@ public final class DocumentParser {
                     return;
                 }
         }
+
+        // In synthetic source, if any array element requires storing its source as-is, it takes precedence over
+        // other elements that are then skipped from the synthesized array source.
+        // To prevent this, we pre-emptively track the top array (may contain more arrays in its elements),
+        // and store it as a whole when any sub-object or sub-array requires storing its source.
+        context = context.maybeCloneForArray(fullPath);
 
         XContentParser parser = context.parser();
         XContentParser.Token token;

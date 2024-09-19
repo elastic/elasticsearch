@@ -262,7 +262,7 @@ public final class XContentDataHelper {
      * recorded and avoid duplicate recording for parts of the sub-context.
      */
     static DocumentParserContext cloneSubContextWithRecordedSource(DocumentParserContext context) throws IOException {
-        DocumentParserContext subcontext = context.switchParser(context.parser());
+        DocumentParserContext subcontext = context.createChildContext(context.parent());
         subcontext.setRecordedSource();  // Avoids double-storing parts of the source for the same parser subtree.
         return subcontext;
     }

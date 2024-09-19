@@ -346,7 +346,7 @@ public abstract class DocumentParserContext {
      * Applies to synthetic source only.
      */
     public final DocumentParserContext maybeCloneForArray(String fullName) throws IOException {
-        if (canAddIgnoredField() && parentArrayField == null) {
+        if (canAddIgnoredField()) {
             DocumentParserContext subcontext = switchParser(parser());
             subcontext.parentArrayField = fullName;
             return subcontext;

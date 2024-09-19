@@ -26,8 +26,7 @@ PUT _component_template/template_1
           "type": "keyword"
         },
         "created_at": {
-          "type": "date",
-          "format": "EEE MMM dd HH:mm:ss Z yyyy"
+          "type": "date"
         }
       }
     }

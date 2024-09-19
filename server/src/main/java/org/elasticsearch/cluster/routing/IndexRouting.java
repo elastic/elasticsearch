@@ -17,6 +17,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.ByteUtils;
@@ -344,7 +345,7 @@ public abstract class IndexRouting {
                 byte[] idBytes = new byte[4 + suffix.length];
                 ByteUtils.writeIntLE(buildHash(onEmpty), idBytes, 0);
                 System.arraycopy(suffix, 0, idBytes, 4, suffix.length);
-                return Base64.getUrlEncoder().withoutPadding().encodeToString(idBytes);
+                return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(idBytes);
             }
 
             private void extractObject(@Nullable String path, XContentParser source) throws IOException {

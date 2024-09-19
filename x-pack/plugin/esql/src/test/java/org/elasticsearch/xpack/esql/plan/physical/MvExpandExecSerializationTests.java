@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.plan.logical;
+package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -15,27 +15,32 @@ import org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTests;
 
 import java.io.IOException;
 
-public class MvExpandSerializationTests extends AbstractLogicalPlanSerializationTests<MvExpand> {
-    @Override
-    protected MvExpand createTestInstance() {
+public class MvExpandExecSerializationTests extends AbstractPhysicalPlanSerializationTests<MvExpandExec> {
+    public static MvExpandExec randomMvExpandExec(int depth) {
         Source source = randomSource();
-        LogicalPlan child = randomChild(0);
+        PhysicalPlan child = randomChild(depth);
         NamedExpression target = FieldAttributeTests.createFieldAttribute(0, false);
         Attribute expanded = ReferenceAttributeTests.randomReferenceAttribute(false);
-        return new MvExpand(source, child, target, expanded);
+        return new MvExpandExec(source, child, target, expanded);
     }
 
     @Override
-    protected MvExpand mutateInstance(MvExpand instance) throws IOException {
-        LogicalPlan child = instance.child();
+    protected MvExpandExec createTestInstance() {
+        return randomMvExpandExec(0);
+    }
+
+    @Override
+    protected MvExpandExec mutateInstance(MvExpandExec instance) throws IOException {
+        PhysicalPlan child = instance.child();
         NamedExpression target = instance.target();
         Attribute expanded = instance.expanded();
         switch (between(0, 2)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> target = randomValueOtherThan(target, () -> FieldAttributeTests.createFieldAttribute(0, false));
             case 2 -> expanded = randomValueOtherThan(expanded, () -> ReferenceAttributeTests.randomReferenceAttribute(false));
+            default -> throw new UnsupportedOperationException();
         }
-        return new MvExpand(instance.source(), child, target, expanded);
+        return new MvExpandExec(instance.source(), child, target, expanded);
     }
 
     @Override

@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.elser.ElserModelsTests.randomElserModel;
+import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModelsTests.randomElserModel;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 

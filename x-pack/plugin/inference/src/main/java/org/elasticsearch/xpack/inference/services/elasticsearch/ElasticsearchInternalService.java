@@ -56,6 +56,7 @@ import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createI
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
+import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.VALID_ELSER_MODEL_IDS;
 import static org.elasticsearch.xpack.inference.services.elser.ElserModels.ELSER_V2_MODEL;
 import static org.elasticsearch.xpack.inference.services.elser.ElserModels.ELSER_V2_MODEL_LINUX_X86;
 
@@ -69,7 +70,6 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         MULTILINGUAL_E5_SMALL_MODEL_ID,
         MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86
     );
-    public static final Set<String> ELSER_VALID_IDS = Set.of(ELSER_V2_MODEL_LINUX_X86, ELSER_V2_MODEL);
 
     private static final Logger logger = LogManager.getLogger(ElasticsearchInternalService.class);
 
@@ -102,7 +102,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             }
             if (MULTILINGUAL_E5_SMALL_VALID_IDS.contains(modelId)) {
                 e5Case(inferenceEntityId, taskType, config, platformArchitectures, serviceSettingsMap, modelListener);
-            } else if (ELSER_VALID_IDS.contains(modelId)) {
+            } else if (VALID_ELSER_MODEL_IDS.contains(modelId)) {
                 elserCase(inferenceEntityId, taskType, config, platformArchitectures, serviceSettingsMap, modelListener);
             } else {
                 customElandCase(inferenceEntityId, taskType, serviceSettingsMap, taskSettingsMap, modelListener);

@@ -45,7 +45,8 @@ public class TransportGetBlobStoreStatsAction extends TransportNodesAction<
     GetBlobStoreStatsNodesRequest,
     GetBlobStoreStatsNodesResponse,
     GetBlobStoreStatsNodeRequest,
-    GetBlobStoreStatsNodeResponse> {
+    GetBlobStoreStatsNodeResponse,
+    Void> {
     private final ObjectStoreService objectStoreService;
     private final RepositoriesService repositoriesService;
 

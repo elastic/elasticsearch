@@ -35,7 +35,8 @@ public class TransportGetDatabaseConfigurationAction extends TransportNodesActio
     GetDatabaseConfigurationAction.Request,
     GetDatabaseConfigurationAction.Response,
     GetDatabaseConfigurationAction.NodeRequest,
-    GetDatabaseConfigurationAction.NodeResponse> {
+    GetDatabaseConfigurationAction.NodeResponse,
+    Void> {
 
     @Inject
     public TransportGetDatabaseConfigurationAction(

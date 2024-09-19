@@ -261,8 +261,11 @@ public class OpenAiService extends SenderService {
                 openAiModel.getConfigurations().getChunkingSettings()
             ).batchRequestsWithListeners(listener);
         } else {
-            batchedRequests = new EmbeddingRequestChunker(inputs.getInputs(), EMBEDDING_MAX_BATCH_SIZE, EmbeddingRequestChunker.EmbeddingType.FLOAT)
-                .batchRequestsWithListeners(listener);
+            batchedRequests = new EmbeddingRequestChunker(
+                inputs.getInputs(),
+                EMBEDDING_MAX_BATCH_SIZE,
+                EmbeddingRequestChunker.EmbeddingType.FLOAT
+            ).batchRequestsWithListeners(listener);
         }
 
         for (var request : batchedRequests) {

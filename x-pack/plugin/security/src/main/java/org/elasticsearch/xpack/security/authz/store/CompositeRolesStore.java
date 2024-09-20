@@ -319,13 +319,22 @@ public class CompositeRolesStore {
      * Uses heuristics to determine if role building will be expensive and therefore warrants forking.
      */
     private boolean shouldForkRoleBuilding(Set<RoleDescriptor> roleDescriptors) {
-        // Large number of role descriptors likely an expensive role to build
+        // A role with many role descriptors is likely expensive to build
         if (roleDescriptors.size() > 100) {
             return true;
         }
-        // Application privilege and FLS/DLS can result in expensive role building
         for (RoleDescriptor roleDescriptor : roleDescriptors) {
-            if (roleDescriptor.hasApplicationPrivileges() || roleDescriptor.isUsingDocumentOrFieldLevelSecurity()) {
+            // Index privilege names can result in big and complex automata
+            if (roleDescriptor.getIndicesPrivileges().length > 1000) {
+                return true;
+            }
+            // Application privileges can also result in big automata; it's difficult to determine how big application privileges
+            // are so err on the side of caution
+            if (roleDescriptor.hasApplicationPrivileges()) {
+                return true;
+            }
+            // Likewise for FLS/DLS
+            if (roleDescriptor.isUsingDocumentOrFieldLevelSecurity()) {
                 return true;
             }
         }

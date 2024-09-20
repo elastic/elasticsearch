@@ -139,6 +139,8 @@ tests:
 - class: org.elasticsearch.xpack.inference.external.http.RequestBasedTaskRunnerTests
   method: testLoopOneAtATime
   issue: https://github.com/elastic/elasticsearch/issues/112471
+- class: org.elasticsearch.ingest.geoip.IngestGeoIpClientYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/111497
 - class: org.elasticsearch.smoketest.SmokeTestIngestWithAllDepsClientYamlTestSuiteIT
   method: test {yaml=ingest/80_ingest_simulate/Test ingest simulate with reroute and mapping validation from templates}
   issue: https://github.com/elastic/elasticsearch/issues/112575

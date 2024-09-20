@@ -67,7 +67,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -110,7 +110,7 @@ public class CompositeRolesStore {
     private final Map<String, Role> internalUserRoles;
     private final RestrictedIndices restrictedIndices;
     private final ThreadContext threadContext;
-    private final ExecutorService roleBuildingExecutor;
+    private final Executor roleBuildingExecutor;
 
     public CompositeRolesStore(
         Settings settings,
@@ -123,7 +123,7 @@ public class CompositeRolesStore {
         ServiceAccountService serviceAccountService,
         DocumentSubsetBitsetCache dlsBitsetCache,
         RestrictedIndices restrictedIndices,
-        ExecutorService roleBuildingExecutor,
+        Executor roleBuildingExecutor,
         Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer
     ) {
         this.roleProviders = roleProviders;

@@ -304,7 +304,18 @@ public class EsqlCapabilities {
         /**
          * Support explicit casting from string literal to DATE_PERIOD or TIME_DURATION.
          */
-        CAST_STRING_LITERAL_TO_TEMPORAL_AMOUNT;
+        CAST_STRING_LITERAL_TO_TEMPORAL_AMOUNT,
+
+        /**
+         * Supported the text categorization function "CATEGORIZE".
+         */
+        CATEGORIZE(true),
+
+        /**
+         * Don't optimize CASE IS NOT NULL function by not requiring the fields to be not null as well.
+         * https://github.com/elastic/elasticsearch/issues/112704
+         */
+        FIXED_WRONG_IS_NOT_NULL_CHECK_ON_CASE;
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

@@ -341,6 +341,9 @@ public abstract class FieldMapper extends Mapper {
                 if (mappers.isObjectField(copyTo)) {
                     throw new IllegalArgumentException("Cannot copy to field [" + copyTo + "] since it is mapped as an object");
                 }
+                if (mappers.getMapper(copyTo) == null){
+                    throw new IllegalArgumentException("Cannot copy to field [" + copyTo + "] since it is a non existent field");
+                }
 
                 final String targetScope = mappers.nestedLookup().getNestedParent(copyTo);
                 checkNestedScopeCompatibility(sourceScope, targetScope);

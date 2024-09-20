@@ -251,8 +251,11 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         }
 
         List<String> strings = visitList(this, ctx.identifier(), String.class);
-        // TODO: here
-        return new UnresolvedAttribute(source(ctx), null, Strings.collectionToDelimitedString(strings, "."));
+
+        return strings.size() <= 1
+            ? new UnresolvedAttribute(source(ctx), null, Strings.collectionToDelimitedString(strings, "."))
+            // For a.b.c, a could or could not be a qualifier - we separate it out and figure this out during resolution.
+            : new UnresolvedAttribute(source(ctx), strings.get(0), Strings.collectionToDelimitedString(strings.subList(1, strings.size()), "."));
     }
 
     @Override

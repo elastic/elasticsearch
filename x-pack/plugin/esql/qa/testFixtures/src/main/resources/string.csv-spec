@@ -1201,6 +1201,20 @@ emp_no:integer  | first_name:keyword    | name_reversed:keyword
 10001           | Georgi                | igroeG
 ;
 
+reverseRow#[skip:-8.15.99]
+ROW message = "Some Text" | EVAL message_upper = REVERSE(message);
+
+message:keyword | message_upper:keyword
+Some Text       | txeT emoS
+;
+
+reverseEmoji#[skip:-8.15.99]
+ROW message = "😁😅😐🫤🥺😢😭" | EVAL message_upper = REVERSE(message);
+
+message:keyword | message_upper:keyword
+😁😅😐🫤🥺😢😭 | 😭😢🥺🫤😐😅😁
+;
+
 values
 required_capability: agg_values
 

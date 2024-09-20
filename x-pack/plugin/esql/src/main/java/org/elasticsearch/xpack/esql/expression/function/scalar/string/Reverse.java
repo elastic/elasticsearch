@@ -92,8 +92,7 @@ public class Reverse extends EsqlConfigurationFunction {
 
     @Evaluator
     static BytesRef process(BytesRef val, @Fixed Locale locale) {
-        // here's where we do the calculation
-        return BytesRefs.toBytesRef(val.utf8ToString().toLowerCase(locale));
+        return BytesRefs.toBytesRef(new StringBuilder(val.utf8ToString()).reverse());
     }
 
     @Override

@@ -2200,24 +2200,53 @@ public class AnalyzerTests extends ESTestCase {
             "Unknown column [some.string.nonexisting]"
         );
 
-        // invalid type
-        assertError(
-            """
-                from test
-                | eval ?f1 = ?fn1(?f2)
-                | keep ?f3
-                """,
-            "mapping-multi-field-with-nested.json",
-            new QueryParams(
-                List.of(
-                    new QueryParam("f1", "a", NULL, true),
-                    new QueryParam("f2", "keyword", NULL, false, true),
-                    new QueryParam("f3", "some.string.typical", NULL, false, true),
-                    new QueryParam("fn1", "trim", NULL, true)
-                )
-            ),
-            "Unresolved pattern [keyword]"
+        // field name pattern is not supported in where/stats/sort/dissect/grok, they only take identifier
+        // eval/rename/enrich/mvexpand are covered in StatementParserTests
+        for (String invalidParam : List.of(
+            "where ?f1 == \"a\"",
+            "stats x = count(?f1)",
+            "sort ?f1",
+            "dissect ?f1 \"%{bar}\"",
+            "grok ?f1 \"%{WORD:foo}\""
+        )) {
+            for (String pattern : List.of("keyword*", "*")) {
+                assertError(
+                    "from test | " + invalidParam,
+                    "mapping-multi-field-with-nested.json",
+                    new QueryParams(List.of(new QueryParam("f1", pattern, NULL, false, true))),
+                    "Unresolved pattern [" + pattern + "]"
+                );
+            }
+        }
+
+        // pattern and constant for function are covered in StatementParserTests
+        for (String pattern : List.of("count*", "*")) {
+            assertError(
+                "from test | stats x = ?fn1(*)",
+                "mapping-multi-field-with-nested.json",
+                new QueryParams(List.of(new QueryParam("fn1", pattern, NULL, true))),
+                "Unknown function [" + pattern + "]"
+            );
+        }
+
+        // identifier provided in param is not expected to be in backquote
+        List<String> commands = List.of(
+            "eval x = ?f1",
+            "where ?f1 == \"a\"",
+            "stats x = count(?f1)",
+            "sort ?f1",
+            "dissect ?f1 \"%{bar}\"",
+            "grok ?f1 \"%{WORD:foo}\"",
+            "mv_expand ?f1"
         );
+        for (Object command : commands) {
+            assertError(
+                "from test | " + command,
+                "mapping-multi-field-with-nested.json",
+                new QueryParams(List.of(new QueryParam("f1", "`keyword`", NULL, true))),
+                "Unknown column [`keyword`]"
+            );
+        }
     }
 
     public void testNamedParamsForIdentifierPatterns() {

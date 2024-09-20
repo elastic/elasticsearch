@@ -654,6 +654,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     public void testNamedParamsForIdentifierAndIdentifierPatterns() throws IOException {
         bulkLoadTestData(10);
+        // positive
         var query = requestObjectBuilder().query(
             format(
                 null,
@@ -690,44 +691,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             )
         );
         String error = re.getMessage();
+        assertThat(error, containsString("ParsingException"));
         assertThat(error, containsString("Unknown query parameter [n1]"));
-
-        // field name pattern is not supported in where/stats/sort/dissect/grok
-        // eval/rename/enrich/mvexpand are covered in StatementParserTests
-        for (String invalidParamPosition : List.of(
-            "where ?n1 == \"a\"",
-            "stats x = count(?n1)",
-            "sort ?n1",
-            "dissect ?n1 \"%{bar}\"",
-            "grok ?n1 \"%{WORD:foo}\""
-        )) {
-            for (String pattern : List.of("keyword*", "*")) {
-                re = expectThrows(
-                    ResponseException.class,
-                    () -> runEsqlSync(
-                        requestObjectBuilder().query(format(null, "from {} | {}", testIndexName(), invalidParamPosition))
-                            .params("[{\"n1\" : {\"value\" : \"" + pattern + "\" , \"identifierpattern\" : true}}]")
-                    )
-                );
-                error = re.getMessage();
-                assertThat(error, containsString("VerificationException"));
-                assertThat(error, containsString("Unresolved pattern [" + pattern + "]"));
-            }
-        }
-
-        // pattern and constant for function are covered in StatementParserTests
-        for (String pattern : List.of("count*", "*")) {
-            re = expectThrows(
-                ResponseException.class,
-                () -> runEsqlSync(
-                    requestObjectBuilder().query(format(null, "from {} | stats x = ?n1(*)", testIndexName()))
-                        .params("[{\"n1\" : {\"value\" : \"" + pattern + "\" , \"identifier\" : true}}]")
-                )
-            );
-            error = re.getMessage();
-            assertThat(error, containsString("VerificationException"));
-            assertThat(error, containsString("Unknown function [" + pattern + "]"));
-        }
 
         // param inside backquote is not recognized as a param
         re = expectThrows(
@@ -750,22 +715,11 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             )
         );
         error = re.getMessage();
+        assertThat(error, containsString("VerificationException"));
         assertThat(error, containsString("Unknown column [?n1]"));
 
-        List<String> commandsQuoted = List.of(
-            "eval x = ?n1",
-            "where ?n1 == \"a\"",
-            "stats x = count(?n1)",
-            "sort ?n1",
-            "dissect ?n1 \"%{bar}\"",
-            "grok ?n1 \"%{WORD:foo}\"",
-            "mv_expand ?n1"
-        );
-        List<String> commandsUnquoted = List.of("rename ?n1 as ?n2", "enrich idx2 ON ?n1 WITH ?n2 = ?n3", "keep ?n1", "drop ?n1");
-        List<String> allCommands = new ArrayList<>();
-        allCommands.addAll(commandsUnquoted);
-        allCommands.addAll(commandsQuoted);
-        for (Object command : allCommands) {
+        List<String> commands = List.of("rename ?n1 as ?n2", "enrich idx2 ON ?n1 WITH ?n2 = ?n3", "keep ?n1", "drop ?n1");
+        for (Object command : commands) {
             re = expectThrows(
                 ResponseException.class,
                 () -> runEsqlSync(
@@ -778,7 +732,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 )
             );
             error = re.getMessage();
-            assertThat(error, containsString("Unknown column " + (commandsUnquoted.contains(command) ? "[n1]" : "[`n1`]")));
+            assertThat(error, containsString("VerificationException"));
+            assertThat(error, containsString("Unknown column [n1]"));
         }
     }
 

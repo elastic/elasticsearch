@@ -66,7 +66,7 @@ public class QueryStringFunction extends FullTextFunction {
         if (queryAsObject instanceof BytesRef queryAsBytesRef) {
             return new QueryStringQuery(source(), queryAsBytesRef.utf8ToString(), Map.of(), null);
         } else {
-            throw new IllegalArgumentException("Query in QSTR needs to be resolved to a string");
+            throw new IllegalArgumentException("Query in QSTR function needs to be resolved to a string");
         }
     }
 

@@ -82,9 +82,8 @@ retrievers) *only* the query element is allowed.
 ==== Example
 
 ////
-
 [source,console]
---------------------------------------------------
+----
 PUT /restaurants
 {
   "mappings": {
@@ -102,42 +101,33 @@ POST /restaurants/_bulk?refresh
 {"region": "France", "year": "2019"}
 {"index":{}}
 {"region": "Austria", "year": "2020"}
---------------------------------------------------
-// TESTSETUP
-////
 
-////
-[source,console]
-----
-GET /restaurants/_search
+PUT /my-embeddings
 {
-  "retriever": {
-    "standard": {
-      "query": {
-        "bool": {
-          "should": [
-            {
-              "match": {
-                "region": "Austria" 
-              }
-            }
-          ],
-          "filter": [
-            {
-              "term": {
-                "year": "2019"
-              }
-            }
-          ]
-        }
+  "mappings": {
+    "properties": {
+      "vector": {
+        "type": "dense_vector",
+        "dims": 3
       }
     }
   }
 }
+
+POST /my-embeddings/_bulk?refresh
+{"index":{}}
+{"vector": [10, 22, 77]}
+{"index":{}}
+{"vector": [10, 22, 78]}
+{"index":{}}
+{"vector": [10, 22, 79]}
+{"index":{}}
+{"vector": [10, 22, 80]}
 ----
+// TESTSETUP
 ////
 
-[source,js]
+[source,console]
 ----
 GET /restaurants/_search
 {
@@ -165,7 +155,6 @@ GET /restaurants/_search
   }
 }
 ----
-// NOTCONSOLE
 <1> Opens the `retriever` object.
 <2> The `standard` retriever is used for definining traditional {es} queries.
 <3> The entry point for defining the search query.
@@ -227,49 +216,7 @@ The parameters `query_vector` and `query_vector_builder` cannot be used together
 [[knn-retriever-example]]
 ==== Example
 
-////
-
 [source,console]
-----
-PUT /my-embeddings
-{
-  "mappings": {
-    "properties": {
-      "vector": {
-        "type": "dense_vector",
-        "dims": 3
-      }
-    }
-  }
-}
-
-POST /my-embeddings/_bulk?refresh
-{"index":{}}
-{"vector": [10, 22, 77]}
-{"index":{}}
-{"vector": [10, 22, 78]}
-{"index":{}}
-{"vector": [10, 22, 79]}
-{"index":{}}
-{"vector": [10, 22, 80]}
-----
-
-GET my-embeddings/_search
-{
-  "retriever": {
-    "knn": { 
-      "field": "vector", 
-      "query_vector": [10, 22, 77], 
-      "k": 10, 
-      "num_candidates": 10
-    }
-  }
-}
-////
-
-
-
-[source,js]
 ----
 GET my-embeddings/_search
 {
@@ -283,8 +230,7 @@ GET my-embeddings/_search
   }
 }
 ----
-// NOTCONSOLE
-
+// TEST[continued]
 <1> Configuration for k-nearest neighbor (knn) search, which is based on vector similarity.
 <2> Specifies the field name that contains the vectors.
 <3> The query vector against which document vectors are compared in the `knn` search.
@@ -321,46 +267,7 @@ the retriever tree.
 
 A simple hybrid search example (lexical search + dense vector search) combining a `standard` retriever with a `knn` retriever using RRF:
 
-////
 [source,console]
-----
-GET /my-embeddings,restaurants/_search
-{
-  "retriever": {
-    "rrf": { 
-      "retrievers": [
-        {
-          "standard": {
-            "query": {
-              "multi_match": {
-                "query": "Austria",
-                "fields": [
-                  "city",
-                  "region"
-                ]
-              }
-            }
-          }
-        },
-        {
-          "knn": { 
-            "field": "vector",
-            "query_vector": [10, 22, 77],
-            "k": 10,
-            "num_candidates": 10
-          }
-        }
-      ],
-      "rank_constant": 1, 
-      "rank_window_size": 50 
-    }
-  }
-}
-----
-// TEST[continued]
-////
-
-[source,js]
 ----
 GET /restaurants,my-embeddings/_search
 {
@@ -395,7 +302,7 @@ GET /restaurants,my-embeddings/_search
   }
 }
 ----
-// NOTCONSOLE
+// TEST[continued]
 <1> Defines a retriever tree with an RRF retriever.
 <2> The sub-retriever array.
 <3> The first sub-retriever is a `standard` retriever.
@@ -409,7 +316,7 @@ GET /restaurants,my-embeddings/_search
 
 A more complex hybrid search example (lexical search + ELSER sparse vector search + dense vector search) using RRF:
 
-[source,js]
+[source,console]
 ----
 GET movies/_search
 {
@@ -453,7 +360,7 @@ GET movies/_search
   }
 }
 ----
-// NOTCONSOLE
+// TEST[skip:uses ELSER]
 
 [[text-similarity-reranker-retriever]]
 ==== Text Similarity Re-ranker Retriever
@@ -527,7 +434,7 @@ A text similarity re-ranker retriever is a compound retriever. Child retrievers 
 This example enables out-of-the-box semantic search by re-ranking top documents using the Cohere Rerank API. This approach eliminate the need to generate and store embeddings for all indexed documents.
 This requires a <<infer-service-cohere,Cohere Rerank inference endpoint>> using the `rerank` task type.
 
-[source,js]
+[source,console]
 ----
 GET /index/_search
 {
@@ -551,7 +458,7 @@ GET /index/_search
    }
 }
 ----
-// NOTCONSOLE
+// TEST[skip:uses ML]
 
 [discrete]
 [[text-similarity-reranker-retriever-example-eland]]
@@ -589,7 +496,7 @@ eland_import_hub_model \
 +
 . Create an inference endpoint for the `rerank` task
 +
-[source,js]
+[source,console]
 ----
 PUT _inference/rerank/my-msmarco-minilm-model
 {
@@ -601,11 +508,11 @@ PUT _inference/rerank/my-msmarco-minilm-model
   }
 }
 ----
-// NOTCONSOLE
+// TEST[skip:uses ML]
 +
 . Define a `text_similarity_rerank` retriever.
 +
-[source,js]
+[source,console]
 ----
 POST movies/_search
 {
@@ -627,7 +534,7 @@ POST movies/_search
   }
 }
 ----
-// NOTCONSOLE
+// TEST[skip:uses ML]
 +
 This retriever uses a standard `match` query to search the `movie` index for films tagged with the genre "drama".
 It then re-ranks the results based on semantic similarity to the text in the `inference_text` parameter, using the model we uploaded to {es}.

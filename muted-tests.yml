@@ -238,15 +238,6 @@ tests:
 - class: org.elasticsearch.logsdb.datageneration.DataGeneratorTests
   method: testDataGeneratorProducesValidMappingAndDocument
   issue: https://github.com/elastic/elasticsearch/issues/112966
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  method: test {p0=esql/70_locale/Date format with Italian locale}
-  issue: https://github.com/elastic/elasticsearch/issues/113198
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {date.DateFormatLocale SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/113199
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {date.DateFormatLocale ASYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/113200
 - class: org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests
   method: testHasPrivilegesOtherThanIndex
   issue: https://github.com/elastic/elasticsearch/issues/113202
@@ -271,15 +262,18 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.AvgTests
   method: "testFold {TestCase=<double> #2}"
   issue: https://github.com/elastic/elasticsearch/issues/113225
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  method: test {p0=esql/70_locale/Date format with default locale}
-  issue: https://github.com/elastic/elasticsearch/issues/113226
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search/180_locale_dependent_mapping/Test Index and Search locale dependent mappings / dates}
-  issue: https://github.com/elastic/elasticsearch/issues/113227
 - class: org.elasticsearch.index.mapper.DoubleRangeFieldMapperTests
   method: testSyntheticSourceKeepAll
   issue: https://github.com/elastic/elasticsearch/issues/113234
+- class: org.elasticsearch.datastreams.logsdb.qa.StandardVersusLogsIndexModeRandomDataChallengeRestIT
+  method: testTermsQuery
+  issue: https://github.com/elastic/elasticsearch/issues/113246
+- class: org.elasticsearch.integration.KibanaUserRoleIntegTests
+  method: testGetMappings
+  issue: https://github.com/elastic/elasticsearch/issues/113260
+- class: org.elasticsearch.datastreams.logsdb.qa.StandardVersusLogsIndexModeRandomDataChallengeRestIT
+  method: testMatchAllQuery
+  issue: https://github.com/elastic/elasticsearch/issues/113265
 
 # Examples:
 #

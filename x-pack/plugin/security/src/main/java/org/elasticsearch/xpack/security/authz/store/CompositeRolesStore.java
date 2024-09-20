@@ -328,15 +328,18 @@ public class CompositeRolesStore {
         if (roleDescriptors.size() > ROLE_DESCRIPTOR_FORK_THRESHOLD) {
             return true;
         }
+        int totalIndexPrivileges = 0;
+        int totalRemoteIndexPrivileges = 0;
         for (RoleDescriptor roleDescriptor : roleDescriptors) {
-            // Index privilege names or remote index privilege names can result in big and complex automata
-            if (roleDescriptor.getIndicesPrivileges().length > INDEX_PRIVILEGE_FORK_THRESHOLD
-                || roleDescriptor.getRemoteIndicesPrivileges().length > INDEX_PRIVILEGE_FORK_THRESHOLD) {
-                return true;
-            }
             // Application privileges can also result in big automata; it's difficult to determine how big application privileges
             // are so err on the side of caution
             if (roleDescriptor.hasApplicationPrivileges()) {
+                return true;
+            }
+            // Index privilege names or remote index privilege names can result in big and complex automata
+            totalIndexPrivileges += roleDescriptor.getIndicesPrivileges().length;
+            totalRemoteIndexPrivileges += roleDescriptor.getRemoteIndicesPrivileges().length;
+            if (totalIndexPrivileges > INDEX_PRIVILEGE_FORK_THRESHOLD || totalRemoteIndexPrivileges > INDEX_PRIVILEGE_FORK_THRESHOLD) {
                 return true;
             }
             // Likewise for FLS/DLS

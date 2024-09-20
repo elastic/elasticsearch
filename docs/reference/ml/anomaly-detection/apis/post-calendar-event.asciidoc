@@ -68,8 +68,8 @@ The default value is `true`.
 by a specified number of seconds in a specified direction. This is useful to quickly
 adjust to known Daylight Saving Time (DST) events. For example, to account for a
 one-hour backward time shift during the fall DST event, use a value of `-3600`.
-The default value is `0`. The time is shifted once at the beginning of the scheduled
-event. The shift is measured in seconds.
+The parameter is not set by default. The time is shifted once at the beginning of the
+scheduled event. The shift is measured in seconds.
 ====
 
 [[ml-post-calendar-event-example]]

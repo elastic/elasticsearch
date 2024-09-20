@@ -950,7 +950,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             }
             fieldTypes.add(new DateFieldMapper.DateFieldType("time_field"));
             fieldTypes.add(
-                new KeywordFieldMapper.Builder("group_id", Integer.MAX_VALUE, IndexVersion.current()).dimension(true)
+                new KeywordFieldMapper.Builder("group_id", IndexVersion.current()).dimension(true)
                     .docValues(true)
                     .indexed(false)
                     .build(MapperBuilderContext.root(true, true))

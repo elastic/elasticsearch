@@ -128,7 +128,6 @@ public class WildcardFieldMapperTests extends MapperTestCase {
 
         org.elasticsearch.index.mapper.KeywordFieldMapper.Builder kwBuilder = new KeywordFieldMapper.Builder(
             KEYWORD_FIELD_NAME,
-            Integer.MAX_VALUE,
             IndexVersion.current()
         );
         keywordFieldType = kwBuilder.build(MapperBuilderContext.root(false, false));

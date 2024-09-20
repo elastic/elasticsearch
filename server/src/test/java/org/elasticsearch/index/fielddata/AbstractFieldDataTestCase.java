@@ -89,7 +89,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         final MapperBuilderContext context = MapperBuilderContext.root(false, false);
         if (type.equals("string")) {
             if (docValues) {
-                fieldType = new KeywordFieldMapper.Builder(fieldName, Integer.MAX_VALUE, IndexVersion.current()).build(context).fieldType();
+                fieldType = new KeywordFieldMapper.Builder(fieldName, IndexVersion.current()).build(context).fieldType();
             } else {
                 fieldType = new TextFieldMapper.Builder(
                     fieldName,

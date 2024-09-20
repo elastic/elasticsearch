@@ -694,11 +694,11 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         ObjectMapper.Builder mapperBuilder = new ObjectMapper.Builder("parent_size_1", Optional.empty()).add(
             new ObjectMapper.Builder("child_size_2", Optional.empty()).add(
                 new TextFieldMapper.Builder("grand_child_size_3", createDefaultIndexAnalyzers(), false).addMultiField(
-                    new KeywordFieldMapper.Builder("multi_field_size_4", Integer.MAX_VALUE, IndexVersion.current())
+                    new KeywordFieldMapper.Builder("multi_field_size_4", IndexVersion.current())
                 )
                     .addMultiField(
                         new TextFieldMapper.Builder("grand_child_size_5", createDefaultIndexAnalyzers(), false).addMultiField(
-                            new KeywordFieldMapper.Builder("multi_field_of_multi_field_size_6", Integer.MAX_VALUE, IndexVersion.current())
+                            new KeywordFieldMapper.Builder("multi_field_of_multi_field_size_6", IndexVersion.current())
                         )
                     )
             )
@@ -740,10 +740,8 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     public void testFlatten() {
         MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
         ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Optional.empty()).add(
-            new ObjectMapper.Builder("child", Optional.empty()).add(
-                new KeywordFieldMapper.Builder("keyword2", Integer.MAX_VALUE, IndexVersion.current())
-            )
-        ).add(new KeywordFieldMapper.Builder("keyword1", Integer.MAX_VALUE, IndexVersion.current())).build(rootContext);
+            new ObjectMapper.Builder("child", Optional.empty()).add(new KeywordFieldMapper.Builder("keyword2", IndexVersion.current()))
+        ).add(new KeywordFieldMapper.Builder("keyword1", IndexVersion.current())).build(rootContext);
         List<String> fields = objectMapper.asFlattenedFieldMappers(rootContext).stream().map(FieldMapper::fullPath).toList();
         assertThat(fields, containsInAnyOrder("parent.keyword1", "parent.child.keyword2"));
     }
@@ -751,10 +749,8 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     public void testFlattenSubobjectsAuto() {
         MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
         ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Optional.of(ObjectMapper.Subobjects.AUTO)).add(
-            new ObjectMapper.Builder("child", Optional.empty()).add(
-                new KeywordFieldMapper.Builder("keyword2", Integer.MAX_VALUE, IndexVersion.current())
-            )
-        ).add(new KeywordFieldMapper.Builder("keyword1", Integer.MAX_VALUE, IndexVersion.current())).build(rootContext);
+            new ObjectMapper.Builder("child", Optional.empty()).add(new KeywordFieldMapper.Builder("keyword2", IndexVersion.current()))
+        ).add(new KeywordFieldMapper.Builder("keyword1", IndexVersion.current())).build(rootContext);
         List<String> fields = objectMapper.asFlattenedFieldMappers(rootContext).stream().map(FieldMapper::fullPath).toList();
         assertThat(fields, containsInAnyOrder("parent.keyword1", "parent.child.keyword2"));
     }
@@ -762,10 +758,8 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     public void testFlattenSubobjectsFalse() {
         MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
         ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Optional.of(ObjectMapper.Subobjects.DISABLED)).add(
-            new ObjectMapper.Builder("child", Optional.empty()).add(
-                new KeywordFieldMapper.Builder("keyword2", Integer.MAX_VALUE, IndexVersion.current())
-            )
-        ).add(new KeywordFieldMapper.Builder("keyword1", Integer.MAX_VALUE, IndexVersion.current())).build(rootContext);
+            new ObjectMapper.Builder("child", Optional.empty()).add(new KeywordFieldMapper.Builder("keyword2", IndexVersion.current()))
+        ).add(new KeywordFieldMapper.Builder("keyword1", IndexVersion.current())).build(rootContext);
         List<String> fields = objectMapper.asFlattenedFieldMappers(rootContext).stream().map(FieldMapper::fullPath).toList();
         assertThat(fields, containsInAnyOrder("parent.keyword1", "parent.child.keyword2"));
     }

@@ -183,11 +183,7 @@ public class PercolatorFieldMapper extends FieldMapper {
             IndexVersion indexCreatedVersion
         ) {
             // NOTE: here we ignore the `index.mapping.ignore_above` on purpose to avoid missing a piece of the percolator query.
-            KeywordFieldMapper.Builder queryMetadataFieldBuilder = new KeywordFieldMapper.Builder(
-                name,
-                Integer.MAX_VALUE,
-                indexCreatedVersion
-            );
+            KeywordFieldMapper.Builder queryMetadataFieldBuilder = new KeywordFieldMapper.Builder(name, indexCreatedVersion);
             queryMetadataFieldBuilder.docValues(false);
             return queryMetadataFieldBuilder.build(context);
         }

@@ -142,10 +142,8 @@ public final class KeywordFieldMapper extends FieldMapper {
         return (KeywordFieldMapper) in;
     }
 
-    public static Builder buildForTest(final String name, final FieldType fieldType) {
-        return new KeywordFieldMapper.Builder(name, Integer.MAX_VALUE, IndexVersion.current()).docValues(
-            fieldType.docValuesType() != DocValuesType.NONE
-        );
+    public static Builder buildForTest(final String name, boolean hasDocValues) {
+        return new KeywordFieldMapper.Builder(name, IndexVersion.current()).docValues(hasDocValues);
     }
 
     public static final class Builder extends FieldMapper.DimensionBuilder {
@@ -204,7 +202,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             );
         }
 
-        private Builder(
+        Builder(
             String name,
             IndexAnalyzers indexAnalyzers,
             ScriptCompiler scriptCompiler,
@@ -246,8 +244,8 @@ public final class KeywordFieldMapper extends FieldMapper {
                 });
         }
 
-        public Builder(String name, int ignoreAboveDefault, IndexVersion indexCreatedVersion) {
-            this(name, null, ScriptCompiler.NONE, ignoreAboveDefault, indexCreatedVersion);
+        public Builder(String name, IndexVersion indexCreatedVersion) {
+            this(name, null, ScriptCompiler.NONE, Integer.MAX_VALUE, indexCreatedVersion);
         }
 
         public Builder ignoreAbove(int ignoreAbove) {

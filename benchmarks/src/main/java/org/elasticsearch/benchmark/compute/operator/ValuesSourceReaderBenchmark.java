@@ -182,7 +182,7 @@ public class ValuesSourceReaderBenchmark {
                 Lucene.KEYWORD_ANALYZER,
                 Lucene.KEYWORD_ANALYZER,
                 Lucene.KEYWORD_ANALYZER,
-                KeywordFieldMapper.buildForTest(name, ft),
+                KeywordFieldMapper.buildForTest(name, ft.docValuesType() != DocValuesType.NONE),
                 syntheticSource
             ).blockLoader(new MappedFieldType.BlockLoaderContext() {
                 @Override

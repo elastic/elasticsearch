@@ -520,11 +520,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             indexSettings
         );
         chunksField.dynamic(ObjectMapper.Dynamic.FALSE);
-        KeywordFieldMapper.Builder chunkTextField = new KeywordFieldMapper.Builder(
-            CHUNKED_TEXT_FIELD,
-            Integer.MAX_VALUE,
-            indexVersionCreated
-        ).indexed(false).docValues(false);
+        KeywordFieldMapper.Builder chunkTextField = new KeywordFieldMapper.Builder(CHUNKED_TEXT_FIELD, indexVersionCreated).indexed(false)
+            .docValues(false);
         if (modelSettings != null) {
             chunksField.add(createEmbeddingsField(indexVersionCreated, modelSettings));
         }

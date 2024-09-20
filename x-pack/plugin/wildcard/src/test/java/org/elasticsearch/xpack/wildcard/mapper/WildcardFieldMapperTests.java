@@ -122,7 +122,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     @Override
     @Before
     public void setUp() throws Exception {
-        Builder builder = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, Integer.MAX_VALUE, IndexVersion.current());
+        Builder builder = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, IndexVersion.current());
         builder.ignoreAbove(MAX_FIELD_LENGTH);
         wildcardFieldType = builder.build(MapperBuilderContext.root(false, false));
 

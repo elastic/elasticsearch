@@ -87,6 +87,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
+
 /**
  * A {@link FieldMapper} for indexing fields with ngrams for efficient wildcard matching
  */
@@ -208,7 +210,11 @@ public class WildcardFieldMapper extends FieldMapper {
 
         final int ignoreAboveDefault;
 
-        public Builder(String name, int ignoreAboveDefault, IndexVersion indexVersionCreated) {
+        public Builder(final String name, IndexVersion indexVersionCreated) {
+            this(name, Integer.MAX_VALUE, indexVersionCreated);
+        }
+
+        private Builder(String name, int ignoreAboveDefault, IndexVersion indexVersionCreated) {
             super(name);
             this.indexVersionCreated = indexVersionCreated;
             this.ignoreAboveDefault = ignoreAboveDefault;
@@ -247,10 +253,9 @@ public class WildcardFieldMapper extends FieldMapper {
         }
     }
 
-    public static TypeParser PARSER = new TypeParser((n, c) -> {
-        int ignoreAboveDefault = IGNORE_ABOVE_SETTING.get(c.getSettings());
-        return new Builder(n, ignoreAboveDefault, c.indexVersionCreated());
-    });
+    public static TypeParser PARSER = new TypeParser(
+        (n, c) -> new Builder(n, IGNORE_ABOVE_SETTING.get(c.getSettings()), c.indexVersionCreated())
+    );
 
     public static final char TOKEN_START_OR_END_CHAR = 0;
     public static final String TOKEN_START_STRING = Character.toString(TOKEN_START_OR_END_CHAR);

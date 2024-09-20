@@ -179,7 +179,7 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
                     randomBoolean(),
                     IndexMode.STANDARD,
                     lifecycle,
-                    DataStreamOptions.DEFAULT,
+                    DataStreamOptions.EMPTY,
                     List.of(),
                     replicated == false && randomBoolean(),
                     null

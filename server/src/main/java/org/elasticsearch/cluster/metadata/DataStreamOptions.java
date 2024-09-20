@@ -37,7 +37,7 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
     public static final ParseField FAILURE_STORE_FIELD = new ParseField("failure_store");
     public static final DataStreamOptions FAILURE_STORE_ENABLED = new DataStreamOptions(new DataStreamFailureStore(true));
     public static final DataStreamOptions FAILURE_STORE_DISABLED = new DataStreamOptions(new DataStreamFailureStore(false));
-    public static final DataStreamOptions DEFAULT = new DataStreamOptions();
+    public static final DataStreamOptions EMPTY = new DataStreamOptions();
 
     public static final ConstructingObjectParser<DataStreamOptions, Void> PARSER = new ConstructingObjectParser<>(
         "options",

@@ -137,7 +137,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             case 10 -> {
                 failureIndices = randomValueOtherThan(failureIndices, DataStreamTestHelper::randomIndexInstances);
                 dataStreamOptions = failureIndices.isEmpty()
-                    ? (randomBoolean() ? DataStreamOptions.DEFAULT : DataStreamOptions.FAILURE_STORE_ENABLED)
+                    ? (randomBoolean() ? DataStreamOptions.EMPTY : DataStreamOptions.FAILURE_STORE_ENABLED)
                     : DataStreamOptions.FAILURE_STORE_ENABLED;
             }
             case 11 -> {

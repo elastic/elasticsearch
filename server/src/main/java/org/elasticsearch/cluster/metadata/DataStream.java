@@ -219,7 +219,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         } else {
             // We cannot distinguish if failure store was explicitly disabled or not. Given that failure store
             // is still behind a feature flag in previous version we use the default value instead of explicitly disabling it.
-            dataStreamOptions = failureStoreEnabled ? DataStreamOptions.FAILURE_STORE_ENABLED : DataStreamOptions.DEFAULT;
+            dataStreamOptions = failureStoreEnabled ? DataStreamOptions.FAILURE_STORE_ENABLED : DataStreamOptions.EMPTY;
         }
         return new DataStream(
             name,
@@ -1120,7 +1120,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             : new DataStreamIndices(FAILURE_STORE_PREFIX, List.of(), false, null);
         // We cannot distinguish if failure store was explicitly disabled or not. Given that failure store
         // is still behind a feature flag in previous version we use the default value instead of explicitly disabling it.
-        DataStreamOptions dataStreamOptions = DataStreamOptions.DEFAULT;
+        DataStreamOptions dataStreamOptions = DataStreamOptions.EMPTY;
         if (DataStream.isFailureStoreFeatureFlagEnabled()) {
             if (args[16] != null) {
                 dataStreamOptions = (DataStreamOptions) args[16];
@@ -1604,7 +1604,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         private IndexMode indexMode = null;
         @Nullable
         private DataStreamLifecycle lifecycle = null;
-        private DataStreamOptions dataStreamOptions = DataStreamOptions.DEFAULT;
+        private DataStreamOptions dataStreamOptions = DataStreamOptions.EMPTY;
         private DataStreamIndices backingIndices;
         private DataStreamIndices failureIndices = DataStreamIndices.failureIndicesBuilder(List.of()).build();
 

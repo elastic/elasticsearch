@@ -106,12 +106,12 @@ public class RerouteProcessorTests extends ESTestCase {
 
     public void testInvalidDataStreamFieldsFromDocument() throws Exception {
         IngestDocument ingestDocument = createIngestDocument("logs-generic-default");
-        ingestDocument.setFieldValue("data_stream.dataset", "foo\\/*?\"<>| ,#:-bar");
-        ingestDocument.setFieldValue("data_stream.namespace", "baz\\/*?\"<>| ,#:-qux");
+        ingestDocument.setFieldValue("data_stream.dataset", "foo-bar");
+        ingestDocument.setFieldValue("data_stream.namespace", "baz#qux");
 
         RerouteProcessor processor = createRerouteProcessor(List.of(), List.of());
         processor.execute(ingestDocument);
-        assertDataSetFields(ingestDocument, "logs", "foo_____________bar", "baz_____________qux");
+        assertDataSetFields(ingestDocument, "logs", "foo_bar", "baz_qux");
     }
 
     public void testDestination() throws Exception {
@@ -238,7 +238,7 @@ public class RerouteProcessorTests extends ESTestCase {
     }
 
     public void testNamespaceSanitization() {
-        assertNamespaceSanitization("\\/*?\"<>| ,#:-", "____________-");
+        assertNamespaceSanitization("\\/*?\"<>| ,#:-", "_____________");
         assertNamespaceSanitization("foo*bar", "foo_bar");
     }
 

@@ -14,6 +14,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -170,7 +171,12 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
             // no work to be done on the coordinator node for the rank feature phase
             @Override
             public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from, Client client) {
-                return null;
+                return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE) {
+                    @Override
+                    protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
+                        throw new AssertionError("not expected");
+                    }
+                };
             }
 
             @Override

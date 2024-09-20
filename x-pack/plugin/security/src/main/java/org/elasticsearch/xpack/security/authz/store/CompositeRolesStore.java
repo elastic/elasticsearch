@@ -24,7 +24,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
@@ -94,6 +93,11 @@ public class CompositeRolesStore {
         Property.NodeScope
     );
     private static final Logger logger = LogManager.getLogger(CompositeRolesStore.class);
+    /**
+     * See {@link #shouldForkRoleBuilding(Set)}
+     */
+    private static final int ROLE_DESCRIPTOR_FORK_THRESHOLD = 100;
+    private static final int INDEX_PRIVILEGE_FORK_THRESHOLD = 1000;
 
     private final RoleProviders roleProviders;
     private final NativePrivilegeStore privilegeStore;
@@ -315,22 +319,19 @@ public class CompositeRolesStore {
     }
 
     /**
-     * Checks if we're on transport thread and heuristics such as presence of application privileges
-     * to determine if role building will be expensive and therefore warrants forking.
+     * Uses heuristics such as presence of application privileges to determine if role building will be expensive
+     * and therefore warrants forking.
+     * Package-private for testing.
      */
-    private boolean shouldForkRoleBuilding(Set<RoleDescriptor> roleDescriptors) {
-        // If we're not on transport thread, no need to fork
-        if (false == Transports.isTransportThread(Thread.currentThread())) {
-            return false;
-        }
-
+    boolean shouldForkRoleBuilding(Set<RoleDescriptor> roleDescriptors) {
         // A role with many role descriptors is likely expensive to build
-        if (roleDescriptors.size() > 100) {
+        if (roleDescriptors.size() > ROLE_DESCRIPTOR_FORK_THRESHOLD) {
             return true;
         }
         for (RoleDescriptor roleDescriptor : roleDescriptors) {
-            // Index privilege names can result in big and complex automata
-            if (roleDescriptor.getIndicesPrivileges().length > 1000) {
+            // Index privilege names or remote index privilege names can result in big and complex automata
+            if (roleDescriptor.getIndicesPrivileges().length > INDEX_PRIVILEGE_FORK_THRESHOLD
+                || roleDescriptor.getRemoteIndicesPrivileges().length > INDEX_PRIVILEGE_FORK_THRESHOLD) {
                 return true;
             }
             // Application privileges can also result in big automata; it's difficult to determine how big application privileges
@@ -579,7 +580,6 @@ public class CompositeRolesStore {
         if (applicationPrivilegesMap.isEmpty()) {
             listener.onResponse(builder.build());
         } else {
-            Transports.assertNotTransportThread("expensive application privilege automaton building");
             final Set<String> applicationNames = applicationPrivilegesMap.keySet().stream().map(Tuple::v1).collect(Collectors.toSet());
             final Set<String> applicationPrivilegeNames = applicationPrivilegesMap.values()
                 .stream()

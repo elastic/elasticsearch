@@ -687,6 +687,52 @@ public class CompositeRolesStoreTests extends ESTestCase {
         verifyNoMoreInteractions(fileRolesStore, reservedRolesStore, nativeRolesStore);
     }
 
+    public void testShouldForkRoleBuilding() {
+        final CompositeRolesStore compositeRolesStore = new CompositeRolesStore(
+            SECURITY_ENABLED_SETTINGS,
+            mock(RoleProviders.class),
+            mock(NativePrivilegeStore.class),
+            new ThreadContext(SECURITY_ENABLED_SETTINGS),
+            mock(),
+            cache,
+            mock(ApiKeyService.class),
+            mock(ServiceAccountService.class),
+            buildBitsetCache(),
+            TestRestrictedIndices.RESTRICTED_INDICES,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            mock()
+        );
+
+        assertFalse(compositeRolesStore.shouldForkRoleBuilding(Set.of()));
+        assertFalse(
+            compositeRolesStore.shouldForkRoleBuilding(
+                Set.of(
+                    randomValueOtherThanMany(
+                        rd -> rd.isUsingDocumentOrFieldLevelSecurity() || rd.hasApplicationPrivileges(),
+                        RoleDescriptorTestHelper::randomRoleDescriptor
+                    )
+                )
+            )
+        );
+        assertTrue(
+            compositeRolesStore.shouldForkRoleBuilding(
+                Set.of(
+                    randomValueOtherThanMany(
+                        rd -> false == rd.isUsingDocumentOrFieldLevelSecurity(),
+                        RoleDescriptorTestHelper::randomRoleDescriptor
+                    )
+                )
+            )
+        );
+        assertTrue(
+            compositeRolesStore.shouldForkRoleBuilding(
+                Set.of(
+                    randomValueOtherThanMany(rd -> false == rd.hasApplicationPrivileges(), RoleDescriptorTestHelper::randomRoleDescriptor)
+                )
+            )
+        );
+    }
+
     public void testNegativeLookupsAreNotCachedWithFailures() {
         final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
         doCallRealMethod().when(fileRolesStore).accept(anySet(), anyActionListener());

@@ -2,8 +2,7 @@ pr: 113286
 summary: Deprecate legacy params from range query
 area: Search
 type: deprecation
-issues:
- - 48538
+issues: []
 deprecation:
   title: Deprecate legacy params from range query
   area: Search

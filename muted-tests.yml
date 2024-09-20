@@ -288,6 +288,12 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/113296
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   issue: https://github.com/elastic/elasticsearch/issues/113298
+- class: org.elasticsearch.integration.KibanaUserRoleIntegTests
+  method: testGetIndex
+  issue: https://github.com/elastic/elasticsearch/issues/113311
+- class: org.elasticsearch.packaging.test.WindowsServiceTests
+  method: test81JavaOptsInJvmOptions
+  issue: https://github.com/elastic/elasticsearch/issues/113313
 
 # Examples:
 #

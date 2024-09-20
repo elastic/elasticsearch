@@ -280,6 +280,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {date.EvalDateFormat}
   issue: https://github.com/elastic/elasticsearch/issues/113294
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {date.DocsDateFormat}
+  issue: https://github.com/elastic/elasticsearch/issues/113295
 
 # Examples:
 #

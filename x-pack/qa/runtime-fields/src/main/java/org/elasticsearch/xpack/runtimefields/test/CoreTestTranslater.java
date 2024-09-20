@@ -240,10 +240,12 @@ public abstract class CoreTestTranslater {
                 final Object settings = body.get("settings");
                 final Object indexMapping = getSetting(settings, "index", "mapping");
                 if (indexMapping instanceof Map<?, ?> m) {
-                    final Integer ignoreAboveSettingValue = (Integer) m.get("ignore_above");
-                    if (ignoreAboveSettingValue >= 0) {
-                        // Scripts don't support ignore_above so we skip those fields
-                        continue;
+                    final Object ignoreAbove = m.get("ignore_above");
+                    if (ignoreAbove instanceof Integer ignoreAboveValue) {
+                        if (ignoreAboveValue >= 0) {
+                            // Scripts don't support ignore_above so we skip those fields
+                            continue;
+                        }
                     }
                 }
                 if (settings instanceof Map && ((Map<?, ?>) settings).containsKey("sort.field")) {

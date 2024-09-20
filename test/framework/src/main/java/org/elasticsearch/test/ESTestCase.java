@@ -208,6 +208,7 @@ import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 import static org.hamcrest.Matchers.anyOf;
@@ -2573,9 +2574,42 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
-    // lucene 10 upgrade: this overwrites LuceneTestCase#newSearcher so we never get random INTRA_SEGMENT
-    // concurrency. We want to slowly migrate of stuff out of using this method after we got a working branch
+    /**
+     * Create a new searcher over the reader. This searcher might randomly use threads.
+     * Provides the same functionality as {@link LuceneTestCase#newSearcher(IndexReader)},
+     * with the only difference that concurrency will only ever be inter-segment and never intra-segment.
+     */
     public static IndexSearcher newSearcher(IndexReader r) {
-        return newSearcher(r, true, true, Concurrency.INTER_SEGMENT);
+        return newSearcher(r, true);
+    }
+
+    /**
+     * Create a new searcher over the reader. This searcher might randomly use threads.
+     * Provides the same functionality as {@link LuceneTestCase#newSearcher(IndexReader, boolean)},
+     * with the only difference that concurrency will only ever be inter-segment and never intra-segment.
+     */
+    public static IndexSearcher newSearcher(IndexReader r, boolean maybeWrap) {
+        return newSearcher(r, maybeWrap, true);
+    }
+
+    /**
+     * Create a new searcher over the reader. This searcher might randomly use threads.
+     * Provides the same functionality as {@link LuceneTestCase#newSearcher(IndexReader, boolean, boolean)},
+     * with the only difference that concurrency will only ever be inter-segment and never intra-segment.
+     */
+    public static IndexSearcher newSearcher(IndexReader r, boolean maybeWrap, boolean wrapWithAssertions) {
+        return newSearcher(r, maybeWrap, wrapWithAssertions, randomBoolean());
+    }
+
+    /**
+     * Create a new searcher over the reader.
+     * Provides the same functionality as {@link LuceneTestCase#newSearcher(IndexReader, boolean, boolean, boolean)},
+     * with the only difference that concurrency will only ever be inter-segment and never intra-segment.
+     */
+    public static IndexSearcher newSearcher(IndexReader r, boolean maybeWrap, boolean wrapWithAssertions, boolean useThreads) {
+        if (useThreads) {
+            return newSearcher(r, maybeWrap, wrapWithAssertions, Concurrency.INTER_SEGMENT);
+        }
+        return newSearcher(r, maybeWrap, wrapWithAssertions, Concurrency.NONE);
     }
 }

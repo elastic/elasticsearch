@@ -237,9 +237,10 @@ public abstract class CoreTestTranslater {
         private boolean modifyCreateIndex(ApiCallSection createIndex) {
             String index = createIndex.getParams().get("index");
             for (Map<?, ?> body : createIndex.getBodies()) {
-                Object settings = body.get("settings");
-                Object ignoreAbove = getSetting(settings, "index", "mapping", "ignore_above");
-                if (ignoreAbove instanceof Integer ignoreAboveSettingValue) {
+                final Object settings = body.get("settings");
+                final Object indexMapping = getSetting(settings, "index", "mapping");
+                if (indexMapping instanceof Map<?, ?> m) {
+                    final Integer ignoreAboveSettingValue = (Integer) m.get("ignore_above");
                     if (ignoreAboveSettingValue >= 0) {
                         // Scripts don't support ignore_above so we skip those fields
                         continue;

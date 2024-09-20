@@ -773,8 +773,8 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     }
 
     public void testSnapshotDeletesRetryUntilInterruptedOnThrottlingError() throws IOException {
-        final int maxRetries = between(3, 5);
-        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, true, null);
+        // disable AWS-client retries
+        final BlobContainer blobContainer = createBlobContainer(0, null, true, null);
         final AtomicInteger numberOfDeleteAttempts = new AtomicInteger(0);
         final AtomicInteger numberOfSuccessfulDeletes = new AtomicInteger(0);
         @SuppressForbidden(reason = "use a http server")
@@ -818,7 +818,8 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         for (int i = 0; i < randomIntBetween(500, 3000); i++) {
             blobsToDelete.add(randomIdentifier());
         }
-        int throttleTimesBeforeSuccess = randomIntBetween(0, 3);
+        int throttleTimesBeforeSuccess = randomIntBetween(1, 5);
+        logger.info("--> Throttling {} times before success", throttleTimesBeforeSuccess);
         httpServer.createContext("/", new ThrottlingDeleteHandler(throttleTimesBeforeSuccess));
         blobContainer.deleteBlobsIgnoringIfNotExists(
             randomFrom(OperationPurpose.SNAPSHOT_DATA, OperationPurpose.SNAPSHOT_METADATA),

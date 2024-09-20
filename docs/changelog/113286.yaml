@@ -1,0 +1,12 @@
+pr: 113286
+summary: Deprecate legacy params from range query
+area: Search
+type: deprecation
+issues:
+ - 48538
+deprecation:
+  title: Deprecate legacy params from range query
+  area: Search
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users

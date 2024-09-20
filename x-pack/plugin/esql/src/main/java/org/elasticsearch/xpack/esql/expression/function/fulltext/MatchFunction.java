@@ -1,0 +1,107 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.expression.function.fulltext;
+
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.querydsl.query.MatchQuery;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
+import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
+
+import java.io.IOException;
+import java.util.List;
+
+/**
+ * Full text function that performs a {@link QueryStringQuery} .
+ */
+public class MatchFunction extends FullTextFunction {
+
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "Matchstr",
+        MatchFunction::new
+    );
+
+    private final Expression field;
+
+    @FunctionInfo(
+        returnType = "boolean",
+        preview = true,
+        description = "Performs a match query on the specified fields. Returns true if the provided query matches the row.",
+        examples = { @Example(file = "match-function", tag = "match-with-field") }
+    )
+    public MatchFunction(
+        Source source,
+        @Param(
+            name = "field",
+            type = { "keyword", "text" },
+            description = "Field or field pattern that the query will target."
+        ) Expression field,
+        @Param(
+            name = "query",
+            type = { "keyword", "text" },
+            description = "Query string in Lucene query string format."
+        ) Expression matchQuery
+    ) {
+        super(source, matchQuery);
+        this.field = field;
+    }
+
+    private MatchFunction(StreamInput in) throws IOException {
+        super(in);
+        field = in.readNamedWriteable(Expression.class);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeNamedWriteable(field);
+    }
+
+    @Override
+    public String functionName() {
+        return "MATCHSTR";
+    }
+
+    @Override
+    public Query asQuery() {
+        Object queryAsObject = query().fold();
+        if (queryAsObject instanceof BytesRef == false) {
+            throw new IllegalArgumentException("Query in MATCHSTR function needs to be resolved to a string");
+        }
+        Object fieldAsObject = field.fold();
+        if (fieldAsObject instanceof BytesRef == false) {
+            throw new IllegalArgumentException("Field in NATCHSTR function needs to be resolved to a string");
+        }
+
+        return new MatchQuery(source(), ((BytesRef) fieldAsObject).utf8ToString(), ((BytesRef) queryAsObject).utf8ToString());
+    }
+
+    @Override
+    public Expression replaceChildren(List<Expression> newChildren) {
+        return new MatchFunction(source(), newChildren.get(0), newChildren.get(1));
+    }
+
+    @Override
+    protected NodeInfo<? extends Expression> info() {
+        return NodeInfo.create(this, MatchFunction::new, field, query());
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+}

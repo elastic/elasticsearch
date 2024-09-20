@@ -24,7 +24,7 @@ test {
   jvmArgs "-javaagent:${jar.archiveFile.get().asFile}"
 }
 
-jar {
+tasks.named('jar').configure {
   manifest {
     attributes(
       'Premain-Class': 'org.elasticsearch.entitlement.agent.EntitlementAgent'

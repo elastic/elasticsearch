@@ -93,8 +93,8 @@ public class QueryBuilderBWCIT extends ParameterizedFullClusterRestartTestCase {
 
     static {
         addCandidate("""
-            "match": { "keyword_field": "value"}
-            """, new MatchQueryBuilder("keyword_field", "value"));
+            "match": { "text_field": "value"}
+            """, new MatchQueryBuilder("text_field", "value"));
         addCandidate("""
             "match": { "text_field": {"query": "value", "operator": "and"} }
             """, new MatchQueryBuilder("text_field", "value").operator(Operator.AND));
@@ -202,11 +202,6 @@ public class QueryBuilderBWCIT extends ParameterizedFullClusterRestartTestCase {
                 {
                     mappingsAndSettings.startObject("query");
                     mappingsAndSettings.field("type", "percolator");
-                    mappingsAndSettings.endObject();
-                }
-                {
-                    mappingsAndSettings.startObject("keyword_field");
-                    mappingsAndSettings.field("type", "keyword");
                     mappingsAndSettings.endObject();
                 }
                 {

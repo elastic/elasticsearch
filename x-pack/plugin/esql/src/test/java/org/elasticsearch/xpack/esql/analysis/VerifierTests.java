@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -1107,75 +1108,117 @@ public class VerifierTests extends ESTestCase {
         assertThat(error(query, defaultAnalyzer, exception), containsString(expectedErrorMessage));
     }
 
-    public void testQueryStringFunctionsNotAllowedAfterCommands() throws Exception {
+    public void testQueryStringFunctionNotAllowedAfterCommands() throws Exception {
         assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
 
-        // Source commands
-        assertEquals("1:13: [QSTR] function cannot be used after SHOW", error("show info | where qstr(\"8.16.0\")"));
+        assertEquals("1:13: [QSTR] function cannot be used after SHOW", error("show info | where qstr(\"Anna\")"));
         assertEquals("1:17: [QSTR] function cannot be used after ROW", error("row a= \"Anna\" | where qstr(\"Anna\")"));
+        checkFullTextFunctionNotAllowedAfterCommands("QSTR", "qstr(\"Anna\")");
+    }
+
+    public void testMatchFunctionNotAllowedAfterCommands() throws Exception {
+        assumeTrue("skipping because MATCHSTR is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
+
+        assertEquals("1:13: [MATCHSTR] function cannot be used after SHOW", error("show info | where matchstr(version, \"8.*\")"));
+        checkFullTextFunctionNotAllowedAfterCommands("MATCHSTR", "matchstr(first_name, \"Anna\")");
+    }
+
+    private void checkFullTextFunctionNotAllowedAfterCommands(String functionName, String functionInvocation) throws Exception {
+
+        // Source commands
+        String function = functionName.toLowerCase(Locale.ROOT);
 
         // Processing commands
         assertEquals(
-            "1:43: [QSTR] function cannot be used after DISSECT",
-            error("from test | dissect first_name \"%{foo}\" | where qstr(\"Connection\")")
-        );
-        assertEquals("1:27: [QSTR] function cannot be used after DROP", error("from test | drop emp_no | where qstr(\"Anna\")"));
-        assertEquals(
-            "1:71: [QSTR] function cannot be used after ENRICH",
-            error("from test | enrich languages on languages with lang = language_name | where qstr(\"Anna\")")
-        );
-        assertEquals("1:26: [QSTR] function cannot be used after EVAL", error("from test | eval z = 2 | where qstr(\"Anna\")"));
-        assertEquals(
-            "1:44: [QSTR] function cannot be used after GROK",
-            error("from test | grok last_name \"%{WORD:foo}\" | where qstr(\"Anna\")")
-        );
-        assertEquals("1:27: [QSTR] function cannot be used after KEEP", error("from test | keep emp_no | where qstr(\"Anna\")"));
-        assertEquals("1:24: [QSTR] function cannot be used after LIMIT", error("from test | limit 10 | where qstr(\"Anna\")"));
-        assertEquals(
-            "1:35: [QSTR] function cannot be used after MV_EXPAND",
-            error("from test | mv_expand last_name | where qstr(\"Anna\")")
+            "1:43: [" + functionName + "] function cannot be used after DISSECT",
+            error("from test | dissect first_name \"%{foo}\" | where " + functionInvocation)
         );
         assertEquals(
-            "1:45: [QSTR] function cannot be used after RENAME",
-            error("from test | rename last_name as full_name | where qstr(\"Anna\")")
+            "1:27: [" + functionName + "] function cannot be used after DROP",
+            error("from test | drop emp_no | where " + functionInvocation)
         );
         assertEquals(
-            "1:52: [QSTR] function cannot be used after STATS",
-            error("from test | STATS c = COUNT(emp_no) BY languages | where qstr(\"Anna\")")
+            "1:71: [" + functionName + "] function cannot be used after ENRICH",
+            error("from test | enrich languages on languages with lang = language_name | where " + functionInvocation)
+        );
+        assertEquals(
+            "1:26: [" + functionName + "] function cannot be used after EVAL",
+            error("from test | eval z = 2 | where " + functionInvocation)
+        );
+        assertEquals(
+            "1:44: [" + functionName + "] function cannot be used after GROK",
+            error("from test | grok last_name \"%{WORD:foo}\" | where " + functionInvocation)
+        );
+        assertEquals(
+            "1:31: [" + functionName + "] function cannot be used after KEEP",
+            error("from test | keep first_name | where " + functionInvocation)
+        );
+        assertEquals(
+            "1:24: [" + functionName + "] function cannot be used after LIMIT",
+            error("from test | limit 10 | where " + functionInvocation)
+        );
+        assertEquals(
+            "1:35: [" + functionName + "] function cannot be used after MV_EXPAND",
+            error("from test | mv_expand last_name | where " + functionInvocation)
+        );
+        assertEquals(
+            "1:45: [" + functionName + "] function cannot be used after RENAME",
+            error("from test | rename last_name as full_name | where " + functionInvocation)
+        );
+        assertEquals(
+            "1:53: [" + functionName + "] function cannot be used after STATS",
+            error("from test | STATS c = COUNT(emp_no) BY first_name | where " + functionInvocation)
         );
 
         // Some combination of processing commands
         assertEquals(
-            "1:38: [QSTR] function cannot be used after LIMIT",
-            error("from test | keep emp_no | limit 10 | where qstr(\"Anna\")")
+            "1:42: [" + functionName + "] function cannot be used after LIMIT",
+            error("from test | keep first_name | limit 10 | where " + functionInvocation)
         );
         assertEquals(
-            "1:46: [QSTR] function cannot be used after MV_EXPAND",
-            error("from test | limit 10 | mv_expand last_name | where qstr(\"Anna\")")
+            "1:46: [" + functionName + "] function cannot be used after MV_EXPAND",
+            error("from test | limit 10 | mv_expand last_name | where " + functionInvocation)
         );
         assertEquals(
-            "1:52: [QSTR] function cannot be used after KEEP",
-            error("from test | mv_expand last_name | keep last_name | where qstr(\"Anna\")")
+            "1:53: [" + functionName + "] function cannot be used after KEEP",
+            error("from test | mv_expand last_name | keep first_name | where " + functionInvocation)
         );
         assertEquals(
-            "1:77: [QSTR] function cannot be used after RENAME",
-            error("from test | STATS c = COUNT(emp_no) BY languages | rename c as total_emps | where qstr(\"Anna\")")
+            "1:78: [" + functionName + "] function cannot be used after RENAME",
+            error("from test | STATS c = COUNT(emp_no) BY first_name | rename c as total_emps | where " + functionInvocation)
         );
         assertEquals(
-            "1:54: [QSTR] function cannot be used after KEEP",
-            error("from test | rename last_name as name | keep emp_no | where qstr(\"Anna\")")
+            "1:58: [" + functionName + "] function cannot be used after KEEP",
+            error("from test | rename last_name as name | keep first_name | where " + functionInvocation)
         );
     }
 
-    public void testQueryStringFunctionsOnlyAllowedInWhere() throws Exception {
+    public void testQueryStringFunctionOnlyAllowedInWhere() throws Exception {
         assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
 
-        assertEquals("1:22: [QSTR] function is only supported in WHERE commands", error("from test | eval y = qstr(\"Anna\")"));
-        assertEquals("1:18: [QSTR] function is only supported in WHERE commands", error("from test | sort qstr(\"Connection\") asc"));
-        assertEquals("1:5: [QSTR] function is only supported in WHERE commands", error("row qstr(\"Connection\")"));
+        assertEquals("1:9: [QSTR] function is only supported in WHERE commands", error("row a = qstr(\"Anna\")"));
+        checkFullTextFunctionsOnlyAllowedInWhere("QSTR", "qstr(\"Anna\")");
+    }
+
+    public void testMatchFunctionOnlyAllowedInWhere() throws Exception {
+        assumeTrue("skipping because MATCHSTR is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
+
+        checkFullTextFunctionsOnlyAllowedInWhere("MATCHSTR", "matchstr(first_name, \"Anna\")");
+    }
+
+    private void checkFullTextFunctionsOnlyAllowedInWhere(String functionName, String functionInvocation) throws Exception {
+        String function = functionName.toLowerCase(Locale.ROOT);
         assertEquals(
-            "1:23: [QSTR] function is only supported in WHERE commands",
-            error("from test | STATS c = qstr(\"foo\") BY languages")
+            "1:22: [" + functionName + "] function is only supported in WHERE commands",
+            error("from test | eval y = " + functionInvocation)
+        );
+        assertEquals(
+            "1:18: [" + functionName + "] function is only supported in WHERE commands",
+            error("from test | sort " + functionInvocation + " asc")
+        );
+        assertEquals(
+            "1:23: [" + functionName + "] function is only supported in WHERE commands",
+            error("from test | STATS c = " + functionInvocation + " BY first_name")
         );
     }
 
@@ -1184,6 +1227,22 @@ public class VerifierTests extends ESTestCase {
 
         assertEquals("1:19: argument of [QSTR] must be a constant, received [first_name]", error("from test | where qstr(first_name)"));
         assertEquals("1:19: argument of [QSTR] cannot be null, received [null]", error("from test | where qstr(null)"));
+        // Other value types are tested in QueryStringFunctionTests
+    }
+
+    public void testMatchFunctionArgNotNullOrConstant() throws Exception {
+        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
+
+        // assertEquals("1:19: first argument of [MATCHSTR] cannot be null, received [null]", error("from test | where matchstr(null,
+        // \"Anna\")"));
+        assertEquals(
+            "1:19: second argument of [MATCHSTR] cannot be null, received [null]",
+            error("from test | where matchstr(first_name, null)")
+        );
+        assertEquals(
+            "1:19: second argument of [MATCHSTR] must be a constant, received [first_name]",
+            error("from test | where matchstr(first_name, first_name)")
+        );
         // Other value types are tested in QueryStringFunctionTests
     }
 

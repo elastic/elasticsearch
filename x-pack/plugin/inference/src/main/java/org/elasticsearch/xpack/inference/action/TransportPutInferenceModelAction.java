@@ -48,7 +48,6 @@ import org.elasticsearch.xpack.core.ml.utils.MlPlatformArchitecturesUtil;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
-import org.elasticsearch.xpack.inference.services.elser.ElserInternalService;
 
 import java.io.IOException;
 import java.util.Map;
@@ -56,8 +55,8 @@ import java.util.Set;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.BaseElasticsearchInternalService.selectDefaultModelVariantBasedOnClusterArchitecture;
-import static org.elasticsearch.xpack.inference.services.elser.ElserModels.ELSER_V2_MODEL;
-import static org.elasticsearch.xpack.inference.services.elser.ElserModels.ELSER_V2_MODEL_LINUX_X86;
+import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.ELSER_V2_MODEL;
+import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.ELSER_V2_MODEL_LINUX_X86;
 
 public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
     PutInferenceModelAction.Request,
@@ -168,20 +167,20 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             // Find the cluster platform as the service may need that
             // information when creating the model
             MlPlatformArchitecturesUtil.getMlNodesArchitecturesSet(listener.delegateFailureAndWrap((delegate, architectures) -> {
-
-                if (serviceName.equals(ElserInternalService.NAME)) { // TODO remove this block once the elser service is removed
+                String ELSER_SERVICE_NAME = "elser";
+                if (serviceName.equals(ELSER_SERVICE_NAME)) {
                     String modelId = selectDefaultModelVariantBasedOnClusterArchitecture(
                         architectures,
                         ELSER_V2_MODEL_LINUX_X86,
                         ELSER_V2_MODEL
                     );
 
-                    DEPRECATION_LOGGER.critical(
+                    DEPRECATION_LOGGER.warn(
                         DeprecationCategory.API,
                         "inference_api_elser_service",
                         "The [{}] service is deprecated and will be removed in a future release. Use the [{}] service instead, with"
                             + " [model_id] set to [{}] in the [service_settings]",
-                        ElserInternalService.NAME,
+                        ELSER_SERVICE_NAME,
                         ElasticsearchInternalService.NAME,
                         modelId
                     );

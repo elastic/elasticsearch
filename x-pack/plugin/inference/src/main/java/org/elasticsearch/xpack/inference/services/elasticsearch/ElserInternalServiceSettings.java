@@ -12,7 +12,6 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
-import org.elasticsearch.xpack.inference.services.elser.ElserModels;
 
 import java.io.IOException;
 import java.util.Arrays;

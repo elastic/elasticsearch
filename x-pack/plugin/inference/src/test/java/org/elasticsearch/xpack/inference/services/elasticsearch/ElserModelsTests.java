@@ -8,31 +8,32 @@
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels;
 
 public class ElserModelsTests extends ESTestCase {
 
     public static String randomElserModel() {
-        return randomFrom(org.elasticsearch.xpack.inference.services.elser.ElserModels.VALID_ELSER_MODEL_IDS);
+        return randomFrom(org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.VALID_ELSER_MODEL_IDS);
     }
 
     public void testIsValidModel() {
-        assertTrue(org.elasticsearch.xpack.inference.services.elser.ElserModels.isValidModel(randomElserModel()));
+        assertTrue(org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.isValidModel(randomElserModel()));
     }
 
     public void testIsValidEisModel() {
         assertTrue(
-            org.elasticsearch.xpack.inference.services.elser.ElserModels.isValidEisModel(
-                org.elasticsearch.xpack.inference.services.elser.ElserModels.ELSER_V2_MODEL
+            org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.isValidEisModel(
+                org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.ELSER_V2_MODEL
             )
         );
     }
 
     public void testIsInvalidModel() {
-        assertFalse(org.elasticsearch.xpack.inference.services.elser.ElserModels.isValidModel("invalid"));
+        assertFalse(org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.isValidModel("invalid"));
     }
 
     public void testIsInvalidEisModel() {
-        assertFalse(org.elasticsearch.xpack.inference.services.elser.ElserModels.isValidEisModel(ElserModels.ELSER_V2_MODEL_LINUX_X86));
+        assertFalse(
+            org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.isValidEisModel(ElserModels.ELSER_V2_MODEL_LINUX_X86)
+        );
     }
 }

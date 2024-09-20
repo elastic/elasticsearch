@@ -13,8 +13,6 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.inference.services.elser.ElserInternalServiceSettings;
-import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeTaskSettings;
 
 public class ElserInternalModel extends ElasticsearchInternalModel {
 

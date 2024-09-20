@@ -56,9 +56,9 @@ import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createI
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
+import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.ELSER_V2_MODEL;
+import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.ELSER_V2_MODEL_LINUX_X86;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.VALID_ELSER_MODEL_IDS;
-import static org.elasticsearch.xpack.inference.services.elser.ElserModels.ELSER_V2_MODEL;
-import static org.elasticsearch.xpack.inference.services.elser.ElserModels.ELSER_V2_MODEL_LINUX_X86;
 
 public class ElasticsearchInternalService extends BaseElasticsearchInternalService {
 
@@ -263,7 +263,13 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         throwIfNotEmptyMap(serviceSettingsMap, name());
 
         modelListener.onResponse(
-            new ElserInternalModel(inferenceEntityId, taskType, NAME, new ElserInternalServiceSettings(esServiceSettingsBuilder.build()))
+            new ElserInternalModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                new ElserInternalServiceSettings(esServiceSettingsBuilder.build()),
+                ElserMlNodeTaskSettings.DEFAULT
+            )
         );
     }
 

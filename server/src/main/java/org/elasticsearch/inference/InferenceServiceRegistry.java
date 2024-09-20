@@ -51,8 +51,8 @@ public class InferenceServiceRegistry implements Closeable {
             // here we are aliasing the elser service to use the elasticsearch service instead
             return Optional.ofNullable(services.get("elasticsearch")); // ElasticsearchInternalService.NAME
         } else {
-        return Optional.ofNullable(services.get(serviceName));
-    }
+            return Optional.ofNullable(services.get(serviceName));
+        }
     }
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {

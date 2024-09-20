@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeTaskSettings;
 
 public class ElserMlNodeTaskSettingsTests extends AbstractWireSerializingTestCase<ElserMlNodeTaskSettings> {
 

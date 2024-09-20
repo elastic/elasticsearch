@@ -16,7 +16,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.elser.ElserModels;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels;
 
 import java.io.IOException;
 import java.util.HashMap;

@@ -131,7 +131,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             this.geoFormatterFactory = geoFormatterFactory;
             this.ignoreMalformed = ignoreMalformedParam(m -> builder(m).ignoreMalformed.get(), ignoreMalformedByDefault);
             this.coerce = coerceParam(m -> builder(m).coerce.get(), coerceByDefault);
-            this.hasDocValues = Parameter.docValuesParam(m -> builder(m).hasDocValues.get(), true);
+            this.hasDocValues = Parameter.docValuesParam(m -> builder(m).hasDocValues.get(), IndexVersions.V_7_8_0.onOrBefore(version));
             addScriptValidation(script, indexed, hasDocValues);
         }
 

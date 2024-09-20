@@ -1742,6 +1742,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
 
+        final boolean writeIndexGens = SnapshotsService.useIndexGenerations(repositoryMetaVersion);
+
         record MetadataWriteResult(
             RepositoryData existingRepositoryData,
             Map<IndexId, String> indexMetas,
@@ -1777,11 +1779,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
 
                 final MetadataWriteResult metadataWriteResult;
-                metadataWriteResult = new MetadataWriteResult(
-                    existingRepositoryData,
-                    ConcurrentCollections.newConcurrentMap(),
-                    ConcurrentCollections.newConcurrentMap()
-                );
+                if (writeIndexGens) {
+                    metadataWriteResult = new MetadataWriteResult(
+                        existingRepositoryData,
+                        ConcurrentCollections.newConcurrentMap(),
+                        ConcurrentCollections.newConcurrentMap()
+                    );
+                } else {
+                    metadataWriteResult = new MetadataWriteResult(existingRepositoryData, null, null);
+                }
 
                 try (var allMetaListeners = new RefCountingListener(l.map(ignored -> metadataWriteResult))) {
                     // We ignore all FileAlreadyExistsException when writing metadata since otherwise a master failover while in this method
@@ -1803,16 +1809,24 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     for (IndexId index : indices) {
                         executor.execute(ActionRunnable.run(allMetaListeners.acquire(), () -> {
                             final IndexMetadata indexMetaData = clusterMetadata.index(index.getName());
-
-                            final String identifiers = IndexMetaDataGenerations.buildUniqueIdentifier(indexMetaData);
-                            String metaUUID = existingRepositoryData.indexMetaDataGenerations().getIndexMetaBlobId(identifiers);
-                            if (metaUUID == null) {
-                                // We don't yet have this version of the metadata so we write it
-                                metaUUID = UUIDs.base64UUID();
-                                INDEX_METADATA_FORMAT.write(indexMetaData, indexContainer(index), metaUUID, compress);
-                                metadataWriteResult.indexMetaIdentifiers().put(identifiers, metaUUID);
-                            } // else this task was largely a no-op - TODO no need to fork in that case
-                            metadataWriteResult.indexMetas().put(index, identifiers);
+                            if (writeIndexGens) {
+                                final String identifiers = IndexMetaDataGenerations.buildUniqueIdentifier(indexMetaData);
+                                String metaUUID = existingRepositoryData.indexMetaDataGenerations().getIndexMetaBlobId(identifiers);
+                                if (metaUUID == null) {
+                                    // We don't yet have this version of the metadata so we write it
+                                    metaUUID = UUIDs.base64UUID();
+                                    INDEX_METADATA_FORMAT.write(indexMetaData, indexContainer(index), metaUUID, compress);
+                                    metadataWriteResult.indexMetaIdentifiers().put(identifiers, metaUUID);
+                                } // else this task was largely a no-op - TODO no need to fork in that case
+                                metadataWriteResult.indexMetas().put(index, identifiers);
+                            } else {
+                                INDEX_METADATA_FORMAT.write(
+                                    clusterMetadata.index(index.getName()),
+                                    indexContainer(index),
+                                    snapshotId.getUUID(),
+                                    compress
+                                );
+                            }
                         }));
                     }
 

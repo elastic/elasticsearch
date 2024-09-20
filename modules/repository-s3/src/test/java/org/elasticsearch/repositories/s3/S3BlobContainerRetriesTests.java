@@ -62,6 +62,7 @@ import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -769,6 +770,64 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         assertThat(getRetryStartedMeasurements(), empty());
         assertThat(getRetryCompletedMeasurements(), empty());
         assertThat(getRetryHistogramMeasurements(), empty());
+    }
+
+    public void testSnapshotDeletesRetryUntilInterruptedOnThrottlingError() throws IOException {
+        final int maxRetries = between(3, 5);
+        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, true, null);
+        final AtomicInteger numberOfDeleteAttempts = new AtomicInteger(0);
+        final AtomicInteger numberOfSuccessfulDeletes = new AtomicInteger(0);
+        @SuppressForbidden(reason = "use a http server")
+        class ThrottlingDeleteHandler extends S3HttpHandler {
+
+            private final AtomicInteger throttleTimesBeforeSuccess;
+
+            ThrottlingDeleteHandler(int throttleTimesBeforeSuccess) {
+                super("bucket");
+                this.throttleTimesBeforeSuccess = new AtomicInteger(throttleTimesBeforeSuccess);
+            }
+
+            @Override
+            public void handle(HttpExchange exchange) throws IOException {
+                if (exchange.getRequestMethod().equals("POST") && exchange.getRequestURI().toString().startsWith("/bucket/?delete")) {
+                    numberOfDeleteAttempts.incrementAndGet();
+                    if (throttleTimesBeforeSuccess.getAndDecrement() > 0) {
+                        final byte[] responseBody = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                            + "<Error>\n"
+                            + "  <Code>SlowDown</Code>\n"
+                            + "  <Message>This is a throttling message</Message>\n"
+                            + "  <Resource>/bucket/</Resource> \n"
+                            + "  <RequestId>4442587FB7D0A2F9</RequestId>\n"
+                            + "</Error>").getBytes(StandardCharsets.UTF_8);
+
+                        exchange.sendResponseHeaders(HttpStatus.SC_SERVICE_UNAVAILABLE, responseBody.length);
+                        exchange.getResponseBody().write(responseBody);
+                        exchange.getResponseBody().flush();
+                        exchange.close();
+                    } else {
+                        numberOfSuccessfulDeletes.incrementAndGet();
+                        super.handle(exchange);
+                    }
+                } else {
+                    super.handle(exchange);
+                }
+            }
+        }
+
+        List<String> blobsToDelete = new ArrayList<>();
+        for (int i = 0; i < randomIntBetween(500, 3000); i++) {
+            blobsToDelete.add(randomIdentifier());
+        }
+        int throttleTimesBeforeSuccess = randomIntBetween(0, 3);
+        httpServer.createContext("/", new ThrottlingDeleteHandler(throttleTimesBeforeSuccess));
+        blobContainer.deleteBlobsIgnoringIfNotExists(
+            randomFrom(OperationPurpose.SNAPSHOT_DATA, OperationPurpose.SNAPSHOT_METADATA),
+            blobsToDelete.iterator()
+        );
+
+        int expectedNumberOfBatches = (blobsToDelete.size() / 1_000) + (blobsToDelete.size() % 1_000 == 0 ? 0 : 1);
+        assertThat(numberOfDeleteAttempts.get(), equalTo(throttleTimesBeforeSuccess + expectedNumberOfBatches));
+        assertThat(numberOfSuccessfulDeletes.get(), equalTo(expectedNumberOfBatches));
     }
 
     @Override

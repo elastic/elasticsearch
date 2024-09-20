@@ -14,6 +14,7 @@ import com.amazonaws.AmazonWebServiceRequest;
 import com.amazonaws.Request;
 import com.amazonaws.Response;
 import com.amazonaws.metrics.RequestMetricCollector;
+import com.amazonaws.retry.RetryUtils;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.MultiObjectDeleteException;
@@ -64,6 +65,12 @@ class S3BlobStore implements BlobStore {
      * @see <a href="https://docs.aws.amazon.com/AmazonS3/latest/API/multiobjectdeleteapi.html">S3 Documentation</a>.
      */
     static final int MAX_BULK_DELETES = 1000;
+    /**
+     * When deletes are throttled by S3, we just keep retrying with limited progressive back-off
+     */
+    private static final int RETRY_THROTTLED_DELETE_INTERVAL_INITIAL_MILLIS = 100;
+    private static final int RETRY_THROTTLED_DELETE_INTERVAL_MAX_MILLIS = 1500;
+    private static final double RETRY_THROTTLED_DELETE_INTERVAL_BACKOFF = 1.5;
 
     private static final Logger logger = LogManager.getLogger(S3BlobStore.class);
 
@@ -366,23 +373,71 @@ class S3BlobStore implements BlobStore {
         List<String> partition,
         AtomicReference<Exception> aex
     ) {
+        long nextBackoffSleep = RETRY_THROTTLED_DELETE_INTERVAL_INITIAL_MILLIS;
+        int attempts = 0;
+        while (true) {
+            try {
+                attempts++;
+                SocketAccess.doPrivilegedVoid(() -> clientReference.client().deleteObjects(bulkDelete(purpose, this, partition)));
+                s3RepositoriesMetrics.retryDeletesHistogram().record(attempts);
+                return;
+            } catch (MultiObjectDeleteException e) {
+                // We are sending quiet mode requests so we can't use the deleted keys entry on the exception and instead
+                // first remove all keys that were sent in the request and then add back those that ran into an exception.
+                logger.warn(
+                    () -> format(
+                        "Failed to delete some blobs %s",
+                        e.getErrors()
+                            .stream()
+                            .map(err -> "[" + err.getKey() + "][" + err.getCode() + "][" + err.getMessage() + "]")
+                            .toList()
+                    ),
+                    e
+                );
+                aex.set(ExceptionsHelper.useOrSuppress(aex.get(), e));
+                return;
+            } catch (AmazonClientException e) {
+                if (shouldRetryDelete(purpose) && RetryUtils.isThrottlingException(e)) {
+                    // S3 is asking us to slow down. Pause for a bit and retry
+                    nextBackoffSleep = sleepAndCalculateNextSleep(nextBackoffSleep);
+                    // If we're interrupted, record the exception and abort retries
+                    if (nextBackoffSleep == -1) {
+                        logger.warn("Aborting delete retries due to interrupt");
+                        aex.set(ExceptionsHelper.useOrSuppress(aex.get(), e));
+                        return;
+                    }
+                } else {
+                    // The AWS client threw any unexpected exception and did not execute the request at all so we do not
+                    // remove any keys from the outstanding deletes set.
+                    aex.set(ExceptionsHelper.useOrSuppress(aex.get(), e));
+                    return;
+                }
+            }
+        }
+    }
+
+    private boolean shouldRetryDelete(OperationPurpose operationPurpose) {
+        return operationPurpose == OperationPurpose.SNAPSHOT_DATA || operationPurpose == OperationPurpose.SNAPSHOT_METADATA;
+    }
+
+    /**
+     * Sleep for the current retry interval, and return the next one
+     *
+     * @param currentRetryInterval The current retry interval
+     * @return the next retry interval, or -1 to abort retries
+     */
+    private static long sleepAndCalculateNextSleep(long currentRetryInterval) {
         try {
-            SocketAccess.doPrivilegedVoid(() -> clientReference.client().deleteObjects(bulkDelete(purpose, this, partition)));
-        } catch (MultiObjectDeleteException e) {
-            // We are sending quiet mode requests so we can't use the deleted keys entry on the exception and instead
-            // first remove all keys that were sent in the request and then add back those that ran into an exception.
-            logger.warn(
-                () -> format(
-                    "Failed to delete some blobs %s",
-                    e.getErrors().stream().map(err -> "[" + err.getKey() + "][" + err.getCode() + "][" + err.getMessage() + "]").toList()
-                ),
-                e
+            Thread.sleep(currentRetryInterval);
+            currentRetryInterval = Math.min(
+                (long) (currentRetryInterval * RETRY_THROTTLED_DELETE_INTERVAL_BACKOFF),
+                RETRY_THROTTLED_DELETE_INTERVAL_MAX_MILLIS
             );
-            aex.set(ExceptionsHelper.useOrSuppress(aex.get(), e));
-        } catch (AmazonClientException e) {
-            // The AWS client threw any unexpected exception and did not execute the request at all so we do not
-            // remove any keys from the outstanding deletes set.
-            aex.set(ExceptionsHelper.useOrSuppress(aex.get(), e));
+            return currentRetryInterval;
+        } catch (InterruptedException iex) {
+            Thread.currentThread().interrupt();
+            // We should break out of the retry loop if we've been interrupted
+            return -1;
         }
     }
 

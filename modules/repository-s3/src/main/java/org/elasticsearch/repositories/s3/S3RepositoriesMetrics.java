@@ -17,7 +17,8 @@ public record S3RepositoriesMetrics(
     RepositoriesMetrics common,
     LongCounter retryStartedCounter,
     LongCounter retryCompletedCounter,
-    LongHistogram retryHistogram
+    LongHistogram retryHistogram,
+    LongHistogram retryDeletesHistogram
 ) {
 
     public static S3RepositoriesMetrics NOOP = new S3RepositoriesMetrics(RepositoriesMetrics.NOOP);
@@ -25,6 +26,7 @@ public record S3RepositoriesMetrics(
     public static final String METRIC_RETRY_EVENT_TOTAL = "es.repositories.s3.input_stream.retry.event.total";
     public static final String METRIC_RETRY_SUCCESS_TOTAL = "es.repositories.s3.input_stream.retry.success.total";
     public static final String METRIC_RETRY_ATTEMPTS_HISTOGRAM = "es.repositories.s3.input_stream.retry.attempts.histogram";
+    public static final String METRIC_DELETE_RETRIES_HISTOGRAM = "es.repositories.s3.delete.retry.attempts.histogram";
 
     public S3RepositoriesMetrics(RepositoriesMetrics common) {
         this(
@@ -32,7 +34,8 @@ public record S3RepositoriesMetrics(
             common.meterRegistry().registerLongCounter(METRIC_RETRY_EVENT_TOTAL, "s3 input stream retry event count", "unit"),
             common.meterRegistry().registerLongCounter(METRIC_RETRY_SUCCESS_TOTAL, "s3 input stream retry success count", "unit"),
             common.meterRegistry()
-                .registerLongHistogram(METRIC_RETRY_ATTEMPTS_HISTOGRAM, "s3 input stream retry attempts histogram", "unit")
+                .registerLongHistogram(METRIC_RETRY_ATTEMPTS_HISTOGRAM, "s3 input stream retry attempts histogram", "unit"),
+            common.meterRegistry().registerLongHistogram(METRIC_DELETE_RETRIES_HISTOGRAM, "s3 delete retry attempts histogram", "unit")
         );
     }
 }

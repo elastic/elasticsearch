@@ -3,7 +3,7 @@
 *Parameters*
 
 `interval`::
-Interval; expressed using the timespan literal syntax.
+Interval; expressed using the <<esql-timespan-literals,timespan literal syntax>>.
 
 `date`::
 Date expression

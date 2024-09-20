@@ -10,7 +10,7 @@
           "name" : "interval",
           "type" : "date_period",
           "optional" : false,
-          "description" : "Interval; expressed using the timespan literal syntax."
+          "description" : "Interval; expressed using the <<esql-timespan-literals,timespan literal syntax>>."
         },
         {
           "name" : "date",
@@ -28,7 +28,7 @@
           "name" : "interval",
           "type" : "time_duration",
           "optional" : false,
-          "description" : "Interval; expressed using the timespan literal syntax."
+          "description" : "Interval; expressed using the <<esql-timespan-literals,timespan literal syntax>>."
         },
         {
           "name" : "date",

@@ -70,7 +70,7 @@ public class DateTrunc extends EsqlScalarFunction {
         @Param(
             name = "interval",
             type = { "date_period", "time_duration" },
-            description = "Interval; expressed using the timespan literal syntax."
+            description = "Interval; expressed using the <<esql-timespan-literals,timespan literal syntax>>."
         ) Expression interval,
         @Param(name = "date", type = { "date" }, description = "Date expression") Expression field
     ) {

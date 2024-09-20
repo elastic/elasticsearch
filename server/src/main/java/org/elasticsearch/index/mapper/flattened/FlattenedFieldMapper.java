@@ -236,10 +236,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> {
-        int ignoreAboveDefault = IGNORE_ABOVE_SETTING.get(c.getSettings());
-        return new Builder(n, ignoreAboveDefault);
-    });
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, IGNORE_ABOVE_SETTING.get(c.getSettings())));
 
     /**
      * A field type that represents the values under a particular JSON key, used

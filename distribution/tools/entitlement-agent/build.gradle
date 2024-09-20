@@ -20,7 +20,7 @@ dependencies {
 }
 
 tasks.named('test').configure {
-  dependsOn(jar)
+  dependsOn('jar')
   jvmArgs "-javaagent:${jar.archiveFile.get().asFile}"
 }
 

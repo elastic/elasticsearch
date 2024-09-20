@@ -315,8 +315,8 @@ public class EsqlFunctionRegistry {
                 def(ToUpper.class, ToUpper::new, "to_upper"),
                 def(Locate.class, Locate::new, "locate"),
                 def(Repeat.class, Repeat::new, "repeat"),
-                def(Space.class, Space::new, "space") },
-                def(Reverse.class, Reverse::new, "reverse"),
+                def(Space.class, Space::new, "space"),
+                def(Reverse.class, Reverse::new, "reverse") },
             // date
             new FunctionDefinition[] {
                 def(DateDiff.class, DateDiff::new, "date_diff"),

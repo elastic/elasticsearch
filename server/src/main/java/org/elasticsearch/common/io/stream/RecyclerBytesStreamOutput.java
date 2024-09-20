@@ -177,6 +177,8 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         }
     }
 
+    // overridden with some code duplication the same way other write methods in this class are overridden to bypass StreamOutput's
+    // intermediary buffers
     @Override
     public void writeString(String str) throws IOException {
         final int currentPageOffset = this.currentPageOffset;
@@ -189,6 +191,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         BytesRef currentPage = pages.get(pageIndex).v();
         int off = currentPage.offset + currentPageOffset;
         byte[] buffer = currentPage.bytes;
+        // mostly duplicated from StreamOutput.writeString to to get more reliable compilation of this very hot loop
         int offset = off + putVInt(buffer, charCount, off);
         for (int i = 0; i < charCount; i++) {
             final int c = str.charAt(i);

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.logsdb.datageneration.datasource;
 
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
@@ -23,6 +24,9 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         map.put("store", ESTestCase.randomBoolean());
         map.put("index", ESTestCase.randomBoolean());
         map.put("doc_values", ESTestCase.randomBoolean());
+        if (ESTestCase.randomBoolean()) {
+            map.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, ESTestCase.randomFrom("none", "arrays", "all"));
+        }
 
         return new DataSourceResponse.LeafMappingParametersGenerator(switch (request.fieldType()) {
             case KEYWORD -> keywordMapping(request, map);

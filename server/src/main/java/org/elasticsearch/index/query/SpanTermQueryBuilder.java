@@ -12,7 +12,9 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.queries.spans.SpanTermQuery;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
@@ -23,6 +25,9 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * A Span Query that matches documents containing a term.
@@ -77,8 +82,32 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
         if (mapper == null) {
             term = new Term(fieldName, BytesRefs.toBytesRef(value));
         } else {
+            if (mapper.getTextSearchInfo().hasPositions() == false) {
+                throw new IllegalArgumentException(
+                    "Span term query requires position data, but field " + fieldName + " was indexed without position data"
+                );
+            }
             Query termQuery = mapper.termQuery(value, context);
-            term = MappedFieldType.extractTerm(termQuery);
+            List<Term> termsList = new ArrayList<>();
+            termQuery.visit(new QueryVisitor() {
+                @Override
+                public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
+                    if (occur == BooleanClause.Occur.MUST || occur == BooleanClause.Occur.FILTER) {
+                        return this;
+                    }
+                    return EMPTY_VISITOR;
+                }
+
+                @Override
+                public void consumeTerms(Query query, Term... terms) {
+                    termsList.addAll(Arrays.asList(terms));
+                }
+            });
+            if (termsList.size() != 1) {
+                // This is for safety, but we have called mapper.termQuery above: we really should get one and only one term from the query?
+                throw new IllegalArgumentException("Cannot extract a term from a query of type " + termQuery.getClass() + ": " + termQuery);
+            }
+            term = termsList.get(0);
         }
         return new SpanTermQuery(term);
     }

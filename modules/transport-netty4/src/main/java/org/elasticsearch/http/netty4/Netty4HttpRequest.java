@@ -22,7 +22,6 @@ import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
 import io.netty.handler.codec.http.cookie.ServerCookieEncoder;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpResponse;
@@ -51,15 +50,6 @@ public class Netty4HttpRequest implements HttpRequest {
     private final int sequence;
 
     Netty4HttpRequest(int sequence, io.netty.handler.codec.http.HttpRequest request, Netty4HttpRequestBodyStream contentStream) {
-        this(sequence, request, contentStream, null);
-    }
-
-    Netty4HttpRequest(
-        int sequence,
-        io.netty.handler.codec.http.HttpRequest request,
-        Netty4HttpRequestBodyStream contentStream,
-        @Nullable Exception inboundException
-    ) {
         this(
             sequence,
             new DefaultFullHttpRequest(
@@ -73,7 +63,7 @@ public class Netty4HttpRequest implements HttpRequest {
             new AtomicBoolean(false),
             true,
             contentStream,
-            inboundException
+            null
         );
     }
 

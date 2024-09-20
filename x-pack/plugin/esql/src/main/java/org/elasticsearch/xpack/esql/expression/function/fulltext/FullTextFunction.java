@@ -38,6 +38,9 @@ public abstract class FullTextFunction extends Function {
         if (EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled()) {
             entries.add(QueryStringFunction.ENTRY);
         }
+        if (EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled()) {
+            entries.add(MatchFunction.ENTRY);
+        }
         return entries;
     }
 

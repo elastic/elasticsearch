@@ -119,7 +119,8 @@ POST _ml/trained_models/elastic__distilbert-base-uncased-finetuned-conll03-engli
     "enabled": true,
     "min_number_of_allocations": 3,
     "max_number_of_allocations": 10
-  }
+  },
+  "num_threads": 1
 }
 --------------------------------------------------
 // TEST[skip:TBD]

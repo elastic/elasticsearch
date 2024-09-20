@@ -218,10 +218,11 @@ Map of component template names to substitute component template definition obje
 +
 .Properties of component template definition objects
 [%collapsible%open]
-====
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=mappings]
 
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=settings]
+====
+
+include::{es-ref-dir}/indices/put-component-template.asciidoc[tag=template]
+
 ====
 
 [[simulate-ingest-api-example]]

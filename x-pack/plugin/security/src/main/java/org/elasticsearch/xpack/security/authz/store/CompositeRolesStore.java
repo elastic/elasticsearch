@@ -325,7 +325,7 @@ public class CompositeRolesStore {
         }
         // Application privilege and FLS/DLS can result in expensive role building
         for (RoleDescriptor roleDescriptor : roleDescriptors) {
-            if (roleDescriptor.hasApplicationPrivileges() || roleDescriptor.isUsingDocumentLevelOrFieldLevelSecurity()) {
+            if (roleDescriptor.hasApplicationPrivileges() || roleDescriptor.isUsingDocumentOrFieldLevelSecurity()) {
                 return true;
             }
         }

@@ -920,18 +920,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             return SEGMENT_INFO_EXTENSION.equals(IndexFileNames.getExtension(file)) || file.startsWith(IndexFileNames.SEGMENTS + "_");
         }
 
-        // We select the read once context carefully here since these constants, while equivalent are
-        // checked by identity in the different directory implementations.
-        private static IOContext contextForDirectory(String filename, Directory directory) {
-            if (directory instanceof StoreDirectory && filename.startsWith(IndexFileNames.SEGMENTS) == false) {
-                return READONCE_CHECKSUM;
-            }
-            if (FilterDirectory.unwrap(directory) instanceof FsDirectoryFactory.HybridDirectory) {
-                return READONCE_CHECKSUM;
-            }
-            return IOContext.READONCE;
-        }
-
         private static void checksumFromLuceneFile(
             Directory directory,
             String file,
@@ -941,7 +929,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             boolean readFileAsHash,
             BytesRef writerUuid
         ) throws IOException {
-            try (IndexInput in = directory.openInput(file, contextForDirectory(file, directory))) {
+            // We select the read once context carefully here since these constants, while equivalent are
+            // checked by identity in the different directory implementations.
+            var context = file.startsWith(IndexFileNames.SEGMENTS) ? IOContext.READONCE : READONCE_CHECKSUM;
+            try (IndexInput in = directory.openInput(file, context)) {
                 final long length = in.length();
                 if (length < CodecUtil.footerLength()) {
                     // If the file isn't long enough to contain the footer then verifying it triggers an IAE, but really it's corrupted

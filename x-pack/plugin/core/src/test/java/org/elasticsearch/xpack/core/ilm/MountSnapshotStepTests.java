@@ -41,7 +41,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
         StepKey nextStepKey = randomStepKey();
         String restoredIndexPrefix = randomAlphaOfLength(10);
         MountSearchableSnapshotRequest.Storage storage = randomStorageType();
-        Integer totalShardsPerNode = randomTotalShardsPerNode();
+        Integer totalShardsPerNode = randomTotalShardsPerNode(true);
         return new MountSnapshotStep(stepKey, nextStepKey, client, restoredIndexPrefix, storage, totalShardsPerNode);
     }
 
@@ -411,7 +411,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 client,
                 RESTORED_INDEX_PREFIX,
                 randomStorageType(),
-                randomTotalShardsPerNode()
+                randomTotalShardsPerNode(false)
             );
             performActionAndWait(step, indexMetadata, clusterState, null);
         }
@@ -468,7 +468,9 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
         };
     }
 
-    private Integer randomTotalShardsPerNode() {
-        return (randomBoolean() ? null : randomIntBetween(1, 100));
+    private Integer randomTotalShardsPerNode(boolean nullable) {
+        Integer randomInt = randomIntBetween(1, 100);
+        Integer randomIntNullable = (randomBoolean() ? null : randomInt);
+        return nullable ? randomIntNullable : randomInt;
     }
 }

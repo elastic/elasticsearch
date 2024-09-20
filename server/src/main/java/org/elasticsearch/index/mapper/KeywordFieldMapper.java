@@ -194,7 +194,17 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final ScriptCompiler scriptCompiler;
         private final IndexVersion indexCreatedVersion;
 
-        public Builder(
+        public Builder(final String name, final MappingParserContext mappingParserContext) {
+            this(
+                name,
+                mappingParserContext.getIndexAnalyzers(),
+                mappingParserContext.scriptCompiler(),
+                IGNORE_ABOVE_SETTING.get(mappingParserContext.getSettings()),
+                mappingParserContext.getIndexSettings().getIndexVersionCreated()
+            );
+        }
+
+        private Builder(
             String name,
             IndexAnalyzers indexAnalyzers,
             ScriptCompiler scriptCompiler,
@@ -384,10 +394,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     private static final IndexVersion MINIMUM_COMPATIBILITY_VERSION = IndexVersion.fromId(5000099);
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> {
-        int ignoreAboveDefault = IGNORE_ABOVE_SETTING.get(c.getSettings());
-        return new Builder(n, c.getIndexAnalyzers(), c.scriptCompiler(), ignoreAboveDefault, c.indexVersionCreated());
-    }, MINIMUM_COMPATIBILITY_VERSION);
+    public static final TypeParser PARSER = new TypeParser(Builder::new, MINIMUM_COMPATIBILITY_VERSION);
 
     public static final class KeywordFieldType extends StringFieldType {
 

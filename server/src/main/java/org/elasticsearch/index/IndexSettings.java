@@ -703,6 +703,9 @@ public final class IndexSettings {
      * This setting is  useful for `keyword`, `flattened`, and `wildcard` fields where very large values are undesirable.
      * It allows users to manage the size of indexed data by skipping fields with excessively long content. As an index-level
      * setting, it applies to all `keyword` and `wildcard` fields, as well as to keyword values within `flattened` fields.
+     * When it comes to arrays, the `ignore_above` setting applies individually to each element of the array. If any element's
+     * length exceeds the specified limit, only that element will be ignored during indexing, while the rest of the array will
+     * still be processed. This behavior is consistent with the field-level `ignore_above` setting.
      * This setting can be overridden at the field level by specifying a custom `ignore_above` value in the field mapping.
      * <p>
      * Example usage:

@@ -35,6 +35,7 @@ can be configured using the https://www.elastic.co/guide/en/elasticsearch/refere
 ** These indices have many conflicting field mappings
 ** Many of those fields are included in the request
 These issues deplete heap memory, increasing the likelihood of OOM errors. (issue: {es-issue}111964[#111964], {es-issue}111358[#111358]).
+In Kibana, you might indirectly execute these queries when using Discover, or adding a Field Statistics panel to a dashboard.
 +
 To work around this issue, you have a number of options:
 ** Downgrade to an earlier version

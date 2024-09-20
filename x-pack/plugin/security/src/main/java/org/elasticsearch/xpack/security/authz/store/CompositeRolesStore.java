@@ -18,7 +18,6 @@ import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
@@ -112,36 +111,6 @@ public class CompositeRolesStore {
     private final RestrictedIndices restrictedIndices;
     private final ThreadContext threadContext;
     private final ExecutorService roleBuildingExecutor;
-
-    // TODO remove me
-    public CompositeRolesStore(
-        Settings settings,
-        RoleProviders roleProviders,
-        NativePrivilegeStore privilegeStore,
-        ThreadContext threadContext,
-        XPackLicenseState licenseState,
-        FieldPermissionsCache fieldPermissionsCache,
-        ApiKeyService apiKeyService,
-        ServiceAccountService serviceAccountService,
-        DocumentSubsetBitsetCache dlsBitsetCache,
-        RestrictedIndices restrictedIndices,
-        Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer
-    ) {
-        this(
-            settings,
-            roleProviders,
-            privilegeStore,
-            threadContext,
-            licenseState,
-            fieldPermissionsCache,
-            apiKeyService,
-            serviceAccountService,
-            dlsBitsetCache,
-            restrictedIndices,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            effectiveRoleDescriptorsConsumer
-        );
-    }
 
     public CompositeRolesStore(
         Settings settings,

@@ -20,15 +20,7 @@ public class UnresolvedAttributeTests extends AbstractNodeTestCase<UnresolvedAtt
         String name = randomAlphaOfLength(5);
         NameId id = randomBoolean() ? null : new NameId();
         String unresolvedMessage = randomUnresolvedMessage();
-        return new UnresolvedAttribute(source, name, id, unresolvedMessage);
-    }
-
-    /**
-     * A random qualifier. It is important that this be distinct
-     * from the name and the unresolvedMessage for testing transform.
-     */
-    private static String randomQualifier() {
-        return randomBoolean() ? null : randomAlphaOfLength(6);
+        return new UnresolvedAttribute(source, name, randomAlphaOfLength(4), id, unresolvedMessage);
     }
 
     /**
@@ -50,15 +42,24 @@ public class UnresolvedAttributeTests extends AbstractNodeTestCase<UnresolvedAtt
             Arrays.asList(
                 () -> new UnresolvedAttribute(
                     a.source(),
+                    a.qualifier(),
                     randomValueOtherThan(a.name(), () -> randomAlphaOfLength(5)),
                     a.id(),
                     a.unresolvedMessage()
                 ),
                 () -> new UnresolvedAttribute(
                     a.source(),
+                    a.qualifier(),
                     a.name(),
                     a.id(),
                     randomValueOtherThan(a.unresolvedMessage(), UnresolvedAttributeTests::randomUnresolvedMessage)
+                ),
+                () -> new UnresolvedAttribute(
+                    a.source(),
+                    randomValueOtherThan(a.qualifier(), () -> randomAlphaOfLength(5)),
+                    a.name(),
+                    a.id(),
+                    a.unresolvedMessage()
                 )
             )
         );
@@ -67,28 +68,34 @@ public class UnresolvedAttributeTests extends AbstractNodeTestCase<UnresolvedAtt
 
     @Override
     protected UnresolvedAttribute copy(UnresolvedAttribute a) {
-        return new UnresolvedAttribute(a.source(), a.name(), a.id(), a.unresolvedMessage());
+        return new UnresolvedAttribute(a.source(), a.qualifier(), a.name(), a.id(), a.unresolvedMessage());
     }
 
     @Override
     public void testTransform() {
         UnresolvedAttribute a = randomUnresolvedAttribute();
 
+        String newQualifier = randomValueOtherThan(a.qualifier(), () -> randomAlphaOfLength(3));
+        assertEquals(
+            new UnresolvedAttribute(a.source(), a.name(), newQualifier, a.id(), a.unresolvedMessage()),
+            a.transformPropertiesOnly(Object.class, v -> Objects.equals(v, a.qualifier()) ? newQualifier : v)
+        );
+
         String newName = randomValueOtherThan(a.name(), () -> randomAlphaOfLength(5));
         assertEquals(
-            new UnresolvedAttribute(a.source(), newName, a.id(), a.unresolvedMessage()),
+            new UnresolvedAttribute(a.source(), newName, a.qualifier(), a.id(), a.unresolvedMessage()),
             a.transformPropertiesOnly(Object.class, v -> Objects.equals(v, a.name()) ? newName : v)
         );
 
         NameId newId = new NameId();
         assertEquals(
-            new UnresolvedAttribute(a.source(), a.name(), newId, a.unresolvedMessage()),
+            new UnresolvedAttribute(a.source(), a.qualifier(), a.name(), newId, a.unresolvedMessage()),
             a.transformPropertiesOnly(Object.class, v -> Objects.equals(v, a.id()) ? newId : v)
         );
 
         String newMessage = randomValueOtherThan(a.unresolvedMessage(), UnresolvedAttributeTests::randomUnresolvedMessage);
         assertEquals(
-            new UnresolvedAttribute(a.source(), a.name(), a.id(), newMessage),
+            new UnresolvedAttribute(a.source(), a.qualifier(), a.name(), a.id(), newMessage),
             a.transformPropertiesOnly(Object.class, v -> Objects.equals(v, a.unresolvedMessage()) ? newMessage : v)
         );
     }

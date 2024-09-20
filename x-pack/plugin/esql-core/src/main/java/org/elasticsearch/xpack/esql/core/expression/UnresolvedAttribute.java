@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.core.expression;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -20,20 +21,27 @@ import java.util.Objects;
 
 // unfortunately we can't use UnresolvedNamedExpression
 public class UnresolvedAttribute extends Attribute implements Unresolvable {
+    /**
+     * First segment if this is a dot-separated name like {@code a.b.c}.
+     * Here, a could just be part of the name OR a qualifier, so we keep it around.
+     * Escaped dots do not count as qualifier separators, so e.g. for `a.b.c` this is {@code null}.
+     */
+    private final String qualifier;
     private final String unresolvedMsg;
     private final boolean customMessage;
 
-    public UnresolvedAttribute(Source source, String name) {
-        this(source, name, null);
+    public UnresolvedAttribute(Source source, @Nullable String qualifier, String name) {
+        this(source, qualifier, name, null);
     }
 
-    public UnresolvedAttribute(Source source, String name, String unresolvedMessage) {
-        this(source, name, null, unresolvedMessage);
+    public UnresolvedAttribute(Source source, @Nullable String qualifier, String name, String unresolvedMessage) {
+        this(source, qualifier, name, null, unresolvedMessage);
     }
 
     @SuppressWarnings("this-escape")
-    public UnresolvedAttribute(Source source, String name, NameId id, String unresolvedMessage) {
-        super(source, name, id);
+    public UnresolvedAttribute(Source source, @Nullable String qualifier, String name, NameId id, String unresolvedMessage) {
+        super(source, qualifier == null ? name : qualifier + "." + name, id);
+        this.qualifier = qualifier;
         this.customMessage = unresolvedMessage != null;
         this.unresolvedMsg = unresolvedMessage == null ? errorMessage(name(), null) : unresolvedMessage;
     }
@@ -50,7 +58,11 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
 
     @Override
     protected NodeInfo<UnresolvedAttribute> info() {
-        return NodeInfo.create(this, UnresolvedAttribute::new, name(), id(), unresolvedMsg);
+        return NodeInfo.create(this, UnresolvedAttribute::new, qualifier(), name(), id(), unresolvedMsg);
+    }
+
+    public String qualifier() {
+        return qualifier;
     }
 
     public boolean customMessage() {
@@ -68,7 +80,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     }
 
     public UnresolvedAttribute withUnresolvedMessage(String unresolvedMessage) {
-        return new UnresolvedAttribute(source(), name(), id(), unresolvedMessage);
+        return new UnresolvedAttribute(source(), qualifier(), name(), id(), unresolvedMessage);
     }
 
     @Override
@@ -113,14 +125,14 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), unresolvedMsg);
+        return Objects.hash(super.hashCode(), unresolvedMsg, qualifier);
     }
 
     @Override
     public boolean equals(Object obj) {
         if (super.equals(obj)) {
             UnresolvedAttribute ua = (UnresolvedAttribute) obj;
-            return Objects.equals(unresolvedMsg, ua.unresolvedMsg);
+            return Objects.equals(unresolvedMsg, ua.unresolvedMsg) && Objects.equals(qualifier, ua.qualifier);
         }
         return false;
     }

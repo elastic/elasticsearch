@@ -246,7 +246,8 @@ public class VerifierTests extends ESTestCase {
     public void testEnrichQualifier() {
         // TODO: Do this with all kinds of commands that could refer to l.language_name in various ways
         // TODO: Tests with wildcard patterns
-        assertEquals("TODO", error("row x = 1 | enrich languages l on x | keep `l.language_name`"));
+        assertEquals("TODO", error("row x = 1 | enrich languages lang on x | keep `lang.language_name`"));
+        assertEquals("TODO", error("row x = 1 | enrich languages lang on x | keep *ng`.`language_*"));
     }
 
     public void testRoundFunctionInvalidInputs() {

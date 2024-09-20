@@ -30,8 +30,9 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class AttributeMapTests extends ESTestCase {
 
+    // TODO: unit tests with qualifiers
     private static Attribute a(String name) {
-        return new UnresolvedAttribute(Source.EMPTY, name);
+        return new UnresolvedAttribute(Source.EMPTY, null, name);
     }
 
     private static AttributeMap<String> threeMap() {

@@ -353,8 +353,8 @@ public class ExpressionTests extends ESTestCase {
                 DEFAULT,
                 new ArrayList<>(
                     List.of(
-                        new UnresolvedAttribute(EMPTY, "a"),
-                        new Add(EMPTY, new UnresolvedAttribute(EMPTY, "b"), new UnresolvedAttribute(EMPTY, "c"))
+                        new UnresolvedAttribute(EMPTY, null, "a"),
+                        new Add(EMPTY, new UnresolvedAttribute(EMPTY, null, "b"), new UnresolvedAttribute(EMPTY, null, "c"))
                     )
                 )
             ),
@@ -366,7 +366,7 @@ public class ExpressionTests extends ESTestCase {
 
     public void testUnquotedIdentifiers() {
         for (String identifier : List.of("a", "_a", "a_b", "a9", "abc123", "a_____9", "__a_b", "@a", "_1", "@2")) {
-            assertEquals(new UnresolvedAttribute(EMPTY, identifier), whereExpression(identifier));
+            assertEquals(new UnresolvedAttribute(EMPTY, null, identifier), whereExpression(identifier));
         }
     }
 

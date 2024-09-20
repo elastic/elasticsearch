@@ -271,7 +271,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (resolved != null) {
                 var policy = new EnrichPolicy(resolved.matchType(), null, List.of(), resolved.matchField(), resolved.enrichFields());
                 var matchField = plan.matchField() == null || plan.matchField() instanceof EmptyAttribute
-                    ? new UnresolvedAttribute(plan.source(), policy.getMatchField())
+                    ? new UnresolvedAttribute(plan.source(), null, policy.getMatchField())
                     : plan.matchField();
                 List<NamedExpression> enrichFields = calculateEnrichFields(
                     plan.source(),
@@ -294,7 +294,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 );
             } else {
                 String error = context.enrichResolution().getError(policyName, plan.mode());
-                var policyNameExp = new UnresolvedAttribute(plan.policyName().source(), policyName, error);
+                var policyNameExp = new UnresolvedAttribute(plan.policyName().source(), null, policyName, error);
                 return new Enrich(
                     plan.source(),
                     plan.child(),
@@ -352,7 +352,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (CollectionUtils.isEmpty(similar) == false) {
                     msg += ", did you mean " + (similar.size() == 1 ? "[" + similar.get(0) + "]" : "any of " + similar) + "?";
                 }
-                return new UnresolvedAttribute(source, enrichFieldName, msg);
+                return new UnresolvedAttribute(source, null, enrichFieldName, msg);
             } else {
                 return new ReferenceAttribute(source, enrichFieldName, mappedField.dataType(), Nullability.TRUE, null, false);
             }
@@ -377,7 +377,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (CollectionUtils.isEmpty(potentialMatches) == false) {
                     message = UnresolvedAttribute.errorMessage(tableName, potentialMatches).replace("column", "table");
                 }
-                tableNameExpression = new UnresolvedAttribute(tableNameExpression.source(), tableName, message);
+                tableNameExpression = new UnresolvedAttribute(tableNameExpression.source(), null, tableName, message);
             }
             // wrap the table in a local relationship for idiomatic field resolution
             else {
@@ -568,6 +568,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             if (false == dataTypesOk) {
                                 matchFieldChildReference = new UnresolvedAttribute(
                                     attr.source(),
+                                    null,
                                     attr.name(),
                                     attr.id(),
                                     "column type mismatch, table column was ["
@@ -866,7 +867,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     private static List<Attribute> resolveAgainstList(UnresolvedNamePattern up, Collection<Attribute> attrList) {
-        UnresolvedAttribute ua = new UnresolvedAttribute(up.source(), up.pattern());
+        UnresolvedAttribute ua = new UnresolvedAttribute(up.source(), null, up.pattern());
         return resolveAgainstList(
             a -> up.match(a.name()),
             ua,
@@ -1223,7 +1224,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     target,
                     e.getMessage()
                 );
-                return new UnresolvedAttribute(from.source(), String.valueOf(from.fold()), message);
+                return new UnresolvedAttribute(from.source(), null, String.valueOf(from.fold()), message);
             }
         }
     }

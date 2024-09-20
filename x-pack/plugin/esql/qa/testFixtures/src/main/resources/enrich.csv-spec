@@ -146,6 +146,31 @@ ROW client_ip = "172.21.0.5"
 c.env:keyword
 ;
 
+
+withQualifierNoConflictKeepQuoted2
+required_capability: enrich_load
+required_capability: enrich_with_qualifier
+ROW client_ip = "172.21.0.5"
+| ENRICH clientip_policy qualifier ON client_ip
+| KEEP quali`fi`er.env
+;
+
+c.env:keyword
+Development
+;
+
+withQualifierNoConflictKeepQuoted2Limit0
+required_capability: enrich_load
+required_capability: enrich_with_qualifier
+ROW client_ip = "172.21.0.5"
+| ENRICH clientip_policy qualifier ON client_ip
+| KEEP quali`fi`er.env
+| LIMIT 0
+;
+
+c.env:keyword
+;
+
 withQualifierNoConflictKeepWildcard
 required_capability: enrich_load
 required_capability: enrich_with_qualifier

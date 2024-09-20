@@ -129,12 +129,13 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(new EsRelation(EMPTY, idx, NO_FIELDS, IndexMode.STANDARD), limit.child());
     }
 
+    // TODO: add unit tests with qualifiers
     public void testAttributeResolution() {
         EsIndex idx = new EsIndex("idx", LoadMapping.loadMapping("mapping-one-field.json"));
         Analyzer analyzer = analyzer(IndexResolution.valid(idx));
 
         var plan = analyzer.analyze(
-            new Eval(EMPTY, UNRESOLVED_RELATION, List.of(new Alias(EMPTY, "e", new UnresolvedAttribute(EMPTY, "emp_no"))))
+            new Eval(EMPTY, UNRESOLVED_RELATION, List.of(new Alias(EMPTY, "e", new UnresolvedAttribute(EMPTY, null, "emp_no"))))
         );
 
         var limit = as(plan, Limit.class);
@@ -157,8 +158,8 @@ public class AnalyzerTests extends ESTestCase {
         var plan = analyzer.analyze(
             new Eval(
                 EMPTY,
-                new Eval(EMPTY, UNRESOLVED_RELATION, List.of(new Alias(EMPTY, "e", new UnresolvedAttribute(EMPTY, "emp_no")))),
-                List.of(new Alias(EMPTY, "ee", new UnresolvedAttribute(EMPTY, "e")))
+                new Eval(EMPTY, UNRESOLVED_RELATION, List.of(new Alias(EMPTY, "e", new UnresolvedAttribute(EMPTY, null, "emp_no")))),
+                List.of(new Alias(EMPTY, "ee", new UnresolvedAttribute(EMPTY, null, "e")))
             )
         );
 
@@ -190,7 +191,7 @@ public class AnalyzerTests extends ESTestCase {
             new Eval(
                 EMPTY,
                 new Row(EMPTY, List.of(new Alias(EMPTY, "emp_no", new Literal(EMPTY, 1, DataType.INTEGER)))),
-                List.of(new Alias(EMPTY, "e", new UnresolvedAttribute(EMPTY, "emp_no")))
+                List.of(new Alias(EMPTY, "e", new UnresolvedAttribute(EMPTY, null, "emp_no")))
             )
         );
 
@@ -218,7 +219,7 @@ public class AnalyzerTests extends ESTestCase {
         VerificationException ve = expectThrows(
             VerificationException.class,
             () -> analyzer.analyze(
-                new Eval(EMPTY, UNRESOLVED_RELATION, List.of(new Alias(EMPTY, "e", new UnresolvedAttribute(EMPTY, "emp_nos"))))
+                new Eval(EMPTY, UNRESOLVED_RELATION, List.of(new Alias(EMPTY, "e", new UnresolvedAttribute(EMPTY, null, "emp_nos"))))
             )
         );
 

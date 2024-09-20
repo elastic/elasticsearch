@@ -251,7 +251,8 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         }
 
         List<String> strings = visitList(this, ctx.identifier(), String.class);
-        return new UnresolvedAttribute(source(ctx), Strings.collectionToDelimitedString(strings, "."));
+        // TODO: here
+        return new UnresolvedAttribute(source(ctx), null, Strings.collectionToDelimitedString(strings, "."));
     }
 
     @Override
@@ -388,7 +389,8 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 nameString.toString()
             );
         } else {
-            result = new UnresolvedAttribute(src, Strings.collectionToDelimitedString(objects, ""));
+            // TODO: here
+            result = new UnresolvedAttribute(src, null, Strings.collectionToDelimitedString(objects, ""));
         }
         return result;
     }

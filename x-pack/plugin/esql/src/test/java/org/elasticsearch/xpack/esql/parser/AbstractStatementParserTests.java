@@ -51,7 +51,7 @@ abstract class AbstractStatementParserTests extends ESTestCase {
     }
 
     static UnresolvedAttribute attribute(String name) {
-        return new UnresolvedAttribute(EMPTY, name);
+        return new UnresolvedAttribute(EMPTY, null, name);
     }
 
     static Literal integer(int i) {

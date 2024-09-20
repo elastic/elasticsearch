@@ -274,7 +274,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         currentOffset.set(internalFileOffset);
 
         var pendingCompoundCommit = new PendingCompoundCommit(
-            header,
+            header.length,
             reference,
             new StatelessCompoundCommit(
                 shardId,
@@ -591,7 +591,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     }
 
     static class PendingCompoundCommit implements Closeable, Comparable<PendingCompoundCommit> {
-        private final byte[] header;
+        private final int headerSize;
         private final StatelessCommitRef reference;
         private final StatelessCompoundCommit statelessCompoundCommit;
         // No need to be volatile because writing is synchronized at higher level in StatelessCommitService
@@ -601,13 +601,13 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         /**
          * Creates a new pending to upload compound commit. Note that the last pending compound commit should not have padding. The
          * padding is added to the previous pending compound commit when appending a new pending compound commit.
-         * @param header the materialized compound commit header
+         * @param headerSize the size of materialized compound commit header
          * @param reference the lucene commit reference
          * @param statelessCompoundCommit the associated compound commit that will be uploaded
          */
-        PendingCompoundCommit(byte[] header, StatelessCommitRef reference, StatelessCompoundCommit statelessCompoundCommit) {
+        PendingCompoundCommit(int headerSize, StatelessCommitRef reference, StatelessCompoundCommit statelessCompoundCommit) {
+            this.headerSize = headerSize;
             this.reference = reference;
-            this.header = header;
             this.statelessCompoundCommit = statelessCompoundCommit;
         }
 
@@ -639,7 +639,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
 
         // package-private for testing
         long getHeaderSize() {
-            return header.length;
+            return headerSize;
         }
 
         @Override

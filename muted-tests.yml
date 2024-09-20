@@ -286,6 +286,8 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {stats.DocsStatsGroupByMultipleValues}
   issue: https://github.com/elastic/elasticsearch/issues/113296
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  issue: https://github.com/elastic/elasticsearch/issues/113298
 
 # Examples:
 #

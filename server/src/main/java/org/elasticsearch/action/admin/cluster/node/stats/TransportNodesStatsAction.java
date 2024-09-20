@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.node.stats;
@@ -45,7 +46,8 @@ public class TransportNodesStatsAction extends TransportNodesAction<
     NodesStatsRequest,
     NodesStatsResponse,
     TransportNodesStatsAction.NodeStatsRequest,
-    NodeStats> {
+    NodeStats,
+    Void> {
 
     public static final ActionType<NodesStatsResponse> TYPE = new ActionType<>("cluster:monitor/nodes/stats");
 
@@ -82,6 +84,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
     protected void newResponseAsync(
         Task task,
         NodesStatsRequest request,
+        Void actionContext,
         List<NodeStats> responses,
         List<FailedNodeException> failures,
         ActionListener<NodesStatsResponse> listener
@@ -162,7 +165,6 @@ public class TransportNodesStatsAction extends TransportNodesAction<
 
         public NodeStatsRequest(StreamInput in) throws IOException {
             super(in);
-            skipLegacyNodesRequestHeader(TransportVersions.V_8_13_0, in);
             this.nodesStatsRequestParameters = new NodesStatsRequestParameters(in);
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)
                 && in.getTransportVersion().before(TransportVersions.DROP_UNUSED_NODES_IDS)) {
@@ -191,7 +193,6 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            sendLegacyNodesRequestHeader(TransportVersions.V_8_13_0, out);
             nodesStatsRequestParameters.writeTo(out);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)
                 && out.getTransportVersion().before(TransportVersions.DROP_UNUSED_NODES_IDS)) {

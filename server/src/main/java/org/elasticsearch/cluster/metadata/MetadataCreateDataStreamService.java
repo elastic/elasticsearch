@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.metadata;
 
@@ -98,7 +99,12 @@ public class MetadataCreateDataStreamService {
         var delegate = new AllocationActionListener<>(listener, threadPool.getThreadContext());
         submitUnbatchedTask(
             "create-data-stream [" + request.name + "]",
-            new AckedClusterStateUpdateTask(Priority.HIGH, request, delegate.clusterStateUpdate()) {
+            new AckedClusterStateUpdateTask(
+                Priority.HIGH,
+                request.masterNodeTimeout(),
+                request.ackTimeout(),
+                delegate.clusterStateUpdate()
+            ) {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     // When we're manually creating a data stream (i.e. not an auto creation), we don't need to initialize the failure store

@@ -75,6 +75,8 @@ public class CsvTestsDataLoader {
     private static final TestsDataset COUNTRIES_BBOX_WEB = new TestsDataset("countries_bbox_web");
     private static final TestsDataset AIRPORT_CITY_BOUNDARIES = new TestsDataset("airport_city_boundaries");
     private static final TestsDataset CARTESIAN_MULTIPOLYGONS = new TestsDataset("cartesian_multipolygons");
+    private static final TestsDataset MULTIVALUE_GEOMETRIES = new TestsDataset("multivalue_geometries");
+    private static final TestsDataset MULTIVALUE_POINTS = new TestsDataset("multivalue_points");
     private static final TestsDataset DISTANCES = new TestsDataset("distances");
     private static final TestsDataset K8S = new TestsDataset("k8s", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json");
     private static final TestsDataset ADDRESSES = new TestsDataset("addresses");
@@ -104,6 +106,8 @@ public class CsvTestsDataLoader {
         Map.entry(COUNTRIES_BBOX_WEB.indexName, COUNTRIES_BBOX_WEB),
         Map.entry(AIRPORT_CITY_BOUNDARIES.indexName, AIRPORT_CITY_BOUNDARIES),
         Map.entry(CARTESIAN_MULTIPOLYGONS.indexName, CARTESIAN_MULTIPOLYGONS),
+        Map.entry(MULTIVALUE_GEOMETRIES.indexName, MULTIVALUE_GEOMETRIES),
+        Map.entry(MULTIVALUE_POINTS.indexName, MULTIVALUE_POINTS),
         Map.entry(DATE_NANOS.indexName, DATE_NANOS),
         Map.entry(K8S.indexName, K8S),
         Map.entry(DISTANCES.indexName, DISTANCES),

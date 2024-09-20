@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.metadata;
 
@@ -697,7 +698,7 @@ public class MetadataIndexTemplateService {
         final var now = Instant.now();
         final var metadata = currentState.getMetadata();
 
-        final var combinedMappings = collectMappings(indexTemplate, metadata.componentTemplates(), "tmp_idx");
+        final var combinedMappings = collectMappings(indexTemplate, metadata.componentTemplates(), Map.of(), "tmp_idx");
         final var combinedSettings = resolveSettings(indexTemplate, metadata.componentTemplates());
         // First apply settings sourced from index setting providers:
         for (var provider : indexSettingProviders) {
@@ -1347,7 +1348,12 @@ public class MetadataIndexTemplateService {
     /**
      * Collect the given v2 template into an ordered list of mappings.
      */
-    public static List<CompressedXContent> collectMappings(final ClusterState state, final String templateName, final String indexName) {
+    public static List<CompressedXContent> collectMappings(
+        final ClusterState state,
+        final String templateName,
+        Map<String, ComponentTemplate> componentTemplateSubstitutions,
+        final String indexName
+    ) {
         final ComposableIndexTemplate template = state.metadata().templatesV2().get(templateName);
         assert template != null
             : "attempted to resolve mappings for a template [" + templateName + "] that did not exist in the cluster state";
@@ -1356,7 +1362,7 @@ public class MetadataIndexTemplateService {
         }
 
         final Map<String, ComponentTemplate> componentTemplates = state.metadata().componentTemplates();
-        return collectMappings(template, componentTemplates, indexName);
+        return collectMappings(template, componentTemplates, componentTemplateSubstitutions, indexName);
     }
 
     /**
@@ -1365,6 +1371,7 @@ public class MetadataIndexTemplateService {
     public static List<CompressedXContent> collectMappings(
         final ComposableIndexTemplate template,
         final Map<String, ComponentTemplate> componentTemplates,
+        final Map<String, ComponentTemplate> componentTemplateSubstitutions,
         final String indexName
     ) {
         Objects.requireNonNull(template, "Composable index template must be provided");
@@ -1375,9 +1382,12 @@ public class MetadataIndexTemplateService {
                 ComposableIndexTemplate.DataStreamTemplate.DATA_STREAM_MAPPING_SNIPPET
             );
         }
+        final Map<String, ComponentTemplate> combinedComponentTemplates = new HashMap<>();
+        combinedComponentTemplates.putAll(componentTemplates);
+        combinedComponentTemplates.putAll(componentTemplateSubstitutions);
         List<CompressedXContent> mappings = template.composedOf()
             .stream()
-            .map(componentTemplates::get)
+            .map(combinedComponentTemplates::get)
             .filter(Objects::nonNull)
             .map(ComponentTemplate::template)
             .map(Template::mappings)
@@ -1427,24 +1437,44 @@ public class MetadataIndexTemplateService {
      * Resolve the given v2 template into a collected {@link Settings} object
      */
     public static Settings resolveSettings(final Metadata metadata, final String templateName) {
+        return resolveSettings(metadata, templateName, Map.of());
+    }
+
+    public static Settings resolveSettings(
+        final Metadata metadata,
+        final String templateName,
+        Map<String, ComponentTemplate> templateSubstitutions
+    ) {
         final ComposableIndexTemplate template = metadata.templatesV2().get(templateName);
         assert template != null
             : "attempted to resolve settings for a template [" + templateName + "] that did not exist in the cluster state";
         if (template == null) {
             return Settings.EMPTY;
         }
-        return resolveSettings(template, metadata.componentTemplates());
+        return resolveSettings(template, metadata.componentTemplates(), templateSubstitutions);
     }
 
     /**
      * Resolve the provided v2 template and component templates into a collected {@link Settings} object
      */
     public static Settings resolveSettings(ComposableIndexTemplate template, Map<String, ComponentTemplate> componentTemplates) {
+        return resolveSettings(template, componentTemplates, Map.of());
+    }
+
+    public static Settings resolveSettings(
+        ComposableIndexTemplate template,
+        Map<String, ComponentTemplate> componentTemplates,
+        Map<String, ComponentTemplate> templateSubstitutions
+    ) {
         Objects.requireNonNull(template, "attempted to resolve settings for a null template");
         Objects.requireNonNull(componentTemplates, "attempted to resolve settings with null component templates");
+        Map<String, ComponentTemplate> combinedComponentTemplates = new HashMap<>();
+        combinedComponentTemplates.putAll(componentTemplates);
+        // We want any substitutions to take precedence:
+        combinedComponentTemplates.putAll(templateSubstitutions);
         List<Settings> componentSettings = template.composedOf()
             .stream()
-            .map(componentTemplates::get)
+            .map(combinedComponentTemplates::get)
             .filter(Objects::nonNull)
             .map(ComponentTemplate::template)
             .map(Template::settings)
@@ -1693,7 +1723,7 @@ public class MetadataIndexTemplateService {
             String indexName = DataStream.BACKING_INDEX_PREFIX + temporaryIndexName;
             // Parse mappings to ensure they are valid after being composed
 
-            List<CompressedXContent> mappings = collectMappings(stateWithIndex, templateName, indexName);
+            List<CompressedXContent> mappings = collectMappings(stateWithIndex, templateName, Map.of(), indexName);
             try {
                 MapperService mapperService = tempIndexService.mapperService();
                 mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mappings, MapperService.MergeReason.INDEX_TEMPLATE);

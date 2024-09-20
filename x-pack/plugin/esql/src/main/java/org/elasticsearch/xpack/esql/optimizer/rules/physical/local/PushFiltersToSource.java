@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Queries;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -193,6 +194,8 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         } else if (exp instanceof MatchQueryPredicate mqp) {
             return mqp.field() instanceof FieldAttribute && DataType.isString(mqp.field().dataType());
         } else if (exp instanceof StringQueryPredicate) {
+            return true;
+        } else if (exp instanceof FullTextFunction) {
             return true;
         }
         return false;

@@ -302,6 +302,13 @@ public abstract class DocumentParserContext {
     }
 
     /**
+     * Remove duplicate ignored values, using the passed set of field names as reference
+     */
+    public final void deduplicateIgnoredFieldValues(final Set<String> fullNames) {
+        ignoredFieldValues.removeIf(nv -> fullNames.contains(nv.name()));
+    }
+
+    /**
      * Adds an ignored field from the parser context, capturing an object or an array.
      *
      * In case of nested arrays, i.e. capturing an array within an array, elements tracked as ignored fields may interfere with

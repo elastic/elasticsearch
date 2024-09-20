@@ -445,18 +445,14 @@ public class TransportClusterStatsAction extends TransportNodesAction<
 
         @Override
         protected void sendItemRequest(String clusterAlias, ActionListener<RemoteClusterStatsResponse> listener) {
-            try {
-                var remoteRequest = new RemoteClusterStatsRequest();
-                var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
-                    clusterAlias,
-                    requestExecutor,
-                    RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
-                );
-                remoteRequest.setParentTask(taskId);
-                remoteClusterClient.execute(TransportRemoteClusterStatsAction.REMOTE_TYPE, remoteRequest, listener);
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
+            var remoteRequest = new RemoteClusterStatsRequest();
+            var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
+                clusterAlias,
+                requestExecutor,
+                RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+            );
+            remoteRequest.setParentTask(taskId);
+            remoteClusterClient.execute(TransportRemoteClusterStatsAction.REMOTE_TYPE, remoteRequest, listener);
         }
 
         @Override

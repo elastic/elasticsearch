@@ -66,13 +66,25 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
     }
 
     /**
-     * Returns the expressions referenced on this query plan node.
+     * The attributes required to be in the {@link QueryPlan#inputSet()} for this plan to be valid.
+     * Excludes generated references.
+     * <p>
+     * E.g. for {@code EVAL x = 2*some_field, y = 2*x} this includes {@code some_field} but neither {@code x} nor {@code y}.
+     * For {@code ENRICH some_policy ON field WITH some_enrich_field} this includes {@code field} but excludes the generated reference
+     * {@code some_enrich_field}.
      */
     public AttributeSet references() {
         if (lazyReferences == null) {
-            lazyReferences = Expressions.references(expressions());
+            lazyReferences = computeReferences();
         }
         return lazyReferences;
+    }
+
+    /**
+     * This very likely needs to be overridden for {@link QueryPlan#references} to be correct when inheriting.
+     */
+    protected AttributeSet computeReferences() {
+        return Expressions.references(expressions());
     }
 
     //

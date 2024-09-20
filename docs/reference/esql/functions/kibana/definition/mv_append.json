@@ -238,5 +238,6 @@
       "variadic" : false,
       "returnType" : "version"
     }
-  ]
+  ],
+  "preview" : false
 }

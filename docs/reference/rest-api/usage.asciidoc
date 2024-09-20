@@ -377,10 +377,19 @@ GET /_xpack/usage
     "enabled": true,
     "count": 0,
     "default_rollover_used": true,
-    "retention": {
-        "minimum_millis": 0,
-        "maximum_millis": 0,
-        "average_millis": 0.0
+    "data_retention": {
+      "configured_data_streams": 0
+    },
+    "effective_retention": {
+      "retained_data_streams": 0
+    },
+    "global_retention": {
+      "default": {
+        "defined": false
+      },
+      "max": {
+        "defined": false
+      }
     }
   },
   "data_tiers" : {

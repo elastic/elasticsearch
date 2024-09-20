@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations;
@@ -27,29 +28,31 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class DelayedBucketTests extends ESTestCase {
     public void testToString() {
-        assertThat(new DelayedBucket<>(null, null, List.of(bucket("test", 1))).toString(), equalTo("Delayed[test]"));
+        assertThat(new DelayedBucket<>(List.of(bucket("test", 1))).toString(), equalTo("Delayed[test]"));
     }
 
     public void testReduced() {
         AtomicInteger buckets = new AtomicInteger();
         AggregationReduceContext context = new AggregationReduceContext.ForFinal(null, null, () -> false, null, buckets::addAndGet);
-        DelayedBucket<?> b = new DelayedBucket<>(mockReduce(context), context, List.of(bucket("test", 1), bucket("test", 2)));
+        BiFunction<List<InternalBucket>, AggregationReduceContext, InternalBucket> reduce = mockReduce(context);
+        DelayedBucket<InternalBucket> b = new DelayedBucket<>(List.of(bucket("test", 1), bucket("test", 2)));
         assertThat(b.getDocCount(), equalTo(3L));
-        assertThat(b.reduced(), sameInstance(b.reduced()));
-        assertThat(b.reduced().getKeyAsString(), equalTo("test"));
-        assertThat(b.reduced().getDocCount(), equalTo(3L));
+        assertThat(b.reduced(reduce, context), sameInstance(b.reduced(reduce, context)));
+        assertThat(b.reduced(reduce, context).getKeyAsString(), equalTo("test"));
+        assertThat(b.reduced(reduce, context).getDocCount(), equalTo(3L));
         assertEquals(1, buckets.get());
     }
 
     public void testCompareKey() {
         AggregationReduceContext context = InternalAggregationTestCase.emptyReduceContextBuilder().forFinalReduction();
-        DelayedBucket<?> a = new DelayedBucket<>(mockReduce(context), context, List.of(bucket("a", 1)));
-        DelayedBucket<?> b = new DelayedBucket<>(mockReduce(context), context, List.of(bucket("b", 1)));
+        BiFunction<List<InternalBucket>, AggregationReduceContext, InternalBucket> reduce = mockReduce(context);
+        DelayedBucket<InternalBucket> a = new DelayedBucket<>(List.of(bucket("a", 1)));
+        DelayedBucket<InternalBucket> b = new DelayedBucket<>(List.of(bucket("b", 1)));
         if (randomBoolean()) {
-            a.reduced();
+            a.reduced(reduce, context);
         }
         if (randomBoolean()) {
-            b.reduced();
+            b.reduced(reduce, context);
         }
         assertThat(a.compareKey(b), lessThan(0));
         assertThat(b.compareKey(a), greaterThan(0));
@@ -64,16 +67,17 @@ public class DelayedBucketTests extends ESTestCase {
             null,
             b -> fail("shouldn't be called")
         );
-        new DelayedBucket<>(mockReduce(context), context, List.of(bucket("test", 1))).nonCompetitive();
+        new DelayedBucket<>(List.of(bucket("test", 1))).nonCompetitive(context);
     }
 
     public void testNonCompetitiveReduced() {
         AtomicInteger buckets = new AtomicInteger();
         AggregationReduceContext context = new AggregationReduceContext.ForFinal(null, null, () -> false, null, buckets::addAndGet);
-        DelayedBucket<?> b = new DelayedBucket<>(mockReduce(context), context, List.of(bucket("test", 1)));
-        b.reduced();
+        BiFunction<List<InternalBucket>, AggregationReduceContext, InternalBucket> reduce = mockReduce(context);
+        DelayedBucket<InternalBucket> b = new DelayedBucket<>(List.of(bucket("test", 1)));
+        b.reduced(reduce, context);
         assertEquals(1, buckets.get());
-        b.nonCompetitive();
+        b.nonCompetitive(context);
         assertEquals(0, buckets.get());
     }
 

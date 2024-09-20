@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.TimeValue;
@@ -22,21 +23,38 @@ import org.elasticsearch.core.TimeValue;
 public abstract class AckedClusterStateUpdateTask extends ClusterStateUpdateTask implements ClusterStateAckListener {
 
     private final ActionListener<AcknowledgedResponse> listener;
-    private final AckedRequest request;
+    private final TimeValue ackTimeout;
 
-    protected AckedClusterStateUpdateTask(AckedRequest request, ActionListener<? extends AcknowledgedResponse> listener) {
-        this(Priority.NORMAL, request, listener);
+    protected AckedClusterStateUpdateTask(AcknowledgedRequest<?> request, ActionListener<? extends AcknowledgedResponse> listener) {
+        this(Priority.NORMAL, request.masterNodeTimeout(), request.ackTimeout(), listener);
+    }
+
+    protected AckedClusterStateUpdateTask(
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
+        ActionListener<? extends AcknowledgedResponse> listener
+    ) {
+        this(Priority.NORMAL, masterNodeTimeout, ackTimeout, listener);
+    }
+
+    protected AckedClusterStateUpdateTask(
+        Priority priority,
+        AcknowledgedRequest<?> request,
+        ActionListener<? extends AcknowledgedResponse> listener
+    ) {
+        this(priority, request.masterNodeTimeout(), request.ackTimeout(), listener);
     }
 
     @SuppressWarnings("unchecked")
     protected AckedClusterStateUpdateTask(
         Priority priority,
-        AckedRequest request,
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
         ActionListener<? extends AcknowledgedResponse> listener
     ) {
-        super(priority, request.masterNodeTimeout());
+        super(priority, masterNodeTimeout);
         this.listener = (ActionListener<AcknowledgedResponse>) listener;
-        this.request = request;
+        this.ackTimeout = ackTimeout;
     }
 
     /**
@@ -80,6 +98,6 @@ public abstract class AckedClusterStateUpdateTask extends ClusterStateUpdateTask
      * Acknowledgement timeout, maximum time interval to wait for acknowledgements
      */
     public final TimeValue ackTimeout() {
-        return request.ackTimeout();
+        return ackTimeout;
     }
 }

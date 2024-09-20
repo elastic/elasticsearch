@@ -10,6 +10,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
@@ -387,9 +388,11 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     public void assertSecurityIndexActive(TestCluster testCluster) throws Exception {
         for (Client client : testCluster.getClients()) {
             assertBusy(() -> {
-                ClusterState clusterState = client.admin().cluster().prepareState().setLocal(true).get().getState();
+                ClusterState clusterState = client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).setLocal(true).get().getState();
                 assertFalse(clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK));
                 Index securityIndex = resolveSecurityIndex(clusterState.metadata());
+                // TODO this is a bug -- since we are not tripping assertions here, this will complete successfully even if the security
+                // index does not exist
                 if (securityIndex != null) {
                     IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(securityIndex);
                     if (indexRoutingTable != null) {
@@ -421,7 +424,21 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         }
     }
 
-    private static Index resolveSecurityIndex(Metadata metadata) {
+    protected void createSecurityIndex() {
+        final Client client = client().filterWithHeader(
+            Collections.singletonMap(
+                "Authorization",
+                UsernamePasswordToken.basicAuthHeaderValue(
+                    SecuritySettingsSource.ES_TEST_ROOT_USER,
+                    SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING
+                )
+            )
+        );
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(SECURITY_MAIN_ALIAS);
+        client.admin().indices().create(createIndexRequest).actionGet();
+    }
+
+    protected static Index resolveSecurityIndex(Metadata metadata) {
         final IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(SECURITY_MAIN_ALIAS);
         if (indexAbstraction != null) {
             return indexAbstraction.getIndices().get(0);

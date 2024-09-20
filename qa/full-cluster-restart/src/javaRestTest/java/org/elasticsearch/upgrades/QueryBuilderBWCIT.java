@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.upgrades;
@@ -153,29 +154,29 @@ public class QueryBuilderBWCIT extends ParameterizedFullClusterRestartTestCase {
         );
         addCandidate(
             """
-                "span_near": {"clauses": [{ "span_term": { "keyword_field": "value1" }}, \
-                { "span_term": { "keyword_field": "value2" }}]}
+                "span_near": {"clauses": [{ "span_term": { "text_field": "value1" }}, \
+                { "span_term": { "text_field": "value2" }}]}
                 """,
-            new SpanNearQueryBuilder(new SpanTermQueryBuilder("keyword_field", "value1"), 0).addClause(
-                new SpanTermQueryBuilder("keyword_field", "value2")
+            new SpanNearQueryBuilder(new SpanTermQueryBuilder("text_field", "value1"), 0).addClause(
+                new SpanTermQueryBuilder("text_field", "value2")
             )
         );
         addCandidate(
             """
-                "span_near": {"clauses": [{ "span_term": { "keyword_field": "value1" }}, \
-                { "span_term": { "keyword_field": "value2" }}], "slop": 2}
+                "span_near": {"clauses": [{ "span_term": { "text_field": "value1" }}, \
+                { "span_term": { "text_field": "value2" }}], "slop": 2}
                 """,
-            new SpanNearQueryBuilder(new SpanTermQueryBuilder("keyword_field", "value1"), 2).addClause(
-                new SpanTermQueryBuilder("keyword_field", "value2")
+            new SpanNearQueryBuilder(new SpanTermQueryBuilder("text_field", "value1"), 2).addClause(
+                new SpanTermQueryBuilder("text_field", "value2")
             )
         );
         addCandidate(
             """
-                "span_near": {"clauses": [{ "span_term": { "keyword_field": "value1" }}, \
-                { "span_term": { "keyword_field": "value2" }}], "slop": 2, "in_order": false}
+                "span_near": {"clauses": [{ "span_term": { "text_field": "value1" }}, \
+                { "span_term": { "text_field": "value2" }}], "slop": 2, "in_order": false}
                 """,
-            new SpanNearQueryBuilder(new SpanTermQueryBuilder("keyword_field", "value1"), 2).addClause(
-                new SpanTermQueryBuilder("keyword_field", "value2")
+            new SpanNearQueryBuilder(new SpanTermQueryBuilder("text_field", "value1"), 2).addClause(
+                new SpanTermQueryBuilder("text_field", "value2")
             ).inOrder(false)
         );
     }
@@ -201,11 +202,6 @@ public class QueryBuilderBWCIT extends ParameterizedFullClusterRestartTestCase {
                 {
                     mappingsAndSettings.startObject("query");
                     mappingsAndSettings.field("type", "percolator");
-                    mappingsAndSettings.endObject();
-                }
-                {
-                    mappingsAndSettings.startObject("keyword_field");
-                    mappingsAndSettings.field("type", "keyword");
                     mappingsAndSettings.endObject();
                 }
                 {

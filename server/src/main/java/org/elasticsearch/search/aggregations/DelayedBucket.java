@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations;
@@ -16,8 +17,6 @@ import java.util.function.BiFunction;
  * as long as possible. It's stateful and not even close to thread safe.
  */
 public final class DelayedBucket<B extends InternalMultiBucketAggregation.InternalBucket> {
-    private final BiFunction<List<B>, AggregationReduceContext, B> reduce;
-    private final AggregationReduceContext reduceContext;
     /**
      * The buckets to reduce or {@code null} if we've already reduced the buckets.
      */
@@ -36,13 +35,7 @@ public final class DelayedBucket<B extends InternalMultiBucketAggregation.Intern
     /**
      * Build a delayed bucket.
      */
-    public DelayedBucket(
-        BiFunction<List<B>, AggregationReduceContext, B> reduce,
-        AggregationReduceContext reduceContext,
-        List<B> toReduce
-    ) {
-        this.reduce = reduce;
-        this.reduceContext = reduceContext;
+    public DelayedBucket(List<B> toReduce) {
         this.toReduce = toReduce;
     }
 
@@ -50,7 +43,7 @@ public final class DelayedBucket<B extends InternalMultiBucketAggregation.Intern
      * The reduced bucket. If the bucket hasn't been reduced already this
      * will reduce the sub-aggs and throw out the list to reduce.
      */
-    public B reduced() {
+    public B reduced(BiFunction<List<B>, AggregationReduceContext, B> reduce, AggregationReduceContext reduceContext) {
         if (reduced == null) {
             reduceContext.consumeBucketsAndMaybeBreak(1);
             reduced = reduce.apply(toReduce, reduceContext);
@@ -100,7 +93,7 @@ public final class DelayedBucket<B extends InternalMultiBucketAggregation.Intern
      * Called to mark a bucket as non-competitive so it can release it can release
      * any sub-buckets from the breaker.
      */
-    void nonCompetitive() {
+    void nonCompetitive(AggregationReduceContext reduceContext) {
         if (reduced != null) {
             // -1 for itself, -countInnerBucket for all the sub-buckets.
             reduceContext.consumeBucketsAndMaybeBreak(-1 - InternalMultiBucketAggregation.countInnerBucket(reduced));

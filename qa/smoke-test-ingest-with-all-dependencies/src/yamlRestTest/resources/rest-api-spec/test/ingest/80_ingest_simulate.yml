@@ -212,3 +212,94 @@ setup:
   - match: { docs.1.doc._index: "index" }
   - match: { docs.1.doc._source.field1: "BAR" }
   - match: { docs.1.doc.executed_pipelines: ["my-pipeline"] }
+
+---
+"Test ingest simulate with reroute and mapping validation from templates":
+
+  - skip:
+      features:
+        - headers
+        - allowed_warnings
+
+  - requires:
+      cluster_features: ["simulate.mapping.validation.templates"]
+      reason: "ingest simulate index mapping validation added in 8.16"
+
+  - do:
+      headers:
+        Content-Type: application/json
+      ingest.put_pipeline:
+        id: "reroute-pipeline"
+        body:  >
+          {
+            "processors": [
+              {
+                "reroute": {
+                  "destination": "second-index"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      allowed_warnings:
+        - "index template [first-index-template] has index patterns [first-index*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [first-index-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: first-index-template
+        body:
+          index_patterns: first-index*
+          template:
+            settings:
+              default_pipeline: "reroute-pipeline"
+            mappings:
+              dynamic: strict
+              properties:
+                foo:
+                  type: text
+
+  - do:
+      allowed_warnings:
+        - "index template [second-index-template] has index patterns [second-index*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [second-index-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: second-index-template
+        body:
+          index_patterns: second-index*
+          template:
+            mappings:
+              dynamic: strict
+              properties:
+                bar:
+                  type: text
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "first-index",
+                "_id": "id",
+                "_source": {
+                  "foo": "bar"
+                }
+              },
+              {
+                "_index": "first-index",
+                "_id": "id",
+                "_source": {
+                  "bar": "foo"
+                }
+              }
+            ]
+          }
+  - length: { docs: 2 }
+  - match: { docs.0.doc._index: "second-index" }
+  - match: { docs.0.doc._source.foo: "bar" }
+  - match: { docs.0.doc.error.type: "strict_dynamic_mapping_exception" }
+  - match: { docs.0.doc.error.reason: "[1:8] mapping set to strict, dynamic introduction of [foo] within [_doc] is not allowed" }
+  - match: { docs.1.doc._index: "second-index" }
+  - match: { docs.1.doc._source.bar: "foo" }
+  - not_exists: docs.1.doc.error

@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.spatial.index.query;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.MultiPoint;
@@ -27,6 +29,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -38,6 +41,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 
+@UpdateForV9
+@LuceneTestCase.AwaitsFix(bugUrl = "this is testing legacy functionality so can likely be removed in 9.0")
 public class LegacyGeoShapeWithDocValuesQueryTests extends GeoShapeQueryTestCase {
 
     @SuppressWarnings("deprecation")
@@ -219,5 +224,9 @@ public class LegacyGeoShapeWithDocValuesQueryTests extends GeoShapeQueryTestCase
             .get();
 
         assertHitCount(client().prepareSearch(defaultIndexName).setQuery(geoShapeQuery("alias", multiPoint)), 1L);
+    }
+
+    protected boolean ignoreLons(double[] lons) {
+        return Arrays.stream(lons).anyMatch(v -> v == 180);
     }
 }

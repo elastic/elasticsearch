@@ -54,7 +54,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         this.restoredIndexPrefix = restoredIndexPrefix;
         this.storageType = Objects.requireNonNull(storageType, "a storage type must be specified");
         if (totalShardsPerNode != null && totalShardsPerNode < -1) {
-            throw new IllegalArgumentException("[totalShardsPerNode] must be >= -1");
+            throw new IllegalArgumentException("[totalShardsPerNode] must be >= 1");
         }
         this.totalShardsPerNode = totalShardsPerNode;
     }

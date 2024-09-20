@@ -63,14 +63,6 @@ import static org.elasticsearch.core.Strings.format;
 public abstract class FieldMapper extends Mapper {
     private static final Logger logger = LogManager.getLogger(FieldMapper.class);
 
-    public static final Setting<Integer> IGNORE_ABOVE_SETTING = Setting.intSetting(
-        "index.mapping.ignore_above",
-        Integer.MAX_VALUE,
-        0,
-        Property.IndexScope,
-        Property.ServerlessPublic
-    );
-
     public static final Setting<Boolean> IGNORE_MALFORMED_SETTING = Setting.boolSetting("index.mapping.ignore_malformed", settings -> {
         if (IndexSettings.MODE.get(settings) == IndexMode.LOGSDB
             && IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.ENABLE_IGNORE_MALFORMED_LOGSDB)) {

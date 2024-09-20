@@ -82,6 +82,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
+
 /**
  * A field mapper that accepts a JSON object and flattens it into a single field. This data type
  * can be a useful alternative to an 'object' mapping when the object has a large, unknown set

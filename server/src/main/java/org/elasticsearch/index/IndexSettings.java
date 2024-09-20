@@ -697,6 +697,14 @@ public final class IndexSettings {
         Property.IndexSettingDeprecatedInV7AndRemovedInV8
     );
 
+    public static final Setting<Integer> IGNORE_ABOVE_SETTING = Setting.intSetting(
+        "index.mapping.ignore_above",
+        Integer.MAX_VALUE,
+        0,
+        Property.IndexScope,
+        Property.ServerlessPublic
+    );
+
     private final Index index;
     private final IndexVersion version;
     private final Logger logger;

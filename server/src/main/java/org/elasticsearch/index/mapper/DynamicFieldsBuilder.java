@@ -14,6 +14,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.xcontent.XContentParser;
@@ -326,7 +327,7 @@ final class DynamicFieldsBuilder {
         @Override
         public boolean newDynamicStringField(DocumentParserContext context, String name) throws IOException {
             MapperBuilderContext mapperBuilderContext = context.createDynamicMapperBuilderContext();
-            int ignoreAboveDefault = FieldMapper.IGNORE_ABOVE_SETTING.get(context.indexSettings().getSettings());
+            int ignoreAboveDefault = IndexSettings.IGNORE_ABOVE_SETTING.get(context.indexSettings().getSettings());
             if (mapperBuilderContext.parentObjectContainsDimensions()) {
                 return createDynamicField(
                     new KeywordFieldMapper.Builder(name, ignoreAboveDefault, context.indexSettings().getIndexVersionCreated()),

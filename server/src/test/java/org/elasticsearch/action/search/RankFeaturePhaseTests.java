@@ -536,7 +536,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
             // override the RankFeaturePhase to raise an exception
             RankFeaturePhase rankFeaturePhase = new RankFeaturePhase(results, null, mockSearchPhaseContext, null) {
                 @Override
-                void innerRun() {
+                void innerRun(RankFeaturePhaseRankCoordinatorContext rankFeaturePhaseRankCoordinatorContext) {
                     throw new IllegalArgumentException("simulated failure");
                 }
 
@@ -1142,7 +1142,13 @@ public class RankFeaturePhaseTests extends ESTestCase {
             ) {
                 // this is called after the RankFeaturePhaseCoordinatorContext has been executed
                 phaseDone.set(true);
-                finalResults[0] = reducedQueryPhase.sortedTopDocs().scoreDocs();
+                try {
+                    finalResults[0] = reducedQueryPhase == null
+                        ? queryPhaseResults.reduce().sortedTopDocs().scoreDocs()
+                        : reducedQueryPhase.sortedTopDocs().scoreDocs();
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
                 logger.debug("Skipping moving to next phase");
             }
         };

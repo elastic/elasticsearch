@@ -38,7 +38,9 @@ import org.apache.lucene.analysis.it.ItalianLightStemFilter;
 import org.apache.lucene.analysis.lv.LatvianStemFilter;
 import org.apache.lucene.analysis.miscellaneous.EmptyTokenStream;
 import org.apache.lucene.analysis.no.NorwegianLightStemFilter;
+import org.apache.lucene.analysis.no.NorwegianLightStemFilterFactory;
 import org.apache.lucene.analysis.no.NorwegianMinimalStemFilter;
+import org.apache.lucene.analysis.no.NorwegianMinimalStemFilterFactory;
 import org.apache.lucene.analysis.pt.PortugueseLightStemFilter;
 import org.apache.lucene.analysis.pt.PortugueseMinimalStemFilter;
 import org.apache.lucene.analysis.pt.PortugueseStemFilter;
@@ -74,6 +76,7 @@ import org.tartarus.snowball.ext.SwedishStemmer;
 import org.tartarus.snowball.ext.TurkishStemmer;
 
 import java.io.IOException;
+import java.util.Collections;
 
 public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
 
@@ -211,12 +214,13 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
 
                 // Norwegian (Nynorsk) stemmers
             } else if ("light_nynorsk".equalsIgnoreCase(language) || "lightNynorsk".equalsIgnoreCase(language)) {
-                // TODO Lucene 10 upgrade: NorwegianLightStemmer is now package private, we no longer have access to the flags constants
-                return new NorwegianLightStemFilter(tokenStream, 2);
+                NorwegianLightStemFilterFactory factory = new NorwegianLightStemFilterFactory(Collections.singletonMap("variant", "nn"));
+                return factory.create(tokenStream);
             } else if ("minimal_nynorsk".equalsIgnoreCase(language) || "minimalNynorsk".equalsIgnoreCase(language)) {
-                // TODO Lucene 10 upgrade: NorwegianLightStemmer is now package private, we no longer have access to the flags constants
-                return new NorwegianMinimalStemFilter(tokenStream, 2);
-
+                NorwegianMinimalStemFilterFactory factory = new NorwegianMinimalStemFilterFactory(
+                    Collections.singletonMap("variant", "nn")
+                );
+                return factory.create(tokenStream);
                 // Persian stemmers
             } else if ("persian".equalsIgnoreCase(language)) {
                 return new PersianStemFilter(tokenStream);

@@ -123,6 +123,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Locate;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Repeat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Replace;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Reverse;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Right;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Space;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Split;
@@ -315,6 +316,7 @@ public class EsqlFunctionRegistry {
                 def(Locate.class, Locate::new, "locate"),
                 def(Repeat.class, Repeat::new, "repeat"),
                 def(Space.class, Space::new, "space") },
+                def(Reverse.class, Reverse::new, "reverse"),
             // date
             new FunctionDefinition[] {
                 def(DateDiff.class, DateDiff::new, "date_diff"),

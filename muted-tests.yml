@@ -274,6 +274,9 @@ tests:
 - class: org.elasticsearch.datastreams.logsdb.qa.StandardVersusLogsIndexModeRandomDataChallengeRestIT
   method: testMatchAllQuery
   issue: https://github.com/elastic/elasticsearch/issues/113265
+- class: org.elasticsearch.xpack.security.authz.SecurityScrollTests
+  method: testSearchAndClearScroll
+  issue: https://github.com/elastic/elasticsearch/issues/113285
 
 # Examples:
 #

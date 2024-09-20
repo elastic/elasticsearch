@@ -102,6 +102,7 @@ import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.analysis.util.ElisionFilter;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.PreBuiltAnalyzerProviderFactory;
@@ -480,9 +481,10 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
             )
         );
         filters.add(PreConfiguredTokenFilter.indexVersion("word_delimiter_graph", false, false, (input, version) -> {
+            boolean adjustOffsets = version.onOrAfter(IndexVersions.V_7_3_0);
             return new WordDelimiterGraphFilter(
                 input,
-                true,
+                adjustOffsets,
                 WordDelimiterIterator.DEFAULT_WORD_DELIM_TABLE,
                 WordDelimiterGraphFilter.GENERATE_WORD_PARTS | WordDelimiterGraphFilter.GENERATE_NUMBER_PARTS
                     | WordDelimiterGraphFilter.SPLIT_ON_CASE_CHANGE | WordDelimiterGraphFilter.SPLIT_ON_NUMERICS
@@ -515,6 +517,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         // This is already broken with normalization, so backwards compat isn't necessary?
         tokenizers.add(PreConfiguredTokenizer.singleton("lowercase", XLowerCaseTokenizer::new));
         tokenizers.add(PreConfiguredTokenizer.singleton("PathHierarchy", PathHierarchyTokenizer::new));
+
         return tokenizers;
     }
 }

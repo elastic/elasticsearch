@@ -448,6 +448,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
             ensureGreen(indexName);
             closeIndex(indexName);
         }
+
         if (minimumIndexVersion().onOrAfter(IndexVersions.V_8_0_0)) {
             // index is created on a version that supports the replication of closed indices,
             // so we expect the index to be closed and replicated
@@ -494,6 +495,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
         } else {
             assertClosedIndex(indexName, false);
         }
+
     }
 
     /**

@@ -41,6 +41,8 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryConflictException;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.repositories.ShardGenerations;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -1371,6 +1373,43 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 assertSuccessful(snapshotFuture);
             }
         }
+    }
+
+    public void testConcurrentSnapshotWorksWithOldVersionRepo() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        final Path repoPath = randomRepoPath();
+        createRepository(
+            repoName,
+            "mock",
+            Settings.builder().put(BlobStoreRepository.CACHE_REPOSITORY_DATA.getKey(), false).put("location", repoPath)
+        );
+        initWithSnapshotVersion(repoName, repoPath, SnapshotsService.OLD_SNAPSHOT_FORMAT);
+
+        createIndexWithContent("index-slow");
+
+        final ActionFuture<CreateSnapshotResponse> createSlowFuture = startFullSnapshotBlockedOnDataNode(
+            "slow-snapshot",
+            repoName,
+            dataNode
+        );
+
+        final String dataNode2 = internalCluster().startDataOnlyNode();
+        ensureStableCluster(3);
+        final String indexFast = "index-fast";
+        createIndexWithContent(indexFast, dataNode2, dataNode);
+
+        final ActionFuture<CreateSnapshotResponse> createFastSnapshot = startFullSnapshot(repoName, "fast-snapshot");
+
+        assertThat(createSlowFuture.isDone(), is(false));
+        unblockNode(repoName, dataNode);
+
+        assertSuccessful(createFastSnapshot);
+        assertSuccessful(createSlowFuture);
+
+        final RepositoryData repositoryData = getRepositoryData(repoName);
+        assertThat(repositoryData.shardGenerations(), is(ShardGenerations.EMPTY));
     }
 
     public void testQueuedDeleteAfterFinalizationFailure() throws Exception {

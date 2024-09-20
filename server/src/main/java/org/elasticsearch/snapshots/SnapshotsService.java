@@ -139,18 +139,16 @@ import static org.elasticsearch.core.Strings.format;
  */
 public final class SnapshotsService extends AbstractLifecycleComponent implements ClusterStateApplier {
 
-    // TODO lucene 10 upgrade: check if we need any of the pre-8 versions constants here for bwc
-    // e.g. reading from old snapshots
+    public static final IndexVersion SHARD_GEN_IN_REPO_DATA_VERSION = IndexVersions.V_7_6_0;
 
-    public static final IndexVersion OLD_SNAPSHOT_FORMAT = IndexVersion.fromId(7_05_00_99);
-    public static final IndexVersion INDEX_GEN_IN_REPO_DATA_VERSION = IndexVersion.fromId(7_09_00_99);
-    public static final IndexVersion UUIDS_IN_REPO_DATA_VERSION = IndexVersion.fromId(7_12_00_99);
-    public static final IndexVersion FILE_INFO_WRITER_UUIDS_IN_SHARD_DATA_VERSION = IndexVersion.fromId(7_16_00_99);
+    public static final IndexVersion INDEX_GEN_IN_REPO_DATA_VERSION = IndexVersions.V_7_9_0;
 
+    public static final IndexVersion UUIDS_IN_REPO_DATA_VERSION = IndexVersions.V_7_12_0;
     public static final TransportVersion UUIDS_IN_REPO_DATA_TRANSPORT_VERSION = TransportVersions.V_7_12_0;
 
-    // TODO lucene 10 upgrade, check if IndexVersion removal affects reading supported spanshots
-    // public static final IndexVersion OLD_SNAPSHOT_FORMAT = IndexVersions.V_7_5_0;
+    public static final IndexVersion FILE_INFO_WRITER_UUIDS_IN_SHARD_DATA_VERSION = IndexVersions.V_7_16_0;
+
+    public static final IndexVersion OLD_SNAPSHOT_FORMAT = IndexVersions.V_7_5_0;
 
     public static final String POLICY_ID_METADATA_FIELD = "policy";
 
@@ -2324,8 +2322,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         + "] but did not have versions tracked for snapshot ["
                         + snapshotId
                         + "]";
-                // TODO lucene 10 upgrade: should this whole block be removed instead of returning the minimal available version?
-                return IndexVersions.V_8_0_0;
+                return OLD_SNAPSHOT_FORMAT;
             } else {
                 minCompatVersion = IndexVersion.min(minCompatVersion, known);
             }

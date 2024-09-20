@@ -221,7 +221,7 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                 assertBytesRange.accept((long) serializedBatchedCompoundCommit.length(), 0L);
 
                 // Read first header
-                var firstCC = virtualBatchedCompoundCommit.getPendingCompoundCommits().stream().findFirst().get();
+                var firstCC = virtualBatchedCompoundCommit.getPendingCompoundCommits().getFirst();
                 long firstCCHeaderSize = firstCC.getHeaderSize();
                 assertBytesRange.accept(0L, firstCCHeaderSize);
 

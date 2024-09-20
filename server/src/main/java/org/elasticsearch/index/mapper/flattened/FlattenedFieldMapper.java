@@ -185,7 +185,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
             return FieldMapper.Parameter.stringArrayParam(TIME_SERIES_DIMENSIONS_ARRAY_PARAM, false, initializer);
         }
 
-        public Builder(String name, int ignoreAboveDefault) {
+        public Builder(final String name) {
+            this(name, Integer.MAX_VALUE);
+        }
+
+        private Builder(String name, int ignoreAboveDefault) {
             super(name);
             this.ignoreAboveDefault = ignoreAboveDefault;
             this.ignoreAbove = Parameter.intParam("ignore_above", true, m -> builder(m).ignoreAbove.get(), ignoreAboveDefault)

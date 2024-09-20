@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.search;
 
-import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
@@ -25,6 +24,8 @@ import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.function.Predicate;
 
 /** Utility class to filter parent and children clauses when building nested
@@ -53,14 +54,16 @@ public final class NestedHelper {
             // We only handle term(s) queries and range queries, which should already
             // cover a high majority of use-cases
             return mightMatchNestedDocs(((TermQuery) query).getTerm().field());
-        } else if (query instanceof TermInSetQuery) {
-            PrefixCodedTerms terms = ((TermInSetQuery) query).getTermData();
-            if (terms.size() > 0) {
-                PrefixCodedTerms.TermIterator it = terms.iterator();
-                it.next();
-                return mightMatchNestedDocs(it.field());
-            } else {
-                return false;
+        } else if (query instanceof TermInSetQuery tis) {
+            try {
+                if (tis.getTermsCount() > 0) {
+                    return mightMatchNestedDocs(tis.getField());
+                } else {
+                    return false;
+                }
+            } catch (IOException e) {
+                // this handling isn't needed any more once we move to Lucene 10
+                throw new UncheckedIOException("We are not doing IO here, this should never happen.", e);
             }
         } else if (query instanceof PointRangeQuery) {
             return mightMatchNestedDocs(((PointRangeQuery) query).getField());
@@ -118,14 +121,16 @@ public final class NestedHelper {
             return false;
         } else if (query instanceof TermQuery) {
             return mightMatchNonNestedDocs(((TermQuery) query).getTerm().field(), nestedPath);
-        } else if (query instanceof TermInSetQuery) {
-            PrefixCodedTerms terms = ((TermInSetQuery) query).getTermData();
-            if (terms.size() > 0) {
-                PrefixCodedTerms.TermIterator it = terms.iterator();
-                it.next();
-                return mightMatchNonNestedDocs(it.field(), nestedPath);
-            } else {
-                return false;
+        } else if (query instanceof TermInSetQuery tis) {
+            try {
+                if (tis.getTermsCount() > 0) {
+                    return mightMatchNonNestedDocs(tis.getField(), nestedPath);
+                } else {
+                    return false;
+                }
+            } catch (IOException e) {
+                // this handling isn't needed any more once we move to Lucene 10
+                throw new UncheckedIOException("We are not doing IO here, this should never happen.", e);
             }
         } else if (query instanceof PointRangeQuery) {
             return mightMatchNonNestedDocs(((PointRangeQuery) query).getField(), nestedPath);

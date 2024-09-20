@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.AggregatedDfs;
@@ -39,13 +40,15 @@ final class FetchSearchPhase extends SearchPhase {
     private final Logger logger;
     private final SearchProgressListener progressListener;
     private final AggregatedDfs aggregatedDfs;
+    @Nullable
+    private final SearchPhaseResults<SearchPhaseResult> resultConsumer;
     private final SearchPhaseController.ReducedQueryPhase reducedQueryPhase;
 
     FetchSearchPhase(
         SearchPhaseResults<SearchPhaseResult> resultConsumer,
         AggregatedDfs aggregatedDfs,
         SearchPhaseContext context,
-        SearchPhaseController.ReducedQueryPhase reducedQueryPhase
+        @Nullable SearchPhaseController.ReducedQueryPhase reducedQueryPhase
     ) {
         this(
             resultConsumer,
@@ -64,7 +67,7 @@ final class FetchSearchPhase extends SearchPhase {
         SearchPhaseResults<SearchPhaseResult> resultConsumer,
         AggregatedDfs aggregatedDfs,
         SearchPhaseContext context,
-        SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
+        @Nullable SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
         BiFunction<SearchResponseSections, AtomicArray<SearchPhaseResult>, SearchPhase> nextPhaseFactory
     ) {
         super("fetch");
@@ -85,6 +88,7 @@ final class FetchSearchPhase extends SearchPhase {
         this.logger = context.getLogger();
         this.progressListener = context.getTask().getProgressListener();
         this.reducedQueryPhase = reducedQueryPhase;
+        this.resultConsumer = reducedQueryPhase == null ? resultConsumer : null;
     }
 
     @Override
@@ -92,7 +96,7 @@ final class FetchSearchPhase extends SearchPhase {
         context.execute(new AbstractRunnable() {
 
             @Override
-            protected void doRun() {
+            protected void doRun() throws Exception {
                 innerRun();
             }
 
@@ -103,7 +107,10 @@ final class FetchSearchPhase extends SearchPhase {
         });
     }
 
-    private void innerRun() {
+    private void innerRun() throws Exception {
+        assert this.reducedQueryPhase == null ^ this.resultConsumer == null;
+        // depending on whether we executed the RankFeaturePhase we may or may not have the reduced query result computed already
+        final var reducedQueryPhase = this.reducedQueryPhase == null ? resultConsumer.reduce() : this.reducedQueryPhase;
         final int numShards = context.getNumShards();
         // Usually when there is a single shard, we force the search type QUERY_THEN_FETCH. But when there's kNN, we might
         // still use DFS_QUERY_THEN_FETCH, which does not perform the "query and fetch" optimization during the query phase.
@@ -113,7 +120,7 @@ final class FetchSearchPhase extends SearchPhase {
         if (queryAndFetchOptimization) {
             assert assertConsistentWithQueryAndFetchOptimization();
             // query AND fetch optimization
-            moveToNextPhase(searchPhaseShardResults);
+            moveToNextPhase(searchPhaseShardResults, reducedQueryPhase);
         } else {
             ScoreDoc[] scoreDocs = reducedQueryPhase.sortedTopDocs().scoreDocs();
             // no docs to fetch -- sidestep everything and return
@@ -121,7 +128,7 @@ final class FetchSearchPhase extends SearchPhase {
                 // we have to release contexts here to free up resources
                 searchPhaseShardResults.asList()
                     .forEach(searchPhaseShardResult -> releaseIrrelevantSearchContext(searchPhaseShardResult, context));
-                moveToNextPhase(fetchResults.getAtomicArray());
+                moveToNextPhase(fetchResults.getAtomicArray(), reducedQueryPhase);
             } else {
                 final boolean shouldExplainRank = shouldExplainRankScores(context.getRequest());
                 final List<Map<Integer, RankDoc>> rankDocsPerShard = false == shouldExplainRank
@@ -134,7 +141,7 @@ final class FetchSearchPhase extends SearchPhase {
                 final CountedCollector<FetchSearchResult> counter = new CountedCollector<>(
                     fetchResults,
                     docIdsToLoad.length, // we count down every shard in the result no matter if we got any results or not
-                    () -> moveToNextPhase(fetchResults.getAtomicArray()),
+                    () -> moveToNextPhase(fetchResults.getAtomicArray(), reducedQueryPhase),
                     context
                 );
                 for (int i = 0; i < docIdsToLoad.length; i++) {
@@ -243,7 +250,10 @@ final class FetchSearchPhase extends SearchPhase {
             );
     }
 
-    private void moveToNextPhase(AtomicArray<? extends SearchPhaseResult> fetchResultsArr) {
+    private void moveToNextPhase(
+        AtomicArray<? extends SearchPhaseResult> fetchResultsArr,
+        SearchPhaseController.ReducedQueryPhase reducedQueryPhase
+    ) {
         var resp = SearchPhaseController.merge(context.getRequest().scroll() != null, reducedQueryPhase, fetchResultsArr);
         context.addReleasable(resp::decRef);
         fetchResults.close();

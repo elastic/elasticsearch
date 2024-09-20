@@ -75,7 +75,7 @@ public class KqlQueryBuilder extends AbstractQueryBuilder<KqlQueryBuilder> {
         Query luceneQuery = new KqlParser().parseKqlQuery(query, context);
 
         if (log.isTraceEnabled()) {
-            log.trace("KQL query translated to lucene query tree: {}", luceneQuery);
+            log.trace("KQL query {} translated to lucene query: {}", query, luceneQuery);
         }
 
         return luceneQuery;

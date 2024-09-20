@@ -60,13 +60,9 @@ public class KqlParser {
 
         if (log.isTraceEnabled()) {
             log.trace("Parse tree: {}", tree.toStringTree());
-
-            if (log.isTraceEnabled()) {
-                log.trace("topLevelCtx ({}): {}", tree.getClass(), tree.toString());
-            }
         }
 
-        return visitor.apply(new KqlQueryBuilder(), tree);
+        return visitor.apply(new KqlQueryBuilder(searchExecutionContext), tree);
     }
 
     private static final BaseErrorListener ERROR_LISTENER = new BaseErrorListener() {

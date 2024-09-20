@@ -316,8 +316,8 @@ public class CompositeRolesStore {
     }
 
     /**
-     * Checks if we're on transport thread and if yes, uses heuristics to determine if role building will be expensive and
-     * therefore warrants forking.
+     * Checks if we're on transport thread and heuristics such as presence of application privileges
+     * to determine if role building will be expensive and therefore warrants forking.
      */
     private boolean shouldForkRoleBuilding(Set<RoleDescriptor> roleDescriptors) {
         // If we're not on transport thread, no need to fork

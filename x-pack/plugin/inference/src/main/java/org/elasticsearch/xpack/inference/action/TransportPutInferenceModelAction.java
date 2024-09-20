@@ -211,7 +211,6 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         });
 
         service.parseRequestConfig(inferenceEntityId, taskType, config, platformArchitectures, parsedModelListener);
-
     }
 
     private void putAndStartModel(InferenceService service, Model model, ActionListener<PutInferenceModelAction.Response> finalListener) {

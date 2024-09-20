@@ -85,7 +85,7 @@ public class CustomElandModelIT extends InferenceBaseRestTest {
 
         var inferenceId = "sparse-inf";
         putModel(inferenceId, inferenceConfig, TaskType.SPARSE_EMBEDDING);
-        var results = inferOnMockService(inferenceId, List.of("washing", "machine"));
+        var results = infer(inferenceId, List.of("washing", "machine"));
         deleteModel(inferenceId);
         assertNotNull(results.get("sparse_embedding"));
     }

@@ -247,17 +247,23 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return entityAsMap(response);
     }
 
-    protected Map<String, Object> inferOnMockService(String modelId, List<String> input) throws IOException {
+    protected Map<String, Object> infer(String modelId, List<String> input) throws IOException {
         var endpoint = Strings.format("_inference/%s", modelId);
-        return inferOnMockServiceInternal(endpoint, input);
+        return inferInternal(endpoint, input, Map.of());
     }
 
-    protected Map<String, Object> inferOnMockService(String modelId, TaskType taskType, List<String> input) throws IOException {
+    protected Map<String, Object> infer(String modelId, TaskType taskType, List<String> input) throws IOException {
         var endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
-        return inferOnMockServiceInternal(endpoint, input);
+        return inferInternal(endpoint, input, Map.of());
     }
 
-    private Map<String, Object> inferOnMockServiceInternal(String endpoint, List<String> input) throws IOException {
+    protected Map<String, Object> infer(String modelId, TaskType taskType, List<String> input, Map<String, String> queryParameters)
+        throws IOException {
+        var endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
+        return inferInternal(endpoint, input, queryParameters);
+    }
+
+    private Map<String, Object> inferInternal(String endpoint, List<String> input, Map<String, String> queryParameters) throws IOException {
         var request = new Request("POST", endpoint);
 
         var bodyBuilder = new StringBuilder("{\"input\": [");
@@ -269,6 +275,9 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         bodyBuilder.append("]}");
 
         request.setJsonEntity(bodyBuilder.toString());
+        if (queryParameters.isEmpty() == false) {
+            request.addParameters(queryParameters);
+        }
         var response = client().performRequest(request);
         assertOkOrCreated(response);
         return entityAsMap(response);

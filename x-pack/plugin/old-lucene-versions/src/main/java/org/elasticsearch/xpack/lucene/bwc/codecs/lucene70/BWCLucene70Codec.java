@@ -22,6 +22,7 @@ import org.apache.lucene.codecs.SegmentInfoFormat;
 import org.apache.lucene.codecs.StoredFieldsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.xpack.lucene.bwc.codecs.BWCCodec;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene60.Lucene60MetadataOnlyPointsFormat;
 
@@ -32,8 +33,9 @@ public class BWCLucene70Codec extends BWCCodec {
     private final LiveDocsFormat liveDocsFormat = new Lucene50LiveDocsFormat();
     private final CompoundFormat compoundFormat = new Lucene50CompoundFormat();
     private final StoredFieldsFormat storedFieldsFormat;
-    // TODO lucene 10 upgrade: resolve below hack that gets us past missing Lucene70 codec for now
-    private final DocValuesFormat defaultDVFormat = null;
+    @UpdateForV9
+    // this needs addressing to support 7.x indices in 9.x
+    private final DocValuesFormat defaultDVFormat = null; // DocValuesFormat.forName("Lucene70");
     private final DocValuesFormat docValuesFormat = new PerFieldDocValuesFormat() {
         @Override
         public DocValuesFormat getDocValuesFormatForField(String field) {

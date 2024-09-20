@@ -701,8 +701,10 @@ public final class IndexSettings {
      * The `index.mapping.ignore_above` setting defines the maximum length for the content of a field that will be indexed
      * or stored. If the length of the field’s content exceeds this limit, the field value will be ignored during indexing.
      * This setting is  useful for `keyword`, `flattened`, and `wildcard` fields where very large values are undesirable.
-     * It allows users to manage the size of indexed data by skipping fields with excessively long content.
-     *
+     * It allows users to manage the size of indexed data by skipping fields with excessively long content. As an index-level
+     * setting, it applies to all `keyword` and `wildcard` fields, as well as to keyword values within `flattened` fields.
+     * This setting can be overridden at the field level by specifying a custom `ignore_above` value in the field mapping.
+     * <p>
      * Example usage:
      * <pre>
      * "index.mapping.ignore_above": 256

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.ar.ArabicAnalyzer;
@@ -51,7 +52,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.synonyms.PagedResult;
@@ -81,7 +81,7 @@ import static java.util.Map.entry;
 public class Analysis {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(Analysis.class);
-    private static final Logger logger = Loggers.getLogger(Analysis.class);
+    private static final Logger logger = LogManager.getLogger(Analysis.class);
 
     public static void checkForDeprecatedVersion(String name, Settings settings) {
         String sVersion = settings.get("version");

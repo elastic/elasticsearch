@@ -534,7 +534,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(names(extract.attributesToExtract()), contains("salary", "emp_no", "last_name"));
         var source = source(extract.child());
         assertThat(source.limit(), is(topN.limit()));
-        assertThat(source.sorts(), is(sorts(topN.order())));
+        assertThat(source.sorts(), is(fieldSorts(topN.order())));
 
         assertThat(source.limit(), is(l(10)));
         assertThat(source.sorts().size(), is(1));
@@ -1078,7 +1078,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(project.child(), FieldExtractExec.class);
         var source = source(extract.child());
         assertThat(source.limit(), is(topN.limit()));
-        assertThat(source.sorts(), is(sorts(topN.order())));
+        assertThat(source.sorts(), is(fieldSorts(topN.order())));
         // an int for doc id, an int for segment id, two ints for doc id map, and int for emp_no.
         assertThat(source.estimatedRowSize(), equalTo(Integer.BYTES * 5 + KEYWORD_EST));
     }
@@ -1234,7 +1234,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(names(extract.attributesToExtract()), contains("languages", "salary"));
         var source = source(extract.child());
         assertThat(source.limit(), is(topN.limit()));
-        assertThat(source.sorts(), is(sorts(topN.order())));
+        assertThat(source.sorts(), is(fieldSorts(topN.order())));
 
         assertThat(source.limit(), is(l(1)));
         assertThat(source.sorts().size(), is(1));
@@ -4084,7 +4084,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(names(extract.attributesToExtract()), contains("languages", "salary"));
         var source = source(extract.child());
         assertThat(source.limit(), is(topN.limit()));
-        assertThat(source.sorts(), is(sorts(topN.order())));
+        assertThat(source.sorts(), is(fieldSorts(topN.order())));
 
         assertThat(source.limit(), is(l(10)));
         assertThat(source.sorts().size(), is(1));
@@ -4130,7 +4130,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(names(extract.attributesToExtract()), contains("languages", "salary"));
         var source = source(extract.child());
         assertThat(source.limit(), is(topN.limit()));
-        assertThat(source.sorts(), is(sorts(topN.order())));
+        assertThat(source.sorts(), is(fieldSorts(topN.order())));
 
         assertThat(source.limit(), is(l(10)));
         assertThat(source.sorts().size(), is(1));
@@ -4175,7 +4175,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "location", "country", "city"));
         var source = source(extract.child());
         assertThat(source.limit(), is(topN.limit()));
-        assertThat(source.sorts(), is(sorts(topN.order())));
+        assertThat(source.sorts(), is(fieldSorts(topN.order())));
 
         assertThat(source.limit(), is(l(5)));
         assertThat(source.sorts().size(), is(1));
@@ -5479,7 +5479,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         return physical;
     }
 
-    private List<FieldSort> sorts(List<Order> orders) {
+    private List<FieldSort> fieldSorts(List<Order> orders) {
         return orders.stream().map(o -> new FieldSort((FieldAttribute) o.child(), o.direction(), o.nullsPosition())).toList();
     }
 

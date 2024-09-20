@@ -821,6 +821,9 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         var child = new ObjectMapper.Builder("child", Optional.empty());
         child.add(new KeywordFieldMapper.Builder("keyword2", IndexVersion.current()));
         child.add(new KeywordFieldMapper.Builder("keyword.with.dot", IndexVersion.current()));
+        var secondLevelChild = new ObjectMapper.Builder("child2", Optional.empty());
+        secondLevelChild.add(new KeywordFieldMapper.Builder("keyword22", IndexVersion.current()));
+        child.add(secondLevelChild);
         rootBuilder.add(child);
 
         var childWithDot = new ObjectMapper.Builder("childwith.dot", Optional.empty());
@@ -837,6 +840,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         assertEquals("child", root.findParentMapper("child.keyword.with.dot").fullPath());
         assertNull(root.findParentMapper("child.long"));
         assertNull(root.findParentMapper("child.long.hello"));
+        assertEquals("child.child2", root.findParentMapper("child.child2.keyword22").fullPath());
 
         assertEquals("childwith.dot", root.findParentMapper("childwith.dot.keyword3").fullPath());
         assertEquals("childwith.dot", root.findParentMapper("childwith.dot.keyword4.with.dot").fullPath());

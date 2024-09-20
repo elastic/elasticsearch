@@ -809,6 +809,9 @@ public class ObjectMapper extends Mapper {
     }
 
     ObjectMapper findParentMapper(String leafFieldPath) {
+        var pathComponents = leafFieldPath.split("\\.");
+        int startPathComponent = 0;
+
         ObjectMapper current = this;
         String pathInCurrent = leafFieldPath;
 
@@ -818,12 +821,11 @@ public class ObjectMapper extends Mapper {
             }
 
             // Go one level down if possible
-            var pathComponents = pathInCurrent.split("\\.");
-            var childMapperName = new StringBuilder();
-
             var parent = current;
             current = null;
-            for (int i = 0; i < pathComponents.length - 1; i++) {
+
+            var childMapperName = new StringBuilder();
+            for (int i = startPathComponent; i < pathComponents.length - 1; i++) {
                 if (childMapperName.isEmpty() == false) {
                     childMapperName.append(".");
                 }
@@ -832,6 +834,7 @@ public class ObjectMapper extends Mapper {
                 var childMapper = parent.mappers.get(childMapperName.toString());
                 if (childMapper instanceof ObjectMapper objectMapper) {
                     current = objectMapper;
+                    startPathComponent = i + 1;
                     pathInCurrent = pathInCurrent.substring(childMapperName.length() + 1);
                     break;
                 }
@@ -869,7 +872,9 @@ public class ObjectMapper extends Mapper {
         // If this loader has anything to write.
         // In special cases this can be false even if doc values loaders or stored field loaders
         // have values.
+        // F.e. objects that only contain fields that are destinations of copy_to.
         private boolean writersHaveValues;
+        // Use an ordered map between field names and writers to order writing by field name.
         private TreeMap<String, FieldWriter> currentWriters;
 
         private SyntheticSourceFieldLoader(List<SourceLoader.SyntheticFieldLoader> fields, boolean isFragment) {

@@ -303,7 +303,8 @@ public interface SourceLoader {
         DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException;
 
         /**
-         Perform any preprocessing needed before producing synthetic source.
+         Perform any preprocessing needed before producing synthetic source
+         and deduce whether this mapper (and its children, if any) have values to write.
          The expectation is for this method to be called before {@link SyntheticFieldLoader#hasValue()}
          and {@link SyntheticFieldLoader#write(XContentBuilder)} are used.
          */

@@ -72,7 +72,7 @@ public final class XContentDataHelper {
     }
 
     /**
-     * Returns a special encoded value that signals that values of this field
+     * Returns a special encoded value that signals that this field
      * should not be present in synthetic source.
      *
      * An example is a field that has values copied to it using copy_to.
@@ -80,7 +80,7 @@ public final class XContentDataHelper {
      * synthetic _source same as it wouldn't be present in stored source.
      * @return
      */
-    public static BytesRef nothing() {
+    public static BytesRef voidValue() {
         return new BytesRef(new byte[] { VOID_ENCODING });
     }
 

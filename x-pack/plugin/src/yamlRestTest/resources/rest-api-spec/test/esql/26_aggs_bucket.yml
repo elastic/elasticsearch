@@ -138,6 +138,16 @@
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
+          query: 'FROM test_bucket | STATS c = COUNT(*)'
+  - match: { columns.0.name: c }
+  - match: { columns.0.type: long }
+  - match: { values.0.0: 4 }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
           query: 'FROM test_bucket | SORT ts'
   - match: { columns.0.name: ts }
   - match: { columns.0.type: date }
@@ -146,6 +156,16 @@
   - match: { values.1.0: "2024-07-16T00:00:00.000Z" }
   - match: { values.2.0: "2024-08-16T00:00:00.000Z" }
   - match: { values.3.0: "2024-09-16T00:00:00.000Z" }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test_bucket | STATS c = COUNT(*)'
+  - match: { columns.0.name: c }
+  - match: { columns.0.type: long }
+  - match: { values.0.0: 4 }
 
   - do:
       allowed_warnings_regex:

@@ -22,7 +22,7 @@
 package org.elasticsearch.benchmark.tdigest;
 
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.search.aggregations.metrics.WrapperTDigestArrays;
+import org.elasticsearch.search.aggregations.metrics.MemoryTrackingTDigestArrays;
 import org.elasticsearch.tdigest.Sort;
 import org.elasticsearch.tdigest.arrays.TDigestArrays;
 import org.elasticsearch.tdigest.arrays.TDigestDoubleArray;
@@ -53,7 +53,7 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Thread)
 public class SortBench {
     private final int size = 100000;
-    private final TDigestArrays arrays = new WrapperTDigestArrays(new NoopCircuitBreaker("default-wrapper-tdigest-arrays"));
+    private final TDigestArrays arrays = new MemoryTrackingTDigestArrays(new NoopCircuitBreaker("default-wrapper-tdigest-arrays"));
     private final TDigestDoubleArray values = arrays.newDoubleArray(size);
 
     @Param({ "0", "1", "-1" })

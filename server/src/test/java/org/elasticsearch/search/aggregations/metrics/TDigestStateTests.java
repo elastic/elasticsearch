@@ -219,6 +219,6 @@ public class TDigestStateTests extends ESTestCase {
     }
 
     private TDigestArrays arrays() {
-        return new WrapperTDigestArrays(newLimitedBreaker(ByteSizeValue.ofMb(100)));
+        return new MemoryTrackingTDigestArrays(newLimitedBreaker(ByteSizeValue.ofMb(100)));
     }
 }

@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * TDigestArrays with raw arrays and circuit breaking.
  */
-public class WrapperTDigestArrays implements TDigestArrays {
+public class MemoryTrackingTDigestArrays implements TDigestArrays {
 
     /**
      * Default no-op CB instance of the wrapper.
@@ -36,11 +36,11 @@ public class WrapperTDigestArrays implements TDigestArrays {
      * @deprecated This instance shouldn't be used, and will be removed after all usages are replaced.
      */
     @Deprecated
-    public static final WrapperTDigestArrays INSTANCE = new WrapperTDigestArrays(new NoopCircuitBreaker("default-wrapper-tdigest-arrays"));
+    public static final MemoryTrackingTDigestArrays INSTANCE = new MemoryTrackingTDigestArrays(new NoopCircuitBreaker("default-wrapper-tdigest-arrays"));
 
     private final CircuitBreaker breaker;
 
-    public WrapperTDigestArrays(CircuitBreaker breaker) {
+    public MemoryTrackingTDigestArrays(CircuitBreaker breaker) {
         this.breaker = breaker;
     }
 
@@ -193,6 +193,7 @@ public class WrapperTDigestArrays implements TDigestArrays {
         @Override
         public void ensureCapacity(int requiredCapacity) {
             if (requiredCapacity > array.length) {
+                // Increase of 50% of the size, mimicking ArrayList behavior
                 int newSize = array.length + (array.length >> 1);
                 if (newSize < requiredCapacity) {
                     newSize = requiredCapacity;

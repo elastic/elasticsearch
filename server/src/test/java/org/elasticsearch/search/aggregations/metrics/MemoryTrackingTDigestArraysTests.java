@@ -18,7 +18,7 @@ import org.elasticsearch.test.ESTestCase;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-public class WrapperTDigestArraysTests extends ESTestCase {
+public class MemoryTrackingTDigestArraysTests extends ESTestCase {
     public void testIntEmpty() {
         try (TDigestIntArray array = intArray(0)) {
             assertThat(array.size(), equalTo(0));
@@ -152,6 +152,6 @@ public class WrapperTDigestArraysTests extends ESTestCase {
     }
 
     private TDigestArrays arrays() {
-        return new WrapperTDigestArrays(newLimitedBreaker(ByteSizeValue.ofMb(100)));
+        return new MemoryTrackingTDigestArrays(newLimitedBreaker(ByteSizeValue.ofMb(100)));
     }
 }

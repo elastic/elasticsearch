@@ -22,7 +22,7 @@
 package org.elasticsearch.benchmark.tdigest;
 
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.search.aggregations.metrics.WrapperTDigestArrays;
+import org.elasticsearch.search.aggregations.metrics.MemoryTrackingTDigestArrays;
 import org.elasticsearch.tdigest.MergingDigest;
 import org.elasticsearch.tdigest.TDigest;
 import org.elasticsearch.tdigest.arrays.TDigestArrays;
@@ -58,7 +58,7 @@ import java.util.function.Supplier;
 @Threads(1)
 @State(Scope.Thread)
 public class TDigestBench {
-    private static final TDigestArrays arrays = new WrapperTDigestArrays(new NoopCircuitBreaker("default-wrapper-tdigest-arrays"));
+    private static final TDigestArrays arrays = new MemoryTrackingTDigestArrays(new NoopCircuitBreaker("default-wrapper-tdigest-arrays"));
 
     public enum TDigestFactory {
         MERGE {

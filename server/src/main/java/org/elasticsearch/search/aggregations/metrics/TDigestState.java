@@ -55,7 +55,7 @@ public class TDigestState implements Releasable {
      */
     @Deprecated
     public static TDigestState create(double compression) {
-        return create(WrapperTDigestArrays.INSTANCE, compression);
+        return create(MemoryTrackingTDigestArrays.INSTANCE, compression);
     }
 
     /**
@@ -82,7 +82,7 @@ public class TDigestState implements Releasable {
      */
     @Deprecated
     public static TDigestState create(double compression, TDigestExecutionHint executionHint) {
-        return create(WrapperTDigestArrays.INSTANCE, compression, executionHint);
+        return create(MemoryTrackingTDigestArrays.INSTANCE, compression, executionHint);
     }
 
     /**
@@ -107,7 +107,7 @@ public class TDigestState implements Releasable {
      * @return a TDigestState object
      */
     public static TDigestState createUsingParamsFrom(TDigestState state) {
-        return new TDigestState(WrapperTDigestArrays.INSTANCE, state.type, state.compression);
+        return new TDigestState(MemoryTrackingTDigestArrays.INSTANCE, state.type, state.compression);
     }
 
     protected TDigestState(TDigestArrays arrays, Type type, double compression) {
@@ -144,7 +144,7 @@ public class TDigestState implements Releasable {
      */
     @Deprecated
     public static TDigestState read(StreamInput in) throws IOException {
-        return read(WrapperTDigestArrays.INSTANCE, in);
+        return read(MemoryTrackingTDigestArrays.INSTANCE, in);
     }
 
     public static TDigestState read(TDigestArrays arrays, StreamInput in) throws IOException {

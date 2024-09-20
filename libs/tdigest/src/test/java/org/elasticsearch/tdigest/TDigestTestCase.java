@@ -24,7 +24,7 @@ package org.elasticsearch.tdigest;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.search.aggregations.metrics.WrapperTDigestArrays;
+import org.elasticsearch.search.aggregations.metrics.MemoryTrackingTDigestArrays;
 import org.elasticsearch.tdigest.arrays.TDigestArrays;
 import org.elasticsearch.tdigest.arrays.TDigestByteArray;
 import org.elasticsearch.tdigest.arrays.TDigestDoubleArray;
@@ -44,7 +44,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * </p>
  */
 public abstract class TDigestTestCase extends ESTestCase {
-    private final Collection<Releasable> CREATED_ARRAYS = ConcurrentHashMap.newKeySet();
+    private final Collection<Releasable> trackedArrays = ConcurrentHashMap.newKeySet();
 
     /**
      * Create a new TDigestArrays instance with a limited breaker. This method may be called multiple times.
@@ -62,20 +62,20 @@ public abstract class TDigestTestCase extends ESTestCase {
      */
     @After
     public void releaseArrays() {
-        Releasables.close(CREATED_ARRAYS);
-        CREATED_ARRAYS.clear();
+        Releasables.close(trackedArrays);
+        trackedArrays.clear();
     }
 
     private <T extends Releasable> T register(T releasable) {
-        CREATED_ARRAYS.add(releasable);
+        trackedArrays.add(releasable);
         return releasable;
     }
 
     protected final class DelegatingTDigestArrays implements TDigestArrays {
-        private final WrapperTDigestArrays delegate;
+        private final MemoryTrackingTDigestArrays delegate;
 
         DelegatingTDigestArrays() {
-            this.delegate = new WrapperTDigestArrays(newLimitedBreaker(ByteSizeValue.ofMb(100)));
+            this.delegate = new MemoryTrackingTDigestArrays(newLimitedBreaker(ByteSizeValue.ofMb(100)));
         }
 
         public TDigestDoubleArray newDoubleArray(double[] data) {

@@ -162,12 +162,14 @@ public final class Netty4WriteThrottlingHandler extends ChannelDuplexHandler {
         final boolean startedActivity = threadWatchdogActivityTracker.maybeStartActivity();
         try {
             doFlush(ctx);
-            super.channelInactive(ctx);
         } finally {
             if (startedActivity) {
                 threadWatchdogActivityTracker.stopActivity();
             }
         }
+
+        // super.channelInactive() can trigger reads which are tracked separately (and are not re-entrant) so no activity tracking here
+        super.channelInactive(ctx);
     }
 
     private boolean doFlush(ChannelHandlerContext ctx) {

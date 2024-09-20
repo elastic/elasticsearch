@@ -37,10 +37,7 @@ public interface HttpPreRequest {
      * The uri without the query string.
      */
     default String rawPath() {
-        return extractPathFromUri(uri());
-    }
-
-    static String extractPathFromUri(String uri) {
+        String uri = uri();
         final int index = uri.indexOf('?');
         if (index >= 0) {
             return uri.substring(0, index);

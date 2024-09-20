@@ -171,7 +171,13 @@ public class EsqlCapabilities {
         /**
          * Changed error messages for fields with conflicting types in different indices.
          */
-        SHORT_ERROR_MESSAGES_FOR_UNSUPPORTED_FIELDS;
+        SHORT_ERROR_MESSAGES_FOR_UNSUPPORTED_FIELDS,
+
+        /**
+         * Don't optimize CASE IS NOT NULL function by not requiring the fields to be not null as well.
+         * https://github.com/elastic/elasticsearch/issues/112704
+         */
+        FIXED_WRONG_IS_NOT_NULL_CHECK_ON_CASE;
 
         private final boolean snapshotOnly;
 

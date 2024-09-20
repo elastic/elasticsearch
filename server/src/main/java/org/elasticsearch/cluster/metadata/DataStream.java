@@ -128,7 +128,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         boolean allowCustomRouting,
         IndexMode indexMode,
         DataStreamLifecycle lifecycle,
-        DataStreamOptions dataStreamOptions,
+        @Nullable DataStreamOptions dataStreamOptions,
         List<Index> failureIndices,
         boolean rolloverOnWrite,
         @Nullable DataStreamAutoShardingEvent autoShardingEvent
@@ -177,7 +177,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         this.allowCustomRouting = allowCustomRouting;
         this.indexMode = indexMode;
         this.lifecycle = lifecycle;
-        this.dataStreamOptions = dataStreamOptions;
+        this.dataStreamOptions = dataStreamOptions == null ? DataStreamOptions.EMPTY : dataStreamOptions;
         assert backingIndices.indices.isEmpty() == false;
         assert replicated == false || (backingIndices.rolloverOnWrite == false && failureIndices.rolloverOnWrite == false)
             : "replicated data streams cannot be marked for lazy rollover";
@@ -215,11 +215,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         }
         DataStreamOptions dataStreamOptions;
         if (in.getTransportVersion().onOrAfter(TransportVersions.ADD_DATA_STREAM_OPTIONS)) {
-            dataStreamOptions = DataStreamOptions.read(in);
+            dataStreamOptions = in.readOptionalWriteable(DataStreamOptions::read);
         } else {
             // We cannot distinguish if failure store was explicitly disabled or not. Given that failure store
             // is still behind a feature flag in previous version we use the default value instead of explicitly disabling it.
-            dataStreamOptions = failureStoreEnabled ? DataStreamOptions.FAILURE_STORE_ENABLED : DataStreamOptions.EMPTY;
+            dataStreamOptions = failureStoreEnabled ? DataStreamOptions.FAILURE_STORE_ENABLED : null;
         }
         return new DataStream(
             name,
@@ -1082,7 +1082,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             out.writeOptionalWriteable(failureIndices.autoShardingEvent);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.ADD_DATA_STREAM_OPTIONS)) {
-            dataStreamOptions.writeTo(out);
+            out.writeOptionalWriteable(DataStreamOptions.EMPTY.equals(dataStreamOptions) ? null : dataStreamOptions);
         }
     }
 
@@ -1103,7 +1103,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final ParseField AUTO_SHARDING_FIELD = new ParseField("auto_sharding");
     public static final ParseField FAILURE_ROLLOVER_ON_WRITE_FIELD = new ParseField("failure_rollover_on_write");
     public static final ParseField FAILURE_AUTO_SHARDING_FIELD = new ParseField("failure_auto_sharding");
-    public static final ParseField DATA_STREAM_OPTIONS_FIELD = new ParseField("options");
+    public static final ParseField DATA_STREAM_OPTIONS_FIELD = new ParseField("data_stream_options");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream", args -> {
@@ -1240,8 +1240,10 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
                 failureIndices.autoShardingEvent.toXContent(builder, params);
                 builder.endObject();
             }
-            builder.field(DATA_STREAM_OPTIONS_FIELD.getPreferredName());
-            dataStreamOptions.toXContent(builder, params);
+            if (DataStreamOptions.EMPTY.equals(dataStreamOptions)) {
+                builder.field(DATA_STREAM_OPTIONS_FIELD.getPreferredName());
+                dataStreamOptions.toXContent(builder, params);
+            }
         }
         if (indexMode != null) {
             builder.field(INDEX_MODE.getPreferredName(), indexMode);

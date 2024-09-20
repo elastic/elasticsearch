@@ -195,8 +195,9 @@ public interface RestHandler {
             }
 
             /**
-             * Marks that the route being built has been deprecated (for some reason -- the deprecationMessage), and notes the major
-             * version in which that deprecation occurred.
+             * Marks that the route being built has been deprecated (for some reason -- the deprecationMessage) for removal. Notes the last
+             * major version in which the path is fully supported without compatibility headers. If this path is being replaced by another
+             * then use {@link #replaces(Method, String, RestApiVersion)} instead.
              * <p>
              * For example:
              * <pre> {@code
@@ -205,41 +206,21 @@ public interface RestHandler {
              *  .build()}</pre>
              *
              * @param deprecationMessage the user-visible explanation of this deprecation
-             * @param deprecatedInVersion the major version in which the deprecation occurred
+             * @param lastFullySupportedVersion the last {@link RestApiVersion} (i.e. 7) for which this route is fully supported.
+             *                                  The next major version (i.e. 8) will require compatibility header(s). (;compatible-with=7)
+             *                                  The next major version (i.e. 9) will have no support whatsoever for this route.
              * @return a reference to this object.
              */
-            public RouteBuilder deprecated(String deprecationMessage, RestApiVersion deprecatedInVersion) {
+            public RouteBuilder deprecated(String deprecationMessage, RestApiVersion lastFullySupportedVersion) {
                 assert this.replacedRoute == null;
-                this.restApiVersion = Objects.requireNonNull(deprecatedInVersion);
+                this.restApiVersion = Objects.requireNonNull(lastFullySupportedVersion);
                 this.deprecationMessage = Objects.requireNonNull(deprecationMessage);
                 return this;
             }
 
             /**
-             * Marks that the route being built has been deprecated (for some reason -- the deprecationMessage), and notes the major
-             * version in which that deprecation occurred.
-             * <p>
-             * For example:
-             * <pre> {@code
-             * Route.builder(GET, "_upgrade")
-             *  .deprecated("The _upgrade API is no longer useful and will be removed.", RestApiVersion.V_7)
-             *  .build()}</pre>
-             *
-             * @param deprecationMessage the user-visible explanation of this deprecation
-             * @param deprecationLevel the level at which to log the deprecation
-             * @param deprecatedInVersion the major version in which the deprecation occurred
-             * @return a reference to this object.
-             */
-            public RouteBuilder deprecated(String deprecationMessage, Level deprecationLevel, RestApiVersion deprecatedInVersion) {
-                assert this.replacedRoute == null;
-                this.restApiVersion = Objects.requireNonNull(deprecatedInVersion);
-                this.deprecationMessage = Objects.requireNonNull(deprecationMessage);
-                this.deprecationLevel = deprecationLevel;
-                return this;
-            }
-
-            /**
-             * Marks that the route being built replaces another route, and notes the major version in which that replacement occurred.
+             * Marks that the route being built replaces another route, and notes the last major version in which the path is fully
+             * supported without compatibility headers.
              * <p>
              * For example:
              * <pre> {@code
@@ -248,12 +229,34 @@ public interface RestHandler {
              *
              * @param method the method being replaced
              * @param path the path being replaced
-             * @param replacedInVersion the major version in which the replacement occurred
+             * @param lastFullySupportedVersion the last {@link RestApiVersion} (i.e. 7) for which this route is fully supported.
+             *                                  The next major version (i.e. 8) will require compatibility header(s). (;compatible-with=7)
+             *                                  The next major version (i.e. 9) will have no support whatsoever for this route.
              * @return a reference to this object.
              */
-            public RouteBuilder replaces(Method method, String path, RestApiVersion replacedInVersion) {
+            public RouteBuilder replaces(Method method, String path, RestApiVersion lastFullySupportedVersion) {
                 assert this.deprecationMessage == null;
-                this.replacedRoute = new Route(method, path, replacedInVersion, null, null, null);
+                this.replacedRoute = new Route(method, path, lastFullySupportedVersion, null, null, null);
+                return this;
+            }
+
+            /**
+             * Marks that the route being built has been deprecated (for some reason -- the deprecationMessage), but will not be removed.
+             * <p>
+             * For example:
+             * <pre> {@code
+             * Route.builder(GET, "_upgrade")
+             *  .deprecated("The _upgrade API is no longer useful but will not be removed.")
+             *  .build()}</pre>
+             *
+             * @param deprecationMessage the user-visible explanation of this deprecation
+             * @return a reference to this object.
+             */
+            public RouteBuilder deprecateAndKeep(String deprecationMessage) {
+                assert this.replacedRoute == null;
+                this.restApiVersion = RestApiVersion.current();
+                this.deprecationMessage = Objects.requireNonNull(deprecationMessage);
+                this.deprecationLevel = Level.WARN;
                 return this;
             }
 

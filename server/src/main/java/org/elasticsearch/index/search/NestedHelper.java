@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.search;
 
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
@@ -20,10 +19,8 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 
@@ -55,10 +52,9 @@ public final class NestedHelper {
             // We only handle term(s) queries and range queries, which should already
             // cover a high majority of use-cases
             return mightMatchNestedDocs(((TermQuery) query).getTerm().field());
-        } else if (query instanceof TermInSetQuery) {
-            Term term = getTermInSetTerm((TermInSetQuery) query);
-            if (term != null) {
-                return mightMatchNestedDocs(term.field());
+        } else if (query instanceof TermInSetQuery tis) {
+            if (tis.getTermsCount() > 0) {
+                return mightMatchNestedDocs(tis.getField());
             } else {
                 return false;
             }
@@ -118,10 +114,9 @@ public final class NestedHelper {
             return false;
         } else if (query instanceof TermQuery) {
             return mightMatchNonNestedDocs(((TermQuery) query).getTerm().field(), nestedPath);
-        } else if (query instanceof TermInSetQuery) {
-            Term term = getTermInSetTerm((TermInSetQuery) query);
-            if (term != null) {
-                return mightMatchNonNestedDocs(term.field(), nestedPath);
+        } else if (query instanceof TermInSetQuery tis) {
+            if (tis.getTermsCount() > 0) {
+                return mightMatchNonNestedDocs(tis.getField(), nestedPath);
             } else {
                 return false;
             }
@@ -175,19 +170,5 @@ public final class NestedHelper {
             return nestedMapper.isIncludeInParent() || nestedMapper.isIncludeInRoot();
         }
         return true;
-    }
-
-    public static Term getTermInSetTerm(TermInSetQuery tisQuery) {
-        if (tisQuery.getTermsCount() == 1) {
-            final SetOnce<Term> collectedTerm = new SetOnce<>();
-            tisQuery.visit(new QueryVisitor() {
-                @Override
-                public void consumeTerms(Query query, Term... terms) {
-                    collectedTerm.set(terms[0]);
-                }
-            });
-            return collectedTerm.get();
-        }
-        return null;
     }
 }

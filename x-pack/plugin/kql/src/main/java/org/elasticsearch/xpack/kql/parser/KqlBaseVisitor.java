@@ -76,11 +76,11 @@ interface KqlBaseVisitor<T> extends ParseTreeVisitor<T> {
      */
     T visitFieldTermQuery(KqlBaseParser.FieldTermQueryContext ctx);
     /**
-     * Visit a parse tree produced by {@link KqlBaseParser#term}.
+     * Visit a parse tree produced by {@link KqlBaseParser#termValue}.
      * @param ctx the parse tree
      * @return the visitor result
      */
-    T visitTerm(KqlBaseParser.TermContext ctx);
+    T visitTermValue(KqlBaseParser.TermValueContext ctx);
     /**
      * Visit a parse tree produced by {@link KqlBaseParser#groupingExpr}.
      * @param ctx the parse tree

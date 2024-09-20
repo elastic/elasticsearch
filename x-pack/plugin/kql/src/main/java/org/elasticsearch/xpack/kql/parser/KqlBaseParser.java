@@ -17,32 +17,32 @@ class KqlBaseParser extends Parser {
     protected static final PredictionContextCache _sharedContextCache =
         new PredictionContextCache();
     public static final int
-        AND=1, OR=2, NOT=3, LEFT_PARENTHESIS=4, RIGHT_PARENTHESIS=5, LEFT_CURLY_BRACKET=6, 
-        RIGHT_CURLY_BRACKET=7, COLON=8, OP_COMPARE=9, QUOTED=10, NUMBER=11, LITERAL=12, 
-        DEFAULT_SKIP=13;
+        DEFAULT_SKIP=1, AND=2, OR=3, NOT=4, COLON=5, OP_COMPARE=6, LEFT_PARENTHESIS=7, 
+        RIGHT_PARENTHESIS=8, LEFT_CURLY_BRACKET=9, RIGHT_CURLY_BRACKET=10, UNQUOTED_LITERAL=11, 
+        QUOTED_STRING=12, LITERAL=13;
     public static final int
         RULE_topLevelQuery = 0, RULE_query = 1, RULE_expression = 2, RULE_nestedQuery = 3, 
-        RULE_fieldRangeQuery = 4, RULE_fieldTermQuery = 5, RULE_term = 6, RULE_groupingExpr = 7, 
-        RULE_fieldName = 8;
+        RULE_fieldRangeQuery = 4, RULE_fieldTermQuery = 5, RULE_termValue = 6, 
+        RULE_groupingExpr = 7, RULE_fieldName = 8;
     private static String[] makeRuleNames() {
         return new String[] {
             "topLevelQuery", "query", "expression", "nestedQuery", "fieldRangeQuery", 
-            "fieldTermQuery", "term", "groupingExpr", "fieldName"
+            "fieldTermQuery", "termValue", "groupingExpr", "fieldName"
         };
     }
     public static final String[] ruleNames = makeRuleNames();
 
     private static String[] makeLiteralNames() {
         return new String[] {
-            null, null, null, null, "'('", "')'", "'{'", "'}'", "':'"
+            null, null, null, null, null, "':'", null, "'('", "')'", "'{'", "'}'"
         };
     }
     private static final String[] _LITERAL_NAMES = makeLiteralNames();
     private static String[] makeSymbolicNames() {
         return new String[] {
-            null, "AND", "OR", "NOT", "LEFT_PARENTHESIS", "RIGHT_PARENTHESIS", "LEFT_CURLY_BRACKET", 
-            "RIGHT_CURLY_BRACKET", "COLON", "OP_COMPARE", "QUOTED", "NUMBER", "LITERAL", 
-            "DEFAULT_SKIP"
+            null, "DEFAULT_SKIP", "AND", "OR", "NOT", "COLON", "OP_COMPARE", "LEFT_PARENTHESIS", 
+            "RIGHT_PARENTHESIS", "LEFT_CURLY_BRACKET", "RIGHT_CURLY_BRACKET", "UNQUOTED_LITERAL", 
+            "QUOTED_STRING", "LITERAL"
         };
     }
     private static final String[] _SYMBOLIC_NAMES = makeSymbolicNames();
@@ -516,8 +516,8 @@ class KqlBaseParser extends Parser {
         public FieldNameContext fieldName() {
             return getRuleContext(FieldNameContext.class,0);
         }
-        public TermContext term() {
-            return getRuleContext(TermContext.class,0);
+        public TermValueContext termValue() {
+            return getRuleContext(TermValueContext.class,0);
         }
         public TerminalNode OP_COMPARE() { return getToken(KqlBaseParser.OP_COMPARE, 0); }
         public FieldRangeQueryContext(ParserRuleContext parent, int invokingState) {
@@ -550,7 +550,7 @@ class KqlBaseParser extends Parser {
             setState(54);
             ((FieldRangeQueryContext)_localctx).operator = match(OP_COMPARE);
             setState(55);
-            term();
+            termValue();
             }
         }
         catch (RecognitionException re) {
@@ -573,11 +573,11 @@ class KqlBaseParser extends Parser {
             return getRuleContext(FieldNameContext.class,0);
         }
         public TerminalNode COLON() { return getToken(KqlBaseParser.COLON, 0); }
-        public List<TermContext> term() {
-            return getRuleContexts(TermContext.class);
+        public List<TermValueContext> termValue() {
+            return getRuleContexts(TermValueContext.class);
         }
-        public TermContext term(int i) {
-            return getRuleContext(TermContext.class,i);
+        public TermValueContext termValue(int i) {
+            return getRuleContext(TermValueContext.class,i);
         }
         public FieldTermQueryContext(ParserRuleContext parent, int invokingState) {
             super(parent, invokingState);
@@ -622,9 +622,8 @@ class KqlBaseParser extends Parser {
             setState(68);
             _errHandler.sync(this);
             switch (_input.LA(1)) {
-            case QUOTED:
-            case NUMBER:
-            case LITERAL:
+            case UNQUOTED_LITERAL:
+            case QUOTED_STRING:
                 {
                 setState(63); 
                 _errHandler.sync(this);
@@ -635,7 +634,7 @@ class KqlBaseParser extends Parser {
                         {
                         {
                         setState(62);
-                        term();
+                        termValue();
                         }
                         }
                         break;
@@ -671,39 +670,38 @@ class KqlBaseParser extends Parser {
     }
 
     @SuppressWarnings("CheckReturnValue")
-    public static class TermContext extends ParserRuleContext {
-        public TerminalNode QUOTED() { return getToken(KqlBaseParser.QUOTED, 0); }
-        public TerminalNode NUMBER() { return getToken(KqlBaseParser.NUMBER, 0); }
-        public TerminalNode LITERAL() { return getToken(KqlBaseParser.LITERAL, 0); }
-        public TermContext(ParserRuleContext parent, int invokingState) {
+    public static class TermValueContext extends ParserRuleContext {
+        public TerminalNode QUOTED_STRING() { return getToken(KqlBaseParser.QUOTED_STRING, 0); }
+        public TerminalNode UNQUOTED_LITERAL() { return getToken(KqlBaseParser.UNQUOTED_LITERAL, 0); }
+        public TermValueContext(ParserRuleContext parent, int invokingState) {
             super(parent, invokingState);
         }
-        @Override public int getRuleIndex() { return RULE_term; }
+        @Override public int getRuleIndex() { return RULE_termValue; }
         @Override
         public void enterRule(ParseTreeListener listener) {
-            if ( listener instanceof KqlBaseListener ) ((KqlBaseListener)listener).enterTerm(this);
+            if ( listener instanceof KqlBaseListener ) ((KqlBaseListener)listener).enterTermValue(this);
         }
         @Override
         public void exitRule(ParseTreeListener listener) {
-            if ( listener instanceof KqlBaseListener ) ((KqlBaseListener)listener).exitTerm(this);
+            if ( listener instanceof KqlBaseListener ) ((KqlBaseListener)listener).exitTermValue(this);
         }
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-            if ( visitor instanceof KqlBaseVisitor ) return ((KqlBaseVisitor<? extends T>)visitor).visitTerm(this);
+            if ( visitor instanceof KqlBaseVisitor ) return ((KqlBaseVisitor<? extends T>)visitor).visitTermValue(this);
             else return visitor.visitChildren(this);
         }
     }
 
-    public final TermContext term() throws RecognitionException {
-        TermContext _localctx = new TermContext(_ctx, getState());
-        enterRule(_localctx, 12, RULE_term);
+    public final TermValueContext termValue() throws RecognitionException {
+        TermValueContext _localctx = new TermValueContext(_ctx, getState());
+        enterRule(_localctx, 12, RULE_termValue);
         int _la;
         try {
             enterOuterAlt(_localctx, 1);
             {
             setState(70);
             _la = _input.LA(1);
-            if ( !((((_la) & ~0x3f) == 0 && ((1L << _la) & 7168L) != 0)) ) {
+            if ( !(_la==UNQUOTED_LITERAL || _la==QUOTED_STRING) ) {
             _errHandler.recoverInline(this);
             }
             else {
@@ -728,11 +726,11 @@ class KqlBaseParser extends Parser {
     public static class GroupingExprContext extends ParserRuleContext {
         public TerminalNode LEFT_PARENTHESIS() { return getToken(KqlBaseParser.LEFT_PARENTHESIS, 0); }
         public TerminalNode RIGHT_PARENTHESIS() { return getToken(KqlBaseParser.RIGHT_PARENTHESIS, 0); }
-        public List<TermContext> term() {
-            return getRuleContexts(TermContext.class);
+        public List<TermValueContext> termValue() {
+            return getRuleContexts(TermValueContext.class);
         }
-        public TermContext term(int i) {
-            return getRuleContext(TermContext.class,i);
+        public TermValueContext termValue(int i) {
+            return getRuleContext(TermValueContext.class,i);
         }
         public GroupingExprContext(ParserRuleContext parent, int invokingState) {
             super(parent, invokingState);
@@ -769,13 +767,13 @@ class KqlBaseParser extends Parser {
                 {
                 {
                 setState(73);
-                term();
+                termValue();
                 }
                 }
                 setState(76); 
                 _errHandler.sync(this);
                 _la = _input.LA(1);
-            } while ( (((_la) & ~0x3f) == 0 && ((1L << _la) & 7168L) != 0) );
+            } while ( _la==UNQUOTED_LITERAL || _la==QUOTED_STRING );
             setState(78);
             match(RIGHT_PARENTHESIS);
             }
@@ -793,7 +791,8 @@ class KqlBaseParser extends Parser {
 
     @SuppressWarnings("CheckReturnValue")
     public static class FieldNameContext extends ParserRuleContext {
-        public TerminalNode LITERAL() { return getToken(KqlBaseParser.LITERAL, 0); }
+        public TerminalNode QUOTED_STRING() { return getToken(KqlBaseParser.QUOTED_STRING, 0); }
+        public TerminalNode UNQUOTED_LITERAL() { return getToken(KqlBaseParser.UNQUOTED_LITERAL, 0); }
         public FieldNameContext(ParserRuleContext parent, int invokingState) {
             super(parent, invokingState);
         }
@@ -816,11 +815,20 @@ class KqlBaseParser extends Parser {
     public final FieldNameContext fieldName() throws RecognitionException {
         FieldNameContext _localctx = new FieldNameContext(_ctx, getState());
         enterRule(_localctx, 16, RULE_fieldName);
+        int _la;
         try {
             enterOuterAlt(_localctx, 1);
             {
             setState(80);
-            match(LITERAL);
+            _la = _input.LA(1);
+            if ( !(_la==UNQUOTED_LITERAL || _la==QUOTED_STRING) ) {
+            _errHandler.recoverInline(this);
+            }
+            else {
+                if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
+                _errHandler.reportMatch(this);
+                consume();
+            }
             }
         }
         catch (RecognitionException re) {
@@ -866,39 +874,39 @@ class KqlBaseParser extends Parser {
         "\u0001\u0005\u0003\u0005E\b\u0005\u0001\u0006\u0001\u0006\u0001\u0007"+
         "\u0001\u0007\u0004\u0007K\b\u0007\u000b\u0007\f\u0007L\u0001\u0007\u0001"+
         "\u0007\u0001\b\u0001\b\u0001\b\u0000\u0001\u0002\t\u0000\u0002\u0004\u0006"+
-        "\b\n\f\u000e\u0010\u0000\u0001\u0001\u0000\n\fS\u0000\u0012\u0001\u0000"+
-        "\u0000\u0000\u0002\u001e\u0001\u0000\u0000\u0000\u0004-\u0001\u0000\u0000"+
-        "\u0000\u0006/\u0001\u0000\u0000\u0000\b5\u0001\u0000\u0000\u0000\n<\u0001"+
-        "\u0000\u0000\u0000\fF\u0001\u0000\u0000\u0000\u000eH\u0001\u0000\u0000"+
-        "\u0000\u0010P\u0001\u0000\u0000\u0000\u0012\u0013\u0003\u0002\u0001\u0000"+
-        "\u0013\u0014\u0005\u0000\u0000\u0001\u0014\u0001\u0001\u0000\u0000\u0000"+
-        "\u0015\u0016\u0006\u0001\uffff\uffff\u0000\u0016\u0017\u0005\u0003\u0000"+
-        "\u0000\u0017\u001f\u0003\u0002\u0001\u0004\u0018\u001f\u0003\u0006\u0003"+
-        "\u0000\u0019\u001f\u0003\u0004\u0002\u0000\u001a\u001b\u0005\u0004\u0000"+
-        "\u0000\u001b\u001c\u0003\u0002\u0001\u0000\u001c\u001d\u0005\u0005\u0000"+
+        "\b\n\f\u000e\u0010\u0000\u0001\u0001\u0000\u000b\fS\u0000\u0012\u0001"+
+        "\u0000\u0000\u0000\u0002\u001e\u0001\u0000\u0000\u0000\u0004-\u0001\u0000"+
+        "\u0000\u0000\u0006/\u0001\u0000\u0000\u0000\b5\u0001\u0000\u0000\u0000"+
+        "\n<\u0001\u0000\u0000\u0000\fF\u0001\u0000\u0000\u0000\u000eH\u0001\u0000"+
+        "\u0000\u0000\u0010P\u0001\u0000\u0000\u0000\u0012\u0013\u0003\u0002\u0001"+
+        "\u0000\u0013\u0014\u0005\u0000\u0000\u0001\u0014\u0001\u0001\u0000\u0000"+
+        "\u0000\u0015\u0016\u0006\u0001\uffff\uffff\u0000\u0016\u0017\u0005\u0004"+
+        "\u0000\u0000\u0017\u001f\u0003\u0002\u0001\u0004\u0018\u001f\u0003\u0006"+
+        "\u0003\u0000\u0019\u001f\u0003\u0004\u0002\u0000\u001a\u001b\u0005\u0007"+
+        "\u0000\u0000\u001b\u001c\u0003\u0002\u0001\u0000\u001c\u001d\u0005\b\u0000"+
         "\u0000\u001d\u001f\u0001\u0000\u0000\u0000\u001e\u0015\u0001\u0000\u0000"+
         "\u0000\u001e\u0018\u0001\u0000\u0000\u0000\u001e\u0019\u0001\u0000\u0000"+
         "\u0000\u001e\u001a\u0001\u0000\u0000\u0000\u001f(\u0001\u0000\u0000\u0000"+
-        " !\n\u0006\u0000\u0000!\"\u0005\u0002\u0000\u0000\"\'\u0003\u0002\u0001"+
-        "\u0007#$\n\u0005\u0000\u0000$%\u0005\u0001\u0000\u0000%\'\u0003\u0002"+
+        " !\n\u0006\u0000\u0000!\"\u0005\u0003\u0000\u0000\"\'\u0003\u0002\u0001"+
+        "\u0007#$\n\u0005\u0000\u0000$%\u0005\u0002\u0000\u0000%\'\u0003\u0002"+
         "\u0001\u0006& \u0001\u0000\u0000\u0000&#\u0001\u0000\u0000\u0000\'*\u0001"+
         "\u0000\u0000\u0000(&\u0001\u0000\u0000\u0000()\u0001\u0000\u0000\u0000"+
         ")\u0003\u0001\u0000\u0000\u0000*(\u0001\u0000\u0000\u0000+.\u0003\n\u0005"+
         "\u0000,.\u0003\b\u0004\u0000-+\u0001\u0000\u0000\u0000-,\u0001\u0000\u0000"+
-        "\u0000.\u0005\u0001\u0000\u0000\u0000/0\u0003\u0010\b\u000001\u0005\b"+
-        "\u0000\u000012\u0005\u0006\u0000\u000023\u0003\u0002\u0001\u000034\u0005"+
-        "\u0007\u0000\u00004\u0007\u0001\u0000\u0000\u000056\u0003\u0010\b\u0000"+
-        "67\u0005\t\u0000\u000078\u0003\f\u0006\u00008\t\u0001\u0000\u0000\u0000"+
-        "9:\u0003\u0010\b\u0000:;\u0005\b\u0000\u0000;=\u0001\u0000\u0000\u0000"+
+        "\u0000.\u0005\u0001\u0000\u0000\u0000/0\u0003\u0010\b\u000001\u0005\u0005"+
+        "\u0000\u000012\u0005\t\u0000\u000023\u0003\u0002\u0001\u000034\u0005\n"+
+        "\u0000\u00004\u0007\u0001\u0000\u0000\u000056\u0003\u0010\b\u000067\u0005"+
+        "\u0006\u0000\u000078\u0003\f\u0006\u00008\t\u0001\u0000\u0000\u00009:"+
+        "\u0003\u0010\b\u0000:;\u0005\u0005\u0000\u0000;=\u0001\u0000\u0000\u0000"+
         "<9\u0001\u0000\u0000\u0000<=\u0001\u0000\u0000\u0000=D\u0001\u0000\u0000"+
         "\u0000>@\u0003\f\u0006\u0000?>\u0001\u0000\u0000\u0000@A\u0001\u0000\u0000"+
         "\u0000A?\u0001\u0000\u0000\u0000AB\u0001\u0000\u0000\u0000BE\u0001\u0000"+
         "\u0000\u0000CE\u0003\u000e\u0007\u0000D?\u0001\u0000\u0000\u0000DC\u0001"+
         "\u0000\u0000\u0000E\u000b\u0001\u0000\u0000\u0000FG\u0007\u0000\u0000"+
-        "\u0000G\r\u0001\u0000\u0000\u0000HJ\u0005\u0004\u0000\u0000IK\u0003\f"+
+        "\u0000G\r\u0001\u0000\u0000\u0000HJ\u0005\u0007\u0000\u0000IK\u0003\f"+
         "\u0006\u0000JI\u0001\u0000\u0000\u0000KL\u0001\u0000\u0000\u0000LJ\u0001"+
         "\u0000\u0000\u0000LM\u0001\u0000\u0000\u0000MN\u0001\u0000\u0000\u0000"+
-        "NO\u0005\u0005\u0000\u0000O\u000f\u0001\u0000\u0000\u0000PQ\u0005\f\u0000"+
+        "NO\u0005\b\u0000\u0000O\u000f\u0001\u0000\u0000\u0000PQ\u0007\u0000\u0000"+
         "\u0000Q\u0011\u0001\u0000\u0000\u0000\b\u001e&(-<ADL";
     public static final ATN _ATN =
         new ATNDeserializer().deserialize(_serializedATN.toCharArray());

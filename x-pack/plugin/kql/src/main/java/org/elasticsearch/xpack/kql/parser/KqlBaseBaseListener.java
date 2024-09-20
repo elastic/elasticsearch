@@ -137,13 +137,13 @@ class KqlBaseBaseListener implements KqlBaseListener {
      *
      * <p>The default implementation does nothing.</p>
      */
-    @Override public void enterTerm(KqlBaseParser.TermContext ctx) { }
+    @Override public void enterTermValue(KqlBaseParser.TermValueContext ctx) { }
     /**
      * {@inheritDoc}
      *
      * <p>The default implementation does nothing.</p>
      */
-    @Override public void exitTerm(KqlBaseParser.TermContext ctx) { }
+    @Override public void exitTermValue(KqlBaseParser.TermValueContext ctx) { }
     /**
      * {@inheritDoc}
      *

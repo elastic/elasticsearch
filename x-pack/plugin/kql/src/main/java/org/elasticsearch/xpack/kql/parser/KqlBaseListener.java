@@ -118,15 +118,15 @@ interface KqlBaseListener extends ParseTreeListener {
      */
     void exitFieldTermQuery(KqlBaseParser.FieldTermQueryContext ctx);
     /**
-     * Enter a parse tree produced by {@link KqlBaseParser#term}.
+     * Enter a parse tree produced by {@link KqlBaseParser#termValue}.
      * @param ctx the parse tree
      */
-    void enterTerm(KqlBaseParser.TermContext ctx);
+    void enterTermValue(KqlBaseParser.TermValueContext ctx);
     /**
-     * Exit a parse tree produced by {@link KqlBaseParser#term}.
+     * Exit a parse tree produced by {@link KqlBaseParser#termValue}.
      * @param ctx the parse tree
      */
-    void exitTerm(KqlBaseParser.TermContext ctx);
+    void exitTermValue(KqlBaseParser.TermValueContext ctx);
     /**
      * Enter a parse tree produced by {@link KqlBaseParser#groupingExpr}.
      * @param ctx the parse tree

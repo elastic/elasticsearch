@@ -88,7 +88,7 @@ class KqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements KqlBa
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
-    @Override public T visitTerm(KqlBaseParser.TermContext ctx) { return visitChildren(ctx); }
+    @Override public T visitTermValue(KqlBaseParser.TermValueContext ctx) { return visitChildren(ctx); }
     /**
      * {@inheritDoc}
      *

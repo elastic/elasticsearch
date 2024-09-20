@@ -81,6 +81,62 @@ retrievers) *only* the query element is allowed.
 [[standard-retriever-example]]
 ==== Example
 
+////
+
+[source,console]
+--------------------------------------------------
+PUT /restaurants
+{
+  "mappings": {
+    "properties": {
+      "region": { "type": "keyword" },
+      "year": { "type": "keyword" }
+    }
+  }
+}
+
+POST /restaurants/_bulk?refresh
+{"index":{}}
+{"region": "Austria", "year": "2019"}
+{"index":{}}
+{"region": "France", "year": "2019"}
+{"index":{}}
+{"region": "Austria", "year": "2020"}
+--------------------------------------------------
+// TESTSETUP
+////
+
+////
+[source,console]
+----
+GET /restaurants/_search
+{
+  "retriever": {
+    "standard": {
+      "query": {
+        "bool": {
+          "should": [
+            {
+              "match": {
+                "region": "Austria" 
+              }
+            }
+          ],
+          "filter": [
+            {
+              "term": {
+                "year": "2019"
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}
+----
+////
+
 [source,js]
 ----
 GET /restaurants/_search
@@ -171,6 +227,48 @@ The parameters `query_vector` and `query_vector_builder` cannot be used together
 [[knn-retriever-example]]
 ==== Example
 
+////
+
+[source,console]
+----
+PUT /my-embeddings
+{
+  "mappings": {
+    "properties": {
+      "vector": {
+        "type": "dense_vector",
+        "dims": 3
+      }
+    }
+  }
+}
+
+POST /my-embeddings/_bulk?refresh
+{"index":{}}
+{"vector": [10, 22, 77]}
+{"index":{}}
+{"vector": [10, 22, 78]}
+{"index":{}}
+{"vector": [10, 22, 79]}
+{"index":{}}
+{"vector": [10, 22, 80]}
+----
+
+GET my-embeddings/_search
+{
+  "retriever": {
+    "knn": { 
+      "field": "vector", 
+      "query_vector": [10, 22, 77], 
+      "k": 10, 
+      "num_candidates": 10
+    }
+  }
+}
+////
+
+
+
 [source,js]
 ----
 GET my-embeddings/_search
@@ -223,9 +321,48 @@ the retriever tree.
 
 A simple hybrid search example (lexical search + dense vector search) combining a `standard` retriever with a `knn` retriever using RRF:
 
+////
+[source,console]
+----
+GET /my-embeddings,restaurants/_search
+{
+  "retriever": {
+    "rrf": { 
+      "retrievers": [
+        {
+          "standard": {
+            "query": {
+              "multi_match": {
+                "query": "Austria",
+                "fields": [
+                  "city",
+                  "region"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "knn": { 
+            "field": "vector",
+            "query_vector": [10, 22, 77],
+            "k": 10,
+            "num_candidates": 10
+          }
+        }
+      ],
+      "rank_constant": 1, 
+      "rank_window_size": 50 
+    }
+  }
+}
+----
+// TEST[continued]
+////
+
 [source,js]
 ----
-GET /restaurants/_search
+GET /restaurants,my-embeddings/_search
 {
   "retriever": {
     "rrf": { <1>
@@ -234,7 +371,7 @@ GET /restaurants/_search
           "standard": { <3>
             "query": {
               "multi_match": {
-                "query": "San Francisco",
+                "query": "Austria",
                 "fields": [
                   "city",
                   "region"

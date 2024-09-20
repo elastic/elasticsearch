@@ -288,6 +288,18 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/113296
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   issue: https://github.com/elastic/elasticsearch/issues/113298
+- class: org.elasticsearch.integration.KibanaUserRoleIntegTests
+  method: testGetIndex
+  issue: https://github.com/elastic/elasticsearch/issues/113311
+- class: org.elasticsearch.packaging.test.WindowsServiceTests
+  method: test81JavaOptsInJvmOptions
+  issue: https://github.com/elastic/elasticsearch/issues/113313
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=esql/50_index_patterns/disjoint_mappings}
+  issue: https://github.com/elastic/elasticsearch/issues/113315
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=wildcard/10_wildcard_basic/Query_string wildcard query}
+  issue: https://github.com/elastic/elasticsearch/issues/113316
 
 # Examples:
 #

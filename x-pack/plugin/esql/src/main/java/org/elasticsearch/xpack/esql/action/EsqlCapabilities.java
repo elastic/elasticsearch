@@ -314,7 +314,12 @@ public class EsqlCapabilities {
         /**
          * Support the "METADATA _score" directive to enable _score column
          */
-        METADATA_SCORE(true);
+        METADATA_SCORE(true),
+
+        /**
+         * QSTR function
+         */
+        QSTR_FUNCTION(true);
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

@@ -697,6 +697,17 @@ public final class IndexSettings {
         Property.IndexSettingDeprecatedInV7AndRemovedInV8
     );
 
+    /**
+     * The `index.mapping.ignore_above` setting defines the maximum length for the content of a field that will be indexed
+     * or stored. If the length of the field’s content exceeds this limit, the field value will be ignored during indexing.
+     * This setting is  useful for `keyword`, `flattened`, and `wildcard` fields where very large values are undesirable.
+     * It allows users to manage the size of indexed data by skipping fields with excessively long content.
+     *
+     * Example usage:
+     * <pre>
+     * "index.mapping.ignore_above": 256
+     * </pre>
+     */
     public static final Setting<Integer> IGNORE_ABOVE_SETTING = Setting.intSetting(
         "index.mapping.ignore_above",
         Integer.MAX_VALUE,

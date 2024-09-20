@@ -7,6 +7,8 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-module org.elasticsearch.pluginclassloader {
-    exports org.elasticsearch.plugins.loader;
+module org.elasticsearch.entitlement.runtime {
+    requires org.elasticsearch.base;
+
+    exports org.elasticsearch.entitlement.runtime.api to org.elasticsearch.entitlement.agent;
 }

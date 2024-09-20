@@ -150,22 +150,25 @@ public final class TypeResolutions {
     }
 
     public static TypeResolution isNotNullAndFoldable(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return isNotNull(e, operationName, paramOrd).and(isFoldable(e, operationName, paramOrd));
-    }
+        TypeResolution resolution = isFoldable(e, operationName, paramOrd);
 
-    public static TypeResolution isNotFoldable(Expression e, String operationName, ParamOrdinal paramOrd) {
-        if (e.foldable()) {
-            return new TypeResolution(
+        if (resolution.unresolved()) {
+            return resolution;
+        }
+
+        if (e.dataType() == DataType.NULL || e.fold() == null) {
+            resolution = new TypeResolution(
                 format(
                     null,
-                    "{}argument of [{}] must be a table column, found constant [{}]",
+                    "{}argument of [{}] cannot be null, received [{}]",
                     paramOrd == null || paramOrd == DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
                     operationName,
                     Expressions.name(e)
                 )
             );
         }
-        return TypeResolution.TYPE_RESOLVED;
+
+        return resolution;
     }
 
     public static TypeResolution isType(

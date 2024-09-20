@@ -18,6 +18,7 @@ import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
@@ -67,6 +68,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -78,6 +80,7 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMo
 
 /**
  * A composite roles store that can retrieve roles from multiple sources.
+ *
  * @see RoleProviders
  */
 public class CompositeRolesStore {
@@ -108,6 +111,37 @@ public class CompositeRolesStore {
     private final Map<String, Role> internalUserRoles;
     private final RestrictedIndices restrictedIndices;
     private final ThreadContext threadContext;
+    private final ExecutorService roleBuildingExecutor;
+
+    // TODO remove me
+    public CompositeRolesStore(
+        Settings settings,
+        RoleProviders roleProviders,
+        NativePrivilegeStore privilegeStore,
+        ThreadContext threadContext,
+        XPackLicenseState licenseState,
+        FieldPermissionsCache fieldPermissionsCache,
+        ApiKeyService apiKeyService,
+        ServiceAccountService serviceAccountService,
+        DocumentSubsetBitsetCache dlsBitsetCache,
+        RestrictedIndices restrictedIndices,
+        Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer
+    ) {
+        this(
+            settings,
+            roleProviders,
+            privilegeStore,
+            threadContext,
+            licenseState,
+            fieldPermissionsCache,
+            apiKeyService,
+            serviceAccountService,
+            dlsBitsetCache,
+            restrictedIndices,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            effectiveRoleDescriptorsConsumer
+        );
+    }
 
     public CompositeRolesStore(
         Settings settings,
@@ -120,6 +154,7 @@ public class CompositeRolesStore {
         ServiceAccountService serviceAccountService,
         DocumentSubsetBitsetCache dlsBitsetCache,
         RestrictedIndices restrictedIndices,
+        ExecutorService roleBuildingExecutor,
         Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer
     ) {
         this.roleProviders = roleProviders;
@@ -181,6 +216,7 @@ public class CompositeRolesStore {
         );
         this.anonymousUser = new AnonymousUser(settings);
         this.threadContext = threadContext;
+        this.roleBuildingExecutor = roleBuildingExecutor;
     }
 
     public void getRoles(Authentication authentication, ActionListener<Tuple<Role, Role>> roleActionListener) {
@@ -278,19 +314,53 @@ public class CompositeRolesStore {
                 } else if (RolesRetrievalResult.SUPERUSER == rolesRetrievalResult) {
                     roleActionListener.onResponse(superuserRole);
                 } else {
-                    buildThenMaybeCacheRole(
-                        roleKey,
-                        rolesRetrievalResult.getRoleDescriptors(),
-                        rolesRetrievalResult.getMissingRoles(),
-                        rolesRetrievalResult.isSuccess(),
-                        invalidationCounter,
-                        ActionListener.wrap(roleActionListener::onResponse, failureHandler)
-                    );
+                    final ActionListener<Role> wrapped = ActionListener.wrap(roleActionListener::onResponse, failureHandler);
+                    if (shouldForkRoleBuilding(rolesRetrievalResult.getRoleDescriptors())) {
+                        roleBuildingExecutor.execute(
+                            ActionRunnable.wrap(
+                                wrapped,
+                                l -> buildThenMaybeCacheRole(
+                                    roleKey,
+                                    rolesRetrievalResult.getRoleDescriptors(),
+                                    rolesRetrievalResult.getMissingRoles(),
+                                    rolesRetrievalResult.isSuccess(),
+                                    invalidationCounter,
+                                    l
+                                )
+                            )
+                        );
+                    } else {
+                        buildThenMaybeCacheRole(
+                            roleKey,
+                            rolesRetrievalResult.getRoleDescriptors(),
+                            rolesRetrievalResult.getMissingRoles(),
+                            rolesRetrievalResult.isSuccess(),
+                            invalidationCounter,
+                            wrapped
+                        );
+                    }
                 }
             }, failureHandler));
         } else {
             roleActionListener.onResponse(existing);
         }
+    }
+
+    /**
+     * Uses heuristics to determine if role building will be expensive and therefore warrants forking.
+     */
+    private boolean shouldForkRoleBuilding(Set<RoleDescriptor> roleDescriptors) {
+        // Large number of role descriptors likely an expensive role to build
+        if (roleDescriptors.size() > 100) {
+            return true;
+        }
+        // Application privilege and FLS/DLS can result in expensive role building
+        for (RoleDescriptor roleDescriptor : roleDescriptors) {
+            if (roleDescriptor.hasApplicationPrivileges() || roleDescriptor.isUsingDocumentLevelOrFieldLevelSecurity()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean includesSuperuserRole(RoleReference roleReference) {
@@ -526,32 +596,24 @@ public class CompositeRolesStore {
         if (applicationPrivilegesMap.isEmpty()) {
             listener.onResponse(builder.build());
         } else {
+            Transports.assertNotTransportThread("expensive application privilege automaton building");
             final Set<String> applicationNames = applicationPrivilegesMap.keySet().stream().map(Tuple::v1).collect(Collectors.toSet());
             final Set<String> applicationPrivilegeNames = applicationPrivilegesMap.values()
                 .stream()
                 .flatMap(Collection::stream)
                 .collect(Collectors.toSet());
-            // TODO hack hack hack
-            privilegeStore.threadPool()
-                .generic()
-                .execute(
-                    ActionRunnable.wrap(
-                        listener,
-                        l -> privilegeStore.getPrivileges(
-                            applicationNames,
-                            applicationPrivilegeNames,
-                            false, // TODO revisit if we should also wait for an available security index here
-                            l.delegateFailureAndWrap((delegate, appPrivileges) -> {
-                                Transports.assertNotTransportThread("expensive automaton building");
-                                applicationPrivilegesMap.forEach(
-                                    (key, names) -> ApplicationPrivilege.get(key.v1(), names, appPrivileges)
-                                        .forEach(priv -> builder.addApplicationPrivilege(priv, key.v2()))
-                                );
-                                delegate.onResponse(builder.build());
-                            })
-                        )
-                    )
-                );
+            privilegeStore.getPrivileges(
+                applicationNames,
+                applicationPrivilegeNames,
+                false, // TODO revisit if we should also wait for an available security index here
+                listener.delegateFailureAndWrap((delegate, appPrivileges) -> {
+                    applicationPrivilegesMap.forEach(
+                        (key, names) -> ApplicationPrivilege.get(key.v1(), names, appPrivileges)
+                            .forEach(priv -> builder.addApplicationPrivilege(priv, key.v2()))
+                    );
+                    delegate.onResponse(builder.build());
+                })
+            );
         }
     }
 

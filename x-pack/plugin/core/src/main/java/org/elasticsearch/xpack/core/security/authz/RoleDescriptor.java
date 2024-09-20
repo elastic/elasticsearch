@@ -272,6 +272,11 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         return this.applicationPrivileges;
     }
 
+    public boolean isUsingDocumentLevelOrFieldLevelSecurity() {
+        return Arrays.stream(indicesPrivileges)
+            .anyMatch(indexPrivilege -> indexPrivilege.isUsingDocumentLevelSecurity() || indexPrivilege.isUsingFieldLevelSecurity());
+    }
+
     public boolean hasClusterPrivileges() {
         return clusterPrivileges.length != 0;
     }

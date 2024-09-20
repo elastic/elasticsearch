@@ -40,7 +40,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
@@ -159,11 +158,6 @@ public class NativePrivilegeStore {
         // timeout of 0 means skip wait attempt entirely
         final boolean waitForAvailableSecurityIndex = false == SECURITY_INDEX_WAIT_TIMEOUT.equals(TimeValue.ZERO);
         getPrivileges(applications, names, waitForAvailableSecurityIndex, listener);
-    }
-
-    // TODO don't do this
-    public ThreadPool threadPool() {
-        return client.threadPool();
     }
 
     public void getPrivileges(

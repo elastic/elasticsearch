@@ -1036,6 +1036,7 @@ public class Security extends Plugin
             serviceAccountService,
             dlsBitsetCache.get(),
             restrictedIndices,
+            threadPool.generic(),
             new DeprecationRoleDescriptorConsumer(clusterService, threadPool)
         );
         systemIndices.getMainIndexManager().addStateListener(allRolesStore::onSecurityIndexStateChange);

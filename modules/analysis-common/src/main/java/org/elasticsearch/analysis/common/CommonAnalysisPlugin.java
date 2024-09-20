@@ -293,6 +293,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         tokenizers.put("simple_pattern", SimplePatternTokenizerFactory::new);
         tokenizers.put("simple_pattern_split", SimplePatternSplitTokenizerFactory::new);
         tokenizers.put("thai", ThaiTokenizerFactory::new);
+        tokenizers.put("ngram", NGramTokenizerFactory::new);
         tokenizers.put("edge_ngram", EdgeNGramTokenizerFactory::new);
         tokenizers.put("char_group", CharGroupTokenizerFactory::new);
         tokenizers.put("classic", ClassicTokenizerFactory::new);

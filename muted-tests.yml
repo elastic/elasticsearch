@@ -215,9 +215,6 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.security.JdbcSqlSpecIT
   method: test {case-functions.testSelectInsertWithLcaseAndLengthWithOrderBy}
   issue: https://github.com/elastic/elasticsearch/issues/112642
-- class: org.elasticsearch.datastreams.logsdb.qa.StandardVersusLogsIndexModeRandomDataChallengeRestIT
-  method: testHistogramAggregation
-  issue: https://github.com/elastic/elasticsearch/issues/113109
 - class: org.elasticsearch.action.admin.cluster.node.stats.NodeStatsTests
   method: testChunking
   issue: https://github.com/elastic/elasticsearch/issues/113139
@@ -262,15 +259,9 @@ tests:
 - class: org.elasticsearch.index.mapper.DoubleRangeFieldMapperTests
   method: testSyntheticSourceKeepAll
   issue: https://github.com/elastic/elasticsearch/issues/113234
-- class: org.elasticsearch.datastreams.logsdb.qa.StandardVersusLogsIndexModeRandomDataChallengeRestIT
-  method: testTermsQuery
-  issue: https://github.com/elastic/elasticsearch/issues/113246
 - class: org.elasticsearch.integration.KibanaUserRoleIntegTests
   method: testGetMappings
   issue: https://github.com/elastic/elasticsearch/issues/113260
-- class: org.elasticsearch.datastreams.logsdb.qa.StandardVersusLogsIndexModeRandomDataChallengeRestIT
-  method: testMatchAllQuery
-  issue: https://github.com/elastic/elasticsearch/issues/113265
 - class: org.elasticsearch.xpack.security.authz.SecurityScrollTests
   method: testSearchAndClearScroll
   issue: https://github.com/elastic/elasticsearch/issues/113285

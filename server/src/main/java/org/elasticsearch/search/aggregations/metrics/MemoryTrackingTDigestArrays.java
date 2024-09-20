@@ -10,12 +10,11 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tdigest.arrays.TDigestArrays;
 import org.elasticsearch.tdigest.arrays.TDigestByteArray;
 import org.elasticsearch.tdigest.arrays.TDigestDoubleArray;
@@ -45,80 +44,60 @@ public class MemoryTrackingTDigestArrays implements TDigestArrays {
     }
 
     @Override
-    public WrapperTDigestDoubleArray newDoubleArray(int initialCapacity) {
-        return validate(new WrapperTDigestDoubleArray(breaker, initialCapacity));
+    public MemoryTrackingTDigestDoubleArray newDoubleArray(int initialSize) {
+        breaker.addEstimateBytesAndMaybeBreak(
+            MemoryTrackingTDigestDoubleArray.estimatedRamBytesUsed(initialSize),
+            "tdigest-new-double-array"
+        );
+        return new MemoryTrackingTDigestDoubleArray(breaker, initialSize);
     }
 
     @Override
-    public WrapperTDigestIntArray newIntArray(int initialSize) {
-        return validate(new WrapperTDigestIntArray(breaker, initialSize));
+    public MemoryTrackingTDigestIntArray newIntArray(int initialSize) {
+        breaker.addEstimateBytesAndMaybeBreak(
+            MemoryTrackingTDigestIntArray.estimatedRamBytesUsed(initialSize),
+            "tdigest-new-int-array"
+        );
+        return new MemoryTrackingTDigestIntArray(breaker, initialSize);
     }
 
     @Override
     public TDigestLongArray newLongArray(int initialSize) {
-        return validate(new WrapperTDigestLongArray(breaker, initialSize));
+        breaker.addEstimateBytesAndMaybeBreak(
+            MemoryTrackingTDigestLongArray.estimatedRamBytesUsed(initialSize),
+            "tdigest-new-long-array"
+        );
+        return new MemoryTrackingTDigestLongArray(breaker, initialSize);
     }
 
     @Override
     public TDigestByteArray newByteArray(int initialSize) {
-        return validate(new WrapperTDigestByteArray(breaker, initialSize));
+        breaker.addEstimateBytesAndMaybeBreak(
+            MemoryTrackingTDigestByteArray.estimatedRamBytesUsed(initialSize),
+            "tdigest-new-byte-array"
+        );
+        return new MemoryTrackingTDigestByteArray(breaker, initialSize);
     }
 
-    public WrapperTDigestDoubleArray newDoubleArray(double[] array) {
-        return validate(new WrapperTDigestDoubleArray(breaker, array));
+    public MemoryTrackingTDigestDoubleArray newDoubleArray(double[] array) {
+        breaker.addWithoutBreaking(MemoryTrackingTDigestDoubleArray.estimatedRamBytesUsed(array.length));
+        return new MemoryTrackingTDigestDoubleArray(breaker, array);
     }
 
-    public WrapperTDigestIntArray newIntArray(int[] array) {
-        return validate(new WrapperTDigestIntArray(breaker, array));
+    public MemoryTrackingTDigestIntArray newIntArray(int[] array) {
+        breaker.addWithoutBreaking(MemoryTrackingTDigestIntArray.estimatedRamBytesUsed(array.length));
+        return new MemoryTrackingTDigestIntArray(breaker, array);
     }
 
-    /**
-     * Safely adjusts the breaker with an array.
-     * <p>
-     *     Copied from {@link org.elasticsearch.common.util.BigArrays}.
-     * </p>
-     */
-    private <T extends Accountable & Releasable> T validate(T array) {
-        boolean success = false;
-        try {
-            adjustBreaker(array.ramBytesUsed());
-            success = true;
-        } finally {
-            if (success == false) {
-                Releasables.closeExpectNoException(array);
-            }
-        }
-        return array;
+    private static int estimatedArraySize(int arrayLength, int bytesPerElement) {
+        return RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + arrayLength * bytesPerElement;
     }
 
-    /**
-     * Adjusts the breaker with the delta for an already created array.
-     * <p>
-     *     Copied from {@link org.elasticsearch.common.util.BigArrays}.
-     * </p>
-     */
-    void adjustBreaker(final long delta) {
-        // checking breaker means potentially tripping, but it doesn't
-        // have to if the delta is negative
-        if (delta > 0) {
-            try {
-                breaker.addEstimateBytesAndMaybeBreak(delta, "tdigest-array-wrapper");
-            } catch (CircuitBreakingException e) {
-                // since we've already created the data, we need to
-                // add it so closing the stream re-adjusts properly
-                breaker.addWithoutBreaking(delta);
-                throw e;
-            }
-        } else {
-            breaker.addWithoutBreaking(delta);
-        }
-    }
-
-    private abstract static class MemoryAwareArray implements Releasable, Accountable {
+    private abstract static class AbstractMemoryTrackingArray implements Releasable, Accountable {
         protected final CircuitBreaker breaker;
         private final AtomicBoolean closed = new AtomicBoolean(false);
 
-        MemoryAwareArray(CircuitBreaker breaker) {
+        AbstractMemoryTrackingArray(CircuitBreaker breaker) {
             this.breaker = breaker;
         }
 
@@ -130,25 +109,29 @@ public class MemoryTrackingTDigestArrays implements TDigestArrays {
         }
     }
 
-    public static class WrapperTDigestDoubleArray extends MemoryAwareArray implements TDigestDoubleArray {
-        static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(WrapperTDigestDoubleArray.class);
+    public static class MemoryTrackingTDigestDoubleArray extends AbstractMemoryTrackingArray implements TDigestDoubleArray {
+        static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(MemoryTrackingTDigestDoubleArray.class);
 
         private double[] array;
         private int size;
 
-        public WrapperTDigestDoubleArray(CircuitBreaker breaker, int initialSize) {
+        public MemoryTrackingTDigestDoubleArray(CircuitBreaker breaker, int initialSize) {
             this(breaker, new double[initialSize]);
         }
 
-        public WrapperTDigestDoubleArray(CircuitBreaker breaker, double[] array) {
+        public MemoryTrackingTDigestDoubleArray(CircuitBreaker breaker, double[] array) {
             super(breaker);
             this.array = array;
             this.size = array.length;
         }
 
+        public static long estimatedRamBytesUsed(int size) {
+            return SHALLOW_SIZE + estimatedArraySize(size, Double.BYTES);
+        }
+
         @Override
         public long ramBytesUsed() {
-            return SHALLOW_SIZE + RamUsageEstimator.sizeOf(array);
+            return estimatedRamBytesUsed(array.length);
         }
 
         @Override
@@ -193,40 +176,49 @@ public class MemoryTrackingTDigestArrays implements TDigestArrays {
         @Override
         public void ensureCapacity(int requiredCapacity) {
             if (requiredCapacity > array.length) {
-                // Increase of 50% of the size, mimicking ArrayList behavior
-                int newSize = array.length + (array.length >> 1);
-                if (newSize < requiredCapacity) {
-                    newSize = requiredCapacity;
-                }
+                double[] oldArray = array;
+                // Used for used bytes assertion
+                long oldRamBytesUsed = ramBytesUsed();
+                long oldArraySize = RamUsageEstimator.sizeOf(oldArray);
+
+                int newSize = ArrayUtil.oversize(requiredCapacity, Double.BYTES);
+                int newArraySize = estimatedArraySize(newSize, Double.BYTES);
+                breaker.addWithoutBreaking(newArraySize);
                 double[] newArray = new double[newSize];
                 System.arraycopy(array, 0, newArray, 0, size);
 
-                long oldRamBytesUsed = ramBytesUsed();
                 array = newArray;
-                breaker.addWithoutBreaking(ramBytesUsed() - oldRamBytesUsed);
+                breaker.addWithoutBreaking(-RamUsageEstimator.sizeOf(oldArray));
+
+                assert ramBytesUsed() - oldRamBytesUsed == newArraySize - oldArraySize
+                    : "ramBytesUsed() should be aligned with manual array calculations";
             }
         }
     }
 
-    public static class WrapperTDigestIntArray extends MemoryAwareArray implements TDigestIntArray {
-        static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(WrapperTDigestIntArray.class);
+    public static class MemoryTrackingTDigestIntArray extends AbstractMemoryTrackingArray implements TDigestIntArray {
+        static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(MemoryTrackingTDigestIntArray.class);
 
         private int[] array;
         private int size;
 
-        public WrapperTDigestIntArray(CircuitBreaker breaker, int initialSize) {
+        public MemoryTrackingTDigestIntArray(CircuitBreaker breaker, int initialSize) {
             this(breaker, new int[initialSize]);
         }
 
-        public WrapperTDigestIntArray(CircuitBreaker breaker, int[] array) {
+        public MemoryTrackingTDigestIntArray(CircuitBreaker breaker, int[] array) {
             super(breaker);
             this.array = array;
             this.size = array.length;
         }
 
+        public static long estimatedRamBytesUsed(int size) {
+            return SHALLOW_SIZE + estimatedArraySize(size, Integer.BYTES);
+        }
+
         @Override
         public long ramBytesUsed() {
-            return SHALLOW_SIZE + RamUsageEstimator.sizeOf(array);
+            return estimatedRamBytesUsed(array.length);
         }
 
         @Override
@@ -260,25 +252,29 @@ public class MemoryTrackingTDigestArrays implements TDigestArrays {
         }
     }
 
-    public static class WrapperTDigestLongArray extends MemoryAwareArray implements TDigestLongArray {
-        static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(WrapperTDigestLongArray.class);
+    public static class MemoryTrackingTDigestLongArray extends AbstractMemoryTrackingArray implements TDigestLongArray {
+        static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(MemoryTrackingTDigestLongArray.class);
 
         private long[] array;
         private int size;
 
-        public WrapperTDigestLongArray(CircuitBreaker breaker, int initialSize) {
+        public MemoryTrackingTDigestLongArray(CircuitBreaker breaker, int initialSize) {
             this(breaker, new long[initialSize]);
         }
 
-        public WrapperTDigestLongArray(CircuitBreaker breaker, long[] array) {
+        public MemoryTrackingTDigestLongArray(CircuitBreaker breaker, long[] array) {
             super(breaker);
             this.array = array;
             this.size = array.length;
         }
 
+        public static long estimatedRamBytesUsed(int size) {
+            return SHALLOW_SIZE + estimatedArraySize(size, Long.BYTES);
+        }
+
         @Override
         public long ramBytesUsed() {
-            return SHALLOW_SIZE + RamUsageEstimator.sizeOf(array);
+            return estimatedRamBytesUsed(array.length);
         }
 
         @Override
@@ -312,25 +308,29 @@ public class MemoryTrackingTDigestArrays implements TDigestArrays {
         }
     }
 
-    public static class WrapperTDigestByteArray extends MemoryAwareArray implements TDigestByteArray {
-        static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(WrapperTDigestByteArray.class);
+    public static class MemoryTrackingTDigestByteArray extends AbstractMemoryTrackingArray implements TDigestByteArray {
+        static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(MemoryTrackingTDigestByteArray.class);
 
         private byte[] array;
         private int size;
 
-        public WrapperTDigestByteArray(CircuitBreaker breaker, int initialSize) {
+        public MemoryTrackingTDigestByteArray(CircuitBreaker breaker, int initialSize) {
             this(breaker, new byte[initialSize]);
         }
 
-        public WrapperTDigestByteArray(CircuitBreaker breaker, byte[] array) {
+        public MemoryTrackingTDigestByteArray(CircuitBreaker breaker, byte[] array) {
             super(breaker);
             this.array = array;
             this.size = array.length;
         }
 
+        public static long estimatedRamBytesUsed(int size) {
+            return SHALLOW_SIZE + estimatedArraySize(size, Byte.BYTES);
+        }
+
         @Override
         public long ramBytesUsed() {
-            return SHALLOW_SIZE + RamUsageEstimator.sizeOf(array);
+            return estimatedRamBytesUsed(array.length);
         }
 
         @Override

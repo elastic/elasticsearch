@@ -79,7 +79,6 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMo
 
 /**
  * A composite roles store that can retrieve roles from multiple sources.
- *
  * @see RoleProviders
  */
 public class CompositeRolesStore {

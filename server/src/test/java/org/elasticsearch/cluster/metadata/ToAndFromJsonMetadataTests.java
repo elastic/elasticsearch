@@ -270,7 +270,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                           "pattern2"
                         ],
                         "settings" : {
-                          "index.version.created" : "8513000"
+                          "index.version.created" : "%s"
                         },
                         "mappings" : {
                           "key1" : { }
@@ -285,7 +285,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 ],
                 "reserved_state" : { }
               }
-            }""", IndexVersion.current(), IndexVersion.current()), Strings.toString(builder));
+            }""", IndexVersion.current(), IndexVersion.current(), IndexVersion.current()), Strings.toString(builder));
     }
 
     public void testToXContentGateway_FlatSettingTrue_ReduceMappingFalse() throws IOException {

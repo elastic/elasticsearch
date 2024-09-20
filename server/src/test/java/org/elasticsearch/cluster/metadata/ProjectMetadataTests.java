@@ -80,249 +80,263 @@ public class ProjectMetadataTests extends ESTestCase {
 
         AbstractChunkedSerializingTestCase.assertChunkCount(projectMetadata, p -> expectedChunkCount(EMPTY_PARAMS, p));
 
-        final BytesArray expected = new BytesArray(Strings.format("""
-            {
-              "templates": {},
-              "indices": {
-                "index-01": {
-                  "version": 1,
-                  "mapping_version": 1,
-                  "settings_version": 1,
-                  "aliases_version": 1,
-                  "routing_num_shards": 1,
-                  "state": "open",
-                  "settings": {
-                    "index": {
-                      "number_of_shards": "1",
-                      "number_of_replicas": "1",
-                      "uuid": "i3e800000001",
-                      "version": {
-                        "created": "%s"
-                      }
-                    }
-                  },
-                  "mappings": {},
-                  "aliases": [
-                    "alias.1"
-                  ],
-                  "primary_terms": {
-                    "0": 0
-                  },
-                  "in_sync_allocations": {
-                    "0": []
-                  },
-                  "rollover_info": {},
-                  "mappings_updated_version": 8513000,
-                  "system": false,
-                  "timestamp_range": {
-                    "shards": []
-                  },
-                  "event_ingested_range": {
-                    "shards": []
-                  }
-                },
-                "index-02": {
-                  "version": 1,
-                  "mapping_version": 1,
-                  "settings_version": 1,
-                  "aliases_version": 1,
-                  "routing_num_shards": 2,
-                  "state": "open",
-                  "settings": {
-                    "index": {
-                      "number_of_shards": "2",
-                      "number_of_replicas": "0",
-                      "uuid": "i7d000000002",
-                      "version": {
-                        "created": "%s"
-                      }
-                    }
-                  },
-                  "mappings": {},
-                  "aliases": [
-                    "alias.2"
-                  ],
-                  "primary_terms": {
-                    "0": 0,
-                    "1": 0
-                  },
-                  "in_sync_allocations": {
-                    "1": [],
-                    "0": []
-                  },
-                  "rollover_info": {},
-                  "mappings_updated_version": 8513000,
-                  "system": false,
-                  "timestamp_range": {
-                    "shards": []
-                  },
-                  "event_ingested_range": {
-                    "shards": []
-                  }
-                },
-                "index-03": {
-                  "version": 1,
-                  "mapping_version": 1,
-                  "settings_version": 1,
-                  "aliases_version": 1,
-                  "routing_num_shards": 3,
-                  "state": "open",
-                  "settings": {
-                    "index": {
-                      "number_of_shards": "3",
-                      "number_of_replicas": "1",
-                      "uuid": "ibb800000003",
-                      "version": {
-                        "created": "%s"
-                      }
-                    }
-                  },
-                  "mappings": {},
-                  "aliases": [
-                    "alias.3"
-                  ],
-                  "primary_terms": {
-                    "0": 0,
-                    "1": 0,
-                    "2": 0
-                  },
-                  "in_sync_allocations": {
-                    "2": [],
-                    "1": [],
-                    "0": []
-                  },
-                  "rollover_info": {},
-                  "mappings_updated_version": 8513000,
-                  "system": false,
-                  "timestamp_range": {
-                    "shards": []
-                  },
-                  "event_ingested_range": {
-                    "shards": []
-                  }
-                },
-                ".ds-logs-ultron-2024.08.30-000001": {
-                  "version": 1,
-                  "mapping_version": 1,
-                  "settings_version": 1,
-                  "aliases_version": 1,
-                  "routing_num_shards": 1,
-                  "state": "open",
-                  "settings": {
-                    "index": {
-                      "hidden": "true",
-                      "number_of_shards": "1",
-                      "number_of_replicas": "2",
-                      "uuid": "d1000001",
-                      "version": {
-                        "created": "%s"
-                      }
-                    }
-                  },
-                  "mappings": {},
-                  "aliases": [],
-                  "primary_terms": {
-                    "0": 0
-                  },
-                  "in_sync_allocations": {
-                    "0": []
-                  },
-                  "rollover_info": {},
-                  "mappings_updated_version": 8513000,
-                  "system": false,
-                  "timestamp_range": {
-                    "shards": []
-                  },
-                  "event_ingested_range": {
-                    "shards": []
-                  }
-                },
-                ".ds-logs-ultron-2024.08.30-000002": {
-                  "version": 1,
-                  "mapping_version": 1,
-                  "settings_version": 1,
-                  "aliases_version": 1,
-                  "routing_num_shards": 3,
-                  "state": "open",
-                  "settings": {
-                    "index": {
-                      "hidden": "true",
-                      "number_of_shards": "3",
-                      "number_of_replicas": "1",
-                      "uuid": "d2000002",
-                      "version": {
-                        "created": "%s"
-                      }
-                    }
-                  },
-                  "mappings": {},
-                  "aliases": [],
-                  "primary_terms": {
-                    "0": 0,
-                    "1": 0,
-                    "2": 0
-                  },
-                  "in_sync_allocations": {
-                    "0": [],
-                    "1": [],
-                    "2": []
-                  },
-                  "rollover_info": {},
-                  "mappings_updated_version": 8513000,
-                  "system": false,
-                  "timestamp_range": {
-                    "shards": []
-                  },
-                  "event_ingested_range": {
-                    "shards": []
-                  }
-                }
-              },
-              "index_template": {
-                "index_template": {
-                  "template": {
-                    "index_patterns": [
-                      "index-*"
-                    ],
-                    "composed_of": [],
-                    "priority": 10
-                  }
-                }
-              },
-              "index-graveyard": {
-                "tombstones": []
-              },
-              "data_stream": {
-                "data_stream": {
-                  "logs-ultron": {
-                    "name": "logs-ultron",
-                    "timestamp_field": {
-                      "name": "@timestamp"
-                    },
-                    "indices": [
-                      {
-                        "index_name": ".ds-logs-ultron-2024.08.30-000001",
-                        "index_uuid": "d1000001"
+        final BytesArray expected = new BytesArray(
+            Strings.format(
+                """
+                    {
+                      "templates": {},
+                      "indices": {
+                        "index-01": {
+                          "version": 1,
+                          "mapping_version": 1,
+                          "settings_version": 1,
+                          "aliases_version": 1,
+                          "routing_num_shards": 1,
+                          "state": "open",
+                          "settings": {
+                            "index": {
+                              "number_of_shards": "1",
+                              "number_of_replicas": "1",
+                              "uuid": "i3e800000001",
+                              "version": {
+                                "created": "%s"
+                              }
+                            }
+                          },
+                          "mappings": {},
+                          "aliases": [
+                            "alias.1"
+                          ],
+                          "primary_terms": {
+                            "0": 0
+                          },
+                          "in_sync_allocations": {
+                            "0": []
+                          },
+                          "rollover_info": {},
+                          "mappings_updated_version": %s,
+                          "system": false,
+                          "timestamp_range": {
+                            "shards": []
+                          },
+                          "event_ingested_range": {
+                            "shards": []
+                          }
+                        },
+                        "index-02": {
+                          "version": 1,
+                          "mapping_version": 1,
+                          "settings_version": 1,
+                          "aliases_version": 1,
+                          "routing_num_shards": 2,
+                          "state": "open",
+                          "settings": {
+                            "index": {
+                              "number_of_shards": "2",
+                              "number_of_replicas": "0",
+                              "uuid": "i7d000000002",
+                              "version": {
+                                "created": "%s"
+                              }
+                            }
+                          },
+                          "mappings": {},
+                          "aliases": [
+                            "alias.2"
+                          ],
+                          "primary_terms": {
+                            "0": 0,
+                            "1": 0
+                          },
+                          "in_sync_allocations": {
+                            "1": [],
+                            "0": []
+                          },
+                          "rollover_info": {},
+                          "mappings_updated_version": %s,
+                          "system": false,
+                          "timestamp_range": {
+                            "shards": []
+                          },
+                          "event_ingested_range": {
+                            "shards": []
+                          }
+                        },
+                        "index-03": {
+                          "version": 1,
+                          "mapping_version": 1,
+                          "settings_version": 1,
+                          "aliases_version": 1,
+                          "routing_num_shards": 3,
+                          "state": "open",
+                          "settings": {
+                            "index": {
+                              "number_of_shards": "3",
+                              "number_of_replicas": "1",
+                              "uuid": "ibb800000003",
+                              "version": {
+                                "created": "%s"
+                              }
+                            }
+                          },
+                          "mappings": {},
+                          "aliases": [
+                            "alias.3"
+                          ],
+                          "primary_terms": {
+                            "0": 0,
+                            "1": 0,
+                            "2": 0
+                          },
+                          "in_sync_allocations": {
+                            "2": [],
+                            "1": [],
+                            "0": []
+                          },
+                          "rollover_info": {},
+                          "mappings_updated_version": %s,
+                          "system": false,
+                          "timestamp_range": {
+                            "shards": []
+                          },
+                          "event_ingested_range": {
+                            "shards": []
+                          }
+                        },
+                        ".ds-logs-ultron-2024.08.30-000001": {
+                          "version": 1,
+                          "mapping_version": 1,
+                          "settings_version": 1,
+                          "aliases_version": 1,
+                          "routing_num_shards": 1,
+                          "state": "open",
+                          "settings": {
+                            "index": {
+                              "hidden": "true",
+                              "number_of_shards": "1",
+                              "number_of_replicas": "2",
+                              "uuid": "d1000001",
+                              "version": {
+                                "created": "%s"
+                              }
+                            }
+                          },
+                          "mappings": {},
+                          "aliases": [],
+                          "primary_terms": {
+                            "0": 0
+                          },
+                          "in_sync_allocations": {
+                            "0": []
+                          },
+                          "rollover_info": {},
+                          "mappings_updated_version": %s,
+                          "system": false,
+                          "timestamp_range": {
+                            "shards": []
+                          },
+                          "event_ingested_range": {
+                            "shards": []
+                          }
+                        },
+                        ".ds-logs-ultron-2024.08.30-000002": {
+                          "version": 1,
+                          "mapping_version": 1,
+                          "settings_version": 1,
+                          "aliases_version": 1,
+                          "routing_num_shards": 3,
+                          "state": "open",
+                          "settings": {
+                            "index": {
+                              "hidden": "true",
+                              "number_of_shards": "3",
+                              "number_of_replicas": "1",
+                              "uuid": "d2000002",
+                              "version": {
+                                "created": "%s"
+                              }
+                            }
+                          },
+                          "mappings": {},
+                          "aliases": [],
+                          "primary_terms": {
+                            "0": 0,
+                            "1": 0,
+                            "2": 0
+                          },
+                          "in_sync_allocations": {
+                            "0": [],
+                            "1": [],
+                            "2": []
+                          },
+                          "rollover_info": {},
+                          "mappings_updated_version": %s,
+                          "system": false,
+                          "timestamp_range": {
+                            "shards": []
+                          },
+                          "event_ingested_range": {
+                            "shards": []
+                          }
+                        }
                       },
-                      {
-                        "index_name": ".ds-logs-ultron-2024.08.30-000002",
-                        "index_uuid": "d2000002"
+                      "index_template": {
+                        "index_template": {
+                          "template": {
+                            "index_patterns": [
+                              "index-*"
+                            ],
+                            "composed_of": [],
+                            "priority": 10
+                          }
+                        }
+                      },
+                      "index-graveyard": {
+                        "tombstones": []
+                      },
+                      "data_stream": {
+                        "data_stream": {
+                          "logs-ultron": {
+                            "name": "logs-ultron",
+                            "timestamp_field": {
+                              "name": "@timestamp"
+                            },
+                            "indices": [
+                              {
+                                "index_name": ".ds-logs-ultron-2024.08.30-000001",
+                                "index_uuid": "d1000001"
+                              },
+                              {
+                                "index_name": ".ds-logs-ultron-2024.08.30-000002",
+                                "index_uuid": "d2000002"
+                              }
+                            ],
+                            "generation": 2,
+                            "hidden": false,
+                            "replicated": false,
+                            "system": false,
+                            "allow_custom_routing": false,
+                            "failure_store": false,
+                            "failure_rollover_on_write": false,
+                            "rollover_on_write": false
+                          }
+                        },
+                        "data_stream_aliases": {}
                       }
-                    ],
-                    "generation": 2,
-                    "hidden": false,
-                    "replicated": false,
-                    "system": false,
-                    "allow_custom_routing": false,
-                    "failure_store": false,
-                    "failure_rollover_on_write": false,
-                    "rollover_on_write": false
-                  }
-                },
-                "data_stream_aliases": {}
-              }
-            }
-            """, IndexVersion.current(), IndexVersion.current(), IndexVersion.current(), IndexVersion.current(), IndexVersion.current()));
+                    }
+                    """,
+                IndexVersion.current(),
+                IndexVersion.current(),
+                IndexVersion.current(),
+                IndexVersion.current(),
+                IndexVersion.current(),
+                IndexVersion.current(),
+                IndexVersion.current(),
+                IndexVersion.current(),
+                IndexVersion.current(),
+                IndexVersion.current()
+            )
+        );
         final BytesReference actual = XContentHelper.toXContent(projectMetadata, XContentType.JSON, randomBoolean());
         assertToXContentEquivalent(expected, actual, XContentType.JSON);
     }

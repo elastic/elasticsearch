@@ -176,25 +176,37 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         long heapBytes,
         long memBytes
     ) implements ToXContentFragment {
-        public RemoteClusterStats(
-            RemoteClusterStatsResponse remoteResponse,
-            String mode,
-            boolean skipUnavailable,
-            String transportCompress
-        ) {
+        public RemoteClusterStats(String mode, boolean skipUnavailable, String transportCompress) {
             this(
-                remoteResponse == null ? "unavailable" : remoteResponse.getClusterUUID(),
+                "unavailable",
                 mode,
                 skipUnavailable,
                 transportCompress.toLowerCase(Locale.ROOT),
-                remoteResponse == null ? Set.of() : remoteResponse.getVersions(),
-                remoteResponse == null ? "unavailable" : remoteResponse.getStatus().name().toLowerCase(Locale.ROOT),
-                remoteResponse == null ? 0 : remoteResponse.getNodesCount(),
-                remoteResponse == null ? 0 : remoteResponse.getShardsCount(),
-                remoteResponse == null ? 0 : remoteResponse.getIndicesCount(),
-                remoteResponse == null ? 0 : remoteResponse.getIndicesBytes(),
-                remoteResponse == null ? 0 : remoteResponse.getHeapBytes(),
-                remoteResponse == null ? 0 : remoteResponse.getMemBytes()
+                Set.of(),
+                "unavailable",
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+            );
+        }
+
+        public RemoteClusterStats acceptResponse(RemoteClusterStatsResponse remoteResponse) {
+            return new RemoteClusterStats(
+                remoteResponse.getClusterUUID(),
+                mode,
+                skipUnavailable,
+                transportCompress,
+                remoteResponse.getVersions(),
+                remoteResponse.getStatus().name().toLowerCase(Locale.ROOT),
+                remoteResponse.getNodesCount(),
+                remoteResponse.getShardsCount(),
+                remoteResponse.getIndicesCount(),
+                remoteResponse.getIndicesBytes(),
+                remoteResponse.getHeapBytes(),
+                remoteResponse.getMemBytes()
             );
         }
 

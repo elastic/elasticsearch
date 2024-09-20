@@ -42,7 +42,7 @@ Defaults to no timeout.
 
 `include_remotes`::
 (Optional, Boolean) If `true`, includes remote cluster information in the response.
-Defaults to no remote cluster information.
+Defaults to `false`, so no remote cluster information is returned.
 
 [role="child_attributes"]
 [[cluster-stats-api-response-body]]

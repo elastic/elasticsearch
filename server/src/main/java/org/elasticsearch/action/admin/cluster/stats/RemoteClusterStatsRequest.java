@@ -21,8 +21,8 @@ import java.io.IOException;
  * A request to get cluster level stats from the remote cluster.
  */
 public class RemoteClusterStatsRequest extends ActionRequest {
-    public RemoteClusterStatsRequest(StreamInput in) {
-        this();
+    public RemoteClusterStatsRequest(StreamInput in) throws IOException {
+        super(in);
     }
 
     public RemoteClusterStatsRequest() {
@@ -39,5 +39,6 @@ public class RemoteClusterStatsRequest extends ActionRequest {
         if (out.getTransportVersion().before(TransportVersions.CCS_TELEMETRY_STATS)) {
             throw new UnsupportedOperationException("RemoteClusterStatsRequest is not supported by the remote cluster");
         }
+        super.writeTo(out);
     }
 }

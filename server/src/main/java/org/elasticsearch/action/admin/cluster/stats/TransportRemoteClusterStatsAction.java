@@ -43,6 +43,7 @@ public class TransportRemoteClusterStatsAction extends HandledTransportAction<Re
     @Override
     protected void doExecute(Task task, RemoteClusterStatsRequest request, ActionListener<RemoteClusterStatsResponse> listener) {
         ClusterStatsRequest subRequest = new ClusterStatsRequest().asRemoteStats();
+        subRequest.setParentTask(request.getParentTask());
         client.execute(
             TransportClusterStatsAction.TYPE,
             subRequest,

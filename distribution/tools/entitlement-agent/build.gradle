@@ -19,7 +19,7 @@ dependencies {
   testImplementation project(":test:framework")
 }
 
-test {
+tasks.named('test').configure {
   dependsOn(jar)
   jvmArgs "-javaagent:${jar.archiveFile.get().asFile}"
 }

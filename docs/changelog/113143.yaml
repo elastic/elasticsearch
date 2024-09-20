@@ -7,4 +7,4 @@ deprecation:
   title: Deprecate dutch_kp and lovins stemmer as they are removed in Lucene 10
   area: Analysis
   details: kp, dutch_kp, dutchKp and lovins stemmers are deprecated and will be removed.
-  impact: These stemmers will be removed and will no longer supported.
+  impact: These stemmers will be removed and will be no longer supported.

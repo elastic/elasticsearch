@@ -133,8 +133,12 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
             .build();
 
         AnalysisTestsHelper.createTestAnalysisFromSettings(settings, PLUGIN);
-        final List<String> actualWarningStrings = threadContext.getResponseHeaders().get("Warning");
-        assertTrue(actualWarningStrings.stream().anyMatch(warning -> warning.contains("The [dutch_kp] stemmer is deprecated")));
+        try {
+            final List<String> actualWarningStrings = threadContext.getResponseHeaders().get("Warning");
+            assertTrue(actualWarningStrings.stream().anyMatch(warning -> warning.contains("The [dutch_kp] stemmer is deprecated")));
+        } finally {
+            threadContext.stashContext();
+        }
     }
 
     public void testLovinsDeprecation() throws IOException {
@@ -146,8 +150,12 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
 
-        AnalysisTestsHelper.createTestAnalysisFromSettings(settings, PLUGIN);
-        final List<String> actualWarningStrings = threadContext.getResponseHeaders().get("Warning");
-        assertTrue(actualWarningStrings.stream().anyMatch(warning -> warning.contains("The [lovins] stemmer is deprecated")));
+        try {
+            AnalysisTestsHelper.createTestAnalysisFromSettings(settings, PLUGIN);
+            final List<String> actualWarningStrings = threadContext.getResponseHeaders().get("Warning");
+            assertTrue(actualWarningStrings.stream().anyMatch(warning -> warning.contains("The [lovins] stemmer is deprecated")));
+        } finally {
+            threadContext.stashContext();
+        }
     }
 }

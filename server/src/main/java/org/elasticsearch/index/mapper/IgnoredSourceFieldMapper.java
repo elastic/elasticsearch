@@ -28,7 +28,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -177,9 +176,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
                     continue;
                 }
                 int offset = parent.isRoot() ? 0 : parent.fullPath().length() + 1;
-                mutableList.add(
-                    new IgnoredSourceFieldMapper.NameValue(copyToField, offset, XContentDataHelper.voidValue(), context.doc())
-                );
+                mutableList.add(new IgnoredSourceFieldMapper.NameValue(copyToField, offset, XContentDataHelper.voidValue(), context.doc()));
             }
             ignoredValuesToWrite = mutableList;
         }

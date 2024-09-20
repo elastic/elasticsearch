@@ -99,7 +99,12 @@ public class MetadataCreateDataStreamService {
         var delegate = new AllocationActionListener<>(listener, threadPool.getThreadContext());
         submitUnbatchedTask(
             "create-data-stream [" + request.name + "]",
-            new AckedClusterStateUpdateTask(Priority.HIGH, request, delegate.clusterStateUpdate()) {
+            new AckedClusterStateUpdateTask(
+                Priority.HIGH,
+                request.masterNodeTimeout(),
+                request.ackTimeout(),
+                delegate.clusterStateUpdate()
+            ) {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     // When we're manually creating a data stream (i.e. not an auto creation), we don't need to initialize the failure store

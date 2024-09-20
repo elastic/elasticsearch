@@ -21,7 +21,7 @@ dependencies {
 
 tasks.named('test').configure {
   dependsOn('jar')
-  jvmArgs "-javaagent:${tasks.named('jar').flatMap{ it.archiveFile.asFile }}"
+  jvmArgs "-javaagent:${ tasks.named('jar').flatMap{ it.archiveFile }.get()}"
 }
 
 tasks.named('jar').configure {

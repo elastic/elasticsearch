@@ -50,6 +50,7 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -168,7 +169,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         assert esQueryExec.estimatedRowSize() != null : "estimated row size not initialized";
         int rowEstimatedSize = esQueryExec.estimatedRowSize();
         int limit = esQueryExec.limit() != null ? (Integer) esQueryExec.limit().fold() : NO_LIMIT;
-        if (esQueryExec.scoring()) {
+        if (EsqlCapabilities.Cap.METADATA_SCORE.isEnabled() && esQueryExec.scoring()) {
             if (sorts != null) {
                 fieldSorts = new ArrayList<>(sorts.size());
                 for (FieldSort sort : sorts) {

@@ -309,7 +309,12 @@ public class EsqlCapabilities {
         /**
          * Supported the text categorization function "CATEGORIZE".
          */
-        CATEGORIZE(true);
+        CATEGORIZE(true),
+
+        /**
+         * Support the "METADATA _score" directive to enable _score column
+         */
+        METADATA_SCORE(true);
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

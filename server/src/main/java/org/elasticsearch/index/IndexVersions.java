@@ -60,6 +60,26 @@ public class IndexVersions {
 
     @UpdateForV9 // remove the index versions with which v9 will not need to interact
     public static final IndexVersion ZERO = def(0, Version.LATEST);
+    public static final IndexVersion V_7_0_0 = def(7_00_00_99, parseUnchecked("8.0.0"));
+    public static final IndexVersion V_7_1_0 = def(7_01_00_99, parseUnchecked("8.0.0"));
+    public static final IndexVersion V_7_2_0 = def(7_02_00_99, parseUnchecked("8.0.0"));
+    public static final IndexVersion V_7_2_1 = def(7_02_01_99, parseUnchecked("8.0.0"));
+    public static final IndexVersion V_7_3_0 = def(7_03_00_99, parseUnchecked("8.1.0"));
+    public static final IndexVersion V_7_4_0 = def(7_04_00_99, parseUnchecked("8.2.0"));
+    public static final IndexVersion V_7_5_0 = def(7_05_00_99, parseUnchecked("8.3.0"));
+    public static final IndexVersion V_7_5_2 = def(7_05_02_99, parseUnchecked("8.3.0"));
+    public static final IndexVersion V_7_6_0 = def(7_06_00_99, parseUnchecked("8.4.0"));
+    public static final IndexVersion V_7_7_0 = def(7_07_00_99, parseUnchecked("8.5.1"));
+    public static final IndexVersion V_7_8_0 = def(7_08_00_99, parseUnchecked("8.5.1"));
+    public static final IndexVersion V_7_9_0 = def(7_09_00_99, parseUnchecked("8.6.0"));
+    public static final IndexVersion V_7_10_0 = def(7_10_00_99, parseUnchecked("8.7.0"));
+    public static final IndexVersion V_7_11_0 = def(7_11_00_99, parseUnchecked("8.7.0"));
+    public static final IndexVersion V_7_12_0 = def(7_12_00_99, parseUnchecked("8.8.0"));
+    public static final IndexVersion V_7_13_0 = def(7_13_00_99, parseUnchecked("8.8.2"));
+    public static final IndexVersion V_7_14_0 = def(7_14_00_99, parseUnchecked("8.9.0"));
+    public static final IndexVersion V_7_15_0 = def(7_15_00_99, parseUnchecked("8.9.0"));
+    public static final IndexVersion V_7_16_0 = def(7_16_00_99, parseUnchecked("8.10.1"));
+    public static final IndexVersion V_7_17_0 = def(7_17_00_99, parseUnchecked("8.11.1"));
     public static final IndexVersion V_8_0_0 = def(8_00_00_99, Version.LUCENE_9_0_0);
     public static final IndexVersion V_8_1_0 = def(8_01_00_99, Version.LUCENE_9_0_0);
     public static final IndexVersion V_8_2_0 = def(8_02_00_99, Version.LUCENE_9_1_0);

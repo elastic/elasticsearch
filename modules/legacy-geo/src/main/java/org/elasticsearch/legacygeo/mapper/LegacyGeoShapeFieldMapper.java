@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.DocumentParserContext;
@@ -232,7 +233,9 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             });
 
             // Set up serialization
-            this.strategy.alwaysSerialize();
+            if (version.onOrAfter(IndexVersions.V_7_0_0)) {
+                this.strategy.alwaysSerialize();
+            }
             // serialize treeLevels if treeLevels is configured, OR if defaults are requested and precision is not configured
             treeLevels.setSerializerCheck((id, ic, v) -> ic || (id && precision.get() == null));
             // serialize precision if precision is configured, OR if defaults are requested and treeLevels is not configured

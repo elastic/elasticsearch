@@ -756,4 +756,5 @@ public class DateFieldMapperTests extends MapperTestCase {
         assertThat(service.fieldType("mydate"), instanceOf(DateFieldType.class));
         assertNotEquals(DEFAULT_DATE_TIME_FORMATTER, ((DateFieldType) service.fieldType("mydate")).dateTimeFormatter);
     }
+
 }

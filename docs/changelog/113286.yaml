@@ -5,7 +5,6 @@ type: deprecation
 issues: []
 deprecation:
   title: Deprecate legacy params from range query
-  area: Search
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  area: REST API
+  details: Range query will not longer accept `to`, `from`, `include_lower`, and `include_upper` parameters.
+  impact: Instead use `gt`, `gte`, `lt` and `lte` parameters.

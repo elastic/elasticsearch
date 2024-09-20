@@ -242,7 +242,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
     /**
      * Reads a cached string, serialized with {@link PlanStreamOutput#writeCachedString(String)}.
      */
-
+    @Override
     public String readCachedString() throws IOException {
         if (getTransportVersion().before(TransportVersions.ESQL_CACHED_STRING_SERIALIZATION)) {
             return readString();

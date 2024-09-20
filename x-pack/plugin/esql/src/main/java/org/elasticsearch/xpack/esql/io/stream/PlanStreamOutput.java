@@ -213,21 +213,14 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
             writeZLong(cacheId);
             return;
         }
-        cacheId = cacheString(string);
-        writeZLong(-1 - cacheId);
-        writeString(string);
-    }
-
-    private int cacheString(String str) {
-        if (stringCache.containsKey(str)) {
-            throw new IllegalArgumentException("String already present in the serialization cache [" + str + "]");
-        }
-        int id = stringCache.size();
-        if (id >= maxSerializedAttributes) {
+        cacheId = stringCache.size();
+        if (cacheId >= maxSerializedAttributes) {
             throw new InvalidArgumentException("Limit of the number of serialized strings exceeded [{}]", maxSerializedAttributes);
         }
-        stringCache.put(str, id);
-        return id;
+        stringCache.put(string, cacheId);
+
+        writeZLong(-1 - cacheId);
+        writeString(string);
     }
 
     private Integer esFieldIdFromCache(EsField field) {

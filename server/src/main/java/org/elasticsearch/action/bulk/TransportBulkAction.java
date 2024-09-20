@@ -193,7 +193,11 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
                 final Response response = (Response) bulkItemResponse.getResponse();
                 l.onResponse(response);
             } else {
-                l.onFailure(bulkItemResponse.getFailure().getCause());
+                if (IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN.equals(bulkItemResponse.getFailure().getFailureStoreStatus())) {
+                    l.onFailure(bulkItemResponse.getFailure().getCause());
+                } else {
+                    l.onFailure(new IndexDocFailureStoreStatus.ExceptionWithFailureStoreStatus(bulkItemResponse.getFailure()));
+                }
             }
         });
     }
@@ -211,7 +215,6 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         assert bulkRequest.getComponentTemplateSubstitutions().isEmpty()
             : "Component template substitutions are not allowed in a non-simulated bulk";
         trackIndexRequests(bulkRequest);
-
         Map<String, CreateIndexRequest> indicesToAutoCreate = new HashMap<>();
         Set<String> dataStreamsToBeRolledOver = new HashSet<>();
         Set<String> failureStoresToBeRolledOver = new HashSet<>();

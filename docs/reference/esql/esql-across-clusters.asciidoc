@@ -100,15 +100,23 @@ POST /_security/role/remote1
 ----
 
 <1> The `cross_cluster_search` cluster privilege is required for the _local_ cluster.
-<2> Typically, users will have permissions to read both local and remote indices. However, for cases where the role is intended to ONLY search the remote cluster, the `read` permission is still required for the local cluster. To provide read access to the local cluster, but disallow reading any indices in the local cluster, the `names` field may be an empty string.
-<3> The indices allowed read access to the remote cluster. The configured <<security-api-create-cross-cluster-api-key,cross-cluster API key>> must also allow this index to be read.
-<4> The `read_cross_cluster` privilege is always required when using {esql} across clusters with the API key based security model.
+<2> Typically, users will have permissions to read both local and remote indices. However, for cases where the role
+is intended to ONLY search the remote cluster, the `read` permission is still required for the local cluster.
+To provide read access to the local cluster, but disallow reading any indices in the local cluster, the `names`
+field may be an empty string.
+<3> The indices allowed read access to the remote cluster. The configured
+<<security-api-create-cross-cluster-api-key,cross-cluster API key>> must also allow this index to be read.
+<4> The `read_cross_cluster` privilege is always required when using {esql} across clusters with the API key based
+security model.
 <5> The remote clusters to which these privileges apply.
-This remote cluster must be configured with a <<security-api-create-cross-cluster-api-key,cross-cluster API key>> and connected to the remote cluster before the remote index can be queried.
+This remote cluster must be configured with a <<security-api-create-cross-cluster-api-key,cross-cluster API key>>
+and connected to the remote cluster before the remote index can be queried.
 Verify connection using the <<cluster-remote-info, Remote cluster info>> API.
-<6> Required to allow remote enrichment. Without this, the user cannot read from the `.enrich` indices on the remote cluster. The `remote_cluster` security privilege was introduced in version *8.15.0*.
+<6> Required to allow remote enrichment. Without this, the user cannot read from the `.enrich` indices on the
+remote cluster. The `remote_cluster` security privilege was introduced in version *8.15.0*.
 
-You will then need a user or API key with the permissions you created above. The following example API call creates a user with the `remote1` role.
+You will then need a user or API key with the permissions you created above. The following example API call creates
+a user with the `remote1` role.
 
 [source,console]
 ----
@@ -119,11 +127,13 @@ POST /_security/user/remote_user
 }
 ----
 
-Remember that all cross-cluster requests from the local cluster are bound by the cross cluster API key’s privileges, which are controlled by the remote cluster's administrator.
+Remember that all cross-cluster requests from the local cluster are bound by the cross cluster API key’s privileges,
+which are controlled by the remote cluster's administrator.
 
 [TIP]
 ====
-Cross cluster API keys created in versions prior to 8.15.0 will need to replaced or updated to add the new permissions required for {esql} with ENRICH.
+Cross cluster API keys created in versions prior to 8.15.0 will need to replaced or updated to add the new permissions
+required for {esql} with ENRICH.
 ====
 
 [discrete]
@@ -182,18 +192,19 @@ ES|QL {ccs} responses include metadata about the search on each cluster when the
 Here we show an example using the async search endpoint. {ccs-cap} metadata is also present in the synchronous
 search endpoint.
 
-[source,esql]
+[source,console]
 ----
 POST /_query/async?format=json
 {
   "query": """
     FROM my-index-000001,cluster_one:my-index-000001,cluster_two:my-index*
-    | KEEP author, name, page_count
-    | SORT page_count DESC
-    | LIMIT 50
+    | STATS COUNT(http.response.status_code) BY user.id
+    | LIMIT 2
   """
 }
 ----
+// TEST[setup:my_index]
+// TEST[s/cluster_one:my-index-000001,cluster_two:my-index//]
 
 Which returns:
 
@@ -202,11 +213,19 @@ Which returns:
 {
   "is_running": false,
   "took": 42,  <1>
-  "columns": [
-     ... // not shown
+  "columns" : [
+    {
+      "name" : "COUNT(http.response.status_code)",
+      "type" : "long"
+    },
+    {
+      "name" : "user.id",
+      "type" : "keyword"
+    }
   ],
-  "values": [
-     ... // not shown
+  "values" : [
+    [4, "elkbee"],
+    [1, "kimchy"]
   ],
   "_clusters": {  <2>
     "total": 3,
@@ -274,25 +293,27 @@ this section will show the resolved index name(s) here, unless no matching indic
 be found on that cluster, in which case the wildcard expression will be retained here.
 
 
-The cross-cluster metadata can be used to determine if any data came back from a cluster.
-For instance in this query, you see that wildcard expression for `cluster-one` did not
+The cross-cluster metadata can be used to determine whether any data came back from a cluster.
+For instance in the query below, you see that wildcard expression for `cluster-two` did not
 resolve to a concrete index (or indices) and that the total number of shards searched is
 zero. This indicates that no matching index was found on that cluster. But since the other
 cluster did have a matching index, the search did not return an error, but instead
 returned all the matching data it could find.
 
-[source,esql]
+
+[source,console]
 ----
 POST /_query/async?format=json
 {
   "query": """
     FROM cluster_one:my-index*,cluster_two:logs*
-    | KEEP author, name, page_count
-    | SORT page_count DESC
-    | LIMIT 5
+    | STATS COUNT(http.response.status_code) BY user.id
+    | LIMIT 2
   """
 }
 ----
+// TEST[continued]
+// TEST[s/cluster_one:my-index\*,cluster_two:logs\*/my-index-000001/]
 
 Which returns:
 

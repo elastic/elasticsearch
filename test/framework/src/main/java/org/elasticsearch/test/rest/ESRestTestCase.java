@@ -1875,7 +1875,13 @@ public abstract class ESRestTestCase extends ESTestCase {
                 + indexName
                 + "].";
 
-        request.setOptions(expectVersionSpecificWarnings(v -> { v.current(expectedWarning); }));
+        final var softDeleteDisabledDeprecated = minimumIndexVersion().onOrAfter(IndexVersions.V_7_6_0);
+        request.setOptions(expectVersionSpecificWarnings(v -> {
+            if (softDeleteDisabledDeprecated) {
+                v.current(expectedWarning);
+            }
+            v.compatible(expectedWarning);
+        }));
     }
 
     protected static Map<String, Object> getIndexSettings(String index) throws IOException {
@@ -2205,6 +2211,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * that we have renewed every PRRL to the global checkpoint of the corresponding copy and properly synced to all copies.
      */
     public void ensurePeerRecoveryRetentionLeasesRenewedAndSynced(String index) throws Exception {
+        boolean mustHavePRRLs = minimumIndexVersion().onOrAfter(IndexVersions.V_7_6_0);
         assertBusy(() -> {
             Map<String, Object> stats = entityAsMap(client().performRequest(new Request("GET", index + "/_stats?level=shards")));
             @SuppressWarnings("unchecked")
@@ -2222,20 +2229,25 @@ public abstract class ESRestTestCase extends ESTestCase {
                         "retention_leases.leases",
                         copy
                     );
+                    if (mustHavePRRLs == false && retentionLeases == null) {
+                        continue;
+                    }
                     assertNotNull(retentionLeases);
                     for (Map<String, ?> retentionLease : retentionLeases) {
                         if (((String) retentionLease.get("id")).startsWith("peer_recovery/")) {
                             assertThat(retentionLease.get("retaining_seq_no"), equalTo(globalCheckpoint + 1));
                         }
                     }
-                    List<String> existingLeaseIds = retentionLeases.stream()
-                        .map(lease -> (String) lease.get("id"))
-                        .collect(Collectors.toList());
-                    List<String> expectedLeaseIds = shard.stream()
-                        .map(shr -> (String) XContentMapValues.extractValue("routing.node", shr))
-                        .map(ReplicationTracker::getPeerRecoveryRetentionLeaseId)
-                        .collect(Collectors.toList());
-                    assertThat("not every active copy has established its PPRL", expectedLeaseIds, everyItem(in(existingLeaseIds)));
+                    if (mustHavePRRLs) {
+                        List<String> existingLeaseIds = retentionLeases.stream()
+                            .map(lease -> (String) lease.get("id"))
+                            .collect(Collectors.toList());
+                        List<String> expectedLeaseIds = shard.stream()
+                            .map(shr -> (String) XContentMapValues.extractValue("routing.node", shr))
+                            .map(ReplicationTracker::getPeerRecoveryRetentionLeaseId)
+                            .collect(Collectors.toList());
+                        assertThat("not every active copy has established its PPRL", expectedLeaseIds, everyItem(in(existingLeaseIds)));
+                    }
                 }
             }
         }, 60, TimeUnit.SECONDS);

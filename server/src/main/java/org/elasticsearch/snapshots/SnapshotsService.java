@@ -2336,9 +2336,18 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
      * @param repositoryMetaVersion version to check
      * @return true if version supports {@link ShardGenerations}
      */
-    // TODO lucene 10 upgrade, remove method since its trivially true now
     public static boolean useShardGenerations(IndexVersion repositoryMetaVersion) {
-        return true;
+        return repositoryMetaVersion.onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION);
+    }
+
+    /**
+     * Checks whether the metadata version supports writing {@link ShardGenerations} to the repository.
+     *
+     * @param repositoryMetaVersion version to check
+     * @return true if version supports {@link ShardGenerations}
+     */
+    public static boolean useIndexGenerations(IndexVersion repositoryMetaVersion) {
+        return repositoryMetaVersion.onOrAfter(INDEX_GEN_IN_REPO_DATA_VERSION);
     }
 
     /**
@@ -2812,7 +2821,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                                 updatedDeletions,
                                 currentState,
                                 entry.indices().values(),
-                                true,
+                                entry.version().onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION),
                                 repositoryData,
                                 repoName
                             );

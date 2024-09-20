@@ -33,7 +33,8 @@ public class TransportNodesUsageAction extends TransportNodesAction<
     NodesUsageRequest,
     NodesUsageResponse,
     TransportNodesUsageAction.NodeUsageRequest,
-    NodeUsage> {
+    NodeUsage,
+    Void> {
 
     public static final ActionType<NodesUsageResponse> TYPE = new ActionType<>("cluster:monitor/nodes/usage");
     private final UsageService restUsageService;

@@ -32,7 +32,8 @@ public class TransportNodesInfoAction extends TransportNodesAction<
     NodesInfoRequest,
     NodesInfoResponse,
     TransportNodesInfoAction.NodeInfoRequest,
-    NodeInfo> {
+    NodeInfo,
+    Void> {
 
     public static final ActionType<NodesInfoResponse> TYPE = new ActionType<>("cluster:monitor/nodes/info");
     private final NodeService nodeService;

@@ -25,57 +25,79 @@ expression
     | fieldRangeQuery
     ;
 
-nestedQuery:
-    fieldName COLON LEFT_CURLY_BRACKET query RIGHT_CURLY_BRACKET;
+nestedQuery
+    : fieldName COLON LEFT_CURLY_BRACKET query RIGHT_CURLY_BRACKET
+    ;
 
 fieldRangeQuery
-    : fieldName operator=OP_COMPARE term
+    : fieldName operator=OP_COMPARE termValue
     ;
 
 fieldTermQuery
-    : ( fieldName ( COLON ))? ( term+ | groupingExpr)
+    : (fieldName (COLON))? ( termValue+ | groupingExpr )
     ;
 
-term
-    : QUOTED
-    | NUMBER
-    | LITERAL
+termValue
+    : QUOTED_STRING
+    | UNQUOTED_LITERAL
     ;
 
 groupingExpr
-    : LEFT_PARENTHESIS term+ RIGHT_PARENTHESIS
+    : LEFT_PARENTHESIS termValue+ RIGHT_PARENTHESIS
     ;
 
 fieldName
-    : LITERAL
+    : QUOTED_STRING
+    | UNQUOTED_LITERAL
     ;
+
+DEFAULT_SKIP: WHITESPACE -> skip;
 
 AND: [Aa][Nn][Dd];
 OR: [Oo][Rr];
 NOT: [Nn][Oo][Tt];
+
+COLON: ':';
+OP_COMPARE: OP_LESS | OP_MORE | OP_LESS_EQ | OP_MORE_EQ;
+
 LEFT_PARENTHESIS: '(';
 RIGHT_PARENTHESIS: ')';
-
 LEFT_CURLY_BRACKET: '{';
 RIGHT_CURLY_BRACKET: '}';
 
-COLON: ':';
+UNQUOTED_LITERAL: UNQUOTED_CHAR+;
+QUOTED_STRING: '"' QUOTED_CHAR* '"';
 
+LITERAL: QUOTED_STRING | UNQUOTED_LITERAL;
+
+fragment WILDCARD: '*';
 fragment OP_LESS: '<';
 fragment OP_LESS_EQ: '<=';
 fragment OP_MORE: '>';
 fragment OP_MORE_EQ: '>=';
-OP_COMPARE: OP_LESS | OP_MORE | OP_LESS_EQ | OP_MORE_EQ;
 
-QUOTED: '"' QUOTED_CHAR* '"';
-NUMBER: NUM_CHAR+ ( '.' NUM_CHAR+)?;
-LITERAL: TERM_CHAR+;
+fragment UNQUOTED_CHAR
+    : ESCAPED_WHITESPACE
+    | ESCAPED_SPECIAL_CHAR
+    | ESCAPE_UNICODE_SEQUENCE
+    // TODO add escaped keyword
+    | WILDCARD
+    | NON_SPECIAL_CHAR
+    ;
 
-fragment QUOTED_CHAR: ~["\\] | ESCAPED_CHAR;
-fragment ESCAPED_CHAR: '\\' .;
-fragment NUM_CHAR: [0-9];
-fragment TERM_CHAR: ~[ \t\n\r\u3000():<>"{}\\/] | ESCAPED_CHAR;
+fragment QUOTED_CHAR
+    : ESCAPED_WHITESPACE
+    | ESCAPE_UNICODE_SEQUENCE
+    | ESCAPED_QUOTE
+    | ~["]
+    ;
 
-DEFAULT_SKIP: WHITESPACE -> skip;
 
 fragment WHITESPACE: [ \t\n\r\u3000];
+fragment ESCAPED_WHITESPACE: '\\r' | '\\t' | '\\n';
+
+fragment NON_SPECIAL_CHAR: ~[ \\():<>"*{}];
+fragment ESCAPED_SPECIAL_CHAR: '\\'[\\():<>"*{}];
+
+fragment ESCAPE_UNICODE_SEQUENCE: '\\';
+fragment ESCAPED_QUOTE: '\\"';

@@ -100,4 +100,8 @@ public abstract class ElasticsearchInternalModel extends Model {
     public String toString() {
         return Strings.toString(this.getConfigurations());
     }
+
+    public String mlNodeDeploymentId() {
+        return internalServiceSettings.getDeploymentId() == null ? getInferenceEntityId() : internalServiceSettings.getDeploymentId();
+    }
 }

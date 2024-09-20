@@ -48,7 +48,8 @@ public class ElasticsearchInternalServiceSettingsTests extends AbstractWireSeria
                     instance.getNumAllocations() == null ? 1 : instance.getNumAllocations() + 1,
                     instance.getNumThreads(),
                     instance.modelId(),
-                    instance.getAdaptiveAllocationsSettings()
+                    instance.getAdaptiveAllocationsSettings(),
+                    instance.getDeploymentId()
                 )
             );
             case 1 -> new ElserInternalServiceSettings(
@@ -56,7 +57,8 @@ public class ElasticsearchInternalServiceSettingsTests extends AbstractWireSeria
                     instance.getNumAllocations(),
                     instance.getNumThreads() + 1,
                     instance.modelId(),
-                    instance.getAdaptiveAllocationsSettings()
+                    instance.getAdaptiveAllocationsSettings(),
+                    instance.getDeploymentId()
                 )
             );
             case 2 -> new ElserInternalServiceSettings(
@@ -64,7 +66,8 @@ public class ElasticsearchInternalServiceSettingsTests extends AbstractWireSeria
                     instance.getNumAllocations(),
                     instance.getNumThreads(),
                     instance.modelId() + "-bar",
-                    instance.getAdaptiveAllocationsSettings()
+                    instance.getAdaptiveAllocationsSettings(),
+                    instance.getDeploymentId()
                 )
             );
             default -> throw new IllegalStateException();

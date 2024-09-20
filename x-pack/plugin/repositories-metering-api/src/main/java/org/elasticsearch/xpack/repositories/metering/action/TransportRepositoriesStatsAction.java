@@ -27,7 +27,8 @@ public final class TransportRepositoriesStatsAction extends TransportNodesAction
     RepositoriesMeteringRequest,
     RepositoriesMeteringResponse,
     TransportRepositoriesStatsAction.RepositoriesNodeStatsRequest,
-    RepositoriesNodeMeteringResponse> {
+    RepositoriesNodeMeteringResponse,
+    Void> {
 
     private final RepositoriesService repositoriesService;
 

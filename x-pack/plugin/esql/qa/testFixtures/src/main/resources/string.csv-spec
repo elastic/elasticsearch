@@ -1194,6 +1194,13 @@ a:keyword           | upper:keyword         | lower:keyword
 π/2 + a + B + Λ ºC  | Π/2 + A + B + Λ ºC    | π/2 + a + b + λ ºc
 ;
 
+reverse#[skip:-8.15.99]
+from employees | sort emp_no | eval name_reversed = REVERSE(first_name) | keep emp_no, first_name, name_reversed | limit 1;
+
+emp_no:integer  | first_name:keyword    | name_reversed:keyword
+10001           | Georgi                | igroeG
+;
+
 values
 required_capability: agg_values
 

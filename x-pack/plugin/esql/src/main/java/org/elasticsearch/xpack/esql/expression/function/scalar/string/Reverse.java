@@ -35,7 +35,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
 public class Reverse extends EsqlConfigurationFunction {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToLower", ToLower::new);
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Reverse", Reverse::new);
 
     private final Expression field;
 
@@ -106,8 +106,8 @@ public class Reverse extends EsqlConfigurationFunction {
         return field;
     }
 
-    public ToLower replaceChild(Expression child) {
-        return new ToLower(source(), child, configuration());
+    public Reverse replaceChild(Expression child) {
+        return new Reverse(source(), child, configuration());
     }
 
     @Override
@@ -118,6 +118,6 @@ public class Reverse extends EsqlConfigurationFunction {
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, ToLower::new, field, configuration());
+        return NodeInfo.create(this, Reverse::new, field, configuration());
     }
 }

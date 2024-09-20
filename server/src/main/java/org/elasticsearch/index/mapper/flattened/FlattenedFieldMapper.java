@@ -768,7 +768,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
                         }
                         if (validValues.size() == 1) {
                             // NOTE: for single-value flattened fields do not return an array
-                            return validValues.getFirst();
+                            return validValues.get(0);
                         }
                         return validValues;
                     } else if (entryValue instanceof String valueAsString) {

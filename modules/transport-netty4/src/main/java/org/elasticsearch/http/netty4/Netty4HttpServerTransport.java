@@ -374,7 +374,9 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             // combines the HTTP message pieces into a single full HTTP request (with headers and body)
             final HttpObjectAggregator aggregator = new Netty4HttpAggregator(
                 handlingSettings.maxContentLength(),
-                httpPreRequest -> enabled.get() == false || (httpPreRequest.rawPath().endsWith("/_bulk") == false)
+                httpPreRequest -> enabled.get() == false
+                    || ((httpPreRequest.rawPath().endsWith("/_bulk") == false)
+                        || httpPreRequest.rawPath().startsWith("/_xpack/monitoring/_bulk"))
             );
             aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
             ch.pipeline()

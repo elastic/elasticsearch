@@ -20,6 +20,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.lucene.queries.SpanMatchNoDocsQuery;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -78,7 +79,7 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         MappedFieldType mapper = context.getFieldType(fieldName);
         if (mapper == null) {
-            return Queries.newUnmappedFieldQuery(fieldName);
+            return new SpanMatchNoDocsQuery(fieldName, "unmapped field: " + fieldName);
         }
         if (mapper.getTextSearchInfo().hasPositions() == false) {
             throw new IllegalArgumentException(

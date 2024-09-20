@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.Resolve
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedDataStream;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedIndex;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.TransportAction;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -241,8 +242,8 @@ public class ResolveIndexTests extends ESTestCase {
             resolvedIndices,
             contains(
                 oneOf(
-                    new ResolvedExpression("logs-pgsql-prod-" + todaySuffix, IndicesOptions.Selectors.DATA),
-                    new ResolvedExpression("logs-pgsql-prod-" + tomorrowSuffix, IndicesOptions.Selectors.DATA)
+                    new ResolvedExpression("logs-pgsql-prod-" + todaySuffix, IndexComponentSelector.DATA),
+                    new ResolvedExpression("logs-pgsql-prod-" + tomorrowSuffix, IndexComponentSelector.DATA)
                 )
             )
         );

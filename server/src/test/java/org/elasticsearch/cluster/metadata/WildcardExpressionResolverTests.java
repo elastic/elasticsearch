@@ -24,8 +24,8 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.action.support.IndicesOptions.Selectors.DATA;
-import static org.elasticsearch.action.support.IndicesOptions.Selectors.FAILURES;
+import static org.elasticsearch.action.support.IndexComponentSelector.DATA;
+import static org.elasticsearch.action.support.IndexComponentSelector.FAILURES;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createBackingIndex;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createFailureStore;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
@@ -469,11 +469,23 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         );
         assertThat(
             newHashSet(IndexNameExpressionResolver.resolveExpressions(context, "_all")),
-            equalTo(newHashSet(new ResolvedExpression("testXXX", DATA), new ResolvedExpression("testXYY", DATA), new ResolvedExpression("testYYY", DATA)))
+            equalTo(
+                newHashSet(
+                    new ResolvedExpression("testXXX", DATA),
+                    new ResolvedExpression("testXYY", DATA),
+                    new ResolvedExpression("testYYY", DATA)
+                )
+            )
         );
         assertThat(
             newHashSet(IndexNameExpressionResolver.resolveExpressions(context, "_all$data")),
-            equalTo(newHashSet(new ResolvedExpression("testXXX", DATA), new ResolvedExpression("testXYY", DATA), new ResolvedExpression("testYYY", DATA)))
+            equalTo(
+                newHashSet(
+                    new ResolvedExpression("testXXX", DATA),
+                    new ResolvedExpression("testXYY", DATA),
+                    new ResolvedExpression("testYYY", DATA)
+                )
+            )
         );
         assertThat(
             newHashSet(IndexNameExpressionResolver.resolveExpressions(context, "_all$failures")),

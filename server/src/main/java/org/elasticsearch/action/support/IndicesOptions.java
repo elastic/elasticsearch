@@ -27,9 +27,7 @@ import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -397,46 +395,18 @@ public record IndicesOptions(
         }
     }
 
-    public enum Selectors {
-        DATA("data"),
-        FAILURES("failures");
-
-        private final String key;
-
-        Selectors(String key) {
-            this.key = key;
-        }
-
-        public String getKey() {
-            return key;
-        }
-
-        private static final Map<String, Selectors> REGISTRY;
-        static {
-            Map<String, Selectors> registry = new HashMap<>(Selectors.values().length);
-            for (Selectors value : Selectors.values()) {
-                registry.put(value.getKey(), value);
-            }
-            REGISTRY = Collections.unmodifiableMap(registry);
-        }
-
-        public static Selectors getByKey(String key) {
-            return REGISTRY.get(key);
-        }
-    }
-
     /**
      * Defines which selectors should be used by default for an index operation in the event that no selectors are provided.
      */
-    public record SelectorOptions(EnumSet<Selectors> defaultSelectors) implements Writeable {
+    public record SelectorOptions(EnumSet<IndexComponentSelector> defaultSelectors) implements Writeable {
 
         /**
          * Default instance. Uses <pre>$data</pre> as the default selector if none are present in an index expression.
          */
-        public static final SelectorOptions DEFAULT = new SelectorOptions(EnumSet.of(Selectors.DATA));
+        public static final SelectorOptions DEFAULT = new SelectorOptions(EnumSet.of(IndexComponentSelector.DATA));
 
         public static SelectorOptions read(StreamInput in) throws IOException {
-            return new SelectorOptions(in.readEnumSet(Selectors.class));
+            return new SelectorOptions(in.readEnumSet(IndexComponentSelector.class));
         }
 
         @Override
@@ -445,7 +415,7 @@ public record IndicesOptions(
         }
 
         public static class Builder {
-            private EnumSet<Selectors> defaultSelectors;
+            private EnumSet<IndexComponentSelector> defaultSelectors;
 
             public Builder() {
                 this(DEFAULT);
@@ -455,12 +425,12 @@ public record IndicesOptions(
                 defaultSelectors = EnumSet.copyOf(options.defaultSelectors);
             }
 
-            public Builder setDefaultSelectors(Selectors first, Selectors... remaining) {
+            public Builder setDefaultSelectors(IndexComponentSelector first, IndexComponentSelector... remaining) {
                 defaultSelectors = EnumSet.of(first, remaining);
                 return this;
             }
 
-            public Builder setDefaultSelectors(EnumSet<Selectors> defaultSelectors) {
+            public Builder setDefaultSelectors(EnumSet<IndexComponentSelector> defaultSelectors) {
                 this.defaultSelectors = EnumSet.copyOf(defaultSelectors);
                 return this;
             }
@@ -963,7 +933,7 @@ public record IndicesOptions(
         }
         SelectorOptions selectorOptions = SelectorOptions.DEFAULT;
         if (in.getTransportVersion().onOrAfter(TransportVersions.CONVERT_FAILURE_STORE_OPTIONS_TO_SELECTOR_OPTIONS)) {
-            selectorOptions = new SelectorOptions(in.readEnumSet(Selectors.class));
+            selectorOptions = new SelectorOptions(in.readEnumSet(IndexComponentSelector.class));
         }
         return new IndicesOptions(
             options.contains(Option.ALLOW_UNAVAILABLE_CONCRETE_TARGETS)

@@ -12,7 +12,6 @@ package org.elasticsearch.action.support;
 import org.elasticsearch.action.support.IndicesOptions.ConcreteTargetOptions;
 import org.elasticsearch.action.support.IndicesOptions.GatekeeperOptions;
 import org.elasticsearch.action.support.IndicesOptions.SelectorOptions;
-import org.elasticsearch.action.support.IndicesOptions.Selectors;
 import org.elasticsearch.action.support.IndicesOptions.WildcardOptions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -60,7 +59,8 @@ public class IndicesOptionsTests extends ESTestCase {
                         .allowClosedIndices(randomBoolean())
                 )
                 .selectorOptions(
-                    SelectorOptions.builder().setDefaultSelectors(EnumSet.copyOf(randomNonEmptySubsetOf(EnumSet.allOf(Selectors.class))))
+                    SelectorOptions.builder()
+                        .setDefaultSelectors(EnumSet.copyOf(randomNonEmptySubsetOf(EnumSet.allOf(IndexComponentSelector.class))))
                 )
                 .build();
 
@@ -348,7 +348,7 @@ public class IndicesOptionsTests extends ESTestCase {
         );
         GatekeeperOptions gatekeeperOptions = new GatekeeperOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
         SelectorOptions selectorOptions = new SelectorOptions(
-            EnumSet.copyOf(randomSubsetOf(EnumSet.allOf(Selectors.class)))
+            EnumSet.copyOf(randomSubsetOf(EnumSet.allOf(IndexComponentSelector.class)))
         );
 
         IndicesOptions indicesOptions = new IndicesOptions(concreteTargetOptions, wildcardOptions, gatekeeperOptions, selectorOptions);

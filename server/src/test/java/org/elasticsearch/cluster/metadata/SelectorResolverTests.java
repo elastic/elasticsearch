@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.indices.SystemIndices;
@@ -18,8 +19,8 @@ import java.util.EnumSet;
 import java.util.List;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver;
 
-import static org.elasticsearch.action.support.IndicesOptions.Selectors.DATA;
-import static org.elasticsearch.action.support.IndicesOptions.Selectors.FAILURES;
+import static org.elasticsearch.action.support.IndexComponentSelector.DATA;
+import static org.elasticsearch.action.support.IndexComponentSelector.FAILURES;
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.Context;
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import static org.hamcrest.Matchers.equalTo;
@@ -37,14 +38,14 @@ public class SelectorResolverTests extends ESTestCase {
         assertThat(resolve(dataSelector, "testXXX$failures"), equalTo(List.of(new ResolvedExpression("testXXX", FAILURES))));
 
         // Allow selectors TRUE and default selector of $failures
-        Context failuresSelector = getContext(getOptionsForSelectors(IndicesOptions.Selectors.FAILURES));
+        Context failuresSelector = getContext(getOptionsForSelectors(FAILURES));
 
         assertThat(resolve(failuresSelector, "testXXX"), equalTo(List.of(new ResolvedExpression("testXXX", FAILURES))));
         assertThat(resolve(failuresSelector, "testXXX$data"), equalTo(List.of(new ResolvedExpression("testXXX", DATA))));
         assertThat(resolve(failuresSelector, "testXXX$failures"), equalTo(List.of(new ResolvedExpression("testXXX", FAILURES))));
 
         // Allow selectors TRUE and default selectors of both $data and $failures (example, a management/monitoring API)
-        Context bothSelectors = getContext(getOptionsForSelectors(DATA, IndicesOptions.Selectors.FAILURES));
+        Context bothSelectors = getContext(getOptionsForSelectors(DATA, FAILURES));
 
         assertThat(
             resolve(bothSelectors, "testXXX"),
@@ -127,7 +128,7 @@ public class SelectorResolverTests extends ESTestCase {
                 )
             )
         );
-        Context bothSelectors = getContext(getOptionsForSelectors(DATA, IndicesOptions.Selectors.FAILURES));
+        Context bothSelectors = getContext(getOptionsForSelectors(DATA, FAILURES));
         assertThat(
             resolveAll(bothSelectors, "*", "testYYY$failures", "testZZZ$data$data", "<test-{now}>$failures", "test$custom"),
             is(
@@ -175,15 +176,15 @@ public class SelectorResolverTests extends ESTestCase {
         assertThat(resolveMatchAllToSelectors(bothSelector, "_all$failures"), is(EnumSet.of(FAILURES)));
 
         Context noneSelector = getContext(getDisabledSelectorOptions());
-        assertThat(resolveMatchAllToSelectors(noneSelector, "*"), is(EnumSet.noneOf(IndicesOptions.Selectors.class)));
-        assertThat(resolveMatchAllToSelectors(noneSelector, "*$data"), is(EnumSet.noneOf(IndicesOptions.Selectors.class)));
-        assertThat(resolveMatchAllToSelectors(noneSelector, "*$failures"), is(EnumSet.noneOf(IndicesOptions.Selectors.class)));
-        assertThat(resolveMatchAllToSelectors(noneSelector, "_all"), is(EnumSet.noneOf(IndicesOptions.Selectors.class)));
-        assertThat(resolveMatchAllToSelectors(noneSelector, "_all$data"), is(EnumSet.noneOf(IndicesOptions.Selectors.class)));
-        assertThat(resolveMatchAllToSelectors(noneSelector, "_all$failures"), is(EnumSet.noneOf(IndicesOptions.Selectors.class)));
+        assertThat(resolveMatchAllToSelectors(noneSelector, "*"), is(EnumSet.noneOf(IndexComponentSelector.class)));
+        assertThat(resolveMatchAllToSelectors(noneSelector, "*$data"), is(EnumSet.noneOf(IndexComponentSelector.class)));
+        assertThat(resolveMatchAllToSelectors(noneSelector, "*$failures"), is(EnumSet.noneOf(IndexComponentSelector.class)));
+        assertThat(resolveMatchAllToSelectors(noneSelector, "_all"), is(EnumSet.noneOf(IndexComponentSelector.class)));
+        assertThat(resolveMatchAllToSelectors(noneSelector, "_all$data"), is(EnumSet.noneOf(IndexComponentSelector.class)));
+        assertThat(resolveMatchAllToSelectors(noneSelector, "_all$failures"), is(EnumSet.noneOf(IndexComponentSelector.class)));
     }
 
-    private static IndicesOptions getOptionsForSelectors(IndicesOptions.Selectors... selectors) {
+    private static IndicesOptions getOptionsForSelectors(IndexComponentSelector... selectors) {
         return IndicesOptions.builder()
             .selectorOptions(IndicesOptions.SelectorOptions.builder().setDefaultSelectors(EnumSet.copyOf(Arrays.asList(selectors))))
             .gatekeeperOptions(IndicesOptions.GatekeeperOptions.builder().allowSelectors(true))
@@ -206,7 +207,7 @@ public class SelectorResolverTests extends ESTestCase {
         return SelectorResolver.resolve(context, List.of(expressions));
     }
 
-    private static EnumSet<IndicesOptions.Selectors> resolveMatchAllToSelectors(Context context, String matchAll) {
+    private static EnumSet<IndexComponentSelector> resolveMatchAllToSelectors(Context context, String matchAll) {
         return SelectorResolver.resolveMatchAllToSelectors(context, matchAll);
     }
 }

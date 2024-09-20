@@ -22,7 +22,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.action.support.IndicesOptions.Selectors.DATA;
+import static org.elasticsearch.action.support.IndexComponentSelector.DATA;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;

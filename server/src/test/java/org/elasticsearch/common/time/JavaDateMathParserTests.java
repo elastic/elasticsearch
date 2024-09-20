@@ -100,7 +100,7 @@ public class JavaDateMathParserTests extends ESTestCase {
         // defaulting missing day of week
         formatter = DateFormatter.forPattern("YYYY'W'ww[e]");// YYYY'W'wwe
         // second week of 2022 is starting on Monday 10th Jan
-        assertDateMathEquals(formatter.toDateMathParser(), "2022W02", "2022-01-10T23:59:59.999Z", 0, true, ZoneOffset.UTC);
+        assertDateMathEquals(formatter.toDateMathParser(), "2022W02", "2022-01-02T23:59:59.999Z", 0, true, ZoneOffset.UTC);
     }
 
     public void testDayOfYear() {
@@ -126,16 +126,16 @@ public class JavaDateMathParserTests extends ESTestCase {
 
     public void testWeekDates() {
         DateFormatter formatter = DateFormatter.forPattern("YYYY-ww");
-        assertDateMathEquals(formatter.toDateMathParser(), "2016-01", "2016-01-04T23:59:59.999Z", 0, true, ZoneOffset.UTC);
+        assertDateMathEquals(formatter.toDateMathParser(), "2016-02", "2016-01-03T23:59:59.999Z", 0, true, ZoneOffset.UTC);
 
         formatter = DateFormatter.forPattern("YYYY");
-        assertDateMathEquals(formatter.toDateMathParser(), "2016", "2016-01-04T23:59:59.999Z", 0, true, ZoneOffset.UTC);
+        assertDateMathEquals(formatter.toDateMathParser(), "2016", "2015-12-27T23:59:59.999Z", 0, true, ZoneOffset.UTC);
 
         formatter = DateFormatter.forPattern("YYYY-ww");
-        assertDateMathEquals(formatter.toDateMathParser(), "2015-01", "2014-12-29T23:59:59.999Z", 0, true, ZoneOffset.UTC);
+        assertDateMathEquals(formatter.toDateMathParser(), "2015-02", "2015-01-04T23:59:59.999Z", 0, true, ZoneOffset.UTC);
 
         formatter = DateFormatter.forPattern("YYYY");
-        assertDateMathEquals(formatter.toDateMathParser(), "2015", "2014-12-29T23:59:59.999Z", 0, true, ZoneOffset.UTC);
+        assertDateMathEquals(formatter.toDateMathParser(), "2015", "2014-12-28T23:59:59.999Z", 0, true, ZoneOffset.UTC);
     }
 
     public void testBasicDates() {

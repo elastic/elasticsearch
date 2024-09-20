@@ -33,10 +33,12 @@ teardown:
 ---
 "Redirect ingest failure in data stream to failure store":
   - requires:
-      cluster_features: ["gte_v8.15.0"]
-      reason: "data stream failure stores REST structure changed in 8.15+"
-      test_runner_features: [allowed_warnings, contains]
-
+      reason: "Failure store status was added in 8.16+"
+      test_runner_features: [capabilities, allowed_warnings, contains]
+      capabilities:
+        - method: POST
+          path: /{index}/_doc
+          capabilities: [ 'failure_store_status' ]
   - do:
       ingest.put_pipeline:
         id: "failing_pipeline"
@@ -92,6 +94,8 @@ teardown:
         body:
           '@timestamp': '2020-12-12'
           foo: bar
+  - match: { failure_store: used}
+  - match: { _index: '/\.fs-logs-foobar-(\d{4}\.\d{2}\.\d{2}-)?000001/'}
 
   - do:
       indices.get_data_stream:
@@ -144,9 +148,12 @@ teardown:
 ---
 "Redirect shard failure in data stream to failure store":
   - requires:
-      cluster_features: ["gte_v8.14.0"]
-      reason: "data stream failure stores only redirect shard failures in 8.14+"
-      test_runner_features: [allowed_warnings, contains]
+      reason: "Failure store status was added in 8.16+"
+      test_runner_features: [ capabilities, allowed_warnings, contains ]
+      capabilities:
+        - method: POST
+          path: /{index}/_doc
+          capabilities: [ 'failure_store_status' ]
 
   - do:
       allowed_warnings:
@@ -176,6 +183,8 @@ teardown:
         body:
           '@timestamp': '2020-12-12'
           count: 'invalid value'
+  - match: { _index: '/\.fs-logs-foobar-(\d{4}\.\d{2}\.\d{2}-)?000002/'}
+  - match: { failure_store: used}
 
   - do:
       indices.get_data_stream:
@@ -222,14 +231,13 @@ teardown:
 
 ---
 "Ensure failure is redirected to correct failure store after a reroute processor":
-  - skip:
-      known_issues:
-        - cluster_feature: "gte_v8.15.0"
-          fixed_by: "gte_v8.16.0"
-      reason: "Failure store documents contained the original index name rather than the rerouted one before v8.16.0"
   - requires:
-      test_runner_features: [allowed_warnings]
-
+      test_runner_features: [allowed_warnings, capabilities]
+      reason: "Failure store status was added in 8.16+"
+      capabilities:
+        - method: POST
+          path: /{index}/_doc
+          capabilities: [ 'failure_store_status' ]
   - do:
       ingest.put_pipeline:
         id: "failing_pipeline"
@@ -307,6 +315,7 @@ teardown:
         body:
           '@timestamp': '2020-12-12'
           foo: bar
+  - match: { failure_store: used}
 
   - do:
       search:
@@ -422,9 +431,12 @@ teardown:
 ---
 "Failure redirects to original failure store during index change if final pipeline changes target":
   - requires:
-      cluster_features: [ "gte_v8.15.0" ]
-      reason: "data stream failure stores REST structure changed in 8.15+"
-      test_runner_features: [ allowed_warnings, contains ]
+      reason: "Failure store status was added in 8.16+"
+      test_runner_features: [ capabilities, allowed_warnings, contains ]
+      capabilities:
+        - method: POST
+          path: /{index}/_doc
+          capabilities: [ 'failure_store_status' ]
 
   - do:
       ingest.put_pipeline:
@@ -466,6 +478,7 @@ teardown:
         body:
           '@timestamp': '2020-12-12'
           foo: bar
+  - match: { failure_store: used}
 
   - do:
       indices.get_data_stream:
@@ -514,9 +527,12 @@ teardown:
 ---
 "Failure redirects to correct failure store when index loop is detected":
   - requires:
-      cluster_features: [ "gte_v8.15.0" ]
-      reason: "data stream failure stores REST structure changed in 8.15+"
-      test_runner_features: [ allowed_warnings, contains ]
+      reason: "Failure store status was added in 8.16+"
+      test_runner_features: [ capabilities, allowed_warnings, contains ]
+      capabilities:
+        - method: POST
+          path: /{index}/_doc
+          capabilities: [ 'failure_store_status' ]
 
   - do:
       ingest.put_pipeline:
@@ -591,6 +607,8 @@ teardown:
         body:
           '@timestamp': '2020-12-12'
           foo: bar
+  - match: { _index: '/\.fs-destination-data-stream-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { failure_store: used}
 
 
   - do:
@@ -640,9 +658,12 @@ teardown:
 ---
 "Failure redirects to correct failure store when pipeline loop is detected":
   - requires:
-      cluster_features: [ "gte_v8.15.0" ]
-      reason: "data stream failure stores REST structure changed in 8.15+"
-      test_runner_features: [ allowed_warnings, contains ]
+      reason: "Failure store status was added in 8.16+"
+      test_runner_features: [ capabilities, allowed_warnings, contains ]
+      capabilities:
+        - method: POST
+          path: /{index}/_doc
+          capabilities: [ 'failure_store_status' ]
 
   - do:
       ingest.put_pipeline:
@@ -701,6 +722,7 @@ teardown:
         body:
           '@timestamp': '2020-12-12'
           foo: bar
+  - match: { failure_store: used}
 
   - do:
       indices.get_data_stream:
@@ -752,9 +774,7 @@ teardown:
 ---
 "Version conflicts are not redirected to failure store":
   - requires:
-      cluster_features: ["gte_v8.16.0"]
-      reason: "Redirecting version conflicts to the failure store is considered a bug fixed in 8.16"
-      test_runner_features: [allowed_warnings, contains]
+      test_runner_features: [ allowed_warnings]
 
   - do:
       allowed_warnings:
@@ -788,3 +808,92 @@ teardown:
   - match: { items.1.create._index: '/\.ds-logs-foobar-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
   - match: { items.1.create.status: 409 }
   - match: { items.1.create.error.type: version_conflict_engine_exception}
+  - is_false: items.1.create.failure_store
+
+---
+"Test failure store status with bulk request":
+  - requires:
+      test_runner_features: [ allowed_warnings, capabilities ]
+      reason: "Failure store status was added in 8.16+"
+      capabilities:
+        - method: POST
+          path: /_bulk
+          capabilities: [ 'failure_store_status' ]
+        - method: PUT
+          path: /_bulk
+          capabilities: [ 'failure_store_status' ]
+
+  - do:
+      allowed_warnings:
+        - "index template [generic_logs_template] has index patterns [logs-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [generic_logs_template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: generic_logs_template
+        body:
+          index_patterns: logs-*
+          data_stream:
+            failure_store: true
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+                count:
+                  type: long
+  - do:
+      allowed_warnings:
+        - "index template [no-fs] has index patterns [no-fs*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [no-fs] will take precedence during new index creation"
+      indices.put_index_template:
+        name: no-fs
+        body:
+          index_patterns: no-fs*
+          data_stream:
+            failure_store: false
+          template:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+                count:
+                  type: long
+
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "create": { "_index": "logs-foobar", "_id": "1" } }'
+          - '{ "@timestamp": "2022-01-01", "baz": "quick", "a": "brown", "b": "fox" }'
+          - '{ "create": { "_index": "logs-foobar", "_id": "1" } }'
+          - '{ "@timestamp": "2022-01-01", "baz": "lazy", "a": "dog" }'
+          - '{ "create": { "_index": "logs-foobar", "_id": "1" } }'
+          - '{ "@timestamp": "2022-01-01", "count": "invalid" }'
+          - '{ "create": { "_index": "no-fs", "_id": "1" } }'
+          - '{ "@timestamp": "2022-01-01", "count": "invalid" }'
+  - is_true: errors
+  # Successfully indexed to backing index
+  - match: { items.0.create._index: '/\.ds-logs-foobar-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { items.0.create.status: 201 }
+  - is_false: items.1.create.failure_store
+
+  # Rejected but not eligible to go to failure store
+  - match: { items.1.create._index: '/\.ds-logs-foobar-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { items.1.create.status: 409 }
+  - match: { items.1.create.error.type: version_conflict_engine_exception}
+  - is_false: items.1.create.failure_store
+
+  # Successfully indexed to failure store
+  - match: { items.2.create._index: '/\.fs-logs-foobar-(\d{4}\.\d{2}\.\d{2}-)?000002/' }
+  - match: { items.2.create.status: 201 }
+  - match: { items.2.create.failure_store: used }
+
+  # Rejected, eligible to go to failure store, but failure store not enabled
+  - match: { items.3.create._index: '/\.ds-no-fs-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { items.3.create.status: 400 }
+  - match: { items.3.create.error.type: document_parsing_exception }
+  - match: { items.3.create.failure_store: not_enabled }

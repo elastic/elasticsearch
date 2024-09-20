@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.conditional;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -27,31 +28,41 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 
 public class CaseTests extends AbstractScalarFunctionTestCase {
-    private static final List<DataType> TYPES = List.of(
-        DataType.KEYWORD,
-        DataType.TEXT,
-        DataType.BOOLEAN,
-        DataType.DATETIME,
-        DataType.DATE_NANOS,
-        DataType.DOUBLE,
-        DataType.INTEGER,
-        DataType.LONG,
-        DataType.UNSIGNED_LONG,
-        DataType.IP,
-        DataType.VERSION,
-        DataType.CARTESIAN_POINT,
-        DataType.GEO_POINT,
-        DataType.CARTESIAN_SHAPE,
-        DataType.GEO_SHAPE,
-        DataType.NULL
-    );
+
+    private static final List<DataType> TYPES;
+    static {
+        List<DataType> t = Stream.of(
+            DataType.KEYWORD,
+            DataType.TEXT,
+            DataType.BOOLEAN,
+            DataType.DATETIME,
+            DataType.DOUBLE,
+            DataType.INTEGER,
+            DataType.LONG,
+            DataType.UNSIGNED_LONG,
+            DataType.IP,
+            DataType.VERSION,
+            DataType.CARTESIAN_POINT,
+            DataType.GEO_POINT,
+            DataType.CARTESIAN_SHAPE,
+            DataType.GEO_SHAPE,
+            DataType.NULL
+        ).collect(Collectors.toList());
+        if (Build.current().isSnapshot()) {
+            t.addAll(DataType.UNDER_CONSTRUCTION.keySet());
+        }
+        TYPES = unmodifiableList(t);
+    }
 
     public CaseTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();

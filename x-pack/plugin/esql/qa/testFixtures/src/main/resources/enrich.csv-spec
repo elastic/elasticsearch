@@ -155,7 +155,7 @@ ROW client_ip = "172.21.0.5"
 | KEEP quali`fi`er.env
 ;
 
-c.env:keyword
+qualifier.env:keyword
 Development
 ;
 
@@ -168,7 +168,7 @@ ROW client_ip = "172.21.0.5"
 | LIMIT 0
 ;
 
-c.env:keyword
+qualifier.env:keyword
 ;
 
 withQualifierNoConflictKeepWildcard

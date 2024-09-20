@@ -178,6 +178,35 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     }
 
     @Override
+    public void writeString(String str) throws IOException {
+        final int currentPageOffset = this.currentPageOffset;
+        final int charCount = str.length();
+        // maximum serialized length is 3 bytes per char + 5 bytes for the longest possible vint
+        if (charCount * 3 + 5 > (pageSize - currentPageOffset)) {
+            super.writeString(str);
+            return;
+        }
+        BytesRef currentPage = pages.get(pageIndex).v();
+        int off = currentPage.offset + currentPageOffset;
+        byte[] buffer = currentPage.bytes;
+        int offset = off + putVInt(buffer, charCount, off);
+        for (int i = 0; i < charCount; i++) {
+            final int c = str.charAt(i);
+            if (c <= 0x007F) {
+                buffer[offset++] = ((byte) c);
+            } else if (c > 0x07FF) {
+                buffer[offset++] = ((byte) (0xE0 | c >> 12 & 0x0F));
+                buffer[offset++] = ((byte) (0x80 | c >> 6 & 0x3F));
+                buffer[offset++] = ((byte) (0x80 | c >> 0 & 0x3F));
+            } else {
+                buffer[offset++] = ((byte) (0xC0 | c >> 6 & 0x1F));
+                buffer[offset++] = ((byte) (0x80 | c >> 0 & 0x3F));
+            }
+        }
+        this.currentPageOffset = offset - currentPage.offset;
+    }
+
+    @Override
     public void flush() {
         // nothing to do
     }

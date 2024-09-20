@@ -101,8 +101,7 @@ PUT _ilm/policy/my_policy
       "cold": {
         "actions": {
           "searchable_snapshot" : {
-            "snapshot_repository" : "backing_repo",
-            "total_shards_per_node" : 2
+            "snapshot_repository" : "backing_repo"
           }
         }
       }

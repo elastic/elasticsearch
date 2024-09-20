@@ -99,13 +99,13 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
     }
 
     public void testCreateWithInvalidTotalShardsPerNode() {
-        int invalidTotalShardsPerNode = randomIntBetween(-100000, -2);
+        int invalidTotalShardsPerNode = randomIntBetween(-100, 0);
 
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
             () -> new SearchableSnapshotAction("test", true, invalidTotalShardsPerNode)
         );
-        assertEquals("[" + TOTAL_SHARDS_PER_NODE.getPreferredName() + "] must be >= -1", exception.getMessage());
+        assertEquals("[" + TOTAL_SHARDS_PER_NODE.getPreferredName() + "] must be >= 1", exception.getMessage());
     }
 
     private List<StepKey> expectedStepKeysWithForceMerge(String phase) {
@@ -184,6 +184,10 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
     }
 
     static SearchableSnapshotAction randomInstance() {
-        return new SearchableSnapshotAction(randomAlphaOfLengthBetween(5, 10), randomBoolean(), randomIntBetween(-1, 100));
+        return new SearchableSnapshotAction(
+            randomAlphaOfLengthBetween(5, 10),
+            randomBoolean(),
+            (randomBoolean() ? null : randomIntBetween(1, 100))
+        );
     }
 }

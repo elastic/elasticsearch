@@ -92,7 +92,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 }
                 break;
             case 4:
-                totalShardsPerNode += randomIntBetween(1, 100);
+                totalShardsPerNode = totalShardsPerNode == null ? 1 : totalShardsPerNode + randomIntBetween(1, 100);
                 break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
@@ -101,7 +101,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
     }
 
     public void testCreateWithInvalidTotalShardsPerNode() throws Exception {
-        int invalidTotalShardsPerNode = randomIntBetween(-100000, -2);
+        int invalidTotalShardsPerNode = randomIntBetween(-100, 0);
 
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
@@ -114,7 +114,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 invalidTotalShardsPerNode
             )
         );
-        assertEquals("[totalShardsPerNode] must be >= -1", exception.getMessage());
+        assertEquals("[totalShardsPerNode] must be >= 1", exception.getMessage());
     }
 
     public void testPerformActionFailure() {
@@ -469,6 +469,6 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
     }
 
     private Integer randomTotalShardsPerNode() {
-        return randomIntBetween(-1, 100);
+        return (randomBoolean() ? null : randomIntBetween(1, 100));
     }
 }

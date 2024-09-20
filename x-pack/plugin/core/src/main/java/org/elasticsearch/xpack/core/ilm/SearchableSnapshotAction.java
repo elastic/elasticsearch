@@ -85,8 +85,8 @@ public class SearchableSnapshotAction implements LifecycleAction {
         this.snapshotRepository = snapshotRepository;
         this.forceMergeIndex = forceMergeIndex;
 
-        if (totalShardsPerNode != null && totalShardsPerNode < -1) {
-            throw new IllegalArgumentException("[" + TOTAL_SHARDS_PER_NODE.getPreferredName() + "] must be >= -1");
+        if (totalShardsPerNode != null && totalShardsPerNode < 1) {
+            throw new IllegalArgumentException("[" + TOTAL_SHARDS_PER_NODE.getPreferredName() + "] must be >= 1");
         }
         this.totalShardsPerNode = totalShardsPerNode;
     }

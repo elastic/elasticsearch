@@ -37,6 +37,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
@@ -2522,7 +2523,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     ) {
         Settings.Builder indexSettings;
         if (enableSoftDeletes == false) {
-            indexSettings = settings(IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.current())).put(
+            indexSettings = settings(IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0)).put(
                 IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(),
                 false
             );

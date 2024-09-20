@@ -331,10 +331,6 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         return Arrays.stream(indicesPrivileges).anyMatch(ip -> ip.isUsingDocumentLevelSecurity() || ip.isUsingFieldLevelSecurity());
     }
 
-    public boolean isUsingFieldLevelSecurity() {
-        return Arrays.stream(indicesPrivileges).anyMatch(ip -> ip.isUsingFieldLevelSecurity());
-    }
-
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder("Role[");

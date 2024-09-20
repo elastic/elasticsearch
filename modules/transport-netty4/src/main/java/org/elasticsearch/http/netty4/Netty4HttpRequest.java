@@ -12,6 +12,7 @@ package org.elasticsearch.http.netty4;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
+import io.netty.handler.codec.http.EmptyHttpHeaders;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaders;
@@ -21,6 +22,7 @@ import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
 import io.netty.handler.codec.http.cookie.ServerCookieEncoder;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
@@ -40,22 +42,40 @@ import java.util.stream.Collectors;
 public class Netty4HttpRequest implements HttpRequest {
 
     private final FullHttpRequest request;
-    private final BytesReference content;
+    private final HttpBody content;
     private final Map<String, List<String>> headers;
     private final AtomicBoolean released;
     private final Exception inboundException;
     private final boolean pooled;
     private final int sequence;
 
+    Netty4HttpRequest(int sequence, io.netty.handler.codec.http.HttpRequest request, Netty4HttpRequestBodyStream contentStream) {
+        this(
+            sequence,
+            new DefaultFullHttpRequest(
+                request.protocolVersion(),
+                request.method(),
+                request.uri(),
+                Unpooled.EMPTY_BUFFER,
+                request.headers(),
+                EmptyHttpHeaders.INSTANCE
+            ),
+            new AtomicBoolean(false),
+            true,
+            contentStream,
+            null
+        );
+    }
+
     Netty4HttpRequest(int sequence, FullHttpRequest request) {
-        this(sequence, request, new AtomicBoolean(false), true, Netty4Utils.toBytesReference(request.content()));
+        this(sequence, request, new AtomicBoolean(false), true, Netty4Utils.fullHttpBodyFrom(request.content()));
     }
 
     Netty4HttpRequest(int sequence, FullHttpRequest request, Exception inboundException) {
-        this(sequence, request, new AtomicBoolean(false), true, Netty4Utils.toBytesReference(request.content()), inboundException);
+        this(sequence, request, new AtomicBoolean(false), true, Netty4Utils.fullHttpBodyFrom(request.content()), inboundException);
     }
 
-    private Netty4HttpRequest(int sequence, FullHttpRequest request, AtomicBoolean released, boolean pooled, BytesReference content) {
+    private Netty4HttpRequest(int sequence, FullHttpRequest request, AtomicBoolean released, boolean pooled, HttpBody content) {
         this(sequence, request, released, pooled, content, null);
     }
 
@@ -64,7 +84,7 @@ public class Netty4HttpRequest implements HttpRequest {
         FullHttpRequest request,
         AtomicBoolean released,
         boolean pooled,
-        BytesReference content,
+        HttpBody content,
         Exception inboundException
     ) {
         this.sequence = sequence;
@@ -87,7 +107,7 @@ public class Netty4HttpRequest implements HttpRequest {
     }
 
     @Override
-    public BytesReference content() {
+    public HttpBody body() {
         assert released.get() == false;
         return content;
     }
@@ -96,6 +116,7 @@ public class Netty4HttpRequest implements HttpRequest {
     public void release() {
         if (pooled && released.compareAndSet(false, true)) {
             request.release();
+            content.close();
         }
     }
 
@@ -107,6 +128,12 @@ public class Netty4HttpRequest implements HttpRequest {
         }
         try {
             final ByteBuf copiedContent = Unpooled.copiedBuffer(request.content());
+            HttpBody newContent;
+            if (content.isStream()) {
+                newContent = content;
+            } else {
+                newContent = Netty4Utils.fullHttpBodyFrom(copiedContent);
+            }
             return new Netty4HttpRequest(
                 sequence,
                 new DefaultFullHttpRequest(
@@ -119,7 +146,7 @@ public class Netty4HttpRequest implements HttpRequest {
                 ),
                 new AtomicBoolean(false),
                 false,
-                Netty4Utils.toBytesReference(copiedContent)
+                newContent
             );
         } finally {
             release();

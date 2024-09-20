@@ -36,7 +36,11 @@ PUT _inference/sparse_embedding/my-elser-endpoint <1>
 {
   "service": "elser", <2>
   "service_settings": {
-    "num_allocations": 1,
+    "adaptive_allocations": { <3>
+      "enabled": true,
+      "min_number_of_allocations": 3,
+      "max_number_of_allocations": 10
+    },
     "num_threads": 1
   }
 }
@@ -46,6 +50,8 @@ PUT _inference/sparse_embedding/my-elser-endpoint <1>
 be used and ELSER creates sparse vectors. The `inference_id` is
 `my-elser-endpoint`.
 <2> The `elser` service is used in this example.
+<3> This setting enables and configures {ml-docs}/ml-nlp-elser.html#elser-adaptive-allocations[adaptive allocations].
+Adaptive allocations make it possible for ELSER to automatically scale up or down resources based on the current load on the process.
 
 [NOTE]
 ====
@@ -96,11 +102,12 @@ a list of relevant text passages. All unique passages, along with their IDs,
 have been extracted from that data set and compiled into a
 https://github.com/elastic/stack-docs/blob/main/docs/en/stack/ml/nlp/data/msmarco-passagetest2019-unique.tsv[tsv file].
 
-Download the file and upload it to your cluster using the
-{kibana-ref}/connect-to-elasticsearch.html#upload-data-kibana[Data Visualizer]
-in the {ml-app} UI. Assign the name `id` to the first column and `content` to
-the second column. The index name is `test-data`. Once the upload is complete,
-you can see an index named `test-data` with 182469 documents.
+Download the file and upload it to your cluster using the {kibana-ref}/connect-to-elasticsearch.html#upload-data-kibana[Data Visualizer] in the {ml-app} UI.
+After your data is analyzed, click **Override settings**.
+Under **Edit field names**, assign `id` to the first column and `content` to the second.
+Click **Apply**, then **Import**.
+Name the index `test-data`, and click **Import**.
+After the upload is complete, you will see an index named `test-data` with 182,469 documents.
 
 
 [discrete]
@@ -137,8 +144,10 @@ GET _tasks/<task_id>
 ------------------------------------------------------------
 // TEST[skip:TBD]
 
-It is recommended to cancel the reindexing process if you don't want to wait
-until it is fully complete which might take a long time for an inference endpoint with few assigned resources:
+Reindexing large datasets can take a long time.
+You can test this workflow using only a subset of the dataset.
+Do this by cancelling the reindexing process, and only generating embeddings for the subset that was reindexed.
+The following API request will cancel the reindexing task:
 
 [source,console]
 ------------------------------------------------------------

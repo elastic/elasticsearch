@@ -277,6 +277,9 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search/180_locale_dependent_mapping/Test Index and Search locale dependent mappings / dates}
   issue: https://github.com/elastic/elasticsearch/issues/113227
+- class: org.elasticsearch.index.mapper.DoubleRangeFieldMapperTests
+  method: testSyntheticSourceKeepAll
+  issue: https://github.com/elastic/elasticsearch/issues/113234
 
 # Examples:
 #

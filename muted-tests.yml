@@ -277,6 +277,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {date.EvalDateFormatString SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/113293
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {date.EvalDateFormat}
+  issue: https://github.com/elastic/elasticsearch/issues/113294
 
 # Examples:
 #

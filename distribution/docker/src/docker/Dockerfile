@@ -163,7 +163,7 @@ RUN <%= retry.loop(package_manager,
           "      ${package_manager} update && \n" +
           "      ${package_manager} upgrade && \n" +
           "      ${package_manager} add --no-cache \n" +
-          "        bash java-cacerts curl libstdc++ libsystemd netcat-openbsd p11-kit p11-kit-trust shadow tini unzip zip zstd && \n" +
+          "        bash java-cacerts curl libstdc++ libsystemd netcat-openbsd p11-kit p11-kit-trust posix-libc-utils shadow tini unzip zip zstd && \n" +
           "      rm -rf /var/cache/apk/* "
      ) %>
 <% } else if (docker_base == "default" || docker_base == "cloud") { %>

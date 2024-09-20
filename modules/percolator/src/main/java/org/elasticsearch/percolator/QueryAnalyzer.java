@@ -25,13 +25,15 @@ import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
-import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.lucene.queries.BlendedTermQuery;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -198,10 +200,16 @@ final class QueryAnalyzer {
         @Override
         public void consumeTermsMatching(Query query, String field, Supplier<ByteRunAutomaton> automaton) {
             if (query instanceof TermInSetQuery q) {
-                // TODO Lucene 10 upgrade: this is a workaround that only gets one term
-                Term term = NestedHelper.getTermInSetTerm(q);
+                BytesRefIterator bytesRefIterator = q.getBytesRefIterator();
+                BytesRef term;
                 Set<QueryExtraction> qe = new HashSet<>();
-                qe.add(new QueryExtraction(term));
+                try {
+                    while ((term = bytesRefIterator.next()) != null) {
+                        qe.add(new QueryExtraction(new Term(field, term)));
+                    }
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
                 this.terms.add(new Result(true, qe, 1));
             } else {
                 super.consumeTermsMatching(query, field, automaton);

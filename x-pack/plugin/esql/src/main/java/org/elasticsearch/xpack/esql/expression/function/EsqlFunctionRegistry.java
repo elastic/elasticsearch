@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.WeightedAvg;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryStringFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
@@ -387,7 +388,9 @@ public class EsqlFunctionRegistry {
         return new FunctionDefinition[][] {
             new FunctionDefinition[] {
                 def(Categorize.class, Categorize::new, "categorize"),
-                def(Rate.class, Rate::withUnresolvedTimestamp, "rate") } };
+                def(Rate.class, Rate::withUnresolvedTimestamp, "rate"),
+                // Full text functions
+                def(QueryStringFunction.class, QueryStringFunction::new, "qstr") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

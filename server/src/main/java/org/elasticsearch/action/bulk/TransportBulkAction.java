@@ -53,6 +53,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -192,7 +193,11 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
                 final Response response = (Response) bulkItemResponse.getResponse();
                 l.onResponse(response);
             } else {
-                l.onFailure(bulkItemResponse.getFailure().getCause());
+                if (IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN.equals(bulkItemResponse.getFailure().getFailureStoreStatus())) {
+                    l.onFailure(bulkItemResponse.getFailure().getCause());
+                } else {
+                    l.onFailure(new IndexDocFailureStoreStatus.ExceptionWithFailureStoreStatus(bulkItemResponse.getFailure()));
+                }
             }
         });
     }
@@ -204,9 +209,12 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         Executor executor,
         ActionListener<BulkResponse> listener,
         long relativeStartTimeNanos
-    ) {
+    ) throws IOException {
+        assert (bulkRequest instanceof SimulateBulkRequest) == false
+            : "TransportBulkAction should never be called with a SimulateBulkRequest";
+        assert bulkRequest.getComponentTemplateSubstitutions().isEmpty()
+            : "Component template substitutions are not allowed in a non-simulated bulk";
         trackIndexRequests(bulkRequest);
-
         Map<String, CreateIndexRequest> indicesToAutoCreate = new HashMap<>();
         Set<String> dataStreamsToBeRolledOver = new HashSet<>();
         Set<String> failureStoresToBeRolledOver = new HashSet<>();

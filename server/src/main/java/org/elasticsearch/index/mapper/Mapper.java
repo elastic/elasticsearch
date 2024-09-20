@@ -31,7 +31,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
     public static final NodeFeature SYNTHETIC_SOURCE_KEEP_FEATURE = new NodeFeature("mapper.synthetic_source_keep");
     public static final NodeFeature IGNORE_ABOVE_INDEX_LEVEL_SETTING = new NodeFeature("mapper.ignore_above_index_level_setting");
 
-    static final String SYNTHETIC_SOURCE_KEEP_PARAM = "synthetic_source_keep";
+    public static final String SYNTHETIC_SOURCE_KEEP_PARAM = "synthetic_source_keep";
 
     // Only relevant for synthetic source mode.
     public enum SourceKeepMode {

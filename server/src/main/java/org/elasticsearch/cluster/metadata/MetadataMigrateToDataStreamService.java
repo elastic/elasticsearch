@@ -105,7 +105,12 @@ public class MetadataMigrateToDataStreamService {
         var delegate = new AllocationActionListener<>(listener, threadContext);
         submitUnbatchedTask(
             "migrate-to-data-stream [" + request.aliasName + "]",
-            new AckedClusterStateUpdateTask(Priority.HIGH, request, delegate.clusterStateUpdate()) {
+            new AckedClusterStateUpdateTask(
+                Priority.HIGH,
+                request.masterNodeTimeout(),
+                request.ackTimeout(),
+                delegate.clusterStateUpdate()
+            ) {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {

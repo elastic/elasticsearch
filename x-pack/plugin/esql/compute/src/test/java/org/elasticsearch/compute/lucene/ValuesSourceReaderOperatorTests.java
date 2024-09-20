@@ -52,7 +52,6 @@ import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -1364,7 +1363,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             Lucene.KEYWORD_ANALYZER,
             Lucene.KEYWORD_ANALYZER,
             Lucene.KEYWORD_ANALYZER,
-            new KeywordFieldMapper.Builder(name, Integer.MAX_VALUE, IndexVersion.current()).docValues(false),
+            KeywordFieldMapper.buildForTest(name, ft),
             true // TODO randomize - load from stored keyword fields if stored even in synthetic source
         );
     }

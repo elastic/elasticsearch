@@ -141,6 +141,12 @@ public final class KeywordFieldMapper extends FieldMapper {
         return (KeywordFieldMapper) in;
     }
 
+    public static Builder buildForTest(final String name, final FieldType fieldType) {
+        return new KeywordFieldMapper.Builder(name, Integer.MAX_VALUE, IndexVersion.current()).docValues(
+            fieldType.docValuesType() != DocValuesType.NONE
+        );
+    }
+
     public static final class Builder extends FieldMapper.DimensionBuilder {
 
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);

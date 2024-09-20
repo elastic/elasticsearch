@@ -43,7 +43,6 @@ import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -183,9 +182,7 @@ public class ValuesSourceReaderBenchmark {
                 Lucene.KEYWORD_ANALYZER,
                 Lucene.KEYWORD_ANALYZER,
                 Lucene.KEYWORD_ANALYZER,
-                new KeywordFieldMapper.Builder(name, Integer.MAX_VALUE, IndexVersion.current()).docValues(
-                    ft.docValuesType() != DocValuesType.NONE
-                ),
+                KeywordFieldMapper.buildForTest(name, ft),
                 syntheticSource
             ).blockLoader(new MappedFieldType.BlockLoaderContext() {
                 @Override

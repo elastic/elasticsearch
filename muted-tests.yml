@@ -268,6 +268,9 @@ tests:
 - class: org.elasticsearch.datastreams.logsdb.qa.StandardVersusLogsIndexModeRandomDataChallengeRestIT
   method: testTermsQuery
   issue: https://github.com/elastic/elasticsearch/issues/113246
+- class: org.elasticsearch.integration.KibanaUserRoleIntegTests
+  method: testGetMappings
+  issue: https://github.com/elastic/elasticsearch/issues/113260
 
 # Examples:
 #

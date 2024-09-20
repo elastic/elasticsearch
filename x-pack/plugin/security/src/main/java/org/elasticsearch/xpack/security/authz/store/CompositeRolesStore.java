@@ -316,9 +316,15 @@ public class CompositeRolesStore {
     }
 
     /**
-     * Uses heuristics to determine if role building will be expensive and therefore warrants forking.
+     * Checks if we're on transport thread and if yes, uses heuristics to determine if role building will be expensive and
+     * therefore warrants forking.
      */
     private boolean shouldForkRoleBuilding(Set<RoleDescriptor> roleDescriptors) {
+        // If we're not on transport thread, no need to fork
+        if (false == Transports.isTransportThread(Thread.currentThread())) {
+            return false;
+        }
+
         // A role with many role descriptors is likely expensive to build
         if (roleDescriptors.size() > 100) {
             return true;

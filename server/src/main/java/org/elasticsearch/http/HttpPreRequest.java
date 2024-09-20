@@ -42,7 +42,12 @@ public interface HttpPreRequest {
         if (index >= 0) {
             return uri.substring(0, index);
         } else {
-            return uri;
+            final int index2 = uri.indexOf('#');
+            if (index2 >= 0) {
+                return uri.substring(0, index2);
+            } else {
+                return uri;
+            }
         }
     }
 

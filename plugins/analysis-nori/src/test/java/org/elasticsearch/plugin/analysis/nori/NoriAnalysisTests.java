@@ -127,7 +127,7 @@ public class NoriAnalysisTests extends ESTokenStreamTestCase {
             .build();
 
         final IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> createTestAnalysis(settings));
-        assertThat(exc.getMessage(), containsString("[세종] in user dictionary at line [3]"));
+        assertThat(exc.getMessage(), containsString("[세종] in user dictionary at line [4]"));
     }
 
     public void testNoriAnalyzerDuplicateUserDictRuleWithLegacyVersion() throws IOException {
@@ -141,6 +141,20 @@ public class NoriAnalysisTests extends ESTokenStreamTestCase {
         Analyzer analyzer = analysis.indexAnalyzers.get("my_analyzer");
         try (TokenStream stream = analyzer.tokenStream("", "세종")) {
             assertTokenStreamContents(stream, new String[] { "세종" });
+        }
+    }
+
+    public void testNoriAnalyzerDuplicateUserDictRuleDeduplication() throws Exception {
+        Settings settings = Settings.builder()
+            .put("index.analysis.analyzer.my_analyzer.type", "nori")
+            .put("index.analysis.analyzer.my_analyzer.lenient", "true")
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersions.NORI_DUPLICATES)
+            .putList("index.analysis.analyzer.my_analyzer.user_dictionary_rules", "c++", "C쁠쁠", "세종", "세종", "세종시 세종 시")
+            .build();
+        TestAnalysis analysis = createTestAnalysis(settings);
+        Analyzer analyzer = analysis.indexAnalyzers.get("my_analyzer");
+        try (TokenStream stream = analyzer.tokenStream("", "세종시")) {
+            assertTokenStreamContents(stream, new String[] { "세종", "시" });
         }
     }
 

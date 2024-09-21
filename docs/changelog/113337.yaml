@@ -1,0 +1,6 @@
+pr: 113337
+summary: Make `ecs@mappings` more exhaustive
+area: Data streams
+type: bug
+issues:
+ - 113124

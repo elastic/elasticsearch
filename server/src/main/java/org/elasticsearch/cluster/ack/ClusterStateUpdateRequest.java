@@ -15,7 +15,7 @@ import org.elasticsearch.core.TimeValue;
  * Base class to be used when needing to update the cluster state
  * Contains the basic fields that are always needed
  */
-public abstract class ClusterStateUpdateRequest<T extends ClusterStateUpdateRequest<T>> implements AckedRequest {
+public abstract class ClusterStateUpdateRequest<T extends ClusterStateUpdateRequest<T>> {
 
     private TimeValue ackTimeout;
     private TimeValue masterNodeTimeout;
@@ -23,7 +23,6 @@ public abstract class ClusterStateUpdateRequest<T extends ClusterStateUpdateRequ
     /**
      * Returns the maximum time interval to wait for acknowledgements
      */
-    @Override
     public TimeValue ackTimeout() {
         return ackTimeout;
     }
@@ -41,7 +40,6 @@ public abstract class ClusterStateUpdateRequest<T extends ClusterStateUpdateRequ
      * Returns the maximum time interval to wait for the request to
      * be completed on the master node
      */
-    @Override
     public TimeValue masterNodeTimeout() {
         return masterNodeTimeout;
     }

@@ -300,7 +300,7 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
                     + "Fix {} accordingly.",
                 fieldName,
                 expectedType,
-                ingestedValue.getClass().getSimpleName().toLowerCase(),
+                ingestedValue.getClass().getSimpleName().toLowerCase(Locale.ROOT),
                 actualType,
                 ECS_DYNAMIC_TEMPLATES_FILE
             );
@@ -467,7 +467,7 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
 
             // TODO - REMOVE ONCE THE ERROR INTRODUCED WITH https://github.com/elastic/ecs/pull/2370 IS FIXED
             case "string" -> {
-                System.err.println("Field type 'string' is not supported by ECS and should be replaced with 'keyword' or 'text'");
+                logger.error("Field type 'string' is not supported by ECS and should be replaced with 'keyword' or 'text'");
                 return randomAlphaOfLength(20);
             }
 

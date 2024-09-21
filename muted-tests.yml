@@ -309,6 +309,9 @@ tests:
 - class: org.elasticsearch.index.mapper.LongRangeFieldMapperTests
   method: testSyntheticSourceKeepArrays
   issue: https://github.com/elastic/elasticsearch/issues/113335
+- class: org.elasticsearch.xpack.security.support.SecurityIndexManagerIntegTests
+  method: testOnIndexAvailableForSearchIndexAlreadyAvailable
+  issue: https://github.com/elastic/elasticsearch/issues/113336
 
 # Examples:
 #

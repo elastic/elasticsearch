@@ -61,6 +61,87 @@
           }
         },
         {
+          "ecs_explicit_keywords": {
+            "mapping": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            },
+            "path_match": [
+              "*registry.data.bytes"
+            ],
+            "match_mapping_type": "string"
+          }
+        },
+        {
+          "ecs_boolean": {
+            "mapping": {
+              "type": "boolean"
+            },
+            "path_match": [
+              "*.code_signature.exists",
+              "*.code_signature.trusted",
+              "*.code_signature.valid",
+              "*.go_stripped",
+              "*.interactive",
+              "*.same_as_process",
+              "*faas.coldstart",
+              "*volume.removable",
+              "*tls.established",
+              "*container.security_context.privileged",
+              "*tls.resumed",
+              "*process.io.max_bytes_per_process_exceeded",
+              "*volume.writable"
+            ],
+            "match_mapping_type": ["boolean", "string"]
+          }
+        },
+        {
+          "ecs_long": {
+            "mapping": {
+              "type": "long"
+            },
+            "path_match": [
+              "*entropy",
+              "*.size",
+              "*_size",
+              "*.as.number",
+              "*.bytes",
+              "*bytes_skipped*",
+              "*.pid",
+              "*.vpid",
+              "*.port",
+              "*.packets",
+              "*.char_device.major",
+              "*.char_device.minor",
+              "*.chi2",
+              "*.args_count",
+              "*.virtual_address",
+              "*.pgid",
+              "*.thread.id",
+              "*.header.entrypoint",
+              "*.uptime",
+              "*.scanner_stats",
+              "*.indicator.sightings",
+              "*process.io.total_bytes_captured",
+              "*process.tty.columns",
+              "*event.severity",
+              "*log.syslog.severity.code",
+              "*process.parent.exit_code",
+              "*http.response.status_code",
+              "*log.syslog.facility.code",
+              "*process.exit_code",
+              "*log.origin.file.line",
+              "*process.tty.rows",
+              "*event.duration",
+              "*event.sequence",
+              "*dns.answers.ttl",
+              "*log.syslog.priority"
+
+            ],
+            "match_mapping_type": ["long", "string"]
+          }
+        },
+        {
           "ecs_wildcard": {
             "mapping": {
               "type": "wildcard"

@@ -208,10 +208,7 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
     }
 
     public void testDateFieldsWithDifferentFormats() throws IOException {
-        Map<String, Object> dateFieldsMap = ecsFlatFieldDefinitions.entrySet()
-            .stream()
-            .filter(entry -> "date".equals(entry.getValue().get("type")))
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        Map<String, Object> dateFieldsMap = getFieldMappingsByType("date");
 
         // test with iso8601 format
         String indexName = "test-date-fields-as-is8601";
@@ -221,7 +218,7 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         for (String field : dateFieldsMap.keySet()) {
             document.put(field, formatter.formatMillis(System.currentTimeMillis()));
         }
-        verifyAllDateFields(indexName, document, dateFieldsMap);
+        assertFieldsType("date", indexName, document, dateFieldsMap);
 
         // test with milliseconds since epoch format
         indexName = "test-date-fields-as-millis";
@@ -230,22 +227,91 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         for (String field : dateFieldsMap.keySet()) {
             document.put(field, System.currentTimeMillis());
         }
-        verifyAllDateFields(indexName, document, dateFieldsMap);
+        assertFieldsType("date", indexName, document, dateFieldsMap);
     }
 
-    private void verifyAllDateFields(String indexName, Map<String, Object> document, Map<String, Object> dateFieldsMap) throws IOException {
+    public void testBooleanFieldsAsString() throws IOException {
+        Map<String, Object> dateFieldsMap = getFieldMappingsByType("boolean");
+        String indexName = "test-boolean-fields-as-string";
+        createTestIndex(indexName);
+        Map<String, Object> document = new HashMap<>();
+        for (String field : dateFieldsMap.keySet()) {
+            document.put(field, Boolean.toString(randomBoolean()));
+        }
+        assertFieldsType("boolean", indexName, document, dateFieldsMap);
+    }
+
+    public void testLongFieldsAsString() throws IOException {
+        Map<String, Object> dateFieldsMap = getFieldMappingsByType("long");
+        String indexName = "test-long-fields-as-string";
+        createTestIndex(indexName);
+        Map<String, Object> document = new HashMap<>();
+        for (String field : dateFieldsMap.keySet()) {
+            document.put(field, Long.toString(randomLong()));
+        }
+        assertFieldsType("long", indexName, document, dateFieldsMap);
+    }
+
+    public void testFloatFieldsAsString() throws IOException {
+        Map<String, Object> dateFieldsMap = getFieldMappingsByType("float");
+        String indexName = "test-flot-fields-as-string";
+        createTestIndex(indexName);
+        Map<String, Object> document = new HashMap<>();
+        for (String field : dateFieldsMap.keySet()) {
+            document.put(field, Float.toString(randomFloat()));
+        }
+        assertFieldsType("float", indexName, document, dateFieldsMap);
+    }
+
+    private static Map<String, Object> getFieldMappingsByType(String type) {
+        Map<String, Object> ecsBaseFields = ecsFlatFieldDefinitions.entrySet()
+            .stream()
+            .filter(entry -> type.equals(entry.getValue().get("type")))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        Map<String, Object> completeMapIncludingAttributes = new HashMap<>(ecsBaseFields);
+        ecsBaseFields.forEach((key, value) -> {
+            String newKey = "attributes." + key;
+            completeMapIncludingAttributes.put(newKey, value);
+        });
+
+        return completeMapIncludingAttributes;
+    }
+
+    private void assertFieldsType(String expectedType, String indexName, Map<String, Object> document, Map<String, Object> dateFieldsMap)
+        throws IOException {
         indexDocument(indexName, document);
         final Map<String, Object> rawMappings = getMappings(indexName);
         final Map<String, Map<String, Object>> flatFieldMappings = new HashMap<>();
         processRawMappingsSubtree(rawMappings, flatFieldMappings, new HashMap<>(), "");
+        final Map<String, String> wronglyTypedFields = new HashMap<>();
         flatFieldMappings.forEach((fieldName, fieldMappings) -> {
             if (dateFieldsMap.containsKey(fieldName)) {
-                assertType("date", fieldMappings);
+                String actualType = (String) fieldMappings.get("type");
+                if (expectedType.equals(actualType) == false) {
+                    wronglyTypedFields.put(fieldName, actualType);
+                }
             }
         });
+        wronglyTypedFields.forEach((fieldName, actualType) -> {
+            Object ingestedValue = document.get(fieldName);
+            logger.error(
+                "ECS field '{}' is expected to be mapped to '{}', but when provided with a value of type '{}' it gets mapped to '{}'. "
+                    + "Fix {} accordingly.",
+                fieldName,
+                expectedType,
+                ingestedValue.getClass().getSimpleName().toLowerCase(),
+                actualType,
+                ECS_DYNAMIC_TEMPLATES_FILE
+            );
+        });
+        assertTrue(
+            "At least one field was not mapped with correctly according to its ECS definitions, see details above",
+            wronglyTypedFields.isEmpty()
+        );
     }
 
-    private void assertType(String expectedType, Map<String, Object> actualMappings) {
+    private void assertFieldType(String expectedType, Map<String, Object> actualMappings) {
         assertNotNull("expected to get non-null mappings for field", actualMappings);
         assertEquals(expectedType, actualMappings.get("type"));
     }
@@ -266,11 +332,11 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         final Map<String, Object> rawMappings = getMappings(indexName);
         final Map<String, Map<String, Object>> flatFieldMappings = new HashMap<>();
         processRawMappingsSubtree(rawMappings, flatFieldMappings, new HashMap<>(), "");
-        assertType("scaled_float", flatFieldMappings.get("host.cpu.usage"));
-        assertType("scaled_float", flatFieldMappings.get("string.usage"));
-        assertType("long", flatFieldMappings.get("usage"));
-        assertType("long", flatFieldMappings.get("root.usage.long"));
-        assertType("float", flatFieldMappings.get("root.usage.float"));
+        assertFieldType("scaled_float", flatFieldMappings.get("host.cpu.usage"));
+        assertFieldType("scaled_float", flatFieldMappings.get("string.usage"));
+        assertFieldType("long", flatFieldMappings.get("usage"));
+        assertFieldType("long", flatFieldMappings.get("root.usage.long"));
+        assertFieldType("float", flatFieldMappings.get("root.usage.float"));
     }
 
     public void testOnlyMatchLeafFields() throws IOException {
@@ -291,14 +357,14 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         final Map<String, Object> rawMappings = getMappings(indexName);
         final Map<String, Map<String, Object>> flatFieldMappings = new HashMap<>();
         processRawMappingsSubtree(rawMappings, flatFieldMappings, new HashMap<>(), "");
-        assertType("long", flatFieldMappings.get("foo.message.bar"));
-        assertType("long", flatFieldMappings.get("foo.url.path.bar"));
-        assertType("long", flatFieldMappings.get("foo.url.full.bar"));
-        assertType("long", flatFieldMappings.get("foo.stack_trace.bar"));
-        assertType("long", flatFieldMappings.get("foo.user_agent.original.bar"));
-        assertType("long", flatFieldMappings.get("foo.created.bar"));
-        assertType("float", flatFieldMappings.get("foo._score.bar"));
-        assertType("long", flatFieldMappings.get("foo.structured_data"));
+        assertFieldType("long", flatFieldMappings.get("foo.message.bar"));
+        assertFieldType("long", flatFieldMappings.get("foo.url.path.bar"));
+        assertFieldType("long", flatFieldMappings.get("foo.url.full.bar"));
+        assertFieldType("long", flatFieldMappings.get("foo.stack_trace.bar"));
+        assertFieldType("long", flatFieldMappings.get("foo.user_agent.original.bar"));
+        assertFieldType("long", flatFieldMappings.get("foo.created.bar"));
+        assertFieldType("float", flatFieldMappings.get("foo._score.bar"));
+        assertFieldType("long", flatFieldMappings.get("foo.structured_data"));
     }
 
     private static void indexDocument(String indexName, Map<String, Object> flattenedFieldsMap) throws IOException {
@@ -376,9 +442,6 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
             case "long" -> {
                 return randomLong();
             }
-            case "int" -> {
-                return randomInt();
-            }
             case "float", "scaled_float" -> {
                 return randomFloat();
             }
@@ -401,6 +464,13 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
                 // creating multiple subfields
                 return Map.of("subfield1", randomAlphaOfLength(20), "subfield2", randomAlphaOfLength(20));
             }
+
+            // TODO - REMOVE ONCE THE ERROR INTRODUCED WITH https://github.com/elastic/ecs/pull/2370 IS FIXED
+            case "string" -> {
+                System.err.println("Field type 'string' is not supported by ECS and should be replaced with 'keyword' or 'text'");
+                return randomAlphaOfLength(20);
+            }
+
         }
         throw new IllegalArgumentException("Unknown field type: " + type);
     }
@@ -576,6 +646,12 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         String expectedType = (String) expectedMappings.get("type");
         String actualMappingType = (String) actualMappings.get("type");
         if (actualMappingType.equals(expectedType) == false) {
+
+            // TODO - REMOVE ONCE THE ERROR INTRODUCED WITH https://github.com/elastic/ecs/pull/2370 IS FIXED
+            if (expectedType.equals("string") && actualMappingType.equals("keyword")) {
+                return;
+            }
+
             fieldToWrongMappingType.put(fieldName, actualMappingType);
         }
         if (expectedMappings.get("index") != actualMappings.get("index")) {

@@ -291,6 +291,9 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=wildcard/10_wildcard_basic/Query_string wildcard query}
   issue: https://github.com/elastic/elasticsearch/issues/113316
+- class: org.elasticsearch.index.mapper.LongRangeFieldMapperTests
+  method: testSyntheticSourceKeepAll
+  issue: https://github.com/elastic/elasticsearch/issues/113324
 
 # Examples:
 #

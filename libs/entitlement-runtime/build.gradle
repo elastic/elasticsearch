@@ -6,7 +6,19 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
+apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.publish'
 
-module org.elasticsearch.pluginclassloader {
-    exports org.elasticsearch.plugins.loader;
+dependencies {
+  compileOnly project(':libs:elasticsearch-core')
+
+  testImplementation project(":test:framework")
+}
+
+tasks.named('forbiddenApisMain').configure {
+  replaceSignatureFiles 'jdk-signatures'
+}
+
+tasks.named('forbiddenApisMain').configure {
+  replaceSignatureFiles 'jdk-signatures'
 }

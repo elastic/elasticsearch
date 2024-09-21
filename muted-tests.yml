@@ -321,6 +321,9 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=analytics/top_metrics/sort by scaled float field}
   issue: https://github.com/elastic/elasticsearch/issues/113340
+- class: org.elasticsearch.integration.KibanaUserRoleIntegTests
+  method: testFieldMappings
+  issue: https://github.com/elastic/elasticsearch/issues/113341
 
 # Examples:
 #

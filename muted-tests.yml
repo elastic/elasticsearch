@@ -318,6 +318,9 @@ tests:
 - class: org.elasticsearch.index.mapper.IntegerRangeFieldMapperTests
   method: testSyntheticSourceKeepAll
   issue: https://github.com/elastic/elasticsearch/issues/113339
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=analytics/top_metrics/sort by scaled float field}
+  issue: https://github.com/elastic/elasticsearch/issues/113340
 
 # Examples:
 #

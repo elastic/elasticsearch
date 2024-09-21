@@ -469,9 +469,9 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         final String replicaNode = internalCluster().startDataOnlyNode(nodeSettings(1, Settings.EMPTY));
         ensureGreen();
 
-        final RecoveryResponse initialRecoveryReponse = indicesAdmin().prepareRecoveries("test").get();
+        final RecoveryResponse initialRecoveryResponse = indicesAdmin().prepareRecoveries("test").get();
         final Set<String> files = new HashSet<>();
-        for (final RecoveryState recoveryState : initialRecoveryReponse.shardRecoveryStates().get("test")) {
+        for (final RecoveryState recoveryState : initialRecoveryResponse.shardRecoveryStates().get("test")) {
             if (recoveryState.getTargetNode().getName().equals(replicaNode)) {
                 for (final RecoveryState.FileDetail file : recoveryState.getIndex().fileDetails()) {
                     files.add(file.name());

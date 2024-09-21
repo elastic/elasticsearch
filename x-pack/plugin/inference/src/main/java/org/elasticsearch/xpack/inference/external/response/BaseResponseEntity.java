@@ -16,7 +16,7 @@ import java.io.IOException;
 
 /**
  * A base class for providing InferenceServiceResults from a response. This is a lightweight wrapper
- * to be able to override the `fromReponse` method to avoid using a static reference to the method.
+ * to be able to override the `fromResponse` method to avoid using a static reference to the method.
  */
 public abstract class BaseResponseEntity implements ResponseParser {
     protected abstract InferenceServiceResults fromResponse(Request request, HttpResult response) throws IOException;

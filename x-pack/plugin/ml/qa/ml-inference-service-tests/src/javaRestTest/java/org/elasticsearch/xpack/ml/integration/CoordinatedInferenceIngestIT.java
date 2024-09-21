@@ -223,7 +223,7 @@ public class CoordinatedInferenceIngestIT extends InferenceBaseRestTest {
     public Map<String, Object> getModelInference(String modelId, TaskType taskType) throws IOException {
         var endpoint = org.elasticsearch.common.Strings.format("_inference/%s/%s", taskType, modelId);
         var request = new Request("GET", endpoint);
-        var reponse = client().performRequest(request);
-        return entityAsMap(reponse);
+        var response = client().performRequest(request);
+        return entityAsMap(response);
     }
 }

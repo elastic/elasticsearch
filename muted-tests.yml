@@ -312,6 +312,9 @@ tests:
 - class: org.elasticsearch.xpack.security.support.SecurityIndexManagerIntegTests
   method: testOnIndexAvailableForSearchIndexAlreadyAvailable
   issue: https://github.com/elastic/elasticsearch/issues/113336
+- class: org.elasticsearch.xpack.security.authz.SecurityScrollTests
+  method: testScrollIsPerUser
+  issue: https://github.com/elastic/elasticsearch/issues/113338
 
 # Examples:
 #

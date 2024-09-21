@@ -58,6 +58,11 @@ It can be set to:
 
     Whether punctuation should be discarded from the output. Defaults to `true`.
 
+`lenient`::
+
+    Whether the `user_dictionary` should be deduplicated on the provided `text`.
+    False by default causing duplicates to generate an error.
+
 `user_dictionary`::
 +
 --
@@ -104,7 +109,8 @@ PUT nori_sample
             "type": "nori_tokenizer",
             "decompound_mode": "mixed",
             "discard_punctuation": "false",
-            "user_dictionary": "userdict_ko.txt"
+            "user_dictionary": "userdict_ko.txt",
+            "lenient": "true"
           }
         },
         "analyzer": {
@@ -298,7 +304,6 @@ Which responds with:
   }
 }
 --------------------------------------------------
-
 
 [[analysis-nori-speech]]
 ==== `nori_part_of_speech` token filter

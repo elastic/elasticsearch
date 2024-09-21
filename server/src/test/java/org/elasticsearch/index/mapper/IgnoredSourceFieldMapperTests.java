@@ -1518,6 +1518,37 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             {"path":{"at":{"foo":"A"}}}""", syntheticSource);
     }
 
+    public void testCopyToLogicInsideObject() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path");
+            b.startObject("properties");
+            {
+                b.startObject("at").field("type", "keyword").field("copy_to", "copy_top.copy").endObject();
+            }
+            b.endObject();
+            b.endObject();
+            b.startObject("copy_top");
+            b.startObject("properties");
+            {
+                b.startObject("copy").field("type", "keyword").endObject();
+            }
+            b.endObject();
+            b.endObject();
+        })).documentMapper();
+
+        CheckedConsumer<XContentBuilder, IOException> document = b -> {
+            b.startObject("path");
+            b.field("at", "A");
+            b.endObject();
+        };
+
+        var doc = documentMapper.parse(source(document));
+        assertNotNull(doc.docs().get(0).getField("copy_top.copy"));
+
+        var syntheticSource = syntheticSource(documentMapper, document);
+        assertEquals("{\"path\":{\"at\":\"A\"}}", syntheticSource);
+    }
+
     protected void validateRoundTripReader(String syntheticSource, DirectoryReader reader, DirectoryReader roundTripReader)
         throws IOException {
         // We exclude ignored source field since in some cases it contains an exact copy of a part of document source.

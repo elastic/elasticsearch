@@ -36,7 +36,7 @@ public class RemoteClusterStatsRequest extends ActionRequest {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().before(TransportVersions.CCS_TELEMETRY_STATS)) {
+        if (out.getTransportVersion().before(TransportVersions.CCS_REMOTE_TELEMETRY_STATS)) {
             throw new UnsupportedOperationException("RemoteClusterStatsRequest is not supported by the remote cluster");
         }
         super.writeTo(out);

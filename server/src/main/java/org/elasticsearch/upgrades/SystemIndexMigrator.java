@@ -69,6 +69,9 @@ import static org.elasticsearch.core.Strings.format;
 public class SystemIndexMigrator extends AllocatedPersistentTask {
     private static final Logger logger = LogManager.getLogger(SystemIndexMigrator.class);
 
+    // TODO should this be longer and/or configurable?
+    private static final TimeValue SYSTEM_INDEX_MIGRATOR_MASTER_NODE_TIMEOUT = TimeValue.timeValueSeconds(30);
+
     // Fixed properties & services
     private final ParentTaskAssigningClient baseClient;
     private final ClusterService clusterService;
@@ -537,9 +540,14 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
      */
     private void setWriteBlock(Index index, boolean readOnlyValue, ActionListener<AcknowledgedResponse> listener) {
         final Settings readOnlySettings = Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), readOnlyValue).build();
-        UpdateSettingsClusterStateUpdateRequest updateSettingsRequest = new UpdateSettingsClusterStateUpdateRequest().indices(
-            new Index[] { index }
-        ).settings(readOnlySettings).setPreserveExisting(false).ackTimeout(TimeValue.ZERO);
+        UpdateSettingsClusterStateUpdateRequest updateSettingsRequest = new UpdateSettingsClusterStateUpdateRequest(
+            SYSTEM_INDEX_MIGRATOR_MASTER_NODE_TIMEOUT,
+            TimeValue.ZERO,
+            readOnlySettings,
+            UpdateSettingsClusterStateUpdateRequest.OnExisting.OVERWRITE,
+            UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REJECT,
+            index
+        );
 
         metadataUpdateSettingsService.updateSettings(updateSettingsRequest, listener);
     }

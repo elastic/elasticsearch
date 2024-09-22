@@ -125,7 +125,7 @@ public final class MappingParser {
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = metadataMappersSupplier.get();
         Map<String, Object> meta = null;
 
-        boolean isSourceSynthetic = mappingParserContext.getIndexSettings().getMode().isSyntheticSourceEnabled();
+        boolean isSourceSynthetic = mappingParserContext.getIndexSettings().isSyntheticSourceMode();
         boolean isDataStream = false;
 
         Iterator<Map.Entry<String, Object>> iterator = mappingSource.entrySet().iterator();

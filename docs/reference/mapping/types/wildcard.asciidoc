@@ -141,8 +141,10 @@ Synthetic source always sorts `wildcard` fields. For example:
 ----
 PUT idx
 {
+  "settings": {
+    "index.mapper.source.mode": "synthetic"
+  },
   "mappings": {
-    "_source": { "mode": "synthetic" },
     "properties": {
       "card": { "type": "wildcard" }
     }

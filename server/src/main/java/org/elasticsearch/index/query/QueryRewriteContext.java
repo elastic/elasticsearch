@@ -235,7 +235,7 @@ public class QueryRewriteContext {
             TextFieldMapper.Builder builder = new TextFieldMapper.Builder(
                 name,
                 getIndexAnalyzers(),
-                getIndexSettings() != null && getIndexSettings().getMode().isSyntheticSourceEnabled()
+                getIndexSettings() != null && getIndexSettings().isSyntheticSourceMode()
             );
             return builder.build(MapperBuilderContext.root(false, false)).fieldType();
         } else {

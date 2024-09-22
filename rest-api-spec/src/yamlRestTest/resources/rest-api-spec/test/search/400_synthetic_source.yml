@@ -7,9 +7,9 @@ keyword:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               kwd:
                 type: keyword
@@ -44,9 +44,9 @@ stored text:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               text:
                 type: text
@@ -82,9 +82,9 @@ stored keyword:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               kwd:
                 type: keyword
@@ -120,9 +120,9 @@ stored keyword without sibling fields:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               kwd:
                 type: keyword
@@ -165,9 +165,9 @@ force_synthetic_source_ok:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: stored
           mappings:
-            _source:
-              mode: stored
             properties:
               obj:
                 properties:
@@ -218,9 +218,9 @@ doc values keyword with ignore_above:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               kwd:
                 type: keyword
@@ -286,9 +286,9 @@ stored keyword with ignore_above:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               kwd:
                 type: keyword
@@ -356,9 +356,9 @@ _source filtering:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               kwd:
                 type: keyword
@@ -397,9 +397,8 @@ _doc_count:
       indices.create:
         index: test
         body:
-          mappings:
-            _source:
-              mode: synthetic
+          settings:
+            index.mapper.source.mode: synthetic
 
   - do:
       index:

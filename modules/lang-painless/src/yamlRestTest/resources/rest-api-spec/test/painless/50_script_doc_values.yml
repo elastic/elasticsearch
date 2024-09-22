@@ -179,10 +179,9 @@ setup:
         index: test_synthetic
         body:
           settings:
-            number_of_shards: 1
+            index.number_of_shards: 1
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               boolean:
                 type: boolean
@@ -5629,10 +5628,9 @@ version and sequence number synthetic _source:
         index: versiontest
         body:
           settings:
-            number_of_shards: 1
+            index.mapper.source.mode: synthetic
+            index.number_of_shards: 1
           mappings:
-            _source:
-              mode: synthetic
             properties:
               keyword:
                 type: keyword

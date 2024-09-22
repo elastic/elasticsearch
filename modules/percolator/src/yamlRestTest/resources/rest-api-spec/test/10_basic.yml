@@ -137,9 +137,9 @@
       indices.create:
         index: queries_index
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               query:
                 type: percolator

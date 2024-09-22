@@ -9,14 +9,14 @@ object with unmapped fields:
         body:
           settings:
             index:
+              mapper:
+                source:
+                  mode: synthetic
               mapping:
                 total_fields:
                   ignore_dynamic_beyond_limit: true
                   limit: 1
-
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -62,14 +62,14 @@ unmapped arrays:
         body:
           settings:
             index:
+              mapper:
+                source:
+                  mode: synthetic
               mapping:
                 total_fields:
                   ignore_dynamic_beyond_limit: true
                   limit: 1
-
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -109,14 +109,14 @@ nested object with unmapped fields:
         body:
           settings:
             index:
+              mapper:
+                source:
+                  mode: synthetic
               mapping:
                 total_fields:
                   ignore_dynamic_beyond_limit: true
                   limit: 3
-
           mappings:
-            _source:
-              mode: synthetic
             properties:
               path:
                 properties:
@@ -161,14 +161,14 @@ empty object with unmapped fields:
         body:
           settings:
             index:
+              mapper:
+                source:
+                  mode: synthetic
               mapping:
                 total_fields:
                   ignore_dynamic_beyond_limit: true
                   limit: 3
-
           mappings:
-            _source:
-              mode: synthetic
             properties:
               path:
                 properties:
@@ -204,9 +204,9 @@ disabled root object:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             enabled: false
 
   - do:
@@ -239,9 +239,9 @@ disabled object:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               path:
                 enabled: false
@@ -275,9 +275,9 @@ disabled object contains array:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               path:
                 enabled: false
@@ -313,9 +313,9 @@ disabled subobject:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               path:
                 properties:
@@ -351,9 +351,9 @@ disabled subobject with array:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               path:
                 properties:
@@ -390,9 +390,9 @@ mixed disabled and enabled objects:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               path:
                 properties:
@@ -436,9 +436,9 @@ object with dynamic override:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               path_no:
                 dynamic: false
@@ -483,9 +483,9 @@ subobject with dynamic override:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               path:
                 properties:
@@ -531,9 +531,9 @@ object array in object with dynamic override:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               path_no:
                 dynamic: false
@@ -577,9 +577,9 @@ value array in object with dynamic override:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               path_no:
                 dynamic: false
@@ -620,9 +620,9 @@ nested object:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               nested_field:
                 type: nested
@@ -665,9 +665,9 @@ nested object next to regular:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               path:
                 properties:
@@ -711,9 +711,9 @@ nested object with disabled:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               obj_field:
                 properties:
@@ -799,9 +799,9 @@ doubly nested object:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               obj_field:
                 properties:
@@ -894,9 +894,9 @@ subobjects auto:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             subobjects: auto
             properties:
               id:
@@ -982,9 +982,9 @@ synthetic_source with copy_to:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               number:
                 type: integer
@@ -1118,9 +1118,9 @@ synthetic_source with disabled doc_values:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               number:
                 type: integer
@@ -1201,9 +1201,9 @@ fallback synthetic_source for text field:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               text:
                 type: text
@@ -1235,9 +1235,9 @@ synthetic_source with copy_to and ignored values:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -1303,9 +1303,9 @@ synthetic_source with copy_to field having values in source:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -1366,9 +1366,9 @@ synthetic_source with ignored source field using copy_to:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -1430,9 +1430,9 @@ synthetic_source with copy_to field from dynamic template having values in sourc
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             dynamic_templates:
               - copy_template:
                   match: "k"
@@ -1527,9 +1527,9 @@ synthetic_source with copy_to and invalid values for copy:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -1564,8 +1564,6 @@ synthetic_source with copy_to pointing inside object:
         index: test
         body:
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -1667,9 +1665,9 @@ synthetic_source with copy_to pointing to ambiguous field:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               k:
                 type: keyword
@@ -1714,9 +1712,9 @@ synthetic_source with copy_to pointing to ambiguous field and subobjects false:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             subobjects: false
             properties:
               k:
@@ -1762,9 +1760,9 @@ synthetic_source with copy_to pointing to ambiguous field and subobjects auto:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             subobjects: auto
             properties:
               k:
@@ -1811,9 +1809,9 @@ synthetic_source with copy_to pointing at dynamic field:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -1897,9 +1895,9 @@ synthetic_source with copy_to pointing inside dynamic object:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword

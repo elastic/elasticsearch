@@ -100,10 +100,8 @@ setup:
       indices.create:
         index: test_synthetic
         body:
-          mappings:
-            _source:
-              mode: synthetic
           settings:
+            index.mapper.source.mode: synthetic
             number_of_shards:   1
             number_of_replicas: 0
 

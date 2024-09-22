@@ -8,9 +8,9 @@ object param - object array:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               id:
                 type: integer
@@ -72,9 +72,9 @@ object param - object array within array:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               stored:
                 store_array_source: true
@@ -116,8 +116,8 @@ object param - no object array:
         index: test
         body:
           mappings:
-            _source:
-              mode: synthetic
+            settings:
+              index.mapper.source.mode: synthetic
             properties:
               stored:
                 store_array_source: true
@@ -157,9 +157,9 @@ object param - field ordering in object array:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               a:
                 type: keyword
@@ -206,9 +206,9 @@ object param - nested object array next to other fields:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               a:
                 type: keyword
@@ -262,9 +262,9 @@ object param - nested object with stored array:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -311,9 +311,9 @@ index param - nested array within array:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -362,9 +362,9 @@ stored field under object with store_array_source:
             index:
               sort.field: "name"
               sort.order: "asc"
+              mapper:
+                source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -409,9 +409,9 @@ field param - keep root array:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               id:
                 type: integer
@@ -466,9 +466,9 @@ field param - keep nested array:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               id:
                 type: integer
@@ -534,9 +534,9 @@ field param - keep root singleton fields:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               id:
                 type: integer
@@ -623,9 +623,9 @@ field param - keep nested singleton fields:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               id:
                 type: integer
@@ -704,9 +704,9 @@ field param - nested array within array:
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -749,11 +749,12 @@ index param - root arrays:
         body:
           settings:
             index:
+              mapper:
+                source:
+                  mode: synthetic
               mapping:
                 synthetic_source_keep: arrays
           mappings:
-            _source:
-              mode: synthetic
             properties:
               id:
                 type: integer
@@ -819,11 +820,12 @@ index param - dynamic root arrays:
         body:
           settings:
             index:
+              mapper:
+                source:
+                  mode: synthetic
               mapping:
                 synthetic_source_keep: arrays
           mappings:
-            _source:
-              mode: synthetic
             properties:
               id:
                 type: integer
@@ -872,11 +874,12 @@ index param - object array within array:
         body:
           settings:
             index:
+              mapper:
+                source:
+                  mode: synthetic
               mapping:
                 synthetic_source_keep: arrays
           mappings:
-            _source:
-              mode: synthetic
             properties:
               stored:
                 properties:
@@ -922,11 +925,12 @@ index param - no object array:
         body:
           settings:
             index:
+              mapper:
+                source:
+                  mode: synthetic
               mapping:
                 synthetic_source_keep: arrays
           mappings:
-            _source:
-              mode: synthetic
             properties:
               stored:
                 properties:
@@ -967,11 +971,12 @@ index param - field ordering:
         body:
           settings:
             index:
+              mapper:
+                source:
+                  mode: synthetic
               mapping:
                 synthetic_source_keep: arrays
           mappings:
-            _source:
-              mode: synthetic
             properties:
               a:
                 type: keyword
@@ -1018,11 +1023,12 @@ index param - nested arrays:
         body:
           settings:
             index:
+              mapper:
+                source:
+                  mode: synthetic
               mapping:
                 synthetic_source_keep: arrays
           mappings:
-            _source:
-              mode: synthetic
             properties:
               a:
                 type: keyword
@@ -1086,11 +1092,12 @@ index param - nested object with stored array:
         body:
           settings:
             index:
+              mapper:
+                source:
+                  mode: synthetic
               mapping:
                 synthetic_source_keep: arrays
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword

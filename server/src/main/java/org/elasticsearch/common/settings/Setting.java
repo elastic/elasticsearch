@@ -1619,6 +1619,15 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(key, defaultValue.toString(), e -> Enum.valueOf(clazz, e.toUpperCase(Locale.ROOT)), validator, properties);
     }
 
+    public static <T extends Enum<T>> Setting<T> enumSetting(
+        Class<T> clazz,
+        Function<Settings, String> defaultValue,
+        String key,
+        Property... properties
+    ) {
+        return new Setting<>(key, defaultValue, e -> Enum.valueOf(clazz, e.toUpperCase(Locale.ROOT)), s -> {}, properties);
+    }
+
     /**
      * Creates a setting where the allowed values are defined as enum constants. All enum constants must be uppercase.
      *

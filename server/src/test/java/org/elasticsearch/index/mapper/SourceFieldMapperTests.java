@@ -206,6 +206,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             )
         );
         assertThat(e.getMessage(), containsString("Cannot set both [mode] and [enabled] parameters"));
+        assertWarnings("The mode attribute for _source meta field mapper has been deprecated and will be removed in a future version");
     }
 
     public void testSyntheticUpdates() throws Exception {
@@ -238,6 +239,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         mapper = mapperService.documentMapper().sourceMapper();
         assertFalse(mapper.enabled());
         assertFalse(mapper.isSynthetic());
+        assertWarnings("The mode attribute for _source meta field mapper has been deprecated and will be removed in a future version");
     }
 
     public void testSyntheticSourceInTimeSeries() throws IOException {
@@ -247,14 +249,12 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         });
         DocumentMapper mapper = createTimeSeriesModeDocumentMapper(mapping);
         assertTrue(mapper.sourceMapper().isSynthetic());
-        assertEquals("{\"_source\":{\"mode\":\"synthetic\"}}", mapper.sourceMapper().toString());
     }
 
     public void testSyntheticSourceWithLogsIndexMode() throws IOException {
         XContentBuilder mapping = fieldMapping(b -> { b.field("type", "keyword"); });
         DocumentMapper mapper = createLogsModeDocumentMapper(mapping);
         assertTrue(mapper.sourceMapper().isSynthetic());
-        assertEquals("{\"_source\":{\"mode\":\"synthetic\"}}", mapper.sourceMapper().toString());
     }
 
     public void testSupportsNonDefaultParameterValues() throws IOException {
@@ -313,6 +313,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             ).documentMapper().sourceMapper()
         );
         assertThat(e.getMessage(), containsString("Parameters [enabled,includes,excludes] are not allowed in source"));
+        assertWarnings("The mode attribute for _source meta field mapper has been deprecated and will be removed in a future version");
     }
 
     public void testBypassCheckForNonDefaultParameterValuesInEarlierVersions() throws IOException {
@@ -353,6 +354,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             ).documentMapper().sourceMapper();
             assertThat(sourceFieldMapper, notNullValue());
         }
+        assertWarnings("The mode attribute for _source meta field mapper has been deprecated and will be removed in a future version");
     }
 
     public void testRecoverySourceWithSourceExcludes() throws IOException {
@@ -420,6 +422,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             ParsedDocument doc = docMapper.parse(source(b -> b.field("field1", "value1")));
             assertNull(doc.rootDoc().getField("_recovery_source"));
         }
+        assertWarnings("The mode attribute for _source meta field mapper has been deprecated and will be removed in a future version");
     }
 
     public void testRecoverySourceWithLogs() throws IOException {
@@ -463,6 +466,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             ParsedDocument doc = docMapper.parse(source(b -> b.field("@timestamp", "2012-02-13")));
             assertNull(doc.rootDoc().getField("_recovery_source"));
         }
+        assertWarnings("The mode attribute for _source meta field mapper has been deprecated and will be removed in a future version");
     }
 
     public void testRecoverySourceWithTimeSeries() throws IOException {
@@ -544,5 +548,6 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             );
             assertNull(doc.rootDoc().getField("_recovery_source"));
         }
+        assertWarnings("The mode attribute for _source meta field mapper has been deprecated and will be removed in a future version");
     }
 }

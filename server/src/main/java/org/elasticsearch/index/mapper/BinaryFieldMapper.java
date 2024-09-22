@@ -80,7 +80,7 @@ public class BinaryFieldMapper extends FieldMapper {
     }
 
     public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, c.getIndexSettings().getMode().isSyntheticSourceEnabled())
+        (n, c) -> new Builder(n, c.getIndexSettings().isSyntheticSourceMode())
     );
 
     public static final class BinaryFieldType extends MappedFieldType {

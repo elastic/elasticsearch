@@ -8,9 +8,9 @@
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               shape:
                 type: geo_shape
@@ -74,9 +74,9 @@
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               shape:
                 type: geo_shape
@@ -157,9 +157,9 @@
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               shape:
                 type: shape
@@ -223,9 +223,9 @@
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               shape:
                 type: shape
@@ -306,9 +306,9 @@
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               point:
                 type: geo_point
@@ -422,9 +422,9 @@
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               geo_point:
                 type: geo_point
@@ -501,9 +501,9 @@
       indices.create:
         index: test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               point:
                 type: point
@@ -598,8 +598,8 @@
         index: test
         body:
           mappings:
-            _source:
-              mode: synthetic
+            settings:
+              index.mapper.source.mode: synthetic
             properties:
               point:
                 type: point

@@ -68,8 +68,10 @@ of official GA features.
 ----
 PUT idx
 {
+  "settings": {
+    "index.mapper.source.mode": "synthetic"
+  },
   "mappings": {
-    "_source": { "mode": "synthetic" },
     "properties": {
       "binary": { "type": "binary", "doc_values": true }
     }

@@ -86,8 +86,10 @@ Synthetic source always sorts `version` fields and removes duplicates. For examp
 ----
 PUT idx
 {
+  "settings": {
+    "index.mapper.source.mode": "synthetic"
+  },
   "mappings": {
-    "_source": { "mode": "synthetic" },
     "properties": {
       "versions": { "type": "version" }
     }

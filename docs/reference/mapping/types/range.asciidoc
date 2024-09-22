@@ -254,8 +254,10 @@ Synthetic source always sorts values and removes duplicates for all `range` fiel
 ----
 PUT idx
 {
+  "settings": {
+    "index.mapper.source.mode": "synthetic"
+  },
   "mappings": {
-    "_source": { "mode": "synthetic" },
     "properties": {
       "my_range": { "type": "long_range" }
     }
@@ -316,8 +318,10 @@ For example:
 ----
 PUT idx
 {
+  "settings": {
+    "index.mapper.source.mode": "synthetic"
+  },
   "mappings": {
-    "_source": { "mode": "synthetic" },
     "properties": {
       "my_range": { "type": "ip_range" }
     }
@@ -357,8 +361,10 @@ Range field vales are always represented as inclusive on both sides with bounds 
 ----
 PUT idx
 {
+  "settings": {
+    "index.mapper.source.mode": "synthetic"
+  },
   "mappings": {
-    "_source": { "mode": "synthetic" },
     "properties": {
       "my_range": { "type": "long_range" }
     }
@@ -394,8 +400,10 @@ Default values for range bounds are represented as `null` in synthetic source. T
 ----
 PUT idx
 {
+  "settings": {
+    "index.mapper.source.mode": "synthetic"
+  },
   "mappings": {
-    "_source": { "mode": "synthetic" },
     "properties": {
       "my_range": { "type": "integer_range" }
     }
@@ -429,8 +437,10 @@ Will become:
 ----
 PUT idx
 {
+  "settings": {
+    "index.mapper.source.mode": "synthetic"
+  },
   "mappings": {
-    "_source": { "mode": "synthetic" },
     "properties": {
       "my_range": { "type": "date_range" }
     }

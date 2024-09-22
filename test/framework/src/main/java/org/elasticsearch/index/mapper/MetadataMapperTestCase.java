@@ -104,6 +104,7 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
             // run the update assertion
             updateCheck.check.accept(mapperService.documentMapper());
         }
+        assertWarnings("The mode attribute for _source meta field mapper has been deprecated and will be removed in a future version");
     }
 
     public final void testUnsupportedParametersAreRejected() throws IOException {

@@ -167,8 +167,10 @@ duplicates removed. So:
 ----
 PUT idx
 {
+  "settings": {
+    "index.mapper.source.mode": "synthetic"
+  },
   "mappings": {
-    "_source": { "mode": "synthetic" },
     "properties": {
       "text": {
         "type": "annotated_text",
@@ -215,8 +217,10 @@ are preserved.
 ----
 PUT idx
 {
+  "settings": {
+     "index.mapper.source.mode": "synthetic"
+  },
   "mappings": {
-    "_source": { "mode": "synthetic" },
     "properties": {
       "text": { "type": "annotated_text", "store": true }
     }

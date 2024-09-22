@@ -188,8 +188,10 @@ For example:
 ----
 PUT idx
 {
+  "settings": {
+    "index.mapper.source.mode": "synthetic"
+  },
   "mappings": {
-    "_source": { "mode": "synthetic" },
     "properties": {
       "kwd": { "type": "keyword" }
     }
@@ -218,8 +220,10 @@ are preserved. For example:
 ----
 PUT idx
 {
+  "settings": {
+    "index.mapper.source.mode": "synthetic"
+  },
   "mappings": {
-    "_source": { "mode": "synthetic" },
     "properties": {
       "kwd": { "type": "keyword", "store": true }
     }
@@ -248,8 +252,10 @@ For example:
 ----
 PUT idx
 {
+  "settings": {
+    "index.mapper.source.mode": "synthetic"
+  },
   "mappings": {
-    "_source": { "mode": "synthetic" },
     "properties": {
       "kwd": { "type": "keyword", "ignore_above": 3 }
     }

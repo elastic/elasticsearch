@@ -11,16 +11,14 @@ of official GA features.
 Though very handy to have around, the source field takes up a significant amount
 of space on disk. Instead of storing source documents on disk exactly as you
 send them, Elasticsearch can reconstruct source content on the fly upon retrieval.
-Enable this by setting `mode: synthetic` in `_source`:
+Enable this by configuring the `index.mapper.source.mode` index setting to `synthetic`:
 
 [source,console,id=enable-synthetic-source-example]
 ----
 PUT idx
 {
-  "mappings": {
-    "_source": {
-      "mode": "synthetic"
-    }
+  "settings": {
+    "index.mapper.source.mode": "synthetic"
   }
 }
 ----
@@ -41,7 +39,7 @@ For all other field types, the original value of the field is stored as is, in t
 [[synthetic-source-restrictions]]
 ===== Synthetic `_source` restrictions
 
-Synthetic `_source` cannot be used together with field mappings that use <<copy-to,`copy_to`>>. 
+Synthetic `_source` cannot be used together with field mappings that use <<copy-to,`copy_to`>>.
 
 Some field types have additional restrictions. These restrictions are documented in the **synthetic `_source`** section of the field type's <<mapping-types,documentation>>.
 
@@ -164,7 +162,7 @@ Values of `geo_point` fields are represented in synthetic `_source` with reduced
 
 [[synthetic-source-fields-native-list]]
 ===== Field types that support synthetic source with no storage overhead
-The following field types support synthetic source using data from <<doc-values,`doc_values`>> or <<stored-fields, stored fields>>, and require no additional storage space to construct the `_source` field. 
+The following field types support synthetic source using data from <<doc-values,`doc_values`>> or <<stored-fields, stored fields>>, and require no additional storage space to construct the `_source` field.
 
 NOTE: If you enable the <<ignore-malformed,`ignore_malformed`>> or <<ignore-above,`ignore_above`>> settings, then additional storage is required to store ignored field values for these types.
 

@@ -334,13 +334,10 @@ final class DynamicFieldsBuilder {
                 );
             } else {
                 return createDynamicField(
-                    new TextFieldMapper.Builder(
-                        name,
-                        context.indexAnalyzers(),
-                        context.indexSettings().getMode().isSyntheticSourceEnabled()
-                    ).addMultiField(
-                        new KeywordFieldMapper.Builder("keyword", context.indexSettings().getIndexVersionCreated()).ignoreAbove(256)
-                    ),
+                    new TextFieldMapper.Builder(name, context.indexAnalyzers(), context.indexSettings().isSyntheticSourceMode())
+                        .addMultiField(
+                            new KeywordFieldMapper.Builder("keyword", context.indexSettings().getIndexVersionCreated()).ignoreAbove(256)
+                        ),
                     context
                 );
             }
@@ -413,7 +410,7 @@ final class DynamicFieldsBuilder {
 
         boolean newDynamicBinaryField(DocumentParserContext context, String name) throws IOException {
             return createDynamicField(
-                new BinaryFieldMapper.Builder(name, context.indexSettings().getMode().isSyntheticSourceEnabled()),
+                new BinaryFieldMapper.Builder(name, context.indexSettings().isSyntheticSourceMode()),
                 context
             );
         }

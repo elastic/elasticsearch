@@ -170,8 +170,10 @@ Synthetic source always sorts `ip` fields and removes duplicates. For example:
 ----
 PUT idx
 {
+  "settings": {
+    "index.mapper.source.mode": "synthetic"
+  },
   "mappings": {
-    "_source": { "mode": "synthetic" },
     "properties": {
       "ip": { "type": "ip" }
     }

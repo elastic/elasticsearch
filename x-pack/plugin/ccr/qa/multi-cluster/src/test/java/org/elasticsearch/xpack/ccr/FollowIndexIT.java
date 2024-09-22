@@ -366,8 +366,8 @@ public class FollowIndexIT extends ESCCRRestTestCase {
         final String leaderIndexName = "synthetic_leader";
         if ("leader".equals(targetCluster)) {
             logger.info("Running against leader cluster");
-            createIndex(adminClient(), leaderIndexName, Settings.EMPTY, """
-                "_source": {"mode": "synthetic"},
+            var settings = Settings.builder().put("index.mapper.source.mode", "synthetic").build();
+            createIndex(adminClient(), leaderIndexName, settings, """
                 "properties": {"kwd": {"type": "keyword"}}}""", null);
             for (int i = 0; i < numDocs; i++) {
                 logger.info("Indexing doc [{}]", i);

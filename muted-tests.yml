@@ -312,6 +312,24 @@ tests:
 - class: org.elasticsearch.xpack.security.support.SecurityIndexManagerIntegTests
   method: testOnIndexAvailableForSearchIndexAlreadyAvailable
   issue: https://github.com/elastic/elasticsearch/issues/113336
+- class: org.elasticsearch.xpack.security.authz.SecurityScrollTests
+  method: testScrollIsPerUser
+  issue: https://github.com/elastic/elasticsearch/issues/113338
+- class: org.elasticsearch.index.mapper.IntegerRangeFieldMapperTests
+  method: testSyntheticSourceKeepAll
+  issue: https://github.com/elastic/elasticsearch/issues/113339
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=analytics/top_metrics/sort by scaled float field}
+  issue: https://github.com/elastic/elasticsearch/issues/113340
+- class: org.elasticsearch.integration.KibanaUserRoleIntegTests
+  method: testFieldMappings
+  issue: https://github.com/elastic/elasticsearch/issues/113341
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/ccr/apis/follow/post-resume-follow/line_84}
+  issue: https://github.com/elastic/elasticsearch/issues/113343
+- class: org.elasticsearch.integration.KibanaUserRoleIntegTests
+  method: testSearchAndMSearch
+  issue: https://github.com/elastic/elasticsearch/issues/113345
 
 # Examples:
 #

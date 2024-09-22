@@ -27,6 +27,7 @@ import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -62,7 +63,7 @@ public abstract class KerberosTestCase extends ESTestCase {
      *
      * Note: several unsupported locales were added in CLDR. #109670 included these below.
      */
-    private static Set<String> UNSUPPORTED_LOCALE_LANGUAGES = Set.of(
+    private static final Set<String> UNSUPPORTED_LOCALE_LANGUAGES = Set.of(
         "ar",
         "ja",
         "th",
@@ -88,7 +89,9 @@ public abstract class KerberosTestCase extends ESTestCase {
         "sat",
         "sa",
         "bgc",
-        "raj"
+        "raj",
+        "nqo",
+        "bho"
     );
 
     @BeforeClass

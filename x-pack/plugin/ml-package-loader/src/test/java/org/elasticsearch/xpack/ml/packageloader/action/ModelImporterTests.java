@@ -14,8 +14,10 @@ import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -63,6 +65,8 @@ public class ModelImporterTests extends ESTestCase {
         var task = ModelDownloadTaskTests.testTask();
         var config = mockConfigWithRepoLinks();
         var vocab = new ModelLoaderUtils.VocabularyParts(List.of(), List.of(), List.of());
+        var cbs = mock(CircuitBreakerService.class);
+        when(cbs.getBreaker(eq(CircuitBreaker.REQUEST))).thenReturn(mock(CircuitBreaker.class));
 
         int totalParts = 5;
         int chunkSize = 10;
@@ -74,7 +78,7 @@ public class ModelImporterTests extends ESTestCase {
         when(config.getSha256()).thenReturn(digest);
         when(config.getSize()).thenReturn(size);
 
-        var importer = new ModelImporter(client, "foo", config, task, threadPool);
+        var importer = new ModelImporter(client, "foo", config, task, threadPool, cbs);
 
         var latch = new CountDownLatch(1);
         var latchedListener = new LatchedActionListener<AcknowledgedResponse>(ActionTestUtils.assertNoFailureListener(ignore -> {}), latch);
@@ -91,6 +95,8 @@ public class ModelImporterTests extends ESTestCase {
         var task = ModelDownloadTaskTests.testTask();
         var config = mockConfigWithRepoLinks();
         var vocab = new ModelLoaderUtils.VocabularyParts(List.of(), List.of(), List.of());
+        var cbs = mock(CircuitBreakerService.class);
+        when(cbs.getBreaker(eq(CircuitBreaker.REQUEST))).thenReturn(mock(CircuitBreaker.class));
 
         int totalParts = 3;
         int chunkSize = 10;
@@ -101,7 +107,7 @@ public class ModelImporterTests extends ESTestCase {
         when(config.getSha256()).thenReturn(digest);
         when(config.getSize()).thenReturn(size);
 
-        var importer = new ModelImporter(client, "foo", config, task, threadPool);
+        var importer = new ModelImporter(client, "foo", config, task, threadPool, cbs);
         var streamChunker = new ModelLoaderUtils.InputStreamChunker(new ByteArrayInputStream(modelDef), chunkSize);
 
         var latch = new CountDownLatch(1);
@@ -118,6 +124,8 @@ public class ModelImporterTests extends ESTestCase {
         var client = mockClient(false);
         var task = mock(ModelDownloadTask.class);
         var config = mockConfigWithRepoLinks();
+        var cbs = mock(CircuitBreakerService.class);
+        when(cbs.getBreaker(eq(CircuitBreaker.REQUEST))).thenReturn(mock(CircuitBreaker.class));
 
         int totalParts = 5;
         int chunkSize = 10;
@@ -137,7 +145,7 @@ public class ModelImporterTests extends ESTestCase {
             latch
         );
 
-        var importer = new ModelImporter(client, "foo", config, task, threadPool);
+        var importer = new ModelImporter(client, "foo", config, task, threadPool, cbs);
         importer.downloadModelDefinition(size, totalParts, null, streamers, latchedListener);
 
         latch.await();
@@ -149,6 +157,8 @@ public class ModelImporterTests extends ESTestCase {
         var client = mockClient(false);
         var task = mock(ModelDownloadTask.class);
         var config = mockConfigWithRepoLinks();
+        var cbs = mock(CircuitBreakerService.class);
+        when(cbs.getBreaker(eq(CircuitBreaker.REQUEST))).thenReturn(mock(CircuitBreaker.class));
 
         int totalParts = 5;
         int chunkSize = 10;
@@ -166,7 +176,7 @@ public class ModelImporterTests extends ESTestCase {
             latch
         );
 
-        var importer = new ModelImporter(client, "foo", config, task, threadPool);
+        var importer = new ModelImporter(client, "foo", config, task, threadPool, cbs);
         // Message digest can only be calculated for the file reader
         var streamChunker = new ModelLoaderUtils.InputStreamChunker(new ByteArrayInputStream(modelDef), chunkSize);
         importer.readModelDefinitionFromFile(size, totalParts, streamChunker, null, latchedListener);
@@ -180,6 +190,8 @@ public class ModelImporterTests extends ESTestCase {
         var client = mockClient(true);  // client will fail put
         var task = mock(ModelDownloadTask.class);
         var config = mockConfigWithRepoLinks();
+        var cbs = mock(CircuitBreakerService.class);
+        when(cbs.getBreaker(eq(CircuitBreaker.REQUEST))).thenReturn(mock(CircuitBreaker.class));
 
         int totalParts = 4;
         int chunkSize = 10;
@@ -194,7 +206,7 @@ public class ModelImporterTests extends ESTestCase {
             latch
         );
 
-        var importer = new ModelImporter(client, "foo", config, task, threadPool);
+        var importer = new ModelImporter(client, "foo", config, task, threadPool, cbs);
         importer.downloadModelDefinition(size, totalParts, null, streamers, latchedListener);
 
         latch.await();
@@ -206,6 +218,8 @@ public class ModelImporterTests extends ESTestCase {
         var client = mockClient(true);
         var task = mock(ModelDownloadTask.class);
         var config = mockConfigWithRepoLinks();
+        var cbs = mock(CircuitBreakerService.class);
+        when(cbs.getBreaker(eq(CircuitBreaker.REQUEST))).thenReturn(mock(CircuitBreaker.class));
 
         int totalParts = 4;
         int chunkSize = 10;
@@ -222,7 +236,7 @@ public class ModelImporterTests extends ESTestCase {
             latch
         );
 
-        var importer = new ModelImporter(client, "foo", config, task, threadPool);
+        var importer = new ModelImporter(client, "foo", config, task, threadPool, cbs);
         importer.downloadModelDefinition(size, totalParts, null, List.of(streamer), latchedListener);
 
         latch.await();
@@ -237,6 +251,8 @@ public class ModelImporterTests extends ESTestCase {
             listener.onFailure(new ElasticsearchStatusException("put vocab failed", RestStatus.BAD_REQUEST));
             return null;
         }).when(client).execute(eq(PutTrainedModelVocabularyAction.INSTANCE), any(), any());
+        var cbs = mock(CircuitBreakerService.class);
+        when(cbs.getBreaker(eq(CircuitBreaker.REQUEST))).thenReturn(mock(CircuitBreaker.class));
 
         var task = mock(ModelDownloadTask.class);
         var config = mockConfigWithRepoLinks();
@@ -250,7 +266,7 @@ public class ModelImporterTests extends ESTestCase {
             latch
         );
 
-        var importer = new ModelImporter(client, "foo", config, task, threadPool);
+        var importer = new ModelImporter(client, "foo", config, task, threadPool, cbs);
         importer.downloadModelDefinition(100, 5, vocab, List.of(), latchedListener);
 
         latch.await();

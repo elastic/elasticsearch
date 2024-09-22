@@ -14,8 +14,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -61,9 +63,16 @@ public class ModelImporter {
     private final ExecutorService executorService;
     private final AtomicInteger progressCounter = new AtomicInteger();
     private final URI uri;
+    private final CircuitBreakerService breakerService;
 
-    ModelImporter(Client client, String modelId, ModelPackageConfig packageConfig, ModelDownloadTask task, ThreadPool threadPool)
-        throws URISyntaxException {
+    ModelImporter(
+        Client client,
+        String modelId,
+        ModelPackageConfig packageConfig,
+        ModelDownloadTask task,
+        ThreadPool threadPool,
+        CircuitBreakerService cbs
+    ) throws URISyntaxException {
         this.client = client;
         this.modelId = Objects.requireNonNull(modelId);
         this.config = Objects.requireNonNull(packageConfig);
@@ -73,6 +82,7 @@ public class ModelImporter {
             config.getModelRepository(),
             config.getPackagedModelId() + ModelLoaderUtils.MODEL_FILE_EXTENSION
         );
+        this.breakerService = cbs;
     }
 
     public void doImport(ActionListener<AcknowledgedResponse> listener) {
@@ -99,12 +109,19 @@ public class ModelImporter {
             int totalParts = (int) ((config.getSize() + DEFAULT_CHUNK_SIZE - 1) / DEFAULT_CHUNK_SIZE);
 
             if (ModelLoaderUtils.uriIsFile(uri) == false) {
+                breakerService.getBreaker(CircuitBreaker.REQUEST)
+                    .addEstimateBytesAndMaybeBreak(DEFAULT_CHUNK_SIZE * NUMBER_OF_STREAMS, "model importer");
+                var breakerFreeingListener = ActionListener.runAfter(
+                    finalListener,
+                    () -> breakerService.getBreaker(CircuitBreaker.REQUEST).addWithoutBreaking(-(DEFAULT_CHUNK_SIZE * NUMBER_OF_STREAMS))
+                );
+
                 var ranges = ModelLoaderUtils.split(config.getSize(), NUMBER_OF_STREAMS, DEFAULT_CHUNK_SIZE);
                 var downloaders = new ArrayList<ModelLoaderUtils.HttpStreamChunker>(ranges.size());
                 for (var range : ranges) {
                     downloaders.add(new ModelLoaderUtils.HttpStreamChunker(uri, range, DEFAULT_CHUNK_SIZE));
                 }
-                downloadModelDefinition(config.getSize(), totalParts, vocabularyParts, downloaders, finalListener);
+                downloadModelDefinition(config.getSize(), totalParts, vocabularyParts, downloaders, breakerFreeingListener);
             } else {
                 InputStream modelInputStream = ModelLoaderUtils.getFileInputStream(uri);
                 ModelLoaderUtils.InputStreamChunker chunkIterator = new ModelLoaderUtils.InputStreamChunker(
@@ -115,7 +132,6 @@ public class ModelImporter {
             }
         } catch (Exception e) {
             finalListener.onFailure(e);
-            return;
         }
     }
 

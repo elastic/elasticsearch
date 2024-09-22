@@ -327,6 +327,9 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/ccr/apis/follow/post-resume-follow/line_84}
   issue: https://github.com/elastic/elasticsearch/issues/113343
+- class: org.elasticsearch.integration.KibanaUserRoleIntegTests
+  method: testSearchAndMSearch
+  issue: https://github.com/elastic/elasticsearch/issues/113345
 
 # Examples:
 #

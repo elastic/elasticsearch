@@ -54,15 +54,25 @@ public class RestNodesCapabilitiesAction extends BaseRestHandler {
             ? new NodesCapabilitiesRequest(client.getLocalNodeId())
             : new NodesCapabilitiesRequest();
 
+        // Handle the 'path' parameter safely, assign an empty string if null
+        String path = request.param("path");
+        if (path != null) {
+            path = URLDecoder.decode(path, StandardCharsets.UTF_8);
+        } else {
+            path = "";  // Assign an empty string to avoid any null pointer issues
+        }
+
         NodesCapabilitiesRequest r = requestNodes.timeout(getTimeout(request))
             .method(RestRequest.Method.valueOf(request.param("method", "GET")))
-            .path(URLDecoder.decode(request.param("path"), StandardCharsets.UTF_8))
+            .path(path)  // Pass the safely decoded path (or empty string)
             .parameters(request.paramAsStringArray("parameters", Strings.EMPTY_ARRAY))
             .capabilities(request.paramAsStringArray("capabilities", Strings.EMPTY_ARRAY))
             .restApiVersion(request.getRestApiVersion());
 
         return channel -> client.admin().cluster().nodesCapabilities(r, new NodesResponseRestListener<>(channel));
     }
+
+
 
     @Override
     public boolean canTripCircuitBreaker() {

@@ -403,8 +403,7 @@ public class SecurityIndexManager implements ClusterStateListener {
     }
 
     /**
-     * This class ensures that if cancel() is called _before_ setCancellable is called, the passed in cancellable is correctly cancelled
-     * still.
+     * This class ensures that if cancel() is called _before_ setCancellable(), the passed-in cancellable is still correctly cancelled.
      */
     private abstract static class CancellableStateConsumer
         implements

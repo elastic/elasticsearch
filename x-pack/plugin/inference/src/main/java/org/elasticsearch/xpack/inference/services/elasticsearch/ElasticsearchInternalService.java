@@ -64,6 +64,7 @@ import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserMode
 public class ElasticsearchInternalService extends BaseElasticsearchInternalService {
 
     public static final String NAME = "elasticsearch";
+    public static final String OLD_ELSER_SERVICE_NAME = "elser";
 
     static final String MULTILINGUAL_E5_SMALL_MODEL_ID = ".multilingual-e5-small";
     static final String MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86 = ".multilingual-e5-small_linux-x86_64";

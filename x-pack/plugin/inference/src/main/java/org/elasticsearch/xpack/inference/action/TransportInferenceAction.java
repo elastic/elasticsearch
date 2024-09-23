@@ -34,6 +34,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.OLD_ELSER_SERVICE_NAME;
 
 public class TransportInferenceAction extends HandledTransportAction<InferenceAction.Request, InferenceAction.Response> {
     private static final String STREAMING_INFERENCE_TASK_TYPE = "streaming_inference";
@@ -79,13 +80,12 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
                 );
                 return;
             }
-            String ELSER_SERVICE_NAME = "elser";
-            if (service.get().name().equals(ELSER_SERVICE_NAME)) {
+            if (service.get().name().equals(OLD_ELSER_SERVICE_NAME)) {
                 DEPRECATION_LOGGER.warn(
                     DeprecationCategory.API,
                     "inference_api_elser_service",
                     "The [{}] service is deprecated and will be removed in a future release. Use the [{}] service instead.",
-                    ELSER_SERVICE_NAME,
+                    OLD_ELSER_SERVICE_NAME,
                     ElasticsearchInternalService.NAME
                 );
             }

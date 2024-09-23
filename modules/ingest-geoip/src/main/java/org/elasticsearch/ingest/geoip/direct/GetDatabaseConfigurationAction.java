@@ -83,7 +83,7 @@ public class GetDatabaseConfigurationAction extends ActionType<Response> {
             List<FailedNodeException> failures
         ) {
             super(clusterName, nodes, failures);
-            this.databases = databases;
+            this.databases = List.copyOf(databases); // defensive copy
         }
 
         protected Response(StreamInput in) throws IOException {

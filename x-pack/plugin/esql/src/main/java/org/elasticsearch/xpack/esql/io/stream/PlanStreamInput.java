@@ -30,9 +30,6 @@ import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanNamedReader;
-import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader;
-import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -69,54 +66,15 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
 
     private EsField[] esFieldsCache = new EsField[64];
 
-    private final PlanNameRegistry registry;
-
     // hook for nameId, where can cache and map, for now just return a NameId of the same long value.
     private final LongFunction<NameId> nameIdFunction;
 
     private final Configuration configuration;
 
-    public PlanStreamInput(
-        StreamInput streamInput,
-        PlanNameRegistry registry,
-        NamedWriteableRegistry namedWriteableRegistry,
-        Configuration configuration
-    ) {
+    public PlanStreamInput(StreamInput streamInput, NamedWriteableRegistry namedWriteableRegistry, Configuration configuration) {
         super(streamInput, namedWriteableRegistry);
-        this.registry = registry;
         this.configuration = configuration;
         this.nameIdFunction = new NameIdMapper();
-    }
-
-    public PhysicalPlan readPhysicalPlanNode() throws IOException {
-        return readNamed(PhysicalPlan.class);
-    }
-
-    public PhysicalPlan readOptionalPhysicalPlanNode() throws IOException {
-        return readOptionalNamed(PhysicalPlan.class);
-    }
-
-    public <T> T readNamed(Class<T> type) throws IOException {
-        String name = readString();
-        @SuppressWarnings("unchecked")
-        PlanReader<T> reader = (PlanReader<T>) registry.getReader(type, name);
-        if (reader instanceof PlanNamedReader<T> namedReader) {
-            return namedReader.read(this, name);
-        } else {
-            return reader.read(this);
-        }
-    }
-
-    public <T> T readOptionalNamed(Class<T> type) throws IOException {
-        if (readBoolean()) {
-            T t = readNamed(type);
-            if (t == null) {
-                throwOnNullOptionalRead(type);
-            }
-            return t;
-        } else {
-            return null;
-        }
     }
 
     public Configuration configuration() throws IOException {

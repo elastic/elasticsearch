@@ -83,7 +83,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
 
     @After
     public void closeDatabaseReaders() throws IOException {
-        databaseNodeService.close();
+        databaseNodeService.shutdown();
         databaseNodeService = null;
     }
 
@@ -287,9 +287,9 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
 
     public void testBuildUnsupportedDatabase() throws Exception {
         // mock up some unsupported database (it has a databaseType that we don't recognize)
-        GeoIpDatabase database = mock(GeoIpDatabase.class);
+        IpDatabase database = mock(IpDatabase.class);
         when(database.getDatabaseType()).thenReturn("some-unsupported-database");
-        GeoIpDatabaseProvider provider = mock(GeoIpDatabaseProvider.class);
+        IpDatabaseProvider provider = mock(IpDatabaseProvider.class);
         when(provider.getDatabase(anyString())).thenReturn(database);
 
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(provider);
@@ -306,9 +306,9 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
 
     public void testBuildNullDatabase() throws Exception {
         // mock up a provider that returns a null databaseType
-        GeoIpDatabase database = mock(GeoIpDatabase.class);
+        IpDatabase database = mock(IpDatabase.class);
         when(database.getDatabaseType()).thenReturn(null);
-        GeoIpDatabaseProvider provider = mock(GeoIpDatabaseProvider.class);
+        IpDatabaseProvider provider = mock(IpDatabaseProvider.class);
         when(provider.getDatabase(anyString())).thenReturn(database);
 
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(provider);

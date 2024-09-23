@@ -65,6 +65,7 @@ public class CCSUsageTelemetry {
     public static final String MRT_FEATURE = "mrt_on";
     public static final String ASYNC_FEATURE = "async";
     public static final String WILDCARD_FEATURE = "wildcards";
+    public static final String PIT_FEATURE = "pit";
 
     // The list of known Elastic clients. May be incomplete.
     public static final Set<String> KNOWN_CLIENTS = Set.of(

@@ -38,7 +38,8 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
     NodesCapabilitiesRequest,
     NodesCapabilitiesResponse,
     TransportNodesCapabilitiesAction.NodeCapabilitiesRequest,
-    NodeCapability> {
+    NodeCapability,
+    Void> {
 
     public static final ActionType<NodesCapabilitiesResponse> TYPE = new ActionType<>("cluster:monitor/nodes/capabilities");
 

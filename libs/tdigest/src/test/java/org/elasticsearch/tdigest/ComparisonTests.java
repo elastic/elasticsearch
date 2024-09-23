@@ -21,6 +21,7 @@
 
 package org.elasticsearch.tdigest;
 
+import org.elasticsearch.tdigest.arrays.WrapperTDigestArrays;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -39,10 +40,10 @@ public class ComparisonTests extends ESTestCase {
 
     private void loadData(Supplier<Double> sampleGenerator) {
         final int COMPRESSION = 100;
-        avlTreeDigest = TDigest.createAvlTreeDigest(COMPRESSION);
-        mergingDigest = TDigest.createMergingDigest(COMPRESSION);
-        sortingDigest = TDigest.createSortingDigest();
-        hybridDigest = TDigest.createHybridDigest(COMPRESSION);
+        avlTreeDigest = TDigest.createAvlTreeDigest(WrapperTDigestArrays.INSTANCE, COMPRESSION);
+        mergingDigest = TDigest.createMergingDigest(WrapperTDigestArrays.INSTANCE, COMPRESSION);
+        sortingDigest = TDigest.createSortingDigest(WrapperTDigestArrays.INSTANCE);
+        hybridDigest = TDigest.createHybridDigest(WrapperTDigestArrays.INSTANCE, COMPRESSION);
         samples = new double[SAMPLE_COUNT];
 
         for (int i = 0; i < SAMPLE_COUNT; i++) {

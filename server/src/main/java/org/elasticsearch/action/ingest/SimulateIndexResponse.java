@@ -11,6 +11,7 @@ package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -59,7 +60,16 @@ public class SimulateIndexResponse extends IndexResponse {
         @Nullable Exception exception
     ) {
         // We don't actually care about most of the IndexResponse fields:
-        super(new ShardId(index, "", 0), id == null ? "<n/a>" : id, 0, 0, version, true, pipelines);
+        super(
+            new ShardId(index, "", 0),
+            id == null ? "<n/a>" : id,
+            0,
+            0,
+            version,
+            true,
+            pipelines,
+            IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN
+        );
         this.source = source;
         this.sourceXContentType = sourceXContentType;
         setShardInfo(ShardInfo.EMPTY);

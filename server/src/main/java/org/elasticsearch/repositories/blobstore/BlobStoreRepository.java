@@ -1734,13 +1734,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final Collection<IndexId> indices = shardGenerations.indices();
         final SnapshotId snapshotId = snapshotInfo.snapshotId();
         // Once we are done writing the updated index-N blob we remove the now unreferenced index-${uuid} blobs in each shard
-        // directory if all nodes are at least at version 7.6
+        // directory if all nodes are at least at version SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION
         // If there are older version nodes in the cluster, we don't need to run this cleanup as it will have already happened
         // when writing the index-${N} to each shard directory.
         final IndexVersion repositoryMetaVersion = finalizeSnapshotContext.repositoryMetaVersion();
         final boolean writeShardGens = SnapshotsService.useShardGenerations(repositoryMetaVersion);
 
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+
+        final boolean writeIndexGens = SnapshotsService.useIndexGenerations(repositoryMetaVersion);
 
         record MetadataWriteResult(
             RepositoryData existingRepositoryData,
@@ -1777,11 +1779,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
 
                 final MetadataWriteResult metadataWriteResult;
-                metadataWriteResult = new MetadataWriteResult(
-                    existingRepositoryData,
-                    ConcurrentCollections.newConcurrentMap(),
-                    ConcurrentCollections.newConcurrentMap()
-                );
+                if (writeIndexGens) {
+                    metadataWriteResult = new MetadataWriteResult(
+                        existingRepositoryData,
+                        ConcurrentCollections.newConcurrentMap(),
+                        ConcurrentCollections.newConcurrentMap()
+                    );
+                } else {
+                    metadataWriteResult = new MetadataWriteResult(existingRepositoryData, null, null);
+                }
 
                 try (var allMetaListeners = new RefCountingListener(l.map(ignored -> metadataWriteResult))) {
                     // We ignore all FileAlreadyExistsException when writing metadata since otherwise a master failover while in this method
@@ -1803,16 +1809,24 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     for (IndexId index : indices) {
                         executor.execute(ActionRunnable.run(allMetaListeners.acquire(), () -> {
                             final IndexMetadata indexMetaData = clusterMetadata.index(index.getName());
-
-                            final String identifiers = IndexMetaDataGenerations.buildUniqueIdentifier(indexMetaData);
-                            String metaUUID = existingRepositoryData.indexMetaDataGenerations().getIndexMetaBlobId(identifiers);
-                            if (metaUUID == null) {
-                                // We don't yet have this version of the metadata so we write it
-                                metaUUID = UUIDs.base64UUID();
-                                INDEX_METADATA_FORMAT.write(indexMetaData, indexContainer(index), metaUUID, compress);
-                                metadataWriteResult.indexMetaIdentifiers().put(identifiers, metaUUID);
-                            } // else this task was largely a no-op - TODO no need to fork in that case
-                            metadataWriteResult.indexMetas().put(index, identifiers);
+                            if (writeIndexGens) {
+                                final String identifiers = IndexMetaDataGenerations.buildUniqueIdentifier(indexMetaData);
+                                String metaUUID = existingRepositoryData.indexMetaDataGenerations().getIndexMetaBlobId(identifiers);
+                                if (metaUUID == null) {
+                                    // We don't yet have this version of the metadata so we write it
+                                    metaUUID = UUIDs.base64UUID();
+                                    INDEX_METADATA_FORMAT.write(indexMetaData, indexContainer(index), metaUUID, compress);
+                                    metadataWriteResult.indexMetaIdentifiers().put(identifiers, metaUUID);
+                                } // else this task was largely a no-op - TODO no need to fork in that case
+                                metadataWriteResult.indexMetas().put(index, identifiers);
+                            } else {
+                                INDEX_METADATA_FORMAT.write(
+                                    clusterMetadata.index(index.getName()),
+                                    indexContainer(index),
+                                    snapshotId.getUUID(),
+                                    compress
+                                );
+                            }
                         }));
                     }
 
@@ -3853,7 +3867,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @param shardId    The 0-based shard id, see also {@link ShardId#id()}
      * @param blobs      list of blobs in repository
      * @param generation shard generation or {@code null} in case there was no shard generation tracked in the {@link RepositoryData} for
-     *                   this shard because its snapshot was created in a version older than 7.6.
+     *                   this shard because its snapshot was created in a version older than
+     *                   {@link SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION}.
      * @return tuple of BlobStoreIndexShardSnapshots and the last snapshot index generation
      */
     private Tuple<BlobStoreIndexShardSnapshots, ShardGeneration> buildBlobStoreIndexShardSnapshots(

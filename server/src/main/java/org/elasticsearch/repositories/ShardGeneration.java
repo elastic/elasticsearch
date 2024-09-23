@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -24,7 +25,7 @@ import java.util.Random;
 
 /**
  * The generation ID of a shard, used to name the shard-level {@code index-$SHARD_GEN} file that represents a {@link
- * BlobStoreIndexShardSnapshots} instance. Before 7.6 these generations were
+ * BlobStoreIndexShardSnapshots} instance. Before 7.6 ({@link SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION}) these generations were
  * numeric, but recent versions use a UUID instead.
  */
 public final class ShardGeneration implements Writeable, ToXContentFragment {

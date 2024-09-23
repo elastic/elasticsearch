@@ -17,6 +17,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -181,7 +182,9 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
             // 7.12.0+ will try to load RepositoryData during repo creation if verify is true, which is impossible in case of version
             // incompatibility in the downgrade test step. We verify that it is impossible here and then create the repo using verify=false
             // to check behavior on other operations below.
-            final boolean verify = TEST_STEP != TestStep.STEP3_OLD_CLUSTER || SnapshotsService.includesUUIDs(minNodeVersion);
+            final boolean verify = TEST_STEP != TestStep.STEP3_OLD_CLUSTER
+                || SnapshotsService.includesUUIDs(minNodeVersion)
+                || minNodeVersion.before(IndexVersions.V_7_12_0);
             if (verify == false) {
                 expectThrowsAnyOf(EXPECTED_BWC_EXCEPTIONS, () -> createRepository(repoName, false, true));
             }

@@ -1970,19 +1970,18 @@ public class MetadataTests extends ESTestCase {
     @UpdateForV9
     @AwaitsFix(bugUrl = "this test needs to be updated or removed after the version 9.0 bump")
     public void testSystemAliasValidationMixedVersionSystemAndRegularFails() {
-        final IndexVersion random8xVersion = IndexVersionUtils.randomVersionBetween(
+        final IndexVersion random7xVersion = IndexVersionUtils.randomVersionBetween(
             random(),
-            IndexVersions.V_8_0_0,
-            IndexVersionUtils.getPreviousVersion(IndexVersion.current())
+            IndexVersions.V_7_0_0,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
         );
         final IndexMetadata currentVersionSystem = buildIndexWithAlias(".system1", SYSTEM_ALIAS_NAME, null, IndexVersion.current(), true);
-        // TODO lucene 10 upgrade, check that the following removal isn't making this test unuseful
-        // final IndexMetadata oldVersionSystem = buildIndexWithAlias(".oldVersionSystem", SYSTEM_ALIAS_NAME, null, random8xVersion, true);
+        final IndexMetadata oldVersionSystem = buildIndexWithAlias(".oldVersionSystem", SYSTEM_ALIAS_NAME, null, random7xVersion, true);
         final IndexMetadata regularIndex = buildIndexWithAlias("regular1", SYSTEM_ALIAS_NAME, false, IndexVersion.current(), false);
 
         IllegalStateException exception = expectThrows(
             IllegalStateException.class,
-            () -> metadataWithIndices(currentVersionSystem, regularIndex)
+            () -> metadataWithIndices(currentVersionSystem, oldVersionSystem, regularIndex)
         );
         assertThat(
             exception.getMessage(),
@@ -2018,6 +2017,53 @@ public class MetadataTests extends ESTestCase {
                     + "], but aliases must refer to either system or non-system indices, not both"
             )
         );
+    }
+
+    @UpdateForV9
+    @AwaitsFix(bugUrl = "this test needs to be updated or removed after the version 9.0 bump")
+    public void testSystemAliasOldSystemAndNewRegular() {
+        final IndexVersion random7xVersion = IndexVersionUtils.randomVersionBetween(
+            random(),
+            IndexVersions.V_7_0_0,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
+        );
+        final IndexMetadata oldVersionSystem = buildIndexWithAlias(".oldVersionSystem", SYSTEM_ALIAS_NAME, null, random7xVersion, true);
+        final IndexMetadata regularIndex = buildIndexWithAlias("regular1", SYSTEM_ALIAS_NAME, false, IndexVersion.current(), false);
+
+        // Should be ok:
+        metadataWithIndices(oldVersionSystem, regularIndex);
+    }
+
+    @UpdateForV9
+    @AwaitsFix(bugUrl = "this test needs to be updated or removed after the version 9.0 bump")
+    public void testSystemIndexValidationAllRegular() {
+        final IndexVersion random7xVersion = IndexVersionUtils.randomVersionBetween(
+            random(),
+            IndexVersions.V_7_0_0,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
+        );
+        final IndexMetadata currentVersionSystem = buildIndexWithAlias(".system1", SYSTEM_ALIAS_NAME, null, IndexVersion.current(), true);
+        final IndexMetadata currentVersionSystem2 = buildIndexWithAlias(".system2", SYSTEM_ALIAS_NAME, null, IndexVersion.current(), true);
+        final IndexMetadata oldVersionSystem = buildIndexWithAlias(".oldVersionSystem", SYSTEM_ALIAS_NAME, null, random7xVersion, true);
+
+        // Should be ok
+        metadataWithIndices(currentVersionSystem, currentVersionSystem2, oldVersionSystem);
+    }
+
+    @UpdateForV9
+    @AwaitsFix(bugUrl = "this test needs to be updated or removed after the version 9.0 bump")
+    public void testSystemAliasValidationAllSystemSomeOld() {
+        final IndexVersion random7xVersion = IndexVersionUtils.randomVersionBetween(
+            random(),
+            IndexVersions.V_7_0_0,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
+        );
+        final IndexMetadata currentVersionSystem = buildIndexWithAlias(".system1", SYSTEM_ALIAS_NAME, null, IndexVersion.current(), true);
+        final IndexMetadata currentVersionSystem2 = buildIndexWithAlias(".system2", SYSTEM_ALIAS_NAME, null, IndexVersion.current(), true);
+        final IndexMetadata oldVersionSystem = buildIndexWithAlias(".oldVersionSystem", SYSTEM_ALIAS_NAME, null, random7xVersion, true);
+
+        // Should be ok:
+        metadataWithIndices(currentVersionSystem, currentVersionSystem2, oldVersionSystem);
     }
 
     public void testSystemAliasValidationAll8x() {

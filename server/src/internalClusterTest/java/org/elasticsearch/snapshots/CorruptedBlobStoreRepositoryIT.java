@@ -27,7 +27,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshotsIntegritySuppressor;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.IndexMetaDataGenerations;
@@ -330,7 +329,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         logger.info("--> verify that repo is assumed in old metadata format");
         assertThat(
             SnapshotsService.minCompatibleVersion(IndexVersion.current(), getRepositoryData(repoName), null),
-            is(IndexVersions.V_8_0_0)
+            is(SnapshotsService.OLD_SNAPSHOT_FORMAT)
         );
 
         logger.info("--> verify that snapshot with missing root level metadata can be deleted");
@@ -404,8 +403,6 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         );
     }
 
-    // TODO lucene 10 upgrade, deleting old IndexVersions and with this SnapshotsService.OLD_SNAPSHOT_FORMAT
-    // can the following test be deleted?
     public void testHandleSnapshotErrorWithBwCFormat() throws Exception {
         final String repoName = "test-repo";
         final Path repoPath = randomRepoPath();
@@ -431,8 +428,6 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         createFullSnapshot(repoName, "snapshot-2");
     }
 
-    // TODO lucene 10 upgrade, deleting old IndexVersions and with this SnapshotsService.OLD_SNAPSHOT_FORMAT
-    // can the following test be deleted?
     public void testRepairBrokenShardGenerations() throws Exception {
         final String repoName = "test-repo";
         final Path repoPath = randomRepoPath();

@@ -54,6 +54,11 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         final Path repoPath = randomRepoPath();
         createRepository(repoName, "fs", repoPath);
 
+        final boolean useBwCFormat = randomBoolean();
+        if (useBwCFormat) {
+            initWithSnapshotVersion(repoName, repoPath, SnapshotsService.OLD_SNAPSHOT_FORMAT);
+        }
+
         final String indexName = "test-index";
         createIndexWithRandomDocs(indexName, randomIntBetween(5, 10));
         final String sourceSnapshot = "source-snapshot";
@@ -68,8 +73,11 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         final SnapshotId targetSnapshotId = new SnapshotId("target-snapshot", UUIDs.randomBase64UUID(random()));
 
         final ShardGeneration currentShardGen;
-
-        currentShardGen = repositoryData.shardGenerations().getShardGen(indexId, shardId);
+        if (useBwCFormat) {
+            currentShardGen = null;
+        } else {
+            currentShardGen = repositoryData.shardGenerations().getShardGen(indexId, shardId);
+        }
         final ShardSnapshotResult shardSnapshotResult = safeAwait(
             listener -> repository.cloneShardSnapshot(
                 sourceSnapshotInfo.snapshotId(),
@@ -80,6 +88,10 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
             )
         );
         final ShardGeneration newShardGeneration = shardSnapshotResult.getGeneration();
+
+        if (useBwCFormat) {
+            assertEquals(newShardGeneration, new ShardGeneration(1L)); // Initial snapshot brought it to 0, clone increments it to 1
+        }
 
         final BlobStoreIndexShardSnapshot targetShardSnapshot = readShardSnapshot(repository, repositoryShardId, targetSnapshotId);
         final BlobStoreIndexShardSnapshot sourceShardSnapshot = readShardSnapshot(

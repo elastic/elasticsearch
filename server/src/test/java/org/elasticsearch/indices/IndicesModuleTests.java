@@ -102,14 +102,28 @@ public class IndicesModuleTests extends ESTestCase {
     @AwaitsFix(bugUrl = "test is referencing 7.x index versions so needs to be updated for 9.0 bump")
     public void testBuiltinMappers() {
         IndicesModule module = new IndicesModule(Collections.emptyList());
-        IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_0_0, IndexVersion.current());
-        assertThat(module.getMapperRegistry().getMapperParser("object", IndexVersion.current()), instanceOf(ObjectMapper.TypeParser.class));
-        assertFalse(module.getMapperRegistry().getMetadataMapperParsers(version).isEmpty());
-        Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = module.getMapperRegistry().getMetadataMapperParsers(version);
-        assertEquals(EXPECTED_METADATA_FIELDS.length, metadataMapperParsers.size());
-        int i = 0;
-        for (String field : metadataMapperParsers.keySet()) {
-            assertEquals(EXPECTED_METADATA_FIELDS[i++], field);
+        {
+            IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_0_0, IndexVersion.current());
+            assertThat(
+                module.getMapperRegistry().getMapperParser("object", IndexVersion.current()),
+                instanceOf(ObjectMapper.TypeParser.class)
+            );
+            assertFalse(module.getMapperRegistry().getMetadataMapperParsers(version).isEmpty());
+            Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = module.getMapperRegistry()
+                .getMetadataMapperParsers(version);
+            assertEquals(EXPECTED_METADATA_FIELDS.length, metadataMapperParsers.size());
+            int i = 0;
+            for (String field : metadataMapperParsers.keySet()) {
+                assertEquals(EXPECTED_METADATA_FIELDS[i++], field);
+            }
+        }
+        {
+            IndexVersion version = IndexVersionUtils.randomVersionBetween(
+                random(),
+                IndexVersions.V_7_0_0,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
+            );
+            assertEquals(EXPECTED_METADATA_FIELDS.length - 1, module.getMapperRegistry().getMetadataMapperParsers(version).size());
         }
     }
 

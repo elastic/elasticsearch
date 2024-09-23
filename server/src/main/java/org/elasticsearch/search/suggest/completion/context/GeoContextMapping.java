@@ -18,9 +18,11 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -271,19 +273,39 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
         if (fieldName != null) {
             MappedFieldType mappedFieldType = fieldResolver.apply(fieldName);
             if (mappedFieldType == null) {
-                throw new ElasticsearchParseException(
-                    "field [{}] referenced in context [{}] is not defined in the mapping",
-                    fieldName,
-                    name
-                );
+                if (indexVersionCreated.before(IndexVersions.V_7_0_0)) {
+                    deprecationLogger.warn(
+                        DeprecationCategory.MAPPINGS,
+                        "geo_context_mapping",
+                        "field [{}] referenced in context [{}] is not defined in the mapping",
+                        fieldName,
+                        name
+                    );
+                } else {
+                    throw new ElasticsearchParseException(
+                        "field [{}] referenced in context [{}] is not defined in the mapping",
+                        fieldName,
+                        name
+                    );
+                }
             } else if (GeoPointFieldMapper.CONTENT_TYPE.equals(mappedFieldType.typeName()) == false) {
-                throw new ElasticsearchParseException(
-                    "field [{}] referenced in context [{}] must be mapped to geo_point, found [{}]",
-                    fieldName,
-                    name,
-                    mappedFieldType.typeName()
-                );
-
+                if (indexVersionCreated.before(IndexVersions.V_7_0_0)) {
+                    deprecationLogger.warn(
+                        DeprecationCategory.MAPPINGS,
+                        "geo_context_mapping",
+                        "field [{}] referenced in context [{}] must be mapped to geo_point, found [{}]",
+                        fieldName,
+                        name,
+                        mappedFieldType.typeName()
+                    );
+                } else {
+                    throw new ElasticsearchParseException(
+                        "field [{}] referenced in context [{}] must be mapped to geo_point, found [{}]",
+                        fieldName,
+                        name,
+                        mappedFieldType.typeName()
+                    );
+                }
             }
         }
     }

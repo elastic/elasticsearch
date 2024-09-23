@@ -136,7 +136,7 @@ public final class ShardGenerations {
      *     <li>{@link #DELETED_SHARD_GEN} a deleted shard that isn't referenced by any snapshot in the repository any longer</li>
      *     <li>{@link #NEW_SHARD_GEN} a new shard that we know doesn't hold any valid data yet in the repository</li>
      *     <li>{@code null} unknown state. The shard either does not exist at all or it was created by a node older than
-     *     7.6. If a caller expects a shard to exist in the
+     *     {@link org.elasticsearch.snapshots.SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION}. If a caller expects a shard to exist in the
      *     repository but sees a {@code null} return, it should try to recover the generation by falling back to listing the contents
      *     of the respective shard directory.</li>
      * </ul>

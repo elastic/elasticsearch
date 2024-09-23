@@ -6638,8 +6638,6 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(message, engine.getNumDocDeletes(), equalTo(expectedDeletes));
     }
 
-    // TODO Lucene 10 upgrade, we need to remove old IndexVersions for this to work
-    @AwaitsFix(bugUrl = "")
     public void testStoreHonorsLuceneVersion() throws IOException {
         // this expects a big IndexVersion bump when the lucene major version is bumped
         IndexVersion lowestCompatiblePreviousVersion = IndexVersion.fromId((IndexVersion.current().id() / 1_000_000) * 1_000_000);

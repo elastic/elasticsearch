@@ -55,7 +55,6 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.mockito.Mockito;
 
 import java.io.ByteArrayInputStream;
@@ -80,7 +79,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntConsumer;
 
-import static org.elasticsearch.core.IOUtils.closeWhileHandlingException;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomNonDataPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.DISABLE_CHUNKED_ENCODING;
@@ -800,32 +798,6 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         int expectedNumberOfBatches = expectedNumberOfBatches(numBlobsToDelete);
         assertThat(handler.numberOfDeleteAttempts.get(), equalTo(throttleTimesBeforeSuccess + expectedNumberOfBatches));
         assertThat(handler.numberOfSuccessfulDeletes.get(), equalTo(expectedNumberOfBatches));
-    }
-
-    @Ignore("Need to understand what's supposed to happen here when repository is closed")
-    public void testSnapshotDeletesAbortRetriesWhenServiceIsClosed() {
-        // disable AWS-client retries
-        final BlobContainer blobContainer = createBlobContainer(0, null, true, null);
-
-        int numBlobsToDelete = randomIntBetween(500, 3000);
-        List<String> blobsToDelete = new ArrayList<>();
-        for (int i = 0; i < numBlobsToDelete; i++) {
-            blobsToDelete.add(randomIdentifier());
-        }
-        int closeBeforeAttempt = randomIntBetween(0, 10);
-        ThrottlingDeleteHandler handler = new ThrottlingDeleteHandler(Integer.MAX_VALUE, attempt -> {
-            if (attempt == closeBeforeAttempt) {
-                closeWhileHandlingException(service);
-            }
-        });
-        httpServer.createContext("/", handler);
-        // TODO: work out how to achieve failure on repository close
-        assertThrows(
-            Exception.class, /* ? */
-            () -> blobContainer.deleteBlobsIgnoringIfNotExists(randomFrom(operationPurposesThatRetryOnDelete()), blobsToDelete.iterator())
-        );
-        assertThat(handler.numberOfDeleteAttempts.get(), equalTo(closeBeforeAttempt + 1));
-        assertThat(handler.numberOfSuccessfulDeletes.get(), equalTo(0));
     }
 
     public void testSnapshotDeletesAbortRetriesWhenThreadIsInterrupted() {

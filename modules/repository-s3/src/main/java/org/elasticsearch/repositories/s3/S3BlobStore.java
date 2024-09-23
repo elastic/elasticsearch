@@ -35,8 +35,6 @@ import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -346,19 +344,18 @@ class S3BlobStore implements BlobStore {
         }
 
         final List<String> partition = new ArrayList<>();
-        final AtomicReference<AmazonS3Reference> clientReferenceHolder = new AtomicReference<>();
-        try (Releasable ignored = () -> Releasables.close(clientReferenceHolder.getAndSet(null))) {
+        try {
             // S3 API only allows 1k blobs per delete so we split up the given blobs into requests of max. 1k deletes
             final AtomicReference<Exception> aex = new AtomicReference<>();
             blobNames.forEachRemaining(key -> {
                 partition.add(key);
                 if (partition.size() == bulkDeletionBatchSize) {
-                    deletePartition(purpose, clientReferenceHolder, partition, aex);
+                    deletePartition(purpose, partition, aex);
                     partition.clear();
                 }
             });
             if (partition.isEmpty() == false) {
-                deletePartition(purpose, clientReferenceHolder, partition, aex);
+                deletePartition(purpose, partition, aex);
             }
             if (aex.get() != null) {
                 throw aex.get();
@@ -372,27 +369,16 @@ class S3BlobStore implements BlobStore {
      * Delete one partition of a batch of blobs
      *
      * @param purpose The {@link OperationPurpose} of the deletion
-     * @param clientReferenceHolder A holder for a {@link AmazonS3Reference}. Will be populated if empty, must be closed by the caller.
      * @param partition The list of blobs to delete
      * @param aex A holder for any exception(s) thrown during the deletion
      */
-    private void deletePartition(
-        OperationPurpose purpose,
-        AtomicReference<AmazonS3Reference> clientReferenceHolder,
-        List<String> partition,
-        AtomicReference<Exception> aex
-    ) {
+    private void deletePartition(OperationPurpose purpose, List<String> partition, AtomicReference<Exception> aex) {
         final Iterator<TimeValue> retries = retryThrottledDeleteBackoffPolicy.iterator();
         int attempts = 0;
         while (true) {
-            try {
-                if (clientReferenceHolder.get() == null) {
-                    clientReferenceHolder.set(clientReference());
-                }
+            try (AmazonS3Reference clientReference = clientReference()) {
                 attempts++;
-                SocketAccess.doPrivilegedVoid(
-                    () -> clientReferenceHolder.get().client().deleteObjects(bulkDelete(purpose, this, partition))
-                );
+                SocketAccess.doPrivilegedVoid(() -> clientReference.client().deleteObjects(bulkDelete(purpose, this, partition)));
                 s3RepositoriesMetrics.retryDeletesHistogram().record(attempts);
                 return;
             } catch (MultiObjectDeleteException e) {
@@ -415,8 +401,6 @@ class S3BlobStore implements BlobStore {
                     // S3 is asking us to slow down. Pause for a bit and retry
                     try {
                         Thread.sleep(retries.next().millis());
-                        // Force re-acquisition of the client reference to trigger early termination if the repository is closed
-                        Releasables.close(clientReferenceHolder.getAndSet(null));
                     } catch (InterruptedException iex) {
                         Thread.currentThread().interrupt();
                         // If we're interrupted, record the exception and abort retries

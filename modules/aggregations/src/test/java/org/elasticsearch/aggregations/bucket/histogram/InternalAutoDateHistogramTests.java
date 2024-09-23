@@ -9,7 +9,6 @@
 
 package org.elasticsearch.aggregations.bucket.histogram;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.aggregations.bucket.AggregationMultiBucketAggregationTestCase;
 import org.elasticsearch.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
@@ -28,7 +27,6 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.test.InternalAggregationTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
 import java.time.Instant;

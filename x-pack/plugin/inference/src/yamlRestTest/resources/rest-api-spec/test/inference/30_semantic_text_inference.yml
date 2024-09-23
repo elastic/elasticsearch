@@ -65,6 +65,7 @@ setup:
       get:
         index: test-index
         id: doc_1
+        _source_include_vectors: true
 
   - match: { _source.sparse_field.text: "inference test" }
   - exists: _source.sparse_field.inference.chunks.0.embeddings
@@ -88,6 +89,7 @@ setup:
       get:
         index: test-index
         id: doc_1
+        _source_include_vectors: true
 
   - match: { _source.sparse_field.text: "75" }
   - exists: _source.sparse_field.inference.chunks.0.embeddings
@@ -110,6 +112,7 @@ setup:
       get:
         index: test-index
         id: doc_1
+        _source_include_vectors: true
 
   - match: { _source.sparse_field.text: "true" }
   - exists: _source.sparse_field.inference.chunks.0.embeddings
@@ -132,6 +135,7 @@ setup:
       get:
         index: test-index
         id: doc_1
+        _source_include_vectors: true
 
   - length: { _source.sparse_field.text: 4 }
   - match: { _source.sparse_field.text.0: "false" }
@@ -197,6 +201,8 @@ setup:
       search:
         index: test-index
         body:
+          _source:
+            include_vectors: true
           query:
             nested:
               path: sparse_field.inference.chunks
@@ -256,6 +262,8 @@ setup:
       search:
         index: test-index
         body:
+          _source:
+            include_vectors: true
           query:
             nested:
               path: dense_field.inference.chunks
@@ -317,7 +325,10 @@ setup:
       get:
         index: test-index
         id: doc_1
+        _source_include_vectors: true
 
+  - exists: _source.sparse_field.inference.chunks.0.embeddings
+  - exists: _source.dense_field.inference.chunks.0.embeddings
   - set: { _source.sparse_field.inference.chunks.0.embeddings: sparse_field_embedding }
   - set: { _source.dense_field.inference.chunks.0.embeddings: dense_field_embedding }
 
@@ -347,10 +358,12 @@ setup:
             index: test-index
           dest:
             index: destination-index
+
   - do:
       get:
         index: destination-index
         id: doc_1
+        _source_include_vectors: true
 
   - match: { _source.sparse_field.text: "inference test" }
   - match: { _source.sparse_field.inference.chunks.0.text: "inference test" }
@@ -424,6 +437,7 @@ setup:
       get:
         index: test-copy-to-index
         id: doc_1
+        _source_include_vectors: true
 
   - match: { _source.sparse_field.text: "inference test" }
   - length: { _source.sparse_field.inference.chunks: 3 }
@@ -449,6 +463,7 @@ setup:
       get:
         index: test-index
         id: doc_1
+        _source_include_vectors: true
 
   - match: { _source.sparse_field.text: "inference test" }
   - exists: _source.sparse_field.inference.chunks.0.embeddings
@@ -506,6 +521,7 @@ setup:
       get:
         index: mapping-update-index
         id: doc_1
+        _source_include_vectors: true
 
   - match: { _source.sparse_field.text: "inference test" }
   - exists: _source.sparse_field.inference.chunks.0.embeddings
@@ -540,6 +556,7 @@ setup:
       get:
         index: test-index
         id: doc_1
+        _source_include_vectors: true
 
   - match: { _source.sparse_field.text: "updated inference test" }
   - match: { _source.sparse_field.inference.chunks.0.text: "updated inference test" }

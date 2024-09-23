@@ -166,6 +166,13 @@ RUN <%= retry.loop(package_manager,
           "        bash java-cacerts curl libstdc++ libsystemd netcat-openbsd p11-kit p11-kit-trust posix-libc-utils shadow tini unzip zip zstd && \n" +
           "      rm -rf /var/cache/apk/* "
      ) %>
+
+# Set Bash as the default shell for future commands
+SHELL ["/bin/bash", "-c"]
+
+# Optionally set Bash as the default shell in the container at runtime
+CMD ["/bin/bash"]
+
 <% } else if (docker_base == "default" || docker_base == "cloud") { %>
 
 # Change default shell to bash, then install required packages with retries.
@@ -224,7 +231,7 @@ COPY --from=builder --chown=0:0 /opt /opt
 <% } %>
 
 ENV PATH /usr/share/elasticsearch/bin:\$PATH
-
+ENV SHELL /bin/bash
 COPY ${bin_dir}/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 # 1. Sync the user and group permissions of /etc/passwd

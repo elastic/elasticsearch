@@ -255,6 +255,10 @@ public class CsvTests extends ESTestCase {
                 "can't use QSTR function in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.QSTR_FUNCTION.capabilityName())
             );
+            assumeFalse(
+                "can't use MATCHSTR function in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MATCH_FUNCTION.capabilityName())
+            );
 
             if (Build.current().isSnapshot()) {
                 assertThat(

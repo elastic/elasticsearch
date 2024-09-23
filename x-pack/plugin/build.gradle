@@ -77,6 +77,9 @@ tasks.named("yamlRestTestV7CompatTest").configure {
     'ml/evaluate_data_frame/Test outlier_detection auc_roc include curve',
     'ml/evaluate_data_frame/Test classification auc_roc',
     'ml/evaluate_data_frame/Test classification auc_roc with default top_classes_field',
+    'security/authz/13_index_datemath/Test indexing documents with datemath, when forbidden',
+    'security/authz/13_index_datemath/Test indexing documents with datemath, when permitted',
+    'security/authz/13_index_datemath/Test bulk indexing with datemath when only some are allowed',
   ].join(',')
 }
 
@@ -147,6 +150,7 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.skipTest("spatial/70_script_doc_values/geoshape value", "error message changed in 8.9.0")
   task.skipTest("security/authz/14_cat_indices/Test empty request while single authorized index", "not supported for compatibility")
   task.skipTestsByFilePattern("**/rollup/**", "The rollup yaml tests in the 7.x branch don't know how to fake a cluster with rollup usage")
+  task.skipTest("data_stream/10_basic/Create hidden data stream", "warning does not exist for compatibility")
 
   task.replaceValueInMatch("_type", "_doc")
   task.addAllowedWarningRegex("\\[types removal\\].*")

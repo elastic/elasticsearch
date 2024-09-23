@@ -20,8 +20,6 @@ import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
-import java.io.IOException;
-
 public final class LongScriptFieldData extends IndexNumericFieldData {
 
     public static class Builder implements IndexFieldData.Builder {
@@ -79,7 +77,7 @@ public final class LongScriptFieldData extends IndexNumericFieldData {
     }
 
     @Override
-    public LongScriptLeafFieldData loadDirect(LeafReaderContext context) throws IOException {
+    public LongScriptLeafFieldData loadDirect(LeafReaderContext context) {
         return new LongScriptLeafFieldData(new LongScriptDocValues(leafFactory.newInstance(context)), toScriptFieldFactory);
     }
 

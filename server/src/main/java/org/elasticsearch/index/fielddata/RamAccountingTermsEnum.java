@@ -52,7 +52,7 @@ public final class RamAccountingTermsEnum extends FilteredTermsEnum {
      * Always accept the term.
      */
     @Override
-    protected AcceptStatus accept(BytesRef term) throws IOException {
+    protected AcceptStatus accept(BytesRef term) {
         return AcceptStatus.YES;
     }
 

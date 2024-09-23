@@ -43,7 +43,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     private static final Set<Property> ALL_PROPERTIES = Set.of(Property.values());
 
     // a temporary directory that mmdb files can be copied to and read from
-    Path tmpDir;
+    private Path tmpDir;
 
     @Before
     public void setup() {
@@ -666,7 +666,7 @@ public class GeoIpProcessorTests extends ESTestCase {
 
         // Check the loader's reference count and attempt to close
         assertThat(loader.current(), equalTo(0));
-        loader.close();
+        loader.shutdown();
         assertTrue(closeCheck.get());
     }
 
@@ -797,11 +797,11 @@ public class GeoIpProcessorTests extends ESTestCase {
         final GeoIpCache cache = new GeoIpCache(1000);
         return new DatabaseReaderLazyLoader(cache, path, null) {
             @Override
-            protected void doClose() throws IOException {
+            protected void doShutdown() throws IOException {
                 if (closed != null) {
                     closed.set(true);
                 }
-                super.doClose();
+                super.doShutdown();
             }
         };
     }

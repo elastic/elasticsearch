@@ -1,6 +1,11 @@
+setup:
+  - requires:
+      test_runner_features: allowed_warnings
 ---
 "Test with date processor":
   - do:
+      allowed_warnings:
+        - 'Date format [dd/MMM/yyyy:HH:mm:ss xx] contains textual field specifiers that could change in JDK 23'
       ingest.put_pipeline:
         id: "_id"
         body:  >
@@ -41,6 +46,8 @@
   - match: { acknowledged: true }
 
   - do:
+      allowed_warnings:
+        - 'Date format [dd/MMM/yyyy:HH:mm:ss xx] contains textual field specifiers that could change in JDK 23'
       index:
         index: test
         id: "1"
@@ -70,6 +77,8 @@
 ---
 "Test with date processor and ECS-v1":
   - do:
+      allowed_warnings:
+        - 'Date format [dd/MMM/yyyy:HH:mm:ss xx] contains textual field specifiers that could change in JDK 23'
       ingest.put_pipeline:
         id: "_id"
         body:  >
@@ -99,6 +108,8 @@
   - match: { acknowledged: true }
 
   - do:
+      allowed_warnings:
+        - 'Date format [dd/MMM/yyyy:HH:mm:ss xx] contains textual field specifiers that could change in JDK 23'
       index:
         index: test
         id: "1"

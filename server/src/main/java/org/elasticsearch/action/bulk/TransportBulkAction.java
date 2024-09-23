@@ -479,7 +479,10 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             if (exception == null) {
                 continue;
             }
-            BulkItemResponse.Failure failure = new BulkItemResponse.Failure(request.index(), request.id(), exception);
+            var failureStoreStatus = request instanceof IndexRequest ir && ir.isWriteToFailureStore()
+                ? IndexDocFailureStoreStatus.FAILED
+                : IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN;
+            var failure = new BulkItemResponse.Failure(request.index(), request.id(), exception, failureStoreStatus);
             responses.set(i, BulkItemResponse.failure(i, request.opType(), failure));
             bulkRequest.requests.set(i, null);
         }

@@ -7,22 +7,8 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.cluster.ack;
+module org.elasticsearch.entitlement.runtime {
+    requires org.elasticsearch.base;
 
-import org.elasticsearch.core.TimeValue;
-
-/**
- * Identifies a cluster state update request with acknowledgement support
- */
-public interface AckedRequest {
-
-    /**
-     * Returns the acknowledgement timeout
-     */
-    TimeValue ackTimeout();
-
-    /**
-     * Returns the timeout for the request to be completed on the master node
-     */
-    TimeValue masterNodeTimeout();
+    exports org.elasticsearch.entitlement.runtime.api to org.elasticsearch.entitlement.agent;
 }

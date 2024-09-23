@@ -1,7 +1,7 @@
 setup:
   - requires:
       cluster_features: "gte_v8.16.0"
-      reason: _source filtering for Semantic text added in 8.16.0
+      reason: semantic_text _source filtering added in 8.16.0
 
   - do:
       inference.put:
@@ -19,6 +19,23 @@ setup:
           }
 
   - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-inference-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 10,
+              "api_key": "abc64",
+              "similarity": "COSINE"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
       indices.create:
         index: test-index
         body:
@@ -27,6 +44,9 @@ setup:
               sparse_field:
                 type: semantic_text
                 inference_id: sparse-inference-id
+              dense_field:
+                type: semantic_text
+                inference_id: dense-inference-id
 
   - do:
       index:
@@ -34,6 +54,7 @@ setup:
         id: doc_1
         body:
           sparse_field: ["inference test", "another inference test"]
+          dense_field: ["inference test", "another inference test"]
         refresh: true
 
 ---
@@ -47,7 +68,9 @@ setup:
               field: "sparse_field"
               query: "inference test"
 
+  - match: { hits.total.value: 1 }
   - not_exists: hits.hits.0._source.sparse_field.inference
+  - not_exists: hits.hits.0._source.dense_field.inference
 
 ---
 "Exclude embeddings from _source":
@@ -62,10 +85,12 @@ setup:
               field: "sparse_field"
               query: "inference test"
 
+  - match: { hits.total.value: 1 }
   - not_exists: hits.hits.0._source.sparse_field.inference
+  - not_exists: hits.hits.0._source.dense_field.inference
 
 ---
-"Include embedding in _source":
+"Include embeddings in _source":
   - do:
       search:
         index: test-index
@@ -77,5 +102,6 @@ setup:
               field: "sparse_field"
               query: "inference test"
 
-  - exists: hits.hits.0._source.sparse_field.inference.chunks.0.embeddings
-  - exists: hits.hits.0._source.sparse_field.inference.chunks.1.embeddings
+  - match: { hits.total.value: 1 }
+  - exists: hits.hits.0._source.sparse_field.inference
+  - exists: hits.hits.0._source.dense_field.inference

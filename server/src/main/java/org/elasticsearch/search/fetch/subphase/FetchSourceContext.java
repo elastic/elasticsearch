@@ -101,7 +101,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         final String[] includes = in.readStringArray();
         final String[] excludes = in.readStringArray();
         final Boolean includeVectors;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.HIDE_VECTORS_FROM_SOURCE)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.HIDE_VECTORS_IN_SOURCE)) {
             includeVectors = in.readOptionalBoolean();
         } else {
             includeVectors = true;
@@ -126,7 +126,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         out.writeBoolean(fetchSource);
         out.writeStringArray(includes);
         out.writeStringArray(excludes);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.HIDE_VECTORS_FROM_SOURCE)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.HIDE_VECTORS_IN_SOURCE)) {
             out.writeOptionalBoolean(includeVectors);
         }
     }

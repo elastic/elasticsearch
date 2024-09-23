@@ -223,7 +223,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_AGGREGATION_OPERATOR_STATUS_FINISH_NANOS = def(8_747_00_0);
     public static final TransportVersion ML_TELEMETRY_MEMORY_ADDED = def(8_748_00_0);
     public static final TransportVersion ILM_ADD_SEARCHABLE_SNAPSHOT_TOTAL_SHARDS_PER_NODE = def(8_749_00_0);
-    public static final TransportVersion HIDE_VECTORS_FROM_SOURCE = def(8_750_00_0);
+    public static final TransportVersion HIDE_VECTORS_IN_SOURCE = def(8_750_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

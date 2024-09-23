@@ -8,6 +8,8 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
@@ -18,6 +20,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.search.aggregations.metrics.InternalMedianAbsoluteDeviation;
+import org.elasticsearch.search.aggregations.metrics.MemoryTrackingTDigestArrays;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 
 import java.io.ByteArrayOutputStream;
@@ -60,8 +63,8 @@ public final class QuantileStates {
         private TDigestState digest;
         private final Double percentile;
 
-        SingleState(double percentile) {
-            this.digest = TDigestState.create(DEFAULT_COMPRESSION);
+        SingleState(CircuitBreaker breaker, double percentile) {
+            this.digest = TDigestState.create(new MemoryTrackingTDigestArrays(breaker), DEFAULT_COMPRESSION);
             this.percentile = percentileParam(percentile);
         }
 
@@ -119,7 +122,7 @@ public final class QuantileStates {
             digests = bigArrays.grow(digests, groupId + 1);
             TDigestState qs = digests.get(groupId);
             if (qs == null) {
-                qs = TDigestState.create(DEFAULT_COMPRESSION);
+                qs = TDigestState.create(new MemoryTrackingTDigestArrays(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST)), DEFAULT_COMPRESSION);
                 digests.set(groupId, qs);
             }
             return qs;

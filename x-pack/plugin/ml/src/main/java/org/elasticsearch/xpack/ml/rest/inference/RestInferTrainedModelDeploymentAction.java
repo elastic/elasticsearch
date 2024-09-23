@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.ml.rest.inference;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
@@ -37,11 +37,29 @@ public class RestInferTrainedModelDeploymentAction extends BaseRestHandler {
         return "xpack_ml_infer_trained_models_deployment_action";
     }
 
+    @UpdateForV9 // these routes were ".deprecated" in RestApiVersion.V_8 which will require use of REST API compatibility headers to access
+    // this API in v9. It is unclear if this was intentional for v9, and the code has been updated to ".deprecateAndKeep" which will
+    // continue to emit deprecations warnings but will not require any special headers to access the API in v9.
+    // Please review and update the code and tests as needed. The original code remains commented out below for reference.
     @Override
     public List<Route> routes() {
         return Collections.singletonList(
+            // Route.builder(POST, PATH)
+            // .deprecated(
+            // "["
+            // + POST.name()
+            // + " "
+            // + PATH
+            // + "] is deprecated! Use ["
+            // + POST.name()
+            // + " "
+            // + RestInferTrainedModelAction.PATH
+            // + "] instead.",
+            // RestApiVersion.V_8
+            // )
+            // .build()
             Route.builder(POST, PATH)
-                .deprecated(
+                .deprecateAndKeep(
                     "["
                         + POST.name()
                         + " "
@@ -50,8 +68,7 @@ public class RestInferTrainedModelDeploymentAction extends BaseRestHandler {
                         + POST.name()
                         + " "
                         + RestInferTrainedModelAction.PATH
-                        + "] instead.",
-                    RestApiVersion.V_8
+                        + "] instead."
                 )
                 .build()
         );

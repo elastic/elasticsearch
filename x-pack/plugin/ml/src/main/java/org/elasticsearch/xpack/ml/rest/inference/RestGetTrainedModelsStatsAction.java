@@ -31,7 +31,7 @@ import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 public class RestGetTrainedModelsStatsAction extends BaseRestHandler {
 
     @UpdateForV9
-    // one or more ".replaces" another in RestApiVersion.V_8 which will require use of REST API compatibility headers to access
+    // one or more routes use ".replaces" with RestApiVersion.V_8 which will require use of REST API compatibility headers to access
     // that route in v9. It is unclear if this was intentional for v9, and the code has been updated to ".deprecateAndKeep" which will
     // continue to emit deprecations warnings but will not require any special headers to access the API in v9.
     // Please review and update the code and tests as needed. The original code remains commented out below for reference.

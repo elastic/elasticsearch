@@ -1886,6 +1886,20 @@ public abstract class ESTestCase extends LuceneTestCase {
         CollectionUtils.concatLists(ClusterModule.getNamedXWriteables(), IndicesModule.getNamedXContents())
     );
 
+    protected String getCompatibleHeader(XContentType type, RestApiVersion restApiVersion) {
+        if (type.canonical().equals(type)) {
+            throw new IllegalArgumentException(
+                "Compatible header is only supported for vendor content types."
+                    + " You requested "
+                    + type.name()
+                    + "but likely want VND_"
+                    + type.name()
+            );
+        }
+        return type.toParsedMediaType()
+            .responseContentTypeHeader(Map.of(MediaType.COMPATIBLE_WITH_PARAMETER_NAME, String.valueOf(restApiVersion.major)));
+    }
+
     /**
      * The {@link NamedXContentRegistry} to use for this test. Subclasses should override and use liberally.
      */

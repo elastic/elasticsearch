@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.alibabacloudsearch.AlibabaCloudSearchActionCreator;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
-import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
+import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.request.alibabacloudsearch.AlibabaCloudSearchUtils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
@@ -204,8 +204,7 @@ public class AlibabaCloudSearchService extends SenderService {
     @Override
     public void doInfer(
         Model model,
-        String query,
-        List<String> input,
+        InferenceInputs inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -220,35 +219,13 @@ public class AlibabaCloudSearchService extends SenderService {
         var actionCreator = new AlibabaCloudSearchActionCreator(getSender(), getServiceComponents());
 
         var action = alibabaCloudSearchModel.accept(actionCreator, taskSettings, inputType);
-        action.execute(new QueryAndDocsInputs(query, input), timeout, listener);
-    }
-
-    @Override
-    public void doInfer(
-        Model model,
-        List<String> input,
-        Map<String, Object> taskSettings,
-        InputType inputType,
-        TimeValue timeout,
-        ActionListener<InferenceServiceResults> listener
-    ) {
-        if (model instanceof AlibabaCloudSearchModel == false) {
-            listener.onFailure(createInvalidModelException(model));
-            return;
-        }
-
-        AlibabaCloudSearchModel alibabaCloudSearchModel = (AlibabaCloudSearchModel) model;
-        var actionCreator = new AlibabaCloudSearchActionCreator(getSender(), getServiceComponents());
-
-        var action = alibabaCloudSearchModel.accept(actionCreator, taskSettings, inputType);
-        action.execute(new DocumentsOnlyInput(input), timeout, listener);
+        action.execute(inputs, timeout, listener);
     }
 
     @Override
     protected void doChunkedInfer(
         Model model,
-        @Nullable String query,
-        List<String> input,
+        DocumentsOnlyInput inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         ChunkingOptions chunkingOptions,
@@ -263,8 +240,11 @@ public class AlibabaCloudSearchService extends SenderService {
         AlibabaCloudSearchModel alibabaCloudSearchModel = (AlibabaCloudSearchModel) model;
         var actionCreator = new AlibabaCloudSearchActionCreator(getSender(), getServiceComponents());
 
-        var batchedRequests = new EmbeddingRequestChunker(input, EMBEDDING_MAX_BATCH_SIZE, EmbeddingRequestChunker.EmbeddingType.FLOAT)
-            .batchRequestsWithListeners(listener);
+        var batchedRequests = new EmbeddingRequestChunker(
+            inputs.getInputs(),
+            EMBEDDING_MAX_BATCH_SIZE,
+            EmbeddingRequestChunker.EmbeddingType.FLOAT
+        ).batchRequestsWithListeners(listener);
         for (var request : batchedRequests) {
             var action = alibabaCloudSearchModel.accept(actionCreator, taskSettings, inputType);
             action.execute(new DocumentsOnlyInput(request.batch().inputs()), timeout, request.listener());

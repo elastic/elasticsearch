@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.querydsl.query.MatchQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -89,12 +90,11 @@ public class MatchFunction extends FullTextFunction {
         if (queryAsObject instanceof BytesRef == false) {
             throw new IllegalArgumentException("Query in MATCHSTR function needs to be resolved to a string");
         }
-        Object fieldAsObject = field.fold();
-        if (fieldAsObject instanceof BytesRef == false) {
-            throw new IllegalArgumentException("Field in NATCHSTR function needs to be resolved to a string");
+        if (field instanceof FieldAttribute == false) {
+            throw new IllegalArgumentException("Field in MATCHSTR function needs to be a field");
         }
 
-        return new MatchQuery(source(), ((BytesRef) fieldAsObject).utf8ToString(), ((BytesRef) queryAsObject).utf8ToString());
+        return new MatchQuery(source(), ((FieldAttribute) field).name(), ((BytesRef) queryAsObject).utf8ToString());
     }
 
     @Override

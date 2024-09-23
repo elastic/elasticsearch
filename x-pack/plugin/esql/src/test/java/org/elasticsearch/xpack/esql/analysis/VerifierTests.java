@@ -1233,8 +1233,10 @@ public class VerifierTests extends ESTestCase {
     public void testMatchFunctionArgNotNullOrConstant() throws Exception {
         assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
 
-        // assertEquals("1:19: first argument of [MATCHSTR] cannot be null, received [null]", error("from test | where matchstr(null,
-        // \"Anna\")"));
+        assertEquals(
+            "1:19: first argument of [MATCHSTR] cannot be null, received [null]",
+            error("from test | where matchstr(null, \"Anna\")")
+        );
         assertEquals(
             "1:19: second argument of [MATCHSTR] cannot be null, received [null]",
             error("from test | where matchstr(first_name, null)")
@@ -1244,6 +1246,15 @@ public class VerifierTests extends ESTestCase {
             error("from test | where matchstr(first_name, first_name)")
         );
         // Other value types are tested in QueryStringFunctionTests
+    }
+
+    public void testMatchFunctionNoField() throws Exception {
+        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
+
+        assertEquals(
+            "1:19: second argument of [MATCHSTR] cannot be null, received [null]",
+            error("from test | where matchstr(\"first_name\", null)")
+        );
     }
 
     public void testCoalesceWithMixedNumericTypes() {

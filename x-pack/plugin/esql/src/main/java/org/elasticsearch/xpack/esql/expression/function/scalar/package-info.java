@@ -151,6 +151,8 @@
  *              <li>{@code docs/reference/esql/functions/parameters/myfunction.asciidoc}</li>
  *              <li>{@code docs/reference/esql/functions/signature/myfunction.svg}</li>
  *              <li>{@code docs/reference/esql/functions/types/myfunction.asciidoc}</li>
+ *              <li>{@code docs/reference/esql/functions/kibana/definition/myfunction.json}</li>
+ *              <li>{@code docs/reference/esql/functions/kibana/docs/myfunction.asciidoc}</li>
  *         </ul>
  *
  *         Make sure to commit them. Add a reference to the

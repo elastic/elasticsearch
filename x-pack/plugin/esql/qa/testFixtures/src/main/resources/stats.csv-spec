@@ -1183,6 +1183,7 @@ FROM employees
 // end::statsGroupByMultipleValues[]
 | LIMIT 4
 ;
+warningRegex:Date format \[YYYY\] contains week-date field specifiers that are changing in JDK 23
 
 hired:keyword |languages.long:long | avg_salary:double
 1985           |1              |54668.0        

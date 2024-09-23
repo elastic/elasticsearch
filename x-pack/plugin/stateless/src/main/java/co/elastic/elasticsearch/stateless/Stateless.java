@@ -28,6 +28,7 @@ import co.elastic.elasticsearch.stateless.allocation.StatelessExistingShardsAllo
 import co.elastic.elasticsearch.stateless.allocation.StatelessIndexSettingProvider;
 import co.elastic.elasticsearch.stateless.allocation.StatelessShardRoutingRoleStrategy;
 import co.elastic.elasticsearch.stateless.api.DocValuesFormatFactory;
+import co.elastic.elasticsearch.stateless.api.ShardSizeStatsProvider;
 import co.elastic.elasticsearch.stateless.api.ShardSizeStatsReader;
 import co.elastic.elasticsearch.stateless.autoscaling.indexing.AverageWriteLoadSampler;
 import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe;
@@ -564,8 +565,10 @@ public class Stateless extends Plugin
             components.add(searchLoadSampler);
             var searchShardSizeCollector = createSearchShardSizeCollector(clusterService.getClusterSettings(), threadPool, client);
             clusterService.addListener(searchShardSizeCollector);
+            components.add(new PluginComponentBinding<>(ShardSizeStatsProvider.class, searchShardSizeCollector));
             shardSizeCollector = searchShardSizeCollector;
         } else {
+            components.add(new PluginComponentBinding<>(ShardSizeStatsProvider.class, ShardSizeStatsProvider.NOOP));
             shardSizeCollector = ShardSizeCollector.NOOP;
         }
         components.add(new PluginComponentBinding<>(ShardSizeCollector.class, setAndGet(this.shardSizeCollector, shardSizeCollector)));

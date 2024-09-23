@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -20,7 +21,6 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -208,12 +208,6 @@ public class IpFieldMapperTests extends MapperTestCase {
             e.getMessage(),
             "Failed to parse mapping: Error parsing [null_value] on field [field]: ':1' is not an IP string literal."
         );
-
-        createDocumentMapper(IndexVersions.V_7_9_0, fieldMapping(b -> {
-            b.field("type", "ip");
-            b.field("null_value", ":1");
-        }));
-        assertWarnings("Error parsing [:1] as IP in [null_value] on field [field]); [null_value] will be ignored");
     }
 
     public void testDimension() throws IOException {
@@ -265,11 +259,11 @@ public class IpFieldMapperTests extends MapperTestCase {
             b.field("time_series_dimension", true);
         }), IndexMode.TIME_SERIES);
 
-        Exception e = expectThrows(
-            DocumentParsingException.class,
-            () -> mapper.parse(source(b -> b.array("field", "192.168.1.1", "192.168.1.1")))
-        );
-        assertThat(e.getCause().getMessage(), containsString("Dimension field [field] cannot be a multi-valued field"));
+        ParsedDocument doc = mapper.parse(source(null, b -> {
+            b.array("field", "192.168.1.1", "192.168.1.1");
+            b.field("@timestamp", Instant.now());
+        }, TimeSeriesRoutingHashFieldMapper.encode(randomInt())));
+        assertThat(doc.docs().get(0).getFields("field"), hasSize(greaterThan(1)));
     }
 
     public void testDimensionMultiValuedFieldNonTSDB() throws IOException {
@@ -395,12 +389,7 @@ public class IpFieldMapperTests extends MapperTestCase {
 
         @Override
         public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
-            return List.of(
-                new SyntheticSourceInvalidExample(
-                    equalTo("field [field] of type [ip] doesn't support synthetic source because it doesn't have doc values"),
-                    b -> b.field("type", "ip").field("doc_values", false)
-                )
-            );
+            return List.of();
         }
     }
 

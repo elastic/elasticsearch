@@ -12,15 +12,13 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Set;
 
 public class FieldExtractExecSerializationTests extends AbstractPhysicalPlanSerializationTests<FieldExtractExec> {
     public static FieldExtractExec randomFieldExtractExec(int depth) {
         Source source = randomSource();
         PhysicalPlan child = randomChild(depth);
         List<Attribute> attributesToExtract = randomFieldAttributes(1, 4, false);
-        Set<Attribute> docValuesAttributes = Set.of(); // These are never serialized
-        return new FieldExtractExec(source, child, attributesToExtract, docValuesAttributes);
+        return new FieldExtractExec(source, child, attributesToExtract);
     }
 
     @Override
@@ -32,13 +30,12 @@ public class FieldExtractExecSerializationTests extends AbstractPhysicalPlanSeri
     protected FieldExtractExec mutateInstance(FieldExtractExec instance) throws IOException {
         PhysicalPlan child = instance.child();
         List<Attribute> attributesToExtract = instance.attributesToExtract();
-        Set<Attribute> docValuesAttributes = Set.of(); // These are never serialized
         if (randomBoolean()) {
             child = randomValueOtherThan(child, () -> randomChild(0));
         } else {
             attributesToExtract = randomValueOtherThan(attributesToExtract, () -> randomFieldAttributes(1, 4, false));
         }
-        return new FieldExtractExec(instance.source(), child, attributesToExtract, docValuesAttributes);
+        return new FieldExtractExec(instance.source(), child, attributesToExtract);
     }
 
     @Override

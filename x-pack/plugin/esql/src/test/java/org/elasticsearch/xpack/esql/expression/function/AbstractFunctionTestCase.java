@@ -217,7 +217,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                         expectedType.expectedType(finalNullPosition, nulledData.type(), oc),
                         nullValue(),
                         null,
+                        null,
                         oc.getExpectedTypeError(),
+                        null,
                         null,
                         null
                     );
@@ -246,7 +248,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                                 expectedType.expectedType(finalNullPosition, DataType.NULL, oc),
                                 nullValue(),
                                 null,
+                                null,
                                 oc.getExpectedTypeError(),
+                                null,
                                 null,
                                 null
                             );
@@ -642,9 +646,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 testCase.expectedType(),
                 testCase.getMatcher(),
                 testCase.getExpectedWarnings(),
+                testCase.getExpectedBuildEvaluatorWarnings(),
                 testCase.getExpectedTypeError(),
                 testCase.foldingExceptionClass(),
-                testCase.foldingExceptionMessage()
+                testCase.foldingExceptionMessage(),
+                testCase.extra()
             );
         })).toList();
     }
@@ -692,8 +698,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             log.info("Skipping function info checks because the function isn't registered");
             return;
         }
-        // TODO fix case tests to include all supported types
-        assumeFalse("CASE test incomplete", definition.name().equals("case"));
         log.info("Running function info checks");
         EsqlFunctionRegistry.FunctionDescription description = EsqlFunctionRegistry.description(definition);
         List<EsqlFunctionRegistry.ArgSignature> args = description.args();
@@ -707,7 +711,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         );
 
         List<Set<String>> typesFromSignature = new ArrayList<>();
-        Set<String> returnFromSignature = new HashSet<>();
+        Set<String> returnFromSignature = new TreeSet<>();
         for (int i = 0; i < args.size(); i++) {
             typesFromSignature.add(new HashSet<>());
         }
@@ -828,6 +832,28 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         FunctionDefinition definition = definition(name);
         if (definition != null) {
             EsqlFunctionRegistry.FunctionDescription description = EsqlFunctionRegistry.description(definition);
+            if (name.equals("case")) {
+                /*
+                 * Hack the description, so we render a proper one for case.
+                 */
+                // TODO build the description properly *somehow*
+                EsqlFunctionRegistry.ArgSignature trueValue = description.args().get(1);
+                EsqlFunctionRegistry.ArgSignature falseValue = new EsqlFunctionRegistry.ArgSignature(
+                    "elseValue",
+                    trueValue.type(),
+                    "The value that's returned when no condition evaluates to `true`.",
+                    true,
+                    EsqlFunctionRegistry.getTargetType(trueValue.type())
+                );
+                description = new EsqlFunctionRegistry.FunctionDescription(
+                    description.name(),
+                    List.of(description.args().get(0), trueValue, falseValue),
+                    description.returnType(),
+                    description.description(),
+                    description.variadic(),
+                    description.isAggregation()
+                );
+            }
             renderTypes(description.argNames());
             renderParametersList(description.argNames(), description.argDescriptions());
             FunctionInfo info = EsqlFunctionRegistry.functionInfo(definition);
@@ -836,22 +862,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             boolean hasAppendix = renderAppendix(info.appendix());
             renderFullLayout(name, info.preview(), hasExamples, hasAppendix);
             renderKibanaInlineDocs(name, info);
-            List<EsqlFunctionRegistry.ArgSignature> args = description.args();
-            if (name.equals("case")) {
-                EsqlFunctionRegistry.ArgSignature falseValue = args.get(1);
-                args = List.of(
-                    args.get(0),
-                    falseValue,
-                    new EsqlFunctionRegistry.ArgSignature(
-                        "falseValue",
-                        falseValue.type(),
-                        falseValue.description(),
-                        true,
-                        EsqlFunctionRegistry.getTargetType(falseValue.type())
-                    )
-                );
-            }
-            renderKibanaFunctionDefinition(name, info, args, description.variadic());
+            renderKibanaFunctionDefinition(name, info, description.args(), description.variadic());
             return;
         }
         LogManager.getLogger(getTestClass()).info("Skipping rendering types because the function '" + name + "' isn't registered");
@@ -861,7 +872,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         "// This is generated by ESQL's AbstractFunctionTestCase. Do no edit it. See ../README.md for how to regenerate it.\n\n";
 
     private static final String PREVIEW_CALLOUT =
-        "\npreview::[\"Do not use `VALUES` on production environments. This functionality is in technical preview and "
+        "\npreview::[\"Do not use on production environments. This functionality is in technical preview and "
             + "may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview "
             + "are not subject to the support SLA of official GA features.\"]\n";
 
@@ -1137,6 +1148,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             }
             builder.endArray();
         }
+        builder.field("preview", info.preview());
 
         String rendered = Strings.toString(builder.endObject());
         LogManager.getLogger(getTestClass()).info("Writing kibana function definition for [{}]:\n{}", functionName(), rendered);
@@ -1182,7 +1194,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     private static FunctionDefinition definition(String name) {
-        EsqlFunctionRegistry registry = new EsqlFunctionRegistry();
+        EsqlFunctionRegistry registry = new EsqlFunctionRegistry().snapshotRegistry();
         if (registry.functionExists(name)) {
             return registry.resolveFunction(name);
         }

@@ -233,10 +233,6 @@ public class HistogramFieldMapper extends FieldMapper {
                             return 0; // Unknown
                         }
 
-                        @Override
-                        public void close() {
-
-                        }
                     };
                 }
 
@@ -500,24 +496,15 @@ public class HistogramFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected SyntheticSourceMode syntheticSourceMode() {
-        return SyntheticSourceMode.NATIVE;
-    }
-
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        if (copyTo().copyToFields().isEmpty() != true) {
-            throw new IllegalArgumentException(
-                "field [" + fullPath() + "] of type [histogram] doesn't support synthetic source because it declares copy_to"
-            );
-        }
-
-        return new CompositeSyntheticFieldLoader(
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        var loader = new CompositeSyntheticFieldLoader(
             leafName(),
             fullPath(),
             new HistogramSyntheticFieldLoader(),
             new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath())
         );
+
+        return new SyntheticSourceSupport.Native(loader);
     }
 
     private class HistogramSyntheticFieldLoader implements CompositeSyntheticFieldLoader.DocValuesLayer {

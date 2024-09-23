@@ -43,7 +43,8 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<
     NodesDeprecationCheckRequest,
     NodesDeprecationCheckResponse,
     NodesDeprecationCheckAction.NodeRequest,
-    NodesDeprecationCheckAction.NodeResponse> {
+    NodesDeprecationCheckAction.NodeResponse,
+    Void> {
 
     private final Settings settings;
     private final XPackLicenseState licenseState;

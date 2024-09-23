@@ -1183,6 +1183,7 @@ FROM employees
 // end::statsGroupByMultipleValues[]
 | LIMIT 4
 ;
+warningRegex:Date format \[YYYY\] contains week-date field specifiers that are changing in JDK 23
 
 hired:keyword |languages.long:long | avg_salary:double
 1985           |1              |54668.0        
@@ -1314,7 +1315,7 @@ COUNT(c):long | a:integer
             0 | 1
 ;
 
-countDistinctNull#[skip:-8.99.99,reason:not yet fixed]
+countDistinctNull#[skip:-9.99.99,reason:not yet fixed]
 ROW a = 1, c = null
 | STATS COUNT_DISTINCT(c) BY a;
 

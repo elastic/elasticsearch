@@ -323,6 +323,35 @@ public class RestEsqlIT extends RestEsqlTestCase {
         );
     }
 
+    public void testProfileOrdinalsGroupingOperator() throws IOException {
+        indexTimestampData(1);
+
+        RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | STATS AVG(value) BY test.keyword");
+        builder.profile(true);
+        if (Build.current().isSnapshot()) {
+            // Lock to shard level partitioning, so we get consistent profile output
+            builder.pragmas(Settings.builder().put("data_partitioning", "shard").build());
+        }
+        Map<String, Object> result = runEsql(builder);
+
+        List<List<String>> signatures = new ArrayList<>();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
+        for (Map<String, Object> p : profiles) {
+            fixTypesOnProfile(p);
+            assertThat(p, commonProfile());
+            List<String> sig = new ArrayList<>();
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
+            for (Map<String, Object> o : operators) {
+                sig.add((String) o.get("operator"));
+            }
+            signatures.add(sig);
+        }
+
+        assertThat(signatures.get(0).get(2), equalTo("OrdinalsGroupingOperator[aggregators=[\"sum of longs\", \"count\"]]"));
+    }
+
     public void testInlineStatsProfile() throws IOException {
         assumeTrue("INLINESTATS only available on snapshots", Build.current().isSnapshot());
         indexTimestampData(1);
@@ -533,7 +562,9 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("processing_nanos", greaterThan(0))
                 .entry("processed_queries", List.of("*:*"));
             case "ValuesSourceReaderOperator" -> basicProfile().entry("readers_built", matchesMap().extraOk());
-            case "AggregationOperator" -> matchesMap().entry("pages_processed", greaterThan(0)).entry("aggregation_nanos", greaterThan(0));
+            case "AggregationOperator" -> matchesMap().entry("pages_processed", greaterThan(0))
+                .entry("aggregation_nanos", greaterThan(0))
+                .entry("aggregation_finish_nanos", greaterThan(0));
             case "ExchangeSinkOperator" -> matchesMap().entry("pages_accepted", greaterThan(0));
             case "ExchangeSourceOperator" -> matchesMap().entry("pages_emitted", greaterThan(0)).entry("pages_waiting", 0);
             case "ProjectOperator", "EvalOperator" -> basicProfile();

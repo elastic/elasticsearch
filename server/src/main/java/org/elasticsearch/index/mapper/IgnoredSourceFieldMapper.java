@@ -1,20 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -22,10 +26,11 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Stream;
 
 /**
 
@@ -39,6 +44,7 @@ import java.util.Map;
  * if we can replace it for all use cases to avoid duplication, assuming that the storage tradeoff is favorable.
  */
 public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
+    private final IndexSettings indexSettings;
 
     // This factor is used to combine two offsets within the same integer:
     // - the offset of the end of the parent field within the field name (N / PARENT_OFFSET_IN_NAME_OFFSET)
@@ -48,11 +54,31 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_ignored_source";
 
-    public static final IgnoredSourceFieldMapper INSTANCE = new IgnoredSourceFieldMapper();
-
-    public static final TypeParser PARSER = new FixedTypeParser(context -> INSTANCE);
+    public static final TypeParser PARSER = new FixedTypeParser(context -> new IgnoredSourceFieldMapper(context.getIndexSettings()));
 
     static final NodeFeature TRACK_IGNORED_SOURCE = new NodeFeature("mapper.track_ignored_source");
+
+    /*
+        Setting to disable encoding and writing values for this field.
+        This is needed to unblock index functionality in case there is a bug on this code path.
+     */
+    public static final Setting<Boolean> SKIP_IGNORED_SOURCE_WRITE_SETTING = Setting.boolSetting(
+        "index.mapping.synthetic_source.skip_ignored_source_write",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.IndexScope
+    );
+
+    /*
+        Setting to disable reading and decoding values stored in this field.
+        This is needed to unblock search functionality in case there is a bug on this code path.
+     */
+    public static final Setting<Boolean> SKIP_IGNORED_SOURCE_READ_SETTING = Setting.boolSetting(
+        "index.mapping.synthetic_source.skip_ignored_source_read",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.IndexScope
+    );
 
     /*
      * Container for the ignored field data:
@@ -78,13 +104,17 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
             return (parentOffset == 0) ? MapperService.SINGLE_MAPPING_NAME : name.substring(0, parentOffset - 1);
         }
 
-        void write(XContentBuilder builder) throws IOException {
-            builder.field(getFieldName());
-            XContentDataHelper.decodeAndWrite(builder, value());
-        }
-
         String getFieldName() {
             return parentOffset() == 0 ? name() : name().substring(parentOffset());
+        }
+
+        NameValue cloneWithValue(BytesRef value) {
+            assert value() == null;
+            return new NameValue(name, parentOffset, value, doc);
+        }
+
+        boolean hasValue() {
+            return XContentDataHelper.isDataPresent(value);
         }
     }
 
@@ -107,8 +137,9 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private IgnoredSourceFieldMapper() {
+    private IgnoredSourceFieldMapper(IndexSettings indexSettings) {
         super(IgnoredValuesFieldMapperType.INSTANCE);
+        this.indexSettings = indexSettings;
     }
 
     @Override
@@ -119,11 +150,38 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     @Override
     public void postParse(DocumentParserContext context) {
         // Ignored values are only expected in synthetic mode.
-        assert context.getIgnoredFieldValues().isEmpty() || context.mappingLookup().isSourceSynthetic();
-        List<NameValue> ignoredFieldValues = new ArrayList<>(context.getIgnoredFieldValues());
-        // ensure consistent ordering when retrieving synthetic source
-        Collections.sort(ignoredFieldValues, Comparator.comparing(NameValue::name));
-        for (NameValue nameValue : ignoredFieldValues) {
+        if (context.mappingLookup().isSourceSynthetic() == false) {
+            assert context.getIgnoredFieldValues().isEmpty();
+            return;
+        }
+
+        Collection<NameValue> ignoredValuesToWrite = context.getIgnoredFieldValues();
+        if (context.getCopyToFields().isEmpty() == false && indexSettings.getSkipIgnoredSourceWrite() == false) {
+            /*
+            Mark fields as containing copied data meaning they should not be present
+            in synthetic _source (to be consistent with stored _source).
+            Ignored source values take precedence over standard synthetic source implementation
+            so by adding the `XContentDataHelper.voidValue()` entry we disable the field in synthetic source.
+            Otherwise, it would be constructed f.e. from doc_values which leads to duplicate values
+            in copied field after reindexing.
+            */
+            var mutableList = new ArrayList<>(ignoredValuesToWrite);
+            for (String copyToField : context.getCopyToFields()) {
+                ObjectMapper parent = context.parent().findParentMapper(copyToField);
+                if (parent == null) {
+                    // There are scenarios when this can happen:
+                    // 1. all values of the field that is the source of copy_to are null
+                    // 2. copy_to points at a field inside a disabled object
+                    // 3. copy_to points at dynamic field which is not yet applied to mapping, we will process it properly on re-parse.
+                    continue;
+                }
+                int offset = parent.isRoot() ? 0 : parent.fullPath().length() + 1;
+                mutableList.add(new IgnoredSourceFieldMapper.NameValue(copyToField, offset, XContentDataHelper.voidValue(), context.doc()));
+            }
+            ignoredValuesToWrite = mutableList;
+        }
+
+        for (NameValue nameValue : ignoredValuesToWrite) {
             nameValue.doc().add(new StoredField(NAME, encode(nameValue)));
         }
     }
@@ -148,6 +206,64 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         String name = new String(bytes, 4, nameSize, StandardCharsets.UTF_8);
         BytesRef value = new BytesRef(bytes, 4 + nameSize, bytes.length - nameSize - 4);
         return new NameValue(name, parentOffset, value, null);
+    }
+
+    // In rare cases decoding values stored in this field can fail leading to entire source
+    // not being available.
+    // We would like to have an option to lose some values in synthetic source
+    // but have search not fail.
+    public static Set<String> ensureLoaded(Set<String> fieldsToLoadForSyntheticSource, IndexSettings indexSettings) {
+        if (indexSettings.getSkipIgnoredSourceRead() == false) {
+            fieldsToLoadForSyntheticSource.add(NAME);
+        }
+
+        return fieldsToLoadForSyntheticSource;
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        // This loader controls if this field is loaded in scope of synthetic source constructions.
+        // In rare cases decoding values stored in this field can fail leading to entire source
+        // not being available.
+        // We would like to have an option to lose some values in synthetic source
+        // but have search not fail.
+        return new SyntheticSourceSupport.Native(new SourceLoader.SyntheticFieldLoader() {
+            @Override
+            public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
+                if (indexSettings.getSkipIgnoredSourceRead()) {
+                    return Stream.empty();
+                }
+
+                // Values are handled in `SourceLoader`.
+                return Stream.of(Map.entry(NAME, (v) -> {}));
+            }
+
+            @Override
+            public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
+                return null;
+            }
+
+            @Override
+            public boolean hasValue() {
+                return false;
+            }
+
+            @Override
+            public void write(XContentBuilder b) throws IOException {
+
+            }
+
+            @Override
+            public String fieldName() {
+                // Does not really matter.
+                return NAME;
+            }
+
+            @Override
+            public void reset() {
+
+            }
+        });
     }
 
     public record MappedNameValue(NameValue nameValue, XContentType type, Map<String, Object> map) {}
@@ -199,12 +315,4 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         );
         return IgnoredSourceFieldMapper.encode(filteredNameValue);
     }
-
-    // This mapper doesn't contribute to source directly as it has no access to the object structure. Instead, its contents
-    // are loaded by SourceLoader and passed to object mappers that, in turn, write their ignore fields at the appropriate level.
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return SourceLoader.SyntheticFieldLoader.NOTHING;
-    }
-
 }

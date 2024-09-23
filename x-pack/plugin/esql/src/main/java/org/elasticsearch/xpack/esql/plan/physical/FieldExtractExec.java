@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -46,7 +45,11 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
 
     private List<Attribute> lazyOutput;
 
-    public FieldExtractExec(Source source, PhysicalPlan child, List<Attribute> attributesToExtract, Set<Attribute> docValuesAttributes) {
+    public FieldExtractExec(Source source, PhysicalPlan child, List<Attribute> attributesToExtract) {
+        this(source, child, attributesToExtract, Set.of());
+    }
+
+    private FieldExtractExec(Source source, PhysicalPlan child, List<Attribute> attributesToExtract, Set<Attribute> docValuesAttributes) {
         super(source, child);
         this.attributesToExtract = attributesToExtract;
         this.sourceAttribute = extractSourceAttributesFrom(child);
@@ -56,16 +59,16 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
     private FieldExtractExec(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
-            ((PlanStreamInput) in).readPhysicalPlanNode(),
-            in.readNamedWriteableCollectionAsList(Attribute.class),
-            Set.of() // docValueAttributes are only used on the data node and never serialized.
+            in.readNamedWriteable(PhysicalPlan.class),
+            in.readNamedWriteableCollectionAsList(Attribute.class)
         );
+        // docValueAttributes are only used on the data node and never serialized.
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
-        ((PlanStreamOutput) out).writePhysicalPlanNode(child());
+        out.writeNamedWriteable(child());
         out.writeNamedWriteableCollection(attributesToExtract());
         // docValueAttributes are only used on the data node and never serialized.
     }
@@ -96,12 +99,16 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     protected NodeInfo<FieldExtractExec> info() {
-        return NodeInfo.create(this, FieldExtractExec::new, child(), attributesToExtract, docValuesAttributes);
+        return NodeInfo.create(this, FieldExtractExec::new, child(), attributesToExtract);
     }
 
     @Override
     public UnaryExec replaceChild(PhysicalPlan newChild) {
         return new FieldExtractExec(source(), newChild, attributesToExtract, docValuesAttributes);
+    }
+
+    public FieldExtractExec withDocValuesAttributes(Set<Attribute> docValuesAttributes) {
+        return new FieldExtractExec(source(), child(), attributesToExtract, docValuesAttributes);
     }
 
     public List<Attribute> attributesToExtract() {

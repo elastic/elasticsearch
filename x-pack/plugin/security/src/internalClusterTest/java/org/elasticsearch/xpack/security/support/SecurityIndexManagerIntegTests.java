@@ -163,9 +163,18 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
             .next()
             .getSecurityIndexManager();
 
-        final ActionFuture<Void> future = new PlainActionFuture<>();
-        securityIndexManager.onIndexAvailableForSearch((ActionListener<Void>) future, TimeValue.timeValueMillis(100));
-        expectThrows(ElasticsearchTimeoutException.class, future::actionGet);
+        {
+            final ActionFuture<Void> future = new PlainActionFuture<>();
+            securityIndexManager.onIndexAvailableForSearch((ActionListener<Void>) future, TimeValue.timeValueMillis(100));
+            expectThrows(ElasticsearchTimeoutException.class, future::actionGet);
+        }
+
+        // Also works with 0 timeout
+        {
+            final ActionFuture<Void> future = new PlainActionFuture<>();
+            securityIndexManager.onIndexAvailableForSearch((ActionListener<Void>) future, TimeValue.timeValueMillis(0));
+            expectThrows(ElasticsearchTimeoutException.class, future::actionGet);
+        }
     }
 
     public void testSecurityIndexSettingsCannotBeChanged() throws Exception {

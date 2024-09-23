@@ -98,8 +98,8 @@ public class MatchFunction extends FullTextFunction {
     }
 
     @Override
-    protected TypeResolution doResolveType() {
-        return isNotNull(field, sourceText(), FIRST).and(isString(field, sourceText(), FIRST)).and(super.doResolveType());
+    protected TypeResolution resolveNonQueryParamTypes() {
+        return isNotNull(field, sourceText(), FIRST).and(isString(field, sourceText(), FIRST)).and(super.resolveNonQueryParamTypes());
     }
 
     @Override

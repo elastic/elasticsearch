@@ -43,8 +43,8 @@ public abstract class FullTextFunction extends Function {
 
     private final Expression query;
 
-    protected FullTextFunction(Source source, Expression query, Expression... additionalChildren) {
-        super(source, Stream.concat(Stream.of(query), Stream.of(additionalChildren)).toList());
+    protected FullTextFunction(Source source, Expression query, Expression... nonQueryChildren) {
+        super(source, Stream.concat(Stream.of(query), Stream.of(nonQueryChildren)).toList());
         this.query = query;
     }
 
@@ -59,19 +59,36 @@ public abstract class FullTextFunction extends Function {
             return new TypeResolution("Unresolved children");
         }
 
-        return doResolveType();
+        return resolveNonQueryParamTypes().and(resolveQueryType());
     }
 
-    protected TypeResolution doResolveType() {
+    private TypeResolution resolveQueryType() {
         return isString(query(), sourceText(), queryParamOrdinal()).and(isNotNullAndFoldable(query(), sourceText(), queryParamOrdinal()));
+    }
+
+    /**
+     * Subclasses can override this method for custom type resolution
+     * @return type resolution for non-query parameter types
+     */
+    protected TypeResolution resolveNonQueryParamTypes() {
+        return TypeResolution.TYPE_RESOLVED;
     }
 
     public Expression query() {
         return query;
     }
 
+    /**
+     * Returns the resulting Query for the function parameters so it can be pushed down to Lucene
+     * @return
+     */
     public abstract Query asQuery();
 
+    /**
+     * Returns the param ordinal for the query parameter so it can be used in error messages
+     *
+     * @return Query ordinal for the
+     */
     protected TypeResolutions.ParamOrdinal queryParamOrdinal() {
         return DEFAULT;
     }

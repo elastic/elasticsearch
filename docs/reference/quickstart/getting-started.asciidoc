@@ -31,6 +31,13 @@ The request automatically creates the index.
 PUT books
 ----
 // TESTSETUP
+
+[source,console]
+--------------------------------------------------
+DELETE books
+--------------------------------------------------
+// TEARDOWN
+
 ////
 
 [source,console]

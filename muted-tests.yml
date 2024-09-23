@@ -265,20 +265,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authz.SecurityScrollTests
   method: testSearchAndClearScroll
   issue: https://github.com/elastic/elasticsearch/issues/113285
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {date.EvalDateFormatString SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/113293
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {date.EvalDateFormat}
-  issue: https://github.com/elastic/elasticsearch/issues/113294
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {date.DocsDateFormat}
-  issue: https://github.com/elastic/elasticsearch/issues/113295
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {stats.DocsStatsGroupByMultipleValues}
-  issue: https://github.com/elastic/elasticsearch/issues/113296
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  issue: https://github.com/elastic/elasticsearch/issues/113298
 - class: org.elasticsearch.integration.KibanaUserRoleIntegTests
   method: testGetIndex
   issue: https://github.com/elastic/elasticsearch/issues/113311
@@ -330,6 +316,12 @@ tests:
 - class: org.elasticsearch.integration.KibanaUserRoleIntegTests
   method: testSearchAndMSearch
   issue: https://github.com/elastic/elasticsearch/issues/113345
+- class: org.elasticsearch.action.bulk.IncrementalBulkIT
+  method: testBulkLevelBulkFailureAfterFirstIncrementalRequest
+  issue: https://github.com/elastic/elasticsearch/issues/113365
+- class: org.elasticsearch.xpack.ml.integration.MlJobIT
+  method: testDeleteJob_TimingStatsDocumentIsDeleted
+  issue: https://github.com/elastic/elasticsearch/issues/113370
 
 # Examples:
 #

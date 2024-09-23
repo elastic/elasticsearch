@@ -23,6 +23,7 @@ import io.netty.util.concurrent.PromiseCombiner;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.network.ThreadWatchdog;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.transport.Transports;
 
@@ -42,31 +43,44 @@ public final class Netty4WriteThrottlingHandler extends ChannelDuplexHandler {
     private final Queue<WriteOperation> queuedWrites = new LinkedList<>();
 
     private final ThreadContext threadContext;
+    private final ThreadWatchdog.ActivityTracker threadWatchdogActivityTracker;
     private WriteOperation currentWrite;
 
-    public Netty4WriteThrottlingHandler(ThreadContext threadContext) {
+    public Netty4WriteThrottlingHandler(ThreadContext threadContext, ThreadWatchdog.ActivityTracker threadWatchdogActivityTracker) {
         this.threadContext = threadContext;
+        this.threadWatchdogActivityTracker = threadWatchdogActivityTracker;
     }
 
     @Override
     public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws IOException {
-        if (msg instanceof BytesReference reference) {
-            if (reference.hasArray()) {
-                writeSingleByteBuf(ctx, Unpooled.wrappedBuffer(reference.array(), reference.arrayOffset(), reference.length()), promise);
-            } else {
-                BytesRefIterator iter = reference.iterator();
-                final PromiseCombiner combiner = new PromiseCombiner(ctx.executor());
-                BytesRef next;
-                while ((next = iter.next()) != null) {
-                    final ChannelPromise chunkPromise = ctx.newPromise();
-                    combiner.add((Future<Void>) chunkPromise);
-                    writeSingleByteBuf(ctx, Unpooled.wrappedBuffer(next.bytes, next.offset, next.length), chunkPromise);
+        final boolean startedActivity = threadWatchdogActivityTracker.maybeStartActivity();
+        try {
+            if (msg instanceof BytesReference reference) {
+                if (reference.hasArray()) {
+                    writeSingleByteBuf(
+                        ctx,
+                        Unpooled.wrappedBuffer(reference.array(), reference.arrayOffset(), reference.length()),
+                        promise
+                    );
+                } else {
+                    BytesRefIterator iter = reference.iterator();
+                    final PromiseCombiner combiner = new PromiseCombiner(ctx.executor());
+                    BytesRef next;
+                    while ((next = iter.next()) != null) {
+                        final ChannelPromise chunkPromise = ctx.newPromise();
+                        combiner.add((Future<Void>) chunkPromise);
+                        writeSingleByteBuf(ctx, Unpooled.wrappedBuffer(next.bytes, next.offset, next.length), chunkPromise);
+                    }
+                    combiner.finish(promise);
                 }
-                combiner.finish(promise);
+            } else {
+                assert msg instanceof ByteBuf;
+                writeSingleByteBuf(ctx, (ByteBuf) msg, promise);
             }
-        } else {
-            assert msg instanceof ByteBuf;
-            writeSingleByteBuf(ctx, (ByteBuf) msg, promise);
+        } finally {
+            if (startedActivity) {
+                threadWatchdogActivityTracker.stopActivity();
+            }
         }
     }
 
@@ -116,22 +130,45 @@ public final class Netty4WriteThrottlingHandler extends ChannelDuplexHandler {
 
     @Override
     public void channelWritabilityChanged(ChannelHandlerContext ctx) {
-        if (ctx.channel().isWritable()) {
-            doFlush(ctx);
+        final boolean startedActivity = threadWatchdogActivityTracker.maybeStartActivity();
+        try {
+            if (ctx.channel().isWritable()) {
+                doFlush(ctx);
+            }
+            ctx.fireChannelWritabilityChanged();
+        } finally {
+            if (startedActivity) {
+                threadWatchdogActivityTracker.stopActivity();
+            }
         }
-        ctx.fireChannelWritabilityChanged();
     }
 
     @Override
     public void flush(ChannelHandlerContext ctx) {
-        if (doFlush(ctx) == false) {
-            ctx.flush();
+        final boolean startedActivity = threadWatchdogActivityTracker.maybeStartActivity();
+        try {
+            if (doFlush(ctx) == false) {
+                ctx.flush();
+            }
+        } finally {
+            if (startedActivity) {
+                threadWatchdogActivityTracker.stopActivity();
+            }
         }
     }
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-        doFlush(ctx);
+        final boolean startedActivity = threadWatchdogActivityTracker.maybeStartActivity();
+        try {
+            doFlush(ctx);
+        } finally {
+            if (startedActivity) {
+                threadWatchdogActivityTracker.stopActivity();
+            }
+        }
+
+        // super.channelInactive() can trigger reads which are tracked separately (and are not re-entrant) so no activity tracking here
         super.channelInactive(ctx);
     }
 

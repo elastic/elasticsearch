@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexClusterStateUpdate
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -114,9 +115,13 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
             return;
         }
 
-        final CloseIndexClusterStateUpdateRequest closeRequest = new CloseIndexClusterStateUpdateRequest(task.getId()).ackTimeout(
-            request.ackTimeout()
-        ).masterNodeTimeout(request.masterNodeTimeout()).indices(concreteIndices);
+        final CloseIndexClusterStateUpdateRequest closeRequest = new CloseIndexClusterStateUpdateRequest(
+            request.masterNodeTimeout(),
+            request.ackTimeout(),
+            task.getId(),
+            ActiveShardCount.DEFAULT,
+            concreteIndices
+        );
 
         indexStateService.closeIndices(closeRequest, new ActionListener<>() {
             @Override

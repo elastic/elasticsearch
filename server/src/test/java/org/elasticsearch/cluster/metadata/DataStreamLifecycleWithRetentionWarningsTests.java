@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -58,7 +59,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
         HeaderWarning.setThreadContext(threadContext);
 
         DataStreamLifecycle noRetentionLifecycle = DataStreamLifecycle.newBuilder().downsampling(randomDownsampling()).build();
-        noRetentionLifecycle.addWarningHeaderIfDataRetentionNotEffective(null);
+        noRetentionLifecycle.addWarningHeaderIfDataRetentionNotEffective(null, randomBoolean());
         Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
         assertThat(responseHeaders.isEmpty(), is(true));
 
@@ -71,7 +72,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
             TimeValue.timeValueDays(2),
             TimeValue.timeValueDays(dataStreamRetention.days() + randomIntBetween(1, 5))
         );
-        lifecycleWithRetention.addWarningHeaderIfDataRetentionNotEffective(globalRetention);
+        lifecycleWithRetention.addWarningHeaderIfDataRetentionNotEffective(globalRetention, false);
         responseHeaders = threadContext.getResponseHeaders();
         assertThat(responseHeaders.isEmpty(), is(true));
     }
@@ -85,7 +86,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
             randomTimeValue(2, 10, TimeUnit.DAYS),
             randomBoolean() ? null : TimeValue.timeValueDays(20)
         );
-        noRetentionLifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetention);
+        noRetentionLifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetention, false);
         Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
         assertThat(responseHeaders.size(), is(1));
         assertThat(
@@ -107,7 +108,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
             .downsampling(randomDownsampling())
             .build();
         DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(null, maxRetention);
-        lifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetention);
+        lifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetention, false);
         Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
         assertThat(responseHeaders.size(), is(1));
         String userRetentionPart = lifecycle.getDataStreamRetention() == null
@@ -186,6 +187,24 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
                     + "] will be applied."
             )
         );
+    }
+
+    public void testValidateInternalDataStreamRetentionWithoutWarning() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        HeaderWarning.setThreadContext(threadContext);
+        TimeValue defaultRetention = randomTimeValue(2, 100, TimeUnit.DAYS);
+        MetadataIndexTemplateService.validateLifecycle(
+            Metadata.builder().build(),
+            randomAlphaOfLength(10),
+            ComposableIndexTemplate.builder()
+                .template(new Template(null, null, null, DataStreamLifecycle.DEFAULT))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .indexPatterns(List.of("." + randomAlphaOfLength(10)))
+                .build(),
+            new DataStreamGlobalRetention(defaultRetention, null)
+        );
+        Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
+        assertThat(responseHeaders.size(), is(0));
     }
 
     /**

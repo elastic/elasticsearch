@@ -180,3 +180,174 @@ ver:version
 1.2.3
 //end::docsCastOperator-result[]
 ;
+
+mixedNumericTypesInLiterals
+required_capability: mixed_numeric_types_in_coalesce
+from employees
+| where languages.long in (1, 2.0, null)
+| keep emp_no, languages
+| sort emp_no
+| limit 10
+;
+
+emp_no:integer | languages:integer
+10001          | 2
+10005          | 1
+10008          | 2
+10009          | 1
+10013          | 1
+10016          | 2
+10017          | 2
+10018          | 2
+10019          | 1
+10033          | 1
+;
+
+mixedNumericTypesInFields
+required_capability: mixed_numeric_types_in_coalesce
+from employees
+| where languages in (7.0, height)
+| keep emp_no, languages, height
+| sort emp_no
+;
+
+emp_no:integer | languages:integer | height:double
+10037          | 2                 | 2.0
+;
+
+convertToDatePeriod
+required_capability: cast_string_literal_to_temporal_amount
+//tag::castToDatePeriod[]
+row x = "2024-01-01"::datetime | eval y = x + "3 DAYS"::date_period, z = x - to_dateperiod("3 days");
+//end::castToDatePeriod[]
+
+//tag::castToDatePeriod-result[]
+x:datetime |y:datetime |z:datetime
+2024-01-01 |2024-01-04 |2023-12-29
+//end::castToDatePeriod-result[]
+;
+
+convertToTimeDuration
+required_capability: cast_string_literal_to_temporal_amount
+//tag::castToTimeDuration[]
+row x = "2024-01-01"::datetime | eval y = x + "3 hours"::time_duration, z = x - to_timeduration("3 hours");
+//end::castToTimeDuration[]
+
+//tag::castToTimeDuration-result[]
+x:datetime |y:datetime               |z:datetime
+2024-01-01 |2024-01-01T03:00:00.000Z |2023-12-31T21:00:00.000Z
+//end::castToTimeDuration-result[]
+;
+
+convertToDatePeriodTimeDuration
+required_capability: cast_string_literal_to_temporal_amount
+row x = "2024-01-01"::datetime + "3 hours"::time_duration, y = "2024-01-01"::datetime - to_timeduration("3 hours"),
+z = "2024-01-01"::datetime + "3 DAYS"::date_period, w = "2024-01-01"::datetime - to_dateperiod("3 days"), u = "3 days",
+v = "3 hours"
+| eval a = "2024-01-01" + u::date_period, b = "2024-01-01" - v::time_duration
+| keep x, y, z, w, a, b;
+
+x:datetime               |y:datetime               |z:datetime               |w:datetime               |a:datetime               |b:datetime
+2024-01-01T03:00:00.000Z |2023-12-31T21:00:00.000Z |2024-01-04T00:00:00.000Z |2023-12-29T00:00:00.000Z |2024-01-04T00:00:00.000Z |2023-12-31T21:00:00.000Z
+;
+
+convertToDatePeriodNested
+required_capability: cast_string_literal_to_temporal_amount
+row x = "2024-01-01"::datetime
+| eval y = x + to_dateperiod("3 days"::date_period)
+;
+
+x:datetime |y:datetime
+2024-01-01 |2024-01-04
+;
+
+convertToTimeDurationNested
+required_capability: cast_string_literal_to_temporal_amount
+row x = "2024-01-01"::datetime
+| eval y = x + to_timeduration("3 hours"::time_duration)
+;
+
+x:datetime |y:datetime
+2024-01-01 |2024-01-01T03:00:00.000Z
+;
+
+convertToDatePeriodFromIndex
+required_capability: cast_string_literal_to_temporal_amount
+FROM employees
+| WHERE emp_no == 10001
+| EVAL x = birth_date + "3 days"::date_period, y = birth_date - to_dateperiod("3 days")
+| KEEP birth_date, x, y;
+
+birth_date:datetime  |x:datetime           |y:datetime
+1953-09-02T00:00:00Z |1953-09-05T00:00:00Z |1953-08-30T00:00:00Z
+;
+
+convertToTimeDurationFromIndex
+required_capability: cast_string_literal_to_temporal_amount
+FROM employees
+| WHERE emp_no == 10001
+| EVAL x = birth_date + "3 hours"::time_duration, y = birth_date - to_timeduration("3 hours")
+| KEEP birth_date, x, y;
+
+birth_date:datetime  |x:datetime           |y:datetime
+1953-09-02T00:00:00Z |1953-09-02T03:00:00Z |1953-09-01T21:00:00Z
+;
+
+convertToDatePeriodTimeDurationRef
+required_capability: cast_string_literal_to_temporal_amount
+FROM employees
+| WHERE emp_no == 10001
+| EVAL interval_timeduration = "3 hours", x = birth_date + interval_timeduration::time_duration, y = birth_date - concat("3 ", "hours")::time_duration
+| EVAL interval_dateperiod = "3 months", z = birth_date + interval_dateperiod::date_period, w = birth_date - concat("3 ", "months")::date_period
+| EVAL a = "3", b = "hours", c = birth_date + concat(concat(a, " "), b)::time_duration
+| KEEP birth_date, x, y, z, w, c;
+
+birth_date:datetime  |x:datetime           |y:datetime           |z:datetime           |w:datetime           |c:datetime
+1953-09-02T00:00:00Z |1953-09-02T03:00:00Z |1953-09-01T21:00:00Z |1953-12-02T00:00:00Z |1953-06-02T00:00:00Z |1953-09-02T03:00:00Z
+;
+
+convertToDatePeriodNull
+required_capability: cast_string_literal_to_temporal_amount
+FROM employees
+| WHERE emp_no == 10001
+| EVAL x = birth_date + null::date_period, y = birth_date - to_dateperiod(null), z = birth_date + to_string(null)::date_period
+| KEEP birth_date, x, y, z;
+
+birth_date:datetime  |x:datetime           |y:datetime           |z:datetime
+1953-09-02T00:00:00Z |null                 |null                 |null
+;
+
+convertToTimeDurationNull
+required_capability: cast_string_literal_to_temporal_amount
+FROM employees
+| WHERE emp_no == 10001
+| EVAL x = birth_date + null::time_duration, y = birth_date - to_timeduration(null), z = birth_date + to_string(null)::time_duration
+| KEEP birth_date, x, y, z;
+
+birth_date:datetime  |x:datetime           |y:datetime           |z:datetime
+1953-09-02T00:00:00Z |null                 |null                 |null
+;
+
+convertToDatePeriodIntegerLiteral
+required_capability: cast_string_literal_to_temporal_amount
+FROM employees
+| WHERE emp_no == 10001
+| EVAL x = birth_date + 3 days::date_period, y = birth_date - to_dateperiod(3 days),
+z = birth_date + 3 months + 3 days::date_period, w = birth_date + (3 months + 3 days)::date_period
+| KEEP birth_date, x, y, z, w;
+
+birth_date:datetime  |x:datetime           |y:datetime           |z:datetime           |w:datetime
+1953-09-02T00:00:00Z |1953-09-05T00:00:00Z |1953-08-30T00:00:00Z |1953-12-05T00:00:00Z |1953-12-05T00:00:00Z
+;
+
+convertToTimeDurationIntegerLiteral
+required_capability: cast_string_literal_to_temporal_amount
+FROM employees
+| WHERE emp_no == 10001
+| EVAL x = birth_date + 3 hours::time_duration, y = birth_date - to_timeduration(3 hours),
+z = birth_date + 3 hours + 3 minutes::time_duration, w = birth_date + (3 hours + 3 minutes)::time_duration
+| KEEP birth_date, x, y, z, w;
+
+birth_date:datetime  |x:datetime           |y:datetime           |z:datetime           |w:datetime
+1953-09-02T00:00:00Z |1953-09-02T03:00:00Z |1953-09-01T21:00:00Z |1953-09-02T03:03:00Z |1953-09-02T03:03:00Z
+;

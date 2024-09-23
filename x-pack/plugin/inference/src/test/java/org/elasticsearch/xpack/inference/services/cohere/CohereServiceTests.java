@@ -1210,6 +1210,7 @@ public class CohereServiceTests extends ESTestCase {
             // 2 inputs
             service.chunkedInfer(
                 model,
+                null,
                 List.of("foo", "bar"),
                 new HashMap<>(),
                 InputType.UNSPECIFIED,
@@ -1301,6 +1302,7 @@ public class CohereServiceTests extends ESTestCase {
             // 2 inputs
             service.chunkedInfer(
                 model,
+                null,
                 List.of("foo", "bar"),
                 new HashMap<>(),
                 InputType.UNSPECIFIED,

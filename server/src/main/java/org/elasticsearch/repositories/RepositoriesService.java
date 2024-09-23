@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories;
@@ -14,6 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.stats.RepositoryUsageStats;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -944,15 +946,33 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         return preRestoreChecks;
     }
 
-    @Override
-    protected void doStart() {
+    public static String COUNT_USAGE_STATS_NAME = "count";
 
+    public RepositoryUsageStats getUsageStats() {
+        if (repositories.isEmpty()) {
+            return RepositoryUsageStats.EMPTY;
+        }
+        final var statsByType = new HashMap<String, Map<String, Long>>();
+        for (final var repository : repositories.values()) {
+            final var repositoryType = repository.getMetadata().type();
+            final var typeStats = statsByType.computeIfAbsent(repositoryType, ignored -> new HashMap<>());
+            typeStats.compute(COUNT_USAGE_STATS_NAME, (k, count) -> (count == null ? 0L : count) + 1);
+            final var repositoryUsageTags = repository.getUsageFeatures();
+            assert repositoryUsageTags.contains(COUNT_USAGE_STATS_NAME) == false : repositoryUsageTags;
+            for (final var repositoryUsageTag : repositoryUsageTags) {
+                typeStats.compute(repositoryUsageTag, (k, count) -> (count == null ? 0L : count) + 1);
+            }
+        }
+        return new RepositoryUsageStats(
+            statsByType.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> Map.copyOf(e.getValue())))
+        );
     }
 
     @Override
-    protected void doStop() {
+    protected void doStart() {}
 
-    }
+    @Override
+    protected void doStop() {}
 
     @Override
     protected void doClose() throws IOException {

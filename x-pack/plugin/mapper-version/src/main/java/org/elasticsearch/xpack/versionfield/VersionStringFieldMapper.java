@@ -41,14 +41,14 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SearchAfterTermsEnum;
-import org.elasticsearch.index.mapper.SortedSetDocValuesSyntheticFieldLoader;
-import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.mapper.SortedSetDocValuesSyntheticFieldLoaderLayer;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TermBasedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -118,13 +118,7 @@ public class VersionStringFieldMapper extends FieldMapper {
         @Override
         public VersionStringFieldMapper build(MapperBuilderContext context) {
             FieldType fieldtype = new FieldType(Defaults.FIELD_TYPE);
-            return new VersionStringFieldMapper(
-                leafName(),
-                fieldtype,
-                buildFieldType(context, fieldtype),
-                multiFieldsBuilder.build(this, context),
-                copyTo
-            );
+            return new VersionStringFieldMapper(leafName(), fieldtype, buildFieldType(context, fieldtype), builderParams(this, context));
         }
 
         @Override
@@ -360,14 +354,8 @@ public class VersionStringFieldMapper extends FieldMapper {
 
     private final FieldType fieldType;
 
-    private VersionStringFieldMapper(
-        String simpleName,
-        FieldType fieldType,
-        MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo
-    ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+    private VersionStringFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType, BuilderParams buildParams) {
+        super(simpleName, mappedFieldType, buildParams);
         this.fieldType = freezeAndDeduplicateFieldType(fieldType);
     }
 
@@ -446,18 +434,8 @@ public class VersionStringFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected SyntheticSourceMode syntheticSourceMode() {
-        return SyntheticSourceMode.NATIVE;
-    }
-
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        if (copyTo.copyToFields().isEmpty() != true) {
-            throw new IllegalArgumentException(
-                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
-            );
-        }
-        return new SortedSetDocValuesSyntheticFieldLoader(fullPath(), leafName(), null, false) {
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        var loader = new CompositeSyntheticFieldLoader(leafName(), fullPath(), new SortedSetDocValuesSyntheticFieldLoaderLayer(fullPath()) {
             @Override
             protected BytesRef convert(BytesRef value) {
                 return VersionEncoder.decodeVersion(value);
@@ -468,6 +446,8 @@ public class VersionStringFieldMapper extends FieldMapper {
                 // Convert copies the underlying bytes
                 return value;
             }
-        };
+        });
+
+        return new SyntheticSourceSupport.Native(loader);
     }
 }

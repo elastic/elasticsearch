@@ -86,7 +86,9 @@ public abstract class KerberosTestCase extends ESTestCase {
         "sd",
         "mni",
         "sat",
-        "sa"
+        "sa",
+        "bgc",
+        "raj"
     );
 
     @BeforeClass

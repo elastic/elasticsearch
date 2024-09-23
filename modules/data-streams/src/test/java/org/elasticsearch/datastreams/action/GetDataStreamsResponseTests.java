@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.datastreams.action;
 
@@ -20,6 +21,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -104,7 +106,8 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                 null,
                 null,
                 indexSettingsValues,
-                false
+                false,
+                null
             );
             Response response = new Response(List.of(dataStreamInfo));
             XContentBuilder contentBuilder = XContentFactory.jsonBuilder();
@@ -206,7 +209,8 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                 null,
                 null,
                 indexSettingsValues,
-                false
+                false,
+                null
             );
             Response response = new Response(List.of(dataStreamInfo));
             XContentBuilder contentBuilder = XContentFactory.jsonBuilder();
@@ -283,7 +287,8 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
         var timeSeries = instance.getTimeSeries();
         var indexSettings = instance.getIndexSettingsValues();
         var templatePreferIlm = instance.templatePreferIlmValue();
-        switch (randomIntBetween(0, 6)) {
+        var maximumTimestamp = instance.getMaximumTimestamp();
+        switch (randomIntBetween(0, 7)) {
             case 0 -> dataStream = randomValueOtherThan(dataStream, DataStreamTestHelper::randomInstance);
             case 1 -> status = randomValueOtherThan(status, () -> randomFrom(ClusterHealthStatus.values()));
             case 2 -> indexTemplate = randomBoolean() && indexTemplate != null ? null : randomAlphaOfLengthBetween(2, 10);
@@ -305,8 +310,20 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                     )
             );
             case 6 -> templatePreferIlm = templatePreferIlm ? false : true;
+            case 7 -> maximumTimestamp = (maximumTimestamp == null)
+                ? randomNonNegativeLong()
+                : (usually() ? randomValueOtherThan(maximumTimestamp, ESTestCase::randomNonNegativeLong) : null);
         }
-        return new Response.DataStreamInfo(dataStream, status, indexTemplate, ilmPolicyName, timeSeries, indexSettings, templatePreferIlm);
+        return new Response.DataStreamInfo(
+            dataStream,
+            status,
+            indexTemplate,
+            ilmPolicyName,
+            timeSeries,
+            indexSettings,
+            templatePreferIlm,
+            maximumTimestamp
+        );
     }
 
     private List<Tuple<Instant, Instant>> generateRandomTimeSeries() {
@@ -342,7 +359,8 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
             randomAlphaOfLengthBetween(2, 10),
             timeSeries != null ? new Response.TimeSeries(timeSeries) : null,
             generateRandomIndexSettingsValues(),
-            randomBoolean()
+            randomBoolean(),
+            usually() ? randomNonNegativeLong() : null
         );
     }
 }

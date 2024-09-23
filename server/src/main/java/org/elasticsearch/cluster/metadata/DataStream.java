@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.metadata;
 
@@ -275,6 +276,18 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     public boolean rolloverOnWrite() {
         return backingIndices.rolloverOnWrite;
+    }
+
+    /**
+     * We define that a data stream is considered internal either if it is a system index or if
+     * its name starts with a dot.
+     *
+     * Note: Dot-prefixed internal data streams is a naming convention for internal data streams,
+     * but it's not yet enforced.
+     * @return true if it's a system index or has a dot-prefixed name.
+     */
+    public boolean isInternal() {
+        return isSystem() || name.charAt(0) == '.';
     }
 
     /**
@@ -796,12 +809,12 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     ) {
         if (lifecycle == null
             || lifecycle.isEnabled() == false
-            || lifecycle.getEffectiveDataRetention(isSystem() ? null : globalRetention) == null) {
+            || lifecycle.getEffectiveDataRetention(globalRetention, isInternal()) == null) {
             return List.of();
         }
 
         List<Index> indicesPastRetention = getNonWriteIndicesOlderThan(
-            lifecycle.getEffectiveDataRetention(isSystem() ? null : globalRetention),
+            lifecycle.getEffectiveDataRetention(globalRetention, isInternal()),
             indexMetadataSupplier,
             this::isIndexManagedByDataStreamLifecycle,
             nowSupplier
@@ -1202,7 +1215,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         }
         if (lifecycle != null) {
             builder.field(LIFECYCLE.getPreferredName());
-            lifecycle.toXContent(builder, params, rolloverConfiguration, isSystem() ? null : globalRetention);
+            lifecycle.toXContent(builder, params, rolloverConfiguration, globalRetention, isInternal());
         }
         builder.field(ROLLOVER_ON_WRITE_FIELD.getPreferredName(), backingIndices.rolloverOnWrite);
         if (backingIndices.autoShardingEvent != null) {

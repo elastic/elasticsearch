@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
@@ -55,6 +56,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -1248,9 +1250,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             );
 
             totalOutgoingMoves.keySet().removeIf(nodeId -> isReconciled(allocation.routingNodes().node(nodeId), balance));
-            clusterState = ClusterState.builder(clusterState)
-                .routingTable(RoutingTable.of(allocation.routingTable().version(), allocation.routingNodes()))
-                .build();
+            clusterState = ClusterState.builder(clusterState).routingTable(RoutingTable.of(allocation.routingNodes())).build();
         }
     }
 
@@ -1281,9 +1281,12 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             .build();
 
         var threadPool = mock(ThreadPool.class);
-        when(threadPool.relativeTimeInMillisSupplier()).thenReturn(new AtomicLong()::incrementAndGet);
+        final var timeInMillisSupplier = new AtomicLong();
+        when(threadPool.relativeTimeInMillisSupplier()).thenReturn(timeInMillisSupplier::incrementAndGet);
 
         var reconciler = new DesiredBalanceReconciler(createBuiltInClusterSettings(), threadPool, mock(MeterRegistry.class));
+        final long initialDelayInMillis = TimeValue.timeValueMinutes(5).getMillis();
+        timeInMillisSupplier.addAndGet(randomLongBetween(initialDelayInMillis, 2 * initialDelayInMillis));
 
         var expectedWarningMessage = "[100%] of assigned shards ("
             + shardCount
@@ -1323,7 +1326,9 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
     }
 
     private static void reconcile(RoutingAllocation routingAllocation, DesiredBalance desiredBalance) {
-        new DesiredBalanceReconciler(createBuiltInClusterSettings(), mock(ThreadPool.class), mock(MeterRegistry.class)).reconcile(
+        final var threadPool = mock(ThreadPool.class);
+        when(threadPool.relativeTimeInMillisSupplier()).thenReturn(new AtomicLong()::incrementAndGet);
+        new DesiredBalanceReconciler(createBuiltInClusterSettings(), threadPool, mock(MeterRegistry.class)).reconcile(
             desiredBalance,
             routingAllocation
         );

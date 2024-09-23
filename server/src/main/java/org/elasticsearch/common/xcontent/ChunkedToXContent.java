@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.xcontent;
@@ -24,6 +25,14 @@ import java.util.Iterator;
  * needed to serialize the entire response as must be done with the regular {@link ToXContent} responses.
  */
 public interface ChunkedToXContent {
+
+    /**
+     * Returns a new {@link ChunkedToXContentBuilder} to construct a series of XContent chunks
+     * @param params    Params to use during generation for any nested {@code ChunkedToXContent} objects.
+     */
+    static ChunkedToXContentBuilder builder(ToXContent.Params params) {
+        return new ChunkedToXContentBuilder(params);
+    }
 
     /**
      * Create an iterator of {@link ToXContent} chunks for a REST response. Each chunk is serialized with the same {@link XContentBuilder}

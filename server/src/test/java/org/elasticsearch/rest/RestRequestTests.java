@@ -1,17 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -31,7 +34,9 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.rest.RestRequest.PATH_RESTRICTED;
+import static org.elasticsearch.rest.RestRequest.OPERATOR_REQUEST;
+import static org.elasticsearch.rest.RestRequest.SERVERLESS_REQUEST;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -83,7 +88,7 @@ public class RestRequestTests extends ESTestCase {
     private <T extends Exception> void runConsumesContentTest(final CheckedConsumer<RestRequest, T> consumer, final boolean expected) {
         final HttpRequest httpRequest = mock(HttpRequest.class);
         when(httpRequest.uri()).thenReturn("");
-        when(httpRequest.content()).thenReturn(new BytesArray(new byte[1]));
+        when(httpRequest.body()).thenReturn(HttpBody.fromBytesReference(new BytesArray(new byte[1])));
         when(httpRequest.getHeaders()).thenReturn(
             Collections.singletonMap("Content-Type", Collections.singletonList(randomFrom("application/json", "application/x-ndjson")))
         );
@@ -129,8 +134,8 @@ public class RestRequestTests extends ESTestCase {
                 .contentOrSourceParam()
                 .v2()
         );
-        e = expectThrows(IllegalStateException.class, () -> contentRestRequest("", Map.of("source", "stuff2")).contentOrSourceParam());
-        assertEquals("source and source_content_type parameters are required", e.getMessage());
+        e = expectThrows(ValidationException.class, () -> contentRestRequest("", Map.of("source", "stuff2")).contentOrSourceParam());
+        assertThat(e.getMessage(), containsString("source and source_content_type parameters are required"));
     }
 
     public void testHasContentOrSourceParam() throws IOException {
@@ -245,20 +250,34 @@ public class RestRequestTests extends ESTestCase {
                 .requiredContent()
         );
         assertEquals("request body is required", e.getMessage());
-        e = expectThrows(IllegalStateException.class, () -> contentRestRequest("test", null, Collections.emptyMap()).requiredContent());
-        assertEquals("unknown content type", e.getMessage());
+        e = expectThrows(ValidationException.class, () -> contentRestRequest("test", null, Collections.emptyMap()).requiredContent());
+        assertThat(e.getMessage(), containsString("unknown content type"));
     }
 
-    public void testMarkPathRestricted() {
+    public void testIsServerlessRequest() {
         RestRequest request1 = contentRestRequest("content", new HashMap<>());
-        request1.markPathRestricted("foo");
-        assertEquals(request1.param(PATH_RESTRICTED), "foo");
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> request1.markPathRestricted("foo"));
-        assertThat(exception.getMessage(), is("The parameter [" + PATH_RESTRICTED + "] is already defined."));
+        request1.markAsServerlessRequest();
+        assertEquals(request1.param(SERVERLESS_REQUEST), "true");
+        assertTrue(request1.isServerlessRequest());
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, request1::markAsServerlessRequest);
+        assertThat(exception.getMessage(), is("The parameter [" + SERVERLESS_REQUEST + "] is already defined."));
 
-        RestRequest request2 = contentRestRequest("content", Map.of(PATH_RESTRICTED, "foo"));
-        exception = expectThrows(IllegalArgumentException.class, () -> request2.markPathRestricted("bar"));
-        assertThat(exception.getMessage(), is("The parameter [" + PATH_RESTRICTED + "] is already defined."));
+        RestRequest request2 = contentRestRequest("content", Map.of(SERVERLESS_REQUEST, "true"));
+        exception = expectThrows(IllegalArgumentException.class, request2::markAsServerlessRequest);
+        assertThat(exception.getMessage(), is("The parameter [" + SERVERLESS_REQUEST + "] is already defined."));
+    }
+
+    public void testIsOperatorRequest() {
+        RestRequest request1 = contentRestRequest("content", new HashMap<>());
+        request1.markAsOperatorRequest();
+        assertEquals(request1.param(OPERATOR_REQUEST), "true");
+        assertTrue(request1.isOperatorRequest());
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, request1::markAsOperatorRequest);
+        assertThat(exception.getMessage(), is("The parameter [" + OPERATOR_REQUEST + "] is already defined."));
+
+        RestRequest request2 = contentRestRequest("content", Map.of(OPERATOR_REQUEST, "true"));
+        exception = expectThrows(IllegalArgumentException.class, request2::markAsOperatorRequest);
+        assertThat(exception.getMessage(), is("The parameter [" + OPERATOR_REQUEST + "] is already defined."));
     }
 
     public static RestRequest contentRestRequest(String content, Map<String, String> params) {

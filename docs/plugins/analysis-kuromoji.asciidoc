@@ -133,6 +133,11 @@ unknown words. It can be set to:
 
     Whether punctuation should be discarded from the output. Defaults to `true`.
 
+`lenient`::
+
+    Whether the `user_dictionary` should be deduplicated on the provided `text`.
+    False by default causing duplicates to generate an error.
+
 `user_dictionary`::
 +
 --
@@ -221,7 +226,8 @@ PUT kuromoji_sample
             "type": "kuromoji_tokenizer",
             "mode": "extended",
             "discard_punctuation": "false",
-            "user_dictionary": "userdict_ja.txt"
+            "user_dictionary": "userdict_ja.txt",
+            "lenient": "true"
           }
         },
         "analyzer": {

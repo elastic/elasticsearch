@@ -47,7 +47,11 @@ public class BWCLucene70Codec extends BWCCodec {
     };
 
     public BWCLucene70Codec() {
-        super("BWCLucene70Codec");
+        this("BWCLucene70Codec");
+    }
+
+    protected BWCLucene70Codec(String name) {
+        super(name);
         storedFieldsFormat = new Lucene50StoredFieldsFormat(Lucene50StoredFieldsFormat.Mode.BEST_SPEED);
     }
 

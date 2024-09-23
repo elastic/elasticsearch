@@ -76,6 +76,7 @@ public abstract class RemoteClusterAware {
         Set<String> clustersToRemove = new HashSet<>();
         for (String index : requestIndices) {
             // ensure that `index` is a remote name and not a datemath expression which includes ':' symbol
+            // Remote names can not start with '<' so we are assuming that if the first character is '<' then it is a datemath expression.
             boolean isDateMathExpression = (index.charAt(0) == '<' || index.startsWith("-<"));
             int i = index.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR);
             if (isDateMathExpression == false && i >= 0) {

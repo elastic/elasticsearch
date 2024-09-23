@@ -370,11 +370,11 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         Version oldVersion,
         int numberOfShards
     ) throws IOException {
-        RequestOptions v7RequestOptions = RequestOptions.DEFAULT.toBuilder()
-            .addHeader("Content-Type", "application/vnd.elasticsearch+json;compatible-with=7")
-            .addHeader("Accept", "application/vnd.elasticsearch+json;compatible-with=7")
+        RequestOptions v8RequestOptions = RequestOptions.DEFAULT.toBuilder()
+            .addHeader("Content-Type", "application/vnd.elasticsearch+json;compatible-with=8")
+            .addHeader("Accept", "application/vnd.elasticsearch+json;compatible-with=8")
             .build();
-        RequestOptions randomRequestOptions = randomBoolean() ? RequestOptions.DEFAULT : v7RequestOptions;
+        RequestOptions randomRequestOptions = randomBoolean() ? RequestOptions.DEFAULT : v8RequestOptions;
 
         // run a search against the index
         SearchResponse searchResponse = search(index, null, randomRequestOptions);

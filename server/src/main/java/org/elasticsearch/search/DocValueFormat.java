@@ -19,6 +19,7 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -237,7 +238,7 @@ public interface DocValueFormat extends NamedWriteable {
         public DateTime(StreamInput in) throws IOException {
             String formatterPattern = in.readString();
             Locale locale = in.getTransportVersion().onOrAfter(TransportVersions.DATE_TIME_DOC_VALUES_LOCALES)
-                ? Locale.of(in.readString())
+                ? LocaleUtils.parse(in.readString())
                 : Locale.ENGLISH;   // default to english (also see DateFieldMapper.Builder)
             String zoneId = in.readString();
             this.timeZone = ZoneId.of(zoneId);
@@ -263,7 +264,7 @@ public interface DocValueFormat extends NamedWriteable {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(formatter.pattern());
             if (out.getTransportVersion().onOrAfter(TransportVersions.DATE_TIME_DOC_VALUES_LOCALES)) {
-                out.writeString(formatter.locale().getLanguage());
+                out.writeString(formatter.locale().toString());
             }
             out.writeString(timeZone.getId());
             out.writeVInt(resolution.ordinal());

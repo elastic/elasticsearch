@@ -68,16 +68,16 @@ public class LocaleUtils {
         switch (parts.length) {
             case 3:
                 // lang, country, variant
-                return new Locale(parts[0], parts[1], parts[2]);
+                return Locale.of(parts[0], parts[1], parts[2]);
             case 2:
                 // lang, country
-                return new Locale(parts[0], parts[1]);
+                return Locale.of(parts[0], parts[1]);
             case 1:
                 if ("ROOT".equalsIgnoreCase(parts[0])) {
                     return Locale.ROOT;
                 }
                 // lang
-                return new Locale(parts[0]);
+                return Locale.of(parts[0]);
             default:
                 throw new IllegalArgumentException(
                     "Locales can have at most 3 parts but got " + parts.length + ": " + Arrays.asList(parts)

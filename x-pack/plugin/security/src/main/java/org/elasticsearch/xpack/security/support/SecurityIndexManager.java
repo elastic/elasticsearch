@@ -379,7 +379,6 @@ public class SecurityIndexManager implements ClusterStateListener {
             public void accept(SecurityIndexManager.State previousState, SecurityIndexManager.State nextState) {
                 if (nextState.indexAvailableForSearch) {
                     if (isDone.compareAndSet(false, true)) {
-                        // removeStateListener and cancel are idempotent
                         cancel();
                         removeStateListener(this);
                         listener.onResponse(null);
@@ -403,7 +402,8 @@ public class SecurityIndexManager implements ClusterStateListener {
     }
 
     /**
-     * This class ensures that if cancel() is called _before_ setCancellable(), the passed-in cancellable is still correctly cancelled.
+     * This class ensures that if cancel() is called _before_ setCancellable(), the passed-in cancellable is still correctly cancelled on
+     * a subsequent setCancellable() call.
      */
     private abstract static class CancellableStateConsumer
         implements

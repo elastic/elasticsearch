@@ -1,7 +1,7 @@
 [[quickstart]]
-= Quickstarts
+= Hands-on quickstarts
 
-Use these quickstarts to get hands-on experience with {es}.
+Use these quickstarts to get hands-on experience with the {es} APIs.
 
 [discrete]
 [[quickstart-requirements]]
@@ -12,9 +12,9 @@ Get started quickly with a <<run-elasticsearch-locally,local dev environment>> i
 
 [discrete]
 [[quickstart-list]]
-== Quickstarts
+== Hands-on quickstarts
 
-* <<getting-started,First steps with {es}>>. Learn how to add data to {es} and perform basic searches.
+* <<getting-started,Basics: Add data using API>>. Learn how to add data to {es} and perform basic searches.
 
 [discrete]
 [[quickstart-python-links]]

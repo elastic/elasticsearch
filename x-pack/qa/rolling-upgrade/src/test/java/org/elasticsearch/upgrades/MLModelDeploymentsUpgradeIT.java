@@ -248,7 +248,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
         String modelThreadParamName = "number_of_allocations";
         String compatibleHeader = null;
         if (CLUSTER_TYPE.equals(ClusterType.OLD) || CLUSTER_TYPE.equals(ClusterType.MIXED)) {
-            compatibleHeader = getCompatibleHeader(XContentType.VND_JSON, RestApiVersion.V_8);
+            compatibleHeader = compatibleMediaType(XContentType.VND_JSON, RestApiVersion.V_8);
             inferenceThreadParamName = "inference_threads";
             modelThreadParamName = "model_threads";
         }

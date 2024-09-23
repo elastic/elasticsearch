@@ -99,6 +99,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
@@ -1642,6 +1643,15 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public String compatibleMediaType(XContentType type, RestApiVersion version) {
+        if (type.canonical().equals(type)) {
+            throw new IllegalArgumentException(
+                "Compatible header is only supported for vendor content types."
+                    + " You requested "
+                    + type.name()
+                    + "but likely want VND_"
+                    + type.name()
+            );
+        }
         return type.toParsedMediaType()
             .responseContentTypeHeader(Map.of(MediaType.COMPATIBLE_WITH_PARAMETER_NAME, String.valueOf(version.major)));
     }
@@ -1885,20 +1895,6 @@ public abstract class ESTestCase extends LuceneTestCase {
     private static final NamedXContentRegistry DEFAULT_NAMED_X_CONTENT_REGISTRY = new NamedXContentRegistry(
         CollectionUtils.concatLists(ClusterModule.getNamedXWriteables(), IndicesModule.getNamedXContents())
     );
-
-    protected String getCompatibleHeader(XContentType type, RestApiVersion restApiVersion) {
-        if (type.canonical().equals(type)) {
-            throw new IllegalArgumentException(
-                "Compatible header is only supported for vendor content types."
-                    + " You requested "
-                    + type.name()
-                    + "but likely want VND_"
-                    + type.name()
-            );
-        }
-        return type.toParsedMediaType()
-            .responseContentTypeHeader(Map.of(MediaType.COMPATIBLE_WITH_PARAMETER_NAME, String.valueOf(restApiVersion.major)));
-    }
 
     /**
      * The {@link NamedXContentRegistry} to use for this test. Subclasses should override and use liberally.

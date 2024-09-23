@@ -1206,7 +1206,7 @@ reverseRow#[skip:-8.15.99]
 ROW message = "Some Text" | EVAL message_reversed = REVERSE(message);
 // end::reverse[]
 
-// end::reverse-result[]
+// tag::reverse-result[]
 message:keyword | message_reversed:keyword
 Some Text       | txeT emoS
 // end::reverse-result[]

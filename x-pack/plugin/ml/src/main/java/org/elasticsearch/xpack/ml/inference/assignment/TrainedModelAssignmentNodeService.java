@@ -754,8 +754,6 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
     }
 
     private void handleLoadFailure(TrainedModelDeploymentTask task, Exception ex) {
-        logger.error(() -> "[" + task.getDeploymentId() + "] model [" + task.getParams().getModelId() + "] failed to load", ex);
-    private void handleLoadFailure(TrainedModelDeploymentTask task, Exception ex, ActionListener<Boolean> retryListener) {
         if (ex instanceof ElasticsearchException esEx && esEx.status().getStatus() < 500) {
             logger.warn(() -> "[" + task.getDeploymentId() + "] model [" + task.getParams().getModelId() + "] failed to load", ex);
         } else {

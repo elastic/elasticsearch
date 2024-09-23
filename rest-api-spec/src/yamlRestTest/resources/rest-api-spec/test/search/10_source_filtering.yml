@@ -186,3 +186,172 @@ setup:
   # When this test is run during runtime-field's tests we *don't* get floating point errors. Thus the funny assertion here that matches both.
   - lt: { hits.hits.0.fields.d.0: 3.141 }
   - gte: { hits.hits.0.fields.d.0: 3.14 }
+
+---
+"Include sparse embeddings in _source by default":
+  - requires:
+      cluster_features: "gte_v8.16.0"
+      reason: vector _source filtering added in 8.16.0
+
+  - do:
+      indices.create:
+        index: sparse-vector-test
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+              sparse:
+                type: sparse_vector
+
+  - do:
+      index:
+        index: sparse-vector-test
+        id: 1
+        body:
+          text: running is good for you
+          sparse:
+            running: 2.4097164
+            good: 2.170997
+            run: 2.052153
+            race: 0.1
+            for: 1.1908325
+            runner: 1.1803857
+            exercise: 0.1
+            you: 0.9654308
+            training: 0.94999343
+            sports: 0.93650943
+            fitness: 0.83129317
+            best: 0.820365
+            bad: 0.1
+            health: 0.1
+            marathon: 0.61555296
+            gym: 0.5652374
+        refresh: true
+
+  - do:
+      search:
+        index: sparse-vector-test
+        body:
+          query:
+            match:
+              text: running
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+  - exists: hits.hits.0._source.text
+  - exists: hits.hits.0._source.sparse
+
+---
+"Exclude sparse embeddings from _source":
+  - requires:
+      cluster_features: "gte_v8.16.0"
+      reason: vector _source filtering added in 8.16.0
+
+  - do:
+      indices.create:
+        index: sparse-vector-test
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+              sparse:
+                type: sparse_vector
+
+  - do:
+      index:
+        index: sparse-vector-test
+        id: 1
+        body:
+          text: running is good for you
+          sparse:
+            running: 2.4097164
+            good: 2.170997
+            run: 2.052153
+            race: 0.1
+            for: 1.1908325
+            runner: 1.1803857
+            exercise: 0.1
+            you: 0.9654308
+            training: 0.94999343
+            sports: 0.93650943
+            fitness: 0.83129317
+            best: 0.820365
+            bad: 0.1
+            health: 0.1
+            marathon: 0.61555296
+            gym: 0.5652374
+        refresh: true
+
+  - do:
+      search:
+        index: sparse-vector-test
+        body:
+          _source:
+            include_vectors: false
+          query:
+            match:
+              text: running
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+  - exists: hits.hits.0._source.text
+  - not_exists: hits.hits.0._source.sparse
+
+---
+"Explicitly include sparse embeddings in _source":
+  - requires:
+      cluster_features: "gte_v8.16.0"
+      reason: vector _source filtering added in 8.16.0
+
+  - do:
+      indices.create:
+        index: sparse-vector-test
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+              sparse:
+                type: sparse_vector
+
+  - do:
+      index:
+        index: sparse-vector-test
+        id: 1
+        body:
+          text: running is good for you
+          sparse:
+            running: 2.4097164
+            good: 2.170997
+            run: 2.052153
+            race: 0.1
+            for: 1.1908325
+            runner: 1.1803857
+            exercise: 0.1
+            you: 0.9654308
+            training: 0.94999343
+            sports: 0.93650943
+            fitness: 0.83129317
+            best: 0.820365
+            bad: 0.1
+            health: 0.1
+            marathon: 0.61555296
+            gym: 0.5652374
+        refresh: true
+
+  - do:
+      search:
+        index: sparse-vector-test
+        body:
+          _source:
+            include_vectors: true
+          query:
+            match:
+              text: running
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+  - exists: hits.hits.0._source.text
+  - exists: hits.hits.0._source.sparse

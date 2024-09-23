@@ -220,6 +220,7 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_IBM_WATSONX_EMBEDDINGS_ADDED = def(8_744_00_0);
     public static final TransportVersion BULK_INCREMENTAL_STATE = def(8_745_00_0);
     public static final TransportVersion FAILURE_STORE_STATUS_IN_INDEX_RESPONSE = def(8_746_00_0);
+    public static final TransportVersion DATE_TIME_DOC_VALUES_LOCALES = def(8_747_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

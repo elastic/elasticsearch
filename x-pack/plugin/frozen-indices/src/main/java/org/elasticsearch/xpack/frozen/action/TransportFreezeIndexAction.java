@@ -150,10 +150,12 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
         submitUnbatchedTask(
             "toggle-frozen-settings",
             new AckedClusterStateUpdateTask(Priority.URGENT, request, listener.delegateFailure((delegate, acknowledgedResponse) -> {
-                OpenIndexClusterStateUpdateRequest updateRequest = new OpenIndexClusterStateUpdateRequest().ackTimeout(request.ackTimeout())
-                    .masterNodeTimeout(request.masterNodeTimeout())
-                    .indices(concreteIndices)
-                    .waitForActiveShards(request.waitForActiveShards());
+                OpenIndexClusterStateUpdateRequest updateRequest = new OpenIndexClusterStateUpdateRequest(
+                    request.masterNodeTimeout(),
+                    request.ackTimeout(),
+                    request.waitForActiveShards(),
+                    concreteIndices
+                );
                 indexStateService.openIndices(
                     updateRequest,
                     delegate.safeMap(

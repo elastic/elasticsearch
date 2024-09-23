@@ -676,16 +676,16 @@ public class AllocationService {
         RoutingNodes routingNodes = routingAllocation.routingNodes();
         for (ShardRouting startedShard : startedShardEntries) {
             assert startedShard.initializing() : "only initializing shards can be started";
-            assert routingAllocation.metadata().getProject().index(startedShard.shardId().getIndex()) != null
+            assert routingAllocation.getProject(startedShard.index()).index(startedShard.index()) != null
                 : "shard started for unknown index (shard entry: " + startedShard + ")";
             assert startedShard == routingNodes.getByAllocationId(startedShard.shardId(), startedShard.allocationId().getId())
                 : "shard routing to start does not exist in routing table, expected: "
                     + startedShard
                     + " but was: "
                     + routingNodes.getByAllocationId(startedShard.shardId(), startedShard.allocationId().getId());
-            long expectedShardSize = routingAllocation.metadata().getProject().getIndexSafe(startedShard.index()).isSearchableSnapshot()
-                ? startedShard.getExpectedShardSize()
-                : ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE;
+            long expectedShardSize = routingAllocation.getProject(startedShard.index())
+                .getIndexSafe(startedShard.index())
+                .isSearchableSnapshot() ? startedShard.getExpectedShardSize() : ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE;
             routingNodes.startShard(startedShard, routingAllocation.changes(), expectedShardSize);
         }
     }

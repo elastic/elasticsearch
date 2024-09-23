@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
+import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -40,6 +41,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.ESTestCase;
@@ -51,6 +53,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -117,6 +120,11 @@ public class AllocationServiceTests extends ESTestCase {
     }
 
     public void testAssignsPrimariesInPriorityOrderThenReplicas() {
+        final int numberOfProjects = randomIntBetween(1, 5);
+        final List<ProjectMetadata.Builder> projects = numberOfProjects == 1
+            ? List.of(ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID))
+            : IntStream.range(0, numberOfProjects).mapToObj(n -> ProjectMetadata.builder(new ProjectId(randomUUID() + "-" + n))).toList();
+
         // throttle (incoming) recoveries in order to observe the order of operations, but do not throttle outgoing recoveries since
         // the effects of that depend on the earlier (random) allocations
         final Settings settings = Settings.builder()
@@ -159,44 +167,45 @@ public class AllocationServiceTests extends ESTestCase {
         nodesBuilder.add(DiscoveryNodeUtils.create("node2"));
         nodesBuilder.add(DiscoveryNodeUtils.create("node3"));
 
-        final Metadata.Builder metadata = Metadata.builder()
-            // create 3 indices with different priorities. The high and low priority indices use the default allocator which (in this test)
-            // does not allocate any replicas, whereas the medium priority one uses the unrealistic allocator which does allocate replicas
-            .put(indexMetadata("highPriority", Settings.builder().put(IndexMetadata.SETTING_PRIORITY, 10)))
-            .put(
-                indexMetadata(
-                    "mediumPriority",
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_PRIORITY, 5)
-                        .put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), unrealisticAllocatorName)
-                )
+        // create 3 indices with different priorities. The high and low priority indices use the default allocator which (in this test)
+        // does not allocate any replicas, whereas the medium priority one uses the unrealistic allocator which does allocate replicas
+        // Each index is assigned to a random project (because the only thing that should matter is the priority)
+        randomFrom(projects).put(indexMetadata("highPriority", Settings.builder().put(IndexMetadata.SETTING_PRIORITY, 10)));
+        randomFrom(projects).put(
+            indexMetadata(
+                "mediumPriority",
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_PRIORITY, 5)
+                    .put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), unrealisticAllocatorName)
             )
-            .put(indexMetadata("lowPriority", Settings.builder().put(IndexMetadata.SETTING_PRIORITY, 3)))
+        );
+        randomFrom(projects).put(indexMetadata("lowPriority", Settings.builder().put(IndexMetadata.SETTING_PRIORITY, 3)));
+        // also create a 4th index with arbitrary priority and an invalid allocator that we expect to ignore
+        randomFrom(projects).put(
+            indexMetadata(
+                "invalid",
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_PRIORITY, between(0, 15))
+                    .put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), "unknown")
+            )
+        );
 
-            // also create a 4th index with arbitrary priority and an invalid allocator that we expect to ignore
-            .put(
-                indexMetadata(
-                    "invalid",
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_PRIORITY, between(0, 15))
-                        .put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), "unknown")
-                )
-            );
+        final var metadataBuilder = Metadata.builder();
+        projects.forEach(metadataBuilder::put);
+        final var metadata = metadataBuilder.build();
 
-        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsRecovery(metadata.get("highPriority"))
-            .addAsRecovery(metadata.get("mediumPriority"))
-            .addAsRecovery(metadata.get("lowPriority"))
-            .addAsRecovery(metadata.get("invalid"));
-
+        final GlobalRoutingTable origRoutingTable = GlobalRoutingTableTestHelper.buildRoutingTable(
+            metadata,
+            RoutingTable.Builder::addAsRecovery
+        );
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(nodesBuilder)
             .metadata(metadata)
-            .routingTable(routingTableBuilder.build())
+            .routingTable(origRoutingTable)
             .build();
 
         // permit the testGatewayAllocator to allocate primaries to every node
-        for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
+        for (IndexRoutingTable indexRoutingTable : clusterState.globalRoutingTable().indexRouting()) {
             for (int i = 0; i < indexRoutingTable.size(); i++) {
                 final ShardRouting primaryShard = indexRoutingTable.shard(i).primaryShard();
                 for (DiscoveryNode node : clusterState.nodes()) {
@@ -205,41 +214,50 @@ public class AllocationServiceTests extends ESTestCase {
             }
         }
 
+        BiFunction<GlobalRoutingTable, String, IndexRoutingTable> findIndex = (routingTable, indexName) -> {
+            for (IndexRoutingTable irt : routingTable.indexRouting()) {
+                if (irt.getIndex().getName().equals(indexName)) {
+                    return irt;
+                }
+            }
+            throw new IndexNotFoundException("Cannot find index " + indexName + " in routing table");
+        };
+
         final ClusterState reroutedState1 = rerouteAndStartShards(allocationService, clusterState);
-        final RoutingTable routingTable1 = reroutedState1.routingTable();
+        final GlobalRoutingTable routingTable1 = reroutedState1.globalRoutingTable();
         final RoutingNodes routingNodes1 = reroutedState1.getRoutingNodes();
         // the test harness only permits one recovery per node, so we must have allocated all the high-priority primaries and one of the
         // medium-priority ones
         assertThat(shardsWithState(routingNodes1, ShardRoutingState.INITIALIZING), empty());
         assertThat(shardsWithState(routingNodes1, ShardRoutingState.RELOCATING), empty());
         assertTrue(shardsWithState(routingNodes1, ShardRoutingState.STARTED).stream().allMatch(ShardRouting::primary));
-        assertThat(routingTable1.index("highPriority").primaryShardsActive(), equalTo(2));
-        assertThat(routingTable1.index("mediumPriority").primaryShardsActive(), equalTo(1));
-        assertThat(routingTable1.index("lowPriority").shardsWithState(ShardRoutingState.STARTED), empty());
-        assertThat(routingTable1.index("invalid").shardsWithState(ShardRoutingState.STARTED), empty());
+        assertThat(findIndex.apply(routingTable1, "highPriority").primaryShardsActive(), equalTo(2));
+        assertThat(findIndex.apply(routingTable1, "mediumPriority").primaryShardsActive(), equalTo(1));
+        assertThat(findIndex.apply(routingTable1, "lowPriority").shardsWithState(ShardRoutingState.STARTED), empty());
+        assertThat(findIndex.apply(routingTable1, "invalid").shardsWithState(ShardRoutingState.STARTED), empty());
 
         final ClusterState reroutedState2 = rerouteAndStartShards(allocationService, reroutedState1);
-        final RoutingTable routingTable2 = reroutedState2.routingTable();
+        final GlobalRoutingTable routingTable2 = reroutedState2.globalRoutingTable();
         final RoutingNodes routingNodes2 = reroutedState2.getRoutingNodes();
         // this reroute starts the one remaining medium-priority primary and both of the low-priority ones, but no replicas
         assertThat(shardsWithState(routingNodes2, ShardRoutingState.INITIALIZING), empty());
         assertThat(shardsWithState(routingNodes2, ShardRoutingState.RELOCATING), empty());
         assertTrue(shardsWithState(routingNodes2, ShardRoutingState.STARTED).stream().allMatch(ShardRouting::primary));
-        assertTrue(routingTable2.index("highPriority").allPrimaryShardsActive());
-        assertTrue(routingTable2.index("mediumPriority").allPrimaryShardsActive());
-        assertTrue(routingTable2.index("lowPriority").allPrimaryShardsActive());
-        assertThat(routingTable2.index("invalid").shardsWithState(ShardRoutingState.STARTED), empty());
+        assertTrue(findIndex.apply(routingTable2, "highPriority").allPrimaryShardsActive());
+        assertTrue(findIndex.apply(routingTable2, "mediumPriority").allPrimaryShardsActive());
+        assertTrue(findIndex.apply(routingTable2, "lowPriority").allPrimaryShardsActive());
+        assertThat(findIndex.apply(routingTable2, "invalid").shardsWithState(ShardRoutingState.STARTED), empty());
 
         final ClusterState reroutedState3 = rerouteAndStartShards(allocationService, reroutedState2);
-        final RoutingTable routingTable3 = reroutedState3.routingTable();
+        final GlobalRoutingTable routingTable3 = reroutedState3.globalRoutingTable();
         final RoutingNodes routingNodes3 = reroutedState3.getRoutingNodes();
         // this reroute starts the two medium-priority replicas since their allocator permits this
         assertThat(shardsWithState(routingNodes3, ShardRoutingState.INITIALIZING), empty());
         assertThat(shardsWithState(routingNodes3, ShardRoutingState.RELOCATING), empty());
-        assertTrue(routingTable3.index("highPriority").allPrimaryShardsActive());
-        assertThat(routingTable3.index("mediumPriority").shardsWithState(ShardRoutingState.UNASSIGNED), empty());
-        assertTrue(routingTable3.index("lowPriority").allPrimaryShardsActive());
-        assertThat(routingTable3.index("invalid").shardsWithState(ShardRoutingState.STARTED), empty());
+        assertTrue(findIndex.apply(routingTable3, "highPriority").allPrimaryShardsActive());
+        assertThat(findIndex.apply(routingTable3, "mediumPriority").shardsWithState(ShardRoutingState.UNASSIGNED), empty());
+        assertTrue(findIndex.apply(routingTable3, "lowPriority").allPrimaryShardsActive());
+        assertThat(findIndex.apply(routingTable3, "invalid").shardsWithState(ShardRoutingState.STARTED), empty());
     }
 
     public void testExplainsNonAllocationOfShardWithUnknownAllocator() {
@@ -504,7 +522,7 @@ public class AllocationServiceTests extends ESTestCase {
 
     private static IndexMetadata.Builder indexMetadata(String name, Settings.Builder settings) {
         return IndexMetadata.builder(name)
-            .settings(settings(IndexVersion.current()).put(settings.build()))
+            .settings(settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, randomUUID()).put(settings.build()))
             .numberOfShards(2)
             .numberOfReplicas(1)
             .putInSyncAllocationIds(0, Collections.singleton(FAKE_IN_SYNC_ALLOCATION_ID))

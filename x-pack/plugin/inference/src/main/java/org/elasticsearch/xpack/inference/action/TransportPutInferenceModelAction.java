@@ -55,6 +55,7 @@ import java.util.Set;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.BaseElasticsearchInternalService.selectDefaultModelVariantBasedOnClusterArchitecture;
+import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.OLD_ELSER_SERVICE_NAME;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.ELSER_V2_MODEL;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.ELSER_V2_MODEL_LINUX_X86;
 
@@ -167,8 +168,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             // Find the cluster platform as the service may need that
             // information when creating the model
             MlPlatformArchitecturesUtil.getMlNodesArchitecturesSet(listener.delegateFailureAndWrap((delegate, architectures) -> {
-                String ELSER_SERVICE_NAME = "elser";
-                if (serviceName.equals(ELSER_SERVICE_NAME)) {
+                if (serviceName.equals(OLD_ELSER_SERVICE_NAME)) {
                     String modelId = selectDefaultModelVariantBasedOnClusterArchitecture(
                         architectures,
                         ELSER_V2_MODEL_LINUX_X86,
@@ -180,7 +180,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
                         "inference_api_elser_service",
                         "The [{}] service is deprecated and will be removed in a future release. Use the [{}] service instead, with"
                             + " [model_id] set to [{}] in the [service_settings]",
-                        ELSER_SERVICE_NAME,
+                        OLD_ELSER_SERVICE_NAME,
                         ElasticsearchInternalService.NAME,
                         modelId
                     );
@@ -249,8 +249,14 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             }
         });
 
-        service.parseRequestConfig(inferenceEntityId, taskType, config, platformArchitectures, parsedModelListener);
+        { // required for BWC of elser service in elasticsearch service
+            Set<String> localServices = Set.of(ElasticsearchInternalService.NAME, OLD_ELSER_SERVICE_NAME);
+            if (localServices.contains(service.name())) {
+                config.put(ModelConfigurations.SERVICE, service.name());
+            }
+        }
 
+        service.parseRequestConfig(inferenceEntityId, taskType, config, platformArchitectures, parsedModelListener);
     }
 
     private void putAndStartModel(InferenceService service, Model model, ActionListener<PutInferenceModelAction.Response> finalListener) {

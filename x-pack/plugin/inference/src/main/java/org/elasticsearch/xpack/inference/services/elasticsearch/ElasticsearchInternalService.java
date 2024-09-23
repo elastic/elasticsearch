@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Nullable;
@@ -96,20 +97,25 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         try {
             Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
             Map<String, Object> taskSettingsMap = removeFromMap(config, ModelConfigurations.TASK_SETTINGS);
+            String serviceName = (String) config.remove(ModelConfigurations.SERVICE); // required for elser service in elasticsearch service
 
             throwIfNotEmptyMap(config, name());
 
             String modelId = (String) serviceSettingsMap.get(ElasticsearchInternalServiceSettings.MODEL_ID);
             if (modelId == null) {
-                // TODO complete deprecation of null model ID
-                // throw new ValidationException().addValidationError("Error parsing request config, model id is missing");
-                DEPRECATION_LOGGER.critical(
-                    DeprecationCategory.API,
-                    "inference_api_null_model_id_in_elasticsearch_service",
-                    "Putting elasticsearch service inference endpoints (including elser service) without a model_id field is"
-                        + " deprecated and will be removed in a future release. Please specify a model_id field."
-                );
-                elserCase(inferenceEntityId, taskType, config, platformArchitectures, serviceSettingsMap, modelListener);
+                if (OLD_ELSER_SERVICE_NAME.equals(serviceName)) {
+                    // TODO complete deprecation of null model ID
+                    // throw new ValidationException().addValidationError("Error parsing request config, model id is missing");
+                    DEPRECATION_LOGGER.critical(
+                        DeprecationCategory.API,
+                        "inference_api_null_model_id_in_elasticsearch_service",
+                        "Putting elasticsearch service inference endpoints (including elser service) without a model_id field is"
+                            + " deprecated and will be removed in a future release. Please specify a model_id field."
+                    );
+                    elserCase(inferenceEntityId, taskType, config, platformArchitectures, serviceSettingsMap, modelListener);
+                } else {
+                    throw new ValidationException().addValidationError("Error parsing request config, model id is missing");
+                }
             } else if (MULTILINGUAL_E5_SMALL_VALID_IDS.contains(modelId)) {
                 e5Case(inferenceEntityId, taskType, config, platformArchitectures, serviceSettingsMap, modelListener);
             } else if (VALID_ELSER_MODEL_IDS.contains(modelId)) {

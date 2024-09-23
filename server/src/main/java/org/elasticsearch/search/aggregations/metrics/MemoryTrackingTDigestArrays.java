@@ -35,7 +35,9 @@ public class MemoryTrackingTDigestArrays implements TDigestArrays {
      * @deprecated This instance shouldn't be used, and will be removed after all usages are replaced.
      */
     @Deprecated
-    public static final MemoryTrackingTDigestArrays INSTANCE = new MemoryTrackingTDigestArrays(new NoopCircuitBreaker("default-wrapper-tdigest-arrays"));
+    public static final MemoryTrackingTDigestArrays INSTANCE = new MemoryTrackingTDigestArrays(
+        new NoopCircuitBreaker("default-wrapper-tdigest-arrays")
+    );
 
     private final CircuitBreaker breaker;
 
@@ -54,38 +56,32 @@ public class MemoryTrackingTDigestArrays implements TDigestArrays {
 
     @Override
     public MemoryTrackingTDigestIntArray newIntArray(int initialSize) {
-        breaker.addEstimateBytesAndMaybeBreak(
-            MemoryTrackingTDigestIntArray.estimatedRamBytesUsed(initialSize),
-            "tdigest-new-int-array"
-        );
+        breaker.addEstimateBytesAndMaybeBreak(MemoryTrackingTDigestIntArray.estimatedRamBytesUsed(initialSize), "tdigest-new-int-array");
         return new MemoryTrackingTDigestIntArray(breaker, initialSize);
     }
 
     @Override
     public TDigestLongArray newLongArray(int initialSize) {
-        breaker.addEstimateBytesAndMaybeBreak(
-            MemoryTrackingTDigestLongArray.estimatedRamBytesUsed(initialSize),
-            "tdigest-new-long-array"
-        );
+        breaker.addEstimateBytesAndMaybeBreak(MemoryTrackingTDigestLongArray.estimatedRamBytesUsed(initialSize), "tdigest-new-long-array");
         return new MemoryTrackingTDigestLongArray(breaker, initialSize);
     }
 
     @Override
     public TDigestByteArray newByteArray(int initialSize) {
-        breaker.addEstimateBytesAndMaybeBreak(
-            MemoryTrackingTDigestByteArray.estimatedRamBytesUsed(initialSize),
-            "tdigest-new-byte-array"
-        );
+        breaker.addEstimateBytesAndMaybeBreak(MemoryTrackingTDigestByteArray.estimatedRamBytesUsed(initialSize), "tdigest-new-byte-array");
         return new MemoryTrackingTDigestByteArray(breaker, initialSize);
     }
 
     public MemoryTrackingTDigestDoubleArray newDoubleArray(double[] array) {
-        breaker.addWithoutBreaking(MemoryTrackingTDigestDoubleArray.estimatedRamBytesUsed(array.length));
+        breaker.addEstimateBytesAndMaybeBreak(
+            MemoryTrackingTDigestDoubleArray.estimatedRamBytesUsed(array.length),
+            "tdigest-new-double-array"
+        );
         return new MemoryTrackingTDigestDoubleArray(breaker, array);
     }
 
     public MemoryTrackingTDigestIntArray newIntArray(int[] array) {
-        breaker.addWithoutBreaking(MemoryTrackingTDigestIntArray.estimatedRamBytesUsed(array.length));
+        breaker.addEstimateBytesAndMaybeBreak(MemoryTrackingTDigestIntArray.estimatedRamBytesUsed(array.length), "tdigest-new-int-array");
         return new MemoryTrackingTDigestIntArray(breaker, array);
     }
 
@@ -183,11 +179,8 @@ public class MemoryTrackingTDigestArrays implements TDigestArrays {
 
                 int newSize = ArrayUtil.oversize(requiredCapacity, Double.BYTES);
                 int newArraySize = estimatedArraySize(newSize, Double.BYTES);
-                breaker.addWithoutBreaking(newArraySize);
-                double[] newArray = new double[newSize];
-                System.arraycopy(array, 0, newArray, 0, size);
-
-                array = newArray;
+                breaker.addEstimateBytesAndMaybeBreak(newArraySize, "tdigest-new-capacity-double-array");
+                array = Arrays.copyOf(array, newSize);
                 breaker.addWithoutBreaking(-RamUsageEstimator.sizeOf(oldArray));
 
                 assert ramBytesUsed() - oldRamBytesUsed == newArraySize - oldArraySize
@@ -240,15 +233,29 @@ public class MemoryTrackingTDigestArrays implements TDigestArrays {
 
         @Override
         public void resize(int newSize) {
-            if (newSize > array.length) {
-                long oldRamBytesUsed = ramBytesUsed();
-                array = Arrays.copyOf(array, newSize);
-                breaker.addWithoutBreaking(ramBytesUsed() - oldRamBytesUsed);
-            }
+            ensureCapacity(newSize);
             if (newSize > size) {
                 Arrays.fill(array, size, newSize, 0);
             }
             size = newSize;
+        }
+
+        private void ensureCapacity(int requiredCapacity) {
+            if (requiredCapacity > array.length) {
+                int[] oldArray = array;
+                // Used for used bytes assertion
+                long oldRamBytesUsed = ramBytesUsed();
+                long oldArraySize = RamUsageEstimator.sizeOf(oldArray);
+
+                int newSize = ArrayUtil.oversize(requiredCapacity, Integer.BYTES);
+                int newArraySize = estimatedArraySize(newSize, Integer.BYTES);
+                breaker.addEstimateBytesAndMaybeBreak(newArraySize, "tdigest-new-capacity-int-array");
+                array = Arrays.copyOf(array, newSize);
+                breaker.addWithoutBreaking(-RamUsageEstimator.sizeOf(oldArray));
+
+                assert ramBytesUsed() - oldRamBytesUsed == newArraySize - oldArraySize
+                    : "ramBytesUsed() should be aligned with manual array calculations";
+            }
         }
     }
 
@@ -296,15 +303,29 @@ public class MemoryTrackingTDigestArrays implements TDigestArrays {
 
         @Override
         public void resize(int newSize) {
-            if (newSize > array.length) {
-                long oldRamBytesUsed = ramBytesUsed();
-                array = Arrays.copyOf(array, newSize);
-                breaker.addWithoutBreaking(ramBytesUsed() - oldRamBytesUsed);
-            }
+            ensureCapacity(newSize);
             if (newSize > size) {
                 Arrays.fill(array, size, newSize, 0);
             }
             size = newSize;
+        }
+
+        private void ensureCapacity(int requiredCapacity) {
+            if (requiredCapacity > array.length) {
+                long[] oldArray = array;
+                // Used for used bytes assertion
+                long oldRamBytesUsed = ramBytesUsed();
+                long oldArraySize = RamUsageEstimator.sizeOf(oldArray);
+
+                int newSize = ArrayUtil.oversize(requiredCapacity, Long.BYTES);
+                int newArraySize = estimatedArraySize(newSize, Long.BYTES);
+                breaker.addEstimateBytesAndMaybeBreak(newArraySize, "tdigest-new-capacity-long-array");
+                array = Arrays.copyOf(array, newSize);
+                breaker.addWithoutBreaking(-RamUsageEstimator.sizeOf(oldArray));
+
+                assert ramBytesUsed() - oldRamBytesUsed == newArraySize - oldArraySize
+                    : "ramBytesUsed() should be aligned with manual array calculations";
+            }
         }
     }
 
@@ -352,15 +373,29 @@ public class MemoryTrackingTDigestArrays implements TDigestArrays {
 
         @Override
         public void resize(int newSize) {
-            if (newSize > array.length) {
-                long oldRamBytesUsed = ramBytesUsed();
-                array = Arrays.copyOf(array, newSize);
-                breaker.addWithoutBreaking(ramBytesUsed() - oldRamBytesUsed);
-            }
+            ensureCapacity(newSize);
             if (newSize > size) {
                 Arrays.fill(array, size, newSize, (byte) 0);
             }
             size = newSize;
+        }
+
+        private void ensureCapacity(int requiredCapacity) {
+            if (requiredCapacity > array.length) {
+                byte[] oldArray = array;
+                // Used for used bytes assertion
+                long oldRamBytesUsed = ramBytesUsed();
+                long oldArraySize = RamUsageEstimator.sizeOf(oldArray);
+
+                int newSize = ArrayUtil.oversize(requiredCapacity, Byte.BYTES);
+                int newArraySize = estimatedArraySize(newSize, Byte.BYTES);
+                breaker.addEstimateBytesAndMaybeBreak(newArraySize, "tdigest-new-capacity-byte-array");
+                array = Arrays.copyOf(array, newSize);
+                breaker.addWithoutBreaking(-RamUsageEstimator.sizeOf(oldArray));
+
+                assert ramBytesUsed() - oldRamBytesUsed == newArraySize - oldArraySize
+                    : "ramBytesUsed() should be aligned with manual array calculations";
+            }
         }
     }
 }

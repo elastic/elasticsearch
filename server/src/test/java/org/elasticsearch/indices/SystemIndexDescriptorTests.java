@@ -17,7 +17,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.indices.SystemIndexDescriptor.Type;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.util.List;
@@ -289,32 +288,16 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             .setPriorSystemIndexDescriptors(List.of(prior))
             .build();
 
-        SystemIndexDescriptor compat = descriptor.getDescriptorCompatibleWith(Version.CURRENT);
+        var compat = descriptor.getDescriptorCompatibleWith(descriptor.getMappingsVersion());
         assertSame(descriptor, compat);
 
-        compat = descriptor.getDescriptorCompatibleWith(descriptor.getMappingsVersion());
-        assertSame(descriptor, compat);
-
-        assertNull(descriptor.getDescriptorCompatibleWith(Version.fromString("6.8.0")));
         assertNull(descriptor.getDescriptorCompatibleWith(new SystemIndexDescriptor.MappingsVersion(TEST_MAPPINGS_NONEXISTENT_VERSION, 1)));
-
-        compat = descriptor.getDescriptorCompatibleWith(Version.CURRENT.minimumCompatibilityVersion());
-        assertSame(descriptor, compat);
-
-        Version priorToMin = VersionUtils.getPreviousVersion(descriptor.getMinimumNodeVersion());
-        compat = descriptor.getDescriptorCompatibleWith(priorToMin);
-        assertSame(prior, compat);
 
         SystemIndexDescriptor.MappingsVersion priorToMinMappingsVersion = new SystemIndexDescriptor.MappingsVersion(
             TEST_MAPPINGS_PRIOR_VERSION,
             1
         );
         compat = descriptor.getDescriptorCompatibleWith(priorToMinMappingsVersion);
-        assertSame(prior, compat);
-
-        compat = descriptor.getDescriptorCompatibleWith(
-            VersionUtils.randomVersionBetween(random(), prior.getMinimumNodeVersion(), priorToMin)
-        );
         assertSame(prior, compat);
 
         compat = descriptor.getDescriptorCompatibleWith(
@@ -449,7 +432,6 @@ public class SystemIndexDescriptorTests extends ESTestCase {
 
         assertThat(descriptor1.getMappingsVersion().hash(), equalTo(descriptor2.getMappingsVersion().hash()));
         assertThat(descriptor1.getMappingsVersion().version(), not(equalTo(descriptor2.getMappingsVersion().version())));
-        assertThat(descriptor1.getMappingsNodeVersion(), not(equalTo(descriptor2.getMappingsNodeVersion())));
     }
 
     private SystemIndexDescriptor.Builder priorSystemIndexDescriptorBuilder() {

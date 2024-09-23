@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.search;
 
@@ -69,6 +70,12 @@ public class RankFeaturePhase extends SearchPhase {
 
     @Override
     public void run() {
+        RankFeaturePhaseRankCoordinatorContext rankFeaturePhaseRankCoordinatorContext = coordinatorContext(context.getRequest().source());
+        if (rankFeaturePhaseRankCoordinatorContext == null) {
+            moveToNextPhase(queryPhaseResults, null);
+            return;
+        }
+
         context.execute(new AbstractRunnable() {
             @Override
             protected void doRun() throws Exception {
@@ -76,7 +83,7 @@ public class RankFeaturePhase extends SearchPhase {
                 // was set up at FetchSearchPhase.
 
                 // we do the heavy lifting in this inner run method where we reduce aggs etc
-                innerRun();
+                innerRun(rankFeaturePhaseRankCoordinatorContext);
             }
 
             @Override
@@ -86,51 +93,39 @@ public class RankFeaturePhase extends SearchPhase {
         });
     }
 
-    void innerRun() throws Exception {
+    void innerRun(RankFeaturePhaseRankCoordinatorContext rankFeaturePhaseRankCoordinatorContext) throws Exception {
         // if the RankBuilder specifies a QueryPhaseCoordinatorContext, it will be called as part of the reduce call
         // to operate on the first `rank_window_size * num_shards` results and merge them appropriately.
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase = queryPhaseResults.reduce();
-        RankFeaturePhaseRankCoordinatorContext rankFeaturePhaseRankCoordinatorContext = coordinatorContext(context.getRequest().source());
-        if (rankFeaturePhaseRankCoordinatorContext != null) {
-            ScoreDoc[] queryScoreDocs = reducedQueryPhase.sortedTopDocs().scoreDocs(); // rank_window_size
-            final List<Integer>[] docIdsToLoad = SearchPhaseController.fillDocIdsToLoad(context.getNumShards(), queryScoreDocs);
-            final CountedCollector<SearchPhaseResult> rankRequestCounter = new CountedCollector<>(
-                rankPhaseResults,
-                context.getNumShards(),
-                () -> onPhaseDone(rankFeaturePhaseRankCoordinatorContext, reducedQueryPhase),
-                context
-            );
+        ScoreDoc[] queryScoreDocs = reducedQueryPhase.sortedTopDocs().scoreDocs(); // rank_window_size
+        final List<Integer>[] docIdsToLoad = SearchPhaseController.fillDocIdsToLoad(context.getNumShards(), queryScoreDocs);
+        final CountedCollector<SearchPhaseResult> rankRequestCounter = new CountedCollector<>(
+            rankPhaseResults,
+            context.getNumShards(),
+            () -> onPhaseDone(rankFeaturePhaseRankCoordinatorContext, reducedQueryPhase),
+            context
+        );
 
-            // we send out a request to each shard in order to fetch the needed feature info
-            for (int i = 0; i < docIdsToLoad.length; i++) {
-                List<Integer> entry = docIdsToLoad[i];
-                SearchPhaseResult queryResult = queryPhaseResults.getAtomicArray().get(i);
-                if (entry == null || entry.isEmpty()) {
-                    if (queryResult != null) {
-                        releaseIrrelevantSearchContext(queryResult, context);
-                        progressListener.notifyRankFeatureResult(i);
-                    }
-                    rankRequestCounter.countDown();
-                } else {
-                    executeRankFeatureShardPhase(queryResult, rankRequestCounter, entry);
+        // we send out a request to each shard in order to fetch the needed feature info
+        for (int i = 0; i < docIdsToLoad.length; i++) {
+            List<Integer> entry = docIdsToLoad[i];
+            SearchPhaseResult queryResult = queryPhaseResults.getAtomicArray().get(i);
+            if (entry == null || entry.isEmpty()) {
+                if (queryResult != null) {
+                    releaseIrrelevantSearchContext(queryResult, context);
+                    progressListener.notifyRankFeatureResult(i);
                 }
+                rankRequestCounter.countDown();
+            } else {
+                executeRankFeatureShardPhase(queryResult, rankRequestCounter, entry);
             }
-        } else {
-            moveToNextPhase(queryPhaseResults, reducedQueryPhase);
         }
     }
 
     private RankFeaturePhaseRankCoordinatorContext coordinatorContext(SearchSourceBuilder source) {
         return source == null || source.rankBuilder() == null
             ? null
-            : context.getRequest()
-                .source()
-                .rankBuilder()
-                .buildRankFeaturePhaseCoordinatorContext(
-                    context.getRequest().source().size(),
-                    context.getRequest().source().from(),
-                    client
-                );
+            : source.rankBuilder().buildRankFeaturePhaseCoordinatorContext(source.size(), source.from(), client);
     }
 
     private void executeRankFeatureShardPhase(

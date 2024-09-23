@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing;
@@ -16,6 +17,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.ByteUtils;
@@ -350,7 +352,7 @@ public abstract class IndexRouting {
                 byte[] idBytes = new byte[4 + suffix.length];
                 ByteUtils.writeIntLE(buildHash(onEmpty), idBytes, 0);
                 System.arraycopy(suffix, 0, idBytes, 4, suffix.length);
-                return Base64.getUrlEncoder().withoutPadding().encodeToString(idBytes);
+                return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(idBytes);
             }
 
             private void extractObject(@Nullable String path, XContentParser source) throws IOException {

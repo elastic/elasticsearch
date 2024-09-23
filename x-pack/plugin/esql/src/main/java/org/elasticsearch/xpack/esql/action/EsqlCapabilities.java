@@ -151,6 +151,11 @@ public class EsqlCapabilities {
         SPATIAL_FUNCTIONS_FIX_CRSTYPE_FOLDING,
 
         /**
+         * Enable spatial predicate functions to support multi-values. Done in #112063.
+         */
+        SPATIAL_PREDICATES_SUPPORT_MULTIVALUES,
+
+        /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
          * https://github.com/elastic/elasticsearch/issues/110184
          */
@@ -299,7 +304,28 @@ public class EsqlCapabilities {
         /**
          * Support explicit casting from string literal to DATE_PERIOD or TIME_DURATION.
          */
-        CAST_STRING_LITERAL_TO_TEMPORAL_AMOUNT;
+        CAST_STRING_LITERAL_TO_TEMPORAL_AMOUNT,
+
+        /**
+         * Supported the text categorization function "CATEGORIZE".
+         */
+        CATEGORIZE(true),
+
+        /**
+         * QSTR function
+         */
+        QSTR_FUNCTION(true),
+
+        /**
+         * Don't optimize CASE IS NOT NULL function by not requiring the fields to be not null as well.
+         * https://github.com/elastic/elasticsearch/issues/112704
+         */
+        FIXED_WRONG_IS_NOT_NULL_CHECK_ON_CASE,
+
+        /**
+         * Compute year differences in full calendar years.
+         */
+        DATE_DIFF_YEAR_CALENDARIAL;
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

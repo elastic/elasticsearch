@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestController;
@@ -151,6 +152,10 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
             this.restApiVersion = restApiVersion;
         }
 
+        @UpdateForV9 // 8.x blows up in a mixed cluster when trying to read RestApiVersion.forMajor(9)
+        // ./gradlew ":qa:mixed-cluster:v8.16.0#mixedClusterTest"
+        // -Dtests.class="org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT"
+        // -Dtests.method="test {p0=capabilities/10_basic/Capabilities API}"
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
@@ -159,7 +164,9 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
             out.writeString(path);
             out.writeCollection(parameters, StreamOutput::writeString);
             out.writeCollection(capabilities, StreamOutput::writeString);
-            out.writeVInt(restApiVersion.major);
+            // Fixme: lies! all lies!
+            out.writeVInt(8);
+            // out.writeVInt(restApiVersion.major);
         }
     }
 }

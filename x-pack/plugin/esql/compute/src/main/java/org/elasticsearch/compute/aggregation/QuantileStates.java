@@ -236,9 +236,7 @@ public final class QuantileStates {
         @Override
         public void close() {
             Releasables.close(
-                Releasables.wrap(
-                    LongStream.range(0, digests.size()).mapToObj(i -> (Releasable) digests.get(i)).toList()
-                ),
+                Releasables.wrap(LongStream.range(0, digests.size()).mapToObj(i -> (Releasable) digests.get(i)).toList()),
                 digests
             );
         }

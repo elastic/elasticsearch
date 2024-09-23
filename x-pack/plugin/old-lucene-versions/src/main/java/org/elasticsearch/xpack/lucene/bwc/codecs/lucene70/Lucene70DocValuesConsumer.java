@@ -60,8 +60,6 @@ import static org.elasticsearch.xpack.lucene.bwc.codecs.lucene70.Lucene70DocValu
 /** writer for {@link Lucene70DocValuesFormat} */
 final class Lucene70DocValuesConsumer extends DocValuesConsumer {
 
-    static final long NO_MORE_ORDS = -1;
-
     IndexOutput data, meta;
     final int maxDoc;
 
@@ -615,7 +613,7 @@ final class Lucene70DocValuesConsumer extends DocValuesConsumer {
         long numOrds = 0;
         for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
             numDocsWithField++;
-            numOrds += values.docValueCount();  // chegar: note this change
+            numOrds += values.docValueCount();
         }
 
         if (numDocsWithField == numOrds) {
@@ -649,7 +647,7 @@ final class Lucene70DocValuesConsumer extends DocValuesConsumer {
         LegacyDirectWriter writer = LegacyDirectWriter.getInstance(data, numOrds, numberOfBitsPerOrd);
         values = valuesProducer.getSortedSet(field);
         for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-            for (int i = 0; i < values.docValueCount(); i++) { // chegar: note this change
+            for (int i = 0; i < values.docValueCount(); i++) {
                 writer.add(values.nextOrd());
             }
         }
@@ -672,7 +670,7 @@ final class Lucene70DocValuesConsumer extends DocValuesConsumer {
         values = valuesProducer.getSortedSet(field);
         for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
             values.nextOrd();
-            addr += values.docValueCount();  // chegar: note this change
+            addr += values.docValueCount();
             addressesWriter.add(addr);
         }
         addressesWriter.finish();

@@ -359,7 +359,10 @@ public class Netty4Transport extends TcpTransport {
         if (NetworkTraceFlag.TRACE_ENABLED) {
             pipeline.addLast("logging", ESLoggingHandler.INSTANCE);
         }
-        pipeline.addLast("chunked_writer", new Netty4WriteThrottlingHandler(getThreadPool().getThreadContext()));
+        pipeline.addLast(
+            "chunked_writer",
+            new Netty4WriteThrottlingHandler(getThreadPool().getThreadContext(), threadWatchdog.getActivityTrackerForCurrentThread())
+        );
         pipeline.addLast(
             "dispatcher",
             new Netty4MessageInboundHandler(

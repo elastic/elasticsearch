@@ -13,7 +13,8 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
@@ -72,6 +73,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     );
 
     private static final Logger logger = LogManager.getLogger(ElasticsearchInternalService.class);
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(ElasticsearchInternalService.class);
 
     public ElasticsearchInternalService(InferenceServiceExtension.InferenceServiceFactoryContext context) {
         super(context);
@@ -98,9 +100,16 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
             String modelId = (String) serviceSettingsMap.get(ElasticsearchInternalServiceSettings.MODEL_ID);
             if (modelId == null) {
-                throw new ValidationException().addValidationError("Error parsing request config, model id is missing");
-            }
-            if (MULTILINGUAL_E5_SMALL_VALID_IDS.contains(modelId)) {
+                // TODO complete deprecation of null model ID
+                // throw new ValidationException().addValidationError("Error parsing request config, model id is missing");
+                DEPRECATION_LOGGER.critical(
+                    DeprecationCategory.API,
+                    "inference_api_null_model_id_in_elasticsearch_service",
+                    "Putting elasticsearch service inference endpoints (including elser service) without a model_id field is"
+                        + " deprecated and will be removed in a future release. Please specify a model_id field."
+                );
+                elserCase(inferenceEntityId, taskType, config, platformArchitectures, serviceSettingsMap, modelListener);
+            } else if (MULTILINGUAL_E5_SMALL_VALID_IDS.contains(modelId)) {
                 e5Case(inferenceEntityId, taskType, config, platformArchitectures, serviceSettingsMap, modelListener);
             } else if (VALID_ELSER_MODEL_IDS.contains(modelId)) {
                 elserCase(inferenceEntityId, taskType, config, platformArchitectures, serviceSettingsMap, modelListener);
@@ -232,10 +241,17 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         ActionListener<Model> modelListener
     ) {
         var esServiceSettingsBuilder = ElasticsearchInternalServiceSettings.fromRequestMap(serviceSettingsMap);
+        final String defaultModelId = selectDefaultModelVariantBasedOnClusterArchitecture(
+            platformArchitectures,
+            ELSER_V2_MODEL_LINUX_X86,
+            ELSER_V2_MODEL
+        );
+        if (false == defaultModelId.equals(esServiceSettingsBuilder.getModelId())) {
 
-        if (false == esServiceSettingsBuilder.getModelId()
-            .equals(selectDefaultModelVariantBasedOnClusterArchitecture(platformArchitectures, ELSER_V2_MODEL_LINUX_X86, ELSER_V2_MODEL))) {
-            if (esServiceSettingsBuilder.getModelId().equals(ELSER_V2_MODEL)) {
+            if (esServiceSettingsBuilder.getModelId() == null) {
+                // TODO remove this case once we remove the option to not pass model ID
+                esServiceSettingsBuilder.setModelId(defaultModelId);
+            } else if (esServiceSettingsBuilder.getModelId().equals(ELSER_V2_MODEL)) {
                 logger.warn(
                     "The platform agnostic model [{}] was requested on Linux x86_64. "
                         + "It is recommended to use the optimized model instead [{}]",

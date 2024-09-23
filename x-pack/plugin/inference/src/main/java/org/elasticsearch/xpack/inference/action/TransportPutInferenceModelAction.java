@@ -165,6 +165,10 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         }
 
         if (service.get().isInClusterService()) {
+
+            // required for BWC of elser service in elasticsearch service TODO remove when elser service deprecated
+            requestAsMap.put(ModelConfigurations.SERVICE, serviceName);
+
             // Find the cluster platform as the service may need that
             // information when creating the model
             MlPlatformArchitecturesUtil.getMlNodesArchitecturesSet(listener.delegateFailureAndWrap((delegate, architectures) -> {
@@ -248,13 +252,6 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
                 service.checkModelConfig(model, storeModelListener);
             }
         });
-
-        { // required for BWC of elser service in elasticsearch service
-            Set<String> localServices = Set.of(ElasticsearchInternalService.NAME, OLD_ELSER_SERVICE_NAME);
-            if (localServices.contains(service.name())) {
-                config.put(ModelConfigurations.SERVICE, service.name());
-            }
-        }
 
         service.parseRequestConfig(inferenceEntityId, taskType, config, platformArchitectures, parsedModelListener);
     }

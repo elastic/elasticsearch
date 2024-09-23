@@ -386,6 +386,8 @@ public class SecurityIndexManager implements ClusterStateListener {
                 }
             }
         };
+        // add listener _before_ registering timeout -- this way we are guaranteed it gets removed (either by timeout below, or successful
+        // completion above)
         addStateListener(indexAvailableForSearchListener);
 
         // schedule failure handling on timeout -- keep reference to cancellable so a successful completion can cancel the timeout

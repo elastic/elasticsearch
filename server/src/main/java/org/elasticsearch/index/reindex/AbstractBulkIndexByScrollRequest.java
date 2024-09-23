@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.tasks.TaskId;
 
@@ -42,7 +43,15 @@ public abstract class AbstractBulkIndexByScrollRequest<Self extends AbstractBulk
      */
     protected AbstractBulkIndexByScrollRequest(SearchRequest searchRequest, boolean setDefaults) {
         super(searchRequest, setDefaults);
-        FetchSourceContext fetchSourceContext = searchRequest.source().fetchSource();
+
+        SearchSourceBuilder searchSourceBuilder = searchRequest.source();
+        if (searchSourceBuilder == null) {
+            searchSourceBuilder = new SearchSourceBuilder();
+            searchRequest.source(searchSourceBuilder);
+        }
+
+        // TODO: Should fetchSourceContext ever be null?
+        FetchSourceContext fetchSourceContext = searchSourceBuilder.fetchSource();
         if (fetchSourceContext != null && fetchSourceContext.includeVectors() == null) {
             searchRequest.source()
                 .fetchSource(

@@ -46,7 +46,8 @@ public class TransportNodesStatsAction extends TransportNodesAction<
     NodesStatsRequest,
     NodesStatsResponse,
     TransportNodesStatsAction.NodeStatsRequest,
-    NodeStats> {
+    NodeStats,
+    Void> {
 
     public static final ActionType<NodesStatsResponse> TYPE = new ActionType<>("cluster:monitor/nodes/stats");
 
@@ -83,6 +84,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
     protected void newResponseAsync(
         Task task,
         NodesStatsRequest request,
+        Void actionContext,
         List<NodeStats> responses,
         List<FailedNodeException> failures,
         ActionListener<NodesStatsResponse> listener
@@ -163,7 +165,6 @@ public class TransportNodesStatsAction extends TransportNodesAction<
 
         public NodeStatsRequest(StreamInput in) throws IOException {
             super(in);
-            skipLegacyNodesRequestHeader(TransportVersions.V_8_13_0, in);
             this.nodesStatsRequestParameters = new NodesStatsRequestParameters(in);
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)
                 && in.getTransportVersion().before(TransportVersions.DROP_UNUSED_NODES_IDS)) {
@@ -192,7 +193,6 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            sendLegacyNodesRequestHeader(TransportVersions.V_8_13_0, out);
             nodesStatsRequestParameters.writeTo(out);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)
                 && out.getTransportVersion().before(TransportVersions.DROP_UNUSED_NODES_IDS)) {

@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.IndexMode;
@@ -115,9 +116,9 @@ public class TimeSeriesRoutingHashFieldMapper extends MetadataFieldMapper {
             String routingHash = context.sourceToParse().routing();
             if (routingHash == null) {
                 assert context.sourceToParse().id() != null;
-                routingHash = Base64.getUrlEncoder()
-                    .withoutPadding()
-                    .encodeToString(Arrays.copyOf(Base64.getUrlDecoder().decode(context.sourceToParse().id()), 4));
+                routingHash = Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(
+                    Arrays.copyOf(Base64.getUrlDecoder().decode(context.sourceToParse().id()), 4)
+                );
             }
             var field = new SortedDocValuesField(NAME, Uid.encodeId(routingHash));
             context.rootDoc().add(field);
@@ -132,7 +133,7 @@ public class TimeSeriesRoutingHashFieldMapper extends MetadataFieldMapper {
     public static String encode(int routingId) {
         byte[] bytes = new byte[4];
         ByteUtils.writeIntLE(routingId, bytes, 0);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(bytes);
     }
 
     public static final String DUMMY_ENCODED_VALUE = encode(0);

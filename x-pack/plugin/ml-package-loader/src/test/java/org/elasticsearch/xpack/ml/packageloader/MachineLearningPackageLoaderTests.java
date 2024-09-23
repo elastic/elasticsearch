@@ -7,12 +7,8 @@
 
 package org.elasticsearch.xpack.ml.packageloader;
 
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
-
-import java.util.List;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
@@ -83,13 +79,5 @@ public class MachineLearningPackageLoaderTests extends ESTestCase {
         );
 
         assertEquals("xpack.ml.model_repository does not support authentication", e.getMessage());
-    }
-
-    public void testThreadPoolHasSingleThread() {
-        var fixedThreadPool = MachineLearningPackageLoader.modelDownloadExecutor(Settings.EMPTY);
-        List<Setting<?>> settings = fixedThreadPool.getRegisteredSettings();
-        var sizeSettting = settings.stream().filter(s -> s.getKey().startsWith("xpack.ml.model_download_thread_pool")).findFirst();
-        assertTrue(sizeSettting.isPresent());
-        assertEquals(5, sizeSettting.get().get(Settings.EMPTY));
     }
 }

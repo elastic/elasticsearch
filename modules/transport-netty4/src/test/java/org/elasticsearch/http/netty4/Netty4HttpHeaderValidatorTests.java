@@ -117,6 +117,36 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
         assertThat(netty4HttpHeaderValidator.getState(), equalTo(QUEUEING_DATA));
     }
 
+    public void testValidatorDoesNotTweakAutoReadAfterValidationComplete() {
+        assertTrue(channel.config().isAutoRead());
+        assertThat(netty4HttpHeaderValidator.getState(), equalTo(WAITING_TO_START));
+
+        final DefaultHttpRequest request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri");
+        DefaultHttpContent content = new DefaultHttpContent(Unpooled.buffer(4));
+        channel.writeInbound(request);
+        channel.writeInbound(content);
+
+        assertThat(header.get(), sameInstance(request));
+        // channel is paused
+        assertThat(channel.readInbound(), nullValue());
+        assertFalse(channel.config().isAutoRead());
+
+        // channel is resumed
+        listener.get().onResponse(null);
+        channel.runPendingTasks();
+
+        assertTrue(channel.config().isAutoRead());
+        assertThat(netty4HttpHeaderValidator.getState(), equalTo(FORWARDING_DATA_UNTIL_NEXT_REQUEST));
+        assertThat(channel.readInbound(), sameInstance(request));
+        assertThat(channel.readInbound(), sameInstance(content));
+        assertThat(channel.readInbound(), nullValue());
+        assertThat(content.refCnt(), equalTo(1));
+        channel.config().setAutoRead(false);
+
+        channel.writeOutbound(new DefaultHttpContent(Unpooled.buffer(4)));
+        assertFalse(channel.config().isAutoRead());
+    }
+
     public void testContentForwardedAfterValidation() {
         assertTrue(channel.config().isAutoRead());
         assertThat(netty4HttpHeaderValidator.getState(), equalTo(WAITING_TO_START));

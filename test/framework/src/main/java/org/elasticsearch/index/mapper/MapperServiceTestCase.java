@@ -152,6 +152,11 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         return createMapperService(mappings).documentMapper();
     }
 
+    protected final DocumentMapper createSyntheticSourceDocumentMapper(XContentBuilder mappings) throws IOException {
+        var settings = Settings.builder().put(SourceFieldMapper.SOURCE_MODE_SETTING.getKey(), "synthetic").build();
+        return createMapperService(settings, mappings).documentMapper();
+    }
+
     protected final DocumentMapper createTimeSeriesModeDocumentMapper(XContentBuilder mappings) throws IOException {
         Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), "time_series")

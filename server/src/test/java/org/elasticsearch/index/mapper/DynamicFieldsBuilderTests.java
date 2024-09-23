@@ -10,7 +10,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -69,8 +68,7 @@ public class DynamicFieldsBuilderTests extends ESTestCase {
         XContentParser parser = createParser(JsonXContent.jsonXContent, source);
         SourceToParse sourceToParse = new SourceToParse("test", new BytesArray(source), XContentType.JSON);
 
-        var indexSettings = Settings.builder().put("index.mapper.source.mode", "synthetic").build();
-        SourceFieldMapper sourceMapper = new SourceFieldMapper.Builder(null, indexSettings, false, true).build();
+        SourceFieldMapper sourceMapper = new SourceFieldMapper.Builder(null, SourceFieldMapper.Mode.SYNTHETIC, true, false, true).build();
         RootObjectMapper root = new RootObjectMapper.Builder("_doc", Optional.empty()).add(
             new PassThroughObjectMapper.Builder("labels").setPriority(0).setContainsDimensions().dynamic(ObjectMapper.Dynamic.TRUE)
         ).build(MapperBuilderContext.root(false, false));

@@ -374,8 +374,8 @@ public class HistogramFieldMapperTests extends MapperTestCase {
     }
 
     public void testArrayValueSyntheticSource() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(
-            syntheticSourceFieldMapping(b -> b.field("type", "histogram").field("ignore_malformed", "true"))
+        DocumentMapper mapper = createSyntheticSourceDocumentMapper(
+            fieldMapping(b -> b.field("type", "histogram").field("ignore_malformed", "true"))
         );
 
         var randomString = randomAlphaOfLength(10);

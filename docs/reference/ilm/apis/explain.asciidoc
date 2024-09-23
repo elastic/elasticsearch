@@ -335,5 +335,4 @@ is true, {ilm-init} will retry the failed step automatically.
 <3> Shows the number of attempted automatic retries to execute the failed
 step.
 <4> What went wrong
-<5> If the step before produces a `step_info` or the previous attempt to auto retry this step failed, this field will contain a copy of that previous attempt's `step_info` field for diagnostic purposes as `step_info` is overwritten during
-each new attempt.
+<5> Contains a copy of the `step_info` field (when it exists) of the last attempted or executed step for diagnostic purposes, since the `step_info` is overwritten during each new attempt.

@@ -901,6 +901,16 @@
     - length: { tokens: 1 }
     - match:  { tokens.0.token: خورد }
 
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text: كتابها
+            analyzer: my_analyzer
+    - length: { tokens: 1 }
+    - match: { tokens.0.token: كتاب     }
+
+
 ---
 "portuguese":
     - do:

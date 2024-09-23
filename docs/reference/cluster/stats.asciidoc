@@ -1318,9 +1318,8 @@ Each repository type may also include other statistics about the repositories of
 
 `clusters`:::
 (object) Contains remote cluster settings and metrics collected from them.
-Only present if `include_remotes` option is set to `true` and there are any remote clusters configured.
-If the node filter is specified, it will be passed to the remote clusters.
 The keys are cluster names, and the values are per-cluster data.
+Only present if `include_remotes` option is set to `true`.
 
 +
 .Properties of `clusters`
@@ -1379,7 +1378,7 @@ as a human-readable string.
 
 
 `_search`:::
-(object) Contains the telemetry information about the <<modules-cross-cluster-search, {ccs}>> usage in the cluster.
+(object) Contains the information about the <<modules-cross-cluster-search, {ccs}>> usage in the cluster.
 +
 .Properties of `_search`
 [%collapsible%open]

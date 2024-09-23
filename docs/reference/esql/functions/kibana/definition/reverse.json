@@ -31,7 +31,7 @@
   ],
   "examples" : [
     "ROW message = \"Some Text\" | EVAL message_reversed = REVERSE(message);",
-    "ROW message = \"😁😅😐🫤🥺😢😭\" | EVAL message_reversed = REVERSE(message);"
+    "ROW message = \"😂😁😅😐🥺😢😭\" | EVAL message_reversed = REVERSE(message);"
   ],
   "preview" : false
 }

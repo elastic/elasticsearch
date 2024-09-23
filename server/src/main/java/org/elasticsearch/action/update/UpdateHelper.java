@@ -347,7 +347,7 @@ public class UpdateHelper {
             return null;
         }
         BytesReference sourceFilteredAsBytes = sourceAsBytes;
-        if (request.fetchSource().hasFilter()) {
+        if (request.fetchSource().hasFilter() || request.fetchSource().filterVectorFields()) {
             sourceFilteredAsBytes = Source.fromMap(source, sourceContentType)
                 .filter(request.fetchSource().filter(mappingLookup))
                 .internalSourceRef();

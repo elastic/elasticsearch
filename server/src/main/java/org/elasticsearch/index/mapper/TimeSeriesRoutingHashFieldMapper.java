@@ -65,6 +65,13 @@ public class TimeSeriesRoutingHashFieldMapper extends MetadataFieldMapper {
                 return Uid.decodeId(value.bytes, value.offset, value.length);
             }
 
+            @Override
+            public BytesRef parseBytesRef(Object value) {
+                if (value instanceof BytesRef valueAsBytesRef) {
+                    return valueAsBytesRef;
+                }
+                return new BytesRef(value.toString());
+            }
         };
 
         private TimeSeriesRoutingHashFieldType() {

@@ -422,8 +422,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
                         .build()
                 );
             }
-            /* We are executing a lazy rollover because it is an action specialised for this situation, when we want an
-             * unconditional and performant rollover. */
+            // We are executing a lazy rollover because it is an action specialised for this situation, when we want an
+            // unconditional and performant rollover.
             rollOver(rolloverRequest, ActionListener.releaseAfter(new ActionListener<>() {
 
                 @Override

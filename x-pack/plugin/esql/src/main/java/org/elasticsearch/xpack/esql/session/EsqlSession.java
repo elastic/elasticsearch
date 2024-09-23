@@ -12,8 +12,10 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.logging.LogManager;
@@ -63,6 +65,7 @@ import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -238,6 +241,8 @@ public class EsqlSession {
                 .collect(Collectors.toSet());
             preAnalyzeIndices(parsed, executionInfo, l.delegateFailureAndWrap((ll, indexResolution) -> {
                 if (indexResolution.isValid()) {
+                    updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.getUnavailableClusters());
+                    updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
                     Set<String> newClusters = enrichPolicyResolver.groupIndicesPerCluster(
                         indexResolution.get().concreteIndices().toArray(String[]::new)
                     ).keySet();
@@ -256,6 +261,45 @@ public class EsqlSession {
                 ll.onResponse(action.apply(indexResolution, enrichResolution));
             }), matchFields);
         }));
+    }
+
+    // visible for testing
+    static void updateExecutionInfoWithUnavailableClusters(EsqlExecutionInfo executionInfo, Set<String> unavailableClusters) {
+        for (String clusterAlias : unavailableClusters) {
+            executionInfo.swapCluster(
+                clusterAlias,
+                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED).build()
+            );
+            // TODO: follow-on PR will set SKIPPED status when skip_unavailable=true and throw an exception when skip_un=false
+        }
+    }
+
+    // visible for testing
+    static void updateExecutionInfoWithClustersWithNoMatchingIndices(EsqlExecutionInfo executionInfo, IndexResolution indexResolution) {
+        Set<String> clustersWithResolvedIndices = new HashSet<>();
+        // determine missing clusters
+        for (String indexName : indexResolution.get().indexNameWithModes().keySet()) {
+            clustersWithResolvedIndices.add(IndexResolver.parseClusterAlias(indexName));
+        }
+        Set<String> clustersRequested = executionInfo.clusterAliases();
+        Set<String> clustersWithNoMatchingIndices = Sets.difference(clustersRequested, clustersWithResolvedIndices);
+        /*
+         * These are clusters in the original request that are not present in the field-caps response. They were
+         * specified with an index or indices that do not exist, so the search on that cluster is done.
+         * Mark it as complete with 0 shards searched and 0 took time.
+         */
+        for (String c : clustersWithNoMatchingIndices) {
+            executionInfo.swapCluster(
+                c,
+                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
+                    .setTook(new TimeValue(0))
+                    .setTotalShards(0)
+                    .setSuccessfulShards(0)
+                    .setSkippedShards(0)
+                    .setFailedShards(0)
+                    .build()
+            );
+        }
     }
 
     private void preAnalyzeIndices(
@@ -283,7 +327,7 @@ public class EsqlSession {
                     return new EsqlExecutionInfo.Cluster(clusterAlias, indexExpr.toString(), executionInfo.isSkipUnavailable(clusterAlias));
                 });
             }
-            indexResolver.resolveAsMergedMapping(table.index(), fieldNames, executionInfo, listener);
+            indexResolver.resolveAsMergedMapping(table.index(), fieldNames, listener);
         } else {
             try {
                 // occurs when dealing with local relations (row a = 1)

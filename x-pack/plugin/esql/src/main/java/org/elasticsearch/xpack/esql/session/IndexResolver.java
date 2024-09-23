@@ -17,12 +17,10 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
@@ -80,25 +78,16 @@ public class IndexResolver {
     /**
      * Resolves a pattern to one (potentially compound meaning that spawns multiple indices) mapping.
      */
-    public void resolveAsMergedMapping(
-        String indexWildcard,
-        Set<String> fieldNames,
-        EsqlExecutionInfo executionInfo,
-        ActionListener<IndexResolution> listener
-    ) {
+    public void resolveAsMergedMapping(String indexWildcard, Set<String> fieldNames, ActionListener<IndexResolution> listener) {
         client.execute(
             EsqlResolveFieldsAction.TYPE,
             createFieldCapsRequest(indexWildcard, fieldNames),
-            listener.delegateFailureAndWrap((l, response) -> l.onResponse(mergedMappings(indexWildcard, executionInfo, response)))
+            listener.delegateFailureAndWrap((l, response) -> l.onResponse(mergedMappings(indexWildcard, response)))
         );
     }
 
     // public for testing only
-    public IndexResolution mergedMappings(
-        String indexPattern,
-        EsqlExecutionInfo executionInfo,
-        FieldCapabilitiesResponse fieldCapsResponse
-    ) {
+    public IndexResolution mergedMappings(String indexPattern, FieldCapabilitiesResponse fieldCapsResponse) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
         if (fieldCapsResponse.getIndexResponses().isEmpty()) {
             return IndexResolution.notFound(indexPattern);
@@ -165,76 +154,35 @@ public class IndexResolver {
             return IndexResolution.valid(new EsIndex(indexPattern, rootFields, Map.of()));
         }
 
-        Set<String> clustersInFieldCapsResponse = new HashSet<>();
         Map<String, IndexMode> concreteIndices = Maps.newMapWithExpectedSize(fieldCapsResponse.getIndexResponses().size());
         for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
-            String indexExpression = ir.getIndexName();
             concreteIndices.put(ir.getIndexName(), ir.getIndexMode());
-            clustersInFieldCapsResponse.add(parseClusterAlias(indexExpression));
         }
-        if (executionInfo != null) {
-            updateExecutionInfoWithFieldCapsResults(executionInfo, clustersInFieldCapsResponse, fieldCapsResponse.getFailures());
-        }
-        return IndexResolution.valid(new EsIndex(indexPattern, rootFields, concreteIndices));
+        Set<String> unavailableRemoteClusters = determineUnavailableRemoteClusters(fieldCapsResponse.getFailures());
+        return IndexResolution.valid(new EsIndex(indexPattern, rootFields, concreteIndices), unavailableRemoteClusters);
     }
 
     // visible for testing
-    static void updateExecutionInfoWithFieldCapsResults(
-        EsqlExecutionInfo executionInfo,
-        Set<String> clustersInFieldCapsResponse,
-        List<FieldCapabilitiesFailure> failures
-    ) {
-        Set<String> clustersWithoutFieldCapsResponses = new HashSet<>(executionInfo.clusterAliases());
-        for (String clusterAlias : clustersInFieldCapsResponse) {
-            clustersWithoutFieldCapsResponses.remove(clusterAlias);
-        }
-
-        // TODO: modify field-caps (or EsqlResolveFieldsActions if we fully fork field-caps) to return skipped clusters
-        // https://github.com/elastic/elasticsearch/issues/113394
-        /*
-         * These are clusters in the original request that are not present in the field-caps response. They were
-         * specified with an index or indices that do not exist, so the search on that cluster is done.
-         * Mark it as complete with 0 shards searched and 0 took time.
-         */
-        for (String c : clustersWithoutFieldCapsResponses) {
-            executionInfo.swapCluster(
-                c,
-                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
-                    .setTook(new TimeValue(0))
-                    .setTotalShards(0)
-                    .setSuccessfulShards(0)
-                    .setSkippedShards(0)
-                    .setFailedShards(0)
-                    .build()
-            );
-        }
-
-        if (failures != null) {
-            Set<String> unavailableClusters = new HashSet<>();
-            for (FieldCapabilitiesFailure failure : failures) {
-                if (ExceptionsHelper.isRemoteUnavailableException(failure.getException())) {
-                    for (String indexExpression : failure.getIndices()) {
-                        if (indexExpression.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR) > 0) {
-                            unavailableClusters.add(parseClusterAlias(indexExpression));
-                        }
+    static Set<String> determineUnavailableRemoteClusters(List<FieldCapabilitiesFailure> failures) {
+        Set<String> unavailableRemotes = new HashSet<>();
+        for (FieldCapabilitiesFailure failure : failures) {
+            if (ExceptionsHelper.isRemoteUnavailableException(failure.getException())) {
+                for (String indexExpression : failure.getIndices()) {
+                    if (indexExpression.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR) > 0) {
+                        unavailableRemotes.add(parseClusterAlias(indexExpression));
                     }
                 }
             }
-            for (String clusterAlias : unavailableClusters) {
-                executionInfo.swapCluster(
-                    clusterAlias,
-                    (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED).build()
-                );
-                // TODO: follow-on PR will set SKIPPED status when skip_unavailable=true and throw an exception when skip_unavailable=false
-            }
         }
+        return unavailableRemotes;
     }
 
     /**
      * @param indexExpression expects a single index expression at a time
      * @return cluster alias in the index expression. If none is present, returns RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY
      */
-    static String parseClusterAlias(String indexExpression) {
+    // MP TODO: move this elsewhere
+    public static String parseClusterAlias(String indexExpression) {
         assert indexExpression != null : "Must not pass null indexExpression";
         String trimmed = indexExpression.trim();
         String sep = String.valueOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR);

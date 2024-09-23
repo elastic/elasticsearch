@@ -80,8 +80,6 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
 
     public void testSimple() {
         Map<String, Object> testClusterInfo = setupTwoClusters();
-        String localIndex = (String) testClusterInfo.get("local.index");
-        String remoteIndex = (String) testClusterInfo.get("remote.index");
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
         int remoteNumShards = (Integer) testClusterInfo.get("remote.num_shards");
 
@@ -151,8 +149,6 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
 
     public void testSearchesWhereMissingIndicesAreSpecified() {
         Map<String, Object> testClusterInfo = setupTwoClusters();
-        String localIndex = (String) testClusterInfo.get("local.index");
-        String remoteIndex = (String) testClusterInfo.get("remote.index");
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
         int remoteNumShards = (Integer) testClusterInfo.get("remote.num_shards");
 

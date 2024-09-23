@@ -659,11 +659,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
     /**
      * @param uploadedBcc the BCC that was uploaded
-     * @param blobLocations the individual files (not blobs) that are still necessary to be able to access, including
+     * @param blobFileRanges the individual files and blob file ranges that are still necessary to be able to access, including
      *                      being held by open readers or being part of a commit that is not yet deleted by lucene.
      *                      Always includes all files from the new commit.
      */
-    public record UploadedBccInfo(BatchedCompoundCommit uploadedBcc, Map<String, BlobLocation> blobLocations) {}
+    public record UploadedBccInfo(BatchedCompoundCommit uploadedBcc, Map<String, BlobFileRanges> blobFileRanges) {}
 
     public void addConsumerForNewUploadedBcc(ShardId shardId, Consumer<UploadedBccInfo> listener) {
         requireNonNull(listener, "listener cannot be null");
@@ -1352,7 +1352,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             // From this point onwards the IndexDirectory can delete the local files and rely on the files that are uploaded
             // into the blob store, hence we just provide the Lucene file -> BlobLocation map for files that are already uploaded
             // as it's possible the blobLocations contains files from new commits that are not uploaded yet
-            final Map<String, BlobLocation> uploadedFilesBlobLocations =
+            final Map<String, BlobFileRanges> uploadedFilesBlobLocations =
                 // all blob locations uploaded since the shard started that are still in use
                 blobLocations.entrySet()
                     .stream()
@@ -1362,7 +1362,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                             .getPrimaryTermAndGeneration()
                             .onOrBefore(uploadedBcc.primaryTermAndGeneration())
                     )
-                    .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().blobLocation()));
+                    // TODO Build a map of BlobFileRanges that includes replicated ranges (ES-9344)
+                    .collect(Collectors.toMap(Map.Entry::getKey, entry -> new BlobFileRanges(entry.getValue().blobLocation())));
 
             assert uploadedFilesBlobLocations.values()
                 .stream()

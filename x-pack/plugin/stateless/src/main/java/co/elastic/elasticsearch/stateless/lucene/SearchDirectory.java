@@ -24,6 +24,7 @@ import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
 import co.elastic.elasticsearch.stateless.cache.reader.MutableObjectStoreUploadTracker;
+import co.elastic.elasticsearch.stateless.commits.BlobFileRanges;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
@@ -152,12 +153,12 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     }
 
     @Override
-    protected IndexInput doOpenInput(String name, IOContext context, BlobLocation blobLocation) {
+    protected IndexInput doOpenInput(String name, IOContext context, BlobFileRanges blobFileRanges) {
         if (isGenerationalFile(name) == false) {
-            return super.doOpenInput(name, context, blobLocation);
+            return super.doOpenInput(name, context, blobFileRanges);
         }
-        var releasable = acquireGenerationalFileTermAndGeneration(blobLocation.getBatchedCompoundCommitTermAndGeneration(), name);
-        return doOpenInput(name, context, blobLocation, releasable);
+        var releasable = acquireGenerationalFileTermAndGeneration(blobFileRanges.getBatchedCompoundCommitTermAndGeneration(), name);
+        return doOpenInput(name, context, blobFileRanges, releasable);
     }
 
     /**
@@ -183,7 +184,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                     // we expect generational files to be opened when the reader is refreshed and picks up the generational files for the
                     // first time and never reopened them after that (as segment core readers are handed over between refreshed reader
                     // instances).
-                    updatedMetadata.putIfAbsent(fileName, blobLocation);
+                    updatedMetadata.putIfAbsent(fileName, new BlobFileRanges(blobLocation));
                     if (generationalFilesTermAndGen == null) {
                         generationalFilesTermAndGen = blobLocation.getBatchedCompoundCommitTermAndGeneration();
                     }
@@ -195,7 +196,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                             + " which is different from "
                             + generationalFilesTermAndGen;
                 } else {
-                    updatedMetadata.put(fileName, blobLocation);
+                    updatedMetadata.put(fileName, new BlobFileRanges(blobLocation));
                 }
                 commitSize += blobLocation.fileLength();
             }
@@ -242,7 +243,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         if (filesToRetain.containsAll(currentMetadata.keySet()) == false) {
             assert assertCompareAndSetUpdatingCommitThread(null, Thread.currentThread());
             try {
-                final Map<String, BlobLocation> updated = new HashMap<>(currentMetadata);
+                final var updated = new HashMap<>(currentMetadata);
                 updated.keySet().retainAll(filesToRetain);
                 assert updated.keySet().containsAll(filesToRetain)
                     : "missing files [" + Sets.difference(filesToRetain, updated.keySet()) + "]";

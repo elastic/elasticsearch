@@ -63,7 +63,7 @@ public abstract class FullTextFunction extends Function {
     }
 
     protected TypeResolution doResolveType() {
-        return isString(query(), sourceText(), queryParamOrdinal()).and(isNotNullAndFoldable(query(), functionName(), queryParamOrdinal()));
+        return isString(query(), sourceText(), queryParamOrdinal()).and(isNotNullAndFoldable(query(), sourceText(), queryParamOrdinal()));
     }
 
     public Expression query() {

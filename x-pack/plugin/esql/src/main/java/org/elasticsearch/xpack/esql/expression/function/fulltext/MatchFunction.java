@@ -99,7 +99,7 @@ public class MatchFunction extends FullTextFunction {
 
     @Override
     protected TypeResolution doResolveType() {
-        return isNotNull(field, functionName(), FIRST).and(isString(field, functionName(), FIRST)).and(super.doResolveType());
+        return isNotNull(field, sourceText(), FIRST).and(isString(field, sourceText(), FIRST)).and(super.doResolveType());
     }
 
     @Override

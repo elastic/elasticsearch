@@ -1225,8 +1225,8 @@ public class VerifierTests extends ESTestCase {
     public void testQueryStringFunctionArgNotNullOrConstant() throws Exception {
         assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
 
-        assertEquals("1:19: argument of [QSTR] must be a constant, received [first_name]", error("from test | where qstr(first_name)"));
-        assertEquals("1:19: argument of [QSTR] cannot be null, received [null]", error("from test | where qstr(null)"));
+        assertEquals("1:19: argument of [qstr(first_name)] must be a constant, received [first_name]", error("from test | where qstr(first_name)"));
+        assertEquals("1:19: argument of [qstr(null)] cannot be null, received [null]", error("from test | where qstr(null)"));
         // Other value types are tested in QueryStringFunctionTests
     }
 
@@ -1234,15 +1234,15 @@ public class VerifierTests extends ESTestCase {
         assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
 
         assertEquals(
-            "1:19: first argument of [MATCHSTR] cannot be null, received [null]",
+            "1:19: first argument of [matchstr(null, \"Anna\")] cannot be null, received [null]",
             error("from test | where matchstr(null, \"Anna\")")
         );
         assertEquals(
-            "1:19: second argument of [MATCHSTR] cannot be null, received [null]",
+            "1:19: second argument of [matchstr(first_name, null)] cannot be null, received [null]",
             error("from test | where matchstr(first_name, null)")
         );
         assertEquals(
-            "1:19: second argument of [MATCHSTR] must be a constant, received [first_name]",
+            "1:19: second argument of [matchstr(first_name, first_name)] must be a constant, received [first_name]",
             error("from test | where matchstr(first_name, first_name)")
         );
         // Other value types are tested in QueryStringFunctionTests
@@ -1252,7 +1252,7 @@ public class VerifierTests extends ESTestCase {
         assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
 
         assertEquals(
-            "1:19: second argument of [MATCHSTR] cannot be null, received [null]",
+            "1:19: second argument of [matchstr(\"first_name\", null)] cannot be null, received [null]",
             error("from test | where matchstr(\"first_name\", null)")
         );
     }

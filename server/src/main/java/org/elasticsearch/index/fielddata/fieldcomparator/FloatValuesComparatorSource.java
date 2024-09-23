@@ -54,7 +54,7 @@ public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparator
         return SortField.Type.FLOAT;
     }
 
-    private NumericDoubleValues getNumericDocValues(LeafReaderContext context, float missingValue) throws IOException {
+    private NumericDoubleValues getNumericDocValues(LeafReaderContext context, double missingValue) throws IOException {
         final SortedNumericDoubleValues values = indexFieldData.load(context).getDoubleValues();
         if (nested == null) {
             return FieldData.replaceMissing(sortMode.select(values), missingValue);

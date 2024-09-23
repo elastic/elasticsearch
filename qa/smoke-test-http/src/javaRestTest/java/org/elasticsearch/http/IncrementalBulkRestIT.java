@@ -29,6 +29,12 @@ import static org.hamcrest.Matchers.equalTo;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 2, numClientNodes = 0)
 public class IncrementalBulkRestIT extends HttpSmokeTestCase {
 
+    public void testBulkUriMatchingDoesNotMatchBulkCapabilitiesApi() throws IOException {
+        Request request = new Request("GET", "/_capabilities?method=GET&path=%2F_bulk&capabilities=failure_store_status&pretty");
+        Response response = getRestClient().performRequest(request);
+        assertEquals(200, response.getStatusLine().getStatusCode());
+    }
+
     public void testBulkMissingBody() throws IOException {
         Request request = new Request(randomBoolean() ? "POST" : "PUT", "/_bulk");
         request.setJsonEntity("");

@@ -504,7 +504,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         metadataCreateIndexService.createIndex(
             MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
             TimeValue.ZERO,
-            TimeValue.ZERO,
+            null,
             createRequest,
             listener
         );

@@ -265,7 +265,7 @@ public class MetadataCreateIndexService {
     public void createIndex(
         final TimeValue masterNodeTimeout,
         final TimeValue ackTimeout,
-        final TimeValue waitForActiveShardsTimeout,
+        @Nullable final TimeValue waitForActiveShardsTimeout,
         final CreateIndexClusterStateUpdateRequest request,
         final ActionListener<ShardsAcknowledgedResponse> listener
     ) {

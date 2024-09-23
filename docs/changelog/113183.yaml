@@ -1,0 +1,6 @@
+pr: 113183
+summary: "ESQL: TOP support for strings"
+area: ES|QL
+type: feature
+issues:
+ - 109849

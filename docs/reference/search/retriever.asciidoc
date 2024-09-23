@@ -89,23 +89,7 @@ PUT /restaurants
   "mappings": {
     "properties": {
       "region": { "type": "keyword" },
-      "year": { "type": "keyword" }
-    }
-  }
-}
-
-POST /restaurants/_bulk?refresh
-{"index":{}}
-{"region": "Austria", "year": "2019"}
-{"index":{}}
-{"region": "France", "year": "2019"}
-{"index":{}}
-{"region": "Austria", "year": "2020"}
-
-PUT /my-embeddings
-{
-  "mappings": {
-    "properties": {
+      "year": { "type": "keyword" },
       "vector": {
         "type": "dense_vector",
         "dims": 3
@@ -114,22 +98,21 @@ PUT /my-embeddings
   }
 }
 
-POST /my-embeddings/_bulk?refresh
+POST /restaurants/_bulk?refresh
 {"index":{}}
-{"vector": [10, 22, 77]}
+{"region": "Austria", "year": "2019", "vector": [10, 22, 77]}
 {"index":{}}
-{"vector": [10, 22, 78]}
+{"region": "France", "year": "2019", "vector": [10, 22, 78]}
 {"index":{}}
-{"vector": [10, 22, 79]}
+{"region": "Austria", "year": "2020", "vector": [10, 22, 79]}
 {"index":{}}
-{"vector": [10, 22, 80]}
+{"region": "France", "year": "2020", "vector": [10, 22, 80]}
 ----
 // TESTSETUP
 
 [source,console]
 --------------------------------------------------
 DELETE /restaurants
-DELETE /my-embeddings
 --------------------------------------------------
 // TEARDOWN
 ////
@@ -163,7 +146,7 @@ GET /restaurants/_search
 }
 ----
 <1> Opens the `retriever` object.
-<2> The `standard` retriever is used for definining traditional {es} queries.
+<2> The `standard` retriever is used for defining traditional {es} queries.
 <3> The entry point for defining the search query.
 <4> The `bool` object allows for combining multiple query clauses logically.
 <5> The `should` array indicates conditions under which a document will match. Documents matching these conditions will increase their relevancy score.
@@ -225,7 +208,7 @@ The parameters `query_vector` and `query_vector_builder` cannot be used together
 
 [source,console]
 ----
-GET my-embeddings/_search
+GET /restaurants/_search
 {
   "retriever": {
     "knn": { <1>
@@ -276,7 +259,7 @@ A simple hybrid search example (lexical search + dense vector search) combining 
 
 [source,console]
 ----
-GET /restaurants,my-embeddings/_search
+GET /restaurants/_search
 {
   "retriever": {
     "rrf": { <1>

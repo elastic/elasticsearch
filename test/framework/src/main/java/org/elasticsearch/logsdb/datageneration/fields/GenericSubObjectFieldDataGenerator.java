@@ -62,7 +62,8 @@ public class GenericSubObjectFieldDataGenerator {
                         new DataSourceRequest.LeafMappingParametersGenerator(
                             fieldName,
                             fieldTypeInfo.fieldType(),
-                            context.getEligibleCopyToDestinations()
+                            context.getEligibleCopyToDestinations(),
+                            dynamicMapping
                         )
                     );
                 var generator = fieldTypeInfo.fieldType()

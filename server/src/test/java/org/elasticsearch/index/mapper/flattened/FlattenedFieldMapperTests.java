@@ -29,6 +29,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KeyedFlattenedFieldType;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -200,11 +201,11 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.field("time_series_dimensions", List.of("key1", "key2", "field3.key3"));
         }), IndexMode.TIME_SERIES);
 
-        Exception e = expectThrows(
-            DocumentParsingException.class,
-            () -> mapper.parse(source(b -> b.array("field.key1", "value1", "value2")))
-        );
-        assertThat(e.getCause().getMessage(), containsString("Dimension field [field.key1] cannot be a multi-valued field"));
+        ParsedDocument doc = mapper.parse(source(null, b -> {
+            b.array("field.key1", "value1", "value2");
+            b.field("@timestamp", Instant.now());
+        }, TimeSeriesRoutingHashFieldMapper.encode(randomInt())));
+        assertThat(doc.docs().get(0).getFields("field"), hasSize(greaterThan(1)));
     }
 
     public void testDimensionMultiValuedFieldNonTSDB() throws IOException {

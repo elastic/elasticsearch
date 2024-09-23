@@ -11,6 +11,8 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.inference.InferenceService;
@@ -23,8 +25,10 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
 import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
 
 import java.util.Set;
@@ -42,6 +46,7 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
     private final InferenceServiceRegistry serviceRegistry;
     private final InferenceStats inferenceStats;
     private final StreamingTaskManager streamingTaskManager;
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(PutInferenceModelAction.class);
 
     @Inject
     public TransportInferenceAction(
@@ -74,6 +79,16 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
                     )
                 );
                 return;
+            }
+            String ELSER_SERVICE_NAME = "elser";
+            if (service.get().name().equals(ELSER_SERVICE_NAME)) {
+                DEPRECATION_LOGGER.warn(
+                    DeprecationCategory.API,
+                    "inference_api_elser_service",
+                    "The [{}] service is deprecated and will be removed in a future release. Use the [{}] service instead.",
+                    ELSER_SERVICE_NAME,
+                    ElasticsearchInternalService.NAME
+                );
             }
 
             if (request.getTaskType().isAnyOrSame(unparsedModel.taskType()) == false) {

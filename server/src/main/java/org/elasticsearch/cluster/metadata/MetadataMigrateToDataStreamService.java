@@ -18,7 +18,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -40,6 +39,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
@@ -283,15 +283,11 @@ public class MetadataMigrateToDataStreamService {
         }
     }
 
-    @SuppressWarnings("rawtypes")
-    public static final class MigrateToDataStreamClusterStateUpdateRequest extends ClusterStateUpdateRequest {
-
-        private final String aliasName;
-
-        public MigrateToDataStreamClusterStateUpdateRequest(String aliasName, TimeValue masterNodeTimeout, TimeValue timeout) {
-            this.aliasName = aliasName;
-            masterNodeTimeout(masterNodeTimeout);
-            ackTimeout(timeout);
+    public record MigrateToDataStreamClusterStateUpdateRequest(String aliasName, TimeValue masterNodeTimeout, TimeValue ackTimeout) {
+        public MigrateToDataStreamClusterStateUpdateRequest {
+            Objects.requireNonNull(aliasName);
+            Objects.requireNonNull(masterNodeTimeout);
+            Objects.requireNonNull(ackTimeout);
         }
     }
 

@@ -76,8 +76,4 @@ final class VectorDVLeafFieldData implements LeafFieldData {
         }
     }
 
-    @Override
-    public void close() {
-        // no-op
-    }
 }

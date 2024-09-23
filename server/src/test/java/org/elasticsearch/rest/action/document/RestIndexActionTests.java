@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.document.RestIndexAction.AutoIdHandler;
@@ -29,18 +28,12 @@ import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public final class RestIndexActionTests extends RestActionTestCase {
-
-    final List<String> contentTypeHeader = Collections.singletonList(randomCompatibleMediaType(RestApiVersion.V_7));
-
     private final AtomicReference<ClusterState> clusterStateSupplier = new AtomicReference<>();
 
     @Before
@@ -84,35 +77,5 @@ public final class RestIndexActionTests extends RestActionTestCase {
         );
         dispatchRequest(autoIdRequest);
         assertThat(executeCalled.get(), equalTo(true));
-    }
-
-    public void testTypeInPath() {
-        // using CompatibleRestIndexAction
-        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
-            .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
-            .withPath("/some_index/some_type/some_id")
-            .build();
-        dispatchRequest(deprecatedRequest);
-        assertCriticalWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE);
-    }
-
-    public void testCreateWithTypeInPath() {
-        // using CompatibleCreateHandler
-        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
-            .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
-            .withPath("/some_index/some_type/some_id/_create")
-            .build();
-        dispatchRequest(deprecatedRequest);
-        assertCriticalWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE);
-    }
-
-    public void testAutoIdWithType() {
-        // using CompatibleAutoIdHandler
-        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
-            .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
-            .withPath("/some_index/some_type/")
-            .build();
-        dispatchRequest(deprecatedRequest);
-        assertCriticalWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE);
     }
 }

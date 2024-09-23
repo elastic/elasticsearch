@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -22,17 +21,13 @@ import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 import org.mockito.Mockito;
 
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.mockito.Mockito.mock;
 
 public final class RestUpdateActionTests extends RestActionTestCase {
-    final List<String> contentTypeHeader = Collections.singletonList(randomCompatibleMediaType(RestApiVersion.V_7));
-
     private RestUpdateAction action;
 
     @Before
@@ -75,18 +70,5 @@ public final class RestUpdateActionTests extends RestActionTestCase {
                     + "Please use `if_seq_no` and `if_primary_term` instead"
             )
         );
-    }
-
-    public void testTypeInPath() {
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
-            Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
-        ).withMethod(RestRequest.Method.POST).withPath("/some_index/some_type/some_id/_update").build();
-        dispatchRequest(request);
-        assertCriticalWarnings(RestUpdateAction.TYPES_DEPRECATION_MESSAGE);
-
-        RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
-            Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
-        ).withMethod(RestRequest.Method.DELETE).withPath("/some_index/_update/some_id").build();
-        dispatchRequest(validRequest);
     }
 }

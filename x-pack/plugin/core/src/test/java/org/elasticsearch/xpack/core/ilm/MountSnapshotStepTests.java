@@ -114,7 +114,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 invalidTotalShardsPerNode
             )
         );
-        assertEquals("[totalShardsPerNode] must be >= 1", exception.getMessage());
+        assertEquals("[total_shards_per_node] must be >= 1", exception.getMessage());
     }
 
     public void testPerformActionFailure() {

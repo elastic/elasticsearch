@@ -1,0 +1,5 @@
+- type: bug
+  issue: 113413
+  pull_request: 113413
+  description: |
+    Fixed a `NullPointerException` in `_capabilities` API when the `path` parameter is null.

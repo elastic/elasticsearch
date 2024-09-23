@@ -21,7 +21,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesModule;
@@ -30,9 +29,7 @@ import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -274,74 +271,6 @@ public class RolloverRequestTests extends ESTestCase {
                 "rollover cannot be applied to both regular and failure indices at the same time",
                 validationException.validationErrors().get(0)
             );
-        }
-    }
-
-    public void testParsingWithType() throws Exception {
-        final XContentBuilder builder = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("conditions")
-            .field("max_age", "10d")
-            .field("max_docs", 100)
-            .endObject()
-            .startObject("mappings")
-            .startObject("type1")
-            .startObject("properties")
-            .startObject("field1")
-            .field("type", "string")
-            .field("index", "not_analyzed")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .startObject("settings")
-            .field("number_of_shards", 10)
-            .endObject()
-            .startObject("aliases")
-            .startObject("alias1")
-            .endObject()
-            .endObject()
-            .endObject();
-
-        try (
-            XContentParser parser = createParserWithCompatibilityFor(
-                JsonXContent.jsonXContent,
-                BytesReference.bytes(builder).utf8ToString(),
-                RestApiVersion.V_7
-            )
-        ) {
-            final RolloverRequest request = new RolloverRequest(randomAlphaOfLength(10), randomAlphaOfLength(10));
-            request.fromXContent(true, parser);
-            Map<String, Condition<?>> conditions = request.getConditions().getConditions();
-            assertThat(conditions.size(), equalTo(2));
-            assertThat(request.getCreateIndexRequest().mappings(), equalTo("""
-                {"_doc":{"properties":{"field1":{"index":"not_analyzed","type":"string"}}}}"""));
-        }
-    }
-
-    public void testTypedRequestWithoutIncludeTypeName() throws IOException {
-        final XContentBuilder builder = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("mappings")
-            .startObject("_doc")
-            .startObject("properties")
-            .startObject("field1")
-            .field("type", "string")
-            .field("index", "not_analyzed")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject();
-        try (
-            XContentParser parser = createParserWithCompatibilityFor(
-                JsonXContent.jsonXContent,
-                BytesReference.bytes(builder).utf8ToString(),
-                RestApiVersion.V_7
-            )
-        ) {
-            final RolloverRequest request = new RolloverRequest(randomAlphaOfLength(10), randomAlphaOfLength(10));
-            expectThrows(IllegalArgumentException.class, () -> request.fromXContent(false, parser));
         }
     }
 }

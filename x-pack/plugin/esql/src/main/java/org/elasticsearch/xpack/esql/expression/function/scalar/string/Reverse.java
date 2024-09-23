@@ -42,7 +42,10 @@ public class Reverse extends EsqlConfigurationFunction {
     @FunctionInfo(
         returnType = { "keyword", "text" },
         description = "Returns a new string representing the input string in reverse order.",
-        examples = @Example(file = "string", tag = "reverse")
+        examples = {
+            @Example(file = "string", tag = "reverse"),
+            @Example(file = "string", tag = "reverseEmoji", description= "`REVERSE` works on unicode, too!")
+        }
     )
     public Reverse(
         Source source,

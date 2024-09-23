@@ -203,7 +203,7 @@
  *         happy. But functions don't need an essay.
  *     </li>
  *     <li>
- *         Add the {@code >enhancement}, {@code :Analytics/ES|QL}, and {@code :ES|QL-ui} tags if you are able.
+ *         Add the {@code >enhancement} and {@code :Analytics/ES|QL} tags if you are able.
  *         Request a review if you can, probably from one of the folks that github proposes to you.
  *     </li>
  *     <li>

@@ -1,15 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.logsdb.datageneration.fields;
 
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
+import org.elasticsearch.logsdb.datageneration.FieldType;
+import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -38,14 +41,33 @@ public class GenericSubObjectFieldDataGenerator {
             var fieldName = generateFieldName(existingFieldNames);
 
             if (context.shouldAddDynamicObjectField(dynamicMapping)) {
-                result.add(new ChildField(fieldName, new ObjectFieldDataGenerator(context.subObject(DynamicMapping.FORCED)), true));
+                result.add(
+                    new ChildField(fieldName, new ObjectFieldDataGenerator(context.subObject(fieldName, DynamicMapping.FORCED)), true)
+                );
             } else if (context.shouldAddObjectField()) {
-                result.add(new ChildField(fieldName, new ObjectFieldDataGenerator(context.subObject(dynamicMapping)), false));
+                result.add(new ChildField(fieldName, new ObjectFieldDataGenerator(context.subObject(fieldName, dynamicMapping)), false));
             } else if (context.shouldAddNestedField()) {
-                result.add(new ChildField(fieldName, new NestedFieldDataGenerator(context.nestedObject(dynamicMapping)), false));
+                result.add(new ChildField(fieldName, new NestedFieldDataGenerator(context.nestedObject(fieldName, dynamicMapping)), false));
             } else {
                 var fieldTypeInfo = context.fieldTypeGenerator(dynamicMapping).generator().get();
-                var generator = fieldTypeInfo.fieldType().generator(fieldName, context.specification().dataSource());
+
+                // For simplicity we only copy to keyword fields, synthetic source logic to handle copy_to is generic.
+                if (fieldTypeInfo.fieldType() == FieldType.KEYWORD) {
+                    context.markFieldAsEligibleForCopyTo(fieldName);
+                }
+
+                var mappingParametersGenerator = context.specification()
+                    .dataSource()
+                    .get(
+                        new DataSourceRequest.LeafMappingParametersGenerator(
+                            fieldName,
+                            fieldTypeInfo.fieldType(),
+                            context.getEligibleCopyToDestinations(),
+                            dynamicMapping
+                        )
+                    );
+                var generator = fieldTypeInfo.fieldType()
+                    .generator(fieldName, context.specification().dataSource(), mappingParametersGenerator);
                 result.add(new ChildField(fieldName, generator, fieldTypeInfo.dynamic()));
             }
         }

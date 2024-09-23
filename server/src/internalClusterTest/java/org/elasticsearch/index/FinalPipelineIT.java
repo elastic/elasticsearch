@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index;
@@ -12,12 +13,8 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.get.GetRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.GetPipelineResponse;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
@@ -28,7 +25,6 @@ import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 
 import java.io.IOException;
@@ -56,10 +52,9 @@ public class FinalPipelineIT extends ESIntegTestCase {
     public void cleanUpPipelines() {
         indicesAdmin().prepareDelete("*").get();
 
-        final GetPipelineResponse response = clusterAdmin().prepareGetPipeline("default_pipeline", "final_pipeline", "request_pipeline")
-            .get();
+        final GetPipelineResponse response = getPipelines("default_pipeline", "final_pipeline", "request_pipeline");
         for (final PipelineConfiguration pipeline : response.pipelines()) {
-            clusterAdmin().deletePipeline(new DeletePipelineRequest(pipeline.getId())).actionGet();
+            deletePipeline(pipeline.getId());
         }
     }
 
@@ -67,9 +62,8 @@ public class FinalPipelineIT extends ESIntegTestCase {
         final Settings settings = Settings.builder().put(IndexSettings.FINAL_PIPELINE.getKey(), "final_pipeline").build();
         createIndex("index", settings);
 
-        final BytesReference finalPipelineBody = new BytesArray("""
+        putJsonPipeline("final_pipeline", """
             {"processors": [{"changing_dest": {}}]}""");
-        clusterAdmin().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
 
         final IllegalStateException e = expectThrows(
             IllegalStateException.class,
@@ -87,9 +81,8 @@ public class FinalPipelineIT extends ESIntegTestCase {
         final Settings settings = Settings.builder().put(IndexSettings.FINAL_PIPELINE.getKey(), "final_pipeline").build();
         createIndex("index", settings);
 
-        final BytesReference finalPipelineBody = new BytesArray("""
+        putJsonPipeline("final_pipeline", """
             {"processors": [{"reroute": {}}]}""");
-        clusterAdmin().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
 
         final IllegalStateException e = expectThrows(
             IllegalStateException.class,
@@ -110,13 +103,11 @@ public class FinalPipelineIT extends ESIntegTestCase {
             .build();
         createIndex("index", settings);
 
-        BytesReference defaultPipelineBody = new BytesArray("""
+        putJsonPipeline("default_pipeline", """
             {"processors": [{"changing_dest": {}}]}""");
-        clusterAdmin().putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, XContentType.JSON)).actionGet();
 
-        BytesReference finalPipelineBody = new BytesArray("""
+        putJsonPipeline("final_pipeline", """
             {"processors": [{"final": {"exists":"no_such_field"}}]}""");
-        clusterAdmin().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
 
         DocWriteResponse indexResponse = prepareIndex("index").setId("1")
             .setSource(Map.of("field", "value"))
@@ -136,13 +127,11 @@ public class FinalPipelineIT extends ESIntegTestCase {
         settings = Settings.builder().put(IndexSettings.FINAL_PIPELINE.getKey(), "final_pipeline").build();
         createIndex("target", settings);
 
-        BytesReference defaultPipelineBody = new BytesArray("""
+        putJsonPipeline("default_pipeline", """
             {"processors": [{"changing_dest": {}}]}""");
-        clusterAdmin().putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, XContentType.JSON)).actionGet();
 
-        BytesReference finalPipelineBody = new BytesArray("""
+        putJsonPipeline("final_pipeline", """
             {"processors": [{"final": {}}]}""");
-        clusterAdmin().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
 
         DocWriteResponse indexResponse = prepareIndex("index").setId("1")
             .setSource(Map.of("field", "value"))
@@ -162,13 +151,11 @@ public class FinalPipelineIT extends ESIntegTestCase {
         settings = Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "target_default_pipeline").build();
         createIndex("target", settings);
 
-        BytesReference defaultPipelineBody = new BytesArray("""
+        putJsonPipeline("default_pipeline", """
             {"processors": [{"changing_dest": {}}]}""");
-        clusterAdmin().putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, XContentType.JSON)).actionGet();
 
-        BytesReference targetPipeline = new BytesArray("""
+        putJsonPipeline("target_default_pipeline", """
             {"processors": [{"final": {}}]}""");
-        clusterAdmin().putPipeline(new PutPipelineRequest("target_default_pipeline", targetPipeline, XContentType.JSON)).actionGet();
 
         DocWriteResponse indexResponse = prepareIndex("index").setId("1")
             .setSource(Map.of("field", "value"))
@@ -188,13 +175,11 @@ public class FinalPipelineIT extends ESIntegTestCase {
         settings = Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "target_default_pipeline").build();
         createIndex("target", settings);
 
-        BytesReference defaultPipelineBody = new BytesArray("""
+        putJsonPipeline("default_pipeline", """
             {"processors": [{"reroute": {}}]}""");
-        clusterAdmin().putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, XContentType.JSON)).actionGet();
 
-        BytesReference targetPipeline = new BytesArray("""
+        putJsonPipeline("target_default_pipeline", """
             {"processors": [{"final": {}}]}""");
-        clusterAdmin().putPipeline(new PutPipelineRequest("target_default_pipeline", targetPipeline, XContentType.JSON)).actionGet();
 
         DocWriteResponse indexResponse = prepareIndex("index").setId("1")
             .setSource(Map.of("field", "value"))
@@ -214,13 +199,11 @@ public class FinalPipelineIT extends ESIntegTestCase {
         settings = Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "target_default_pipeline").build();
         createIndex("target", settings);
 
-        BytesReference defaultPipelineBody = new BytesArray("""
+        putJsonPipeline("default_pipeline", """
             {"processors": [{"reroute": {"dest": "target"}}]}""");
-        clusterAdmin().putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, XContentType.JSON)).actionGet();
 
-        BytesReference targetPipeline = new BytesArray("""
+        putJsonPipeline("target_default_pipeline", """
             {"processors": [{"reroute": {"dest": "index"}}]}""");
-        clusterAdmin().putPipeline(new PutPipelineRequest("target_default_pipeline", targetPipeline, XContentType.JSON)).actionGet();
 
         IllegalStateException exception = expectThrows(
             IllegalStateException.class,
@@ -245,12 +228,10 @@ public class FinalPipelineIT extends ESIntegTestCase {
     }
 
     public void testRequestPipelineAndFinalPipeline() {
-        final BytesReference requestPipelineBody = new BytesArray("""
+        putJsonPipeline("request_pipeline", """
             {"processors": [{"request": {}}]}""");
-        clusterAdmin().putPipeline(new PutPipelineRequest("request_pipeline", requestPipelineBody, XContentType.JSON)).actionGet();
-        final BytesReference finalPipelineBody = new BytesArray("""
+        putJsonPipeline("final_pipeline", """
             {"processors": [{"final": {"exists":"request"}}]}""");
-        clusterAdmin().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
         final Settings settings = Settings.builder().put(IndexSettings.FINAL_PIPELINE.getKey(), "final_pipeline").build();
         createIndex("index", settings);
         final IndexRequestBuilder index = prepareIndex("index").setId("1");
@@ -270,12 +251,10 @@ public class FinalPipelineIT extends ESIntegTestCase {
     }
 
     public void testDefaultAndFinalPipeline() {
-        final BytesReference defaultPipelineBody = new BytesArray("""
+        putJsonPipeline("default_pipeline", """
             {"processors": [{"default": {}}]}""");
-        clusterAdmin().putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, XContentType.JSON)).actionGet();
-        final BytesReference finalPipelineBody = new BytesArray("""
+        putJsonPipeline("final_pipeline", """
             {"processors": [{"final": {"exists":"default"}}]}""");
-        clusterAdmin().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
         final Settings settings = Settings.builder()
             .put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default_pipeline")
             .put(IndexSettings.FINAL_PIPELINE.getKey(), "final_pipeline")
@@ -297,12 +276,10 @@ public class FinalPipelineIT extends ESIntegTestCase {
     }
 
     public void testDefaultAndFinalPipelineFromTemplates() {
-        final BytesReference defaultPipelineBody = new BytesArray("""
+        putJsonPipeline("default_pipeline", """
             {"processors": [{"default": {}}]}""");
-        clusterAdmin().putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, XContentType.JSON)).actionGet();
-        final BytesReference finalPipelineBody = new BytesArray("""
+        putJsonPipeline("final_pipeline", """
             {"processors": [{"final": {"exists":"default"}}]}""");
-        clusterAdmin().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
         final int lowOrder = randomIntBetween(0, Integer.MAX_VALUE - 1);
         final int highOrder = randomIntBetween(lowOrder + 1, Integer.MAX_VALUE);
         final int finalPipelineOrder;

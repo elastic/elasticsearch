@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 import org.elasticsearch.gradle.PropertyNormalization
@@ -31,11 +32,6 @@ dependencies {
   api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   yamlRestTestImplementation project(':test:fixtures:url-fixture')
   internalClusterTestImplementation project(':test:fixtures:url-fixture')
-}
-
-tasks.named("yamlRestTestV7CompatTransform").configure { task ->
-  task.skipTest("repository_url/10_basic/Restore with repository-url using file://", "Error message has changed")
-  task.skipTest("repository_url/10_basic/Restore with repository-url using http://", "Error message has changed")
 }
 
 tasks.named("thirdPartyAudit").configure {

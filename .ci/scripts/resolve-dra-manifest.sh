@@ -30,7 +30,6 @@ if [ "$LATEST_VERSION" != "$ES_VERSION" ]; then
   fi
 
   echo "Using branch $NEW_BRANCH instead of $BRANCH." 1>&2
-  echo "https://artifacts-$WORKFLOW.elastic.co/$ARTIFACT/latest/$NEW_BRANCH.json"
   LATEST_BUILD=$(fetch_build $WORKFLOW $ARTIFACT $NEW_BRANCH)
 fi
 

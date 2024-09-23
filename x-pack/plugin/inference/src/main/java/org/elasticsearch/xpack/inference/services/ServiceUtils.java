@@ -24,7 +24,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbedding;
-import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsFeatureFlag;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
 
@@ -137,9 +136,6 @@ public final class ServiceUtils {
         String key,
         ValidationException validationException
     ) {
-        if (AdaptiveAllocationsFeatureFlag.isEnabled() == false) {
-            return null;
-        }
         Map<String, Object> settingsMap = ServiceUtils.removeFromMap(sourceMap, key);
         if (settingsMap == null) {
             return null;

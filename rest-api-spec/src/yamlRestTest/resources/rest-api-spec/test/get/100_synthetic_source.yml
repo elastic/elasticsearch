@@ -130,50 +130,6 @@ force_synthetic_source_ok:
   - is_false: fields
 
 ---
-force_synthetic_source_bad_mapping:
-  - requires:
-      cluster_features: ["gte_v8.4.0"]
-      reason: introduced in 8.4.0
-
-  - do:
-      indices.create:
-        index: test
-        body:
-          settings:
-            number_of_shards: 1 # Use a single shard to get consistent error messages
-          mappings:
-            _source:
-              mode: stored
-            properties:
-              text:
-                type: text
-
-  - do:
-      index:
-        index:   test
-        id:      1
-        refresh: true
-        body:
-          text: foo
-
-  # When _source is used in the fetch the original _source is perfect
-  - do:
-      get:
-        index: test
-        id: 1
-  - match:
-      _source:
-        text: foo
-
-  # Forcing synthetic source fails because the mapping is invalid
-  - do:
-      catch: bad_request
-      get:
-        index: test
-        id: 1
-        force_synthetic_source: true
-
----
 stored text:
   - requires:
       cluster_features: ["gte_v8.5.0"]
@@ -1039,25 +995,6 @@ flattened field:
             code: "1243"
 
   - is_false: fields
-
----
-flattened field no doc values:
-  - requires:
-      cluster_features: ["gte_v8.8.0"]
-      reason: support for synthetic source on flattened fields added in 8.8.0
-
-  - do:
-      catch: /field \[flattened\] of type \[flattened\] doesn't support synthetic source because it doesn't have doc values/
-      indices.create:
-        index: test
-        body:
-          mappings:
-            _source:
-              mode: synthetic
-            properties:
-              flattened:
-                type: flattened
-                doc_values: false
 
 ---
 flattened field with ignore_above:

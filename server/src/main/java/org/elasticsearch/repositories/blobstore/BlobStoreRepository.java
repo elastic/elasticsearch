@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.blobstore;
@@ -595,7 +596,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 existingSnapshots = tuple.v1();
             } else {
                 newGen = ShardGeneration.newGeneration();
-                existingSnapshots = buildBlobStoreIndexShardSnapshots(index, Collections.emptySet(), shardContainer, shardGeneration).v1();
+                existingSnapshots = buildBlobStoreIndexShardSnapshots(
+                    index,
+                    shardNum,
+                    Collections.emptySet(),
+                    shardContainer,
+                    shardGeneration
+                ).v1();
                 existingShardGen = shardGeneration;
             }
             SnapshotFiles existingTargetFiles = null;
@@ -1308,6 +1315,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         newGen = -1L;
                         blobStoreIndexShardSnapshots = buildBlobStoreIndexShardSnapshots(
                             indexId,
+                            shardId,
                             originalShardBlobs,
                             shardContainer,
                             originalRepositoryData.shardGenerations().getShardGen(indexId, shardId)
@@ -3202,6 +3210,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             snapshotStatus.ensureNotAborted();
             Tuple<BlobStoreIndexShardSnapshots, ShardGeneration> tuple = buildBlobStoreIndexShardSnapshots(
                 context.indexId(),
+                shardId.id(),
                 blobs,
                 shardContainer,
                 generation
@@ -3606,6 +3615,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                     ensureNotClosing(store);
                                     return container.readBlob(OperationPurpose.SNAPSHOT_DATA, fileInfo.partName(slice));
                                 }
+
+                                @Override
+                                public boolean markSupported() {
+                                    return false;
+                                }
                             })) {
                                 final byte[] buffer = new byte[Math.toIntExact(Math.min(bufferSize, fileInfo.length()))];
                                 int length;
@@ -3842,7 +3856,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             blobs = shardContainer.listBlobsByPrefix(OperationPurpose.SNAPSHOT_METADATA, SNAPSHOT_INDEX_PREFIX).keySet();
         }
 
-        return buildBlobStoreIndexShardSnapshots(indexId, blobs, shardContainer, shardGen).v1();
+        return buildBlobStoreIndexShardSnapshots(indexId, shardId, blobs, shardContainer, shardGen).v1();
     }
 
     /**
@@ -3850,6 +3864,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * the given list of blobs in the shard container.
      *
      * @param indexId    {@link IndexId} identifying the corresponding index
+     * @param shardId    The 0-based shard id, see also {@link ShardId#id()}
      * @param blobs      list of blobs in repository
      * @param generation shard generation or {@code null} in case there was no shard generation tracked in the {@link RepositoryData} for
      *                   this shard because its snapshot was created in a version older than
@@ -3858,6 +3873,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     private Tuple<BlobStoreIndexShardSnapshots, ShardGeneration> buildBlobStoreIndexShardSnapshots(
         IndexId indexId,
+        int shardId,
         Set<String> blobs,
         BlobContainer shardContainer,
         @Nullable ShardGeneration generation
@@ -3877,6 +3893,21 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     generation
                 );
             } catch (NoSuchFileException noSuchFileException) {
+                // Master may have concurrently mutated the shard generation. This can happen when master fails over
+                // which is "expected". We do not need to apply the following workaround for missing file in this case.
+                final RepositoryData currentRepositoryData;
+                try {
+                    final long latestGeneration = latestIndexBlobId();
+                    currentRepositoryData = getRepositoryData(latestGeneration);
+                } catch (Exception e) {
+                    noSuchFileException.addSuppressed(e);
+                    throw noSuchFileException;
+                }
+                final ShardGeneration latestShardGen = currentRepositoryData.shardGenerations().getShardGen(indexId, shardId);
+                if (latestShardGen == null || latestShardGen.equals(generation) == false) {
+                    throw noSuchFileException;
+                }
+
                 // This shouldn't happen (absent an external force deleting blobs from the repo) but in practice we've found bugs in the way
                 // we manipulate shard generation UUIDs under concurrent snapshot load which can lead to incorrectly deleting a referenced
                 // shard-level `index-UUID` blob during finalization. We definitely want to treat this as a test failure (see the `assert`

@@ -33,6 +33,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.ingest.IngestGeoIpFeatures.GET_DATABASE_CONFIGURATION_ACTION_MULTI_NODE;
+
 public class TransportGetDatabaseConfigurationAction extends TransportNodesAction<
     GetDatabaseConfigurationAction.Request,
     GetDatabaseConfigurationAction.Response,

@@ -25,6 +25,7 @@ import com.amazonaws.util.TimingInfo;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -34,6 +35,8 @@ import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -65,12 +68,6 @@ class S3BlobStore implements BlobStore {
      * @see <a href="https://docs.aws.amazon.com/AmazonS3/latest/API/multiobjectdeleteapi.html">S3 Documentation</a>.
      */
     static final int MAX_BULK_DELETES = 1000;
-    /**
-     * When deletes are throttled by S3, we just keep retrying with limited progressive back-off
-     */
-    private static final int RETRY_THROTTLED_DELETE_INTERVAL_INITIAL_MILLIS = 100;
-    private static final int RETRY_THROTTLED_DELETE_INTERVAL_MAX_MILLIS = 1500;
-    private static final double RETRY_THROTTLED_DELETE_INTERVAL_BACKOFF = 1.5;
 
     private static final Logger logger = LogManager.getLogger(S3BlobStore.class);
 
@@ -97,6 +94,7 @@ class S3BlobStore implements BlobStore {
     private final StatsCollectors statsCollectors = new StatsCollectors();
 
     private final int bulkDeletionBatchSize;
+    private final BackoffPolicy retryThrottledDeleteBackoffPolicy;
 
     S3BlobStore(
         S3Service service,
@@ -108,7 +106,8 @@ class S3BlobStore implements BlobStore {
         RepositoryMetadata repositoryMetadata,
         BigArrays bigArrays,
         ThreadPool threadPool,
-        S3RepositoriesMetrics s3RepositoriesMetrics
+        S3RepositoriesMetrics s3RepositoriesMetrics,
+        BackoffPolicy retryThrottledDeleteBackoffPolicy
     ) {
         this.service = service;
         this.bigArrays = bigArrays;
@@ -122,7 +121,7 @@ class S3BlobStore implements BlobStore {
         this.snapshotExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         this.s3RepositoriesMetrics = s3RepositoriesMetrics;
         this.bulkDeletionBatchSize = S3Repository.DELETION_BATCH_SIZE_SETTING.get(repositoryMetadata.settings());
-
+        this.retryThrottledDeleteBackoffPolicy = retryThrottledDeleteBackoffPolicy;
     }
 
     RequestMetricCollector getMetricCollector(Operation operation, OperationPurpose purpose) {
@@ -270,7 +269,8 @@ class S3BlobStore implements BlobStore {
     private static long getCountForMetric(TimingInfo info, AWSRequestMetrics.Field field) {
         var count = info.getCounter(field.name());
         if (count == null) {
-            if (field == AWSRequestMetrics.Field.RequestCount) {
+            // This can be null if the thread was interrupted
+            if (field == AWSRequestMetrics.Field.RequestCount && Thread.currentThread().isInterrupted() == false) {
                 final String message = "Expected request count to be tracked but found not count.";
                 assert false : message;
                 logger.warn(message);
@@ -346,18 +346,19 @@ class S3BlobStore implements BlobStore {
         }
 
         final List<String> partition = new ArrayList<>();
-        try (AmazonS3Reference clientReference = clientReference()) {
+        final AtomicReference<AmazonS3Reference> clientReferenceHolder = new AtomicReference<>();
+        try (Releasable ignored = () -> Releasables.close(clientReferenceHolder.getAndSet(null))) {
             // S3 API only allows 1k blobs per delete so we split up the given blobs into requests of max. 1k deletes
             final AtomicReference<Exception> aex = new AtomicReference<>();
             blobNames.forEachRemaining(key -> {
                 partition.add(key);
                 if (partition.size() == bulkDeletionBatchSize) {
-                    deletePartition(purpose, clientReference, partition, aex);
+                    deletePartition(purpose, clientReferenceHolder, partition, aex);
                     partition.clear();
                 }
             });
             if (partition.isEmpty() == false) {
-                deletePartition(purpose, clientReference, partition, aex);
+                deletePartition(purpose, clientReferenceHolder, partition, aex);
             }
             if (aex.get() != null) {
                 throw aex.get();
@@ -367,18 +368,31 @@ class S3BlobStore implements BlobStore {
         }
     }
 
+    /**
+     * Delete one partition of a batch of blobs
+     *
+     * @param purpose The {@link OperationPurpose} of the deletion
+     * @param clientReferenceHolder A holder for a {@link AmazonS3Reference}. Will be populated if empty, must be closed by the caller.
+     * @param partition The list of blobs to delete
+     * @param aex A holder for any exception(s) thrown during the deletion
+     */
     private void deletePartition(
         OperationPurpose purpose,
-        AmazonS3Reference clientReference,
+        AtomicReference<AmazonS3Reference> clientReferenceHolder,
         List<String> partition,
         AtomicReference<Exception> aex
     ) {
-        long nextBackoffSleep = RETRY_THROTTLED_DELETE_INTERVAL_INITIAL_MILLIS;
+        final Iterator<TimeValue> retries = retryThrottledDeleteBackoffPolicy.iterator();
         int attempts = 0;
         while (true) {
             try {
+                if (clientReferenceHolder.get() == null) {
+                    clientReferenceHolder.set(clientReference());
+                }
                 attempts++;
-                SocketAccess.doPrivilegedVoid(() -> clientReference.client().deleteObjects(bulkDelete(purpose, this, partition)));
+                SocketAccess.doPrivilegedVoid(
+                    () -> clientReferenceHolder.get().client().deleteObjects(bulkDelete(purpose, this, partition))
+                );
                 s3RepositoriesMetrics.retryDeletesHistogram().record(attempts);
                 return;
             } catch (MultiObjectDeleteException e) {
@@ -397,11 +411,15 @@ class S3BlobStore implements BlobStore {
                 aex.set(ExceptionsHelper.useOrSuppress(aex.get(), e));
                 return;
             } catch (AmazonClientException e) {
-                if (shouldRetryDelete(purpose) && RetryUtils.isThrottlingException(e)) {
+                if (shouldRetryDelete(purpose) && RetryUtils.isThrottlingException(e) && retries.hasNext()) {
                     // S3 is asking us to slow down. Pause for a bit and retry
-                    nextBackoffSleep = sleepAndCalculateNextSleep(nextBackoffSleep);
-                    // If we're interrupted, record the exception and abort retries
-                    if (nextBackoffSleep == -1) {
+                    try {
+                        Thread.sleep(retries.next().millis());
+                        // Force re-acquisition of the client reference to trigger early termination if the repository is closed
+                        Releasables.close(clientReferenceHolder.getAndSet(null));
+                    } catch (InterruptedException iex) {
+                        Thread.currentThread().interrupt();
+                        // If we're interrupted, record the exception and abort retries
                         logger.warn("Aborting delete retries due to interrupt");
                         aex.set(ExceptionsHelper.useOrSuppress(aex.get(), e));
                         return;
@@ -418,27 +436,6 @@ class S3BlobStore implements BlobStore {
 
     private boolean shouldRetryDelete(OperationPurpose operationPurpose) {
         return operationPurpose == OperationPurpose.SNAPSHOT_DATA || operationPurpose == OperationPurpose.SNAPSHOT_METADATA;
-    }
-
-    /**
-     * Sleep for the current retry interval, and return the next one
-     *
-     * @param currentRetryInterval The current retry interval
-     * @return the next retry interval, or -1 to abort retries
-     */
-    private static long sleepAndCalculateNextSleep(long currentRetryInterval) {
-        try {
-            Thread.sleep(currentRetryInterval);
-            currentRetryInterval = Math.min(
-                (long) (currentRetryInterval * RETRY_THROTTLED_DELETE_INTERVAL_BACKOFF),
-                RETRY_THROTTLED_DELETE_INTERVAL_MAX_MILLIS
-            );
-            return currentRetryInterval;
-        } catch (InterruptedException iex) {
-            Thread.currentThread().interrupt();
-            // We should break out of the retry loop if we've been interrupted
-            return -1;
-        }
     }
 
     private static DeleteObjectsRequest bulkDelete(OperationPurpose purpose, S3BlobStore blobStore, List<String> blobs) {

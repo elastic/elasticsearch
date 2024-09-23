@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -195,6 +196,21 @@ class S3Repository extends MeteredBlobStoreRepository {
         1000,
         0,
         Setting.Property.Dynamic
+    );
+
+    /**
+     * We will retry deletes that fail due to throttling. We use an {@link BackoffPolicy#exponentialBackoff(TimeValue, int)}
+     * with the following <code>initialDelay</code> and <code>maxNumberOfRetries</code>
+     */
+    static final Setting<TimeValue> RETRY_THROTTLED_DELETE_INITIAL_DELAY = Setting.timeSetting(
+        "throttled_delete_retry.initial_delay",
+        new TimeValue(50, TimeUnit.MILLISECONDS),
+        new TimeValue(50, TimeUnit.MILLISECONDS)
+    );
+    static final Setting<Integer> RETRY_THROTTLED_DELETE_MAX_NUMBER_OF_RETRIES = Setting.intSetting(
+        "throttled_delete_retry.max_number_of_retries",
+        8,
+        0
     );
 
     private final S3Service service;
@@ -403,7 +419,11 @@ class S3Repository extends MeteredBlobStoreRepository {
             metadata,
             bigArrays,
             threadPool,
-            s3RepositoriesMetrics
+            s3RepositoriesMetrics,
+            BackoffPolicy.exponentialBackoff(
+                RETRY_THROTTLED_DELETE_INITIAL_DELAY.get(metadata.settings()),
+                RETRY_THROTTLED_DELETE_MAX_NUMBER_OF_RETRIES.get(metadata.settings())
+            )
         );
     }
 

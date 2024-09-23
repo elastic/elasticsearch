@@ -372,10 +372,11 @@ public class CompositeRolesStore {
         ActionListener<Role> listener
     ) {
         logger.trace(
-            "Building role from descriptors [{}] for names [{}] from source [{}]",
+            "Building role from descriptors [{}] for names [{}] from source [{}] on [{}]",
             roleDescriptors,
             roleKey.getNames(),
-            roleKey.getSource()
+            roleKey.getSource(),
+            Thread.currentThread().getName()
         );
         buildRoleFromDescriptors(
             roleDescriptors,

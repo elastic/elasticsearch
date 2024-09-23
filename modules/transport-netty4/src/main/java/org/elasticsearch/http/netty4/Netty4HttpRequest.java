@@ -17,6 +17,7 @@ import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.QueryStringDecoder;
 import io.netty.handler.codec.http.cookie.Cookie;
 import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
 import io.netty.handler.codec.http.cookie.ServerCookieEncoder;
@@ -49,6 +50,7 @@ public class Netty4HttpRequest implements HttpRequest {
     private final Exception inboundException;
     private final boolean pooled;
     private final int sequence;
+    private final QueryStringDecoder queryStringDecoder;
 
     Netty4HttpRequest(int sequence, io.netty.handler.codec.http.HttpRequest request, Netty4HttpRequestBodyStream contentStream) {
         this(sequence, request, contentStream, null);
@@ -104,6 +106,7 @@ public class Netty4HttpRequest implements HttpRequest {
         this.pooled = pooled;
         this.released = released;
         this.inboundException = inboundException;
+        this.queryStringDecoder = new QueryStringDecoder(request.uri());
     }
 
     @Override
@@ -114,6 +117,11 @@ public class Netty4HttpRequest implements HttpRequest {
     @Override
     public String uri() {
         return request.uri();
+    }
+
+    @Override
+    public String rawPath() {
+        return queryStringDecoder.rawPath();
     }
 
     @Override

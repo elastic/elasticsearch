@@ -72,7 +72,7 @@ public class TimeSeriesRoutingHashFieldMapper extends MetadataFieldMapper {
                 if (value instanceof BytesRef valueAsBytesRef) {
                     return valueAsBytesRef;
                 }
-                return new BytesRef(value.toString());
+                return Uid.encodeId(value.toString());
             }
         };
 

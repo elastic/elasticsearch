@@ -19,6 +19,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpda
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
@@ -68,9 +69,6 @@ import static org.elasticsearch.core.Strings.format;
  */
 public class SystemIndexMigrator extends AllocatedPersistentTask {
     private static final Logger logger = LogManager.getLogger(SystemIndexMigrator.class);
-
-    // TODO should this be longer and/or configurable?
-    private static final TimeValue SYSTEM_INDEX_MIGRATOR_MASTER_NODE_TIMEOUT = TimeValue.timeValueSeconds(30);
 
     // Fixed properties & services
     private final ParentTaskAssigningClient baseClient;
@@ -540,16 +538,18 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
      */
     private void setWriteBlock(Index index, boolean readOnlyValue, ActionListener<AcknowledgedResponse> listener) {
         final Settings readOnlySettings = Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), readOnlyValue).build();
-        UpdateSettingsClusterStateUpdateRequest updateSettingsRequest = new UpdateSettingsClusterStateUpdateRequest(
-            SYSTEM_INDEX_MIGRATOR_MASTER_NODE_TIMEOUT,
-            TimeValue.ZERO,
-            readOnlySettings,
-            UpdateSettingsClusterStateUpdateRequest.OnExisting.OVERWRITE,
-            UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REJECT,
-            index
-        );
 
-        metadataUpdateSettingsService.updateSettings(updateSettingsRequest, listener);
+        metadataUpdateSettingsService.updateSettings(
+            new UpdateSettingsClusterStateUpdateRequest(
+                MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
+                TimeValue.ZERO,
+                readOnlySettings,
+                UpdateSettingsClusterStateUpdateRequest.OnExisting.OVERWRITE,
+                UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REJECT,
+                index
+            ),
+            listener
+        );
     }
 
     private void reindex(SystemIndexMigrationInfo migrationInfo, ActionListener<BulkByScrollResponse> listener) {

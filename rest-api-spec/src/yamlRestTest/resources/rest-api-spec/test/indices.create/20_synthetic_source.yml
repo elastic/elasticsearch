@@ -1269,8 +1269,8 @@ synthetic_source with copy_to and ignored values:
         refresh: true
         body:
           name: "B"
-          k: ["5", "6"]
-          long: ["7", "8"]
+          k: ["55", "66"]
+          long: ["77", "88"]
 
   - do:
       search:
@@ -1289,10 +1289,9 @@ synthetic_source with copy_to and ignored values:
   - match:
       hits.hits.1._source:
         name: "B"
-        k: ["5", "6"]
-        long: ["7", "8"]
-  - match: { hits.hits.1.fields.copy: ["5", "6", "7", "8"] }
-
+        k: ["55", "66"]
+        long: ["77", "88"]
+  - match: { hits.hits.1.fields.copy: ["55", "66", "77", "88"] }
 
 ---
 synthetic_source with copy_to field having values in source:
@@ -1553,3 +1552,420 @@ synthetic_source with copy_to and invalid values for copy:
 
   - match: { error.type: "document_parsing_exception" }
   - contains: { error.reason: "Copy-to currently only works for value-type fields" }
+
+---
+synthetic_source with copy_to pointing inside object:
+  - requires:
+      cluster_features: ["mapper.source.synthetic_source_copy_to_inside_objects_fix"]
+      reason: requires copy_to support in synthetic source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              name:
+                type: keyword
+              my_values:
+                properties:
+                  k:
+                    type: keyword
+                    ignore_above: 1
+                    copy_to: c.copy
+                  long:
+                    type: long
+                    copy_to: c.copy
+              c:
+                properties:
+                  copy:
+                    type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          name: "A"
+          my_values:
+            k: "hello"
+            long: 100
+
+  - do:
+      index:
+        index: test
+        id: 2
+        refresh: true
+        body:
+          name: "B"
+          my_values:
+            k: ["55", "66"]
+            long: [77, 88]
+
+  - do:
+      index:
+        index: test
+        id: 3
+        refresh: true
+        body:
+          name: "C"
+          my_values:
+            k: "hello"
+            long: 100
+          c:
+            copy: "zap"
+
+  - do:
+      search:
+        index: test
+        sort: name
+        body:
+          docvalue_fields: [ "c.copy" ]
+
+  - match:
+      hits.hits.0._source:
+        name: "A"
+        my_values:
+          k: "hello"
+          long: 100
+  - match:
+      hits.hits.0.fields:
+        c.copy: [ "100", "hello" ]
+
+  - match:
+      hits.hits.1._source:
+        name: "B"
+        my_values:
+          k: ["55", "66"]
+          long: [77, 88]
+  - match:
+      hits.hits.1.fields:
+        c.copy: ["55", "66", "77", "88"]
+
+  - match:
+      hits.hits.2._source:
+        name: "C"
+        my_values:
+          k: "hello"
+          long: 100
+        c:
+          copy: "zap"
+  - match:
+      hits.hits.2.fields:
+          c.copy: [ "100", "hello", "zap" ]
+
+---
+synthetic_source with copy_to pointing to ambiguous field:
+  - requires:
+      cluster_features: ["mapper.source.synthetic_source_copy_to_inside_objects_fix"]
+      reason: requires copy_to support in synthetic source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              k:
+                type: keyword
+                copy_to: a.b.c
+              a:
+                properties:
+                  b:
+                    properties:
+                      c:
+                        type: keyword
+                  b.c:
+                    type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          k: "hey"
+
+  - do:
+      search:
+        index: test
+        body:
+          docvalue_fields: [ "a.b.c" ]
+
+  - match:
+      hits.hits.0._source:
+        k: "hey"
+  - match:
+      hits.hits.0.fields:
+        a.b.c: [ "hey" ]
+
+---
+synthetic_source with copy_to pointing to ambiguous field and subobjects false:
+  - requires:
+      cluster_features: ["mapper.source.synthetic_source_copy_to_inside_objects_fix"]
+      reason: requires copy_to support in synthetic source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            subobjects: false
+            properties:
+              k:
+                type: keyword
+                copy_to: a.b.c
+              a:
+                properties:
+                  b:
+                    properties:
+                      c:
+                        type: keyword
+                  b.c:
+                    type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          k: "hey"
+
+  - do:
+      search:
+        index: test
+        body:
+          docvalue_fields: [ "a.b.c" ]
+
+  - match:
+      hits.hits.0._source:
+        k: "hey"
+  - match:
+      hits.hits.0.fields:
+        a.b.c: [ "hey" ]
+
+---
+synthetic_source with copy_to pointing to ambiguous field and subobjects auto:
+  - requires:
+      cluster_features: ["mapper.source.synthetic_source_copy_to_inside_objects_fix"]
+      reason: requires copy_to support in synthetic source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            subobjects: auto
+            properties:
+              k:
+                type: keyword
+                copy_to: a.b.c
+              a:
+                properties:
+                  b:
+                    properties:
+                      c:
+                        type: keyword
+                  b.c:
+                    type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          k: "hey"
+
+  - do:
+      search:
+        index: test
+        body:
+          docvalue_fields: [ "a.b.c" ]
+
+  - match:
+      hits.hits.0._source:
+        k: "hey"
+  - match:
+      hits.hits.0.fields:
+        a.b.c: [ "hey" ]
+
+---
+synthetic_source with copy_to pointing at dynamic field:
+  - requires:
+      test_runner_features: contains
+      cluster_features: ["mapper.source.synthetic_source_copy_to_inside_objects_fix"]
+      reason: requires copy_to support in synthetic source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              name:
+                type: keyword
+              k:
+                type: keyword
+                copy_to: c.copy
+              c:
+                properties:
+                  f:
+                    type: float
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          name: "A"
+          k: "hello"
+
+  - do:
+      index:
+        index: test
+        id: 2
+        refresh: true
+        body:
+          name: "B"
+          k: ["55", "66"]
+
+  - do:
+      index:
+        index: test
+        id: 3
+        refresh: true
+        body:
+          name: "C"
+          k: "hello"
+          c:
+            copy: "zap"
+
+  - do:
+      search:
+        index: test
+        sort: name
+        body:
+          docvalue_fields: [ "c.copy.keyword" ]
+
+  - match:
+      hits.hits.0._source:
+        name: "A"
+        k: "hello"
+  - match:
+      hits.hits.0.fields:
+        c.copy.keyword: [ "hello" ]
+
+  - match:
+      hits.hits.1._source:
+        name: "B"
+        k: ["55", "66"]
+  - match:
+      hits.hits.1.fields:
+        c.copy.keyword: [ "55", "66" ]
+
+  - match:
+      hits.hits.2._source:
+        name: "C"
+        k: "hello"
+        c:
+          copy: "zap"
+  - match:
+      hits.hits.2.fields:
+        c.copy.keyword: [ "hello", "zap" ]
+
+---
+synthetic_source with copy_to pointing inside dynamic object:
+  - requires:
+      cluster_features: ["mapper.source.synthetic_source_copy_to_inside_objects_fix"]
+      reason: requires copy_to support in synthetic source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              name:
+                type: keyword
+              k:
+                type: keyword
+                copy_to: c.copy
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          name: "A"
+          k: "hello"
+
+  - do:
+      index:
+        index: test
+        id: 2
+        refresh: true
+        body:
+          name: "B"
+          k: ["55", "66"]
+
+  - do:
+      index:
+        index: test
+        id: 3
+        refresh: true
+        body:
+          name: "C"
+          k: "hello"
+          c:
+            copy: "zap"
+
+  - do:
+      search:
+        index: test
+        sort: name
+        body:
+          docvalue_fields: [ "c.copy.keyword" ]
+
+  - match:
+      hits.hits.0._source:
+        name: "A"
+        k: "hello"
+  - match:
+      hits.hits.0.fields:
+        c.copy.keyword: [ "hello" ]
+
+  - match:
+      hits.hits.1._source:
+        name: "B"
+        k: ["55", "66"]
+  - match:
+      hits.hits.1.fields:
+        c.copy.keyword: [ "55", "66" ]
+
+  - match:
+      hits.hits.2._source:
+        name: "C"
+        k: "hello"
+        c:
+          copy: "zap"
+  - match:
+      hits.hits.2.fields:
+        c.copy.keyword: [ "hello", "zap" ]
+

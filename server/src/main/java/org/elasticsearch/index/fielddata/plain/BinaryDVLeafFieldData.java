@@ -48,11 +48,6 @@ public class BinaryDVLeafFieldData implements LeafFieldData {
     }
 
     @Override
-    public void close() {
-        // no-op
-    }
-
-    @Override
     public long ramBytesUsed() {
         return 0; // unknown
     }

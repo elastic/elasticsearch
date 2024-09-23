@@ -55,5 +55,6 @@ tasks.named("precommit").configure {
 }
 
 tasks.named("yamlRestCompatTestTransform").configure({ task ->
+  task.skipTest("tsdb/140_routing_path/multi-value routing path field", "Multi-value routing paths are allowed now. See #112645")
   task.skipTestsByFilePattern("indices.create/synthetic_source*.yml", "@UpdateForV9 -> tests do not pass after bumping API version to 9 [ES-9597]")
 })

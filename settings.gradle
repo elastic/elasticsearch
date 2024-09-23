@@ -91,6 +91,7 @@ List projects = [
   'distribution:tools:keystore-cli',
   'distribution:tools:geoip-cli',
   'distribution:tools:ansi-console',
+  'distribution:tools:entitlement-agent',
   'server',
   'test:framework',
   'test:fixtures:azure-fixture',

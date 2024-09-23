@@ -560,9 +560,9 @@ final class FastMath {
             }
             if (x == Double.NEGATIVE_INFINITY) {
                 if (y == Double.POSITIVE_INFINITY) {
-                    return 3 * Math.PI * 0.25;
+                    return 3 * M_QUARTER_PI;
                 } else if (y == Double.NEGATIVE_INFINITY) {
-                    return -3 * Math.PI * 0.25;
+                    return -3 * M_QUARTER_PI;
                 } else if (y > 0.0) {
                     return Math.PI;
                 } else if (y < 0.0) {

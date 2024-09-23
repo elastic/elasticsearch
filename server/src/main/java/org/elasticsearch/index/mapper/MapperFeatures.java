@@ -41,7 +41,8 @@ public class MapperFeatures implements FeatureSpecification {
             SourceFieldMapper.SYNTHETIC_SOURCE_WITH_COPY_TO_AND_DOC_VALUES_FALSE_SUPPORT,
             SourceFieldMapper.SYNTHETIC_SOURCE_COPY_TO_FIX,
             FlattenedFieldMapper.IGNORE_ABOVE_SUPPORT,
-            SourceFieldMapper.SYNTHETIC_SOURCE_COPY_TO_INSIDE_OBJECTS_FIX
+            SourceFieldMapper.SYNTHETIC_SOURCE_COPY_TO_INSIDE_OBJECTS_FIX,
+            TimeSeriesRoutingHashFieldMapper.TS_ROUTING_HASH_FIELD_PARSES_BYTES_REF
         );
     }
 }

@@ -7,12 +7,15 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-// This is only required because :server needs this at runtime.
-// We'll be removing this in 8.0 so for now just publish the JAR to make dependency resolution work.
-apply plugin: 'elasticsearch.publish'
+package org.elasticsearch.entitlement.agent;
 
-tasks.named("test").configure { enabled = false }
+import org.elasticsearch.entitlement.runtime.api.EntitlementChecks;
 
-// test depend on ES core...
-tasks.named('forbiddenApisMain').configure { enabled = false}
-tasks.named("jarHell").configure { enabled = false }
+import java.lang.instrument.Instrumentation;
+
+public class EntitlementAgent {
+
+    public static void premain(String agentArgs, Instrumentation inst) throws Exception {
+        EntitlementChecks.setAgentBooted();
+    }
+}

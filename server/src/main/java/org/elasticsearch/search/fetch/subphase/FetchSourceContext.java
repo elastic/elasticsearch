@@ -57,7 +57,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         false,
         Strings.EMPTY_ARRAY,
         Strings.EMPTY_ARRAY,
-        DEFAULT_INCLUDE_VECTORS
+        DEFAULT_INCLUDE_VECTORS // TODO: Need to set this to false?
     );
     private final boolean fetchSource;
     private final String[] includes;
@@ -141,7 +141,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     }
 
     public boolean filterVectorFields() {
-        return this.includeVectors == null || this.includeVectors == Boolean.FALSE;
+        return this.includeVectors == null || this.includeVectors == false;
     }
 
     public boolean hasFilter() {
@@ -157,7 +157,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
             return new SourceFilter(includes, excludes);
         } else {
             if (mappingLookup == null) {
-                throw new IllegalStateException("MappingLookup must not be null when filtering vectors");
+                throw new IllegalStateException("mappingLookup must not be null when filtering vectors");
             }
 
             String[] excludeFields = excludes();
@@ -189,8 +189,8 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                     .map(Map.Entry::getKey)
                     .toArray(String[]::new);
                 excludeFields = ArrayUtils.concat(excludeFields, sparseVectors);
-
             }
+
             return new SourceFilter(includes, excludeFields);
         }
     }
@@ -236,7 +236,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         boolean fetchSource = true;
         String[] includes = Strings.EMPTY_ARRAY;
         String[] excludes = Strings.EMPTY_ARRAY;
-        Boolean includeVectors = null;
+        Boolean includeVectors = DEFAULT_INCLUDE_VECTORS;
         if (token == XContentParser.Token.VALUE_BOOLEAN) {
             fetchSource = parser.booleanValue();
         } else if (token == XContentParser.Token.VALUE_STRING) {
@@ -371,7 +371,9 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         if (fetchSource != that.fetchSource) return false;
         if (Arrays.equals(excludes, that.excludes) == false) return false;
         if (Arrays.equals(includes, that.includes) == false) return false;
-        return includeVectors == that.includeVectors;
+        if (includeVectors != that.includeVectors) return false;
+
+        return true;
     }
 
     @Override

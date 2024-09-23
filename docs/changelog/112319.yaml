@@ -1,5 +1,5 @@
 pr: 112319
 summary: Add parameter to hide/show vector fields in _source
-area: Vector
+area: Vector Search
 type: enhancement
 issues: []

@@ -170,7 +170,8 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
             xContentRegistry,
             indicesService,
             systemIndices,
-            indexSettingProviders
+            indexSettingProviders,
+            Map.of()
         );
         if (request.includeDefaults()) {
             listener.onResponse(

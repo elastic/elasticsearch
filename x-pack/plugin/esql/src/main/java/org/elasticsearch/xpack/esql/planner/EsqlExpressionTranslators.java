@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils;
@@ -84,8 +85,16 @@ public final class EsqlExpressionTranslators {
         new ExpressionTranslators.StringQueries(),
         new ExpressionTranslators.Matches(),
         new ExpressionTranslators.MultiMatches(),
+        new FullTextFunctions(),
         new Scalars()
     );
+
+    public static class FullTextFunctions extends ExpressionTranslator<FullTextFunction> {
+        @Override
+        protected Query asQuery(FullTextFunction fullTextFunction, TranslatorHandler handler) {
+            return fullTextFunction.asQuery();
+        }
+    }
 
     public static Query toQuery(Expression e, TranslatorHandler handler) {
         Query translation = null;

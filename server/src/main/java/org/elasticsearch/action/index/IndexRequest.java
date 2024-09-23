@@ -881,6 +881,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return this;
     }
 
+    /**
+     * Transient flag denoting that the local request should be routed to a failure store. Not persisted across the wire.
+     */
     public boolean isWriteToFailureStore() {
         return writeToFailureStore;
     }

@@ -1084,6 +1084,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(
             state.metadata().getProject(),
             "my-template",
+            Map.of(),
             "my-index"
         );
 
@@ -1150,6 +1151,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(
             state.metadata().getProject(),
             "my-template",
+            Map.of(),
             "my-index"
         );
 
@@ -1205,6 +1207,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(
                 state.metadata().getProject(),
                 "logs-data-stream-template",
+                Map.of(),
                 DataStream.getDefaultBackingIndexName("logs", 1L)
             );
 
@@ -1259,6 +1262,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(
                 state.metadata().getProject(),
                 "timeseries-template",
+                Map.of(),
                 "timeseries"
             );
 
@@ -1282,6 +1286,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             mappings = MetadataIndexTemplateService.collectMappings(
                 state.metadata().getProject(),
                 "timeseries-template",
+                Map.of(),
                 DataStream.getDefaultBackingIndexName("timeseries", 1L)
             );
 
@@ -1330,6 +1335,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(
                 state.metadata().getProject(),
                 "logs-template",
+                Map.of(),
                 DataStream.getDefaultBackingIndexName("logs", 1L)
             );
 
@@ -1386,6 +1392,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(
                 state.metadata().getProject(),
                 "timeseries-template",
+                Map.of(),
                 DataStream.getDefaultBackingIndexName("timeseries-template", 1L)
             );
 
@@ -2473,6 +2480,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(
             state.metadata().getProject(),
             "composable-template",
+            Map.of(),
             "test-index"
         );
 

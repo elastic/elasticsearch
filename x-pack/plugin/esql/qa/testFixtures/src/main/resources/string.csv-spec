@@ -1202,16 +1202,20 @@ emp_no:integer  | first_name:keyword    | name_reversed:keyword
 ;
 
 reverseRow#[skip:-8.15.99]
-ROW message = "Some Text" | EVAL message_upper = REVERSE(message);
+// tag::reverse[]
+ROW message = "Some Text" | EVAL message_reversed = REVERSE(message);
+// end::reverse[]
 
-message:keyword | message_upper:keyword
+// end::reverse-result[]
+message:keyword | message_reversed:keyword
 Some Text       | txeT emoS
+// end::reverse-result[]
 ;
 
 reverseEmoji#[skip:-8.15.99]
-ROW message = "😁😅😐🫤🥺😢😭" | EVAL message_upper = REVERSE(message);
+ROW message = "😁😅😐🫤🥺😢😭" | EVAL message_reversed = REVERSE(message);
 
-message:keyword | message_upper:keyword
+message:keyword | message_reversed:keyword
 😁😅😐🫤🥺😢😭 | 😭😢🥺🫤😐😅😁
 ;
 

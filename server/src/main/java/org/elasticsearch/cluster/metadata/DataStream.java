@@ -1103,7 +1103,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final ParseField AUTO_SHARDING_FIELD = new ParseField("auto_sharding");
     public static final ParseField FAILURE_ROLLOVER_ON_WRITE_FIELD = new ParseField("failure_rollover_on_write");
     public static final ParseField FAILURE_AUTO_SHARDING_FIELD = new ParseField("failure_auto_sharding");
-    public static final ParseField DATA_STREAM_OPTIONS_FIELD = new ParseField("data_stream_options");
+    public static final ParseField DATA_STREAM_OPTIONS_FIELD = new ParseField("options");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream", args -> {
@@ -1240,7 +1240,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
                 failureIndices.autoShardingEvent.toXContent(builder, params);
                 builder.endObject();
             }
-            if (DataStreamOptions.EMPTY.equals(dataStreamOptions)) {
+            if (DataStreamOptions.EMPTY.equals(dataStreamOptions) == false) {
                 builder.field(DATA_STREAM_OPTIONS_FIELD.getPreferredName());
                 dataStreamOptions.toXContent(builder, params);
             }

@@ -244,8 +244,8 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             ActionListener.noop(),
             true
         );
-        var backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1, req.getStartTime());
-        var failureStoreIndexName = DataStream.getDefaultFailureStoreName(dataStreamName, 1, req.getStartTime());
+        var backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1, req.startTime());
+        var failureStoreIndexName = DataStream.getDefaultFailureStoreName(dataStreamName, 1, req.startTime());
         assertThat(newState.metadata().dataStreams().size(), equalTo(1));
         assertThat(newState.metadata().dataStreams().get(dataStreamName).getName(), equalTo(dataStreamName));
         assertThat(newState.metadata().dataStreams().get(dataStreamName).isSystem(), is(false));
@@ -284,8 +284,8 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             ActionListener.noop(),
             false
         );
-        var backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1, req.getStartTime());
-        var failureStoreIndexName = DataStream.getDefaultFailureStoreName(dataStreamName, 1, req.getStartTime());
+        var backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1, req.startTime());
+        var failureStoreIndexName = DataStream.getDefaultFailureStoreName(dataStreamName, 1, req.startTime());
         assertThat(newState.metadata().dataStreams().size(), equalTo(1));
         assertThat(newState.metadata().dataStreams().get(dataStreamName).getName(), equalTo(dataStreamName));
         assertThat(newState.metadata().dataStreams().get(dataStreamName).isSystem(), is(false));
@@ -321,8 +321,8 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             ActionListener.noop(),
             true
         );
-        var backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1, req.getStartTime());
-        var failureStoreIndexName = DataStream.getDefaultFailureStoreName(dataStreamName, 1, req.getStartTime());
+        var backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1, req.startTime());
+        var failureStoreIndexName = DataStream.getDefaultFailureStoreName(dataStreamName, 1, req.startTime());
         assertThat(newState.metadata().dataStreams().size(), equalTo(1));
         assertThat(newState.metadata().dataStreams().get(dataStreamName).getName(), equalTo(dataStreamName));
         assertThat(newState.metadata().index(backingIndexName), notNullValue());

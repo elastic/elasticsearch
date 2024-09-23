@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.ingest.geoip.IngestGeoIpMetadata;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
@@ -40,10 +39,6 @@ public class TransportGetDatabaseConfigurationAction extends TransportNodesActio
     GetDatabaseConfigurationAction.NodeRequest,
     GetDatabaseConfigurationAction.NodeResponse,
     List<DatabaseConfigurationMetadata>> {
-
-    public static final NodeFeature GET_DATABASE_CONFIGURATION_ACTION_MULTI_NODE = new NodeFeature(
-        "get_database_configuration_action.multi_node"
-    );
 
     private final FeatureService featureService;
 

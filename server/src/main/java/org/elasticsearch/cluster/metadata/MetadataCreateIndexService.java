@@ -296,7 +296,12 @@ public class MetadataCreateIndexService {
         var delegate = new AllocationActionListener<>(listener, threadPool.getThreadContext());
         submitUnbatchedTask(
             "create-index [" + request.index() + "], cause [" + request.cause() + "]",
-            new AckedClusterStateUpdateTask(Priority.URGENT, request, delegate.clusterStateUpdate()) {
+            new AckedClusterStateUpdateTask(
+                Priority.URGENT,
+                request.masterNodeTimeout(),
+                request.ackTimeout(),
+                delegate.clusterStateUpdate()
+            ) {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
@@ -648,6 +653,7 @@ public class MetadataCreateIndexService {
             request.mappings(),
             currentState,
             templateName,
+            Map.of(),
             xContentRegistry,
             request.index()
         );
@@ -806,6 +812,7 @@ public class MetadataCreateIndexService {
         List<CompressedXContent> templateMappings = MetadataIndexTemplateService.collectMappings(
             composableIndexTemplate,
             componentTemplates,
+            Map.of(),
             indexName
         );
         return collectV2Mappings(null, templateMappings, xContentRegistry);
@@ -815,10 +822,16 @@ public class MetadataCreateIndexService {
         @Nullable final String requestMappings,
         final ClusterState currentState,
         final String templateName,
+        Map<String, ComponentTemplate> componentTemplateSubstitutions,
         final NamedXContentRegistry xContentRegistry,
         final String indexName
     ) throws Exception {
-        List<CompressedXContent> templateMappings = MetadataIndexTemplateService.collectMappings(currentState, templateName, indexName);
+        List<CompressedXContent> templateMappings = MetadataIndexTemplateService.collectMappings(
+            currentState,
+            templateName,
+            componentTemplateSubstitutions,
+            indexName
+        );
         return collectV2Mappings(requestMappings, templateMappings, xContentRegistry);
     }
 

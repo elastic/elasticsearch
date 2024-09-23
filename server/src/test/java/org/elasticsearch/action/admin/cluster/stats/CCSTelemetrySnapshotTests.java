@@ -110,13 +110,13 @@ public class CCSTelemetrySnapshotTests extends AbstractWireSerializingTestCase<C
                 }
                 break;
             case 3:
-                took = randomLongMetricValue();
+                took = randomValueOtherThan(took, this::randomLongMetricValue);
                 break;
             case 4:
-                tookMrtTrue = randomLongMetricValue();
+                tookMrtTrue = randomValueOtherThan(tookMrtTrue, this::randomLongMetricValue);
                 break;
             case 5:
-                tookMrtFalse = randomLongMetricValue();
+                tookMrtFalse = randomValueOtherThan(tookMrtFalse, this::randomLongMetricValue);
                 break;
             case 6:
                 skippedRemotes += randomNonNegativeLong();

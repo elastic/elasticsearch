@@ -111,6 +111,11 @@ public class MappingLookupInferenceFieldMapperTests extends MapperServiceTestCas
         }
 
         @Override
+        public String getInferenceFieldName() {
+            return fullPath() + ".inference";
+        }
+
+        @Override
         protected void parseCreateField(DocumentParserContext context) throws IOException {}
 
         @Override

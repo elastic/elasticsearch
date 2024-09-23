@@ -36,12 +36,9 @@ public interface InferenceFieldMapper {
     Object getOriginalValue(Map<String, Object> sourceAsMap);
 
     /**
-     * Get the field's embedding name
+     * Get the field's inference field name
      *
-     * @param fieldName The inference field name
-     * @return The field's full path to embedding value
+     * @return The full path to the field's inference field name
      */
-    static String getInferenceFieldName(String fieldName) {
-        return fieldName + ".inference";
-    }
+    String getInferenceFieldName();
 }

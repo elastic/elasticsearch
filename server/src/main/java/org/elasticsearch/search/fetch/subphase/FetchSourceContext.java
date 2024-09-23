@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.InferenceFieldMapper;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
@@ -152,7 +153,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     }
 
     public SourceFilter filter(MappingLookup mappingLookup) {
-        if (filterVectorFields() == Boolean.FALSE) {
+        if (filterVectorFields() == false) {
             return new SourceFilter(includes, excludes);
         } else {
             if (mappingLookup == null) {
@@ -160,12 +161,17 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
             }
 
             String[] excludeFields = excludes();
-            String[] inferenceFields = mappingLookup.inferenceFields()
-                .keySet()
-                .stream()
-                .map(InferenceFieldMapper::getInferenceFieldName)
-                .toArray(String[]::new);
-            excludeFields = ArrayUtils.concat(excludeFields, inferenceFields);
+            List<String> inferenceFieldNames = new ArrayList<>(mappingLookup.inferenceFields().size());
+            for (String inferenceField : mappingLookup.inferenceFields().keySet()) {
+                Mapper mapper = mappingLookup.getMapper(inferenceField);
+                if (mapper instanceof InferenceFieldMapper == false) {
+                    throw new IllegalStateException("Mapper for field [" + inferenceField + "] is not an inference field mapper");
+                }
+
+                InferenceFieldMapper inferenceFieldMapper = (InferenceFieldMapper) mapper;
+                inferenceFieldNames.add(inferenceFieldMapper.getInferenceFieldName());
+            }
+            excludeFields = ArrayUtils.concat(excludeFields, inferenceFieldNames.toArray(new String[0]));
 
             if (includeVectors != null) {
                 String[] denseVectors = mappingLookup.getFullNameToFieldType()

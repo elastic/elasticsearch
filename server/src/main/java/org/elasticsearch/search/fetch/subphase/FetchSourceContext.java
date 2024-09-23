@@ -53,12 +53,19 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         Strings.EMPTY_ARRAY,
         DEFAULT_INCLUDE_VECTORS
     );
+    public static final FetchSourceContext FETCH_SOURCE_WITH_VECTORS = new FetchSourceContext(
+        true,
+        Strings.EMPTY_ARRAY,
+        Strings.EMPTY_ARRAY,
+        true
+    );
     public static final FetchSourceContext DO_NOT_FETCH_SOURCE = new FetchSourceContext(
         false,
         Strings.EMPTY_ARRAY,
         Strings.EMPTY_ARRAY,
         DEFAULT_INCLUDE_VECTORS // TODO: Need to set this to false?
     );
+
     private final boolean fetchSource;
     private final String[] includes;
     private final String[] excludes;

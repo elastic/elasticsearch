@@ -198,7 +198,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             VersionType.INTERNAL,
             ifSeqNo,
             ifPrimaryTerm,
-            FetchSourceContext.FETCH_SOURCE,
+            FetchSourceContext.FETCH_SOURCE_WITH_VECTORS,
             false,
             indexShard::get
         );

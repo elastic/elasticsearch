@@ -24,6 +24,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.telemetry.tracing.Traceable;
@@ -104,19 +105,19 @@ public class RestRequest implements ToXContent.Params, Traceable {
     protected RestRequest(
         XContentParserConfiguration parserConfig,
         Map<String, String> params,
-        String path,
+        String rawPath,
         Map<String, List<String>> headers,
         HttpRequest httpRequest,
         HttpChannel httpChannel
     ) {
-        this(parserConfig, params, path, headers, httpRequest, httpChannel, requestIdGenerator.incrementAndGet());
+        this(parserConfig, params, rawPath, headers, httpRequest, httpChannel, requestIdGenerator.incrementAndGet());
     }
 
     @SuppressWarnings("this-escape")
     private RestRequest(
         XContentParserConfiguration parserConfig,
         Map<String, String> params,
-        String path,
+        String rawPath,
         Map<String, List<String>> headers,
         HttpRequest httpRequest,
         HttpChannel httpChannel,
@@ -148,7 +149,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
             : parserConfig.withRestApiVersion(effectiveApiVersion);
         this.httpChannel = httpChannel;
         this.params = params;
-        this.rawPath = path;
+        this.rawPath = rawPath;
         this.headers = Collections.unmodifiableMap(headers);
         this.requestId = requestId;
     }
@@ -203,11 +204,10 @@ public class RestRequest implements ToXContent.Params, Traceable {
      */
     public static RestRequest request(XContentParserConfiguration parserConfig, HttpRequest httpRequest, HttpChannel httpChannel) {
         Map<String, String> params = params(httpRequest.uri());
-        String path = path(httpRequest.uri());
         return new RestRequest(
             parserConfig,
             params,
-            path,
+            httpRequest.rawPath(),
             httpRequest.getHeaders(),
             httpRequest,
             httpChannel,
@@ -226,15 +226,6 @@ public class RestRequest implements ToXContent.Params, Traceable {
             }
         }
         return params;
-    }
-
-    private static String path(final String uri) {
-        final int index = uri.indexOf('?');
-        if (index >= 0) {
-            return uri.substring(0, index);
-        } else {
-            return uri;
-        }
     }
 
     /**
@@ -304,16 +295,28 @@ public class RestRequest implements ToXContent.Params, Traceable {
     }
 
     public boolean hasContent() {
-        return contentLength() > 0;
+        return isStreamedContent() || contentLength() > 0;
     }
 
     public int contentLength() {
-        return httpRequest.content().length();
+        return httpRequest.body().asFull().bytes().length();
+    }
+
+    public boolean isFullContent() {
+        return httpRequest.body().isFull();
     }
 
     public BytesReference content() {
         this.contentConsumed = true;
-        return httpRequest.content();
+        return httpRequest.body().asFull().bytes();
+    }
+
+    public boolean isStreamedContent() {
+        return httpRequest.body().isStream();
+    }
+
+    public HttpBody.Stream contentStream() {
+        return httpRequest.body().asStream();
     }
 
     /**

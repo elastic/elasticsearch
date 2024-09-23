@@ -165,23 +165,15 @@ public class IndexResolver {
             return IndexResolution.valid(new EsIndex(indexPattern, rootFields, Map.of()));
         }
 
-        Map<String, StringBuilder> clusterAndResolvedIndices = new HashMap<>();
+        Set<String> clustersInFieldCapsResponse = new HashSet<>();
         Map<String, IndexMode> concreteIndices = Maps.newMapWithExpectedSize(fieldCapsResponse.getIndexResponses().size());
         for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
             String indexExpression = ir.getIndexName();
             concreteIndices.put(ir.getIndexName(), ir.getIndexMode());
-
-            String clusterAlias = parseClusterAlias(indexExpression);
-            clusterAndResolvedIndices.compute(clusterAlias, (k, v) -> {
-                if (v == null) {
-                    return new StringBuilder().append(indexExpression);
-                } else {
-                    return v.append(',').append(indexExpression);
-                }
-            });
+            clustersInFieldCapsResponse.add(parseClusterAlias(indexExpression));
         }
         if (executionInfo != null) {
-            updateExecutionInfoWithFieldCapsResults(executionInfo, clusterAndResolvedIndices, fieldCapsResponse.getFailures());
+            updateExecutionInfoWithFieldCapsResults(executionInfo, clustersInFieldCapsResponse, fieldCapsResponse.getFailures());
         }
         return IndexResolution.valid(new EsIndex(indexPattern, rootFields, concreteIndices));
     }
@@ -189,22 +181,16 @@ public class IndexResolver {
     // visible for testing
     static void updateExecutionInfoWithFieldCapsResults(
         EsqlExecutionInfo executionInfo,
-        Map<String, StringBuilder> clusterAndResolvedIndices,
+        Set<String> clustersInFieldCapsResponse,
         List<FieldCapabilitiesFailure> failures
     ) {
         Set<String> clustersWithoutFieldCapsResponses = new HashSet<>(executionInfo.clusterAliases());
-        for (Map.Entry<String, StringBuilder> entry : clusterAndResolvedIndices.entrySet()) {
-            final String clusterAlias = entry.getKey();
-            final EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(clusterAlias);
-            assert cluster != null : "All cluster aliases should have already been inserted into ExecutionInfo. Missing: " + clusterAlias;
-            executionInfo.swapCluster(
-                clusterAlias,
-                // overwrite the existing unresolved index expression with the resolved indices
-                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(cluster).setIndexExpression(entry.getValue().toString()).build()
-            );
+        for (String clusterAlias : clustersInFieldCapsResponse) {
             clustersWithoutFieldCapsResponses.remove(clusterAlias);
         }
 
+        // TODO: modify field-caps (or EsqlResolveFieldsActions if we fully fork field-caps) to return skipped clusters
+        // https://github.com/elastic/elasticsearch/issues/113394
         /*
          * These are clusters in the original request that are not present in the field-caps response. They were
          * specified with an index or indices that do not exist, so the search on that cluster is done.

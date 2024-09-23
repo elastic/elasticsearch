@@ -238,7 +238,7 @@ public class MultiClustersIT extends ESRestTestCase {
         Map<String, Object> remoteCluster = (Map<String, Object>) details.get("remote_cluster");
         assertThat(remoteCluster.keySet(), equalTo(Set.of("status", "indices", "took", "_shards")));
         assertThat(remoteCluster.get("status"), equalTo("successful"));
-        assertThat(remoteCluster.get("indices"), equalTo("remote_cluster:test-remote-index"));
+        assertThat(remoteCluster.get("indices"), equalTo("test-remote-index"));
         assertThat((Integer) remoteCluster.get("took"), greaterThanOrEqualTo(0));
 
         @SuppressWarnings("unchecked")

@@ -15,9 +15,7 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -49,18 +47,14 @@ public class IndexResolverTests extends ESTestCase {
             executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*"));
             executionInfo.swapCluster(remote2Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote2Alias, "mylogs1,mylogs2,logs*"));
 
-            Map<String, StringBuilder> clusterAndResolvedIndices = new HashMap<>();
-            clusterAndResolvedIndices.put(localClusterAlias, new StringBuilder("logs-a,logs-b"));
-            clusterAndResolvedIndices.put(remote1Alias, new StringBuilder("remote1:logs-a"));
-            clusterAndResolvedIndices.put(remote2Alias, new StringBuilder("remote2:mylogs1,remote2:mylogs2,remote2:logs-a,remote2:logs-b"));
-
-            IndexResolver.updateExecutionInfoWithFieldCapsResults(executionInfo, clusterAndResolvedIndices, failures);
+            Set<String> clustersInFieldCapsResponse = Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, "remote1", "remote2");
+            IndexResolver.updateExecutionInfoWithFieldCapsResults(executionInfo, clustersInFieldCapsResponse, failures);
 
             assertThat(executionInfo.clusterAliases(), equalTo(Set.of(localClusterAlias, remote1Alias, remote2Alias)));
             assertNull(executionInfo.overallTook());
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(localClusterAlias);
-            assertThat(localCluster.getIndexExpression(), equalTo("logs-a,logs-b"));
+            assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
             assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.RUNNING));
             assertNull(localCluster.getTook());
             assertNull(localCluster.getTotalShards());
@@ -69,7 +63,7 @@ public class IndexResolverTests extends ESTestCase {
             assertNull(localCluster.getFailedShards());
 
             EsqlExecutionInfo.Cluster remote1Cluster = executionInfo.getCluster(remote1Alias);
-            assertThat(remote1Cluster.getIndexExpression(), equalTo("remote1:logs-a"));
+            assertThat(remote1Cluster.getIndexExpression(), equalTo("*"));
             assertThat(remote1Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.RUNNING));
             assertNull(remote1Cluster.getTook());
             assertNull(remote1Cluster.getTotalShards());
@@ -78,7 +72,7 @@ public class IndexResolverTests extends ESTestCase {
             assertNull(remote1Cluster.getFailedShards());
 
             EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(remote2Alias);
-            assertThat(remote2Cluster.getIndexExpression(), equalTo("remote2:mylogs1,remote2:mylogs2,remote2:logs-a,remote2:logs-b"));
+            assertThat(remote2Cluster.getIndexExpression(), equalTo("mylogs1,mylogs2,logs*"));
             assertThat(remote2Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.RUNNING));
             assertNull(remote2Cluster.getTook());
             assertNull(remote2Cluster.getTotalShards());
@@ -93,17 +87,20 @@ public class IndexResolverTests extends ESTestCase {
             executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*"));
             executionInfo.swapCluster(remote2Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote2Alias, "mylogs1,mylogs2,logs*"));
 
-            Map<String, StringBuilder> clusterAndResolvedIndices = new HashMap<>();
-            clusterAndResolvedIndices.put(remote1Alias, new StringBuilder("remote1:logs-a,remote1:logs-b"));
-            clusterAndResolvedIndices.put(remote2Alias, new StringBuilder("remote2:mylogs1,remote2:mylogs2"));
+            // Map<String, StringBuilder> clusterAndResolvedIndices = new HashMap<>();
+            // clusterAndResolvedIndices.put(remote1Alias, new StringBuilder("remote1:logs-a,remote1:logs-b"));
+            // clusterAndResolvedIndices.put(remote2Alias, new StringBuilder("remote2:mylogs1,remote2:mylogs2"));
+            //
+            // IndexResolver.updateExecutionInfoWithFieldCapsResults(executionInfo, clusterAndResolvedIndices, failures);
 
-            IndexResolver.updateExecutionInfoWithFieldCapsResults(executionInfo, clusterAndResolvedIndices, failures);
+            Set<String> clustersInFieldCapsResponse = Set.of("remote1", "remote2");
+            IndexResolver.updateExecutionInfoWithFieldCapsResults(executionInfo, clustersInFieldCapsResponse, failures);
 
             assertThat(executionInfo.clusterAliases(), equalTo(Set.of(remote1Alias, remote2Alias)));
             assertNull(executionInfo.overallTook());
 
             EsqlExecutionInfo.Cluster remote1Cluster = executionInfo.getCluster(remote1Alias);
-            assertThat(remote1Cluster.getIndexExpression(), equalTo("remote1:logs-a,remote1:logs-b"));
+            assertThat(remote1Cluster.getIndexExpression(), equalTo("*"));
             assertThat(remote1Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.RUNNING));
             assertNull(remote1Cluster.getTook());
             assertNull(remote1Cluster.getTotalShards());
@@ -112,7 +109,7 @@ public class IndexResolverTests extends ESTestCase {
             assertNull(remote1Cluster.getFailedShards());
 
             EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(remote2Alias);
-            assertThat(remote2Cluster.getIndexExpression(), equalTo("remote2:mylogs1,remote2:mylogs2"));
+            assertThat(remote2Cluster.getIndexExpression(), equalTo("mylogs1,mylogs2,logs*"));
             assertThat(remote2Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.RUNNING));
             assertNull(remote2Cluster.getTook());
             assertNull(remote2Cluster.getTotalShards());
@@ -127,16 +124,18 @@ public class IndexResolverTests extends ESTestCase {
             executionInfo.swapCluster(localClusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(localClusterAlias, "logs*"));
             executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*"));
 
-            Map<String, StringBuilder> clusterAndResolvedIndices = new HashMap<>();
-            clusterAndResolvedIndices.put(localClusterAlias, new StringBuilder("logs-a,logs-b"));
+            // Map<String, StringBuilder> clusterAndResolvedIndices = new HashMap<>();
+            // clusterAndResolvedIndices.put(localClusterAlias, new StringBuilder("logs-a,logs-b"));
+            // IndexResolver.updateExecutionInfoWithFieldCapsResults(executionInfo, clusterAndResolvedIndices, failures);
 
-            IndexResolver.updateExecutionInfoWithFieldCapsResults(executionInfo, clusterAndResolvedIndices, failures);
+            Set<String> clustersInFieldCapsResponse = Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            IndexResolver.updateExecutionInfoWithFieldCapsResults(executionInfo, clustersInFieldCapsResponse, failures);
 
             assertThat(executionInfo.clusterAliases(), equalTo(Set.of(localClusterAlias, remote1Alias)));
             assertNull(executionInfo.overallTook());
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(localClusterAlias);
-            assertThat(localCluster.getIndexExpression(), equalTo("logs-a,logs-b"));
+            assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
             assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.RUNNING));
             assertNull(localCluster.getTook());
             assertNull(localCluster.getTotalShards());
@@ -173,10 +172,12 @@ public class IndexResolverTests extends ESTestCase {
             executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*", true));
             executionInfo.swapCluster(remote2Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote2Alias, "mylogs1,mylogs2,logs*", true));
 
-            Map<String, StringBuilder> clusterAndResolvedIndices = new HashMap<>();
-            clusterAndResolvedIndices.put(localClusterAlias, new StringBuilder("logs-a,logs-b"));
-            clusterAndResolvedIndices.put(remote1Alias, new StringBuilder("remote1:*"));
-            clusterAndResolvedIndices.put(remote2Alias, new StringBuilder("remote2:mylogs1,remote2:mylogs2,remote2:logs*"));
+            // Map<String, StringBuilder> clusterAndResolvedIndices = new HashMap<>();
+            // clusterAndResolvedIndices.put(localClusterAlias, new StringBuilder("logs-a,logs-b"));
+            // clusterAndResolvedIndices.put(remote1Alias, new StringBuilder("remote1:*"));
+            // clusterAndResolvedIndices.put(remote2Alias, new StringBuilder("remote2:mylogs1,remote2:mylogs2,remote2:logs*"));
+
+            Set<String> clustersInFieldCapsResponse = Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, "remote1", "remote2");
 
             List<FieldCapabilitiesFailure> failures = new ArrayList<>();
             failures.add(new FieldCapabilitiesFailure(new String[] { "remote2:mylogs1" }, new NoSuchRemoteClusterException("remote2")));
@@ -187,13 +188,13 @@ public class IndexResolverTests extends ESTestCase {
                 )
             );
 
-            IndexResolver.updateExecutionInfoWithFieldCapsResults(executionInfo, clusterAndResolvedIndices, failures);
+            IndexResolver.updateExecutionInfoWithFieldCapsResults(executionInfo, clustersInFieldCapsResponse, failures);
 
             assertThat(executionInfo.clusterAliases(), equalTo(Set.of(localClusterAlias, remote1Alias, remote2Alias)));
             assertNull(executionInfo.overallTook());
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(localClusterAlias);
-            assertThat(localCluster.getIndexExpression(), equalTo("logs-a,logs-b"));
+            assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
             assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.RUNNING));
             assertNull(localCluster.getTook());
             assertNull(localCluster.getTotalShards());
@@ -202,7 +203,7 @@ public class IndexResolverTests extends ESTestCase {
             assertNull(localCluster.getFailedShards());
 
             EsqlExecutionInfo.Cluster remote1Cluster = executionInfo.getCluster(remote1Alias);
-            assertThat(remote1Cluster.getIndexExpression(), equalTo("remote1:*"));
+            assertThat(remote1Cluster.getIndexExpression(), equalTo("*"));
             assertThat(remote1Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
             assertNull(remote1Cluster.getTook());
             assertNull(remote1Cluster.getTotalShards());
@@ -211,7 +212,7 @@ public class IndexResolverTests extends ESTestCase {
             assertNull(remote1Cluster.getFailedShards());
 
             EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(remote2Alias);
-            assertThat(remote2Cluster.getIndexExpression(), equalTo("remote2:mylogs1,remote2:mylogs2,remote2:logs*"));
+            assertThat(remote2Cluster.getIndexExpression(), equalTo("mylogs1,mylogs2,logs*"));
             assertThat(remote2Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
             assertNull(remote2Cluster.getTook());
             assertNull(remote2Cluster.getTotalShards());
@@ -225,21 +226,18 @@ public class IndexResolverTests extends ESTestCase {
             EsqlExecutionInfo executionInfo = new EsqlExecutionInfo();
             executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*", true));
 
-            Map<String, StringBuilder> clusterAndResolvedIndices = new HashMap<>();
-            clusterAndResolvedIndices.put(remote1Alias, new StringBuilder("remote1:*"));
-
             List<FieldCapabilitiesFailure> failures = new ArrayList<>();
             failures.add(
                 new FieldCapabilitiesFailure(new String[] { "remote1:foo", "remote1:bar" }, new NoSeedNodeLeftException("no seed node"))
             );
 
-            IndexResolver.updateExecutionInfoWithFieldCapsResults(executionInfo, clusterAndResolvedIndices, failures);
+            IndexResolver.updateExecutionInfoWithFieldCapsResults(executionInfo, Set.of("remote1"), failures);
 
             assertThat(executionInfo.clusterAliases(), equalTo(Set.of(remote1Alias)));
             assertNull(executionInfo.overallTook());
 
             EsqlExecutionInfo.Cluster remote1Cluster = executionInfo.getCluster(remote1Alias);
-            assertThat(remote1Cluster.getIndexExpression(), equalTo("remote1:*"));
+            assertThat(remote1Cluster.getIndexExpression(), equalTo("*"));
             assertThat(remote1Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
             assertNull(remote1Cluster.getTook());
             assertNull(remote1Cluster.getTotalShards());
@@ -254,21 +252,18 @@ public class IndexResolverTests extends ESTestCase {
             EsqlExecutionInfo executionInfo = new EsqlExecutionInfo();
             executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*", false));
 
-            Map<String, StringBuilder> clusterAndResolvedIndices = new HashMap<>();
-            clusterAndResolvedIndices.put(remote1Alias, new StringBuilder("remote1:*"));
-
             List<FieldCapabilitiesFailure> failures = new ArrayList<>();
             failures.add(
                 new FieldCapabilitiesFailure(new String[] { "remote1:foo", "remote1:bar" }, new NoSeedNodeLeftException("no seed node"))
             );
 
-            IndexResolver.updateExecutionInfoWithFieldCapsResults(executionInfo, clusterAndResolvedIndices, failures);
+            IndexResolver.updateExecutionInfoWithFieldCapsResults(executionInfo, Set.of("remote1"), failures);
 
             assertThat(executionInfo.clusterAliases(), equalTo(Set.of(remote1Alias)));
             assertNull(executionInfo.overallTook());
 
             EsqlExecutionInfo.Cluster remote1Cluster = executionInfo.getCluster(remote1Alias);
-            assertThat(remote1Cluster.getIndexExpression(), equalTo("remote1:*"));
+            assertThat(remote1Cluster.getIndexExpression(), equalTo("*"));
             assertThat(remote1Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
             assertNull(remote1Cluster.getTook());
             assertNull(remote1Cluster.getTotalShards());

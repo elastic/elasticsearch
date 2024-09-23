@@ -18,7 +18,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -278,12 +277,7 @@ public class EsqlSession {
             Map<String, OriginalIndices> clusterIndices = resolveClusterAndIndicesFunction.apply(table.index());
             for (Map.Entry<String, OriginalIndices> entry : clusterIndices.entrySet()) {
                 final String clusterAlias = entry.getKey();
-                String indexExpr;
-                if (clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
-                    indexExpr = Strings.arrayToCommaDelimitedString(entry.getValue().indices());
-                } else {
-                    indexExpr = Strings.collectionToDelimitedString(Arrays.asList(entry.getValue().indices()), ",", clusterAlias + ":", "");
-                }
+                String indexExpr = Strings.arrayToCommaDelimitedString(entry.getValue().indices());
                 executionInfo.swapCluster(clusterAlias, (k, v) -> {
                     assert v == null : "No cluster for " + clusterAlias + " should have been added to ExecutionInfo yet";
                     return new EsqlExecutionInfo.Cluster(clusterAlias, indexExpr.toString(), executionInfo.isSkipUnavailable(clusterAlias));

@@ -65,6 +65,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.NAME;
+import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.OLD_ELSER_SERVICE_NAME;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -93,9 +95,11 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
     }
 
     public void testParseRequestConfig() {
+        // Null model variant
         var service = createService(mock(Client.class));
-        var settings = new HashMap<String, Object>();
-        settings.put(
+        var config = new HashMap<String, Object>();
+        config.put(ModelConfigurations.SERVICE, ElasticsearchInternalService.NAME);
+        config.put(
             ModelConfigurations.SERVICE_SETTINGS,
             new HashMap<>(
                 Map.of(ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS, 1, ElasticsearchInternalServiceSettings.NUM_THREADS, 4)
@@ -108,15 +112,16 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         );
 
         var taskType = randomFrom(TaskType.TEXT_EMBEDDING, TaskType.RERANK, TaskType.SPARSE_EMBEDDING);
-        service.parseRequestConfig(randomInferenceEntityId, taskType, settings, Set.of(), modelListener);
+        service.parseRequestConfig(randomInferenceEntityId, taskType, config, Set.of("not-linux"), modelListener);
     }
 
     public void testParseRequestConfig_Misconfigured() {
-        // Null model variant
+        // Non-existent model variant
         {
             var service = createService(mock(Client.class));
-            var settings = new HashMap<String, Object>();
-            settings.put(
+            var config = new HashMap<String, Object>();
+            config.put(ModelConfigurations.SERVICE, ElasticsearchInternalService.NAME);
+            config.put(
                 ModelConfigurations.SERVICE_SETTINGS,
                 new HashMap<>(
                     Map.of(ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS, 1, ElasticsearchInternalServiceSettings.NUM_THREADS, 4)
@@ -129,20 +134,21 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             );
 
             var taskType = randomFrom(TaskType.TEXT_EMBEDDING, TaskType.RERANK, TaskType.SPARSE_EMBEDDING);
-            service.parseRequestConfig(randomInferenceEntityId, taskType, settings, Set.of(), modelListener);
+            service.parseRequestConfig(randomInferenceEntityId, taskType, config, Set.of(), modelListener);
         }
 
         // Invalid config map
         {
             var service = createService(mock(Client.class));
-            var settings = new HashMap<String, Object>();
-            settings.put(
+            var config = new HashMap<String, Object>();
+            config.put(ModelConfigurations.SERVICE, ElasticsearchInternalService.NAME);
+            config.put(
                 ModelConfigurations.SERVICE_SETTINGS,
                 new HashMap<>(
                     Map.of(ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS, 1, ElasticsearchInternalServiceSettings.NUM_THREADS, 4)
                 )
             );
-            settings.put("not_a_valid_config_setting", randomAlphaOfLength(10));
+            config.put("not_a_valid_config_setting", randomAlphaOfLength(10));
 
             ActionListener<Model> modelListener = ActionListener.<Model>wrap(
                 model -> fail("Model parsing should have failed"),
@@ -150,15 +156,16 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             );
 
             var taskType = randomFrom(TaskType.TEXT_EMBEDDING, TaskType.RERANK, TaskType.SPARSE_EMBEDDING);
-            service.parseRequestConfig(randomInferenceEntityId, taskType, settings, Set.of(), modelListener);
+            service.parseRequestConfig(randomInferenceEntityId, taskType, config, Set.of(), modelListener);
         }
     }
 
     public void testParseRequestConfig_E5() {
         {
             var service = createService(mock(Client.class));
-            var settings = new HashMap<String, Object>();
-            settings.put(
+            var config = new HashMap<String, Object>();
+            config.put(ModelConfigurations.SERVICE, ElasticsearchInternalService.NAME);
+            config.put(
                 ModelConfigurations.SERVICE_SETTINGS,
                 new HashMap<>(
                     Map.of(
@@ -182,17 +189,18 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             service.parseRequestConfig(
                 randomInferenceEntityId,
                 TaskType.TEXT_EMBEDDING,
-                settings,
+                config,
                 Set.of(),
-                getModelVerificationActionListener(e5ServiceSettings)
+                getE5ModelVerificationActionListener(e5ServiceSettings)
             );
         }
 
         // Invalid service settings
         {
             var service = createService(mock(Client.class));
-            var settings = new HashMap<String, Object>();
-            settings.put(
+            var config = new HashMap<String, Object>();
+            config.put(ModelConfigurations.SERVICE, ElasticsearchInternalService.NAME);
+            config.put(
                 ModelConfigurations.SERVICE_SETTINGS,
                 new HashMap<>(
                     Map.of(
@@ -213,7 +221,96 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 e -> assertThat(e, instanceOf(ElasticsearchStatusException.class))
             );
 
-            service.parseRequestConfig(randomInferenceEntityId, TaskType.TEXT_EMBEDDING, settings, Set.of(), modelListener);
+            service.parseRequestConfig(randomInferenceEntityId, TaskType.TEXT_EMBEDDING, config, Set.of(), modelListener);
+        }
+    }
+
+    public void testParseRequestConfig_elser() {
+        // General happy case
+        {
+            var service = createService(mock(Client.class));
+            var config = new HashMap<String, Object>();
+            config.put(ModelConfigurations.SERVICE, OLD_ELSER_SERVICE_NAME);
+            config.put(
+                ModelConfigurations.SERVICE_SETTINGS,
+                new HashMap<>(
+                    Map.of(
+                        ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS,
+                        1,
+                        ElasticsearchInternalServiceSettings.NUM_THREADS,
+                        4,
+                        ElasticsearchInternalServiceSettings.MODEL_ID,
+                        ElserModels.ELSER_V2_MODEL
+                    )
+                )
+            );
+
+            var elserServiceSettings = new ElserInternalServiceSettings(1, 4, ElserModels.ELSER_V2_MODEL, null);
+
+            service.parseRequestConfig(
+                randomInferenceEntityId,
+                TaskType.SPARSE_EMBEDDING,
+                config,
+                Set.of(),
+                getElserModelVerificationActionListener(elserServiceSettings, null)
+            );
+        }
+
+        // null model ID returns elser model for the provided platform (not linux)
+        {
+            var service = createService(mock(Client.class));
+            var config = new HashMap<String, Object>();
+            config.put(ModelConfigurations.SERVICE, OLD_ELSER_SERVICE_NAME);
+            config.put(
+                ModelConfigurations.SERVICE_SETTINGS,
+                new HashMap<>(
+                    Map.of(ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS, 1, ElasticsearchInternalServiceSettings.NUM_THREADS, 4)
+                )
+            );
+
+            var elserServiceSettings = new ElserInternalServiceSettings(1, 4, ElserModels.ELSER_V2_MODEL, null);
+
+            service.parseRequestConfig(
+                randomInferenceEntityId,
+                TaskType.SPARSE_EMBEDDING,
+                config,
+                Set.of("not-linux"),
+                getElserModelVerificationActionListener(
+                    elserServiceSettings,
+                    new String[] {
+                        "Putting elasticsearch service inference endpoints (including elser service) without a model_id field is deprecated"
+                            + " and will be removed in a future release. Please specify a model_id field." }
+                )
+            );
+        }
+
+        // Invalid service settings
+        {
+            var service = createService(mock(Client.class));
+            var config = new HashMap<String, Object>();
+            config.put(ModelConfigurations.SERVICE, OLD_ELSER_SERVICE_NAME);
+            config.put(
+                ModelConfigurations.SERVICE_SETTINGS,
+                new HashMap<>(
+                    Map.of(
+                        ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS,
+                        1,
+                        ElasticsearchInternalServiceSettings.NUM_THREADS,
+                        4,
+                        ElasticsearchInternalServiceSettings.MODEL_ID,
+                        ElserModels.ELSER_V2_MODEL,
+                        "not_a_valid_service_setting",
+                        randomAlphaOfLength(10)
+                    )
+                )
+            );
+
+            ActionListener<Model> modelListener = ActionListener.<Model>wrap(
+                model -> fail("Model parsing should have failed"),
+                e -> assertThat(e, instanceOf(ElasticsearchStatusException.class))
+            );
+
+            service.parseRequestConfig(randomInferenceEntityId, TaskType.SPARSE_EMBEDDING, config, Set.of(), modelListener);
         }
     }
 
@@ -344,7 +441,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         service.parseRequestConfig(randomInferenceEntityId, TaskType.SPARSE_EMBEDDING, settings, Set.of(), modelListener);
     }
 
-    private ActionListener<Model> getModelVerificationActionListener(MultilingualE5SmallInternalServiceSettings e5ServiceSettings) {
+    private ActionListener<Model> getE5ModelVerificationActionListener(MultilingualE5SmallInternalServiceSettings e5ServiceSettings) {
         return ActionListener.<Model>wrap(model -> {
             assertEquals(
                 new MultilingualE5SmallModel(
@@ -356,6 +453,47 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 model
             );
         }, e -> { fail("Model parsing failed " + e.getMessage()); });
+    }
+
+    private ActionListener<Model> getElserModelVerificationActionListener(
+        ElserInternalServiceSettings elserServiceSettings,
+        String[] warnings
+    ) {
+        if (warnings != null) {
+
+            return ActionListener.<Model>wrap(model -> {
+                assertCriticalWarnings(
+                    "Putting elasticsearch service inference endpoints (including elser service) without a model_id field"
+                        + " is deprecated and will be removed in a future release. Please specify a model_id field."
+                );
+                assertEquals(
+                    new ElserInternalModel(
+                        randomInferenceEntityId,
+                        TaskType.SPARSE_EMBEDDING,
+                        NAME,
+                        elserServiceSettings,
+                        ElserMlNodeTaskSettings.DEFAULT
+                    ),
+                    model
+                );
+            }, e -> { fail("Model parsing failed " + e.getMessage()); });
+
+        } else {
+
+            return ActionListener.<Model>wrap(model -> {
+                assertEquals(
+                    new ElserInternalModel(
+                        randomInferenceEntityId,
+                        TaskType.SPARSE_EMBEDDING,
+                        NAME,
+                        elserServiceSettings,
+                        ElserMlNodeTaskSettings.DEFAULT
+                    ),
+                    model
+                );
+            }, e -> { fail("Model parsing failed " + e.getMessage()); });
+
+        }
     }
 
     public void testParsePersistedConfig() {

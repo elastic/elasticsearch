@@ -58,7 +58,9 @@ import static org.elasticsearch.common.unit.ByteSizeUnit.KB;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
@@ -123,8 +125,12 @@ public class SearchShardSizeCollectorTests extends ESTestCase {
         setUpShardSize(shardId, size);
         service.collectShardSize(shardId);
 
+        assertThat(service.getShardSize(shardId), nullValue());
+
         deterministicTaskQueue.runAllRunnableTasks();
         verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId, size)), any());
+
+        assertThat(service.getShardSize(shardId), is(size)); // available once published
     }
 
     public void testGroupPublications() {

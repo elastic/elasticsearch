@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless.autoscaling.search;
 
 import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
+import co.elastic.elasticsearch.stateless.api.ShardSizeStatsProvider;
 import co.elastic.elasticsearch.stateless.api.ShardSizeStatsReader.ShardSize;
 import co.elastic.elasticsearch.stateless.lucene.stats.ShardSizeStatsClient;
 
@@ -54,7 +55,11 @@ import static co.elastic.elasticsearch.stateless.autoscaling.AutoscalingDataTran
  * This service is responsible for collecting shard size changes on the search nodes
  * and periodically sending updates to the elected master
  */
-public class SearchShardSizeCollector extends AbstractLifecycleComponent implements ShardSizeCollector, ClusterStateListener {
+public class SearchShardSizeCollector extends AbstractLifecycleComponent
+    implements
+        ShardSizeCollector,
+        ClusterStateListener,
+        ShardSizeStatsProvider {
 
     private static final Logger logger = LogManager.getLogger(SearchShardSizeCollector.class);
 
@@ -308,5 +313,10 @@ public class SearchShardSizeCollector extends AbstractLifecycleComponent impleme
     // visible for testing
     ConcurrentMap<ShardId, ShardSize> getPastPublications() {
         return pastPublications;
+    }
+
+    @Override
+    public ShardSize getShardSize(ShardId shardId) {
+        return pastPublications.get(shardId);
     }
 }

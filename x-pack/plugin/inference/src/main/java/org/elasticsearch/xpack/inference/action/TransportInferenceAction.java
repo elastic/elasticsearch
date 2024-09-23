@@ -120,11 +120,11 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
                 createListener(request, listener)
             );
         } else {
-            listener.onFailure(unsupportedTaskException(request, service));
+            listener.onFailure(unsupportedStreamingTaskException(request, service));
         }
     }
 
-    private ElasticsearchStatusException unsupportedTaskException(InferenceAction.Request request, InferenceService service) {
+    private ElasticsearchStatusException unsupportedStreamingTaskException(InferenceAction.Request request, InferenceService service) {
         var supportedTasks = service.supportedStreamingTasks();
         if (supportedTasks.isEmpty()) {
             return new ElasticsearchStatusException(

@@ -50,6 +50,7 @@ public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
         deleteTextEmbeddingModel(inferenceEntityId);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105198")
     public void testPutE5Small_withPlatformSpecificVariant() throws IOException {
         String inferenceEntityId = randomAlphaOfLength(10).toLowerCase();
         if ("linux-x86_64".equals(Platforms.PLATFORM_NAME)) {

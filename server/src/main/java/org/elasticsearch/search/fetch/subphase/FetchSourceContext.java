@@ -199,6 +199,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         Boolean fetchSource = null;
         String[] sourceExcludes = null;
         String[] sourceIncludes = null;
+        Boolean includeVectors = null;
 
         String source = request.param("_source");
         if (source != null) {
@@ -221,8 +222,13 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
             sourceExcludes = Strings.splitStringByCommaToArray(sExcludes);
         }
 
-        if (fetchSource != null || sourceIncludes != null || sourceExcludes != null) {
-            return FetchSourceContext.of(fetchSource == null || fetchSource, sourceIncludes, sourceExcludes);
+        String sIncludeVectors = request.param("_source_include_vectors");
+        if (sIncludeVectors != null) {
+            includeVectors = Booleans.parseBoolean(sIncludeVectors);
+        }
+
+        if (fetchSource != null || sourceIncludes != null || sourceExcludes != null || includeVectors != null) {
+            return FetchSourceContext.of(fetchSource == null || fetchSource, sourceIncludes, sourceExcludes, includeVectors);
         }
         return null;
     }

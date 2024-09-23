@@ -68,6 +68,10 @@
         "type":"list",
         "description":"A list of fields to extract and return from the _source field"
       },
+      "_source_include_vectors": {
+        "type":"boolean",
+        "description":"True or false to include vector fields in _source"
+      },
       "version":{
         "type":"number",
         "description":"Explicit version number for concurrency control"

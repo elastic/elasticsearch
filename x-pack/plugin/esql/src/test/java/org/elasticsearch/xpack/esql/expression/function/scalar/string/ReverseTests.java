@@ -44,13 +44,13 @@ public class ReverseTests extends AbstractConfigurationFunctionTestCase {
 
     @Override
     protected Expression buildWithConfiguration(Source source, List<Expression> args, Configuration configuration) {
-        return new ToLower(source, args.get(0), configuration);
+        return new Reverse(source, args.get(0), configuration);
     }
 
     private static TestCaseSupplier supplier(String name, DataType type, Supplier<String> valueSupplier) {
         return new TestCaseSupplier(name, List.of(type), () -> {
             List<TestCaseSupplier.TypedData> values = new ArrayList<>();
-            String expectedToString = "ReverseEvaluator[val=Attribute[channel=0]]";
+            String expectedToString = "ReverseEvaluator[val=Attribute[channel=0], locale=en_US]";
 
             String value = valueSupplier.get();
             values.add(new TestCaseSupplier.TypedData(new BytesRef(value), type, "0"));

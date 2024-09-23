@@ -103,6 +103,11 @@ public class EsqlCapabilities {
         AGG_TOP_IP_SUPPORT,
 
         /**
+         * Support for {@code keyword} and {@code text} fields in {@code TOP} aggregation.
+         */
+        AGG_TOP_STRING_SUPPORT,
+
+        /**
          * {@code CASE} properly handling multivalue conditions.
          */
         CASE_MV,
@@ -255,6 +260,13 @@ public class EsqlCapabilities {
          * Support for match operator
          */
         MATCH_OPERATOR(true),
+
+        /**
+         * Support for the {@code META} keyword. Tests with this tag are
+         * intentionally excluded from mixed version clusters because we
+         * continually add functions, so they constantly fail if we don't.
+         */
+        META,
 
         /**
          * Add CombineBinaryComparisons rule.

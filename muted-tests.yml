@@ -218,9 +218,6 @@ tests:
 - class: org.elasticsearch.action.admin.cluster.node.stats.NodeStatsTests
   method: testChunking
   issue: https://github.com/elastic/elasticsearch/issues/113139
-- class: org.elasticsearch.xpack.inference.rest.ServerSentEventsRestActionListenerTests
-  method: testResponse
-  issue: https://github.com/elastic/elasticsearch/issues/113148
 - class: org.elasticsearch.validation.DotPrefixClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/113152
 - class: org.elasticsearch.packaging.test.WindowsServiceTests

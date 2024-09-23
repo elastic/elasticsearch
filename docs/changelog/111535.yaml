@@ -1,0 +1,5 @@
+pr: 111535
+summary: Fix remote cluster credential secure settings reload
+area: Authorization
+type: bug
+issues: []

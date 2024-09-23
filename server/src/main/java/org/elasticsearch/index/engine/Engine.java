@@ -279,7 +279,7 @@ public abstract class Engine implements Closeable {
         long count = 0;
         for (var field : fields) {
             var info = atomicReader.getFieldInfos().fieldInfo(field);
-            if (info.getVectorDimension() > 0) {
+            if (info != null && info.getVectorDimension() > 0) {
                 switch (info.getVectorEncoding()) {
                     case FLOAT32 -> {
                         FloatVectorValues values = atomicReader.getFloatVectorValues(info.name);

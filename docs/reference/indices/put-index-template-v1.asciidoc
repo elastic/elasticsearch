@@ -4,8 +4,8 @@
 <titleabbrev>Create or update index template (legacy)</titleabbrev>
 ++++
 
-IMPORTANT: This documentation is about legacy index templates, 
-which are deprecated and will be replaced by the composable templates introduced in {es} 7.8. 
+IMPORTANT: This documentation is about legacy index templates,
+which are deprecated and will be replaced by the composable templates introduced in {es} 7.8.
 For information about composable templates, see <<index-templates>>.
 
 Creates or updates an index template.
@@ -27,8 +27,7 @@ PUT _template/template_1
         "type": "keyword"
       },
       "created_at": {
-        "type": "date",
-        "format": "EEE MMM dd HH:mm:ss Z yyyy"
+        "type": "date"
       }
     }
   }
@@ -67,8 +66,8 @@ that you can automatically apply when creating new indices.
 {es} applies templates to new indices
 based on an index pattern that matches the index name.
 
-NOTE: Composable templates always take precedence over legacy templates. 
-If no composable template matches a new index, 
+NOTE: Composable templates always take precedence over legacy templates.
+If no composable template matches a new index,
 matching legacy templates are applied according to their order.
 
 Index templates are only applied during index creation.

@@ -28,7 +28,8 @@ public class MapperFeatures implements FeatureSpecification {
             DenseVectorFieldMapper.INT4_QUANTIZATION,
             DenseVectorFieldMapper.BIT_VECTORS,
             DocumentMapper.INDEX_SORTING_ON_NESTED,
-            KeywordFieldMapper.KEYWORD_DIMENSION_IGNORE_ABOVE
+            KeywordFieldMapper.KEYWORD_DIMENSION_IGNORE_ABOVE,
+            SourceFieldMapper.SYNTHETIC_SOURCE_STORED_FIELDS_ADVANCE_FIX
         );
     }
 }

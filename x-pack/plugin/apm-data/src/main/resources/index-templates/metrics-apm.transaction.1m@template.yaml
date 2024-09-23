@@ -15,6 +15,7 @@ composed_of:
 - metrics-apm@mappings
 - metrics-apm@settings
 - metrics-apm.transaction@mappings
+- metrics-apm.transaction.1m-fallback@lifecycle
 - metrics@custom
 - metrics-apm.transaction.1m@custom
 - ecs@mappings
@@ -26,9 +27,6 @@ template:
     index:
       default_pipeline: metrics-apm.transaction@default-pipeline
       final_pipeline: metrics-apm@pipeline
-      lifecycle:
-        name: metrics-apm.transaction_1m_metrics-default_policy
-        prefer_ilm: false
   mappings:
     properties:
       metricset.interval:

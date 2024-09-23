@@ -14,6 +14,7 @@ composed_of:
 - apm-90d@lifecycle
 - traces-apm@mappings
 - traces-apm.rum@mappings
+- traces-apm.rum-fallback@lifecycle
 - traces@custom
 - traces-apm.rum@custom
 - ecs@mappings
@@ -25,9 +26,6 @@ template:
     index:
       default_pipeline: traces-apm.rum@default-pipeline
       final_pipeline: traces-apm@pipeline
-      lifecycle:
-        name: traces-apm.rum_traces-default_policy
-        prefer_ilm: false
   mappings:
     properties:
       data_stream.type:

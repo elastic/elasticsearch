@@ -10,6 +10,8 @@ package org.elasticsearch.common.time;
 
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.core.Predicates;
+import org.elasticsearch.core.UpdateForV9;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -19,6 +21,8 @@ import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Predicate;
+import java.util.regex.Pattern;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.common.time.DateUtilsRounding.getMonthOfYear;
@@ -381,5 +385,36 @@ public class DateUtils {
     public static ZonedDateTime nowWithMillisResolution(Clock clock) {
         Clock millisResolutionClock = Clock.tick(clock, Duration.ofMillis(1));
         return ZonedDateTime.now(millisResolutionClock);
+    }
+
+    private static final boolean USES_COMPAT = System.getProperty("java.locale.providers", "").contains("COMPAT");
+    // check for all textual fields, and localized zone offset
+    // the weird thing with Z is to ONLY match 4 in a row, with no Z before or after (but those groups can also be empty)
+    private static final Predicate<String> CONTAINS_CHANGING_TEXT_SPECIFIERS = USES_COMPAT
+        ? Pattern.compile("[BEGOavz]|LLL|MMM|QQQ|qqq|ccc|eee|(?<!Z)Z{4}(?!Z)").asPredicate()
+        : Predicates.never();
+    // week dates are changing on CLDR, as the rules are changing for start-of-week and min-days-in-week
+    private static final Predicate<String> CONTAINS_WEEK_DATE_SPECIFIERS = USES_COMPAT
+        ? Pattern.compile("[YWw]").asPredicate()
+        : Predicates.never();
+
+    @UpdateForV9    // this can be removed, we will only use CLDR on v9
+    static void checkTextualDateFormats(String format) {
+        if (CONTAINS_CHANGING_TEXT_SPECIFIERS.test(format)) {
+            deprecationLogger.warn(
+                DeprecationCategory.PARSING,
+                "cldr_date_formats_" + format,
+                "Date format [{}] contains textual field specifiers that could change in JDK 23",
+                format
+            );
+        }
+        if (CONTAINS_WEEK_DATE_SPECIFIERS.test(format)) {
+            deprecationLogger.warn(
+                DeprecationCategory.PARSING,
+                "cldr_week_dates_" + format,
+                "Date format [{}] contains week-date field specifiers that are changing in JDK 23",
+                format
+            );
+        }
     }
 }

@@ -6,8 +6,8 @@
 
 [IMPORTANT]
 ====
-cat APIs are only intended for human consumption using the command line or {kib} 
-console. They are _not_ intended for use by applications. For application 
+cat APIs are only intended for human consumption using the command line or {kib}
+console. They are _not_ intended for use by applications. For application
 consumption, use the <<getting-component-templates,get component template API>>.
 ====
 
@@ -82,8 +82,7 @@ PUT _component_template/my-template-2
           "type": "keyword"
         },
         "created_at": {
-          "type": "date",
-          "format": "EEE MMM dd HH:mm:ss Z yyyy"
+          "type": "date"
         }
       }
     }

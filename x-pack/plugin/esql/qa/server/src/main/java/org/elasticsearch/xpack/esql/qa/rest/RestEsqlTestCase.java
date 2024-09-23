@@ -20,6 +20,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
@@ -30,6 +31,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 
 import java.io.ByteArrayOutputStream;
@@ -52,6 +54,7 @@ import java.util.regex.Pattern;
 
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -119,6 +122,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
         private Boolean keepOnCompletion = null;
 
+        private Boolean profile = null;
+
+        private CheckedConsumer<XContentBuilder, IOException> filter;
+
         public RequestObjectBuilder() throws IOException {
             this(randomFrom(XContentType.values()));
         }
@@ -180,6 +187,16 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             return this;
         }
 
+        public RequestObjectBuilder profile(boolean profile) {
+            this.profile = profile;
+            return this;
+        }
+
+        public RequestObjectBuilder filter(CheckedConsumer<XContentBuilder, IOException> filter) {
+            this.filter = filter;
+            return this;
+        }
+
         public RequestObjectBuilder build() throws IOException {
             if (isBuilt == false) {
                 if (tables != null) {
@@ -193,6 +210,14 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                         }
                         builder.endObject();
                     }
+                    builder.endObject();
+                }
+                if (profile != null) {
+                    builder.field("profile", profile);
+                }
+                if (filter != null) {
+                    builder.startObject("filter");
+                    filter.accept(builder);
                     builder.endObject();
                 }
                 builder.endObject();
@@ -565,6 +590,82 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             () -> runEsql(requestObjectBuilder().query("row a = 1 | eval x = ?").params("[{\"n1\": [5, 6, 7]}]"))
         );
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("n1=[5, 6, 7] is not supported as a parameter"));
+    }
+
+    public void testTopLevelFilter() throws IOException {
+        indexTimestampData(3); // Multiple shards has caused a bug in the past with the merging case below
+
+        RequestObjectBuilder builder = requestObjectBuilder().filter(b -> {
+            b.startObject("range");
+            {
+                b.startObject("@timestamp").field("gte", "2020-12-12").endObject();
+            }
+            b.endObject();
+        }).query(fromIndex() + " | STATS SUM(value)");
+        assertMap(
+            runEsql(builder),
+            matchesMap().entry("columns", matchesList().item(matchesMap().entry("name", "SUM(value)").entry("type", "long")))
+                .entry("values", List.of(List.of(499500)))
+        );
+    }
+
+    public void testTopLevelFilterMerged() throws IOException {
+        indexTimestampData(3); // Multiple shards has caused a bug in the past with the merging case below
+
+        RequestObjectBuilder builder = requestObjectBuilder().filter(b -> {
+            b.startObject("range");
+            {
+                b.startObject("@timestamp").field("gte", "2020-12-12").endObject();
+            }
+            b.endObject();
+        }).query(fromIndex() + " | WHERE value == 12 | STATS SUM(value)");
+        assertMap(
+            runEsql(builder),
+            matchesMap().entry("columns", matchesList().item(matchesMap().entry("name", "SUM(value)").entry("type", "long")))
+                .entry("values", List.of(List.of(12)))
+        );
+    }
+
+    public void testTopLevelFilterBoolMerged() throws IOException {
+        indexTimestampData(3); // Multiple shards has caused a bug in the past
+
+        for (int i = 0; i < 100; i++) {
+            // Run the query many times so we're more likely to bump into any sort of modification problems
+            RequestObjectBuilder builder = requestObjectBuilder().filter(b -> {
+                b.startObject("bool");
+                {
+                    b.startArray("filter");
+                    {
+                        b.startObject().startObject("range");
+                        {
+                            b.startObject("@timestamp").field("gte", "2020-12-12").endObject();
+                        }
+                        b.endObject().endObject();
+                        b.startObject().startObject("match");
+                        {
+                            b.field("test", "value12");
+                        }
+                        b.endObject().endObject();
+                    }
+                    b.endArray();
+                }
+                b.endObject();
+            }).query(fromIndex() + " | WHERE @timestamp > \"2010-01-01\" | STATS SUM(value)");
+            assertMap(
+                runEsql(builder),
+                matchesMap().entry("columns", matchesList().item(matchesMap().entry("name", "SUM(value)").entry("type", "long")))
+                    .entry("values", List.of(List.of(12)))
+            );
+        }
+    }
+
+    private static String queryWithComplexFieldNames(int field) {
+        StringBuilder query = new StringBuilder();
+        query.append(" | keep ").append(randomAlphaOfLength(10)).append(1);
+        for (int i = 2; i <= field; i++) {
+            query.append(", ").append(randomAlphaOfLength(10)).append(i);
+        }
+        return query.toString();
     }
 
     private static String expectedTextBody(String format, int count, @Nullable Character csvDelimiter) {
@@ -972,5 +1073,36 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     @After
     public void assertRequestBreakerEmpty() throws Exception {
         EsqlSpecTestCase.assertRequestBreakerEmpty();
+    }
+
+    protected void indexTimestampData(int shards) throws IOException {
+        Request createIndex = new Request("PUT", testIndexName());
+        createIndex.setJsonEntity("""
+            {
+              "settings": {
+                "index": {
+                  "number_of_shards": %shards%
+                }
+              }
+            }""".replace("%shards%", Integer.toString(shards)));
+        Response response = client().performRequest(createIndex);
+        assertThat(
+            entityToMap(response.getEntity(), XContentType.JSON),
+            matchesMap().entry("shards_acknowledged", true).entry("index", testIndexName()).entry("acknowledged", true)
+        );
+
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < 1000; i++) {
+            b.append(String.format(Locale.ROOT, """
+                {"create":{"_index":"%s"}}
+                {"@timestamp":"2020-12-12","test":"value%s","value":%d}
+                """, testIndexName(), i, i));
+        }
+        Request bulk = new Request("POST", "/_bulk");
+        bulk.addParameter("refresh", "true");
+        bulk.addParameter("filter_path", "errors");
+        bulk.setJsonEntity(b.toString());
+        response = client().performRequest(bulk);
+        Assert.assertEquals("{\"errors\":false}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
     }
 }

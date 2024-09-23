@@ -326,7 +326,7 @@ public abstract class DocumentParserContext {
     }
 
     public final boolean canAddIgnoredField() {
-        return mappingLookup.isSourceSynthetic() && clonedSource == false;
+        return mappingLookup.isSourceSynthetic() && clonedSource == false && indexSettings().getSkipIgnoredSourceWrite() == false;
     }
 
     /**

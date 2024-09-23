@@ -16,6 +16,7 @@ composed_of:
 - metrics-apm@mappings
 - metrics-apm@settings
 - metrics-apm.service_destination@mappings
+- metrics-apm.service_destination.10m-fallback@lifecycle
 - metrics@custom
 - metrics-apm.service_destination.10m@custom
 - ecs@mappings
@@ -27,9 +28,6 @@ template:
     index:
       default_pipeline: metrics-apm.service_destination@default-pipeline
       final_pipeline: metrics-apm@pipeline
-      lifecycle:
-        name: metrics-apm.service_destination_10m_metrics-default_policy
-        prefer_ilm: false
   mappings:
     properties:
       metricset.interval:

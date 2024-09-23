@@ -250,6 +250,7 @@ Refer to <<getting-started,first steps with Elasticsearch>> for a hands-on examp
 
 *{esql}* is a new piped query language and compute engine which was first added in version *8.11*.
 It does not yet support all the features of Query DSL, like full-text search and semantic search.
+Look forward to new {esql} features and functionalities in each release.
 
 Refer to <<search-analyze-query-languages>> for a full overview of the query languages available in {es}.
 

@@ -133,22 +133,6 @@ public final class TypeResolutions {
         return TypeResolution.TYPE_RESOLVED;
     }
 
-    public static TypeResolution isNotNull(Expression e, String operationName, ParamOrdinal paramOrd) {
-        if (e.dataType() == DataType.NULL) {
-            return new TypeResolution(
-                format(
-                    null,
-                    "{}argument of [{}] cannot be null, received [{}]",
-                    paramOrd == null || paramOrd == DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
-                    operationName,
-                    Expressions.name(e)
-                )
-            );
-        }
-
-        return TypeResolution.TYPE_RESOLVED;
-    }
-
     public static TypeResolution isNotNullAndFoldable(Expression e, String operationName, ParamOrdinal paramOrd) {
         TypeResolution resolution = isFoldable(e, operationName, paramOrd);
 
@@ -169,6 +153,22 @@ public final class TypeResolutions {
         }
 
         return resolution;
+    }
+
+    public static TypeResolution isNotNull(Expression e, String operationName, ParamOrdinal paramOrd) {
+        if (e.dataType() == DataType.NULL) {
+            return new TypeResolution(
+                format(
+                    null,
+                    "{}argument of [{}] cannot be null, received [{}]",
+                    paramOrd == null || paramOrd == DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
+                    operationName,
+                    Expressions.name(e)
+                )
+            );
+        }
+
+        return TypeResolution.TYPE_RESOLVED;
     }
 
     public static TypeResolution isType(

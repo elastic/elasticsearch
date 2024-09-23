@@ -87,12 +87,6 @@ public class IndexResolverTests extends ESTestCase {
             executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*"));
             executionInfo.swapCluster(remote2Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote2Alias, "mylogs1,mylogs2,logs*"));
 
-            // Map<String, StringBuilder> clusterAndResolvedIndices = new HashMap<>();
-            // clusterAndResolvedIndices.put(remote1Alias, new StringBuilder("remote1:logs-a,remote1:logs-b"));
-            // clusterAndResolvedIndices.put(remote2Alias, new StringBuilder("remote2:mylogs1,remote2:mylogs2"));
-            //
-            // IndexResolver.updateExecutionInfoWithFieldCapsResults(executionInfo, clusterAndResolvedIndices, failures);
-
             Set<String> clustersInFieldCapsResponse = Set.of("remote1", "remote2");
             IndexResolver.updateExecutionInfoWithFieldCapsResults(executionInfo, clustersInFieldCapsResponse, failures);
 
@@ -123,10 +117,6 @@ public class IndexResolverTests extends ESTestCase {
             EsqlExecutionInfo executionInfo = new EsqlExecutionInfo();
             executionInfo.swapCluster(localClusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(localClusterAlias, "logs*"));
             executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*"));
-
-            // Map<String, StringBuilder> clusterAndResolvedIndices = new HashMap<>();
-            // clusterAndResolvedIndices.put(localClusterAlias, new StringBuilder("logs-a,logs-b"));
-            // IndexResolver.updateExecutionInfoWithFieldCapsResults(executionInfo, clusterAndResolvedIndices, failures);
 
             Set<String> clustersInFieldCapsResponse = Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
             IndexResolver.updateExecutionInfoWithFieldCapsResults(executionInfo, clustersInFieldCapsResponse, failures);
@@ -171,11 +161,6 @@ public class IndexResolverTests extends ESTestCase {
             executionInfo.swapCluster(localClusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(localClusterAlias, "logs*"));
             executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*", true));
             executionInfo.swapCluster(remote2Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote2Alias, "mylogs1,mylogs2,logs*", true));
-
-            // Map<String, StringBuilder> clusterAndResolvedIndices = new HashMap<>();
-            // clusterAndResolvedIndices.put(localClusterAlias, new StringBuilder("logs-a,logs-b"));
-            // clusterAndResolvedIndices.put(remote1Alias, new StringBuilder("remote1:*"));
-            // clusterAndResolvedIndices.put(remote2Alias, new StringBuilder("remote2:mylogs1,remote2:mylogs2,remote2:logs*"));
 
             Set<String> clustersInFieldCapsResponse = Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, "remote1", "remote2");
 

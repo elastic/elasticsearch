@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.lucene;
 
-import co.elastic.elasticsearch.stateless.commits.BlobLocation;
+import co.elastic.elasticsearch.stateless.commits.BlobFileRanges;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 
 import org.apache.lucene.store.Directory;
@@ -29,6 +29,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.common.lucene.store.FilterIndexOutput;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.CheckedFunction;
@@ -284,16 +285,16 @@ public class IndexDirectory extends ByteSizeDirectory {
         long lastUploadedGeneration,
         long dataSizeInBytes,
         Set<String> uploadedFiles,
-        Map<String, BlobLocation> blobLocations
+        Map<String, BlobFileRanges> blobFileRanges
     ) {
         try (var ignored = writeLock.acquire()) {
             // retaining files will not work if we receive files out of order.
             // StatelessCommitService however promises to only call this in commit generation order.
             assert lastUploadedGeneration >= lastGeneration : "out of order generation " + lastUploadedGeneration + " < " + lastGeneration;
             lastGeneration = lastUploadedGeneration;
-            assert blobLocations.keySet().containsAll(uploadedFiles);
+            assert blobFileRanges.keySet().containsAll(uploadedFiles);
 
-            cacheDirectory.updateMetadata(blobLocations, dataSizeInBytes);
+            cacheDirectory.updateMetadata(blobFileRanges, dataSizeInBytes);
             uploadedFiles.forEach(file -> {
                 var localFile = localFiles.get(file);
                 if (localFile != null) {
@@ -320,11 +321,13 @@ public class IndexDirectory extends ByteSizeDirectory {
                     // skipping deletion, the file was not created locally
                 }
             }));
+            // TODO Build a map of BlobFileRanges that includes replicated ranges (ES-9344)
+            var blobFileRanges = Maps.transformValues(recoveryCommit.commitFiles(), BlobFileRanges::new);
             updateCommit(
                 recoveryCommit.generation(),
                 recoveryCommit.getAllFilesSizeInBytes(),
                 recoveryCommit.commitFiles().keySet(),
-                recoveryCommit.commitFiles()
+                blobFileRanges
             );
         }
     }

@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless.lucene;
 
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
+import co.elastic.elasticsearch.stateless.commits.BlobFileRanges;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 
 import org.apache.logging.log4j.LogManager;
@@ -70,7 +71,7 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
     private final LockFactory lockFactory = new SingleInstanceLockFactory();
 
     private final AtomicReference<Thread> updatingCommitThread = Assertions.ENABLED ? new AtomicReference<>() : null;// only used in asserts
-    protected volatile Map<String, BlobLocation> currentMetadata = Map.of();
+    protected volatile Map<String, BlobFileRanges> currentMetadata = Map.of();
     protected volatile long currentDataSetSizeInBytes = 0L;
 
     BlobStoreCacheDirectory(StatelessSharedBlobCacheService cacheService, ShardId shardId) {
@@ -110,8 +111,10 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
     /**
      * For test usage only.
      */
+    @Nullable
     BlobLocation getBlobLocation(String fileName) {
-        return currentMetadata.get(fileName);
+        var blobFileRanges = currentMetadata.get(fileName);
+        return blobFileRanges != null ? blobFileRanges.blobLocation() : null;
     }
 
     StatelessSharedBlobCacheService getCacheService() {
@@ -128,9 +131,9 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
 
     // TODO this method works because we never prune old commits files
     public OptionalLong getPrimaryTerm(String segmentsFileName) throws FileNotFoundException {
-        final BlobLocation location = currentMetadata.get(segmentsFileName);
-        if (location != null) {
-            return OptionalLong.of(location.primaryTerm());
+        final var blobFileRanges = currentMetadata.get(segmentsFileName);
+        if (blobFileRanges != null) {
+            return OptionalLong.of(blobFileRanges.primaryTerm());
         }
         if (segmentsFileName.equals(EmptyDirectory.INSTANCE.getSegmentsFileName())) {
             return OptionalLong.empty();
@@ -180,11 +183,11 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
         if (current.isEmpty()) {
             return super.fileLength(name);
         }
-        BlobLocation location = current.get(name);
-        if (location == null) {
+        var blobFileRanges = current.get(name);
+        if (blobFileRanges == null) {
             throw new FileNotFoundException(name);
         }
-        return location.fileLength();
+        return blobFileRanges.fileLength();
     }
 
     @Override
@@ -226,15 +229,15 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
         if (current.isEmpty()) {
             return super.openInput(name, context);
         }
-        final BlobLocation location = current.get(name);
-        if (location == null) {
+        final var blobFileRanges = current.get(name);
+        if (blobFileRanges == null) {
             throw new FileNotFoundException(name);
         }
-        return doOpenInput(name, context, location);
+        return doOpenInput(name, context, blobFileRanges);
     }
 
-    protected IndexInput doOpenInput(String name, IOContext context, BlobLocation blobLocation) {
-        return doOpenInput(name, context, blobLocation, null);
+    protected IndexInput doOpenInput(String name, IOContext context, BlobFileRanges blobFileRanges) {
+        return doOpenInput(name, context, blobFileRanges, null);
     }
 
     /**
@@ -242,27 +245,27 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
      *
      * @param name the name of an existing file
      * @param context the IO context
-     * @param blobLocation the {@link BlobLocation} of the file
+     * @param blobFileRanges the {@link BlobFileRanges} associated to the file
      * @param releasable a {@link Releasable} to be released when the {@link IndexInput} is closed
      * @return an {@link IndexInput}
      */
-    protected final IndexInput doOpenInput(String name, IOContext context, BlobLocation blobLocation, @Nullable Releasable releasable) {
+    protected final IndexInput doOpenInput(String name, IOContext context, BlobFileRanges blobFileRanges, @Nullable Releasable releasable) {
         return new BlobCacheIndexInput(
             name,
             cacheService.getCacheFile(
-                new FileCacheKey(shardId, blobLocation.primaryTerm(), blobLocation.blobName()),
+                new FileCacheKey(shardId, blobFileRanges.primaryTerm(), blobFileRanges.blobName()),
                 // this length is a lower bound on the length of the blob, used to assert that the cache file does not try to read
                 // data beyond the file boundary within the blob since we overload computeCacheFileRegionSize in
                 // StatelessSharedBlobCacheService to fully utilize each region
                 // it is also used for bounding the reads we do against indexing shard to ensure that we never read beyond the
                 // blob length (with padding added).
-                blobLocation.offset() + blobLocation.fileLength()
+                blobFileRanges.fileOffset() + blobFileRanges.fileLength()
             ),
             context,
-            getCacheBlobReader(blobLocation),
+            getCacheBlobReader(blobFileRanges.blobLocation()),
             releasable,
-            blobLocation.fileLength(),
-            blobLocation.offset()
+            blobFileRanges.fileLength(),
+            blobFileRanges.fileOffset()
         );
     }
 

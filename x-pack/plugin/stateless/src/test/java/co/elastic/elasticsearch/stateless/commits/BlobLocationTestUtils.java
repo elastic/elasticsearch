@@ -32,4 +32,8 @@ public class BlobLocationTestUtils {
             fileLength
         );
     }
+
+    public static BlobFileRanges createBlobFileRanges(long primaryTerm, long generation, long offset, long fileLength) {
+        return new BlobFileRanges(createBlobLocation(primaryTerm, generation, offset, fileLength));
+    }
 }

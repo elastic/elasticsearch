@@ -70,7 +70,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static co.elastic.elasticsearch.stateless.TestUtils.newCacheService;
-import static co.elastic.elasticsearch.stateless.commits.BlobLocationTestUtils.createBlobLocation;
+import static co.elastic.elasticsearch.stateless.commits.BlobLocationTestUtils.createBlobFileRanges;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomChecksumBytes;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomIOContext;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.pageAligned;
@@ -292,7 +292,7 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
                 1L,
                 bytes.length,
                 Set.of(fileName),
-                Map.of(fileName, createBlobLocation(primaryTerm, 1L, 0L, bytes.length))
+                Map.of(fileName, createBlobFileRanges(primaryTerm, 1L, 0L, bytes.length))
             );
 
             readNBytes(input, bytes, input.getFilePointer(), 1024);
@@ -398,7 +398,7 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
                     generation,
                     length,
                     Set.of(fileName),
-                    Map.of(fileName, createBlobLocation(1L, generation, 0L, length))
+                    Map.of(fileName, createBlobFileRanges(1L, generation, 0L, length))
                 );
             } catch (IOException e) {
                 throw new AssertionError(e);

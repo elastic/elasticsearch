@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.shard;
@@ -83,6 +84,7 @@ import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.codec.FieldInfosWithUsages;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Engine.GetResult;
@@ -1510,6 +1512,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         logger.trace("force merge with {}", forceMerge);
         Engine engine = getEngine();
         engine.forceMerge(forceMerge.flush(), forceMerge.maxNumSegments(), forceMerge.onlyExpungeDeletes(), forceMerge.forceMergeUUID());
+    }
+
+    public void triggerPendingMerges() throws IOException {
+        switch (state /* single volatile read */) {
+            case STARTED, POST_RECOVERY -> getEngine().forceMerge(
+                // don't immediately flush - if any merging happens then we don't wait for it anyway
+                false,
+                // don't apply any segment count limit, we only want to call IndexWriter#maybeMerge
+                ForceMergeRequest.Defaults.MAX_NUM_SEGMENTS,
+                // don't look for expunge-delete merges, we only want to call IndexWriter#maybeMerge
+                false,
+                // force-merge UUID is not used when calling IndexWriter#maybeMerge
+                null
+            );
+            // otherwise shard likely closed and maybe reopened, nothing to do
+        }
     }
 
     /**
@@ -3981,12 +3999,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     engine.maybePruneDeletes(); // try to prune the deletes in the engine if we accumulated some
                     setRefreshPending(engine);
                     l.onResponse(false);
-                    return;
                 } else {
                     logger.trace("scheduledRefresh: refresh with source [schedule]");
                     engine.maybeRefresh("schedule", l.map(Engine.RefreshResult::refreshed));
-                    return;
                 }
+                return;
             }
             logger.trace("scheduledRefresh: no refresh needed");
             engine.maybePruneDeletes(); // try to prune the deletes in the engine if we accumulated some
@@ -4093,11 +4110,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 try (var searcher = getEngine().acquireSearcher("shard_field_stats", Engine.SearcherScope.INTERNAL)) {
                     int numSegments = 0;
                     int totalFields = 0;
+                    long usages = 0;
                     for (LeafReaderContext leaf : searcher.getLeafContexts()) {
                         numSegments++;
-                        totalFields += leaf.reader().getFieldInfos().size();
+                        var fieldInfos = leaf.reader().getFieldInfos();
+                        totalFields += fieldInfos.size();
+                        if (fieldInfos instanceof FieldInfosWithUsages ft) {
+                            if (usages != -1) {
+                                usages += ft.getTotalUsages();
+                            }
+                        } else {
+                            usages = -1;
+                        }
                     }
-                    shardFieldStats = new ShardFieldStats(numSegments, totalFields);
+                    shardFieldStats = new ShardFieldStats(numSegments, totalFields, usages);
                 } catch (AlreadyClosedException ignored) {
 
                 }

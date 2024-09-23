@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
@@ -234,9 +235,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 );
             }
         }
-        clusterState = ClusterState.builder(clusterState)
-            .routingTable(RoutingTable.of(clusterState.routingTable().version(), routingNodes))
-            .build();
+        clusterState = ClusterState.builder(clusterState).routingTable(RoutingTable.of(routingNodes)).build();
 
         var ignored = randomBoolean()
             ? new ShardRouting[0]
@@ -284,9 +283,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 break;
             }
         }
-        clusterState = ClusterState.builder(clusterState)
-            .routingTable(RoutingTable.of(clusterState.routingTable().version(), routingNodes))
-            .build();
+        clusterState = ClusterState.builder(clusterState).routingTable(RoutingTable.of(routingNodes)).build();
 
         var desiredBalance = desiredBalanceComputer.compute(DesiredBalance.INITIAL, createInput(clusterState), queue(), input -> true);
 
@@ -333,9 +330,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 break;
             }
         }
-        clusterState = ClusterState.builder(clusterState)
-            .routingTable(RoutingTable.of(clusterState.routingTable().version(), routingNodes))
-            .build();
+        clusterState = ClusterState.builder(clusterState).routingTable(RoutingTable.of(routingNodes)).build();
 
         var desiredBalance = desiredBalanceComputer.compute(DesiredBalance.INITIAL, createInput(clusterState), queue(), input -> true);
 
@@ -431,9 +426,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 0L
             );
         }
-        clusterState = ClusterState.builder(clusterState)
-            .routingTable(RoutingTable.of(clusterState.routingTable().version(), desiredRoutingNodes))
-            .build();
+        clusterState = ClusterState.builder(clusterState).routingTable(RoutingTable.of(desiredRoutingNodes)).build();
 
         var desiredBalance1 = desiredBalanceComputer.compute(DesiredBalance.INITIAL, createInput(clusterState), queue(), input -> true);
         assertDesiredAssignments(
@@ -500,9 +493,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 }
             }
         }
-        clusterState = ClusterState.builder(clusterState)
-            .routingTable(RoutingTable.of(clusterState.routingTable().version(), randomRoutingNodes))
-            .build();
+        clusterState = ClusterState.builder(clusterState).routingTable(RoutingTable.of(randomRoutingNodes)).build();
 
         allocateCalled.set(false);
 
@@ -539,9 +530,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             var shardRouting = iterator.next();
             routingNodes.startShard(iterator.initialize(shardRouting.primary() ? "node-0" : "node-1", null, 0L, changes), changes, 0L);
         }
-        clusterState = ClusterState.builder(clusterState)
-            .routingTable(RoutingTable.of(clusterState.routingTable().version(), routingNodes))
-            .build();
+        clusterState = ClusterState.builder(clusterState).routingTable(RoutingTable.of(routingNodes)).build();
 
         var desiredBalance = desiredBalanceComputer.compute(
             DesiredBalance.INITIAL,

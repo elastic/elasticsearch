@@ -112,7 +112,8 @@ public class ServiceAccountIT extends ESRestTestCase {
               "cluster": [
                 "monitor",
                 "manage_own_api_key",
-                "read_fleet_secrets"
+                "read_fleet_secrets",
+                "cluster:admin/xpack/connector/*"
               ],
               "indices": [
                 {
@@ -282,6 +283,37 @@ public class ServiceAccountIT extends ESRestTestCase {
                     "write",
                     "create_index",
                     "auto_configure"
+                  ],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": [
+                    ".elastic-connectors*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "monitor",
+                    "create_index",
+                    "auto_configure",
+                    "maintenance",
+                    "view_index_metadata"
+                  ],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": [
+                    "content-*",
+                    ".search-acl-filter-*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "monitor",
+                    "create_index",
+                    "auto_configure",
+                    "maintenance",
+                    "view_index_metadata"
                   ],
                   "allow_restricted_indices": false
                 }

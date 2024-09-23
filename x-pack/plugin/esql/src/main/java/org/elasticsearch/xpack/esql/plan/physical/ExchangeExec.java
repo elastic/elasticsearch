@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.List;
@@ -47,7 +46,7 @@ public class ExchangeExec extends UnaryExec {
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteableCollectionAsList(Attribute.class),
             in.readBoolean(),
-            ((PlanStreamInput) in).readPhysicalPlanNode()
+            in.readNamedWriteable(PhysicalPlan.class)
         );
     }
 
@@ -56,7 +55,7 @@ public class ExchangeExec extends UnaryExec {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteableCollection(output);
         out.writeBoolean(inBetweenAggs());
-        ((PlanStreamOutput) out).writePhysicalPlanNode(child());
+        out.writeNamedWriteable(child());
     }
 
     @Override

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -71,6 +72,19 @@ public final class XContentDataHelper {
     }
 
     /**
+     * Returns a special encoded value that signals that this field
+     * should not be present in synthetic source.
+     *
+     * An example is a field that has values copied to it using copy_to.
+     * While that field "looks" like a regular field it should not be present in
+     * synthetic _source same as it wouldn't be present in stored source.
+     * @return
+     */
+    public static BytesRef voidValue() {
+        return new BytesRef(new byte[] { VOID_ENCODING });
+    }
+
+    /**
      * Decode the value in the passed {@link BytesRef} and add it as a value to the
      * passed build. The assumption is that the passed value has encoded using the function
      * {@link #encodeToken(XContentParser)} above.
@@ -90,6 +104,7 @@ public final class XContentDataHelper {
             case DOUBLE_ENCODING -> TypeUtils.DOUBLE.decodeAndWrite(b, r);
             case FLOAT_ENCODING -> TypeUtils.FLOAT.decodeAndWrite(b, r);
             case NULL_ENCODING -> TypeUtils.NULL.decodeAndWrite(b, r);
+            case VOID_ENCODING -> TypeUtils.VOID.decodeAndWrite(b, r);
             default -> throw new IllegalArgumentException("Can't decode " + r);
         }
     }
@@ -97,6 +112,8 @@ public final class XContentDataHelper {
     /**
      * Writes encoded values to provided builder. If there are multiple values they are merged into
      * a single resulting array.
+     *
+     * Note that this method assumes all encoded parts have values that need to be written (are not VOID encoded).
      * @param b destination
      * @param fieldName name of the field that is written
      * @param encodedParts subset of field data encoded using methods of this class. Can contain arrays which will be flattened.
@@ -158,6 +175,10 @@ public final class XContentDataHelper {
         b.endArray();
     }
 
+    public static boolean isDataPresent(BytesRef encoded) {
+        return encoded.bytes[encoded.offset] != VOID_ENCODING;
+    }
+
     /**
      * Returns the {@link XContentType} to use for creating an XContentBuilder to decode the passed value.
      */
@@ -217,7 +238,7 @@ public final class XContentDataHelper {
         DocumentParserContext subcontext = context.switchParser(
             XContentHelper.createParserNotCompressed(configuration, BytesReference.bytes(builder), context.parser().contentType())
         );
-        subcontext.setClonedSource();  // Avoids double-storing parts of the source for the same parser subtree.
+        subcontext.setRecordedSource();  // Avoids double-storing parts of the source for the same parser subtree.
         subcontext.parser().nextToken();
         return subcontext;
     }
@@ -256,6 +277,7 @@ public final class XContentDataHelper {
     private static final char JSON_OBJECT_ENCODING = 'j';
     private static final char YAML_OBJECT_ENCODING = 'y';
     private static final char SMILE_OBJECT_ENCODING = 's';
+    private static final char VOID_ENCODING = 'v';
 
     private enum TypeUtils {
         STRING(STRING_ENCODING) {
@@ -482,6 +504,24 @@ public final class XContentDataHelper {
                     case YAML_OBJECT_ENCODING -> decodeAndWriteXContent(b, XContentType.YAML, r);
                     default -> throw new IllegalArgumentException("Can't decode " + r);
                 }
+            }
+        },
+        VOID(VOID_ENCODING) {
+            @Override
+            StoredField buildStoredField(String name, XContentParser parser) throws IOException {
+                return new StoredField(name, encode(parser));
+            }
+
+            @Override
+            byte[] encode(XContentParser parser) {
+                byte[] bytes = new byte[] { getEncoding() };
+                assertValidEncoding(bytes);
+                return bytes;
+            }
+
+            @Override
+            void decodeAndWrite(XContentBuilder b, BytesRef r) {
+                // NOOP
             }
         };
 

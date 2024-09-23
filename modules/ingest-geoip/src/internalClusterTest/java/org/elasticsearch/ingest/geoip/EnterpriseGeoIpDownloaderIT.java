@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.geoip;
@@ -19,10 +20,8 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -36,9 +35,7 @@ import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.RemoteTransportException;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -47,7 +44,6 @@ import java.util.Map;
 
 import static org.elasticsearch.ingest.EnterpriseGeoIpTask.ENTERPRISE_GEOIP_DOWNLOADER;
 import static org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderTaskExecutor.MAXMIND_LICENSE_KEY_SETTING;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
@@ -155,31 +151,24 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
     }
 
     private void createGeoIpPipeline(String pipelineName, String databaseType, String sourceField, String targetField) throws IOException {
-        final BytesReference bytes;
-        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            builder.startObject();
+        putJsonPipeline(pipelineName, (builder, params) -> {
+            builder.field("description", "test");
+            builder.startArray("processors");
             {
-                builder.field("description", "test");
-                builder.startArray("processors");
+                builder.startObject();
                 {
-                    builder.startObject();
+                    builder.startObject("geoip");
                     {
-                        builder.startObject("geoip");
-                        {
-                            builder.field("field", sourceField);
-                            builder.field("target_field", targetField);
-                            builder.field("database_file", databaseType + ".mmdb");
-                        }
-                        builder.endObject();
+                        builder.field("field", sourceField);
+                        builder.field("target_field", targetField);
+                        builder.field("database_file", databaseType + ".mmdb");
                     }
                     builder.endObject();
                 }
-                builder.endArray();
+                builder.endObject();
             }
-            builder.endObject();
-            bytes = BytesReference.bytes(builder);
-        }
-        assertAcked(clusterAdmin().putPipeline(new PutPipelineRequest(pipelineName, bytes, XContentType.JSON)).actionGet());
+            return builder.endArray();
+        });
     }
 
     private String ingestDocument(String indexName, String pipelineName, String sourceField) {

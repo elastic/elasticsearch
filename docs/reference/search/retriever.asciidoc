@@ -125,6 +125,13 @@ POST /my-embeddings/_bulk?refresh
 {"vector": [10, 22, 80]}
 ----
 // TESTSETUP
+
+[source,console]
+--------------------------------------------------
+DELETE /restaurants
+DELETE /my-embeddings
+--------------------------------------------------
+// TEARDOWN
 ////
 
 [source,console]

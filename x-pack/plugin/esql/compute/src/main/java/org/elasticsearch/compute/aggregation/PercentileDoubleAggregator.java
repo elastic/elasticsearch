@@ -20,8 +20,8 @@ import org.elasticsearch.compute.operator.DriverContext;
 @GroupingAggregator
 class PercentileDoubleAggregator {
 
-    public static QuantileStates.SingleState initSingle(double percentile) {
-        return new QuantileStates.SingleState(percentile);
+    public static QuantileStates.SingleState initSingle(DriverContext driverContext, double percentile) {
+        return new QuantileStates.SingleState(driverContext.breaker(), percentile);
     }
 
     public static void combine(QuantileStates.SingleState current, double v) {
@@ -36,8 +36,8 @@ class PercentileDoubleAggregator {
         return state.evaluatePercentile(driverContext);
     }
 
-    public static QuantileStates.GroupingState initGrouping(BigArrays bigArrays, double percentile) {
-        return new QuantileStates.GroupingState(bigArrays, percentile);
+    public static QuantileStates.GroupingState initGrouping(DriverContext driverContext, double percentile) {
+        return new QuantileStates.GroupingState(driverContext.breaker(), driverContext.bigArrays(), percentile);
     }
 
     public static void combine(QuantileStates.GroupingState state, int groupId, double v) {

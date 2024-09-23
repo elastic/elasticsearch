@@ -43,7 +43,7 @@ public final class MedianAbsoluteDeviationLongAggregatorFunction implements Aggr
 
   public static MedianAbsoluteDeviationLongAggregatorFunction create(DriverContext driverContext,
       List<Integer> channels) {
-    return new MedianAbsoluteDeviationLongAggregatorFunction(driverContext, channels, MedianAbsoluteDeviationLongAggregator.initSingle());
+    return new MedianAbsoluteDeviationLongAggregatorFunction(driverContext, channels, MedianAbsoluteDeviationLongAggregator.initSingle(driverContext));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

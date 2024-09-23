@@ -20,8 +20,8 @@ import org.elasticsearch.compute.operator.DriverContext;
 @GroupingAggregator
 class MedianAbsoluteDeviationIntAggregator {
 
-    public static QuantileStates.SingleState initSingle() {
-        return new QuantileStates.SingleState(QuantileStates.MEDIAN);
+    public static QuantileStates.SingleState initSingle(DriverContext driverContext) {
+        return new QuantileStates.SingleState(driverContext.breaker(), QuantileStates.MEDIAN);
     }
 
     public static void combine(QuantileStates.SingleState current, int v) {
@@ -36,8 +36,8 @@ class MedianAbsoluteDeviationIntAggregator {
         return state.evaluateMedianAbsoluteDeviation(driverContext);
     }
 
-    public static QuantileStates.GroupingState initGrouping(BigArrays bigArrays) {
-        return new QuantileStates.GroupingState(bigArrays, QuantileStates.MEDIAN);
+    public static QuantileStates.GroupingState initGrouping(DriverContext driverContext) {
+        return new QuantileStates.GroupingState(driverContext.breaker(), driverContext.bigArrays(), QuantileStates.MEDIAN);
     }
 
     public static void combine(QuantileStates.GroupingState state, int groupId, int v) {

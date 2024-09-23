@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.inference.assignment;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -755,12 +754,6 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
 
     private void handleLoadFailure(TrainedModelDeploymentTask task, Exception ex) {
         logger.error(() -> "[" + task.getDeploymentId() + "] model [" + task.getParams().getModelId() + "] failed to load", ex);
-    private void handleLoadFailure(TrainedModelDeploymentTask task, Exception ex, ActionListener<Boolean> retryListener) {
-        if (ex instanceof ElasticsearchException esEx && esEx.status().getStatus() < 500) {
-            logger.warn(() -> "[" + task.getDeploymentId() + "] model [" + task.getParams().getModelId() + "] failed to load", ex);
-        } else {
-            logger.error(() -> "[" + task.getDeploymentId() + "] model [" + task.getParams().getModelId() + "] failed to load", ex);
-        }
         if (task.isStopped()) {
             logger.debug(
                 () -> format(

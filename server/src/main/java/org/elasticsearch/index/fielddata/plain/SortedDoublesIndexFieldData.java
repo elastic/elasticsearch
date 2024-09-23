@@ -112,7 +112,7 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
     }
 
     @Override
-    public LeafNumericFieldData loadDirect(LeafReaderContext context) throws Exception {
+    public LeafNumericFieldData loadDirect(LeafReaderContext context) {
         return load(context);
     }
 

@@ -374,7 +374,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         }
 
         final AtomicBoolean isDone = new AtomicBoolean(false);
-        final var indexAvailableForSearchListener = new CancellableStateConsumer() {
+        final var indexAvailableForSearchListener = new StateConsumerWithCancellable() {
             @Override
             public void accept(SecurityIndexManager.State previousState, SecurityIndexManager.State nextState) {
                 if (nextState.indexAvailableForSearch) {
@@ -405,7 +405,7 @@ public class SecurityIndexManager implements ClusterStateListener {
      * This class ensures that if cancel() is called _before_ setCancellable(), the passed-in cancellable is still correctly cancelled on
      * a subsequent setCancellable() call.
      */
-    private abstract static class CancellableStateConsumer
+    private abstract static class StateConsumerWithCancellable
         implements
             BiConsumer<SecurityIndexManager.State, SecurityIndexManager.State>,
             Scheduler.Cancellable {
@@ -422,6 +422,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         public boolean cancel() {
             cancelled = true;
             if (cancellable != null) {
+                // cancellable is idempotent, so it's fine to potentially call it multiple times
                 return cancellable.cancel();
             }
             return isCancelled();

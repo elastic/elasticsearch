@@ -302,6 +302,52 @@ object param - nested object with stored array:
 
 
 ---
+index param - nested array within array:
+  - requires:
+      cluster_features: ["mapper.synthetic_source_keep"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              name:
+                type: keyword
+              path:
+                properties:
+                  to:
+                    properties:
+                      some:
+                        store_array_source: true
+                        properties:
+                          id:
+                            type: integer
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "name": "A", "path": [ { "to": [ { "some" : [ { "id": 10 }, { "id": [1, 3, 2] } ] }, { "some": { "id": 100 } } ] }, { "to": { "some": { "id": [1000, 2000] } } } ] }'
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test
+        sort: name
+  - match:  { hits.hits.0._source.name: A }
+  - match: { hits.hits.0._source.path.to.some.0.id: 10 }
+  - match: { hits.hits.0._source.path.to.some.1.id: [ 1, 3, 2] }
+  - match: { hits.hits.0._source.path.to.some.2.id: 100 }
+  - match: { hits.hits.0._source.path.to.some.3.id: [ 1000, 2000 ] }
+
+
+---
 # 112156
 stored field under object with store_array_source:
   - requires:
@@ -354,10 +400,348 @@ stored field under object with store_array_source:
 
 
 ---
-index param - root arrays:
+field param - keep root array:
+  - requires:
+      cluster_features: ["mapper.synthetic_source_keep"]
+      reason: requires keeping array source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              id:
+                type: integer
+              kw_default:
+                type: keyword
+              kw_arrays:
+                type: keyword
+                synthetic_source_keep: arrays
+              kw_all:
+                type: keyword
+                synthetic_source_keep: all
+              int_default:
+                type: integer
+              int_arrays:
+                type: integer
+                synthetic_source_keep: arrays
+              int_all:
+                type: integer
+                synthetic_source_keep: all
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{  "id": 1, "kw_default": [ "B", "A" ], "kw_arrays": [ "B", "A" ], "kw_all": [ "B", "A" ] }'
+          - '{ "create": { } }'
+          - '{  "id": 2, "int_default": [ 2, 1 ], "int_arrays": [ 2, 1 ], "int_all": [ 2, 1 ] }'
+
+  - do:
+      search:
+        index: test
+        sort: id
+
+  - match: { hits.hits.0._source.kw_default: [ "A", "B" ] }
+  - match: { hits.hits.0._source.kw_arrays: [ "B", "A" ] }
+  - match: { hits.hits.0._source.kw_all: [ "B", "A" ] }
+
+  - match: { hits.hits.1._source.int_default: [ 1, 2 ] }
+  - match: { hits.hits.1._source.int_arrays: [ 2, 1 ] }
+  - match: { hits.hits.1._source.int_all: [ 2, 1 ] }
+
+
+---
+field param - keep nested array:
+  - requires:
+      cluster_features: ["mapper.synthetic_source_keep"]
+      reason: requires keeping array source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              id:
+                type: integer
+              path:
+                properties:
+                  to:
+                    properties:
+                      ratio:
+                        type: float
+                      id:
+                        type: integer
+                      kw_default:
+                        type: keyword
+                      kw_arrays:
+                        type: keyword
+                        synthetic_source_keep: arrays
+                      kw_all:
+                        type: keyword
+                        synthetic_source_keep: all
+                      int_default:
+                        type: integer
+                      int_arrays:
+                        type: integer
+                        synthetic_source_keep: arrays
+                      int_all:
+                        type: integer
+                        synthetic_source_keep: all
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{  "id": 1, "path": { "to": { "ratio": 10.0, "kw_default": [ "B", "A" ], "kw_arrays": [ "B", "A" ], "kw_all": [ "B", "A" ] } } }'
+          - '{ "create": { } }'
+          - '{  "id": 2, "path": { "to": { "ratio": 20.0, "int_default": [ 2, 1 ], "int_arrays": [ 2, 1 ], "int_all": [ 2, 1 ] } } }'
+
+  - do:
+      search:
+        index: test
+        sort: id
+
+  - match: { hits.hits.0._source.path.to.ratio: 10.0 }
+  - match: { hits.hits.0._source.path.to.kw_default: [ "A", "B" ] }
+  - match: { hits.hits.0._source.path.to.kw_arrays: [ "B", "A" ] }
+  - match: { hits.hits.0._source.path.to.kw_all: [ "B", "A" ] }
+
+  - match: { hits.hits.1._source.path.to.ratio: 20.0 }
+  - match: { hits.hits.1._source.path.to.int_default: [ 1, 2 ] }
+  - match: { hits.hits.1._source.path.to.int_arrays: [ 2, 1 ] }
+  - match: { hits.hits.1._source.path.to.int_all: [ 2, 1 ] }
+
+
+---
+field param - keep root singleton fields:
+  - requires:
+      test_runner_features: close_to
+      cluster_features: ["mapper.synthetic_source_keep"]
+      reason: requires keeping singleton source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              id:
+                type: integer
+              l:
+                type: long
+                synthetic_source_keep: all
+              l_def:
+                type: long
+              f:
+                type: float
+                synthetic_source_keep: all
+              f_def:
+                type: float
+                synthetic_source_keep: all
+              kw:
+                type: keyword
+                synthetic_source_keep: all
+              kw_def:
+                type: keyword
+              txt:
+                type: text
+                store: true
+                synthetic_source_keep: all
+              txt_def:
+                type: text
+                store: true
+              gp:
+                type: geo_point
+                synthetic_source_keep: all
+              gp_def:
+                type: geo_point
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{  "id": 1, "l": 10.0, "l_def": 10.0, "f": 10, "f_def": 10, "kw": 10, "kw_def": 10, "txt": 10, "txt_def": 10, "gp": "POINT(34.25 -21.76)", "gp_def": "POINT(34.25 -21.76)" }'
+          - '{ "create": { } }'
+          - '{  "id": 2, "l": 20.0, "l_def": 20.0, "f": 20, "f_def": 20, "kw": 20, "kw_def": 20, "txt": 20, "txt_def": 20, "gp": "POINT(44.25 -31.76)", "gp_def": "POINT(44.25 -31.76)" }'
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test
+        sort: id
+
+  - match: { hits.hits.0._source.id: 1 }
+  - match: { hits.hits.0._source.l: 10.0 }
+  - match: { hits.hits.0._source.l_def: 10 }
+  - match: { hits.hits.0._source.f: 10 }
+  - match: { hits.hits.0._source.f_def: 10.0 }
+  - match: { hits.hits.0._source.kw: 10 }
+  - match: { hits.hits.0._source.kw_def: "10" }
+  - match: { hits.hits.0._source.txt: 10 }
+  - match: { hits.hits.0._source.txt_def: "10" }
+  - match: { hits.hits.0._source.gp: "POINT(34.25 -21.76)" }
+  - close_to: { hits.hits.0._source.gp_def.lon: { value: 34.25, error: 0.01 }  }
+  - close_to: { hits.hits.0._source.gp_def.lat: { value: -21.76, error: 0.01 }  }
+
+  - match: { hits.hits.1._source.id: 2 }
+  - match: { hits.hits.1._source.l: 20.0 }
+  - match: { hits.hits.1._source.l_def: 20 }
+  - match: { hits.hits.1._source.f: 20 }
+  - match: { hits.hits.1._source.f_def: 20.0 }
+  - match: { hits.hits.1._source.kw: 20 }
+  - match: { hits.hits.1._source.kw_def: "20" }
+  - match: { hits.hits.1._source.txt: 20 }
+  - match: { hits.hits.1._source.txt_def: "20" }
+  - match: { hits.hits.1._source.gp: "POINT(44.25 -31.76)" }
+  - close_to: { hits.hits.1._source.gp_def.lon: { value: 44.25, error: 0.01 }  }
+  - close_to: { hits.hits.1._source.gp_def.lat: { value: -31.76, error: 0.01 }  }
+
+
+---
+field param - keep nested singleton fields:
+  - requires:
+      test_runner_features: close_to
+      cluster_features: ["mapper.synthetic_source_keep"]
+      reason: requires keeping singleton source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              id:
+                type: integer
+              path:
+                properties:
+                  to:
+                    properties:
+                      l:
+                        type: long
+                        synthetic_source_keep: all
+                      l_def:
+                        type: long
+                      f:
+                        type: float
+                        synthetic_source_keep: all
+                      f_def:
+                        type: float
+                        synthetic_source_keep: all
+                      kw:
+                        type: keyword
+                        synthetic_source_keep: all
+                      kw_def:
+                        type: keyword
+                      gp:
+                        type: geo_point
+                        synthetic_source_keep: all
+                      gp_def:
+                        type: geo_point
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{  "id": 1, "path": { "to": { "l": 10.0, "l_def": 10.0, "f": 10, "f_def": 10, "kw": 10, "kw_def": 10, "gp": "POINT(34.25 -21.76)", "gp_def": "POINT(34.25 -21.76)" } } }'
+          - '{ "create": { } }'
+          - '{  "id": 2, "path": { "to": { "l": 20.0, "l_def": 20.0, "f": 20, "f_def": 20, "kw": 20, "kw_def": 20, "gp": "POINT(44.25 -31.76)", "gp_def": "POINT(44.25 -31.76)" } } }'
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test
+        sort: id
+
+  - match: { hits.hits.0._source.id: 1 }
+  - match: { hits.hits.0._source.path.to.l: 10.0 }
+  - match: { hits.hits.0._source.path.to.l_def: 10 }
+  - match: { hits.hits.0._source.path.to.f: 10 }
+  - match: { hits.hits.0._source.path.to.f_def: 10.0 }
+  - match: { hits.hits.0._source.path.to.kw: 10 }
+  - match: { hits.hits.0._source.path.to.kw_def: "10" }
+  - match: { hits.hits.0._source.path.to.gp: "POINT(34.25 -21.76)" }
+  - close_to: { hits.hits.0._source.path.to.gp_def.lon: { value: 34.25, error: 0.01 }  }
+  - close_to: { hits.hits.0._source.path.to.gp_def.lat: { value: -21.76, error: 0.01 }  }
+
+  - match: { hits.hits.1._source.id: 2 }
+  - match: { hits.hits.1._source.path.to.l: 20.0 }
+  - match: { hits.hits.1._source.path.to.l_def: 20 }
+  - match: { hits.hits.1._source.path.to.f: 20 }
+  - match: { hits.hits.1._source.path.to.f_def: 20.0 }
+  - match: { hits.hits.1._source.path.to.kw: 20 }
+  - match: { hits.hits.1._source.path.to.kw_def: "20" }
+  - match: { hits.hits.1._source.path.to.gp: "POINT(44.25 -31.76)" }
+  - close_to: { hits.hits.1._source.path.to.gp_def.lon: { value: 44.25, error: 0.01 }  }
+  - close_to: { hits.hits.1._source.path.to.gp_def.lat: { value: -31.76, error: 0.01 }  }
+
+
+---
+field param - nested array within array:
   - requires:
       cluster_features: ["mapper.synthetic_source_keep"]
       reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              name:
+                type: keyword
+              path:
+                properties:
+                  to:
+                    properties:
+                      some:
+                        properties:
+                          id:
+                            type: integer
+                            synthetic_source_keep: arrays
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "name": "A", "path": [ { "to": [ { "some" : [ { "id": 10 }, { "id": [1, 3, 2] } ] }, { "some": { "id": 100 } } ] }, { "to": { "some": { "id": [1000, 2000] } } } ] }'
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test
+        sort: name
+  - match:  { hits.hits.0._source.name: A }
+  - match: { hits.hits.0._source.path.to.some.id: [ 10, 1, 3, 2, 100, 1000, 2000 ] }
+
+
+---
+index param - root arrays:
+  - requires:
+      cluster_features: ["mapper.synthetic_source_keep"]
+      reason: requires keeping array source
 
   - do:
       indices.create:
@@ -375,6 +759,9 @@ index param - root arrays:
                 type: integer
               leaf:
                 type: integer
+              leaf_default:
+                type: integer
+                synthetic_source_keep: none
               obj:
                 properties:
                   span:
@@ -392,9 +779,9 @@ index param - root arrays:
         refresh: true
         body:
           - '{ "create": { } }'
-          - '{  "id": 1, "leaf": [30, 20, 10], "obj": [ { "trace": { "id": "a" }, "span": { "id": "1" } }, { "trace": { "id": "b" }, "span": { "id": "1" } } ] }'
+          - '{  "id": 1, "leaf": [30, 20, 10], "leaf_default": [30, 20, 10], "obj": [ { "trace": { "id": "a" }, "span": { "id": "1" } }, { "trace": { "id": "b" }, "span": { "id": "1" } } ] }'
           - '{ "create": { } }'
-          - '{  "id": 2, "leaf": [130, 120, 110], "obj": [ { "trace": { "id": "aa" }, "span": { "id": "2" } }, { "trace": { "id": "bb" }, "span": { "id": "2" } } ] }'
+          - '{  "id": 2, "leaf": [130, 120, 110], "leaf_default": [130, 120, 110], "obj": [ { "trace": { "id": "aa" }, "span": { "id": "2" } }, { "trace": { "id": "bb" }, "span": { "id": "2" } } ] }'
 
   - do:
       search:
@@ -403,6 +790,7 @@ index param - root arrays:
 
   - match: { hits.hits.0._source.id: 1  }
   - match: { hits.hits.0._source.leaf: [30, 20, 10]  }
+  - match: { hits.hits.0._source.leaf_default: [10, 20, 30]  }
   - length: { hits.hits.0._source.obj: 2 }
   - match: { hits.hits.0._source.obj.0.trace.id: a  }
   - match: { hits.hits.0._source.obj.0.span.id: "1"  }
@@ -411,6 +799,7 @@ index param - root arrays:
 
   - match: { hits.hits.1._source.id: 2 }
   - match: { hits.hits.1._source.leaf: [ 130, 120, 110 ] }
+  - match: { hits.hits.0._source.leaf_default: [10, 20, 30]  }
   - length: { hits.hits.1._source.obj: 2 }
   - match: { hits.hits.1._source.obj.0.trace.id: aa }
   - match: { hits.hits.1._source.obj.0.span.id: "2" }
@@ -422,7 +811,7 @@ index param - root arrays:
 index param - dynamic root arrays:
   - requires:
       cluster_features: ["mapper.synthetic_source_keep"]
-      reason: requires tracking ignored source
+      reason: requires keeping array source
 
   - do:
       indices.create:
@@ -475,7 +864,7 @@ index param - dynamic root arrays:
 index param - object array within array:
   - requires:
       cluster_features: ["mapper.synthetic_source_keep"]
-      reason: requires tracking ignored source
+      reason: requires keeping array source
 
   - do:
       indices.create:
@@ -525,7 +914,7 @@ index param - object array within array:
 index param - no object array:
   - requires:
       cluster_features: ["mapper.synthetic_source_keep"]
-      reason: requires tracking ignored source
+      reason: requires keeping array source
 
   - do:
       indices.create:
@@ -570,7 +959,7 @@ index param - no object array:
 index param - field ordering:
   - requires:
       cluster_features: ["mapper.synthetic_source_keep"]
-      reason: requires tracking ignored source
+      reason: requires keeping array source
 
   - do:
       indices.create:
@@ -621,7 +1010,7 @@ index param - field ordering:
 index param - nested arrays:
   - requires:
       cluster_features: ["mapper.synthetic_source_keep"]
-      reason: requires tracking ignored source
+      reason: requires keeping array source
 
   - do:
       indices.create:
@@ -649,6 +1038,9 @@ index param - nested arrays:
                     type: integer
                   e:
                     type: keyword
+                  g:
+                    type: integer
+                    synthetic_source_keep: none
               f:
                 type: keyword
 
@@ -658,9 +1050,9 @@ index param - nested arrays:
         refresh: true
         body:
           - '{ "create": { } }'
-          - '{ "a": 1, "b": { "c": [ { "bb": 10, "aa": 20 }, { "aa": 30, "bb": 40 } ], "d": [ 300, 200, 100 ], "e": 1000 }, "f": 2000 }'
+          - '{ "a": 1, "b": { "c": [ { "bb": 10, "aa": 20 }, { "aa": 30, "bb": 40 } ], "d": [ 300, 200, 100 ], "e": 1000, "g": [ 300, 200, 100 ] }, "f": 2000 }'
           - '{ "create": { } }'
-          - '{ "a": 11, "b": { "c": [ { "bb": 110, "aa": 120 }, { "aa": 130, "bb": 140 } ], "d": [ 1300, 1200, 1100 ], "e": 11000 }, "f": 12000 }'
+          - '{ "a": 11, "b": { "c": [ { "bb": 110, "aa": 120 }, { "aa": 130, "bb": 140 } ], "d": [ 1300, 1200, 1100 ], "e": 11000, "g": [ 1300, 1200, 1100 ] }, "f": 12000 }'
 
 
   - do:
@@ -671,12 +1063,14 @@ index param - nested arrays:
   - match: { hits.hits.0._source.a: "1" }
   - match: { hits.hits.0._source.b.c:  [{ "bb": 10, "aa": 20 }, { "aa": 30, "bb": 40 }] }
   - match: { hits.hits.0._source.b.d:  [ 300, 200, 100 ] }
+  - match: { hits.hits.0._source.b.g:  [ 100, 200, 300 ] }
   - match: { hits.hits.0._source.b.e: "1000" }
   - match: { hits.hits.0._source.f: "2000" }
 
   - match: { hits.hits.1._source.a: "11" }
   - match: { hits.hits.1._source.b.c: [ { "bb": 110, "aa": 120 }, { "aa": 130, "bb": 140 } ] }
   - match: { hits.hits.1._source.b.d: [ 1300, 1200, 1100 ] }
+  - match: { hits.hits.1._source.b.g: [ 1100, 1200, 1300 ] }
   - match: { hits.hits.1._source.b.e: "11000" }
   - match: { hits.hits.1._source.f: "12000" }
 
@@ -684,7 +1078,7 @@ index param - nested arrays:
 index param - nested object with stored array:
   - requires:
       cluster_features: ["mapper.synthetic_source_keep"]
-      reason: requires tracking ignored source
+      reason: requires keeping array source
 
   - do:
       indices.create:

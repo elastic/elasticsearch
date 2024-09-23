@@ -60,7 +60,8 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
     TransportNodesListShardStoreMetadata.Request,
     TransportNodesListShardStoreMetadata.NodesStoreFilesMetadata,
     TransportNodesListShardStoreMetadata.NodeRequest,
-    TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata> {
+    TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata,
+    Void> {
 
     private static final Logger logger = LogManager.getLogger(TransportNodesListShardStoreMetadata.class);
 

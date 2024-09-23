@@ -85,6 +85,7 @@ public interface InferenceService extends Closeable {
      * @param model        The model
      * @param query        Inference query, mainly for re-ranking
      * @param input        Inference input
+     * @param stream       Stream inference results
      * @param taskSettings Settings in the request to override the model's defaults
      * @param inputType    For search, ingest etc
      * @param timeout      The timeout for the request
@@ -94,6 +95,7 @@ public interface InferenceService extends Closeable {
         Model model,
         @Nullable String query,
         List<String> input,
+        boolean stream,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,

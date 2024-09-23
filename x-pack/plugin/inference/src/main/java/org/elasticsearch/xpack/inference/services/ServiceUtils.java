@@ -641,6 +641,7 @@ public final class ServiceUtils {
             model,
             null,
             List.of(TEST_EMBEDDING_INPUT),
+            false,
             Map.of(),
             InputType.INGEST,
             InferenceAction.Request.DEFAULT_TIMEOUT,

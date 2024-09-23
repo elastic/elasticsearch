@@ -214,6 +214,9 @@ public class TransportVersionTests extends ESTestCase {
             if (tv.before(TransportVersions.V_8_14_0)) {
                 continue;
             }
+            if (tv.equals(TransportVersions.MULTI_PROJECT)) {
+                continue; // Temporary work around. Remove this when Multi-Project merges to main (ES-7708)
+            }
             if (previous == null) {
                 previous = tv;
                 continue;

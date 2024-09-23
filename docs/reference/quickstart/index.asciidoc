@@ -1,5 +1,5 @@
 [[quickstart]]
-= Hands-on quick starts
+= API quick starts
 
 Use these quick starts to get hands-on experience with the {es} APIs.
 

@@ -1,0 +1,56 @@
+---
+wildcard field type ignore_above:
+  - requires:
+      cluster_features: [ "mapper.ignore_above_index_level_setting" ]
+      reason: introduce ignore_above index level setting
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            index:
+              mapping:
+                ignore_above: 10
+          mappings:
+            properties:
+              a_wildcard:
+                type: wildcard
+              b_wildcard:
+                type: wildcard
+                ignore_above: 20
+              c_wildcard:
+                type: wildcard
+              d_wildcard:
+                type: wildcard
+                ignore_above: 5
+
+
+
+  - do:
+      index:
+        index:  test
+        refresh: true
+        id: "1"
+        body:   { "a_wildcard": "foo bar", "b_wildcard": "the quick brown", "c_wildcard": ["foo", "bar", "jumps over the lazy dog"], "d_wildcard": ["foo", "bar", "the quick"]}
+
+  - do:
+      search:
+        body:
+          fields:
+            - a_wildcard
+            - b_wildcard
+            - c_wildcard
+            - d_wildcard
+          query:
+            match_all: {}
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.a_wildcard: "foo bar" }
+  - match: { hits.hits.0._source.b_wildcard: "the quick brown" }
+  - match: { hits.hits.0._source.c_wildcard: ["foo", "bar", "jumps over the lazy dog"] }
+  - match: { hits.hits.0._source.d_wildcard: ["foo", "bar", "the quick"] }
+  - match: { hits.hits.0.fields.a_wildcard.0: "foo bar" }
+  - match: { hits.hits.0.fields.b_wildcard.0: "the quick brown" }
+  - match: { hits.hits.0.fields.c_wildcard: ["foo", "bar"] }
+  - match: { hits.hits.0.fields.d_wildcard: ["foo", "bar"] }
+

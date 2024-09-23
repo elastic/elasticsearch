@@ -22,6 +22,7 @@ import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
 import co.elastic.elasticsearch.stateless.cache.reader.MeteringCacheBlobReader;
 import co.elastic.elasticsearch.stateless.cache.reader.ObjectStoreCacheBlobReader;
+import co.elastic.elasticsearch.stateless.commits.BlobFileRanges;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 
@@ -30,6 +31,7 @@ import org.apache.lucene.store.FilterDirectory;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.CachePopulationSource;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -43,10 +45,10 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
         super(cacheService, shardId);
     }
 
-    void updateMetadata(Map<String, BlobLocation> blobLocations, long dataSetSizeInBytes) {
+    void updateMetadata(Map<String, BlobFileRanges> metadata, long dataSetSizeInBytes) {
         assert assertCompareAndSetUpdatingCommitThread(null, Thread.currentThread());
         try {
-            currentMetadata = blobLocations;
+            currentMetadata = metadata;
             currentDataSetSizeInBytes = dataSetSizeInBytes;
         } finally {
             assert assertCompareAndSetUpdatingCommitThread(Thread.currentThread(), null);
@@ -113,7 +115,8 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
                 return doGetCacheBlobReaderForWarming(getBlobContainer(location.primaryTerm()), location.blobName());
             }
         };
-        preWarmDirectory.currentMetadata = preWarmCommit.commitFiles();
+        // preWarmDirectory accesses the main blob location of the files only and does not prewarm replicated ranges like headers/footers
+        preWarmDirectory.currentMetadata = Maps.transformValues(preWarmCommit.commitFiles(), BlobFileRanges::new);
         preWarmDirectory.currentDataSetSizeInBytes = preWarmCommit.getAllFilesSizeInBytes();
         return preWarmDirectory;
     }

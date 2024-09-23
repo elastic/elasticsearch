@@ -32,6 +32,7 @@ import co.elastic.elasticsearch.stateless.cache.reader.MeteringCacheBlobReader;
 import co.elastic.elasticsearch.stateless.cache.reader.MutableObjectStoreUploadTracker;
 import co.elastic.elasticsearch.stateless.cache.reader.ObjectStoreCacheBlobReader;
 import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
+import co.elastic.elasticsearch.stateless.commits.BlobFileRanges;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
@@ -311,8 +312,9 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         }
 
         @Override
-        protected IndexInput doOpenInput(String name, IOContext context, BlobLocation blobLocation) {
-            return generationalFilesTracker.trackIfIsGenerationalFile(super.doOpenInput(name, context, blobLocation), name, blobLocation);
+        protected IndexInput doOpenInput(String name, IOContext context, BlobFileRanges blobFileRanges) {
+            var blobLocation = blobFileRanges.blobLocation();
+            return generationalFilesTracker.trackIfIsGenerationalFile(super.doOpenInput(name, context, blobFileRanges), name, blobLocation);
         }
 
         @Override
@@ -355,8 +357,9 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         }
 
         @Override
-        protected IndexInput doOpenInput(String name, IOContext context, BlobLocation blobLocation) {
-            return generationalFilesTracker.trackIfIsGenerationalFile(super.doOpenInput(name, context, blobLocation), name, blobLocation);
+        protected IndexInput doOpenInput(String name, IOContext context, BlobFileRanges blobFileRanges) {
+            var blobLocation = blobFileRanges.blobLocation();
+            return generationalFilesTracker.trackIfIsGenerationalFile(super.doOpenInput(name, context, blobFileRanges), name, blobLocation);
         }
 
         public GenerationalFilesTracker getGenerationalFilesTracker() {

@@ -21,6 +21,7 @@ package co.elastic.elasticsearch.stateless.lucene;
 
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
+import co.elastic.elasticsearch.stateless.commits.BlobFileRanges;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 
@@ -41,6 +42,7 @@ import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
@@ -74,6 +76,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static co.elastic.elasticsearch.stateless.TestUtils.newCacheService;
+import static co.elastic.elasticsearch.stateless.commits.BlobLocationTestUtils.createBlobFileRanges;
 import static co.elastic.elasticsearch.stateless.commits.BlobLocationTestUtils.createBlobLocation;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
@@ -171,7 +174,7 @@ public class IndexDirectoryTests extends ESTestCase {
                             2L,
                             length,
                             Set.of(fileName),
-                            Map.of(fileName, createBlobLocation(1L, fileName.hashCode(), 0L, length))
+                            Map.of(fileName, createBlobFileRanges(1L, fileName.hashCode(), 0L, length))
                         );
                         var fileLength = filesSizes.remove(fileName);
                         assertThat(directory.estimateSizeInBytes(), equalTo(totalSize - fileLength));
@@ -210,7 +213,7 @@ public class IndexDirectoryTests extends ESTestCase {
                                 .collect(
                                     Collectors.toMap(
                                         Map.Entry::getKey,
-                                        o -> createBlobLocation(1L, o.getKey().hashCode(), 0L, o.getValue())
+                                        o -> createBlobFileRanges(1L, o.getKey().hashCode(), 0L, o.getValue())
                                     )
                                 )
                         );
@@ -343,7 +346,7 @@ public class IndexDirectoryTests extends ESTestCase {
                 newCommit.getAllFilesSizeInBytes(),
                 newFiles,
                 Stream.concat(commit.commitFiles().entrySet().stream(), newCommit.commitFiles().entrySet().stream())
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+                    .collect(Collectors.toMap(Map.Entry::getKey, e -> new BlobFileRanges(e.getValue())))
             );
 
             assertEquals(Sets.union(files, newFiles), Set.of(directory.getBlobStoreCacheDirectory().listAll()));
@@ -353,12 +356,17 @@ public class IndexDirectoryTests extends ESTestCase {
                 newCommit.getAllFilesSizeInBytes(),
                 newFiles,
                 Stream.concat(commit.commitFiles().entrySet().stream(), newCommit.commitFiles().entrySet().stream())
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+                    .collect(Collectors.toMap(Map.Entry::getKey, e -> new BlobFileRanges(e.getValue())))
             );
 
             assertEquals(Sets.union(files, newFiles), Set.of(directory.getBlobStoreCacheDirectory().listAll()));
 
-            directory.updateCommit(3, newCommit.getAllFilesSizeInBytes(), newFiles, newCommit.commitFiles());
+            directory.updateCommit(
+                3,
+                newCommit.getAllFilesSizeInBytes(),
+                newFiles,
+                Maps.transformValues(newCommit.commitFiles(), BlobFileRanges::new)
+            );
 
             assertEquals(newFiles, Set.of(directory.getBlobStoreCacheDirectory().listAll()));
         } finally {
@@ -391,7 +399,7 @@ public class IndexDirectoryTests extends ESTestCase {
                     1,
                     fileLength,
                     Set.of(generationalFilename),
-                    Map.of(generationalFilename, createBlobLocation(1L, 4L, 0L, fileLength))
+                    Map.of(generationalFilename, createBlobFileRanges(1L, 4L, 0L, fileLength))
                 );
             }
             assertThat(capturedOnDeletions, empty());

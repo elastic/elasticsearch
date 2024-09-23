@@ -200,7 +200,7 @@ class StatelessIndexEventListener implements IndexEventListener {
                     info.uploadedBcc().last().generation(),
                     info.uploadedBcc().last().getAllFilesSizeInBytes(),
                     uploadedFiles,
-                    info.blobLocations()
+                    info.blobFileRanges()
                 );
             });
 

@@ -73,6 +73,9 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         MULTILINGUAL_E5_SMALL_MODEL_ID,
         MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86
     );
+    public static final Set<String> ELSER_VALID_IDS = Set.of(ELSER_V2_MODEL_LINUX_X86, ELSER_V2_MODEL);
+
+    private static final Logger logger = LogManager.getLogger(ElasticsearchInternalService.class);
 
     private static final Logger logger = LogManager.getLogger(ElasticsearchInternalService.class);
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(ElasticsearchInternalService.class);
@@ -335,6 +338,14 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 taskType,
                 NAME,
                 new MultilingualE5SmallInternalServiceSettings(ElasticsearchInternalServiceSettings.fromPersistedMap(serviceSettingsMap))
+            );
+        } else if (ElserModels.isValidModel(modelId)) {
+            return new ElserInternalModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                new ElserInternalServiceSettings(ElasticsearchInternalServiceSettings.fromPersistedMap(serviceSettingsMap)),
+                ElserMlNodeTaskSettings.DEFAULT
             );
         } else {
             return createCustomElandModel(

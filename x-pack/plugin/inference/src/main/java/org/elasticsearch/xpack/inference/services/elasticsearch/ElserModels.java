@@ -23,7 +23,7 @@ public class ElserModels {
     );
 
     public static boolean isValidModel(String model) {
-        return VALID_ELSER_MODEL_IDS.contains(model);
+        return model != null && VALID_ELSER_MODEL_IDS.contains(model);
     }
 
     public static boolean isValidEisModel(String model) {

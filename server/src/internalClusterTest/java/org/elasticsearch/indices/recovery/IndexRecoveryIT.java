@@ -34,6 +34,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -86,6 +87,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.recovery.RecoveryStats;
@@ -137,8 +139,10 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
@@ -146,7 +150,10 @@ import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
 import static org.elasticsearch.action.DocWriteResponse.Result.UPDATED;
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoFailureListener;
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING;
+import static org.elasticsearch.index.MergePolicyConfig.INDEX_MERGE_ENABLED;
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
+import static org.elasticsearch.indices.IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING;
+import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 import static org.elasticsearch.node.RecoverySettingsChunkSizePlugin.CHUNK_SIZE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -158,6 +165,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -1955,6 +1963,77 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         final var peerRecoverySourceService = internalCluster().getInstance(PeerRecoverySourceService.class, primaryNode);
         assertBusy(() -> assertEquals(0, peerRecoverySourceService.numberOfOngoingRecoveries()));
         recoveryCompleteListener.onResponse(null);
+    }
+
+    public void testPostRecoveryMerge() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final var dataNode = internalCluster().startDataOnlyNode();
+        final var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).put(INDEX_MERGE_ENABLED, false).build());
+
+        final var initialSegmentCount = 20;
+        for (int i = 0; i < initialSegmentCount; i++) {
+            indexDoc(indexName, Integer.toString(i), "f", randomAlphaOfLength(10));
+            refresh(indexName); // force a one-doc segment
+        }
+        flush(indexName); // commit all the one-doc segments
+
+        final LongSupplier searchableSegmentCountSupplier = () -> indicesAdmin().prepareSegments(indexName)
+            .get(SAFE_AWAIT_TIMEOUT)
+            .getIndices()
+            .get(indexName)
+            .getShards()
+            .get(0)
+            .shards()[0].getSegments()
+            .stream()
+            .filter(Segment::isSearch)
+            .count();
+
+        assertEquals(initialSegmentCount, searchableSegmentCountSupplier.getAsLong());
+
+        // force a recovery by restarting the node, re-enabling merges while the node is down, but configure the node not to be in the hot
+        // or content tiers so that it does not do any post-recovery merge
+        internalCluster().restartNode(dataNode, new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) {
+                final var request = new UpdateSettingsRequest(Settings.builder().putNull(INDEX_MERGE_ENABLED).build(), indexName);
+                request.reopen(true);
+                safeGet(indicesAdmin().updateSettings(request));
+                return Settings.builder()
+                    .putList(NODE_ROLES_SETTING.getKey(), randomNonEmptySubsetOf(List.of("data_warm", "data_cold")))
+                    .build();
+            }
+        });
+
+        ensureGreen(indexName);
+        final var mergeStats = indicesAdmin().prepareStats(indexName).clear().setMerge(true).get().getIndex(indexName).getShards()[0]
+            .getStats()
+            .getMerge();
+        assertEquals(0, mergeStats.getCurrent());
+        assertEquals(0, mergeStats.getTotal());
+        assertEquals(initialSegmentCount, searchableSegmentCountSupplier.getAsLong());
+
+        // force a recovery by restarting the node again, but this time putting it into the hot or content tiers to enable post-recovery
+        // merges
+        internalCluster().restartNode(dataNode, new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) {
+                return Settings.builder()
+                    .putList(
+                        NODE_ROLES_SETTING.getKey(),
+                        Stream.concat(
+                            Stream.of(randomFrom("data", "data_content", "data_hot")),
+                            Stream.of("data", "data_content", "data_hot", "data_warm", "data_cold").filter(p -> randomBoolean())
+                        ).distinct().toList()
+                    )
+                    // set the inactive time to zero so that we flush immediately after every merge, rather than having the test wait 5min
+                    .put(SHARD_INACTIVE_TIME_SETTING.getKey(), TimeValue.ZERO)
+                    .build();
+            }
+        });
+
+        ensureGreen(indexName);
+        assertBusy(() -> assertThat(searchableSegmentCountSupplier.getAsLong(), lessThan((long) initialSegmentCount)));
     }
 
     private void assertGlobalCheckpointIsStableAndSyncedInAllNodes(String indexName, List<String> nodes, int shard) throws Exception {

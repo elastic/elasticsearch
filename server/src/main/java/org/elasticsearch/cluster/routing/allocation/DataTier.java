@@ -72,7 +72,7 @@ public class DataTier {
     private static final Settings NULL_TIER_PREFERENCE_SETTINGS = Settings.builder().putNull(TIER_PREFERENCE).build();
 
     public static final Setting<String> TIER_PREFERENCE_SETTING = new Setting<>(
-        new Setting.SimpleKey(TIER_PREFERENCE),
+        TIER_PREFERENCE,
         DataTierSettingValidator::getDefaultTierPreference,
         Function.identity(),
         new DataTierSettingValidator(),

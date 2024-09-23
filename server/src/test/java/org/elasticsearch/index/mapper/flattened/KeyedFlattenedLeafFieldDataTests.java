@@ -165,10 +165,6 @@ public class KeyedFlattenedLeafFieldDataTests extends ESTestCase {
             return 0;
         }
 
-        @Override
-        public void close() {
-            // Nothing to do.
-        }
     }
 
     private static final ToScriptFieldFactory<SortedSetDocValues> MOCK_TO_SCRIPT_FIELD = (dv, n) -> new DelegateDocValuesField(

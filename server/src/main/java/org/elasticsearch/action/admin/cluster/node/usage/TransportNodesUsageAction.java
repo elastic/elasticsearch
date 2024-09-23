@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.usage;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -34,7 +33,8 @@ public class TransportNodesUsageAction extends TransportNodesAction<
     NodesUsageRequest,
     NodesUsageResponse,
     TransportNodesUsageAction.NodeUsageRequest,
-    NodeUsage> {
+    NodeUsage,
+    Void> {
 
     public static final ActionType<NodesUsageResponse> TYPE = new ActionType<>("cluster:monitor/nodes/usage");
     private final UsageService restUsageService;
@@ -92,7 +92,6 @@ public class TransportNodesUsageAction extends TransportNodesAction<
 
         public NodeUsageRequest(StreamInput in) throws IOException {
             super(in);
-            skipLegacyNodesRequestHeader(TransportVersions.MORE_LIGHTER_NODES_REQUESTS, in);
             restActions = in.readBoolean();
             aggregations = in.readBoolean();
         }
@@ -105,7 +104,6 @@ public class TransportNodesUsageAction extends TransportNodesAction<
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            sendLegacyNodesRequestHeader(TransportVersions.MORE_LIGHTER_NODES_REQUESTS, out);
             out.writeBoolean(restActions);
             out.writeBoolean(aggregations);
         }

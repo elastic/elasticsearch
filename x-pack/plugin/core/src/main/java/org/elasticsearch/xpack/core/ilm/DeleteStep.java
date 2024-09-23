@@ -54,7 +54,7 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
                 // phase. The entire stream needs to be deleted, because we can't have an empty list of data stream backing indices.
                 // We do this even if there are multiple failure store indices because otherwise we would never delete the index.
                 DeleteDataStreamAction.Request deleteReq = new DeleteDataStreamAction.Request(
-                    MasterNodeRequest.infiniteMasterNodeTimeout(currentState.getMinTransportVersion()),
+                    MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
                     dataStream.getName()
                 );
                 getClient().execute(

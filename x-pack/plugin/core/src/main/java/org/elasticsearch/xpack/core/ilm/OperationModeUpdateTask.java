@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.Nullable;
@@ -36,7 +36,7 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
 
     public static AckedClusterStateUpdateTask wrap(
         OperationModeUpdateTask task,
-        AckedRequest request,
+        AcknowledgedRequest<?> request,
         ActionListener<AcknowledgedResponse> listener
     ) {
         return new AckedClusterStateUpdateTask(task.priority(), request, listener) {

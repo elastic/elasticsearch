@@ -701,7 +701,7 @@ public class MetadataIndexTemplateService {
         // TODO multi-project get the right project here
         final var projectMetadata = currentState.getMetadata().getProject();
 
-        final var combinedMappings = collectMappings(indexTemplate, projectMetadata.componentTemplates(), "tmp_idx");
+        final var combinedMappings = collectMappings(indexTemplate, projectMetadata.componentTemplates(), Map.of(), "tmp_idx");
         final var combinedSettings = resolveSettings(indexTemplate, projectMetadata.componentTemplates());
         // First apply settings sourced from index setting providers:
         for (var provider : indexSettingProviders) {
@@ -1374,6 +1374,7 @@ public class MetadataIndexTemplateService {
     public static List<CompressedXContent> collectMappings(
         final ProjectMetadata projectMetadata,
         final String templateName,
+        Map<String, ComponentTemplate> componentTemplateSubstitutions,
         final String indexName
     ) {
         final ComposableIndexTemplate template = projectMetadata.templatesV2().get(templateName);
@@ -1384,7 +1385,7 @@ public class MetadataIndexTemplateService {
         }
 
         final Map<String, ComponentTemplate> componentTemplates = projectMetadata.componentTemplates();
-        return collectMappings(template, componentTemplates, indexName);
+        return collectMappings(template, componentTemplates, componentTemplateSubstitutions, indexName);
     }
 
     /**
@@ -1393,6 +1394,7 @@ public class MetadataIndexTemplateService {
     public static List<CompressedXContent> collectMappings(
         final ComposableIndexTemplate template,
         final Map<String, ComponentTemplate> componentTemplates,
+        final Map<String, ComponentTemplate> componentTemplateSubstitutions,
         final String indexName
     ) {
         Objects.requireNonNull(template, "Composable index template must be provided");
@@ -1403,9 +1405,12 @@ public class MetadataIndexTemplateService {
                 ComposableIndexTemplate.DataStreamTemplate.DATA_STREAM_MAPPING_SNIPPET
             );
         }
+        final Map<String, ComponentTemplate> combinedComponentTemplates = new HashMap<>();
+        combinedComponentTemplates.putAll(componentTemplates);
+        combinedComponentTemplates.putAll(componentTemplateSubstitutions);
         List<CompressedXContent> mappings = template.composedOf()
             .stream()
-            .map(componentTemplates::get)
+            .map(combinedComponentTemplates::get)
             .filter(Objects::nonNull)
             .map(ComponentTemplate::template)
             .map(Template::mappings)
@@ -1455,24 +1460,44 @@ public class MetadataIndexTemplateService {
      * Resolve the given v2 template into a collected {@link Settings} object
      */
     public static Settings resolveSettings(final ProjectMetadata projectMetadata, final String templateName) {
+        return resolveSettings(projectMetadata, templateName, Map.of());
+    }
+
+    public static Settings resolveSettings(
+        final ProjectMetadata projectMetadata,
+        final String templateName,
+        Map<String, ComponentTemplate> templateSubstitutions
+    ) {
         final ComposableIndexTemplate template = projectMetadata.templatesV2().get(templateName);
         assert template != null
             : "attempted to resolve settings for a template [" + templateName + "] that did not exist in the cluster state";
         if (template == null) {
             return Settings.EMPTY;
         }
-        return resolveSettings(template, projectMetadata.componentTemplates());
+        return resolveSettings(template, projectMetadata.componentTemplates(), templateSubstitutions);
     }
 
     /**
      * Resolve the provided v2 template and component templates into a collected {@link Settings} object
      */
     public static Settings resolveSettings(ComposableIndexTemplate template, Map<String, ComponentTemplate> componentTemplates) {
+        return resolveSettings(template, componentTemplates, Map.of());
+    }
+
+    public static Settings resolveSettings(
+        ComposableIndexTemplate template,
+        Map<String, ComponentTemplate> componentTemplates,
+        Map<String, ComponentTemplate> templateSubstitutions
+    ) {
         Objects.requireNonNull(template, "attempted to resolve settings for a null template");
         Objects.requireNonNull(componentTemplates, "attempted to resolve settings with null component templates");
+        Map<String, ComponentTemplate> combinedComponentTemplates = new HashMap<>();
+        combinedComponentTemplates.putAll(componentTemplates);
+        // We want any substitutions to take precedence:
+        combinedComponentTemplates.putAll(templateSubstitutions);
         List<Settings> componentSettings = template.composedOf()
             .stream()
-            .map(componentTemplates::get)
+            .map(combinedComponentTemplates::get)
             .filter(Objects::nonNull)
             .map(ComponentTemplate::template)
             .map(Template::settings)
@@ -1722,7 +1747,7 @@ public class MetadataIndexTemplateService {
             String indexName = DataStream.BACKING_INDEX_PREFIX + temporaryIndexName;
             // Parse mappings to ensure they are valid after being composed
 
-            List<CompressedXContent> mappings = collectMappings(projectMetadataWithIndex, templateName, indexName);
+            List<CompressedXContent> mappings = collectMappings(projectMetadataWithIndex, templateName, Map.of(), indexName);
             try {
                 MapperService mapperService = tempIndexService.mapperService();
                 mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mappings, MapperService.MergeReason.INDEX_TEMPLATE);

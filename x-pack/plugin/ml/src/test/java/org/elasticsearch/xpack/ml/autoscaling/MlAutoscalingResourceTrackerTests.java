@@ -44,6 +44,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
@@ -95,7 +96,6 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 listener
             ),
             stats -> {
-                assertEquals(0, stats.currentPerNodeMemoryBytes());
                 assertEquals(2, stats.currentTotalNodes());
                 assertEquals(0, stats.wantedMinNodes());
                 assertEquals(0, stats.wantedExtraPerNodeNodeProcessors());
@@ -118,7 +118,6 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 listener
             ),
             stats -> {
-                assertEquals(0, stats.currentPerNodeMemoryBytes());
                 assertEquals(2, stats.currentTotalNodes());
                 assertEquals(0, stats.wantedMinNodes());
                 assertEquals(0, stats.wantedExtraPerNodeNodeProcessors());
@@ -169,18 +168,25 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
             .addRoutingEntry("ml-2", new RoutingInfo(2, 2, RoutingState.STARTED, ""))
             .build();
 
+        AtomicInteger id = new AtomicInteger();
         List<DiscoveryNode> nodes = new java.util.ArrayList<>(
             Stream.of(randomAssignment1.getNodeRoutingTable().values())
                 .map(r -> mock(DiscoveryNode.class))
+                .peek(n -> when(n.getId()).thenReturn("ml-" + id.incrementAndGet()))
                 .peek(n -> when(n.getRoles()).thenReturn(Set.of(DiscoveryNodeRole.ML_ROLE)))
                 .peek(n -> when(n.getAttributes()).thenReturn(Map.of(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR, "2.0")))
+                .peek(n -> when(n.getAttributes()).thenReturn(Map.of(MachineLearning.MACHINE_MEMORY_NODE_ATTR, Long.toString(memory))))
                 .toList()
         );
+
+        id.set(0);
         nodes.addAll(
             Stream.of(randomAssignment2.getNodeRoutingTable().values())
                 .map(r -> mock(DiscoveryNode.class))
+                .peek(n -> when(n.getId()).thenReturn("ml-" + id.incrementAndGet()))
                 .peek(n -> when(n.getRoles()).thenReturn(Set.of(DiscoveryNodeRole.ML_ROLE)))
                 .peek(n -> when(n.getAttributes()).thenReturn(Map.of(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR, "2.0")))
+                .peek(n -> when(n.getAttributes()).thenReturn(Map.of(MachineLearning.MACHINE_MEMORY_NODE_ATTR, Long.toString(memory))))
                 .toList()
         );
         MlAutoscalingContext scaleUpContext = new MlAutoscalingContext(
@@ -210,6 +216,10 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
             .sum();
         int extraProcessors = expectedTotalProccessors - existantProccessors;
 
+        long expectedMemory = Math.max(
+            randomAssignment1.getTaskParams().estimateMemoryUsageBytes(),
+            randomAssignment2.getTaskParams().estimateMemoryUsageBytes()
+        );
         this.<MlAutoscalingStats>assertAsync(
             listener -> MlAutoscalingResourceTracker.getMemoryAndProcessors(
                 scaleUpContext,
@@ -227,8 +237,8 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 assertEquals(2, stats.currentTotalNodes());
                 assertEquals(extraProcessors, stats.wantedExtraProcessors());
                 assertEquals(expectedProcessorsPerNode, stats.wantedExtraPerNodeNodeProcessors());
-                assertEquals(0, stats.wantedExtraModelMemoryBytes());
-                assertEquals(0, stats.wantedExtraPerNodeMemoryBytes());
+                assertEquals(expectedMemory, stats.wantedExtraModelMemoryBytes());
+                assertEquals(expectedMemory, stats.wantedExtraPerNodeMemoryBytes());
                 assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.currentPerNodeMemoryOverheadBytes());
             }
         );
@@ -261,6 +271,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
             .map(n -> mock(DiscoveryNode.class))
             .peek(n -> when(n.getRoles()).thenReturn(Set.of(DiscoveryNodeRole.ML_ROLE)))
             .peek(n -> when(n.getAttributes()).thenReturn(Map.of(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR, "2.0")))
+            .peek(n -> when(n.getAttributes()).thenReturn(Map.of(MachineLearning.MACHINE_MEMORY_NODE_ATTR, Long.toString(memory))))
             .toList();
 
         MlAutoscalingContext scaleUpContext = new MlAutoscalingContext(List.of(), List.of(), List.of(), Map.of(), nodes, null);
@@ -359,7 +370,6 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 assertEquals(2, stats.currentTotalNodes());
                 assertEquals(1, stats.wantedMinNodes());
                 assertEquals(0, stats.wantedExtraProcessors());
-                assertEquals(0, stats.currentTotalModelMemoryBytes());
                 assertEquals(0, stats.currentTotalProcessorsInUse());
                 assertEquals(0, stats.wantedExtraPerNodeNodeProcessors());
                 assertEquals(memory / 4, stats.wantedExtraPerNodeMemoryBytes());
@@ -386,7 +396,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 assertEquals(2, stats.currentTotalNodes());
                 assertEquals(1, stats.wantedMinNodes());
                 assertEquals(0, stats.wantedExtraProcessors());
-                assertEquals(memory / 4, stats.currentTotalModelMemoryBytes());
+                assertEquals(memory / 2, stats.currentTotalModelMemoryBytes());
                 assertEquals(0, stats.currentTotalProcessorsInUse());
                 assertEquals(0, stats.wantedExtraPerNodeNodeProcessors());
                 assertEquals(memory / 4, stats.wantedExtraPerNodeMemoryBytes());
@@ -413,7 +423,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 assertEquals(2, stats.currentTotalNodes());
                 assertEquals(1, stats.wantedMinNodes());
                 assertEquals(0, stats.wantedExtraProcessors());
-                assertEquals(memory / 4, stats.currentTotalModelMemoryBytes());
+                assertEquals(memory / 2, stats.currentTotalModelMemoryBytes());
                 assertEquals(1, stats.currentTotalProcessorsInUse());
                 assertEquals(0, stats.wantedExtraPerNodeNodeProcessors());
                 assertEquals(memory / 4, stats.wantedExtraPerNodeMemoryBytes());

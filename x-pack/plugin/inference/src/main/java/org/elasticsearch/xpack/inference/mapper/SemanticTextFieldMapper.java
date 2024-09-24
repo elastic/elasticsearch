@@ -222,7 +222,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         /**
          * As necessary, copy settings from this builder to the passed-in mapper.
-         * Used to preserve {@link SemanticTextField.ModelSettings} when updating a semantic text mapping.
+         * Used to preserve {@link SemanticTextField.ModelSettings} when updating a semantic text mapping to one where the model settings
+         * are not specified.
          *
          * @param mapper The mapper
          * @return A mapper with the copied settings applied
@@ -230,7 +231,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         private SemanticTextFieldMapper copySettings(SemanticTextFieldMapper mapper, MapperMergeContext mapperMergeContext) {
             SemanticTextFieldMapper returnedMapper = mapper;
             if (mapper.fieldType().getModelSettings() == null) {
-                // Copy the existing model settings to the mapper so they are persisted when it is applied.
                 Builder builder = from(mapper);
                 builder.setModelSettings(modelSettings.getValue());
                 returnedMapper = builder.build(mapperMergeContext.getMapperBuilderContext());

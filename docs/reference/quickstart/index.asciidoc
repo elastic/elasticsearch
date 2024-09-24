@@ -2,6 +2,7 @@
 = API quick starts
 
 Use these quick starts to get hands-on experience with the {es} APIs.
+Unless otherwise noted, these examples will use queries written in <<query-dsl-intro,Query DSL>> syntax.
 
 [discrete]
 [[quickstart-requirements]]

@@ -258,7 +258,8 @@ public class MetadataCreateIndexService {
      * @param masterNodeTimeout timeout on cluster state update in pending task queue
      * @param ackTimeout        timeout on waiting for all nodes to ack the cluster state update
      * @param waitForActiveShardsTimeout timeout for waiting for the {@link ActiveShardCount} specified in
-     *                                  {@link CreateIndexClusterStateUpdateRequest#waitForActiveShards()} to be satisfied.
+     *                                   {@link CreateIndexClusterStateUpdateRequest#waitForActiveShards()} to be satisfied.
+     *                                   May also be {@code null}, in which case it waits forever.
      * @param request the index creation cluster state update request
      * @param listener the listener on which to send the index creation cluster state update response
      */

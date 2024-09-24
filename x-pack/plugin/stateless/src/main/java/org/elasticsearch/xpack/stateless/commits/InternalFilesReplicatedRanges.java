@@ -44,13 +44,20 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  *
  * This structure is the header describing replicated content. It references the positions of replicated bytes relative to the main content.
  */
-public record InternalFilesReplicatedRanges(List<InternalFileReplicatedRange> replicatedRanges) implements ToXContentFragment {
+public record InternalFilesReplicatedRanges(List<InternalFileReplicatedRange> replicatedRanges, long dataSizeInBytes)
+    implements
+        ToXContentFragment {
 
-    public static InternalFilesReplicatedRanges EMPTY = new InternalFilesReplicatedRanges(List.of());
+    public static InternalFilesReplicatedRanges EMPTY = new InternalFilesReplicatedRanges(List.of(), 0L);
+
+    public InternalFilesReplicatedRanges(List<InternalFileReplicatedRange> replicatedRanges) {
+        this(replicatedRanges, dataSizeInBytes(replicatedRanges));
+    }
 
     public InternalFilesReplicatedRanges {
         assert replicatedRanges != null;
         assert assertRangesSorted(replicatedRanges);
+        assert dataSizeInBytes == dataSizeInBytes(replicatedRanges);
     }
 
     public static InternalFilesReplicatedRanges from(List<InternalFileReplicatedRange> replicatedRanges) {
@@ -62,10 +69,18 @@ public record InternalFilesReplicatedRanges(List<InternalFileReplicatedRange> re
     private static boolean assertRangesSorted(List<InternalFileReplicatedRange> replicatedRanges) {
         InternalFileReplicatedRange previous = null;
         for (InternalFileReplicatedRange range : replicatedRanges) {
-            assert previous == null || previous.position + previous.length < range.position : "Ranges are not sorted: " + replicatedRanges;
+            assert previous == null || previous.position + previous.length <= range.position : "Ranges are not sorted: " + replicatedRanges;
             previous = range;
         }
         return true;
+    }
+
+    private static long dataSizeInBytes(List<InternalFileReplicatedRange> replicatedRanges) {
+        long size = 0;
+        for (var range : replicatedRanges) {
+            size += range.length;
+        }
+        return size;
     }
 
     /**
@@ -78,7 +93,7 @@ public record InternalFilesReplicatedRanges(List<InternalFileReplicatedRange> re
      */
     public long getReplicatedPosition(long position, int length) {
         long pos = 0;
-        for (InternalFileReplicatedRange range : replicatedRanges) {
+        for (var range : replicatedRanges) {
             if (range.position <= position && position + length <= range.position + range.length) {
                 return pos + (position - range.position);
             }

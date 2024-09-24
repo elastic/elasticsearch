@@ -22,11 +22,13 @@ package co.elastic.elasticsearch.stateless.commits;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
 
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.lucene.store.BytesReferenceIndexInput;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.test.ESTestCase;
 
@@ -43,6 +45,7 @@ import java.util.function.BiConsumer;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -313,14 +316,14 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                         }
 
                         var serializedBatchedCompoundCommit = output.bytes();
-                        Long randomOffset = randomLongBetween(0, serializedBatchedCompoundCommit.length() - 1);
-                        Long randomBytesToRead = randomLongBetween(0, serializedBatchedCompoundCommit.length() - randomOffset);
+                        int randomOffset = randomIntBetween(0, serializedBatchedCompoundCommit.length() - 1);
+                        int randomBytesToRead = randomIntBetween(0, serializedBatchedCompoundCommit.length() - randomOffset);
                         var serializedBatchedCompoundCommitBytesRef = new BytesRef(
                             serializedBatchedCompoundCommit.toBytesRef().bytes,
-                            randomOffset.intValue(),
-                            randomBytesToRead.intValue()
+                            randomOffset,
+                            randomBytesToRead
                         );
-                        var bytesStreamOutput = new BytesStreamOutput(randomBytesToRead.intValue());
+                        var bytesStreamOutput = new BytesStreamOutput(randomBytesToRead);
                         appendBlock.release();
                         virtualBatchedCompoundCommit.getBytesByRange(randomOffset, randomBytesToRead, bytesStreamOutput);
                         assertArrayEquals(
@@ -372,6 +375,75 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
 
             final StatelessCommitRef newCommitRef = fakeNode.generateIndexCommits(1).get(0);
             assertFalse(virtualBatchedCompoundCommit.appendCommit(newCommitRef, randomBoolean()));
+        }
+    }
+
+    public void testReplicatedContent() throws IOException {
+        var primaryTerm = 1;
+        try (var fakeNode = createFakeNode(primaryTerm)) {
+            var numberOfNewCommits = randomIntBetween(1, 10);
+            var commits = fakeNode.generateIndexCommits(numberOfNewCommits);
+            var virtualBatchedCompoundCommit = new VirtualBatchedCompoundCommit(
+                fakeNode.shardId,
+                "node-id",
+                primaryTerm,
+                commits.getFirst().getGeneration(),
+                (fileName) -> {
+                    throw new AssertionError("Unexpected call");
+                },
+                ESTestCase::randomNonNegativeLong
+            );
+
+            for (StatelessCommitRef commit : commits) {
+                assertTrue(virtualBatchedCompoundCommit.appendCommit(commit, true));
+            }
+
+            var batchedCompoundCommitBlobs = new HashMap<String, BytesReference>();
+
+            try (BytesStreamOutput output = new BytesStreamOutput()) {
+                try (var vbccInputStream = virtualBatchedCompoundCommit.getInputStreamForUpload()) {
+                    Streams.copy(vbccInputStream, output, false);
+                }
+                batchedCompoundCommitBlobs.put(virtualBatchedCompoundCommit.getBlobName(), output.bytes());
+
+                long lastCommitPosition = 0;
+                for (var commit : virtualBatchedCompoundCommit.getPendingCompoundCommits()) {
+                    // check replicated content
+                    try (var vbccIndexInput = new BytesReferenceIndexInput("test", output.bytes())) {
+                        var firstInternalFileOffset = commit.getStatelessCompoundCommit()
+                            .commitFiles()
+                            .entrySet()
+                            .stream()
+                            .filter(entry -> commit.getStatelessCompoundCommit().internalFiles().contains(entry.getKey()))
+                            .map(Map.Entry::getValue)
+                            .min(Comparator.comparing(BlobLocation::offset))
+                            .get()
+                            .offset();
+
+                        // TODO (ES-9344) verify all replicated content once reader is implemented
+                        var replicatedContentSize = firstInternalFileOffset - commit.getHeaderSize();
+                        assertThat(replicatedContentSize, greaterThan(0L));
+                        // first entry after header looks like header
+                        vbccIndexInput.seek(lastCommitPosition + commit.getHeaderSize());
+                        assertThat(CodecUtil.readBEInt(vbccIndexInput), equalTo(CodecUtil.CODEC_MAGIC));
+                        // last entry before main content looks like footer
+                        vbccIndexInput.seek(firstInternalFileOffset - 16);
+                        assertThat(CodecUtil.readBEInt(vbccIndexInput), equalTo(CodecUtil.FOOTER_MAGIC));
+                        assertThat(CodecUtil.readBEInt(vbccIndexInput), equalTo(0));
+                    }
+
+                    // check files
+                    for (var commitFileBlobLocation : commit.getStatelessCompoundCommit().commitFiles().entrySet()) {
+                        var fileName = commitFileBlobLocation.getKey();
+                        var blobLocation = commitFileBlobLocation.getValue();
+
+                        byte[] batchedCompoundCommitFileContents = readFileFromBlob(batchedCompoundCommitBlobs, blobLocation);
+                        byte[] localFileContents = readLocalFile(fakeNode, fileName);
+                        assertArrayEquals(batchedCompoundCommitFileContents, localFileContents);
+                    }
+                    lastCommitPosition += commit.getSizeInBytes();
+                }
+            }
         }
     }
 

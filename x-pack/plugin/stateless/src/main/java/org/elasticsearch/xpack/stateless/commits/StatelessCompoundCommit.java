@@ -70,7 +70,7 @@ public record StatelessCompoundCommit(
     long translogRecoveryStartFile,
     String nodeEphemeralId,
     Map<String, BlobLocation> commitFiles,
-    // the size of the compound commit including codec, header, checksums and all files
+    // the size of the compound commit including codec, header, checksums, replicated content and all internal files
     long sizeInBytes,
     Set<String> internalFiles
 ) implements Writeable {
@@ -322,6 +322,7 @@ public record StatelessCompoundCommit(
                     nodeEphemeralId,
                     referencedBlobLocations,
                     internalFiles,
+                    InternalFilesReplicatedRanges.EMPTY,
                     offset,
                     headerSize,
                     totalSizeInBytes,
@@ -415,7 +416,9 @@ public record StatelessCompoundCommit(
         try (XContentParser parser = XContentType.SMILE.xContent().createParser(XContentParserConfiguration.EMPTY, is)) {
             XContentStatelessCompoundCommit c = XContentStatelessCompoundCommit.PARSER.parse(parser, null);
             assert headerSize > 0;
-            long totalSizeInBytes = headerSize + c.internalFiles.stream().mapToLong(InternalFile::length).sum();
+            long totalSizeInBytes = headerSize + c.replicatedContentMetadata.dataSizeInBytes() + c.internalFiles.stream()
+                .mapToLong(InternalFile::length)
+                .sum();
             return statelessCompoundCommit(
                 c.shardId,
                 c.generation,
@@ -424,6 +427,7 @@ public record StatelessCompoundCommit(
                 c.nodeEphemeralId,
                 c.referencedBlobLocations,
                 c.internalFiles,
+                c.replicatedContentMetadata,
                 offset,
                 headerSize,
                 totalSizeInBytes,
@@ -440,6 +444,7 @@ public record StatelessCompoundCommit(
         String nodeEphemeralId,
         Map<String, BlobLocation> referencedBlobLocations,
         List<InternalFile> internalFiles,
+        InternalFilesReplicatedRanges replicatedContentRanges,
         long internalFilesOffset,
         long headerSizeInBytes,
         long totalSizeInBytes,
@@ -449,6 +454,7 @@ public record StatelessCompoundCommit(
         var blobFile = new BlobFile(StatelessCompoundCommit.blobNameFromGeneration(bccTermAndGen.generation()), bccTermAndGen);
         Map<String, BlobLocation> commitFiles = combineCommitFiles(
             blobFile,
+            replicatedContentRanges,
             internalFiles,
             referencedBlobLocations,
             internalFilesOffset,
@@ -470,6 +476,7 @@ public record StatelessCompoundCommit(
     // visible for testing
     static Map<String, BlobLocation> combineCommitFiles(
         BlobFile blobFile,
+        InternalFilesReplicatedRanges replicatedContentRanges,
         List<InternalFile> internalFiles,
         Map<String, BlobLocation> referencedBlobFiles,
         long internalFilesOffset,
@@ -478,7 +485,7 @@ public record StatelessCompoundCommit(
         var commitFiles = Maps.<String, BlobLocation>newHashMapWithExpectedSize(referencedBlobFiles.size() + internalFiles.size());
         commitFiles.putAll(referencedBlobFiles);
 
-        long currentOffset = internalFilesOffset + headerSizeInBytes;
+        long currentOffset = internalFilesOffset + headerSizeInBytes + replicatedContentRanges.dataSizeInBytes();
         for (InternalFile internalFile : internalFiles) {
             commitFiles.put(internalFile.name(), new BlobLocation(blobFile, currentOffset, internalFile.length()));
             currentOffset += internalFile.length();

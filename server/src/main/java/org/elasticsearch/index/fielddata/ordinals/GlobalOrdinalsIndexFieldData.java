@@ -76,7 +76,7 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
     }
 
     @Override
-    public LeafOrdinalsFieldData loadDirect(LeafReaderContext context) throws Exception {
+    public LeafOrdinalsFieldData loadDirect(LeafReaderContext context) {
         throw new IllegalStateException("loadDirect(LeafReaderContext) should not be called in this context");
     }
 
@@ -86,7 +86,7 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
     }
 
     @Override
-    public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) throws Exception {
+    public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) {
         return this;
     }
 
@@ -179,7 +179,7 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
         }
 
         @Override
-        public LeafOrdinalsFieldData loadDirect(LeafReaderContext context) throws Exception {
+        public LeafOrdinalsFieldData loadDirect(LeafReaderContext context) {
             return load(context);
         }
 
@@ -189,7 +189,7 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
         }
 
         @Override
-        public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) throws Exception {
+        public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) {
             return this;
         }
 
@@ -258,8 +258,6 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
                     return segmentAfd[context.ord].getChildResources();
                 }
 
-                @Override
-                public void close() {}
             };
         }
 

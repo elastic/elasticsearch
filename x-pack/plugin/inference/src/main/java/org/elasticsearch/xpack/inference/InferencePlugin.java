@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.inference.rest.RestGetInferenceDiagnosticsAction;
 import org.elasticsearch.xpack.inference.rest.RestGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestInferenceAction;
 import org.elasticsearch.xpack.inference.rest.RestPutInferenceModelAction;
+import org.elasticsearch.xpack.inference.rest.RestStreamInferenceAction;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchService;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockService;
@@ -90,6 +91,7 @@ import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioS
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiService;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceService;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserService;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxService;
 import org.elasticsearch.xpack.inference.services.mistral.MistralService;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
 import org.elasticsearch.xpack.inference.telemetry.ApmInferenceStats;
@@ -166,6 +168,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     ) {
         return List.of(
             new RestInferenceAction(),
+            new RestStreamInferenceAction(),
             new RestGetInferenceModelAction(),
             new RestPutInferenceModelAction(),
             new RestDeleteInferenceEndpointAction(),
@@ -239,6 +242,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             context -> new AnthropicService(httpFactory.get(), serviceComponents.get()),
             context -> new AmazonBedrockService(httpFactory.get(), amazonBedrockFactory.get(), serviceComponents.get()),
             context -> new AlibabaCloudSearchService(httpFactory.get(), serviceComponents.get()),
+            context -> new IbmWatsonxService(httpFactory.get(), serviceComponents.get()),
             ElasticsearchInternalService::new
         );
     }

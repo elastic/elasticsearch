@@ -1081,7 +1081,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .build();
         state = service.addIndexTemplateV2(state, true, "my-template", it);
 
-        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "my-template", "my-index");
+        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "my-template", Map.of(), "my-index");
 
         assertNotNull(mappings);
         assertThat(mappings.size(), equalTo(3));
@@ -1143,7 +1143,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .build();
         state = service.addIndexTemplateV2(state, true, "my-template", it);
 
-        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "my-template", "my-index");
+        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "my-template", Map.of(), "my-index");
 
         assertNotNull(mappings);
         assertThat(mappings.size(), equalTo(3));
@@ -1197,6 +1197,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(
                 state,
                 "logs-data-stream-template",
+                Map.of(),
                 DataStream.getDefaultBackingIndexName("logs", 1L)
             );
 
@@ -1248,7 +1249,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .build();
             state = service.addIndexTemplateV2(state, true, "timeseries-template", it);
 
-            List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "timeseries-template", "timeseries");
+            List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(
+                state,
+                "timeseries-template",
+                Map.of(),
+                "timeseries"
+            );
 
             assertNotNull(mappings);
             assertThat(mappings.size(), equalTo(2));
@@ -1270,6 +1276,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             mappings = MetadataIndexTemplateService.collectMappings(
                 state,
                 "timeseries-template",
+                Map.of(),
                 DataStream.getDefaultBackingIndexName("timeseries", 1L)
             );
 
@@ -1318,6 +1325,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(
                 state,
                 "logs-template",
+                Map.of(),
                 DataStream.getDefaultBackingIndexName("logs", 1L)
             );
 
@@ -1374,6 +1382,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(
                 state,
                 "timeseries-template",
+                Map.of(),
                 DataStream.getDefaultBackingIndexName("timeseries-template", 1L)
             );
 
@@ -2440,7 +2449,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .build();
         state = service.addIndexTemplateV2(state, true, "composable-template", it);
 
-        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "composable-template", "test-index");
+        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(
+            state,
+            "composable-template",
+            Map.of(),
+            "test-index"
+        );
 
         assertNotNull(mappings);
         assertThat(mappings.size(), equalTo(2));

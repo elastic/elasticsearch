@@ -31,7 +31,6 @@ import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
-import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -368,9 +367,7 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
             if (responseBody != null) {
                 byte[] responseBytes = responseBody.getBytes(StandardCharsets.UTF_8);
                 exchange.sendResponseHeaders(status.getStatus(), responseBytes.length);
-                OutputStream responseBody = exchange.getResponseBody();
-                responseBody.write(responseBytes);
-                responseBody.flush();
+                exchange.getResponseBody().write(responseBytes);
             } else {
                 exchange.sendResponseHeaders(status.getStatus(), -1);
             }

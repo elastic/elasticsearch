@@ -919,7 +919,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 onAttemptCallback.accept(numberOfDeleteAttempts.get());
                 numberOfDeleteAttempts.incrementAndGet();
                 if (throttleTimesBeforeSuccess.getAndDecrement() > 0) {
-                    final byte[] responseBody = Strings.format("""
+                    final byte[] responseBytes = Strings.format("""
                         <?xml version="1.0" encoding="UTF-8"?>
                         <Error>
                           <Code>%s</Code>
@@ -928,9 +928,8 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                           <RequestId>4442587FB7D0A2F9</RequestId>
                         </Error>""", errorCode).getBytes(StandardCharsets.UTF_8);
 
-                    exchange.sendResponseHeaders(HttpStatus.SC_SERVICE_UNAVAILABLE, responseBody.length);
-                    exchange.getResponseBody().write(responseBody);
-                    exchange.getResponseBody().flush();
+                    exchange.sendResponseHeaders(HttpStatus.SC_SERVICE_UNAVAILABLE, responseBytes.length);
+                    exchange.getResponseBody().write(responseBytes);
                     exchange.close();
                 } else {
                     numberOfSuccessfulDeletes.incrementAndGet();

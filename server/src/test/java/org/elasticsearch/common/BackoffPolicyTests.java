@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.action.bulk;
+package org.elasticsearch.common;
 
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;

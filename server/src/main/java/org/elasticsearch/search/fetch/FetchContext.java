@@ -28,7 +28,6 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rescore.RescoreContext;
-import org.elasticsearch.search.retriever.rankdoc.RankDocsAndScoreSortField;
 
 import java.util.Collections;
 import java.util.List;
@@ -163,10 +162,6 @@ public class FetchContext {
      */
     public RankBuilder rankBuilder() {
         return searchContext.request().source() == null ? null : searchContext.request().source().rankBuilder();
-    }
-
-    public boolean isRankRequest() {
-        return searchContext.sort() != null && RankDocsAndScoreSortField.NAME.equals(searchContext.sort().sort.getSort()[0].getField());
     }
 
     public List<String> queryNames() {

@@ -29,7 +29,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.search.rank.RankDoc.NO_RANK;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.rank.rrf.RRFRankPlugin.NAME;
@@ -152,25 +151,8 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
 
         // sort the results based on rrf score, tiebreaker based on smaller doc id
         RRFRankDoc[] sortedResults = docsToRankResults.values().toArray(RRFRankDoc[]::new);
-        Arrays.sort(sortedResults, (RRFRankDoc rrf1, RRFRankDoc rrf2) -> {
-            if (rrf1.score != rrf2.score) {
-                return rrf1.score < rrf2.score ? 1 : -1;
-            }
-            assert rrf1.positions.length == rrf2.positions.length;
-            for (int qi = 0; qi < rrf1.positions.length; ++qi) {
-                if (rrf1.positions[qi] != NO_RANK && rrf2.positions[qi] != NO_RANK) {
-                    if (rrf1.scores[qi] != rrf2.scores[qi]) {
-                        return rrf1.scores[qi] < rrf2.scores[qi] ? 1 : -1;
-                    }
-                } else if (rrf1.positions[qi] != NO_RANK) {
-                    return -1;
-                } else if (rrf2.positions[qi] != NO_RANK) {
-                    return 1;
-                }
-            }
-            return rrf1.doc < rrf2.doc ? -1 : 1;
-        });
-        // trim the results if needed, otherwise each shard will always return `rank_window_size` results.
+        Arrays.sort(sortedResults);
+        // trim the results if needed, otherwise each shard will always return `rank_window_sieze` results.
         RRFRankDoc[] topResults = new RRFRankDoc[Math.min(rankWindowSize, sortedResults.length)];
         for (int rank = 0; rank < topResults.length; ++rank) {
             topResults[rank] = sortedResults[rank];

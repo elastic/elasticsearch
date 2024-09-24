@@ -95,7 +95,4 @@ setup:
   - match: { hits.total : 3 }
 
   - match: { hits.hits.0._id: "3" }
-  - match: { hits.hits.0._rank: 1 }
-
   - match: { hits.hits.1._id: "1" }
-  - match: { hits.hits.1._rank: 2 }

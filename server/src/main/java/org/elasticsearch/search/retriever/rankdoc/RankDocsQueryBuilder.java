@@ -13,6 +13,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -23,7 +24,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Comparator;
+
+import static org.elasticsearch.TransportVersions.RRF_QUERY_REWRITE;
 
 public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuilder> {
 
@@ -31,16 +33,19 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
 
     private final RankDoc[] rankDocs;
     private final QueryBuilder[] queryBuilders;
+    private final boolean onlyRankDocs;
 
-    public RankDocsQueryBuilder(RankDoc[] rankDocs, QueryBuilder[] queryBuilders) {
+    public RankDocsQueryBuilder(RankDoc[] rankDocs, QueryBuilder[] queryBuilders, boolean onlyRankDocs) {
         this.rankDocs = rankDocs;
         this.queryBuilders = queryBuilders;
+        this.onlyRankDocs = onlyRankDocs;
     }
 
     public RankDocsQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.rankDocs = in.readArray(c -> c.readNamedWriteable(RankDoc.class), RankDoc[]::new);
         this.queryBuilders = in.readOptionalArray(c -> c.readNamedWriteable(QueryBuilder.class), QueryBuilder[]::new);
+        this.onlyRankDocs = in.getTransportVersion().onOrAfter(RRF_QUERY_REWRITE) && in.readBoolean();
     }
 
     RankDoc[] rankDocs() {
@@ -51,6 +56,9 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeArray(StreamOutput::writeNamedWriteable, rankDocs);
         out.writeOptionalArray(StreamOutput::writeNamedWriteable, queryBuilders);
+        if (out.getTransportVersion().onOrAfter(RRF_QUERY_REWRITE)) {
+            out.writeBoolean(onlyRankDocs);
+        }
     }
 
     @Override
@@ -62,12 +70,10 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         RankDoc[] shardRankDocs = Arrays.stream(rankDocs)
             .filter(r -> r.shardIndex == context.getShardRequestIndex())
-            .sorted(Comparator.comparingInt(r -> r.doc))
             .toArray(RankDoc[]::new);
         IndexReader reader = context.getIndexReader();
-        int[] segmentStarts = findSegmentStarts(reader, shardRankDocs);
-        Query[] queries = null;
-        String[] queryNames = null;
+        final Query[] queries;
+        final String[] queryNames;
         if (queryBuilders != null) {
             queries = new Query[queryBuilders.length];
             queryNames = new String[queryBuilders.length];
@@ -75,26 +81,11 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
                 queries[i] = queryBuilders[i].toQuery(context);
                 queryNames[i] = queryBuilders[i].queryName();
             }
+        } else {
+            queries = new Query[0];
+            queryNames = Strings.EMPTY_ARRAY;
         }
-        return new RankDocsQuery(shardRankDocs, queries, queryNames, segmentStarts, reader.getContext().id());
-    }
-
-    private static int[] findSegmentStarts(IndexReader reader, RankDoc[] docs) {
-        int[] starts = new int[reader.leaves().size() + 1];
-        starts[starts.length - 1] = docs.length;
-        if (starts.length == 2) {
-            return starts;
-        }
-        int resultIndex = 0;
-        for (int i = 1; i < starts.length - 1; i++) {
-            int upper = reader.leaves().get(i).docBase;
-            resultIndex = Arrays.binarySearch(docs, resultIndex, docs.length, upper, (a, b) -> Integer.compare(((RankDoc) a).doc, (int) b));
-            if (resultIndex < 0) {
-                resultIndex = -1 - resultIndex;
-            }
-            starts[i] = resultIndex;
-        }
-        return starts;
+        return new RankDocsQuery(reader, shardRankDocs, queries, queryNames, onlyRankDocs);
     }
 
     @Override

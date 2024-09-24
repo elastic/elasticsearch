@@ -98,13 +98,10 @@ setup:
   - match: { hits.total : 3 }
 
   - match: { hits.hits.0._id: "2" }
-  - match: { hits.hits.0._rank: 1 }
   - match: { hits.hits.0.highlight.text.0: "You know, for <em>Search</em>!" }
 
   - match: { hits.hits.1._id: "1" }
-  - match: { hits.hits.1._rank: 2 }
   - match: { hits.hits.1.highlight.text.0: "<em>search</em> for the truth" }
 
   - match: { hits.hits.2._id: "3" }
-  - match: { hits.hits.2._rank: 3 }
   - not_exists: hits.hits.2.highlight

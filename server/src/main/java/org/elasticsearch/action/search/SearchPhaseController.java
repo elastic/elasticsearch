@@ -52,7 +52,6 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
-import org.elasticsearch.search.retriever.rankdoc.RankDocsAndScoreSortField;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
@@ -425,14 +424,11 @@ public final class SearchPhaseController {
     ) {
         SortedTopDocs sortedTopDocs = reducedQueryPhase.sortedTopDocs;
         int sortScoreIndex = -1;
-        int sortRankIndex = -1;
         if (sortedTopDocs.isSortedByField) {
             SortField[] sortFields = sortedTopDocs.sortFields;
             for (int i = 0; i < sortFields.length; i++) {
                 if (sortFields[i].getType() == SortField.Type.SCORE) {
                     sortScoreIndex = i;
-                } else if (RankDocsAndScoreSortField.NAME.equals(sortFields[i].getField())) {
-                    sortRankIndex = i;
                 }
             }
         }
@@ -477,9 +473,7 @@ public final class SearchPhaseController {
                         }
                     } else if (shardDoc instanceof RankDoc rankDoc) {
                         searchHit.sortValues(rankDoc.sortValues, reducedQueryPhase.sortValueFormats);
-                        if (sortRankIndex != -1) {
-                            searchHit.score(RankDocsAndScoreSortField.decodeScore((Long) rankDoc.sortValues[sortRankIndex]));
-                        }
+                        searchHit.score(rankDoc.score);
                         searchHit.setRank(rankDoc.rank);
                     } else {
                         throw new IllegalArgumentException("Unsupported ScoreDoc type: " + shardDoc.getClass());
@@ -658,9 +652,7 @@ public final class SearchPhaseController {
         SortedTopDocs sortedTopDocs;
         if (queryPhaseRankCoordinatorContext == null) {
             sortedTopDocs = sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions);
-            if (sortedTopDocs.sortFields != null && RankDocsAndScoreSortField.NAME.equals(sortedTopDocs.sortFields[0].getField())) {
-                sortedTopDocs = extractRankDocs(sortedTopDocs);
-            }
+            sortedTopDocs = extractRankDocs(sortedTopDocs);
         } else {
             ScoreDoc[] rankedDocs = queryPhaseRankCoordinatorContext.rankQueryPhaseResults(
                 queryResults.stream().map(SearchPhaseResult::queryResult).toList(),
@@ -694,6 +686,9 @@ public final class SearchPhaseController {
     }
 
     private static SortedTopDocs extractRankDocs(SortedTopDocs originalDocs) {
+        return originalDocs;
+        // TODO
+        /**
         int rankIndex = -1;
         for (int i = 0; i < originalDocs.sortFields().length; i++) {
             if (RankDocsAndScoreSortField.NAME.equals(originalDocs.sortFields[i].getField())) {
@@ -727,6 +722,7 @@ public final class SearchPhaseController {
             originalDocs.collapseValues(),
             originalDocs.numberOfCompletionsSuggestions()
         );
+         **/
     }
 
     private static InternalAggregations reduceAggs(

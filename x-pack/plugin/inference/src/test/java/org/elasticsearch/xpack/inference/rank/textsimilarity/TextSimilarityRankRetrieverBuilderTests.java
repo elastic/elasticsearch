@@ -62,8 +62,7 @@ public class TextSimilarityRankRetrieverBuilderTests extends AbstractXContentTes
             randomAlphaOfLength(10),
             randomAlphaOfLength(20),
             randomAlphaOfLength(50),
-            randomIntBetween(100, 10000),
-            randomBoolean() ? null : randomFloatBetween(-1.0f, 1.0f, true)
+            randomIntBetween(100, 10000)
         );
     }
 

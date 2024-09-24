@@ -114,13 +114,13 @@ setup:
   - match: { hits.hits.2._id: "4" }
 
   - not_exists: profile.shards.0.dfs
-  - match: { profile.shards.0.searches.0.query.0.type: BooleanQuery }
+  - match: { profile.shards.0.searches.0.query.0.type: RankDocsQuery }
   - length: { profile.shards.0.searches.0.query.0.children: 2 }
-  - match: { profile.shards.0.searches.0.query.0.children.0.type: BooleanQuery }
-  - length: { profile.shards.0.searches.0.query.0.children.0.children: 2 }
-  - match: { profile.shards.0.searches.0.query.0.children.0.children.0.type: TermQuery }
-  - match: { profile.shards.0.searches.0.query.0.children.0.children.1.type: DocAndScoreQuery }
-  - match: { profile.shards.0.searches.0.query.0.children.1.type: RankDocsQuery }
+  - match: { profile.shards.0.searches.0.query.0.children.0.type: TopQuery }
+  - match: { profile.shards.0.searches.0.query.0.children.1.type: BooleanQuery }
+  - length: { profile.shards.0.searches.0.query.0.children.1.children: 2 }
+  - match: { profile.shards.0.searches.0.query.0.children.1.children.0.type: TermQuery }
+  - match: { profile.shards.0.searches.0.query.0.children.1.children.1.type: DocAndScoreQuery }
 
 ---
 "profile standard and knn dfs retrievers":
@@ -161,16 +161,13 @@ setup:
   - match: { hits.hits.2._id: "4" }
 
   - not_exists: profile.shards.0.dfs
-  - match: { profile.shards.0.searches.0.query.0.type: BooleanQuery }
+  - match: { profile.shards.0.searches.0.query.0.type: RankDocsQuery }
   - length: { profile.shards.0.searches.0.query.0.children: 2 }
-  - match: { profile.shards.0.searches.0.query.0.children.0.type: BooleanQuery }
-  - length: { profile.shards.0.searches.0.query.0.children.0.children: 2 }
-  - match: { profile.shards.0.searches.0.query.0.children.0.children.0.type: TermQuery }
-  - match: { profile.shards.0.searches.0.query.0.children.0.children.1.type: BooleanQuery }
-  - length: { profile.shards.0.searches.0.query.0.children.0.children.1.children: 2 }
-  - match: { profile.shards.0.searches.0.query.0.children.0.children.1.children.0.type: Floats }
-  - match: { profile.shards.0.searches.0.query.0.children.0.children.1.children.1.type: RankDocsQuery }
-  - match: { profile.shards.0.searches.0.query.0.children.1.type: RankDocsQuery }
+  - match: { profile.shards.0.searches.0.query.0.children.0.type: TopQuery }
+  - match: { profile.shards.0.searches.0.query.0.children.1.type: BooleanQuery }
+  - length: { profile.shards.0.searches.0.query.0.children.1.children: 2 }
+  - match: { profile.shards.0.searches.0.query.0.children.1.children.0.type: TermQuery }
+  - match: { profile.shards.0.searches.0.query.0.children.1.children.1.type: TopQuery }
 
 ---
 "using query and dfs knn search":

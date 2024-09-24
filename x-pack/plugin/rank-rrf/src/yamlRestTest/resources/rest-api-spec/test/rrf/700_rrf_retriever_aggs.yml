@@ -143,13 +143,8 @@ setup:
                 field: keyword
 
   - match: { hits.hits.0._id: "5" }
-  - match: { hits.hits.0._rank: 1 }
-
-  - match: { hits.hits.1._id: "6" }
-  - match: { hits.hits.1._rank: 2 }
-
-  - match: { hits.hits.2._id: "1" }
-  - match: { hits.hits.2._rank: 3 }
+  - match: { hits.hits.1._id: "1" }
+  - match: { hits.hits.2._id: "6" }
 
   - match: { aggregations.keyword_aggs.buckets.0.key: "technology" }
   - match: { aggregations.keyword_aggs.buckets.0.doc_count: 4 }
@@ -200,12 +195,7 @@ setup:
 
 
   - match: { hits.hits.0._id: "5" }
-  - match: { hits.hits.0._rank: 1 }
+  - match: { hits.hits.1._id: "1" }
+  - match: { hits.hits.2._id: "6" }
 
-  - match: { hits.hits.1._id: "6" }
-  - match: { hits.hits.1._rank: 2 }
-
-  - match: { hits.hits.2._id: "1" }
-  - match: { hits.hits.2._rank: 3 }
-
-  - close_to: { aggregations.max_score.value: { value: 1.1808, error: 0.001 }}
+  - close_to: { aggregations.max_score.value: { value: 0.15, error: 0.001 }}

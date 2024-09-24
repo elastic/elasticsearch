@@ -43,7 +43,6 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder implements 
     public static final ParseField SEARCH_AFTER_FIELD = new ParseField("search_after");
     public static final ParseField TERMINATE_AFTER_FIELD = new ParseField("terminate_after");
     public static final ParseField SORT_FIELD = new ParseField("sort");
-    public static final ParseField MIN_SCORE_FIELD = new ParseField("min_score");
     public static final ParseField COLLAPSE_FIELD = new ParseField("collapse");
 
     public static final ObjectParser<StandardRetrieverBuilder, RetrieverParserContext> PARSER = new ObjectParser<>(
@@ -76,12 +75,6 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder implements 
             return sortBuilders;
         }, SORT_FIELD, ObjectParser.ValueType.OBJECT_ARRAY);
 
-        PARSER.declareField((r, v) -> r.minScore = v, (p, c) -> {
-            float minScore = p.floatValue();
-            c.trackSectionUsage(NAME + ":" + MIN_SCORE_FIELD.getPreferredName());
-            return minScore;
-        }, MIN_SCORE_FIELD, ObjectParser.ValueType.FLOAT);
-
         PARSER.declareField((r, v) -> r.collapseBuilder = v, (p, c) -> {
             CollapseBuilder collapseBuilder = CollapseBuilder.fromXContent(p);
             if (collapseBuilder.getField() != null) {
@@ -104,7 +97,6 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder implements 
     SearchAfterBuilder searchAfterBuilder;
     int terminateAfter = SearchContext.DEFAULT_TERMINATE_AFTER;
     List<SortBuilder<?>> sortBuilders;
-    Float minScore;
     CollapseBuilder collapseBuilder;
 
     public StandardRetrieverBuilder() {}
@@ -127,7 +119,7 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder implements 
 
     @Override
     public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
-        if (preFilterQueryBuilders.isEmpty() == false) {
+        if (preFilterQueryBuilders.isEmpty() == false || minScore != null) {
             BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
 
             for (QueryBuilder preFilterQueryBuilder : preFilterQueryBuilders) {
@@ -200,10 +192,6 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder implements 
             builder.field(SORT_FIELD.getPreferredName(), sortBuilders);
         }
 
-        if (minScore != null) {
-            builder.field(MIN_SCORE_FIELD.getPreferredName(), minScore);
-        }
-
         if (collapseBuilder != null) {
             builder.field(COLLAPSE_FIELD.getPreferredName(), collapseBuilder);
         }
@@ -216,13 +204,12 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder implements 
             && Objects.equals(queryBuilder, that.queryBuilder)
             && Objects.equals(searchAfterBuilder, that.searchAfterBuilder)
             && Objects.equals(sortBuilders, that.sortBuilders)
-            && Objects.equals(minScore, that.minScore)
             && Objects.equals(collapseBuilder, that.collapseBuilder);
     }
 
     @Override
     public int doHashCode() {
-        return Objects.hash(queryBuilder, searchAfterBuilder, terminateAfter, sortBuilders, minScore, collapseBuilder);
+        return Objects.hash(queryBuilder, searchAfterBuilder, terminateAfter, sortBuilders, collapseBuilder);
     }
 
     // ---- END FOR TESTING ----

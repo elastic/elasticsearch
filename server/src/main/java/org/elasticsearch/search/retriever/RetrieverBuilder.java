@@ -53,6 +53,8 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
 
     public static final ParseField PRE_FILTER_FIELD = new ParseField("filter");
 
+    public static final ParseField MIN_SCORE_FIELD = new ParseField("min_score");
+
     public static final ParseField NAME_FIELD = new ParseField("_name");
 
     protected static void declareBaseParserFields(
@@ -65,10 +67,16 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
             return preFilterQueryBuilder;
         }, PRE_FILTER_FIELD);
         parser.declareString(RetrieverBuilder::retrieverName, NAME_FIELD);
+        parser.declareFloat(RetrieverBuilder::minScore, MIN_SCORE_FIELD);
     }
 
     public RetrieverBuilder retrieverName(String retrieverName) {
         this.retrieverName = retrieverName;
+        return this;
+    }
+
+    public RetrieverBuilder minScore(Float minScore) {
+        this.minScore = minScore;
         return this;
     }
 
@@ -164,6 +172,8 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
 
     protected String retrieverName;
 
+    protected Float minScore;
+
     /**
      * Determines if this retriever contains sub-retrievers that need to be executed prior to search.
      */
@@ -194,6 +204,14 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
      * was used by this retriever to compute its top documents.
      */
     public abstract QueryBuilder topDocsQuery();
+
+    public QueryBuilder explainQuery() {
+        return topDocsQuery();
+    }
+
+    public Float minScore() {
+        return minScore;
+    }
 
     public void setRankDocs(RankDoc[] rankDocs) {
         this.rankDocs = rankDocs;
@@ -245,14 +263,16 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RetrieverBuilder that = (RetrieverBuilder) o;
-        return Objects.equals(preFilterQueryBuilders, that.preFilterQueryBuilders) && doEquals(o);
+        return Objects.equals(preFilterQueryBuilders, that.preFilterQueryBuilders)
+            && Objects.equals(minScore, that.minScore)
+            && doEquals(o);
     }
 
     protected abstract boolean doEquals(Object o);
 
     @Override
     public final int hashCode() {
-        return Objects.hash(getClass(), preFilterQueryBuilders, doHashCode());
+        return Objects.hash(getClass(), preFilterQueryBuilders, minScore, doHashCode());
     }
 
     protected abstract int doHashCode();

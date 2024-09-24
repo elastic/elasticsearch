@@ -11,8 +11,6 @@ package org.elasticsearch.search.retriever;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.RandomQueryBuilder;
@@ -20,7 +18,6 @@ import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankDoc;
-import org.elasticsearch.search.retriever.rankdoc.RankDocsAndScoreSortBuilder;
 import org.elasticsearch.search.retriever.rankdoc.RankDocsQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
 
@@ -33,7 +30,6 @@ import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.elasticsearch.search.vectors.KnnSearchBuilderTests.randomVector;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
@@ -109,29 +105,19 @@ public class RankDocsRetrieverBuilderTests extends ESTestCase {
             source.profile(true);
         }
         source.trackTotalHits(randomBoolean());
+        final int preFilters = retriever.preFilterQueryBuilders.size();
         retriever.extractToSearchSourceBuilder(source, randomBoolean());
-        assertThat(source.sorts().size(), equalTo(1));
-        assertThat(source.sorts().get(0), instanceOf(RankDocsAndScoreSortBuilder.class));
-        assertThat(source.query(), instanceOf(BoolQueryBuilder.class));
-        BoolQueryBuilder bq = (BoolQueryBuilder) source.query();
-        if (source.aggregations() != null
-            || (source.explain() != null && source.explain())
-            || source.profile()
-            || (source.trackTotalHitsUpTo() != null && source.trackTotalHitsUpTo() > 0)) {
-            assertThat(bq.must().size(), equalTo(1));
-            assertThat(bq.must().get(0), instanceOf(BoolQueryBuilder.class));
-            assertThat(((BoolQueryBuilder) bq.must().get(0)).should().size(), equalTo(retriever.sources.size()));
-            assertThat(bq.filter().size(), equalTo(retriever.preFilterQueryBuilders.size()));
-            assertThat(bq.should().size(), greaterThanOrEqualTo(1));
-            assertThat(bq.should().get(0), instanceOf(RankDocsQueryBuilder.class));
-            assertNull(source.postFilter());
-        } else {
+        assertNull(source.sorts());
+        assertThat(source.query(), anyOf(instanceOf(BoolQueryBuilder.class), instanceOf(RankDocsQueryBuilder.class)));
+        if (source.query() instanceof BoolQueryBuilder bq) {
             assertThat(bq.must().size(), equalTo(1));
             assertThat(bq.must().get(0), instanceOf(RankDocsQueryBuilder.class));
-            assertThat(bq.should().size(), equalTo(0));
-            assertNull(source.postFilter());
-            assertThat(bq.filter().size(), equalTo(retriever.preFilterQueryBuilders.size()));
+            assertThat(bq.filter().size(), equalTo(preFilters));
+            for (int i = 0; i < preFilters; i++) {
+                assertThat(bq.filter().get(i), instanceOf(retriever.preFilterQueryBuilders.get(i).getClass()));
+            }
         }
+        assertNull(source.postFilter());
     }
 
     public void testTopDocsQuery() {
@@ -170,14 +156,7 @@ public class RankDocsRetrieverBuilderTests extends ESTestCase {
                 SearchSourceBuilder rewrittenSource = Rewriteable.rewrite(source, queryRewriteContext);
                 assertNull(rewrittenSource.retriever());
                 assertTrue(rewrittenSource.knnSearch().isEmpty());
-                assertThat(
-                    rewrittenSource.query(),
-                    anyOf(
-                        instanceOf(BoolQueryBuilder.class),
-                        instanceOf(MatchAllQueryBuilder.class),
-                        instanceOf(MatchNoneQueryBuilder.class)
-                    )
-                );
+                assertThat(rewrittenSource.query(), instanceOf(RankDocsQueryBuilder.class));
                 if (rewrittenSource.query() instanceof BoolQueryBuilder) {
                     BoolQueryBuilder bq = (BoolQueryBuilder) rewrittenSource.query();
                     assertThat(bq.filter().size(), equalTo(retriever.preFilterQueryBuilders.size()));

@@ -26,7 +26,7 @@ import java.util.Objects;
  * {@code RankDoc} is the base class for all ranked results.
  * Subclasses should extend this with additional information required for their global ranking method.
  */
-public class RankDoc extends ScoreDoc implements NamedWriteable, ToXContentFragment {
+public class RankDoc extends ScoreDoc implements NamedWriteable, ToXContentFragment, Comparable<RankDoc> {
 
     public static final String NAME = "rank_doc";
 
@@ -41,6 +41,17 @@ public class RankDoc extends ScoreDoc implements NamedWriteable, ToXContentFragm
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public final int compareTo(RankDoc other) {
+        if (score != other.score) {
+            return score < other.score ? 1 : -1;
+        }
+        if (shardIndex != other.shardIndex) {
+            return shardIndex < other.shardIndex ? -1 : 1;
+        }
+        return doc < other.doc ? -1 : 1;
     }
 
     public record RankKey(int doc, int shardIndex) {}

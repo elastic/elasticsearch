@@ -138,13 +138,8 @@ setup:
           collapse: { field: keyword, inner_hits: { name: sub_hits, size: 2 } }
 
   - match: { hits.hits.0._id: "5" }
-  - match: { hits.hits.0._rank: 1 }
-
-  - match: { hits.hits.1._id: "6" }
-  - match: { hits.hits.1._rank: 2 }
-
-  - match: { hits.hits.2._id: "1" }
-  - match: { hits.hits.2._rank: 3 }
+  - match: { hits.hits.1._id: "1" }
+  - match: { hits.hits.2._id: "6" }
 
   - match: { hits.hits.0.inner_hits.sub_hits.hits.total : 4 }
   - length: { hits.hits.0.inner_hits.sub_hits.hits.hits : 2 }
@@ -152,12 +147,12 @@ setup:
   - match: { hits.hits.0.inner_hits.sub_hits.hits.hits.1._id: "3" }
 
   - length: { hits.hits.1.inner_hits.sub_hits.hits.hits : 2 }
-  - match: { hits.hits.1.inner_hits.sub_hits.hits.hits.0._id: "6" }
-  - match: { hits.hits.1.inner_hits.sub_hits.hits.hits.1._id: "2" }
+  - match: { hits.hits.1.inner_hits.sub_hits.hits.hits.0._id: "1" }
+  - match: { hits.hits.1.inner_hits.sub_hits.hits.hits.1._id: "4" }
 
   - length: { hits.hits.2.inner_hits.sub_hits.hits.hits: 2 }
-  - match: { hits.hits.2.inner_hits.sub_hits.hits.hits.0._id: "1" }
-  - match: { hits.hits.2.inner_hits.sub_hits.hits.hits.1._id: "4" }
+  - match: { hits.hits.2.inner_hits.sub_hits.hits.hits.0._id: "6" }
+  - match: { hits.hits.2.inner_hits.sub_hits.hits.hits.1._id: "2" }
 
 ---
 "rrf retriever with inner-level collapse":
@@ -195,10 +190,5 @@ setup:
           size: 3
 
   - match: { hits.hits.0._id: "7" }
-  - match: { hits.hits.0._rank: 1 }
-
-  - match: { hits.hits.1._id: "6" }
-  - match: { hits.hits.1._rank: 2 }
-
-  - match: { hits.hits.2._id: "1" }
-  - match: { hits.hits.2._rank: 3 }
+  - match: { hits.hits.1._id: "1" }
+  - match: { hits.hits.2._id: "6" }

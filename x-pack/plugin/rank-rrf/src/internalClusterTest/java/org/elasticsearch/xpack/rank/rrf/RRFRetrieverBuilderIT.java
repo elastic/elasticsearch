@@ -440,57 +440,18 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
             assertThat(resp.getHits().getHits().length, equalTo(1));
             assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_2"));
             assertThat(resp.getHits().getAt(0).getExplanation().isMatch(), equalTo(true));
-            assertThat(resp.getHits().getAt(0).getExplanation().getDescription(), containsString("computed for initial ranks [3, 1, 2]"));
-            assertThat(resp.getHits().getAt(0).getExplanation().getDetails().length, equalTo(3));
-            assertThat(
-                resp.getHits().getAt(0).getExplanation().getDetails()[0].getDescription(),
-                containsString("for rank [3] in query at index [0]")
-            );
-            assertThat(resp.getHits().getAt(0).getExplanation().getDetails()[0].getDescription(), containsString("[my_custom_retriever]"));
-            assertThat(
-                resp.getHits().getAt(0).getExplanation().getDetails()[1].getDescription(),
-                containsString("for rank [1] in query at index [1]")
-            );
-            assertThat(
-                resp.getHits().getAt(0).getExplanation().getDetails()[2].getDescription(),
-                containsString("for rank [2] in query at index [2]")
-            );
+            assertThat(resp.getHits().getAt(0).getExplanation().getDescription(), containsString("sum of:"));
+            assertThat(resp.getHits().getAt(0).getExplanation().getDetails().length, equalTo(2));
+            var rrfDetails = resp.getHits().getAt(0).getExplanation().getDetails()[0];
+            assertThat(rrfDetails.getDetails().length, equalTo(3));
+            assertThat(rrfDetails.getDescription(), containsString("computed for initial ranks [3, 1, 2]"));
+
+            assertThat(rrfDetails.getDetails()[0].getDescription(), containsString("for rank [3] in query at index [0]"));
+            assertThat(rrfDetails.getDetails()[0].getDescription(), containsString("for rank [3] in query at index [0]"));
+            assertThat(rrfDetails.getDetails()[0].getDescription(), containsString("[my_custom_retriever]"));
+            assertThat(rrfDetails.getDetails()[1].getDescription(), containsString("for rank [1] in query at index [1]"));
+            assertThat(rrfDetails.getDetails()[2].getDescription(), containsString("for rank [2] in query at index [2]"));
         });
-    }
-
-    public void testRRFInnerRetrieverTopDocsErrorNotRaisedIfNoTrackTotalHits() {
-        final int rankWindowSize = 100;
-        final int rankConstant = 10;
-        SearchSourceBuilder source = new SearchSourceBuilder();
-        TestRetrieverBuilder failingRetriever = new TestRetrieverBuilder("some value") {
-            @Override
-            public QueryBuilder topDocsQuery() {
-                throw new UnsupportedOperationException("simulated failure");
-            }
-
-            @Override
-            public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
-                searchSourceBuilder.query(QueryBuilders.matchAllQuery());
-            }
-        };
-        StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
-            QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2", "doc_3", "doc_6")).boost(20L)
-        );
-        standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
-        source.retriever(
-            new RRFRetrieverBuilder(
-                Arrays.asList(
-                    new CompoundRetrieverBuilder.RetrieverSource(failingRetriever, null),
-                    new CompoundRetrieverBuilder.RetrieverSource(standard1, null)
-                ),
-                rankWindowSize,
-                rankConstant
-            )
-        );
-        source.size(1);
-        source.trackTotalHits(false);
-        SearchRequestBuilder req = client().prepareSearch(INDEX).setSource(source);
-        ElasticsearchAssertions.assertNoFailures(req);
     }
 
     public void testRRFInnerRetrieverSearchError() {

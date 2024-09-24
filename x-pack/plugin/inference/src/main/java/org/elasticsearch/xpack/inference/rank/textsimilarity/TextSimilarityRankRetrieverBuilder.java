@@ -43,7 +43,6 @@ public class TextSimilarityRankRetrieverBuilder extends RetrieverBuilder {
     public static final ParseField INFERENCE_TEXT_FIELD = new ParseField("inference_text");
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField RANK_WINDOW_SIZE_FIELD = new ParseField("rank_window_size");
-    public static final ParseField MIN_SCORE_FIELD = new ParseField("min_score");
 
     public static final ConstructingObjectParser<TextSimilarityRankRetrieverBuilder, RetrieverParserContext> PARSER =
         new ConstructingObjectParser<>(TextSimilarityRankBuilder.NAME, args -> {
@@ -52,9 +51,8 @@ public class TextSimilarityRankRetrieverBuilder extends RetrieverBuilder {
             String inferenceText = (String) args[2];
             String field = (String) args[3];
             int rankWindowSize = args[4] == null ? DEFAULT_RANK_WINDOW_SIZE : (int) args[4];
-            Float minScore = (Float) args[5];
 
-            return new TextSimilarityRankRetrieverBuilder(retrieverBuilder, inferenceId, inferenceText, field, rankWindowSize, minScore);
+            return new TextSimilarityRankRetrieverBuilder(retrieverBuilder, inferenceId, inferenceText, field, rankWindowSize);
         });
 
     static {
@@ -63,7 +61,6 @@ public class TextSimilarityRankRetrieverBuilder extends RetrieverBuilder {
         PARSER.declareString(constructorArg(), INFERENCE_TEXT_FIELD);
         PARSER.declareString(constructorArg(), FIELD_FIELD);
         PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
-        PARSER.declareFloat(optionalConstructorArg(), MIN_SCORE_FIELD);
 
         RetrieverBuilder.declareBaseParserFields(TextSimilarityRankBuilder.NAME, PARSER);
     }
@@ -84,22 +81,19 @@ public class TextSimilarityRankRetrieverBuilder extends RetrieverBuilder {
     private final String inferenceText;
     private final String field;
     private final int rankWindowSize;
-    private final Float minScore;
 
     public TextSimilarityRankRetrieverBuilder(
         RetrieverBuilder retrieverBuilder,
         String inferenceId,
         String inferenceText,
         String field,
-        int rankWindowSize,
-        Float minScore
+        int rankWindowSize
     ) {
         this.retrieverBuilder = retrieverBuilder;
         this.inferenceId = inferenceId;
         this.inferenceText = inferenceText;
         this.field = field;
         this.rankWindowSize = rankWindowSize;
-        this.minScore = minScore;
     }
 
     public TextSimilarityRankRetrieverBuilder(

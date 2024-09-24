@@ -168,11 +168,8 @@ setup:
   - match: { hits.total.value : 4 }
   - length: { hits.hits : 3 }
   - match: { hits.hits.0._id: "2" }
-  - match: { hits.hits.0._rank: 2 }
   - match: { hits.hits.1._id: "3" }
-  - match: { hits.hits.1._rank: 3 }
   - match: { hits.hits.2._id: "4" }
-  - match: { hits.hits.2._rank: 4 }
 
 ---
 "Standard pagination outside rank_window_size":
@@ -390,7 +387,6 @@ setup:
   - match: { hits.total.value : 4 }
   - length: { hits.hits : 1 }
   - match: { hits.hits.0._id: "3" }
-  - match: { hits.hits.0._rank: 3 }
 
 
 ---
@@ -505,9 +501,7 @@ setup:
   - match: { hits.total.value : 4 }
   - length: { hits.hits : 2 }
   - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.0._rank: 1 }
   - match: { hits.hits.1._id: "4" }
-  - match: { hits.hits.1._rank: 2 }
 
   - do:
       search:
@@ -614,9 +608,7 @@ setup:
   - match: { hits.total.value : 4 }
   - length: { hits.hits : 2 }
   - match: { hits.hits.0._id: "3" }
-  - match: { hits.hits.0._rank: 3 }
   - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.1._rank: 4 }
 
 ---
 "Pagination within interleaved results, different result set sizes, rank_window_size covering all results":
@@ -624,7 +616,7 @@ setup:
   # rank_window_size covers the entire result set for both queries, so pagination should be consistent
   # queryA has a result set of [5, 1] and
   # queryB has a result set of [4, 3, 1, 2]
-  # so for rank_constant=10, the expected order is [1, 5, 4, 3, 2]
+  # so for rank_constant=10, the expected order is [1, 4, 5, 3, 2]
   - do:
       search:
         index: test
@@ -714,9 +706,7 @@ setup:
   - match: { hits.total.value : 5 }
   - length: { hits.hits : 2 }
   - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.0._rank: 1 }
-  - match: { hits.hits.1._id: "5" }
-  - match: { hits.hits.1._rank: 2 }
+  - match: { hits.hits.1._id: "4" }
 
   - do:
       search:
@@ -806,10 +796,8 @@ setup:
 
   - match: { hits.total.value : 5 }
   - length: { hits.hits : 2 }
-  - match: { hits.hits.0._id: "4" }
-  - match: { hits.hits.0._rank: 3 }
+  - match: { hits.hits.0._id: "5" }
   - match: { hits.hits.1._id: "3" }
-  - match: { hits.hits.1._rank: 4 }
 
   - do:
       search:
@@ -900,7 +888,6 @@ setup:
   - match: { hits.total.value: 5 }
   - length: { hits.hits: 1 }
   - match: { hits.hits.0._id: "2" }
-  - match: { hits.hits.0._rank: 5 }
 
 
 ---
@@ -910,8 +897,8 @@ setup:
   # from the test above. More specifically, we'd get to collect 2 results from each query, so we'd have:
   # queryA has a result set of [5, 1] and
   # queryB has a result set of [4, 3]
-  # so for rank_constant=10, the expected order is [5, 4, 1, 3],
-  # and the rank_window_size-sized result set that we'd paginate over is [5, 4]
+  # so for rank_constant=10, the expected order is [4, 5, 1, 3],
+  # and the rank_window_size-sized result set that we'd paginate over is [4, 5]
   - do:
       search:
         index: test
@@ -1000,10 +987,8 @@ setup:
 
   - match: { hits.total.value : 5 }
   - length: { hits.hits : 2 }
-  - match: { hits.hits.0._id: "5" }
-  - match: { hits.hits.0._rank: 1 }
-  - match: { hits.hits.1._id: "4" }
-  - match: { hits.hits.1._rank: 2 }
+  - match: { hits.hits.0._id: "4" }
+  - match: { hits.hits.1._id: "5" }
 
   - do:
       search:

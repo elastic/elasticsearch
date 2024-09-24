@@ -80,17 +80,14 @@ setup:
           size: 10
 
   - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.0._rank: 1 }
   - match: { hits.hits.0.fields.text.0: "term term" }
   - match: { hits.hits.0.fields.keyword.0: "other" }
 
   - match: { hits.hits.1._id: "3" }
-  - match: { hits.hits.1._rank: 2 }
   - match: { hits.hits.1.fields.text.0: "term" }
   - match: { hits.hits.1.fields.keyword.0: "keyword" }
 
   - match: { hits.hits.2._id: "2" }
-  - match: { hits.hits.2._rank: 3 }
   - match: { hits.hits.2.fields.text.0: "other" }
   - match: { hits.hits.2.fields.keyword.0: "other" }
 
@@ -128,12 +125,10 @@ setup:
   - match: { hits.total.value: 2 }
 
   - match: { hits.hits.0._id: "3" }
-  - match: { hits.hits.0._rank: 1 }
   - match: { hits.hits.0.fields.text.0: "term" }
   - match: { hits.hits.0.fields.keyword.0: "keyword" }
 
   - match: { hits.hits.1._id: "1" }
-  - match: { hits.hits.1._rank: 2 }
   - match: { hits.hits.1.fields.text.0: "term term" }
   - match: { hits.hits.1.fields.keyword.0: "other" }
 
@@ -176,17 +171,14 @@ setup:
   - match: { hits.total.value: 3 }
 
   - match: { hits.hits.0._id: "3" }
-  - match: { hits.hits.0._rank: 1 }
   - match: { hits.hits.0.fields.text.0: "term" }
   - match: { hits.hits.0.fields.keyword.0: "keyword" }
 
   - match: { hits.hits.1._id: "1" }
-  - match: { hits.hits.1._rank: 2 }
   - match: { hits.hits.1.fields.text.0: "term term" }
   - match: { hits.hits.1.fields.keyword.0: "other" }
 
   - match: { hits.hits.2._id: "2" }
-  - match: { hits.hits.2._rank: 3 }
   - match: { hits.hits.2.fields.text.0: "other" }
   - match: { hits.hits.2.fields.keyword.0: "other" }
 

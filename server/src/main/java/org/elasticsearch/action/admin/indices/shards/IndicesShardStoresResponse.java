@@ -13,17 +13,18 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
-import org.elasticsearch.common.xcontent.ChunkedToXContentBuilder;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -275,30 +276,41 @@ public class IndicesShardStoresResponse extends ActionResponse implements Chunke
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
-        return ChunkedToXContent.builder(outerParams).object(ob -> {
-            if (failures.isEmpty() == false) {
-                ob.array(Fields.FAILURES, failures.iterator());
-            }
-            ob.object(
-                Fields.INDICES,
+        return Iterators.concat(
+            ChunkedToXContentHelper.startObject(),
+
+            failures.isEmpty()
+                ? Collections.emptyIterator()
+                : Iterators.concat(
+                    ChunkedToXContentHelper.startArray(Fields.FAILURES),
+                    failures.iterator(),
+                    ChunkedToXContentHelper.endArray()
+                ),
+
+            ChunkedToXContentHelper.startObject(Fields.INDICES),
+
+            Iterators.flatMap(
                 storeStatuses.entrySet().iterator(),
-                (eb, indexShards) -> eb.object(
-                    indexShards.getKey(),
-                    kb -> kb.object(
-                        Fields.SHARDS,
-                        indexShards.getValue().entrySet().iterator(),
-                        (sb, shardStatusesEntry) -> sb.object(
-                            String.valueOf(shardStatusesEntry.getKey()),
-                            storeB -> storeB.array(
-                                Fields.STORES,
-                                shardStatusesEntry.getValue().iterator(),
-                                ChunkedToXContentBuilder::xContentObject
-                            )
-                        )
-                    )
+                indexShards -> Iterators.concat(
+                    ChunkedToXContentHelper.startObject(indexShards.getKey()),
+                    ChunkedToXContentHelper.startObject(Fields.SHARDS),
+                    Iterators.map(indexShards.getValue().entrySet().iterator(), shardStatusesEntry -> (builder, params) -> {
+                        builder.startObject(String.valueOf(shardStatusesEntry.getKey())).startArray(Fields.STORES);
+                        for (StoreStatus storeStatus : shardStatusesEntry.getValue()) {
+                            builder.startObject();
+                            storeStatus.toXContent(builder, params);
+                            builder.endObject();
+                        }
+                        return builder.endArray().endObject();
+                    }),
+                    ChunkedToXContentHelper.endObject(),
+                    ChunkedToXContentHelper.endObject()
                 )
-            );
-        });
+            ),
+
+            ChunkedToXContentHelper.endObject(),
+            ChunkedToXContentHelper.endObject()
+        );
     }
 
     static final class Fields {

@@ -138,12 +138,12 @@ public class IndicesStatsResponseTests extends ESTestCase {
         AbstractChunkedSerializingTestCase.assertChunkCount(
             indicesStatsResponse,
             new ToXContent.MapParams(Map.of("level", "cluster")),
-            ignored1 -> 3
+            ignored1 -> 4
         );
         AbstractChunkedSerializingTestCase.assertChunkCount(
             indicesStatsResponse,
             new ToXContent.MapParams(Map.of("level", "indices")),
-            ignored -> 4 + 2 * shards
+            ignored -> 5 + 2 * shards
         );
     }
 

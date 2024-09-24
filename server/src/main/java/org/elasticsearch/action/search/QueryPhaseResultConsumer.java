@@ -27,7 +27,6 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 
 import java.util.ArrayDeque;
@@ -69,7 +68,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
     private final PendingMerges pendingMerges;
     private final Consumer<Exception> onPartialMergeFailure;
-    private final RankBuilder rankBuilder;
 
     /**
      * Creates a {@link QueryPhaseResultConsumer} that incrementally reduces aggregation results
@@ -99,7 +97,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         this.queryPhaseRankCoordinatorContext = source == null || source.rankBuilder() == null
             ? null
             : source.rankBuilder().buildQueryPhaseCoordinatorContext(size, from);
-        this.rankBuilder = source != null ? source.rankBuilder() : null;
         this.hasTopDocs = (source == null || size != 0) && queryPhaseRankCoordinatorContext == null;
         this.hasAggs = source != null && source.aggregations() != null;
         this.aggReduceContextBuilder = hasAggs ? controller.getReduceContext(isCanceled, source.aggregations()) : null;
@@ -149,8 +146,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 false,
                 aggReduceContextBuilder,
                 queryPhaseRankCoordinatorContext,
-                performFinalReduce,
-                rankBuilder
+                performFinalReduce
             );
         } finally {
             pendingMerges.releaseAggs();

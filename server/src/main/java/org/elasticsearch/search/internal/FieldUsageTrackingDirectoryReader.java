@@ -218,7 +218,6 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
 
         @Override
         public FloatVectorValues getFloatVectorValues(String field) throws IOException {
-
             FloatVectorValues vectorValues = super.getFloatVectorValues(field);
             if (vectorValues != null) {
                 notifier.onKnnVectorsUsed(field);

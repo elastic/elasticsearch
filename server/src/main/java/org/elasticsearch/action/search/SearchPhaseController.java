@@ -49,7 +49,6 @@ import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileResultsBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 import org.elasticsearch.search.suggest.Suggest;
@@ -471,10 +470,6 @@ public final class SearchPhaseController {
                         if (sortScoreIndex != -1) {
                             searchHit.score(((Number) fieldDoc.fields[sortScoreIndex]).floatValue());
                         }
-                    } else if (shardDoc instanceof RankDoc rankDoc) {
-                        searchHit.sortValues(rankDoc.sortValues, reducedQueryPhase.sortValueFormats);
-                        searchHit.score(rankDoc.score);
-                        searchHit.setRank(rankDoc.rank);
                     } else {
                         throw new IllegalArgumentException("Unsupported ScoreDoc type: " + shardDoc.getClass());
                     }
@@ -556,10 +551,8 @@ public final class SearchPhaseController {
         boolean isScrollRequest,
         AggregationReduceContext.Builder aggReduceContextBuilder,
         QueryPhaseRankCoordinatorContext queryPhaseRankCoordinatorContext,
-        boolean performFinalReduce,
-        RankBuilder rankBuilder
+        boolean performFinalReduce
     ) {
-        boolean isRankQuery = rankBuilder != null;
         assert numReducePhases >= 0 : "num reduce phases must be >= 0 but was: " + numReducePhases;
         numReducePhases++; // increment for this phase
         if (queryResults.isEmpty()) { // early terminate we have nothing to reduce
@@ -652,7 +645,6 @@ public final class SearchPhaseController {
         SortedTopDocs sortedTopDocs;
         if (queryPhaseRankCoordinatorContext == null) {
             sortedTopDocs = sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions);
-            sortedTopDocs = extractRankDocs(sortedTopDocs);
         } else {
             ScoreDoc[] rankedDocs = queryPhaseRankCoordinatorContext.rankQueryPhaseResults(
                 queryResults.stream().map(SearchPhaseResult::queryResult).toList(),
@@ -683,46 +675,6 @@ public final class SearchPhaseController {
             from,
             false
         );
-    }
-
-    private static SortedTopDocs extractRankDocs(SortedTopDocs originalDocs) {
-        return originalDocs;
-        // TODO
-        /**
-        int rankIndex = -1;
-        for (int i = 0; i < originalDocs.sortFields().length; i++) {
-            if (RankDocsAndScoreSortField.NAME.equals(originalDocs.sortFields[i].getField())) {
-                rankIndex = i;
-                break;
-            }
-        }
-        if (rankIndex < 0) {
-            throw new IllegalArgumentException("{" + RankDocsAndScoreSortField.NAME + "} not found in sort fields");
-        }
-        List<RankDoc> rankedDocs = new ArrayList<>();
-        for (int i = 0; i < originalDocs.scoreDocs.length; i++) {
-            long rank = (long) ((FieldDoc) originalDocs.scoreDocs[i]).fields[rankIndex];
-            if (rank == Long.MAX_VALUE) {
-                break;
-            }
-            RankDoc rankedDoc = new RankDoc(
-                originalDocs.scoreDocs[i].doc,
-                originalDocs.scoreDocs[i].score,
-                originalDocs.scoreDocs[i].shardIndex
-            );
-            rankedDoc.rank = RankDocsAndScoreSortField.decodeRank(rank);
-            rankedDoc.sortValues = ((FieldDoc) originalDocs.scoreDocs[i]).fields;
-            rankedDocs.add(rankedDoc);
-        }
-        return new SortedTopDocs(
-            rankedDocs.toArray(new RankDoc[0]),
-            originalDocs.isSortedByField(),
-            originalDocs.sortFields(),
-            originalDocs.collapseField(),
-            originalDocs.collapseValues(),
-            originalDocs.numberOfCompletionsSuggestions()
-        );
-         **/
     }
 
     private static InternalAggregations reduceAggs(

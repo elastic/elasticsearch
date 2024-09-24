@@ -14,6 +14,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -45,6 +46,7 @@ public class TimeSeriesRoutingHashFieldMapper extends MetadataFieldMapper {
     public static final TimeSeriesRoutingHashFieldMapper INSTANCE = new TimeSeriesRoutingHashFieldMapper();
 
     public static final TypeParser PARSER = new FixedTypeParser(c -> c.getIndexSettings().getMode().timeSeriesRoutingHashFieldMapper());
+    static final NodeFeature TS_ROUTING_HASH_FIELD_PARSES_BYTES_REF = new NodeFeature("tsdb.ts_routing_hash_doc_value_parse_byte_ref");
 
     static final class TimeSeriesRoutingHashFieldType extends MappedFieldType {
 
@@ -64,6 +66,13 @@ public class TimeSeriesRoutingHashFieldMapper extends MetadataFieldMapper {
                 return Uid.decodeId(value.bytes, value.offset, value.length);
             }
 
+            @Override
+            public BytesRef parseBytesRef(Object value) {
+                if (value instanceof BytesRef valueAsBytesRef) {
+                    return valueAsBytesRef;
+                }
+                return Uid.encodeId(value.toString());
+            }
         };
 
         private TimeSeriesRoutingHashFieldType() {

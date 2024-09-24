@@ -374,12 +374,11 @@ class S3BlobStore implements BlobStore {
      */
     private void deletePartition(OperationPurpose purpose, List<String> partition, AtomicReference<Exception> aex) {
         final Iterator<TimeValue> retries = retryThrottledDeleteBackoffPolicy.iterator();
-        int attempts = 0;
+        int retryCounter = 0;
         while (true) {
             try (AmazonS3Reference clientReference = clientReference()) {
-                attempts++;
                 SocketAccess.doPrivilegedVoid(() -> clientReference.client().deleteObjects(bulkDelete(purpose, this, partition)));
-                s3RepositoriesMetrics.retryDeletesHistogram().record(attempts);
+                s3RepositoriesMetrics.retryDeletesHistogram().record(retryCounter);
                 return;
             } catch (MultiObjectDeleteException e) {
                 // We are sending quiet mode requests so we can't use the deleted keys entry on the exception and instead
@@ -401,6 +400,7 @@ class S3BlobStore implements BlobStore {
                     // S3 is asking us to slow down. Pause for a bit and retry
                     try {
                         Thread.sleep(retries.next().millis());
+                        retryCounter++;
                     } catch (InterruptedException iex) {
                         Thread.currentThread().interrupt();
                         // If we're interrupted, record the exception and abort retries

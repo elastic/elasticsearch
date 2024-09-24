@@ -31,6 +31,9 @@ import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -38,6 +41,7 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.repositories.RepositoriesMetrics.HTTP_REQUEST_TIME_IN_MILLIS_HISTOGRAM;
 import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_EXCEPTIONS_HISTOGRAM;
@@ -48,9 +52,11 @@ import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_REQUESTS
 import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_THROTTLES_HISTOGRAM;
 import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_THROTTLES_TOTAL;
 import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_UNSUCCESSFUL_OPERATIONS_TOTAL;
+import static org.elasticsearch.repositories.s3.S3RepositoriesMetrics.METRIC_DELETE_RETRIES_HISTOGRAM;
 import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.REQUESTED_RANGE_NOT_SATISFIED;
+import static org.elasticsearch.rest.RestStatus.SERVICE_UNAVAILABLE;
 import static org.elasticsearch.rest.RestStatus.TOO_MANY_REQUESTS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -61,14 +67,14 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTests {
 
-    private final Queue<RestStatus> errorStatusQueue = new LinkedBlockingQueue<>();
+    private final Queue<S3ErrorResponse> errorResponseQueue = new LinkedBlockingQueue<>();
 
     // Always create erroneous handler
     @Override
     protected Map<String, HttpHandler> createHttpHandlers() {
         return Collections.singletonMap(
             "/bucket",
-            new S3StatsCollectorHttpHandler(new S3MetricErroneousHttpHandler(new S3BlobStoreHttpHandler("bucket"), errorStatusQueue))
+            new S3StatsCollectorHttpHandler(new S3MetricErroneousHttpHandler(new S3BlobStoreHttpHandler("bucket"), errorResponseQueue))
         );
     }
 
@@ -244,8 +250,48 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
         }
     }
 
+    public void testRetrySnapshotDeleteMetrics() throws IOException {
+        final String repositoryName = randomRepositoryName();
+        // Disable retries in the client for this repo
+        createRepository(
+            repositoryName,
+            Settings.builder()
+                .put(repositorySettings(repositoryName))
+                .put(S3ClientSettings.MAX_RETRIES_SETTING.getConcreteSettingForNamespace("placeholder").getKey(), 0)
+                .build(),
+            false
+        );
+        final String dataNodeName = internalCluster().getNodeNameThat(DiscoveryNode::canContainData);
+        final BlobContainer blobContainer = getBlobContainer(dataNodeName, repositoryName);
+        final TestTelemetryPlugin plugin = getPlugin(dataNodeName);
+        final int numberOfDeletes = randomIntBetween(1, 3);
+        final List<Long> numberOfRetriesPerAttempt = new ArrayList<>();
+        for (int i = 0; i < numberOfDeletes; i++) {
+            int numFailures = randomIntBetween(1, 4);
+            numberOfRetriesPerAttempt.add((long) numFailures);
+            IntStream.range(0, numFailures).forEach(ignored -> addErrorStatus(new S3ErrorResponse(SERVICE_UNAVAILABLE, """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <Error>
+                  <Code>SlowDown</Code>
+                  <Message>This is a throttling message</Message>
+                  <Resource>/bucket/</Resource>
+                  <RequestId>4442587FB7D0A2F9</RequestId>
+                </Error>""")));
+            blobContainer.deleteBlobsIgnoringIfNotExists(
+                randomFrom(OperationPurpose.SNAPSHOT_DATA, OperationPurpose.SNAPSHOT_METADATA),
+                List.of(randomIdentifier()).iterator()
+            );
+        }
+        List<Measurement> longHistogramMeasurement = plugin.getLongHistogramMeasurement(METRIC_DELETE_RETRIES_HISTOGRAM);
+        assertThat(longHistogramMeasurement.stream().map(Measurement::getLong).toList(), equalTo(numberOfRetriesPerAttempt));
+    }
+
     private void addErrorStatus(RestStatus... statuses) {
-        errorStatusQueue.addAll(Arrays.asList(statuses));
+        errorResponseQueue.addAll(Arrays.stream(statuses).map(S3ErrorResponse::new).toList());
+    }
+
+    private void addErrorStatus(S3ErrorResponse... responses) {
+        errorResponseQueue.addAll(Arrays.asList(responses));
     }
 
     private long getLongCounterValue(TestTelemetryPlugin plugin, String instrumentName, Operation operation) {
@@ -275,31 +321,59 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
     private static class S3MetricErroneousHttpHandler implements DelegatingHttpHandler {
 
         private final HttpHandler delegate;
-        private final Queue<RestStatus> errorStatusQueue;
+        private final Queue<S3ErrorResponse> errorStatusQueue;
 
-        S3MetricErroneousHttpHandler(HttpHandler delegate, Queue<RestStatus> errorStatusQueue) {
+        S3MetricErroneousHttpHandler(HttpHandler delegate, Queue<S3ErrorResponse> errorStatusQueue) {
             this.delegate = delegate;
             this.errorStatusQueue = errorStatusQueue;
         }
 
         @Override
         public void handle(HttpExchange exchange) throws IOException {
-            final RestStatus status = errorStatusQueue.poll();
-            if (status == null) {
+            final S3ErrorResponse errorResponse = errorStatusQueue.poll();
+            if (errorResponse == null) {
                 delegate.handle(exchange);
-            } else if (status == INTERNAL_SERVER_ERROR) {
+            } else if (errorResponse.status == INTERNAL_SERVER_ERROR) {
                 // Simulate an retryable exception
                 throw new IOException("ouch");
             } else {
                 try (exchange) {
                     drainInputStream(exchange.getRequestBody());
-                    exchange.sendResponseHeaders(status.getStatus(), -1);
+                    errorResponse.writeResponse(exchange);
                 }
             }
         }
 
         public HttpHandler getDelegate() {
             return delegate;
+        }
+    }
+
+    static class S3ErrorResponse {
+
+        private final RestStatus status;
+        private final String responseBody;
+
+        S3ErrorResponse(RestStatus status) {
+            this(status, null);
+        }
+
+        S3ErrorResponse(RestStatus status, String responseBody) {
+            this.status = status;
+            this.responseBody = responseBody;
+        }
+
+        @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
+        public void writeResponse(HttpExchange exchange) throws IOException {
+            if (responseBody != null) {
+                byte[] responseBytes = responseBody.getBytes(StandardCharsets.UTF_8);
+                exchange.sendResponseHeaders(status.getStatus(), responseBytes.length);
+                OutputStream responseBody = exchange.getResponseBody();
+                responseBody.write(responseBytes);
+                responseBody.flush();
+            } else {
+                exchange.sendResponseHeaders(status.getStatus(), -1);
+            }
         }
     }
 }

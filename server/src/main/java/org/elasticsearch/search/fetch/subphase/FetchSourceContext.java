@@ -151,10 +151,6 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         return this.includeVectors == null || this.includeVectors == false;
     }
 
-    public boolean includeVectorFields() {
-        return includeVectors != null && includeVectors;
-    }
-
     public boolean hasFilter() {
         return this.includes.length > 0 || this.excludes.length > 0;
     }

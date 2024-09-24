@@ -15,7 +15,7 @@ Posts scheduled events in a calendar.
 [[ml-post-calendar-event-prereqs]]
 == {api-prereq-title}
 
-Requires the `manage_ml` cluster privilege. This privilege is included in the 
+Requires the `manage_ml` cluster privilege. This privilege is included in the
 `machine_learning_admin` built-in role.
 
 [[ml-post-calendar-event-desc]]
@@ -54,6 +54,22 @@ milliseconds since the epoch or ISO 8601 format.
 `start_time`:::
 (Required, date) The timestamp for the beginning of the scheduled event in
 milliseconds since the epoch or ISO 8601 format.
+
+`skip_results`:::
+(Optional, Boolean) If `true`, the results during the scheduled event are not created.
+The default value is `true`.
+
+`skip_model_update`:::
+(Optional, Boolean) If `true`, the model is not updated during the scheduled event.
+The default value is `true`.
+
+`force_time_shift`:::
+(Optional, integer) Allows you to shift the time within the anomaly detector
+by a specified number of seconds in a specified direction. This is useful to quickly
+adjust to known Daylight Saving Time (DST) events. For example, to account for a
+one-hour backward time shift during the fall DST event, use a value of `-3600`.
+The parameter is not set by default. The time is shifted once at the beginning of the
+scheduled event. The shift is measured in seconds.
 ====
 
 [[ml-post-calendar-event-example]]
@@ -82,19 +98,65 @@ The API returns the following results:
       "description": "event 1",
       "start_time": 1513641600000,
       "end_time": 1513728000000,
+      "skip_result": true,
+      "skip_model_update": true,
       "calendar_id": "planned-outages"
     },
     {
       "description": "event 2",
       "start_time": 1513814400000,
       "end_time": 1513900800000,
+      "skip_result": true,
+      "skip_model_update": true,
       "calendar_id": "planned-outages"
     },
     {
       "description": "event 3",
       "start_time": 1514160000000,
       "end_time": 1514246400000,
+      "skip_result": true,
+      "skip_model_update": true,
       "calendar_id": "planned-outages"
+    }
+  ]
+}
+----
+
+[source,console]
+--------------------------------------------------
+POST _ml/calendars/dst-germany/events
+{
+  "events" : [
+    {"description": "Fall 2024", "start_time": 1729994400000, "end_time": 1730167200000, "skip_result": false, "skip_model_update": false, "force_time_shift": -3600},
+    {"description": "Spring 2025", "start_time": 1743296400000, "end_time": 1743469200000, "skip_result": false, "skip_model_update": false, "force_time_shift": 3600}
+  ]
+}
+--------------------------------------------------
+// TEST[skip:setup:calendar_dst_addjob]
+
+The API returns the following results:
+
+[source,console-result]
+----
+{
+  "events": [
+    {
+      "description": "Fall 2024",
+      "start_time": 1729994400000,
+      "end_time": 1730167200000,
+      "skip_result": false,
+      "skip_model_update": false,
+      "force_time_shift": -3600,
+      "calendar_id": "dst-germany"
+    },
+    {
+      "description": "Spring 2025",
+      "start_time": 1743296400000,
+      "end_time": 1743469200000,
+      "skip_result": false,
+      "skip_model_update": false,
+      "force_time_shift": 3600,
+      "calendar_id": "dst-germany"
     }
   ]
 }

@@ -49,10 +49,12 @@ public class TimeSeriesRoutingHashFieldMapper extends MetadataFieldMapper {
     public static final TypeParser PARSER = new FixedTypeParser(c -> c.getIndexSettings().getMode().timeSeriesRoutingHashFieldMapper());
     static final NodeFeature TS_ROUTING_HASH_FIELD_PARSES_BYTES_REF = new NodeFeature("tsdb.ts_routing_hash_doc_value_parse_byte_ref");
 
+    public static DocValueFormat TS_ROUTING_HASH_DOC_VALUE_FORMAT = TimeSeriesRoutingHashFieldType.DOC_VALUE_FORMAT;
+
     static final class TimeSeriesRoutingHashFieldType extends MappedFieldType {
 
         private static final TimeSeriesRoutingHashFieldType INSTANCE = new TimeSeriesRoutingHashFieldType();
-        private static final DocValueFormat DOC_VALUE_FORMAT = new DocValueFormat() {
+        static final DocValueFormat DOC_VALUE_FORMAT = new DocValueFormat() {
 
             @Override
             public String getWriteableName() {

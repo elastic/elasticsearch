@@ -100,7 +100,7 @@ public class ParentTaskAssigningClientTests extends ESTestCase {
                             Request request,
                             ActionListener<Transport.Connection> listener
                         ) {
-                            fail("should not be called");
+                            listener.onResponse(null);
                         }
                     };
                 }

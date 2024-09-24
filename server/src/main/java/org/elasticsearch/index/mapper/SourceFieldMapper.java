@@ -53,6 +53,9 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         "mapper.source.synthetic_source_with_copy_to_and_doc_values_false"
     );
     public static final NodeFeature SYNTHETIC_SOURCE_COPY_TO_FIX = new NodeFeature("mapper.source.synthetic_source_copy_to_fix");
+    public static final NodeFeature SYNTHETIC_SOURCE_COPY_TO_INSIDE_OBJECTS_FIX = new NodeFeature(
+        "mapper.source.synthetic_source_copy_to_inside_objects_fix"
+    );
 
     public static final String NAME = "_source";
     public static final String PATCH_NAME = "_source_patch";

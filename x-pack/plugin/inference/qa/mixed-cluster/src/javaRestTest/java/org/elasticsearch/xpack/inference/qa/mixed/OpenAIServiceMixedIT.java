@@ -14,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -114,8 +115,10 @@ public class OpenAIServiceMixedIT extends BaseMixedTestCase {
     }
 
     public void testMixedClusterNotFullySupportingOpenAiCompletionsRejectsApiCalls() throws IOException {
-        // TODO: oldClusterFeatures
-        assumeTrue("Old nodes must not support OpenAi completion", getOldClusterTestVersion().before(OPEN_AI_EMBEDDINGS_ADDED));
+        assumeFalse(
+            "Old nodes must be before support for OpenAi inference was added",
+            oldClusterHasFeature(RestTestLegacyFeatures.OPEN_AI_EMBEDDINGS_ADDED)
+        );
         final String inferenceId = "mixed-cluster-completions";
 
         var modelConfig = chatCompletionsConfig(getUrl(openAiChatCompletionsServer));

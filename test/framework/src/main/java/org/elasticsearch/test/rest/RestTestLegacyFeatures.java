@@ -137,6 +137,9 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
     // YAML
     public static final NodeFeature REST_ELASTIC_PRODUCT_HEADER_PRESENT = new NodeFeature("action.rest.product_header_present");
 
+    // Inference
+    public static final NodeFeature OPEN_AI_EMBEDDINGS_ADDED = new NodeFeature("inference.open_ai_embeddings_added");
+
     @Override
     public Map<NodeFeature, Version> getHistoricalFeatures() {
         return Map.ofEntries(
@@ -184,7 +187,8 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
             entry(NEW_DATA_STREAMS_INDEX_NAME_FORMAT, Version.V_7_11_0),
             entry(DISABLE_FIELD_NAMES_FIELD_REMOVED, Version.V_8_0_0),
             entry(ML_NLP_SUPPORTED, Version.V_8_0_0),
-            entry(MAPPINGS_UPGRADE_SERVICE_USES_MAPPINGS_VERSION, Version.V_8_11_0)
+            entry(MAPPINGS_UPGRADE_SERVICE_USES_MAPPINGS_VERSION, Version.V_8_11_0),
+            entry(OPEN_AI_EMBEDDINGS_ADDED, Version.V_8_12_0)
         );
     }
 }

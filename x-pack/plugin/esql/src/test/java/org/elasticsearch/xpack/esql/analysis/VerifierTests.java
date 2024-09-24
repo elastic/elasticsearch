@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
-import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 

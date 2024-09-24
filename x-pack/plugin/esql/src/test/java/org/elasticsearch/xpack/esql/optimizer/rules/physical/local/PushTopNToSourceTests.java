@@ -155,6 +155,26 @@ public class PushTopNToSourceTests extends ESTestCase {
         assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
     }
 
+    public void testSortGeoDistanceFunctionInverted() {
+        // FROM index | EVAL distance = ST_DISTANCE(POINT(1 2), location) | SORT distance | LIMIT 10
+        var query = from("index").eval("distance", b -> b.distance("POINT(1 2)", "location"))
+            .sort("distance", Order.OrderDirection.ASC)
+            .limit(10);
+        // The pushed-down sort will use the underlying field 'location', not the sorted reference field 'distance'
+        assertPushdownSort(query, Map.of("distance", "location"));
+        assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
+    }
+
+    public void testSortGeoDistanceFunctionLiterals() {
+        // FROM index | EVAL distance = ST_DISTANCE(POINT(2 1), POINT(1 2)) | SORT distance | LIMIT 10
+        var query = from("index").eval("distance", b -> b.distance("POINT(2 1)", "POINT(1 2)"))
+            .sort("distance", Order.OrderDirection.ASC)
+            .limit(10);
+        // The pushed-down sort will use the underlying field 'location', not the sorted reference field 'distance'
+        assertNoPushdownSort(query, "sort on foldable distance function");
+        assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
+    }
+
     public void testSortGeoDistanceFunctionAndFieldsWithAliases() {
         // FROM index | EVAL distance = ST_DISTANCE(location, POINT(1 2)), x = field | SORT distance, field, integer | LIMIT 10
         var query = from("index").eval("distance", b -> b.distance("location", "POINT(1 2)"))
@@ -259,7 +279,8 @@ public class PushTopNToSourceTests extends ESTestCase {
     /**
      * This builder allows for easy creation of physical plans using a syntax like `from("index").sort("field").limit(10)`.
      * The idea is to create tests that are clearly related to real queries, but also easy to make assertions on.
-     * It only supports a very small subset of possible plans, with FROM, EVAL and SORT+LIMIT, in that order.
+     * It only supports a very small subset of possible plans, with FROM, EVAL and SORT+LIMIT, in that order, matching
+     * the physical plan rules that are being tested: TopNExec, EvalExec and EsQueryExec.
      */
     static class TestPhysicalPlanBuilder {
         private final String index;
@@ -366,15 +387,24 @@ public class PushTopNToSourceTests extends ESTestCase {
                 return new Add(Source.EMPTY, left, right);
             }
 
-            public Expression distance(String field, String wkt) {
-                try {
-                    Geometry geometry = WellKnownText.fromWKT(GeometryValidator.NOOP, false, wkt);
-                    BytesRef bytes = new BytesRef(WellKnownBinary.toWKB(geometry, ByteOrder.LITTLE_ENDIAN));
-                    Literal point = new Literal(Source.EMPTY, bytes, GEO_POINT);
-                    return new StDistance(Source.EMPTY, fields.get(field), point);
-                } catch (IOException | ParseException e) {
-                    throw new IllegalArgumentException("Failed to parse WKT: " + wkt, e);
+            public Expression distance(String left, String right) {
+                return new StDistance(Source.EMPTY, geoExpr(left), geoExpr(right));
+            }
+
+            private Expression geoExpr(String text) {
+                if (text.startsWith("POINT")) {
+                    try {
+                        Geometry geometry = WellKnownText.fromWKT(GeometryValidator.NOOP, false, text);
+                        BytesRef bytes = new BytesRef(WellKnownBinary.toWKB(geometry, ByteOrder.LITTLE_ENDIAN));
+                        return new Literal(Source.EMPTY, bytes, GEO_POINT);
+                    } catch (IOException | ParseException e) {
+                        throw new IllegalArgumentException("Failed to parse WKT: " + text, e);
+                    }
                 }
+                if (fields.containsKey(text)) {
+                    return fields.get(text);
+                }
+                throw new IllegalArgumentException("Unknown field: " + text);
             }
         }
 

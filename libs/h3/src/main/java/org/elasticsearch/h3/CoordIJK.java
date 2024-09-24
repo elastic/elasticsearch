@@ -39,6 +39,9 @@ package org.elasticsearch.h3;
  */
 final class CoordIJK {
 
+    /** one seventh (1/7) **/
+    private static final double M_ONESEVENTH = 1.0 / 7.0;
+
     /** CoordIJK unit vectors corresponding to the 7 H3 digits.
      */
     private static final int[][] UNIT_VECS = {
@@ -281,8 +284,8 @@ final class CoordIJK {
     public void upAp7r() {
         final int i = Math.subtractExact(this.i, this.k);
         final int j = Math.subtractExact(this.j, this.k);
-        this.i = (int) Math.round((Math.addExact(Math.multiplyExact(2, i), j)) / 7.0);
-        this.j = (int) Math.round((Math.subtractExact(Math.multiplyExact(3, j), i)) / 7.0);
+        this.i = (int) Math.round((Math.addExact(Math.multiplyExact(2, i), j)) * M_ONESEVENTH);
+        this.j = (int) Math.round((Math.subtractExact(Math.multiplyExact(3, j), i)) * M_ONESEVENTH);
         this.k = 0;
         ijkNormalize();
     }
@@ -295,8 +298,8 @@ final class CoordIJK {
     public void upAp7() {
         final int i = Math.subtractExact(this.i, this.k);
         final int j = Math.subtractExact(this.j, this.k);
-        this.i = (int) Math.round((Math.subtractExact(Math.multiplyExact(3, i), j)) / 7.0);
-        this.j = (int) Math.round((Math.addExact(Math.multiplyExact(2, j), i)) / 7.0);
+        this.i = (int) Math.round((Math.subtractExact(Math.multiplyExact(3, i), j)) * M_ONESEVENTH);
+        this.j = (int) Math.round((Math.addExact(Math.multiplyExact(2, j), i)) * M_ONESEVENTH);
         this.k = 0;
         ijkNormalize();
     }

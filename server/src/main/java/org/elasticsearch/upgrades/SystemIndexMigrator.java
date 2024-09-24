@@ -500,7 +500,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         createRequest.waitForActiveShards(ActiveShardCount.ALL)
             .mappings(migrationInfo.getMappings())
             .settings(Objects.requireNonNullElse(settingsBuilder.build(), Settings.EMPTY));
-        metadataCreateIndexService.createIndex(createRequest, listener);
+        metadataCreateIndexService.createIndex(TimeValue.MINUS_ONE, TimeValue.ZERO, null, createRequest, listener);
     }
 
     private CheckedBiConsumer<ActionListener<BulkByScrollResponse>, AcknowledgedResponse, Exception> setAliasAndRemoveOldIndex(

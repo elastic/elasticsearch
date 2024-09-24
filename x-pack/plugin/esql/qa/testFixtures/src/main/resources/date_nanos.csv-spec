@@ -121,6 +121,18 @@ d:date_nanos
 2024-08-20T13:34:54.123456789Z
 ;
 
+long to date nanos, before 1970
+required_capability: date_nanos_type
+
+ROW d = TO_DATE_NANOS(TO_LONG(-1));
+
+warning:Line 1:9: evaluation of [TO_DATE_NANOS(TO_LONG(-1))] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:9: java.lang.IllegalArgumentException: Nanosecond dates before 1970-01-01T00:00:00.000Z are not supported.
+d:date_nanos
+null
+;
+
+
 unsigned long to date nanos
 required_capability: date_nanos_type
 
@@ -154,11 +166,23 @@ required_capability: date_nanos_type
 
 ROW d = TO_DATE_NANOS(TO_DATETIME("2262-04-12T00:00:00.000")); 
 warning:Line 1:9: evaluation of [TO_DATE_NANOS(TO_DATETIME(\"2262-04-12T00:00:00.000\"))] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:9: java.lang.IllegalArgumentException: cannot create nanosecond dates after 2262-04-11T23:47:16.854775807Z
+warning:Line 1:9: java.lang.IllegalArgumentException: milliSeconds [9223372800000] are after 2262-04-11T23:47:16.854775807 and cannot be converted to nanoseconds
 
 d:date_nanos
 null
 ;
+
+datetime to date nanos, pre 1970
+required_capability: date_nanos_type
+
+ROW d = TO_DATE_NANOS(TO_DATETIME("1969-04-12T00:00:00.000")); 
+warning:Line 1:9: evaluation of [TO_DATE_NANOS(TO_DATETIME(\"1969-04-12T00:00:00.000\"))] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:9: java.lang.IllegalArgumentException: milliSeconds [-22809600000] are before the epoch in 1970 and cannot be converted to nanoseconds
+
+d:date_nanos
+null
+;
+
 
 date nanos to long, index version
 required_capability: date_nanos_type

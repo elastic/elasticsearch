@@ -127,11 +127,6 @@ public class ToDateNanos extends AbstractConvertFunction {
 
     @ConvertEvaluator(extraName = "FromDatetime", warnExceptions = { IllegalArgumentException.class })
     static long fromDatetime(long in) {
-        try {
-            return Math.multiplyExact(in, 1_000_000L);
-        } catch (ArithmeticException e) {
-            // This seems like a more useful error message than "Long Overflow"
-            throw new IllegalArgumentException("cannot create nanosecond dates after 2262-04-11T23:47:16.854775807Z");
-        }
+        return DateUtils.toNanoSeconds(in);
     }
 }

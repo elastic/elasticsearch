@@ -86,13 +86,17 @@ public class TransportUpdateReplicasAction extends TransportMasterNodeAction<Tra
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
         throws Exception {
         final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
-        UpdateSettingsClusterStateUpdateRequest clusterStateUpdateRequest = new UpdateSettingsClusterStateUpdateRequest().indices(
-            concreteIndices
-        )
-            .settings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, request.numReplicas).build())
-            .masterNodeTimeout(request.masterNodeTimeout())
-            .ackTimeout(TimeValue.MINUS_ONE);
-        metadataUpdateSettingsService.updateSettings(clusterStateUpdateRequest, listener);
+        metadataUpdateSettingsService.updateSettings(
+            new UpdateSettingsClusterStateUpdateRequest(
+                request.masterNodeTimeout(),
+                TimeValue.MINUS_ONE,
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, request.numReplicas).build(),
+                UpdateSettingsClusterStateUpdateRequest.OnExisting.OVERWRITE,
+                UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REJECT,
+                concreteIndices
+            ),
+            listener
+        );
     }
 
     @Override

@@ -296,8 +296,8 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         return new Builder();
     }
 
-    public static Builder builder(Template template) {
-        return new Builder(template);
+    public static Builder builder(@Nullable Template template) {
+        return template == null ? new Builder() : new Builder(template);
     }
 
     public static class Builder {
@@ -337,6 +337,11 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
 
         public Builder lifecycle(DataStreamLifecycle lifecycle) {
             this.lifecycle = lifecycle;
+            return this;
+        }
+
+        public Builder lifecycle(DataStreamLifecycle.Builder lifecycle) {
+            this.lifecycle = lifecycle.build();
             return this;
         }
 

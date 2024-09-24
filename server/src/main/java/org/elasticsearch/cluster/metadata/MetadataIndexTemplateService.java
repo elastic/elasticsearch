@@ -312,12 +312,7 @@ public class MetadataIndexTemplateService {
             }
         }
 
-        final Template finalTemplate = new Template(
-            finalSettings,
-            wrappedMappings,
-            template.template().aliases(),
-            template.template().lifecycle()
-        );
+        final Template finalTemplate = Template.builder(template.template()).settings(finalSettings).mappings(wrappedMappings).build();
         final ComponentTemplate finalComponentTemplate = new ComponentTemplate(
             finalTemplate,
             template.version(),
@@ -629,7 +624,7 @@ public class MetadataIndexTemplateService {
             // adjusted (to add _doc) and it should be validated
             CompressedXContent mappings = innerTemplate.mappings();
             CompressedXContent wrappedMappings = wrapMappingsIfNecessary(mappings, xContentRegistry);
-            final Template finalTemplate = new Template(finalSettings, wrappedMappings, innerTemplate.aliases(), innerTemplate.lifecycle());
+            final Template finalTemplate = Template.builder(innerTemplate).settings(finalSettings).mappings(wrappedMappings).build();
             finalIndexTemplate = template.toBuilder().template(finalTemplate).build();
         }
 
@@ -693,7 +688,7 @@ public class MetadataIndexTemplateService {
     private void validateIndexTemplateV2(String name, ComposableIndexTemplate indexTemplate, ClusterState currentState) {
         // Workaround for the fact that start_time and end_time are injected by the MetadataCreateDataStreamService upon creation,
         // but when validating templates that create data streams the MetadataCreateDataStreamService isn't used.
-        var finalTemplate = Optional.ofNullable(indexTemplate.template());
+        var finalTemplate = indexTemplate.template();
         var finalSettings = Settings.builder();
         final var now = Instant.now();
         final var metadata = currentState.getMetadata();
@@ -717,18 +712,11 @@ public class MetadataIndexTemplateService {
         // Then apply setting from component templates:
         finalSettings.put(combinedSettings);
         // Then finally apply settings resolved from index template:
-        finalSettings.put(finalTemplate.map(Template::settings).orElse(Settings.EMPTY));
+        if (finalTemplate != null) {
+            finalSettings.put(finalTemplate.settings());
+        }
 
-        var templateToValidate = indexTemplate.toBuilder()
-            .template(
-                new Template(
-                    finalSettings.build(),
-                    finalTemplate.map(Template::mappings).orElse(null),
-                    finalTemplate.map(Template::aliases).orElse(null),
-                    finalTemplate.map(Template::lifecycle).orElse(null)
-                )
-            )
-            .build();
+        var templateToValidate = indexTemplate.toBuilder().template(Template.builder(finalTemplate).settings(finalSettings)).build();
 
         validate(name, templateToValidate);
         validateDataStreamsStillReferenced(currentState, name, templateToValidate);

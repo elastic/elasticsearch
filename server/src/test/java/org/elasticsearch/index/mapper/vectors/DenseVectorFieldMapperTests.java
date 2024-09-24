@@ -2171,21 +2171,21 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             final Object vector1;
             final Object vector2;
             if (elementType.equals(ElementType.FLOAT)) {
-                vector1 = new double[]{1, 2, 3};
-                vector2 = new double[]{4, 5, 6};
+                vector1 = new double[] { 1, 2, 3 };
+                vector2 = new double[] { 4, 5, 6 };
             } else {
-                vector1 = new int[]{1, 2, 3};
-                vector2 = new int[]{4, 5, 6};
+                vector1 = new int[] { 1, 2, 3 };
+                vector2 = new int[] { 4, 5, 6 };
             }
             assertSourcePatch(
-                    mapperService,
-                    Map.of(
-                            "nested",
-                            List.of(Map.of("field", vector1, "another_field", 65), Map.of(), Map.of("field", vector2), Map.of("another_field", 32)),
-                            "another_field",
-                            75
-                    ),
-                    true
+                mapperService,
+                Map.of(
+                    "nested",
+                    List.of(Map.of("field", vector1, "another_field", 65), Map.of(), Map.of("field", vector2), Map.of("another_field", 32)),
+                    "another_field",
+                    75
+                ),
+                true
             );
         }
     }

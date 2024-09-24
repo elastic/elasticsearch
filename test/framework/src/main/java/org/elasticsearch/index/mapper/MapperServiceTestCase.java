@@ -859,7 +859,10 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         final String synthetic2;
         {
             int[] docIds = new int[] { docId };
-            SourceLoader sourceLoader = new SourceLoader.Synthetic(() -> mapper.mapping().syntheticFieldLoader(null), SourceFieldMetrics.NOOP);
+            SourceLoader sourceLoader = new SourceLoader.Synthetic(
+                () -> mapper.mapping().syntheticFieldLoader(null),
+                SourceFieldMetrics.NOOP
+            );
             var sourceLeafLoader = sourceLoader.leaf(getOnlyLeafReader(reader), docIds);
             var storedFieldLoader = StoredFieldLoader.create(false, sourceLoader.requiredStoredFields())
                 .getLoader(leafReader.getContext(), docIds);

@@ -1,13 +1,13 @@
 [[getting-started]]
-== Quick start: Add data using API
+== Quick start: Add data using Elasticsearch APIs
 ++++
-<titleabbrev>Basics: Add data using API</titleabbrev>
+<titleabbrev>Basics: Add data using APIs</titleabbrev>
 ++++
 
-In this quickstart guide you'll learn how to:
+In this quick start guide, you'll learn how to do the following tasks:
 
-* Add a small (non-timestamped) dataset to {es} using the REST API
-* Run basic searches
+* Add a small, non-timestamped dataset to {es} using Elasticsearch REST APIs.
+* Run basic searches.
 
 [discrete]
 [[add-data]]
@@ -213,7 +213,7 @@ PUT books/_mapping
 ----
 // TEST[continued]
 
-Now you can add a document with an embedding to the `books` index.
+Next, you can add a document with an embedding to the `books` index.
 
 [source,console]
 ----

@@ -2,7 +2,7 @@
 == {es} basics
 
 This guide covers the core concepts you need to understand to get started with {es}.
-If you'd prefer to start working with {es} right away, set up a <<run-elasticsearch-locally,local dev environment>> and jump to <<quickstart,hands-on code examples>> .
+If you'd prefer to start working with {es} right away, set up a <<run-elasticsearch-locally,local dev environment>> and jump to <<quickstart,hands-on code examples>>.
 
 This guide covers the following topics:
 
@@ -49,18 +49,18 @@ Combined with https://www.elastic.co/kibana[{kib}], it powers the following Elas
 **Observability**
 
 * *Logs, metrics, and traces*: Collect, store, and analyze logs, metrics, and traces from applications, systems, and services.
-* *Application performance monitoring (APM)*: Monitor and analyze application performance data.
+* *Application performance monitoring (APM)*: Monitor and analyze the performance of business-critical software applications.
 * *Real user monitoring (RUM)*: Monitor, quantify, and analyze user interactions with web applications.
-* *OpenTelemetry*: Elastic has full native support for OpenTelemetry data.
+* *OpenTelemetry*: Reuse your existing instrumentation to send telemetry data to the Elastic Stack using the OpenTelemetry standard.
 
 **Search**
 
-* *Full-text search*: Fast, relevant full-text search using inverted indexes, tokenization, and text analysis.
+* *Full-text search*: Build a fast, relevant full-text search solution using inverted indexes, tokenization, and text analysis.
 * *Vector database*: Store and search vectorized data, and create vector embeddings with built-in and third-party natural language processing (NLP) models.
-* *Semantic search*: Understand the intent and contextual meaning behind search queries using tools like synonyms, dense vector embeddings, and learned sparse query/document expansion.
+* *Semantic search*: Understand the intent and contextual meaning behind search queries using tools like synonyms, dense vector embeddings, and learned sparse query-document expansion.
 * *Hybrid search*: Combine full-text search with vector search using state-of-the-art ranking algorithms.
-* *Search applications*: Add hybrid search capabilities to apps or websites, or build enterprise search engines over your organization's internal data sources.
-* *Retrieval augmented generation (RAG)*: Use {es} as a retrieval engine to update and augment Generative AI models.
+* *Build search experiences*: Add hybrid search capabilities to apps or websites, or build enterprise search engines over your organization's internal data sources.
+* *Retrieval augmented generation (RAG)*: Use {es} as a retrieval engine to supplement generative AI models with more relevant, up-to-date, or proprietary data for a range of use cases.
 * *Geospatial search*: Search for locations and calculate spatial relationships using geospatial queries.
 
 **Security**
@@ -152,10 +152,10 @@ A simple {es} document might look like this:
 
 [discrete]
 [[elasticsearch-intro-documents-fields-data-metadata]]
-==== Data and metadata
+==== Metadata fields
 
-An indexed document contains data and metadata.
-In {es}, <<mapping-fields,metadata fields>> are prefixed with an underscore.
+An indexed document contains data and metadata. <<mapping-fields,Metadata fields>> are system fields that store information about the documents.
+In {es}, metadata fields are prefixed with an underscore.
 For example, the following fields are metadata fields:
 
 * `_index`: The name of the index where the document is stored.
@@ -170,7 +170,7 @@ A mapping defines the <<mapping-types,data type>> for each field, how the field 
 and how it should be stored.
 When adding documents to {es}, you have two options for mappings:
 
-* <<mapping-dynamic, Dynamic mapping>>: Let {es} automatically detect the data types and create the mappings for you. This is great for getting started quickly, but might yield suboptimal results for your specific use case due to automatic field type inference.
+* <<mapping-dynamic, Dynamic mapping>>: Let {es} automatically detect the data types and create the mappings for you. Dynamic mapping helps you get started quickly, but might yield suboptimal results for your specific use case due to automatic field type inference.
 * <<mapping-explicit, Explicit mapping>>: Define the mappings up front by specifying data types for each field. Recommended for production use cases, because you have full control over how your data is indexed to suit your specific use case.
 
 [TIP]
@@ -184,19 +184,20 @@ This is useful when you have a mix of known and unknown fields in your data.
 === Add data to {es}
 
 There are multiple ways to ingest data into {es}.
-The option that you choose depends on whether you're working with timestamped data, non-timestamped data, where the data is coming from, its complexity, and more.
+The option that you choose depends on whether you're working with timestamped data or non-timestamped data, where the data is coming from, its complexity, and more.
 
 [discrete]
 [[es-ingestion-overview-general-content]]
 ==== General content
 
 General content is data that does not have a timestamp.
-This could be data like vector embeddings, website content, product catalogs, or more.
+This could be data like vector embeddings, website content, product catalogs, and more.
 For general content, you have the following options for adding data to {es} indices:
 
-* <<docs,API>>: Use the {es} <<docs,Document APIs>> to index documents directly, using the Dev Tools {kibana-ref}/console-kibana.html[Console], cURL.
-** You can use https://www.elastic.co/guide/en/elasticsearch/client/index.html[{es} programming language clients] to index documents in your programming language of choice. For Python devs, check out the `elasticsearch-labs` repo for various https://github.com/elastic/elasticsearch-labs/tree/main/notebooks/search/python-examples[example notebooks]. 
-* {kibana-ref}/connect-to-elasticsearch.html#upload-data-kibana[File upload]: Use the {kib} file uploader to upload and index CSV, JSON, and log files.
+* <<docs,API>>: Use the {es} <<docs,Document APIs>> to index documents directly, using the Dev Tools {kibana-ref}/console-kibana.html[Console], or cURL.
++
+If you're building a website or app, then you can call Elasticsearch APIs using an https://www.elastic.co/guide/en/elasticsearch/client/index.html[{es} client] in the programming language of your choice. If you use the Python client, then check out the `elasticsearch-labs` repo for various https://github.com/elastic/elasticsearch-labs/tree/main/notebooks/search/python-examples[example notebooks]. 
+* {kibana-ref}/connect-to-elasticsearch.html#upload-data-kibana[File upload]: Use the {kib} file uploader to upload and index various file formats, including CSV, JSON, and log files. The GUI guides you through the index setup process, making it easier to prepare your data for search and exploration."
 * {kibana-ref}/connect-to-elasticsearch.html#_add_sample_data[Sample data]: Load sample data sets into your {es} cluster using {kib}.
 * https://github.com/elastic/crawler[Web crawler]: Extract and index web page content into {es} documents.
 * {enterprise-search-ref}/connectors.html[Connectors]: Sync data from various third-party data sources to create searchable, read-only replicas in {es}.
@@ -209,9 +210,9 @@ For timestamped data, you have the following options for adding data to {es} dat
 
 * {fleet-guide}/fleet-overview.html[Elastic Agent and Fleet]: The preferred way to index timestamped data. Each Elastic Agent based integration includes default ingestion rules, dashboards, and visualizations to start analyzing your data right away.
 You can use the Fleet UI in {kib} to centrally manage Elastic Agents and their policies.
-* {beats-ref}/beats-reference.html[Beats]: If your data source isn't supported by Elastic Agent, use Beats to collect and ship data. You install a separate Beat for each type of data to collect.
+* {beats-ref}/beats-reference.html[Beats]: If your data source isn't supported by Elastic Agent, use Beats to collect and ship data to Elasticsearch. You install a separate Beat for each type of data to collect.
 * {logstash-ref}/introduction.html[Logstash]: Logstash is an open source data collection engine with real-time pipelining capabilities that supports a wide variety of data sources. You might use this option because neither Elastic Agent nor Beats supports your data source. You can also use Logstash to persist incoming data, or if you need to send the data to multiple destinations. 
-* {cloud}/ec-ingest-guides.html[Language clients]: The linked tutorials demonstrate how to use {es} programming language clients to ingest data from an application. (In these examples, {es} is running on Elastic Cloud, but the same principles apply to any {es} deployment.)
+* {cloud}/ec-ingest-guides.html[Language clients]: The linked tutorials demonstrate how to use {es} programming language clients to ingest data from an application. In these examples, {es} is running on Elastic Cloud, but the same principles apply to any {es} deployment.
 
 [TIP]
 ====
@@ -228,7 +229,7 @@ However, the real power of {es} comes from its advanced search and analytics cap
 
 [discrete]
 [[search-analyze-rest-api]]
-==== Rest API
+==== REST API
 
 Use {es}'s REST API to manage your cluster, and to index
 and search your data.
@@ -287,7 +288,7 @@ A query that uses the `filter` parameter indicates <<filter-context,filter conte
 Aggregrations enable you to build complex summaries of your data and gain
 insight into key metrics, patterns, and trends.
 
-Because aggregations leverage the same data-structures used for search, they are
+Because aggregations leverage the same data structures used for search, they are
 also very fast. This enables you to analyze and visualize your data in real time.
 You can search documents, filter results, and perform analytics at the same time, on the same
 data, in a single request.
@@ -332,8 +333,8 @@ The following table summarizes all available {es} query languages, to help you c
 | Name | Description | Use cases | API endpoint
 
 | <<query-dsl,Query DSL>>
-| Primary query language for {es}. Powerful and flexible JSON-style language that enables complex queries.
-| Supports full-text search, semantic search, keyword search, filtering, aggregations, and more.
+| The primary query language for {es}. A powerful and flexible JSON-style language that enables complex queries.
+| Full-text search, semantic search, keyword search, filtering, aggregations, and more.
 | <<search-search,`_search`>>
 
 
@@ -346,7 +347,7 @@ Does not yet support full-text search.
 
 
 | <<eql,EQL>>
-| Event Query Language (EQL) is a query language for event-based time series data. Data must contain an `@timestamp` field to use EQL.
+| Event Query Language (EQL) is a query language for event-based time series data. Data must contain the `@timestamp` field to use EQL.
 | Designed for the threat hunting security use case.
 | <<eql-apis,`_eql`>>
 

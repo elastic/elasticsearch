@@ -1,7 +1,7 @@
 [[run-elasticsearch-locally]]
 == Run {es} locally in Docker
 ++++
-<titleabbrev>Start in local dev</titleabbrev>
+<titleabbrev>Run {es} locally</titleabbrev>
 ++++
 
 [WARNING]
@@ -9,11 +9,13 @@
 *DO NOT USE THESE INSTRUCTIONS FOR PRODUCTION DEPLOYMENTS*
 
 The instructions on this page are for *local development only*. Do not use these instructions for production deployments, because they are not secure.
-While this approach is convenient for experimenting and learning, you should never run the service in this way in a production environment.
+While this approach is convenient for experimenting and learning, you should never run the Elasticsearch in this way in a production environment.
 ====
 
-Use this setup if you want to quickly spin up {es} (and {kib}) in Docker for local development or testing.
-(If you don't need the {kib} UI, you can skip those instructions.)
+Follow this tutorial if you want to quickly set up {es} in Docker for local development or testing.
+
+This tutorial also includes instructions for installing {kib}. 
+ If you don't need access to the {kib} UI, then you can skip those instructions.
 
 [discrete]
 [[local-dev-prerequisites]]
@@ -110,7 +112,7 @@ The service is started with a trial license. The trial license enables all featu
 
 [discrete]
 [[local-dev-connecting-clients]]
-=== Connecting to {es} with language clients
+=== Connect to {es} with language clients
 
 To connect to the {es} cluster from a language client, you can use basic authentication with the `elastic` username and the password you set in the environment variable.
 

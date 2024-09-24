@@ -190,7 +190,7 @@ IP dimensions:
         refresh: true
         body:
           - create: {}
-          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z","data_stream":{"dataset":"generic.otel","namespace":"default"},"attributes":{"processor.pid": 17, "transaction.root":false},"resource":{"attributes":{"service.name":"OtelSample","telemetry.sdk.language":"dotnet","telemetry.sdk.name":"opentelemetry"}}}'
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z","attributes":{"processor.pid": 17}}'
   - is_false: errors
   - do:
       search:

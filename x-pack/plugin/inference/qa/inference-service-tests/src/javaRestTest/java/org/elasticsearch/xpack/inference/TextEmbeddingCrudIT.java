@@ -115,7 +115,7 @@ public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
     private String noModelIdVariantJsonEntity() {
         return """
                 {
-                  "service": "text_embedding",
+                  "service": "elasticsearch",
                   "service_settings": {
                     "num_allocations": 1,
                     "num_threads": 1
@@ -127,7 +127,7 @@ public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
     private String platformAgnosticModelVariantJsonEntity() {
         return """
                 {
-                  "service": "text_embedding",
+                  "service": "elasticsearch",
                   "service_settings": {
                     "num_allocations": 1,
                     "num_threads": 1,
@@ -140,7 +140,7 @@ public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
     private String platformSpecificModelVariantJsonEntity() {
         return """
                 {
-                  "service": "text_embedding",
+                  "service": "elasticsearch",
                   "service_settings": {
                     "num_allocations": 1,
                     "num_threads": 1,
@@ -153,7 +153,7 @@ public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
     private String fakeModelVariantJsonEntity() {
         return """
                 {
-                  "service": "text_embedding",
+                  "service": "elasticsearch",
                   "service_settings": {
                     "num_allocations": 1,
                     "num_threads": 1,

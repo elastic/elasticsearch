@@ -212,7 +212,6 @@ public class RestVectorTileAction extends BaseRestHandler {
         searchRequestBuilder.setRuntimeMappings(runtimeMappings);
         // For Hex aggregation we might need to buffer the bounding box
         final Rectangle boxFilter = request.getGridAgg().bufferTile(request.getBoundingBox(), request.getZ(), request.getGridPrecision());
-
         QueryBuilder qBuilder = QueryBuilders.geoShapeQuery(request.getField(), boxFilter);
         if (request.getQueryBuilder() != null) {
             final BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();

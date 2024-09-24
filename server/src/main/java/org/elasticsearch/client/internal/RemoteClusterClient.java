@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RemoteClusterActionType;
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportResponse;
@@ -30,9 +29,10 @@ public interface RemoteClusterClient {
         Request request,
         ActionListener<Response> listener
     ) {
-        SubscribableListener.<Transport.Connection>newForked(connectionListener -> getConnection(request, connectionListener))
-            .<Response>andThen((responseListener, connection) -> execute(connection, action, request, responseListener))
-            .addListener(listener);
+        getConnection(
+            request,
+            listener.delegateFailureAndWrap((responseListener, connection) -> execute(connection, action, request, responseListener))
+        );
     }
 
     /**

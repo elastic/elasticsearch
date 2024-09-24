@@ -27,13 +27,15 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.RetryableAction;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BooleanSupplier;
+import java.util.function.Function;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -47,7 +49,9 @@ public class BatchedCompoundCommitUploadTask extends RetryableAction<BatchedComp
     private final ThreadPool threadPool;
     private final SharedBlobCacheWarmingService cacheWarmingService;
     private final ObjectStoreService objectStoreService;
-    private final StatelessCommitService.ShardCommitState shardCommitState;
+    private final BooleanSupplier shouldRetrySupplier;
+    private final Function<Long, Boolean> pauseUploadSupplier;
+    private final TriConsumer<ActionListener<Void>, ActionListener<BatchedCompoundCommit>, Long> uploadWhenReady;
     private final VirtualBatchedCompoundCommit virtualBcc;
     private final ShardId shardId;
     private final long generation;
@@ -59,7 +63,9 @@ public class BatchedCompoundCommitUploadTask extends RetryableAction<BatchedComp
         ThreadPool threadPool,
         SharedBlobCacheWarmingService cacheWarmingService,
         ObjectStoreService objectStoreService,
-        StatelessCommitService.ShardCommitState shardCommitState,
+        BooleanSupplier shouldRetrySupplier,
+        Function<Long, Boolean> pauseUploadSupplier,
+        TriConsumer<ActionListener<Void>, ActionListener<BatchedCompoundCommit>, Long> uploadWhenReady,
         VirtualBatchedCompoundCommit virtualBcc,
         TimeValue initialDelay,
         ActionListener<BatchedCompoundCommit> listener
@@ -78,13 +84,17 @@ public class BatchedCompoundCommitUploadTask extends RetryableAction<BatchedComp
         this.threadPool = threadPool;
         this.cacheWarmingService = cacheWarmingService;
         this.objectStoreService = objectStoreService;
-        this.shardCommitState = shardCommitState;
+        this.shouldRetrySupplier = shouldRetrySupplier;
+        this.pauseUploadSupplier = pauseUploadSupplier;
+        this.uploadWhenReady = uploadWhenReady;
         this.virtualBcc = virtualBcc;
         this.shardId = virtualBcc.getShardId();
         this.generation = virtualBcc.getPrimaryTermAndGeneration().generation();
         this.startNanos = threadPool.relativeTimeInNanos();
     }
 
+    // TODO: shouldRetrySupplier, pauseUploadSupplier and uploadWhenReady (in executeUpload)
+    // could possibly be refactored into a single lambda, rather than three separate checks/delays on whether to upload, to simplify logic.
     @Override
     public void tryAction(ActionListener<BatchedCompoundCommit> listener) {
         ++uploadTryNumber;
@@ -93,14 +103,14 @@ public class BatchedCompoundCommitUploadTask extends RetryableAction<BatchedComp
         // the next upload attempt will be allowed through. If the state is transition to CLOSED then we still don't upload and the upload
         // task will not be retried again. We rely on and accept the max retry delay of 5s, i.e., in case of hand-off abort, this upload
         // could be delayed for up to 5 additional seconds.
-        if (shardCommitState.uploadIfRunningOrNotGreaterThanMaxGenerationToUpload(generation)) {
+        if (pauseUploadSupplier.apply(generation)) {
+            logger.trace(() -> format("%s skipped upload [%s] to object because of active relocation handoff", shardId, generation));
+            listener.onFailure(new IllegalStateException("Upload paused because of relocation handoff"));
+        } else {
             executeUpload(listener.delegateResponse((l, e) -> {
                 logUploadAttemptFailure(e);
                 l.onFailure(e);
             }));
-        } else {
-            logger.trace(() -> format("%s skipped upload [%s] to object because of active relocation handoff", shardId, generation));
-            listener.onFailure(new IllegalStateException("Upload paused because of relocation handoff"));
         }
     }
 
@@ -128,27 +138,9 @@ public class BatchedCompoundCommitUploadTask extends RetryableAction<BatchedComp
     private void executeUpload(ActionListener<BatchedCompoundCommit> listener) {
         try {
             ActionListener<Void> uploadReadyListener = listener.delegateFailure((l, v) -> uploadBatchedCompoundCommitFile(l));
-            checkReadyToUpload(uploadReadyListener, listener);
+            uploadWhenReady.apply(uploadReadyListener, listener, generation);
         } catch (Exception e) {
             listener.onFailure(e);
-        }
-    }
-
-    private void checkReadyToUpload(ActionListener<Void> readyListener, ActionListener<BatchedCompoundCommit> notReadyListener) {
-        Optional<VirtualBatchedCompoundCommit> missing = shardCommitState.getMaxPendingUploadBccBeforeGeneration(generation);
-        if (missing.isPresent()) {
-            long missingGeneration = missing.get().getPrimaryTermAndGeneration().generation();
-            logger.trace("{} waiting for commit [{}] to finish before uploading commit [{}]", shardId, missingGeneration, generation);
-            shardCommitState.addListenerForUploadedGeneration(missingGeneration, notReadyListener.delegateFailure((l, unused) -> {
-                assert shardCommitState.getPendingUploadBccGenerations().containsKey(missingGeneration) == false
-                    : "missingGeneration ["
-                        + missingGeneration
-                        + "] still in "
-                        + shardCommitState.getPendingUploadBccGenerations().keySet();
-                executeUpload(notReadyListener);
-            }));
-        } else {
-            readyListener.onResponse(null);
         }
     }
 
@@ -156,7 +148,6 @@ public class BatchedCompoundCommitUploadTask extends RetryableAction<BatchedComp
         try (RefCountingListener refCountingListener = new RefCountingListener(listener.delegateFailureAndWrap((l, unused) -> {
             BatchedCompoundCommit uploadedBcc = virtualBcc.getFrozenBatchedCompoundCommit();
             assert uploadedBcc.last() != null;
-            shardCommitState.markBccUploaded(uploadedBcc);
             l.onResponse(uploadedBcc);
         }))) {
             if (cacheWarmedAttempted.compareAndSet(false, true)) {
@@ -201,6 +192,6 @@ public class BatchedCompoundCommitUploadTask extends RetryableAction<BatchedComp
 
     @Override
     public boolean shouldRetry(Exception e) {
-        return shardCommitState.isClosed() == false;
+        return shouldRetrySupplier.getAsBoolean();
     }
 }

@@ -45,7 +45,7 @@ public class SyntheticSourceIndexSettingsProvider implements IndexSettingProvide
     ) {
         if (newIndexHasSyntheticSourceUsage(indexTemplateAndCreateRequestSettings)
             && syntheticSourceLicenseService.fallbackToStoredSource()) {
-            LOGGER.debug("creation of a new index with synthetic source without it being allowed");
+            LOGGER.debug("creation of index [{}] with synthetic source without it being allowed", indexName);
             // TODO: handle falling back to stored source
         }
         return Settings.EMPTY;

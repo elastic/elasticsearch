@@ -83,6 +83,32 @@ if [[ "${USE_PROD_DOCKER_CREDENTIALS:-}" == "true" ]]; then
 
   DOCKER_REGISTRY_PASSWORD="$(vault read -field=password secret/ci/elastic-elasticsearch/migrated/prod_docker_registry_credentials)"
   export DOCKER_REGISTRY_PASSWORD
+
+  # Base64 encode the username:password
+  ENCODED_AUTH=$(echo -n "${DOCKER_REGISTRY_USERNAME}:${DOCKER_REGISTRY_PASSWORD}" | base64)
+
+DOCKER_REGISTRY_URL="docker.elastic.co"
+
+# Create the config.json file with the necessary structure
+CONFIG_JSON=$(cat <<EOF
+{
+  "auths": {
+    "${DOCKER_REGISTRY_URL}": {
+      "auth": "${ENCODED_AUTH}"
+    }
+  }
+}
+EOF
+)
+
+  # Define the Docker config directory path (default is ~/.docker)
+  DOCKER_CONFIG_PATH="${HOME}/.docker"
+
+  # Create the Docker config directory if it doesn't exist
+  mkdir -p ${DOCKER_CONFIG_PATH}
+
+  # Write the config.json to the Docker config directory
+  echo "${CONFIG_JSON}" > ${DOCKER_CONFIG_PATH}/config.json
 fi
 
 if [[ "$BUILDKITE_AGENT_META_DATA_PROVIDER" != *"k8s"* ]]; then

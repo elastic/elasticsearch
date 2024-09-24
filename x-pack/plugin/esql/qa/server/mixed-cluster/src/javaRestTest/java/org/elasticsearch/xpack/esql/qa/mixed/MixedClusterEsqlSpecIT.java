@@ -72,6 +72,10 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     protected void shouldSkipTest(String testName) throws IOException {
         super.shouldSkipTest(testName);
         assumeTrue("Test " + testName + " is skipped on " + bwcVersion, isEnabled(testName, instructions, bwcVersion));
+        assumeFalse(
+            "Skip META tests on mixed version clusters because we change it too quickly",
+            testCase.requiredCapabilities.contains("meta")
+        );
         if (mode == ASYNC) {
             assumeTrue("Async is not supported on " + bwcVersion, supportsAsync());
         }

@@ -1,0 +1,5 @@
+pr: 113036
+summary: Add an option to replace `_source` field values with synthetic references
+area: Mapping
+type: feature
+issues: []

@@ -6,6 +6,10 @@ _meta:
 template:
   settings:
     codec: best_compression
+    index:
+      mapper:
+        source:
+          mode: synthetic
     mapping:
       # apm@settings sets `ignore_malformed: true`, but we need
       # to disable this for metrics since they use synthetic source,

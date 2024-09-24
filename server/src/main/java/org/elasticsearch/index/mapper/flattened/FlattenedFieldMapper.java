@@ -113,6 +113,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "flattened";
     public static final String KEYED_FIELD_SUFFIX = "._keyed";
+    public static final String KEYED_IGNORED_VALUES_FIELD_SUFFIX = "._keyed._ignored";
     public static final String TIME_SERIES_DIMENSIONS_ARRAY_PARAM = "time_series_dimensions";
 
     private static class Defaults {
@@ -814,6 +815,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         this.fieldParser = new FlattenedFieldParser(
             mappedFieldType.name(),
             mappedFieldType.name() + KEYED_FIELD_SUFFIX,
+            mappedFieldType.name() + KEYED_IGNORED_VALUES_FIELD_SUFFIX,
             mappedFieldType,
             builder.depthLimit.get(),
             builder.ignoreAbove.get(),
@@ -882,7 +884,12 @@ public final class FlattenedFieldMapper extends FieldMapper {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         if (fieldType().hasDocValues()) {
-            var loader = new FlattenedSortedSetDocValuesSyntheticFieldLoader(fullPath(), fullPath() + "._keyed", leafName());
+            var loader = new FlattenedSortedSetDocValuesSyntheticFieldLoader(
+                fullPath(),
+                fullPath() + KEYED_FIELD_SUFFIX,
+                ignoreAbove() < Integer.MAX_VALUE ? fullPath() + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
+                leafName()
+            );
 
             return new SyntheticSourceSupport.Native(loader);
         }

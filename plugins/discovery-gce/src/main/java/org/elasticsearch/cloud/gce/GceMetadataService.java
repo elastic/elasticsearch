@@ -26,7 +26,6 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.security.GeneralSecurityException;
-import java.util.function.Function;
 
 public class GceMetadataService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(GceMetadataService.class);
@@ -35,10 +34,9 @@ public class GceMetadataService extends AbstractLifecycleComponent {
     // http://metadata/computeMetadata/v1/instance/service-accounts/default/token
     // See https://developers.google.com/compute/docs/metadata#metadataserver
     // all settings just used for testing - not registered by default
-    public static final Setting<String> GCE_HOST = new Setting<>(
+    public static final Setting<String> GCE_HOST = Setting.simpleString(
         "cloud.gce.host",
         "http://metadata.google.internal",
-        Function.identity(),
         Setting.Property.NodeScope
     );
 

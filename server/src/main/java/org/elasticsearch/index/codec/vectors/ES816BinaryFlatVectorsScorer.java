@@ -34,7 +34,7 @@ import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
 import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
 
 /** Vector scorer over binarized vector values */
-public class ES816BinaryFlatVectorsScorer implements BinaryFlatVectorsScorer {
+public class ES816BinaryFlatVectorsScorer implements FlatVectorsScorer {
     private final FlatVectorsScorer nonQuantizedDelegate;
 
     public ES816BinaryFlatVectorsScorer(FlatVectorsScorer nonQuantizedDelegate) {
@@ -87,10 +87,9 @@ public class ES816BinaryFlatVectorsScorer implements BinaryFlatVectorsScorer {
         return nonQuantizedDelegate.getRandomVectorScorer(similarityFunction, vectorValues, target);
     }
 
-    @Override
     public RandomVectorScorerSupplier getRandomVectorScorerSupplier(
         VectorSimilarityFunction similarityFunction,
-        RandomAccessBinarizedQueryByteVectorValues scoringVectors,
+        ES816BinaryQuantizedVectorsWriter.OffHeapBinarizedQueryVectorValues scoringVectors,
         RandomAccessBinarizedByteVectorValues targetVectors
     ) {
         return new BinarizedRandomVectorScorerSupplier(scoringVectors, targetVectors, similarityFunction);
@@ -103,12 +102,12 @@ public class ES816BinaryFlatVectorsScorer implements BinaryFlatVectorsScorer {
 
     /** Vector scorer supplier over binarized vector values */
     public static class BinarizedRandomVectorScorerSupplier implements RandomVectorScorerSupplier {
-        private final RandomAccessBinarizedQueryByteVectorValues queryVectors;
+        private final ES816BinaryQuantizedVectorsWriter.OffHeapBinarizedQueryVectorValues queryVectors;
         private final RandomAccessBinarizedByteVectorValues targetVectors;
         private final VectorSimilarityFunction similarityFunction;
 
         public BinarizedRandomVectorScorerSupplier(
-            RandomAccessBinarizedQueryByteVectorValues queryVectors,
+            ES816BinaryQuantizedVectorsWriter.OffHeapBinarizedQueryVectorValues queryVectors,
             RandomAccessBinarizedByteVectorValues targetVectors,
             VectorSimilarityFunction similarityFunction
         ) {

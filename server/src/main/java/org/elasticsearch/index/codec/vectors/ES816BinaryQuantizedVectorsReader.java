@@ -59,12 +59,12 @@ public class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader {
     private final Map<String, FieldEntry> fields = new HashMap<>();
     private final IndexInput quantizedVectorData;
     private final FlatVectorsReader rawVectorsReader;
-    private final BinaryFlatVectorsScorer vectorScorer;
+    private final ES816BinaryFlatVectorsScorer vectorScorer;
 
     public ES816BinaryQuantizedVectorsReader(
         SegmentReadState state,
         FlatVectorsReader rawVectorsReader,
-        BinaryFlatVectorsScorer vectorsScorer
+        ES816BinaryFlatVectorsScorer vectorsScorer
     ) throws IOException {
         super(vectorsScorer);
         this.vectorScorer = vectorsScorer;

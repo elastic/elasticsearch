@@ -49,7 +49,9 @@ public class ES816BinaryQuantizedVectorsFormat extends FlatVectorsFormat {
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );
 
-    private final BinaryFlatVectorsScorer scorer = new ES816BinaryFlatVectorsScorer(FlatVectorScorerUtil.getLucene99FlatVectorsScorer());
+    private final ES816BinaryFlatVectorsScorer scorer = new ES816BinaryFlatVectorsScorer(
+        FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
+    );
 
     /** Creates a new instance with the default number of vectors per cluster. */
     public ES816BinaryQuantizedVectorsFormat() {

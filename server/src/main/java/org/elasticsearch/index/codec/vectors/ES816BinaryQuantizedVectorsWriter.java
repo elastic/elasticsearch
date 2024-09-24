@@ -73,7 +73,7 @@ public class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
     private final List<FieldWriter> fields = new ArrayList<>();
     private final IndexOutput meta, binarizedVectorData;
     private final FlatVectorsWriter rawVectorDelegate;
-    private final BinaryFlatVectorsScorer vectorsScorer;
+    private final ES816BinaryFlatVectorsScorer vectorsScorer;
     private boolean finished;
 
     /**
@@ -82,7 +82,7 @@ public class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
      * @param vectorsScorer the scorer to use for scoring vectors
      */
     protected ES816BinaryQuantizedVectorsWriter(
-        BinaryFlatVectorsScorer vectorsScorer,
+        ES816BinaryFlatVectorsScorer vectorsScorer,
         FlatVectorsWriter rawVectorDelegate,
         SegmentWriteState state
     ) throws IOException {
@@ -722,7 +722,7 @@ public class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
     }
 
     // When accessing vectorValue method, targerOrd here means a row ordinal.
-    static class OffHeapBinarizedQueryVectorValues implements RandomAccessBinarizedQueryByteVectorValues {
+    static class OffHeapBinarizedQueryVectorValues {
         private final IndexInput slice;
         private final int dimension;
         private final int size;
@@ -749,7 +749,6 @@ public class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
             this.byteSize = binaryDimensions + Float.BYTES * correctiveValuesSize + Short.BYTES;
         }
 
-        @Override
         public float getCentroidDistance(int targetOrd) throws IOException {
             if (lastOrd == targetOrd) {
                 return correctiveValues[0];
@@ -758,7 +757,6 @@ public class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
             return correctiveValues[0];
         }
 
-        @Override
         public float getLower(int targetOrd) throws IOException {
             if (lastOrd == targetOrd) {
                 return correctiveValues[1];
@@ -767,7 +765,6 @@ public class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
             return correctiveValues[1];
         }
 
-        @Override
         public float getWidth(int targetOrd) throws IOException {
             if (lastOrd == targetOrd) {
                 return correctiveValues[2];
@@ -776,7 +773,6 @@ public class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
             return correctiveValues[2];
         }
 
-        @Override
         public float getNormVmC(int targetOrd) throws IOException {
             if (lastOrd == targetOrd) {
                 return correctiveValues[3];
@@ -785,7 +781,6 @@ public class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
             return correctiveValues[3];
         }
 
-        @Override
         public float getVDotC(int targetOrd) throws IOException {
             if (lastOrd == targetOrd) {
                 return correctiveValues[4];
@@ -799,7 +794,6 @@ public class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
             vectorValue(targetOrd);
         }
 
-        @Override
         public int sumQuantizedValues(int targetOrd) throws IOException {
             if (lastOrd == targetOrd) {
                 return sumQuantizationValues;
@@ -809,17 +803,14 @@ public class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
             return sumQuantizationValues;
         }
 
-        @Override
         public int size() {
             return size;
         }
 
-        @Override
         public int dimension() {
             return dimension;
         }
 
-        @Override
         public OffHeapBinarizedQueryVectorValues copy() throws IOException {
             return new OffHeapBinarizedQueryVectorValues(slice.clone(), dimension, size, vectorSimilarityFunction);
         }
@@ -828,7 +819,6 @@ public class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
             return slice;
         }
 
-        @Override
         public byte[] vectorValue(int targetOrd) throws IOException {
             if (lastOrd == targetOrd) {
                 return binaryValue;

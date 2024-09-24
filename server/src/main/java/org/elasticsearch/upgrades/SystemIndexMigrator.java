@@ -544,11 +544,18 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
      */
     private void setWriteBlock(Index index, boolean readOnlyValue, ActionListener<AcknowledgedResponse> listener) {
         final Settings readOnlySettings = Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), readOnlyValue).build();
-        UpdateSettingsClusterStateUpdateRequest updateSettingsRequest = new UpdateSettingsClusterStateUpdateRequest().indices(
-            new Index[] { index }
-        ).settings(readOnlySettings).setPreserveExisting(false).ackTimeout(TimeValue.ZERO);
 
-        metadataUpdateSettingsService.updateSettings(updateSettingsRequest, listener);
+        metadataUpdateSettingsService.updateSettings(
+            new UpdateSettingsClusterStateUpdateRequest(
+                MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
+                TimeValue.ZERO,
+                readOnlySettings,
+                UpdateSettingsClusterStateUpdateRequest.OnExisting.OVERWRITE,
+                UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REJECT,
+                index
+            ),
+            listener
+        );
     }
 
     private void reindex(SystemIndexMigrationInfo migrationInfo, ActionListener<BulkByScrollResponse> listener) {

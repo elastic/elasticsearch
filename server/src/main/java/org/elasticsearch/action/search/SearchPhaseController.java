@@ -528,8 +528,7 @@ public final class SearchPhaseController {
             true,
             aggReduceContextBuilder,
             null,
-            true,
-            null
+            true
         );
     }
 

@@ -21,6 +21,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper.TimeSeriesRoutingHashFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
@@ -1023,6 +1025,10 @@ public class SearchModule {
         registerValueFormat(DocValueFormat.BINARY.getWriteableName(), in -> DocValueFormat.BINARY);
         registerValueFormat(DocValueFormat.UNSIGNED_LONG_SHIFTED.getWriteableName(), in -> DocValueFormat.UNSIGNED_LONG_SHIFTED);
         registerValueFormat(DocValueFormat.TIME_SERIES_ID.getWriteableName(), in -> DocValueFormat.TIME_SERIES_ID);
+        registerValueFormat(
+            TimeSeriesRoutingHashFieldType.DOC_VALUE_FORMAT.getWriteableName(),
+            in -> TimeSeriesRoutingHashFieldType.DOC_VALUE_FORMAT
+        );
     }
 
     /**

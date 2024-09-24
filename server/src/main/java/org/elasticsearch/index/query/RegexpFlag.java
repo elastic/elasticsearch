@@ -10,6 +10,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.UpdateForV10;
 
 import java.util.Locale;
 
@@ -42,6 +43,7 @@ public enum RegexpFlag {
      * We use the deprecated support in Lucene 10. Will be removed in Lucene 11
      * https://github.com/elastic/elasticsearch/issues/113465
      */
+    @UpdateForV10
     COMPLEMENT(DEPRECATED_COMPLEMENT),
 
     /**

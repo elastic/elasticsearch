@@ -234,19 +234,21 @@ You can use {es} as a basic document store to retrieve documents and their
 metadata.
 However, the real power of {es} comes from its advanced search and analytics capabilities.
 
+You'll use a combination of an API endpoint and a query language to interact with your data.
+
 [discrete]
 [[search-analyze-rest-api]]
 ==== REST API
 
-Use {es}'s REST API to manage your cluster, and to index
+Use REST APIs to manage your {es} cluster, and to index
 and search your data.
 For testing purposes, you can submit requests
 directly from the command line or through the Dev Tools {kibana-ref}/console-kibana.html[Console] in {kib}.
 From your applications, you can use an
-https://www.elastic.co/guide/en/elasticsearch/client/index.html[{es} client]
+https://www.elastic.co/guide/en/elasticsearch/client/index.html[language client]
 in your programming language of choice.
 
-Refer to <<getting-started,first steps with Elasticsearch>> for a hands-on example of using the REST API, adding data to {es}, and running basic searches.
+Refer to <<getting-started,first steps with Elasticsearch>> for a hands-on example of using the `_search` endpoint, adding data to {es}, and running basic searches in Query DSL syntax.
 
 [discrete]
 [[search-analyze-query-languages]]
@@ -257,7 +259,8 @@ Refer to <<getting-started,first steps with Elasticsearch>> for a hands-on examp
 *Query DSL* is the primary query language for {es} today.
 
 *{esql}* is a new piped query language and compute engine which was first added in version *8.11*.
-It does not yet support all the features of Query DSL, like full-text search and semantic search.
+
+{esql} does not yet support all the features of Query DSL, like full-text search and semantic search.
 Look forward to new {esql} features and functionalities in each release.
 
 Refer to <<search-analyze-query-languages>> for a full overview of the query languages available in {es}.
@@ -268,6 +271,8 @@ Refer to <<search-analyze-query-languages>> for a full overview of the query lan
 
 <<query-dsl, Query DSL>> is a full-featured JSON-style query language that enables complex searching, filtering, and aggregations.
 It is the original and most powerful query language for {es} today.
+
+The <<search-your-data, `_search` endpoint>> accepts queries written in Query DSL syntax.
 
 [discrete]
 [[search-analyze-query-dsl-search-filter]]
@@ -319,6 +324,9 @@ Learn more in <<run-an-agg,Run an aggregation>>.
 <<esql,Elasticsearch Query Language ({esql})>> is a piped query language for filtering, transforming, and analyzing data.
 {esql} is built on top of a new compute engine, where search, aggregation, and transformation functions are
 directly executed within {es} itself.
+{esql} syntax can also be used within various {kib} tools.
+
+The <<esql-rest,`_query` endpoint>> accepts queries written in {esql} syntax.
 
 Today, it supports a subset of the features available in Query DSL, like aggregations, filters, and transformations.
 It does not yet support full-text search or semantic search.
@@ -329,9 +337,7 @@ Learn more in <<esql-getting-started,Getting started with {esql}>>, or try https
 
 [discrete]
 [[search-analyze-data-query-languages-table]]
-==== Query languages overview
-
-// TODO: do I belong here?
+==== List of available query languages
 
 The following table summarizes all available {es} query languages, to help you choose the right one for your use case.
 
@@ -362,6 +368,11 @@ Does not yet support full-text search.
 | Allows native, real-time SQL-like querying against {es} data. JDBC and ODBC drivers are available for integration with business intelligence (BI) tools.
 | Enables users familiar with SQL to query {es} data using familiar syntax for BI and reporting.
 | <<sql-apis,`_sql`>>
+
+| {kibana-ref}/kuery-query.html[Kibana Query Language (KQL)]
+| Kibana Query Language (KQL) is a text-based query language for filtering data that is only available in the {kib} UI.
+| Use KQL to filter documents where a value for a field exists, matches a given value, or is within a given range.
+| N/A
 
 |===
 

@@ -93,7 +93,7 @@ setup:
 ---
 "Query using a sparse embedding model and inner chunks":
   - requires:
-      cluster_features: "gte_v8.16.0"
+      cluster_features: "semantic_text.inner_hits"
       reason: semantic_text inner hits support added in 8.16.0
 
   - skip:
@@ -317,7 +317,7 @@ setup:
 ---
 "Query using a dense embedding model and inner chunks":
   - requires:
-      cluster_features: "gte_v8.16.0"
+      cluster_features: "semantic_text.inner_hits"
       reason: semantic_text inner hits support added in 8.16.0
 
   - skip:
@@ -641,7 +641,7 @@ setup:
 ---
 "Query multiple semantic text fields with inner chunks":
   - requires:
-      cluster_features: "gte_v8.16.0"
+      cluster_features: "semantic_text.inner_hits"
       reason: semantic_text inner hits support added in 8.16.0
 
   - do:
@@ -920,7 +920,7 @@ setup:
 ---
 "Query using inner chunks with invalid args":
   - requires:
-      cluster_features: "gte_v8.16.0"
+      cluster_features: "semantic_text.inner_hits"
       reason: semantic_text inner hits support added in 8.16.0
 
   - do:

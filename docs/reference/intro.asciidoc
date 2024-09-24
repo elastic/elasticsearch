@@ -245,7 +245,7 @@ and search your data.
 For testing purposes, you can submit requests
 directly from the command line or through the Dev Tools {kibana-ref}/console-kibana.html[Console] in {kib}.
 From your applications, you can use a
-https://www.elastic.co/guide/en/elasticsearch/client/index.html[language client]
+https://www.elastic.co/guide/en/elasticsearch/client/index.html[client]
 in your programming language of choice.
 
 Refer to <<getting-started,first steps with Elasticsearch>> for a hands-on example of using the `_search` endpoint, adding data to {es}, and running basic searches in Query DSL syntax.

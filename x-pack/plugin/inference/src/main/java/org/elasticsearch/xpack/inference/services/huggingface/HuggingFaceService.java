@@ -89,7 +89,7 @@ public class HuggingFaceService extends HuggingFaceBaseService {
 
             return new HuggingFaceEmbeddingsModel(embeddingsModel, updatedServiceSettings);
         } else {
-            throw ServiceUtils.invalidModelTypeForUpdateEmbeddingsModelDetails(model.getClass());
+            throw ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails(model.getClass());
         }
     }
 

@@ -209,7 +209,7 @@ public class GoogleAiStudioService extends SenderService {
 
             return new GoogleAiStudioEmbeddingsModel(embeddingsModel, updatedServiceSettings);
         } else {
-            throw ServiceUtils.invalidModelTypeForUpdateEmbeddingsModelDetails(model.getClass());
+            throw ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails(model.getClass());
         }
     }
 

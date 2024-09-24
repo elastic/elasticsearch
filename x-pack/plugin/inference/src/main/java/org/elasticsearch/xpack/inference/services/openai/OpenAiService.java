@@ -269,7 +269,7 @@ public class OpenAiService extends SenderService {
 
             return new OpenAiEmbeddingsModel(embeddingsModel, updatedServiceSettings);
         } else {
-            throw ServiceUtils.invalidModelTypeForUpdateEmbeddingsModelDetails(model.getClass());
+            throw ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails(model.getClass());
         }
     }
 

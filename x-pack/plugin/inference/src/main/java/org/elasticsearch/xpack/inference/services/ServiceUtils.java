@@ -202,7 +202,7 @@ public final class ServiceUtils {
         );
     }
 
-    public static ElasticsearchStatusException invalidModelTypeForUpdateEmbeddingsModelDetails(Class<? extends Model> invalidModelType) {
+    public static ElasticsearchStatusException invalidModelTypeForUpdateModelWithEmbeddingDetails(Class<? extends Model> invalidModelType) {
         throw new ElasticsearchStatusException(
             Strings.format("Can't update embedding details for model with unexpected type %s", invalidModelType),
             RestStatus.BAD_REQUEST

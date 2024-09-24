@@ -236,7 +236,7 @@ public class MistralService extends SenderService {
             );
             return new MistralEmbeddingsModel(embeddingsModel, updatedServiceSettings);
         } else {
-            throw ServiceUtils.invalidModelTypeForUpdateEmbeddingsModelDetails(model.getClass());
+            throw ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails(model.getClass());
         }
     }
 }

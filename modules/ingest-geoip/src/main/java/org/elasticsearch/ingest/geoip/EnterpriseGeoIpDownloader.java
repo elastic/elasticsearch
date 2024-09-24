@@ -173,15 +173,17 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
                 final String id = entry.getKey();
                 DatabaseConfiguration database = entry.getValue().database();
                 if (existingDatabaseNames.contains(database.name() + ".mmdb") == false) {
-                    logger.debug("A new database appeared [{}]", database.name());
+                    if (database.provider() instanceof DatabaseConfiguration.Maxmind maxmind) {
+                        logger.debug("A new database appeared [{}]", database.name());
+                        final String accountId = maxmind.accountId();
+                        try (HttpClient.PasswordAuthenticationHolder holder = credentialsBuilder.apply(accountId)) {
+                            if (holder == null) {
+                                logger.warn("No credentials found to download database [{}], skipping download...", id);
+                            } else {
+                                processDatabase(holder.get(), database);
+                                addedSomething = true;
+                            }
 
-                    final String accountId = database.maxmind().accountId();
-                    try (HttpClient.PasswordAuthenticationHolder holder = credentialsBuilder.apply(accountId)) {
-                        if (holder == null) {
-                            logger.warn("No credentials found to download database [{}], skipping download...", id);
-                        } else {
-                            processDatabase(holder.get(), database);
-                            addedSomething = true;
                         }
                     }
                 }
@@ -225,16 +227,17 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
             for (Map.Entry<String, DatabaseConfigurationMetadata> entry : geoIpMeta.getDatabases().entrySet()) {
                 final String id = entry.getKey();
                 DatabaseConfiguration database = entry.getValue().database();
-
-                final String accountId = database.maxmind().accountId();
-                try (HttpClient.PasswordAuthenticationHolder holder = credentialsBuilder.apply(accountId)) {
-                    if (holder == null) {
-                        logger.warn("No credentials found to download database [{}], skipping download...", id);
-                    } else {
-                        processDatabase(holder.get(), database);
+                if (database.provider() instanceof DatabaseConfiguration.Maxmind maxmind) {
+                    final String accountId = maxmind.accountId();
+                    try (HttpClient.PasswordAuthenticationHolder holder = credentialsBuilder.apply(accountId)) {
+                        if (holder == null) {
+                            logger.warn("No credentials found to download database [{}], skipping download...", id);
+                        } else {
+                            processDatabase(holder.get(), database);
+                        }
+                    } catch (Exception e) {
+                        accumulator = ExceptionsHelper.useOrSuppress(accumulator, ExceptionsHelper.convertToRuntime(e));
                     }
-                } catch (Exception e) {
-                    accumulator = ExceptionsHelper.useOrSuppress(accumulator, ExceptionsHelper.convertToRuntime(e));
                 }
             }
             if (accumulator != null) {

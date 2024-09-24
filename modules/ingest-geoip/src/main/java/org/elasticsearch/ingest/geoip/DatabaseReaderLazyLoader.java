@@ -10,6 +10,7 @@
 package org.elasticsearch.ingest.geoip;
 
 import com.maxmind.db.DatabaseRecord;
+import com.maxmind.db.Metadata;
 import com.maxmind.db.Network;
 import com.maxmind.db.NoCache;
 import com.maxmind.db.Reader;
@@ -276,5 +277,9 @@ class DatabaseReaderLazyLoader implements IpDatabase {
         } else {
             return Optional.of(builder.build(result, NetworkAddress.format(inetAddress), record.getNetwork(), List.of("en")));
         }
+    }
+
+    Metadata getMetadata() throws IOException {
+        return loader.get().getMetadata();
     }
 }

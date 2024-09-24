@@ -11,12 +11,17 @@ package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
+import org.apache.http.HttpHost;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.XContentTestUtils.JsonMapView;
 import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_INDEX_VERSION;
@@ -28,6 +33,38 @@ public class SystemIndicesUpgradeIT extends AbstractRollingUpgradeTestCase {
 
     public SystemIndicesUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
+    }
+
+    public void testSystemIndicesDescriptorsAppearInUpgradedCluster() throws Exception {
+        if (isUpgradedCluster()) {
+            // TODO/BUG? If we do not restart the cluster, only the last upgraded node has non-empty mappings_versions.
+            // The (2) nodes that upgraded first have empty mappings_versions, until we restart them.
+            getUpgradeCluster().restart(false);
+
+            try (
+                RestClient newNodeClient = buildClient(
+                    restClientSettings(),
+                    parseClusterHosts(getUpgradeCluster().getHttpAddresses()).toArray(HttpHost[]::new)
+                )
+            ) {
+
+                final Request request = new Request("GET", "_cluster/state");
+                final Response response = newNodeClient.performRequest(request);
+
+                var responseData = responseAsMap(response);
+
+                var nodesVersions = (List<?>) responseData.get("nodes_versions");
+                var nodeToMappings = new HashMap<String, Map<?, ?>>();
+                for (int i = 0; i < nodesVersions.size(); ++i) {
+                    var entry = (Map<?, ?>) nodesVersions.get(i);
+                    nodeToMappings.put(entry.get("node_id").toString(), (Map<?, ?>) entry.get("mappings_versions"));
+                }
+                var masterNode = responseData.get("master_node").toString();
+                var masterNodeMappings = nodeToMappings.get(masterNode);
+
+                assertFalse(masterNodeMappings.isEmpty());
+            }
+        }
     }
 
     @SuppressWarnings("unchecked")

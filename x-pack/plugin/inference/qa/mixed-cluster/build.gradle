@@ -18,9 +18,10 @@ dependencies {
   )
 }
 
-// inference is available in 8.11 or later
+// Inference API added in 8.11, but we generate BwC as far back as 8.9.0 to test for mixed clusters
+// with nodes where index descriptors were non-existing/used the older Version-based versioning
 def supportedVersion = bwcVersion -> {
-  return bwcVersion.onOrAfter(Version.fromString("8.11.0"));
+  return bwcVersion.onOrAfter(Version.fromString("8.9.0"));
 }
 
 BuildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->

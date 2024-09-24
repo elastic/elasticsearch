@@ -22,8 +22,9 @@ dependencies {
   javaRestTestImplementation(testArtifact(project(":qa:rolling-upgrade"), "javaRestTest"))
 }
 
-// Inference API added in 8.11
-BuildParams.bwcVersions.withWireCompatible(v -> v.after("8.11.0")) { bwcVersion, baseName ->
+// Inference API added in 8.11, but we generate BwC as far back as 8.9.0 to test for upgrades
+// from a cluster where system index descriptors were non-existing/used the older Version-based versioning
+BuildParams.bwcVersions.withWireCompatible(v -> v.after("8.9.0")) { bwcVersion, baseName ->
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)

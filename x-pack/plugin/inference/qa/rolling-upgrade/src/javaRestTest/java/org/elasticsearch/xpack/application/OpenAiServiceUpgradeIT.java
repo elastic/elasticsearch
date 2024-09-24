@@ -110,6 +110,25 @@ public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    public void testOpenAiInferenceCreateAfterUpgradeFromNonSupportedVersion() throws IOException {
+        final String upgradedClusterId = "upgraded-cluster-embeddings";
+        var testTaskType = TaskType.TEXT_EMBEDDING;
+
+        if (isUpgradedCluster()) {
+            String inferenceConfig = embeddingConfigWithModelInServiceSettings(getUrl(openAiEmbeddingsServer));
+            openAiEmbeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(embeddingResponse()));
+            put(upgradedClusterId, inferenceConfig, testTaskType);
+
+            var configs = (List<Map<String, Object>>) get(testTaskType, upgradedClusterId).get("endpoints");
+            assertThat(configs, hasSize(1));
+
+            assertEmbeddingInference(upgradedClusterId);
+
+            delete(upgradedClusterId);
+        }
+    }
+
     void assertEmbeddingInference(String inferenceId) throws IOException {
         openAiEmbeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(embeddingResponse()));
         var inferenceMap = inference(inferenceId, TaskType.TEXT_EMBEDDING, "some text");

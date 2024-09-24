@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.inference.qa.mixed;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.http.MockResponse;
@@ -19,11 +21,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.qa.mixed.MixedClusterSpecTestCase.bwcVersion;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 public class OpenAIServiceMixedIT extends BaseMixedTestCase {
 
@@ -108,6 +111,22 @@ public class OpenAIServiceMixedIT extends BaseMixedTestCase {
         assertThat(taskSettings.keySet(), empty());
 
         assertCompletionInference(inferenceId);
+    }
+
+    public void testMixedClusterNotFullySupportingOpenAiCompletionsRejectsApiCalls() throws IOException {
+        // TODO: oldClusterFeatures
+        assumeTrue("Old nodes must not support OpenAi completion", getOldClusterTestVersion().before(OPEN_AI_EMBEDDINGS_ADDED));
+        final String inferenceId = "mixed-cluster-completions";
+
+        var modelConfig = chatCompletionsConfig(getUrl(openAiChatCompletionsServer));
+
+        String endpoint = Strings.format("_inference/%s/%s?error_trace", TaskType.COMPLETION, inferenceId);
+        var request = new Request("PUT", endpoint);
+        request.setJsonEntity(modelConfig);
+        var responseException = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        var response = responseException.getResponse();
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(entityAsMap(response).get("error").toString(), startsWith("no handler found for uri [_inference/completion/"));
     }
 
     void assertCompletionInference(String inferenceId) throws IOException {

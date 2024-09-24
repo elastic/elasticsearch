@@ -1305,6 +1305,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             .orElse(Collections.emptyMap());
     }
 
+    // TODO: remove this method:
     public boolean isTimeSeriesTemplate(ComposableIndexTemplate indexTemplate) {
         var indexModeFromTemplate = retrieveIndexModeFromTemplate(indexTemplate);
         if (indexModeFromTemplate == IndexMode.TIME_SERIES) {

@@ -513,13 +513,16 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             threadPool,
             cacheWarmingService,
             objectStoreService,
-            commitState,
+            () -> commitState.isClosed() == false,
+            commitState::pauseUpload,
+            commitState::runUploadWhenCommitIsReady,
             virtualBcc,
             TimeValue.timeValueMillis(50),
             ActionListener.runAfter(new ActionListener<>() {
                 @Override
                 public void onResponse(BatchedCompoundCommit uploadedBcc) {
                     try {
+                        commitState.markBccUploaded(uploadedBcc);
                         commitState.sendNewUploadedCommitNotification(blobReference, uploadedBcc);
                     } catch (Exception e) {
                         // TODO: we should assert false here once we fix https://elasticco.atlassian.net/browse/ES-8336
@@ -712,7 +715,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     class ShardCommitState implements IndexEngineLocalReaderListener, CommitBCCResolver {
         private static final long EMPTY_GENERATION_NOTIFIED_SENTINEL = -1;
 
-        enum State {
+        private enum State {
             RUNNING,
             RELOCATING,
             CLOSED
@@ -774,23 +777,16 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         /**
-         * Returns whether to attempt to upload a file with the specified generation.
+         * Returns whether to skip uploading the commit file with the specified generation.
          *
          * When a shard is in the process of relocating, we change the state to {@link State#RELOCATING} and set a max
-         * generation to attempt to upload: we won't do further writes beyond that max point.
+         * generation to attempt to upload: we won't do further writes/uploads beyond that max generation.
          */
-        boolean uploadIfRunningOrNotGreaterThanMaxGenerationToUpload(long uploadGeneration) {
-            return state == StatelessCommitService.ShardCommitState.State.RUNNING || uploadGeneration <= maxGenerationToUpload;
+        private boolean pauseUpload(long uploadGeneration) {
+            return state != StatelessCommitService.ShardCommitState.State.RUNNING && uploadGeneration > maxGenerationToUpload;
         }
 
-        /**
-         * Returns an unmodifiable map for safety when exposed externally. Not as performant.
-         */
-        Map<Long, VirtualBatchedCompoundCommit> getPendingUploadBccGenerations() {
-            return Collections.unmodifiableMap(pendingUploadBccGenerations);
-        }
-
-        boolean isClosed() {
+        private boolean isClosed() {
             return state == State.CLOSED;
         }
 
@@ -1021,7 +1017,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 .max(Comparator.comparing(VirtualBatchedCompoundCommit::getPrimaryTermAndGeneration));
         }
 
-        Optional<VirtualBatchedCompoundCommit> getMaxPendingUploadBccBeforeGeneration(long generation) {
+        private Optional<VirtualBatchedCompoundCommit> getMaxPendingUploadBccBeforeGeneration(long generation) {
             return pendingUploadBccGenerations.values()
                 .stream()
                 .filter(vbcc -> vbcc.getPrimaryTermAndGeneration().generation() < generation)
@@ -1494,6 +1490,29 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
         }
 
+        /**
+         * Uploads a {@link BatchedCompoundCommit} via a callback uploadListener when the commit is ready for upload.
+         */
+        private void runUploadWhenCommitIsReady(
+            ActionListener<Void> uploadListener,
+            ActionListener<BatchedCompoundCommit> listener,
+            long generation
+        ) {
+            Optional<VirtualBatchedCompoundCommit> optVBCC = getMaxPendingUploadBccBeforeGeneration(generation);
+            if (optVBCC.isPresent() == false) {
+                // Run the upload.
+                uploadListener.onResponse(null);
+            } else {
+                long vbccGeneration = optVBCC.get().getPrimaryTermAndGeneration().generation();
+                logger.trace("{} waiting for commit [{}] to finish before uploading commit [{}]", shardId, vbccGeneration, generation);
+                addListenerForUploadedGeneration(vbccGeneration, listener.delegateFailure((unusedListener, unusedResponse) -> {
+                    assert pendingUploadBccGenerations.containsKey(vbccGeneration) == false
+                        : "missingGeneration [" + vbccGeneration + "] still in " + pendingUploadBccGenerations.keySet();
+                    runUploadWhenCommitIsReady(uploadListener, listener, generation);
+                }));
+            }
+        }
+
         private void sendNewCommitNotification(
             IndexShardRoutingTable shardRoutingTable,
             StatelessCompoundCommit lastCompoundCommit,
@@ -1669,7 +1688,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
          * @param generation the commit generation
          * @param listener the listener
          */
-        void addListenerForUploadedGeneration(long generation, ActionListener<Void> listener) {
+        private void addListenerForUploadedGeneration(long generation, ActionListener<Void> listener) {
             boolean completeListenerSuccess = false;
             boolean completeListenerClosed = false;
             synchronized (this) {

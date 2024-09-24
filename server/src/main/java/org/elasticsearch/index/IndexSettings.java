@@ -808,10 +808,6 @@ public final class IndexSettings {
 
     private final SourceFieldMapper.Mode sourceMode;
 
-    public SourceFieldMapper.Mode getSourceMode() {
-        return sourceMode;
-    }
-
     public boolean isSyntheticSourceMode() {
         return sourceMode == SourceFieldMapper.Mode.SYNTHETIC;
     }

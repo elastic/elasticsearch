@@ -714,13 +714,14 @@ public final class IndexSettings {
      * "index.mapping.ignore_above": 256
      * </pre>
      */
-    public static final Setting<Integer> IGNORE_ABOVE_SETTING = Setting.intSetting(
-        "index.mapping.ignore_above",
-        Integer.MAX_VALUE,
-        0,
-        Property.IndexScope,
-        Property.ServerlessPublic
-    );
+    public static final Setting<Integer> IGNORE_ABOVE_SETTING = Setting.intSetting("index.mapping.ignore_above", settings -> {
+        if (IndexSettings.MODE.get(settings) == IndexMode.LOGSDB
+            && IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.ENABLE_IGNORE_ABOVE_LOGSDB)) {
+            return "1024";
+        } else {
+            return String.valueOf(Integer.MAX_VALUE);
+        }
+    }, 0, Integer.MAX_VALUE, Property.IndexScope, Property.ServerlessPublic);
     public static final NodeFeature IGNORE_ABOVE_INDEX_LEVEL_SETTING = new NodeFeature("mapper.ignore_above_index_level_setting");
 
     private final Index index;

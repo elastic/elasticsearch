@@ -334,6 +334,55 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
         }
     }
 
+    public void testIgnoreAboveSetting() throws IOException {
+        // with default template
+        {
+            assertOK(createDataStream(client, "logs-test-1"));
+            String logsIndex1 = getDataStreamBackingIndex(client, "logs-test-1", 0);
+            assertThat(getSetting(client, logsIndex1, "index.mapping.ignore_above"), equalTo("1024"));
+            for (String newValue : List.of("512", "2048")) {
+                closeIndex(logsIndex1);
+                updateIndexSettings(logsIndex1, Settings.builder().put("index.mapping.ignore_above", newValue));
+                assertThat(getSetting(client, logsIndex1, "index.mapping.ignore_above"), equalTo(newValue));
+            }
+        }
+        // with override template
+        {
+            var template = """
+                {
+                  "template": {
+                    "settings": {
+                      "index": {
+                        "mapping": {
+                          "ignore_above": "128"
+                        }
+                      }
+                    }
+                  }
+                }""";
+            assertOK(putComponentTemplate(client, "logs@custom", template));
+            assertOK(createDataStream(client, "logs-custom-dev"));
+            String index = getDataStreamBackingIndex(client, "logs-custom-dev", 0);
+            assertThat(getSetting(client, index, "index.mapping.ignore_above"), equalTo("128"));
+            for (String newValue : List.of("64", "256")) {
+                closeIndex(index);
+                updateIndexSettings(index, Settings.builder().put("index.mapping.ignore_above", newValue));
+                assertThat(getSetting(client, index, "index.mapping.ignore_above"), equalTo(newValue));
+            }
+        }
+        // standard index
+        {
+            String index = "test-index";
+            createIndex(index);
+            assertThat(getSetting(client, index, "index.mapping.ignore_above"), equalTo(Integer.toString(Integer.MAX_VALUE)));
+            for (String newValue : List.of("256", "512")) {
+                closeIndex(index);
+                updateIndexSettings(index, Settings.builder().put("index.mapping.ignore_above", newValue));
+                assertThat(getSetting(client, index, "index.mapping.ignore_above"), equalTo(newValue));
+            }
+        }
+    }
+
     private static Map<String, Object> getMapping(final RestClient client, final String indexName) throws IOException {
         final Request request = new Request("GET", "/" + indexName + "/_mapping");
 

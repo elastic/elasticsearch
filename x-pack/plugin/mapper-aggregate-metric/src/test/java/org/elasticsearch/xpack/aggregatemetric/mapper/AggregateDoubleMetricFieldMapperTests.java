@@ -527,8 +527,8 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
     }
 
     public void testArrayValueSyntheticSource() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(
-            syntheticSourceFieldMapping(
+        DocumentMapper mapper = createSyntheticSourceDocumentMapper(
+            fieldMapping(
                 b -> b.field("type", CONTENT_TYPE)
                     .array("metrics", "min", "max")
                     .field("default_metric", "min")

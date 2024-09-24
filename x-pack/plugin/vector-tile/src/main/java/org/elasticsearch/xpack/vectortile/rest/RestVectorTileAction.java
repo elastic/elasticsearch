@@ -108,7 +108,7 @@ public class RestVectorTileAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         // This will allow to cancel the search request if the http channel is closed
         final RestCancellableNodeClient cancellableNodeClient = new RestCancellableNodeClient(client, restRequest.getHttpChannel());
-        final VectorTileRequest request = VectorTileRequest.parseRestRequest(restRequest, searchUsageHolder);
+        final VectorTileRequest request = VectorTileRequest.parseRestRequest(restRequest, searchUsageHolder::updateUsage);
         final SearchRequestBuilder searchRequestBuilder = searchRequestBuilder(cancellableNodeClient, request);
         return channel -> searchRequestBuilder.execute(new RestResponseListener<>(channel) {
 

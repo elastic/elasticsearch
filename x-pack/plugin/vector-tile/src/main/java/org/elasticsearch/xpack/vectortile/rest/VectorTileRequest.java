@@ -27,7 +27,6 @@ import org.elasticsearch.search.sort.ScriptSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.usage.SearchUsage;
-import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -36,6 +35,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -133,7 +133,7 @@ class VectorTileRequest {
         }, SearchSourceBuilder.TRACK_TOTAL_HITS_FIELD, ObjectParser.ValueType.VALUE);
     }
 
-    static VectorTileRequest parseRestRequest(RestRequest restRequest, SearchUsageHolder searchUsageHolder) throws IOException {
+    static VectorTileRequest parseRestRequest(RestRequest restRequest, Consumer<SearchUsage> searchUsageConsumer) throws IOException {
         final VectorTileRequest request = new VectorTileRequest(
             Strings.splitStringByCommaToArray(restRequest.param(INDEX_PARAM)),
             restRequest.param(FIELD_PARAM),
@@ -149,7 +149,7 @@ class VectorTileRequest {
         }
         // The API generates a query on the fly that we track here.
         searchUsage.trackQueryUsage(GeoShapeQueryBuilder.NAME);
-        searchUsageHolder.updateUsage(searchUsage);
+        searchUsageConsumer.accept(searchUsage);
         // Following the same strategy of the _search API, some parameters can be defined in the body or as URL parameters.
         // URL parameters takes precedence so we check them here.
         if (restRequest.hasParam(SearchSourceBuilder.SIZE_FIELD.getPreferredName())) {

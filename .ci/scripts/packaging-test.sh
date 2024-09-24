@@ -69,10 +69,6 @@ sudo mkdir -p /elasticsearch/qa/ && sudo chown jenkins /elasticsearch/qa/ && ln 
 # See: https://git-scm.com/docs/git-config/2.35.2#Documentation/git-config.txt-safedirectory
 git config --global --add safe.directory $WORKSPACE
 
-if [[ "${USE_PROD_DOCKER_CREDENTIALS:-}" == "true" ]]; then
-  sudo docker login -u $DOCKER_REGISTRY_USERNAME -p $DOCKER_REGISTRY_PASSWORD docker.elastic.co
-fi
-
 # sudo sets it's own PATH thus we use env to override that and call sudo annother time so we keep the secure root PATH
 # run with --continue to run both bats and java tests even if one fails
 # be explicit about Gradle home dir so we use the same even with sudo

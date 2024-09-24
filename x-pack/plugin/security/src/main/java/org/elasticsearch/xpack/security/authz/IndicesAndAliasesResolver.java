@@ -48,6 +48,7 @@ import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.transport.RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR;
 import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER;
 
 class IndicesAndAliasesResolver {
@@ -169,7 +170,7 @@ class IndicesAndAliasesResolver {
             // and no remote clusters are configured that match it
             if (split.getLocal().isEmpty() && split.getRemote().isEmpty()) {
                 for (String indexExpression : indices) {
-                    String[] clusterAndIndex = indexExpression.split(":", 2);
+                    String[] clusterAndIndex = indexExpression.split(String.valueOf(REMOTE_CLUSTER_INDEX_SEPARATOR), 2);
                     if (clusterAndIndex.length == 2) {
                         if (clusterAndIndex[0].contains("*")) {
                             throw new NoSuchRemoteClusterException(clusterAndIndex[0]);

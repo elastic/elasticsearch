@@ -26,6 +26,8 @@ import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.transport.RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR;
+
 /**
  * Profile results for all shards.
  */
@@ -146,9 +148,9 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
             String indexName = m.group(2);
             int shardId = Integer.parseInt(m.group(3));
             String cluster = null;
-            if (indexName.contains(":")) {
+            if (indexName.indexOf(REMOTE_CLUSTER_INDEX_SEPARATOR) >= 0) {
                 // index names and cluster names cannot contain a ':', so this split should be accurate
-                String[] tokens = indexName.split(":", 2);
+                String[] tokens = indexName.split(String.valueOf(REMOTE_CLUSTER_INDEX_SEPARATOR), 2);
                 cluster = tokens[0];
                 indexName = tokens[1];
             }

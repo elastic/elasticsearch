@@ -59,6 +59,8 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.transport.RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR;
+
 public class IndexNameExpressionResolver {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(IndexNameExpressionResolver.class);
 
@@ -1753,7 +1755,7 @@ public class IndexNameExpressionResolver {
                 return;
             }
             for (String index : indexExpressions) {
-                if (index.contains(":")) {
+                if (index.indexOf(REMOTE_CLUSTER_INDEX_SEPARATOR) >= 0) {
                     failOnRemoteIndicesNotIgnoringUnavailable(indexExpressions);
                 }
             }
@@ -1762,7 +1764,7 @@ public class IndexNameExpressionResolver {
         private static void failOnRemoteIndicesNotIgnoringUnavailable(List<String> indexExpressions) {
             List<String> crossClusterIndices = new ArrayList<>();
             for (String index : indexExpressions) {
-                if (index.contains(":")) {
+                if (index.indexOf(REMOTE_CLUSTER_INDEX_SEPARATOR) >= 0) {
                     crossClusterIndices.add(index);
                 }
             }

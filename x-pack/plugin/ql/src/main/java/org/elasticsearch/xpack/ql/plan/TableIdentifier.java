@@ -10,6 +10,8 @@ import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.Objects;
 
+import static org.elasticsearch.transport.RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR;
+
 public class TableIdentifier {
 
     private final Source source;
@@ -63,7 +65,7 @@ public class TableIdentifier {
         StringBuilder builder = new StringBuilder();
         if (cluster != null) {
             builder.append(cluster);
-            builder.append(":");
+            builder.append(REMOTE_CLUSTER_INDEX_SEPARATOR);
         }
         builder.append(index);
         return builder.toString();

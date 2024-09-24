@@ -181,6 +181,7 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
                     StatelessCompoundCommit.blobNameFromGeneration(testInstance.generation()),
                     new PrimaryTermAndGeneration(testInstance.primaryTerm(), testInstance.generation())
                 ),
+                InternalFilesReplicatedRanges.EMPTY,
                 internalFiles,
                 referencedCommitBlobsWithoutBlobLength,
                 0,

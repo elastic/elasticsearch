@@ -94,11 +94,23 @@ required_capability: date_nanos_type
 
 ROW d = TO_DATE_NANOS("2262-04-12T00:00:00.000");
 warning:Line 1:9: evaluation of [TO_DATE_NANOS(\"2262-04-12T00:00:00.000\")] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:9: java.lang.IllegalArgumentException: cannot create nanosecond dates after 2262-04-11T23:47:16.854775807Z
+warning:Line 1:9: java.lang.IllegalArgumentException: date[2262-04-12T00:00:00Z] is after 2262-04-11T23:47:16.854775807 and cannot be stored in nanosecond resolution
 
 d:date_nanos
 null
 ;
+
+string to date nanos, pre 1970
+required_capability: date_nanos_type
+
+ROW d = TO_DATE_NANOS("1969-04-12T00:00:00.000");
+warning:Line 1:9: evaluation of [TO_DATE_NANOS(\"1969-04-12T00:00:00.000\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:9: java.lang.IllegalArgumentException: date[1969-04-12T00:00:00Z] is before the epoch in 1970 and cannot be stored in nanosecond resolution 
+
+d:date_nanos
+null
+;
+
 
 long to date nanos
 required_capability: date_nanos_type

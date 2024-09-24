@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -121,14 +122,7 @@ public class ToDateNanos extends AbstractConvertFunction {
     @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
     static long fromKeyword(BytesRef in) {
         Instant parsed = DateFormatters.from(DEFAULT_DATE_NANOS_FORMATTER.parse(in.utf8ToString())).toInstant();
-        long nanos = parsed.getEpochSecond();
-        try {
-            nanos = Math.multiplyExact(nanos, 1_000_000_000) + parsed.getNano();
-        } catch (ArithmeticException e) {
-            // This seems like a more useful error message than "Long Overflow"
-            throw new IllegalArgumentException("cannot create nanosecond dates after 2262-04-11T23:47:16.854775807Z");
-        }
-        return nanos;
+        return DateUtils.toLong(parsed);
     }
 
     @ConvertEvaluator(extraName = "FromDatetime", warnExceptions = { IllegalArgumentException.class })

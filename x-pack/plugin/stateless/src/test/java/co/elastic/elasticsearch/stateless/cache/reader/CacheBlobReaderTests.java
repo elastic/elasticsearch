@@ -118,7 +118,7 @@ public class CacheBlobReaderTests extends ESTestCase {
             NamedXContentRegistry xContentRegistry,
             long primaryTerm
         ) throws IOException {
-            this(environmentSupplier, nodeEnvironmentSupplier, xContentRegistry, primaryTerm, 0);
+            this(environmentSupplier, nodeEnvironmentSupplier, xContentRegistry, primaryTerm, 0, randomBoolean());
         }
 
         FakeVBCCStatelessNode(
@@ -127,6 +127,17 @@ public class CacheBlobReaderTests extends ESTestCase {
             NamedXContentRegistry xContentRegistry,
             long primaryTerm,
             long minimumVbccSize
+        ) throws IOException {
+            this(environmentSupplier, nodeEnvironmentSupplier, xContentRegistry, primaryTerm, minimumVbccSize, randomBoolean());
+        }
+
+        FakeVBCCStatelessNode(
+            Function<Settings, Environment> environmentSupplier,
+            CheckedFunction<Settings, NodeEnvironment, IOException> nodeEnvironmentSupplier,
+            NamedXContentRegistry xContentRegistry,
+            long primaryTerm,
+            long minimumVbccSize,
+            boolean useInternalFilesReplicatedContent
         ) throws IOException {
             super(environmentSupplier, nodeEnvironmentSupplier, xContentRegistry, primaryTerm);
 
@@ -141,18 +152,18 @@ public class CacheBlobReaderTests extends ESTestCase {
                 },
                 ESTestCase::randomNonNegativeLong
             );
-            appendCommitsToVbcc(commits);
+            appendCommitsToVbcc(commits, useInternalFilesReplicatedContent);
 
             while (virtualBatchedCompoundCommit.getTotalSizeInBytes() < minimumVbccSize) {
                 var moreCommits = generateIndexCommits(randomIntBetween(1, 30), false);
-                appendCommitsToVbcc(moreCommits);
+                appendCommitsToVbcc(moreCommits, useInternalFilesReplicatedContent);
             }
         }
 
-        private void appendCommitsToVbcc(List<StatelessCommitRef> commits) {
+        private void appendCommitsToVbcc(List<StatelessCommitRef> commits, boolean useInternalFilesReplicatedContent) {
             assert virtualBatchedCompoundCommit != null;
             for (StatelessCommitRef statelessCommitRef : commits) {
-                assertTrue(virtualBatchedCompoundCommit.appendCommit(statelessCommitRef, randomBoolean()));
+                assertTrue(virtualBatchedCompoundCommit.appendCommit(statelessCommitRef, useInternalFilesReplicatedContent));
                 var pendingCompoundCommits = VirtualBatchedCompoundCommitTestUtils.getPendingStatelessCompoundCommits(
                     virtualBatchedCompoundCommit
                 );
@@ -598,7 +609,7 @@ public class CacheBlobReaderTests extends ESTestCase {
     public void testCacheBlobReaderCanFillMultipleGapsWithASingleRequest() throws Exception {
         final var primaryTerm = randomLongBetween(1L, 10L);
         final var chunkSize = PAGE_SIZE * randomIntBetween(1, 256); // 4KiB to 1MiB
-        try (var node = createInputStreamCallTrackingNode(primaryTerm, chunkSize)) {
+        try (var node = createInputStreamCallTrackingNode(primaryTerm, chunkSize, randomBoolean())) {
             final var vbccSize = node.virtualBatchedCompoundCommit.getTotalSizeInBytes();
 
             // Read a byte in the last page of the blob, which makes the cache read the last chunk from the indexing shard, up to the
@@ -640,7 +651,8 @@ public class CacheBlobReaderTests extends ESTestCase {
     public void testCacheBlobReaderDoesNotFillGapBeyondTheEndOfAvailableData() throws Exception {
         final var primaryTerm = randomLongBetween(1L, 10L);
         final var chunkSize = PAGE_SIZE * randomIntBetween(1, 256); // 4KiB to 1MiB
-        try (var node = createInputStreamCallTrackingNode(primaryTerm, chunkSize)) {
+        // TODO (ES-9344) once reader is implemented, read all the gaps using exposed metadata and run with the feature flag enabled
+        try (var node = createInputStreamCallTrackingNode(primaryTerm, chunkSize, false)) {
             final int regionSize = node.sharedCacheService.getRegionSize();
             final long vbccSize = node.virtualBatchedCompoundCommit.getTotalSizeInBytes();
             assertThat(vbccSize, lessThan((long) regionSize));
@@ -695,8 +707,19 @@ public class CacheBlobReaderTests extends ESTestCase {
         }
     }
 
-    private FakeVBCCStatelessNode createInputStreamCallTrackingNode(long primaryTerm, int chunkSize) throws IOException {
-        return new FakeVBCCStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm, chunkSize * 2) {
+    private FakeVBCCStatelessNode createInputStreamCallTrackingNode(
+        long primaryTerm,
+        int chunkSize,
+        boolean useInternalFilesReplicatedContent
+    ) throws IOException {
+        return new FakeVBCCStatelessNode(
+            this::newEnvironment,
+            this::newNodeEnvironment,
+            xContentRegistry(),
+            primaryTerm,
+            chunkSize * 2,
+            useInternalFilesReplicatedContent
+        ) {
             @Override
             protected Settings nodeSettings() {
                 return Settings.builder()

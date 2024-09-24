@@ -717,7 +717,9 @@ public class MetadataIndexTemplateService {
         // Then apply setting from component templates:
         finalSettings.put(combinedSettings);
         // Then finally apply settings resolved from index template:
-        finalSettings.put(finalTemplate == null || finalTemplate.settings() == null ? Settings.EMPTY : finalTemplate.settings());
+        if (finalTemplate != null && finalTemplate.settings() != null) {
+            finalSettings.put(finalTemplate.settings());
+        }
 
         var templateToValidate = indexTemplate.toBuilder().template(Template.builder(finalTemplate).settings(finalSettings)).build();
 

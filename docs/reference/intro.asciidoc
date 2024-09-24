@@ -244,7 +244,7 @@ Use REST APIs to manage your {es} cluster, and to index
 and search your data.
 For testing purposes, you can submit requests
 directly from the command line or through the Dev Tools {kibana-ref}/console-kibana.html[Console] in {kib}.
-From your applications, you can use an
+From your applications, you can use a
 https://www.elastic.co/guide/en/elasticsearch/client/index.html[language client]
 in your programming language of choice.
 

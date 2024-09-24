@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.logsdb.datageneration;
@@ -39,6 +40,7 @@ public class DataGeneratorSnapshotTests extends ESTestCase {
         var expectedMapping = """
             {
               "_doc" : {
+                "dynamic" : "false",
                 "properties" : {
                   "f1" : {
                     "dynamic" : "false",
@@ -184,7 +186,6 @@ public class DataGeneratorSnapshotTests extends ESTestCase {
 
         @Override
         public DataSourceResponse.ChildFieldGenerator handle(DataSourceRequest.ChildFieldGenerator request) {
-
             return childFieldGenerator;
         }
 
@@ -205,11 +206,11 @@ public class DataGeneratorSnapshotTests extends ESTestCase {
             return new DataSourceResponse.FieldTypeGenerator(() -> {
                 if (fieldType == FieldType.KEYWORD) {
                     fieldType = FieldType.LONG;
-                    return FieldType.KEYWORD;
+                    return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(FieldType.KEYWORD, false);
                 }
 
                 fieldType = FieldType.KEYWORD;
-                return FieldType.LONG;
+                return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(FieldType.LONG, false);
             });
         }
 
@@ -238,6 +239,11 @@ public class DataGeneratorSnapshotTests extends ESTestCase {
         @Override
         public int generateChildFieldCount() {
             return 2;
+        }
+
+        @Override
+        public boolean generateDynamicSubObject() {
+            return false;
         }
 
         @Override

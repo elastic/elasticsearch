@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.datastreams.lifecycle;
@@ -45,7 +46,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
 
     private final String index;
     private final boolean managedByLifecycle;
-    private final boolean isSystemDataStream;
+    private final boolean isInternalDataStream;
     @Nullable
     private final Long indexCreationDate;
     @Nullable
@@ -61,7 +62,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
     public ExplainIndexDataStreamLifecycle(
         String index,
         boolean managedByLifecycle,
-        boolean isSystemDataStream,
+        boolean isInternalDataStream,
         @Nullable Long indexCreationDate,
         @Nullable Long rolloverDate,
         @Nullable TimeValue generationDate,
@@ -70,7 +71,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
     ) {
         this.index = index;
         this.managedByLifecycle = managedByLifecycle;
-        this.isSystemDataStream = isSystemDataStream;
+        this.isInternalDataStream = isInternalDataStream;
         this.indexCreationDate = indexCreationDate;
         this.rolloverDate = rolloverDate;
         this.generationDateMillis = generationDate == null ? null : generationDate.millis();
@@ -82,9 +83,9 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
         this.index = in.readString();
         this.managedByLifecycle = in.readBoolean();
         if (in.getTransportVersion().onOrAfter(TransportVersions.NO_GLOBAL_RETENTION_FOR_SYSTEM_DATA_STREAMS)) {
-            this.isSystemDataStream = in.readBoolean();
+            this.isInternalDataStream = in.readBoolean();
         } else {
-            this.isSystemDataStream = false;
+            this.isInternalDataStream = false;
         }
         if (managedByLifecycle) {
             this.indexCreationDate = in.readOptionalLong();
@@ -141,7 +142,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             }
             if (this.lifecycle != null) {
                 builder.field(LIFECYCLE_FIELD.getPreferredName());
-                lifecycle.toXContent(builder, params, rolloverConfiguration, isSystemDataStream ? null : globalRetention);
+                lifecycle.toXContent(builder, params, rolloverConfiguration, globalRetention, isInternalDataStream);
             }
             if (this.error != null) {
                 if (error.firstOccurrenceTimestamp() != -1L && error.recordedTimestamp() != -1L && error.retryCount() != -1) {
@@ -161,7 +162,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
         out.writeString(index);
         out.writeBoolean(managedByLifecycle);
         if (out.getTransportVersion().onOrAfter(TransportVersions.NO_GLOBAL_RETENTION_FOR_SYSTEM_DATA_STREAMS)) {
-            out.writeBoolean(isSystemDataStream);
+            out.writeBoolean(isInternalDataStream);
         }
         if (managedByLifecycle) {
             out.writeOptionalLong(indexCreationDate);

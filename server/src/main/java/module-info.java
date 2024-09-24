@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 import org.elasticsearch.index.codec.Elasticsearch814Codec;
@@ -24,7 +25,6 @@ module org.elasticsearch.server {
     requires org.elasticsearch.nativeaccess;
     requires org.elasticsearch.geo;
     requires org.elasticsearch.lz4;
-    requires org.elasticsearch.pluginclassloader;
     requires org.elasticsearch.securesm;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.logging;
@@ -190,6 +190,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.common.file;
     exports org.elasticsearch.common.geo;
     exports org.elasticsearch.common.hash;
+    exports org.elasticsearch.injection.api;
     exports org.elasticsearch.injection.guice;
     exports org.elasticsearch.injection.guice.binder;
     exports org.elasticsearch.injection.guice.internal;
@@ -364,6 +365,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search.rank.rerank;
     exports org.elasticsearch.search.rescore;
     exports org.elasticsearch.search.retriever;
+    exports org.elasticsearch.search.retriever.rankdoc;
     exports org.elasticsearch.search.runtime;
     exports org.elasticsearch.search.searchafter;
     exports org.elasticsearch.search.slice;
@@ -402,7 +404,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.telemetry;
     exports org.elasticsearch.telemetry.metric;
 
-    provides java.util.spi.CalendarDataProvider with org.elasticsearch.common.time.IsoCalendarDataProvider;
     provides org.elasticsearch.xcontent.ErrorOnUnknown with org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
     provides org.elasticsearch.xcontent.XContentBuilderExtension with org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
     provides org.elasticsearch.cli.CliToolProvider
@@ -428,6 +429,7 @@ module org.elasticsearch.server {
             org.elasticsearch.cluster.metadata.MetadataFeatures,
             org.elasticsearch.rest.RestFeatures,
             org.elasticsearch.indices.IndicesFeatures,
+            org.elasticsearch.repositories.RepositoriesFeatures,
             org.elasticsearch.action.admin.cluster.allocation.AllocationStatsFeatures,
             org.elasticsearch.index.mapper.MapperFeatures,
             org.elasticsearch.ingest.IngestGeoIpFeatures,

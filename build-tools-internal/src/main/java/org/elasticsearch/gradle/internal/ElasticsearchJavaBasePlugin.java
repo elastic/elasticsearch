@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal;
@@ -189,9 +190,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
             var libraryPath = (Supplier<String>) () -> TestUtil.getTestLibraryPath(nativeConfigFiles.getAsPath());
 
             test.dependsOn(nativeConfigFiles);
-            // we may use JNA or the JDK's foreign function api to load libraries, so we set both sysprops
-            systemProperties.systemProperty("java.library.path", libraryPath);
-            systemProperties.systemProperty("jna.library.path", libraryPath);
+            systemProperties.systemProperty("es.nativelibs.path", libraryPath);
         });
     }
 

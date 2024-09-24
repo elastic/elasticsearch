@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.core;
@@ -149,8 +150,9 @@ public enum Releasables {
                 private final AtomicReference<Exception> firstCompletion = new AtomicReference<>();
 
                 private void assertFirstRun() {
-                    var previousRun = firstCompletion.compareAndExchange(null, new Exception(delegate.toString()));
-                    assert previousRun == null : previousRun; // reports the stack traces of both completions
+                    var previousRun = firstCompletion.compareAndExchange(null, new Exception("already executed"));
+                    // reports the stack traces of both completions
+                    assert previousRun == null : new AssertionError(delegate.toString(), previousRun);
                 }
 
                 @Override

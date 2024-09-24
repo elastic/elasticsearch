@@ -54,12 +54,15 @@ import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.features.FeatureService;
@@ -584,6 +587,7 @@ public class Security extends Plugin
 
     private Settings settings;
     private final boolean enabled;
+    private final SetOnce<Boolean> dlsFlsEnabled = new SetOnce<>();
     private final SecuritySystemIndices systemIndices;
     private final ListenableFuture<Void> nodeStartedListenable;
 
@@ -1035,6 +1039,7 @@ public class Security extends Plugin
             serviceAccountService,
             dlsBitsetCache.get(),
             restrictedIndices,
+            buildRoleBuildingExecutor(threadPool, settings),
             new DeprecationRoleDescriptorConsumer(clusterService, threadPool)
         );
         systemIndices.getMainIndexManager().addStateListener(allRolesStore::onSecurityIndexStateChange);
@@ -1106,12 +1111,13 @@ public class Security extends Plugin
         );
         components.add(authcService.get());
         systemIndices.getMainIndexManager().addStateListener(authcService.get()::onSecurityIndexStateChange);
-
+        dlsFlsEnabled.set(XPackSettings.DLS_FLS_ENABLED.get(settings));
         Set<RequestInterceptor> requestInterceptors = Sets.newHashSet(
-            new ResizeRequestInterceptor(threadPool, getLicenseState(), auditTrailService),
-            new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), getLicenseState(), auditTrailService)
+            new ResizeRequestInterceptor(threadPool, getLicenseState(), auditTrailService, dlsFlsEnabled.get()),
+            new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), getLicenseState(), auditTrailService, dlsFlsEnabled.get())
         );
-        if (XPackSettings.DLS_FLS_ENABLED.get(settings)) {
+
+        if (dlsFlsEnabled.get()) {
             requestInterceptors.addAll(
                 Arrays.asList(
                     new SearchRequestInterceptor(threadPool, getLicenseState()),
@@ -1263,6 +1269,29 @@ public class Security extends Plugin
                     }
                 })
             );
+    }
+
+    private static Executor buildRoleBuildingExecutor(ThreadPool threadPool, Settings settings) {
+        final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
+        final ThrottledTaskRunner throttledTaskRunner = new ThrottledTaskRunner("build_roles", allocatedProcessors, threadPool.generic());
+        return r -> throttledTaskRunner.enqueueTask(new ActionListener<>() {
+            @Override
+            public void onResponse(Releasable releasable) {
+                try (releasable) {
+                    r.run();
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (r instanceof AbstractRunnable abstractRunnable) {
+                    abstractRunnable.onFailure(e);
+                }
+                // should be impossible, GENERIC pool doesn't reject anything
+                logger.error("unexpected failure running " + r, e);
+                assert false : new AssertionError("unexpected failure running " + r, e);
+            }
+        });
     }
 
     private AuthorizationEngine getAuthorizationEngine() {
@@ -2131,6 +2160,9 @@ public class Security extends Plugin
                 XPackLicenseState licenseState = getLicenseState();
                 IndicesAccessControl indicesAccessControl = threadContext.get()
                     .getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+                if (dlsFlsEnabled.get() == false) {
+                    return FieldPredicate.ACCEPT_ALL;
+                }
                 if (indicesAccessControl == null) {
                     return FieldPredicate.ACCEPT_ALL;
                 }

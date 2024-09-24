@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -70,7 +71,11 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         }, MAPPINGS, ObjectParser.ValueType.VALUE_OBJECT_ARRAY);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
             Map<String, AliasMetadata> aliasMap = new HashMap<>();
-            while ((p.nextToken()) != XContentParser.Token.END_OBJECT) {
+            XContentParser.Token token;
+            while ((token = p.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == null) {
+                    break;
+                }
                 AliasMetadata alias = AliasMetadata.Builder.fromXContent(p);
                 aliasMap.put(alias.alias(), alias);
             }
@@ -250,7 +255,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         }
         if (this.lifecycle != null) {
             builder.field(LIFECYCLE.getPreferredName());
-            lifecycle.toXContent(builder, params, rolloverConfiguration, null);
+            lifecycle.toXContent(builder, params, rolloverConfiguration, null, false);
         }
         builder.endObject();
         return builder;

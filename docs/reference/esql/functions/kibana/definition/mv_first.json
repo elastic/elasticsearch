@@ -44,13 +44,13 @@
       "params" : [
         {
           "name" : "field",
-          "type" : "datetime",
+          "type" : "date",
           "optional" : false,
           "description" : "Multivalue expression."
         }
       ],
       "variadic" : false,
-      "returnType" : "datetime"
+      "returnType" : "date"
     },
     {
       "params" : [
@@ -175,5 +175,6 @@
   ],
   "examples" : [
     "ROW a=\"foo;bar;baz\"\n| EVAL first_a = MV_FIRST(SPLIT(a, \";\"))"
-  ]
+  ],
+  "preview" : false
 }

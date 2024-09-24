@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.server.cli;
@@ -17,7 +18,6 @@ import org.elasticsearch.test.ESTestCase.WithoutSecurityManager;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StringReader;
-import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
@@ -30,12 +30,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
@@ -44,14 +42,7 @@ import static org.hamcrest.Matchers.not;
 @WithoutSecurityManager
 public class JvmOptionsParserTests extends ESTestCase {
 
-    private static final Map<String, String> TEST_SYSPROPS = Map.of(
-        "os.name",
-        "Linux",
-        "os.arch",
-        "aarch64",
-        "java.library.path",
-        "/usr/lib"
-    );
+    private static final Map<String, String> TEST_SYSPROPS = Map.of("os.name", "Linux", "os.arch", "aarch64");
 
     public void testSubstitution() {
         final List<String> jvmOptions = JvmOptionsParser.substitutePlaceholders(
@@ -389,41 +380,5 @@ public class JvmOptionsParserTests extends ESTestCase {
         sysprops.put("es.distribution.type", "testdistro");
         final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(Settings.EMPTY, sysprops);
         assertThat(jvmOptions, hasItem("-Des.distribution.type=testdistro"));
-    }
-
-    public void testLibraryPath() {
-        assertLibraryPath("Mac OS", "aarch64", "darwin-aarch64");
-        assertLibraryPath("Mac OS", "amd64", "darwin-x64");
-        assertLibraryPath("Mac OS", "x86_64", "darwin-x64");
-        assertLibraryPath("Linux", "aarch64", "linux-aarch64");
-        assertLibraryPath("Linux", "amd64", "linux-x64");
-        assertLibraryPath("Linux", "x86_64", "linux-x64");
-        assertLibraryPath("Windows", "amd64", "windows-x64");
-        assertLibraryPath("Windows", "x86_64", "windows-x64");
-        assertLibraryPath("Unknown", "aarch64", "unsupported_os[Unknown]-aarch64");
-        assertLibraryPath("Mac OS", "Unknown", "darwin-unsupported_arch[Unknown]");
-    }
-
-    private void assertLibraryPath(String os, String arch, String expected) {
-        String existingPath = "/usr/lib";
-        var sysprops = Map.of("os.name", os, "os.arch", arch, "java.library.path", existingPath);
-        final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(Settings.EMPTY, sysprops);
-        Map<String, String> options = new HashMap<>();
-        for (var jvmOption : jvmOptions) {
-            if (jvmOption.startsWith("-D")) {
-                String[] parts = jvmOption.substring(2).split("=");
-                assert parts.length == 2;
-                options.put(parts[0], parts[1]);
-            }
-        }
-        String separator = FileSystems.getDefault().getSeparator();
-        assertThat(
-            options,
-            hasEntry(equalTo("java.library.path"), allOf(containsString("platform" + separator + expected), containsString(existingPath)))
-        );
-        assertThat(
-            options,
-            hasEntry(equalTo("jna.library.path"), allOf(containsString("platform" + separator + expected), containsString(existingPath)))
-        );
     }
 }

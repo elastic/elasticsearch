@@ -42,7 +42,7 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
     }
 
     private final SpatialTypeResolver spatialTypeResolver;
-    protected SpatialCrsType crsType;
+    private SpatialCrsType crsType;
     protected final boolean leftDocValues;
     protected final boolean rightDocValues;
 
@@ -61,6 +61,7 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
     }
 
     protected BinarySpatialFunction(StreamInput in, boolean leftDocValues, boolean rightDocValues, boolean pointsOnly) throws IOException {
+        // The doc-values fields are only used on data nodes local planning, and therefor never serialized
         this(
             Source.EMPTY,
             in.readNamedWriteable(Expression.class),
@@ -75,6 +76,8 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
     public void writeTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(left());
         out.writeNamedWriteable(right());
+        // The doc-values fields are only used on data nodes local planning, and therefor never serialized
+        // The CRS type is re-resolved from the combination of left and right fields, and also not necessary to serialize
     }
 
     @Override

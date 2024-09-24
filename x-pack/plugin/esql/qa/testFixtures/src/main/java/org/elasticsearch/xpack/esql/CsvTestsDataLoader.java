@@ -6,6 +6,10 @@
  */
 package org.elasticsearch.xpack.esql;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.auth.AuthScope;
@@ -17,20 +21,13 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
-import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContent;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.BufferedReader;
@@ -51,66 +48,52 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.reader;
 
 public class CsvTestsDataLoader {
     private static final int BULK_DATA_SIZE = 100_000;
-    private static final TestsDataset EMPLOYEES = new TestsDataset("employees", "mapping-default.json", "employees.csv", null, false);
-    private static final TestsDataset HOSTS = new TestsDataset("hosts", "mapping-hosts.json", "hosts.csv");
-    private static final TestsDataset APPS = new TestsDataset("apps", "mapping-apps.json", "apps.csv");
-    private static final TestsDataset LANGUAGES = new TestsDataset("languages", "mapping-languages.json", "languages.csv");
-    private static final TestsDataset ALERTS = new TestsDataset("alerts", "mapping-alerts.json", "alerts.csv");
-    private static final TestsDataset UL_LOGS = new TestsDataset("ul_logs", "mapping-ul_logs.json", "ul_logs.csv");
-    private static final TestsDataset SAMPLE_DATA = new TestsDataset("sample_data", "mapping-sample_data.json", "sample_data.csv");
-    private static final TestsDataset SAMPLE_DATA_STR = new TestsDataset(
-        "sample_data_str",
-        "mapping-sample_data_str.json",
-        "sample_data_str.csv"
-    );
-    private static final TestsDataset SAMPLE_DATA_TS_LONG = new TestsDataset(
-        "sample_data_ts_long",
-        "mapping-sample_data_ts_long.json",
-        "sample_data_ts_long.csv"
-    );
-    private static final TestsDataset CLIENT_IPS = new TestsDataset("clientips", "mapping-clientips.json", "clientips.csv");
-    private static final TestsDataset CLIENT_CIDR = new TestsDataset("client_cidr", "mapping-client_cidr.json", "client_cidr.csv");
-    private static final TestsDataset AGES = new TestsDataset("ages", "mapping-ages.json", "ages.csv");
-    private static final TestsDataset HEIGHTS = new TestsDataset("heights", "mapping-heights.json", "heights.csv");
-    private static final TestsDataset DECADES = new TestsDataset("decades", "mapping-decades.json", "decades.csv");
-    private static final TestsDataset AIRPORTS = new TestsDataset("airports", "mapping-airports.json", "airports.csv");
-    private static final TestsDataset AIRPORTS_MP = new TestsDataset("airports_mp", "mapping-airports.json", "airports_mp.csv");
-    private static final TestsDataset AIRPORTS_WEB = new TestsDataset("airports_web", "mapping-airports_web.json", "airports_web.csv");
-    private static final TestsDataset DATE_NANOS = new TestsDataset("date_nanos", "mapping-date_nanos.json", "date_nanos.csv");
-    private static final TestsDataset COUNTRIES_BBOX = new TestsDataset(
-        "countries_bbox",
-        "mapping-countries_bbox.json",
-        "countries_bbox.csv"
-    );
-    private static final TestsDataset COUNTRIES_BBOX_WEB = new TestsDataset(
-        "countries_bbox_web",
-        "mapping-countries_bbox_web.json",
-        "countries_bbox_web.csv"
-    );
-    private static final TestsDataset AIRPORT_CITY_BOUNDARIES = new TestsDataset(
-        "airport_city_boundaries",
-        "mapping-airport_city_boundaries.json",
-        "airport_city_boundaries.csv"
-    );
-    private static final TestsDataset CARTESIAN_MULTIPOLYGONS = new TestsDataset(
-        "cartesian_multipolygons",
-        "mapping-cartesian_multipolygons.json",
-        "cartesian_multipolygons.csv"
-    );
-    private static final TestsDataset DISTANCES = new TestsDataset("distances", "mapping-distances.json", "distances.csv");
-    private static final TestsDataset K8S = new TestsDataset("k8s", "k8s-mappings.json", "k8s.csv", "k8s-settings.json", true);
-    private static final TestsDataset ADDRESSES = new TestsDataset("addresses", "mapping-addresses.json", "addresses.csv", null, true);
+    private static final TestsDataset EMPLOYEES = new TestsDataset("employees", "mapping-default.json", "employees.csv").noSubfields();
+    private static final TestsDataset HOSTS = new TestsDataset("hosts");
+    private static final TestsDataset APPS = new TestsDataset("apps");
+    private static final TestsDataset APPS_SHORT = APPS.withIndex("apps_short").withTypeMapping(Map.of("id", "short"));
+    private static final TestsDataset LANGUAGES = new TestsDataset("languages");
+    private static final TestsDataset ALERTS = new TestsDataset("alerts");
+    private static final TestsDataset UL_LOGS = new TestsDataset("ul_logs");
+    private static final TestsDataset SAMPLE_DATA = new TestsDataset("sample_data");
+    private static final TestsDataset SAMPLE_DATA_STR = SAMPLE_DATA.withIndex("sample_data_str")
+        .withTypeMapping(Map.of("client_ip", "keyword"));
+    private static final TestsDataset SAMPLE_DATA_TS_LONG = SAMPLE_DATA.withIndex("sample_data_ts_long")
+        .withData("sample_data_ts_long.csv")
+        .withTypeMapping(Map.of("@timestamp", "long"));
+    private static final TestsDataset MISSING_IP_SAMPLE_DATA = new TestsDataset("missing_ip_sample_data");
+    private static final TestsDataset CLIENT_IPS = new TestsDataset("clientips");
+    private static final TestsDataset CLIENT_CIDR = new TestsDataset("client_cidr");
+    private static final TestsDataset AGES = new TestsDataset("ages");
+    private static final TestsDataset HEIGHTS = new TestsDataset("heights");
+    private static final TestsDataset DECADES = new TestsDataset("decades");
+    private static final TestsDataset AIRPORTS = new TestsDataset("airports");
+    private static final TestsDataset AIRPORTS_MP = AIRPORTS.withIndex("airports_mp").withData("airports_mp.csv");
+    private static final TestsDataset AIRPORTS_WEB = new TestsDataset("airports_web");
+    private static final TestsDataset DATE_NANOS = new TestsDataset("date_nanos");
+    private static final TestsDataset COUNTRIES_BBOX = new TestsDataset("countries_bbox");
+    private static final TestsDataset COUNTRIES_BBOX_WEB = new TestsDataset("countries_bbox_web");
+    private static final TestsDataset AIRPORT_CITY_BOUNDARIES = new TestsDataset("airport_city_boundaries");
+    private static final TestsDataset CARTESIAN_MULTIPOLYGONS = new TestsDataset("cartesian_multipolygons");
+    private static final TestsDataset MULTIVALUE_GEOMETRIES = new TestsDataset("multivalue_geometries");
+    private static final TestsDataset MULTIVALUE_POINTS = new TestsDataset("multivalue_points");
+    private static final TestsDataset DISTANCES = new TestsDataset("distances");
+    private static final TestsDataset K8S = new TestsDataset("k8s", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json");
+    private static final TestsDataset ADDRESSES = new TestsDataset("addresses");
+    private static final TestsDataset BOOKS = new TestsDataset("books");
 
     public static final Map<String, TestsDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
         Map.entry(HOSTS.indexName, HOSTS),
         Map.entry(APPS.indexName, APPS),
+        Map.entry(APPS_SHORT.indexName, APPS_SHORT),
         Map.entry(LANGUAGES.indexName, LANGUAGES),
         Map.entry(UL_LOGS.indexName, UL_LOGS),
         Map.entry(SAMPLE_DATA.indexName, SAMPLE_DATA),
         Map.entry(ALERTS.indexName, ALERTS),
         Map.entry(SAMPLE_DATA_STR.indexName, SAMPLE_DATA_STR),
         Map.entry(SAMPLE_DATA_TS_LONG.indexName, SAMPLE_DATA_TS_LONG),
+        Map.entry(MISSING_IP_SAMPLE_DATA.indexName, MISSING_IP_SAMPLE_DATA),
         Map.entry(CLIENT_IPS.indexName, CLIENT_IPS),
         Map.entry(CLIENT_CIDR.indexName, CLIENT_CIDR),
         Map.entry(AGES.indexName, AGES),
@@ -123,10 +106,13 @@ public class CsvTestsDataLoader {
         Map.entry(COUNTRIES_BBOX_WEB.indexName, COUNTRIES_BBOX_WEB),
         Map.entry(AIRPORT_CITY_BOUNDARIES.indexName, AIRPORT_CITY_BOUNDARIES),
         Map.entry(CARTESIAN_MULTIPOLYGONS.indexName, CARTESIAN_MULTIPOLYGONS),
+        Map.entry(MULTIVALUE_GEOMETRIES.indexName, MULTIVALUE_GEOMETRIES),
+        Map.entry(MULTIVALUE_POINTS.indexName, MULTIVALUE_POINTS),
         Map.entry(DATE_NANOS.indexName, DATE_NANOS),
         Map.entry(K8S.indexName, K8S),
         Map.entry(DISTANCES.indexName, DISTANCES),
-        Map.entry(ADDRESSES.indexName, ADDRESSES)
+        Map.entry(ADDRESSES.indexName, ADDRESSES),
+        Map.entry(BOOKS.indexName, BOOKS)
     );
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");
@@ -250,18 +236,8 @@ public class CsvTestsDataLoader {
     }
 
     private static void loadDataSetIntoEs(RestClient client, Logger logger, IndexCreator indexCreator) throws IOException {
-        for (var dataSet : CSV_DATASET_MAP.values()) {
-            final String settingName = dataSet.settingFileName != null ? "/" + dataSet.settingFileName : null;
-            load(
-                client,
-                dataSet.indexName,
-                "/" + dataSet.mappingFileName,
-                settingName,
-                "/" + dataSet.dataFileName,
-                dataSet.allowSubFields,
-                logger,
-                indexCreator
-            );
+        for (var dataset : CSV_DATASET_MAP.values()) {
+            load(client, dataset, logger, indexCreator);
         }
         forceMerge(client, CSV_DATASET_MAP.keySet(), logger);
         for (var policy : ENRICH_POLICIES) {
@@ -283,32 +259,51 @@ public class CsvTestsDataLoader {
         client.performRequest(request);
     }
 
-    private static void load(
-        RestClient client,
-        String indexName,
-        String mappingName,
-        String settingName,
-        String dataName,
-        boolean allowSubFields,
-        Logger logger,
-        IndexCreator indexCreator
-    ) throws IOException {
+    private static void load(RestClient client, TestsDataset dataset, Logger logger, IndexCreator indexCreator) throws IOException {
+        final String mappingName = "/" + dataset.mappingFileName;
         URL mapping = CsvTestsDataLoader.class.getResource(mappingName);
         if (mapping == null) {
             throw new IllegalArgumentException("Cannot find resource " + mappingName);
         }
+        final String dataName = "/" + dataset.dataFileName;
         URL data = CsvTestsDataLoader.class.getResource(dataName);
         if (data == null) {
             throw new IllegalArgumentException("Cannot find resource " + dataName);
         }
         Settings indexSettings = Settings.EMPTY;
+        final String settingName = dataset.settingFileName != null ? "/" + dataset.settingFileName : null;
         if (settingName != null) {
             indexSettings = Settings.builder()
                 .loadFromStream(settingName, CsvTestsDataLoader.class.getResourceAsStream(settingName), false)
                 .build();
         }
-        indexCreator.createIndex(client, indexName, readTextFile(mapping), indexSettings);
-        loadCsvData(client, indexName, data, allowSubFields, CsvTestsDataLoader::createParser, logger);
+        indexCreator.createIndex(client, dataset.indexName, readMappingFile(mapping, dataset.typeMapping), indexSettings);
+        loadCsvData(client, dataset.indexName, data, dataset.allowSubFields, logger);
+    }
+
+    private static String readMappingFile(URL resource, Map<String, String> typeMapping) throws IOException {
+        String mappingJsonText = readTextFile(resource);
+        if (typeMapping == null || typeMapping.isEmpty()) {
+            return mappingJsonText;
+        }
+        boolean modified = false;
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode mappingNode = mapper.readTree(mappingJsonText);
+        JsonNode propertiesNode = mappingNode.path("properties");
+
+        for (Map.Entry<String, String> entry : typeMapping.entrySet()) {
+            String key = entry.getKey();
+            String newType = entry.getValue();
+
+            if (propertiesNode.has(key)) {
+                modified = true;
+                ((ObjectNode) propertiesNode.get(key)).put("type", newType);
+            }
+        }
+        if (modified) {
+            return mapper.writerWithDefaultPrettyPrinter().writeValueAsString(mappingNode);
+        }
+        return mappingJsonText;
     }
 
     public static String readTextFile(URL resource) throws IOException {
@@ -337,14 +332,8 @@ public class CsvTestsDataLoader {
      *   - multi-values are comma separated
      *   - commas inside multivalue fields can be escaped with \ (backslash) character
      */
-    private static void loadCsvData(
-        RestClient client,
-        String indexName,
-        URL resource,
-        boolean allowSubFields,
-        CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p,
-        Logger logger
-    ) throws IOException {
+    private static void loadCsvData(RestClient client, String indexName, URL resource, boolean allowSubFields, Logger logger)
+        throws IOException {
         ArrayList<String> failures = new ArrayList<>();
         StringBuilder builder = new StringBuilder();
         try (BufferedReader reader = reader(resource)) {
@@ -363,27 +352,17 @@ public class CsvTestsDataLoader {
                         columns = new String[entries.length];
                         for (int i = 0; i < entries.length; i++) {
                             int split = entries[i].indexOf(':');
-                            String name, typeName;
-
                             if (split < 0) {
-                                throw new IllegalArgumentException(
-                                    "A type is always expected in the schema definition; found " + entries[i]
-                                );
+                                columns[i] = entries[i].trim();
                             } else {
-                                name = entries[i].substring(0, split).trim();
+                                String name = entries[i].substring(0, split).trim();
                                 if (allowSubFields || name.contains(".") == false) {
-                                    typeName = entries[i].substring(split + 1).trim();
-                                    if (typeName.isEmpty()) {
-                                        throw new IllegalArgumentException(
-                                            "A type is always expected in the schema definition; found " + entries[i]
-                                        );
-                                    }
+                                    columns[i] = name;
                                 } else {// if it's a subfield, ignore it in the _bulk request
-                                    name = null;
+                                    columns[i] = null;
                                     subFieldsIndices.add(i);
                                 }
                             }
-                            columns[i] = name;
                         }
                     }
                     // data rows
@@ -526,22 +505,40 @@ public class CsvTestsDataLoader {
         }
     }
 
-    private static XContentParser createParser(XContent xContent, InputStream data) throws IOException {
-        NamedXContentRegistry contentRegistry = new NamedXContentRegistry(ClusterModule.getNamedXWriteables());
-        XContentParserConfiguration config = XContentParserConfiguration.EMPTY.withRegistry(contentRegistry)
-            .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
-        return xContent.createParser(config, data);
-    }
-
     public record TestsDataset(
         String indexName,
         String mappingFileName,
         String dataFileName,
         String settingFileName,
-        boolean allowSubFields
+        boolean allowSubFields,
+        Map<String, String> typeMapping
     ) {
         public TestsDataset(String indexName, String mappingFileName, String dataFileName) {
-            this(indexName, mappingFileName, dataFileName, null, true);
+            this(indexName, mappingFileName, dataFileName, null, true, null);
+        }
+
+        public TestsDataset(String indexName) {
+            this(indexName, "mapping-" + indexName + ".json", indexName + ".csv", null, true, null);
+        }
+
+        public TestsDataset withIndex(String indexName) {
+            return new TestsDataset(indexName, mappingFileName, dataFileName, settingFileName, allowSubFields, typeMapping);
+        }
+
+        public TestsDataset withData(String dataFileName) {
+            return new TestsDataset(indexName, mappingFileName, dataFileName, settingFileName, allowSubFields, typeMapping);
+        }
+
+        public TestsDataset withSetting(String settingFileName) {
+            return new TestsDataset(indexName, mappingFileName, dataFileName, settingFileName, allowSubFields, typeMapping);
+        }
+
+        public TestsDataset noSubfields() {
+            return new TestsDataset(indexName, mappingFileName, dataFileName, settingFileName, false, typeMapping);
+        }
+
+        public TestsDataset withTypeMapping(Map<String, String> typeMapping) {
+            return new TestsDataset(indexName, mappingFileName, dataFileName, settingFileName, allowSubFields, typeMapping);
         }
     }
 

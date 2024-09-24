@@ -173,7 +173,7 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
     public Object fold() {
         var leftGeom = makeGeometryFromLiteral(left());
         var rightGeom = makeGeometryFromLiteral(right());
-        return (crsType == SpatialCrsType.GEO) ? GEO.distance(leftGeom, rightGeom) : CARTESIAN.distance(leftGeom, rightGeom);
+        return (crsType() == SpatialCrsType.GEO) ? GEO.distance(leftGeom, rightGeom) : CARTESIAN.distance(leftGeom, rightGeom);
     }
 
     @Override

@@ -22,14 +22,12 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter;
-import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.IdentityHashMap;
 import java.util.Map;
-import java.util.function.Function;
 
 /**
  * A customized stream output used to serialize ESQL physical plan fragments. Complements stream
@@ -62,29 +60,23 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
      */
     protected final Map<Attribute, Integer> cachedAttributes = new IdentityHashMap<>();
 
-    private final StreamOutput delegate;
-    private final PlanNameRegistry registry;
+    /**
+     * Cache for EsFields.
+     */
+    protected final Map<EsField, Integer> cachedEsFields = new IdentityHashMap<>();
 
-    private final Function<Class<?>, String> nameSupplier;
+    private final StreamOutput delegate;
 
     private int nextCachedBlock = 0;
 
-    private int maxSerializedAttributes;
+    private final int maxSerializedAttributes;
 
-    public PlanStreamOutput(StreamOutput delegate, PlanNameRegistry registry, @Nullable Configuration configuration) throws IOException {
-        this(delegate, registry, configuration, PlanNamedTypes::name, MAX_SERIALIZED_ATTRIBUTES);
+    public PlanStreamOutput(StreamOutput delegate, @Nullable Configuration configuration) throws IOException {
+        this(delegate, configuration, MAX_SERIALIZED_ATTRIBUTES);
     }
 
-    public PlanStreamOutput(
-        StreamOutput delegate,
-        PlanNameRegistry registry,
-        @Nullable Configuration configuration,
-        Function<Class<?>, String> nameSupplier,
-        int maxSerializedAttributes
-    ) throws IOException {
+    public PlanStreamOutput(StreamOutput delegate, @Nullable Configuration configuration, int maxSerializedAttributes) throws IOException {
         this.delegate = delegate;
-        this.registry = registry;
-        this.nameSupplier = nameSupplier;
         if (configuration != null) {
             for (Map.Entry<String, Map<String, Column>> table : configuration.tables().entrySet()) {
                 for (Map.Entry<String, Column> column : table.getValue().entrySet()) {
@@ -93,28 +85,6 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
             }
         }
         this.maxSerializedAttributes = maxSerializedAttributes;
-    }
-
-    public void writePhysicalPlanNode(PhysicalPlan physicalPlan) throws IOException {
-        assert physicalPlan.children().size() <= 1;
-        writeNamed(PhysicalPlan.class, physicalPlan);
-    }
-
-    public void writeOptionalPhysicalPlanNode(PhysicalPlan physicalPlan) throws IOException {
-        if (physicalPlan == null) {
-            writeBoolean(false);
-        } else {
-            writeBoolean(true);
-            writePhysicalPlanNode(physicalPlan);
-        }
-    }
-
-    public <T> void writeNamed(Class<T> type, T value) throws IOException {
-        String name = nameSupplier.apply(value.getClass());
-        @SuppressWarnings("unchecked")
-        PlanWriter<T> writer = (PlanWriter<T>) registry.getWriter(type, name);
-        writeString(name);
-        writer.write(this, value);
     }
 
     @Override
@@ -176,7 +146,8 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
 
     @Override
     public boolean writeAttributeCacheHeader(Attribute attribute) throws IOException {
-        if (getTransportVersion().onOrAfter(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION)) {
+        if (getTransportVersion().onOrAfter(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION)
+            || getTransportVersion().isPatchFrom(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION_8_15)) {
             Integer cacheId = attributeIdFromCache(attribute);
             if (cacheId != null) {
                 writeZLong(cacheId);
@@ -202,6 +173,39 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
             throw new InvalidArgumentException("Limit of the number of serialized attributes exceeded [{}]", maxSerializedAttributes);
         }
         cachedAttributes.put(attr, id);
+        return id;
+    }
+
+    @Override
+    public boolean writeEsFieldCacheHeader(EsField field) throws IOException {
+        if (getTransportVersion().onOrAfter(TransportVersions.ESQL_ES_FIELD_CACHED_SERIALIZATION)
+            || getTransportVersion().isPatchFrom(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION_8_15)) {
+            Integer cacheId = esFieldIdFromCache(field);
+            if (cacheId != null) {
+                writeZLong(cacheId);
+                return false;
+            }
+
+            cacheId = cacheEsField(field);
+            writeZLong(-1 - cacheId);
+        }
+        writeString(field.getWriteableName());
+        return true;
+    }
+
+    private Integer esFieldIdFromCache(EsField field) {
+        return cachedEsFields.get(field);
+    }
+
+    private int cacheEsField(EsField attr) {
+        if (cachedEsFields.containsKey(attr)) {
+            throw new IllegalArgumentException("EsField already present in the serialization cache [" + attr + "]");
+        }
+        int id = cachedEsFields.size();
+        if (id >= maxSerializedAttributes) {
+            throw new InvalidArgumentException("Limit of the number of serialized EsFields exceeded [{}]", maxSerializedAttributes);
+        }
+        cachedEsFields.put(attr, id);
         return id;
     }
 

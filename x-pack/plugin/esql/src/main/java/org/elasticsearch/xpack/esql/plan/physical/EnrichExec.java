@@ -6,19 +6,36 @@
  */
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
 public class EnrichExec extends UnaryExec implements EstimatesRowSize {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        PhysicalPlan.class,
+        "EnrichExec",
+        EnrichExec::readFrom
+    );
 
     private final Enrich.Mode mode;
     private final String matchType;
@@ -29,9 +46,6 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize {
     private final List<NamedExpression> enrichFields;
 
     /**
-     *
-     * @param source
-     * @param child
      * @param matchField the match field in the source data
      * @param policyName the enrich policy name
      * @param policyMatchField the match field name in the policy
@@ -57,6 +71,73 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize {
         this.policyMatchField = policyMatchField;
         this.concreteIndices = concreteIndices;
         this.enrichFields = enrichFields;
+    }
+
+    private static EnrichExec readFrom(StreamInput in) throws IOException {
+        final Source source = Source.readFrom((PlanStreamInput) in);
+        final PhysicalPlan child = in.readNamedWriteable(PhysicalPlan.class);
+        final NamedExpression matchField = in.readNamedWriteable(NamedExpression.class);
+        final String policyName = in.readString();
+        final String matchType = (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) ? in.readString() : "match";
+        final String policyMatchField = in.readString();
+        final Map<String, String> concreteIndices;
+        final Enrich.Mode mode;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+            mode = in.readEnum(Enrich.Mode.class);
+            concreteIndices = in.readMap(StreamInput::readString, StreamInput::readString);
+        } else {
+            mode = Enrich.Mode.ANY;
+            EsIndex esIndex = new EsIndex(in);
+            if (esIndex.concreteIndices().size() != 1) {
+                throw new IllegalStateException("expected a single concrete enrich index; got " + esIndex.concreteIndices());
+            }
+            concreteIndices = Map.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, Iterables.get(esIndex.concreteIndices(), 0));
+        }
+        return new EnrichExec(
+            source,
+            child,
+            mode,
+            matchType,
+            matchField,
+            policyName,
+            policyMatchField,
+            concreteIndices,
+            in.readNamedWriteableCollectionAsList(NamedExpression.class)
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        Source.EMPTY.writeTo(out);
+        out.writeNamedWriteable(child());
+        out.writeNamedWriteable(matchField());
+        out.writeString(policyName());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+            out.writeString(matchType());
+        }
+        out.writeString(policyMatchField());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+            out.writeEnum(mode());
+            out.writeMap(concreteIndices(), StreamOutput::writeString, StreamOutput::writeString);
+        } else {
+            if (concreteIndices().keySet().equals(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY))) {
+                String concreteIndex = concreteIndices().get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+                new EsIndex(concreteIndex, Map.of(), Map.of(concreteIndex, IndexMode.STANDARD)).writeTo(out);
+            } else {
+                throw new IllegalStateException("expected a single concrete enrich index; got " + concreteIndices());
+            }
+        }
+        out.writeNamedWriteableCollection(enrichFields());
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
+    @Override
+    protected AttributeSet computeReferences() {
+        return matchField.references();
     }
 
     @Override

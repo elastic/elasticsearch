@@ -180,7 +180,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         logger.info("Creating index [test]");
         CreateIndexResponse createIndexResponse = indicesAdmin().create(new CreateIndexRequest("test").settings(settings)).actionGet();
         assertAcked(createIndexResponse);
-        ClusterState clusterState = clusterAdmin().prepareState().get().getState();
+        ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         RoutingNode routingNodeEntry1 = clusterState.getRoutingNodes().node(node1);
         assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED), equalTo(1));
         assertBusy(() -> { assertTrue(indexExists("test")); });
@@ -188,7 +188,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         assertThat(indexLifecycleService.getScheduler().jobCount(), equalTo(1));
         assertNotNull(indexLifecycleService.getScheduledJob());
         assertBusy(() -> {
-            LifecycleExecutionState lifecycleState = clusterAdmin().prepareState()
+            LifecycleExecutionState lifecycleState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
                 .get()
                 .getState()
                 .getMetadata()
@@ -425,13 +425,13 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         CreateIndexResponse createIndexResponse = indicesAdmin().create(new CreateIndexRequest("test").settings(settings)).actionGet();
         assertAcked(createIndexResponse);
 
-        ClusterState clusterState = clusterAdmin().prepareState().get().getState();
+        ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         RoutingNode routingNodeEntry1 = clusterState.getRoutingNodes().node(node2);
         assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED), equalTo(1));
 
         assertBusy(() -> assertTrue(indexExists("test")));
         assertBusy(() -> {
-            LifecycleExecutionState lifecycleState = clusterAdmin().prepareState()
+            LifecycleExecutionState lifecycleState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
                 .get()
                 .getState()
                 .getMetadata()
@@ -496,7 +496,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
             assertThat(indexLifecycleService.getScheduler().jobCount(), equalTo(1));
         });
         {
-            TimeValueSchedule schedule = (TimeValueSchedule) indexLifecycleService.getScheduledJob().getSchedule();
+            TimeValueSchedule schedule = (TimeValueSchedule) indexLifecycleService.getScheduledJob().schedule();
             assertThat(schedule.getInterval(), equalTo(pollInterval));
         }
 
@@ -504,7 +504,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         TimeValue newPollInterval = TimeValue.timeValueHours(randomLongBetween(6, 1000));
         updateClusterSettings(Settings.builder().put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, newPollInterval.getStringRep()));
         {
-            TimeValueSchedule schedule = (TimeValueSchedule) indexLifecycleService.getScheduledJob().getSchedule();
+            TimeValueSchedule schedule = (TimeValueSchedule) indexLifecycleService.getScheduledJob().schedule();
             assertThat(schedule.getInterval(), equalTo(newPollInterval));
         }
     }

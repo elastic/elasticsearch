@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.meta.MetaFunctions;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.joni.exception.SyntaxException;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -153,7 +154,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return p -> {
             Source source = source(ctx);
             String pattern = visitString(ctx.string()).fold().toString();
-            Grok.Parser grokParser = Grok.pattern(source, pattern);
+            Grok.Parser grokParser;
+            try {
+                grokParser = Grok.pattern(source, pattern);
+            } catch (SyntaxException e) {
+                throw new ParsingException(source, "Invalid grok pattern [{}]: [{}]", pattern, e.getMessage());
+            }
             validateGrokPattern(source, grokParser, pattern);
             Grok result = new Grok(source(ctx), p, expression(ctx.primaryExpression()), grokParser);
             return result;
@@ -282,7 +288,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             false,
             List.of(metadataMap.values().toArray(Attribute[]::new)),
             IndexMode.STANDARD,
-            null
+            null,
+            "FROM"
         );
     }
 
@@ -491,7 +498,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         TableIdentifier table = new TableIdentifier(source, null, visitIndexPattern(ctx.indexPattern()));
 
         if (ctx.aggregates == null && ctx.grouping == null) {
-            return new UnresolvedRelation(source, table, false, List.of(), IndexMode.STANDARD, null);
+            return new UnresolvedRelation(source, table, false, List.of(), IndexMode.STANDARD, null, "METRICS");
         }
         final Stats stats = stats(source, ctx.grouping, ctx.aggregates);
         var relation = new UnresolvedRelation(
@@ -500,7 +507,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             false,
             List.of(new MetadataAttribute(source, MetadataAttribute.TSID_FIELD, DataType.KEYWORD, false)),
             IndexMode.TIME_SERIES,
-            null
+            null,
+            "FROM TS"
         );
         return new Aggregate(source, relation, Aggregate.AggregateType.METRICS, stats.groupings, stats.aggregates);
     }

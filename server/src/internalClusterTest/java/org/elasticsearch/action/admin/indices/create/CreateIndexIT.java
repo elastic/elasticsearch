@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.create;
@@ -16,6 +17,8 @@ import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -90,7 +93,7 @@ public class CreateIndexIT extends ESIntegTestCase {
         long timeBeforeRequest = System.currentTimeMillis();
         prepareCreate("test").get();
         long timeAfterRequest = System.currentTimeMillis();
-        ClusterStateResponse response = clusterAdmin().prepareState().get();
+        ClusterStateResponse response = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
         ClusterState state = response.getState();
         assertThat(state, notNullValue());
         Metadata metadata = state.getMetadata();
@@ -152,6 +155,20 @@ public class CreateIndexIT extends ESIntegTestCase {
         MappingMetadata mappings = response.mappings().get("test");
         assertNotNull(mappings);
         assertTrue(mappings.sourceAsMap().isEmpty());
+    }
+
+    public void testTwoEmptyEqualMappings() throws Exception {
+        assertAcked(prepareCreate("test1"));
+        assertAcked(prepareCreate("test2").setMapping(XContentFactory.jsonBuilder().startObject().endObject()));
+        FieldCapabilitiesRequest fieldCapsReq1 = new FieldCapabilitiesRequest();
+        fieldCapsReq1.indices("test1");
+        fieldCapsReq1.fields("*");
+        FieldCapabilitiesResponse fieldCapsResp1 = internalCluster().coordOnlyNodeClient().fieldCaps(fieldCapsReq1).actionGet();
+        FieldCapabilitiesRequest fieldCapsReq2 = new FieldCapabilitiesRequest();
+        fieldCapsReq2.indices("test2");
+        fieldCapsReq2.fields("*");
+        FieldCapabilitiesResponse fieldCapsResp2 = internalCluster().coordOnlyNodeClient().fieldCaps(fieldCapsReq2).actionGet();
+        assertEquals(fieldCapsResp1.get(), fieldCapsResp2.get());
     }
 
     public void testInvalidShardCountSettings() throws Exception {
@@ -296,7 +313,7 @@ public class CreateIndexIT extends ESIntegTestCase {
     }
 
     public void testRestartIndexCreationAfterFullClusterRestart() throws Exception {
-        clusterAdmin().prepareUpdateSettings()
+        clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .setTransientSettings(Settings.builder().put("cluster.routing.allocation.enable", "none"))
             .get();
         indicesAdmin().prepareCreate("test").setWaitForActiveShards(ActiveShardCount.NONE).setSettings(indexSettings()).get();

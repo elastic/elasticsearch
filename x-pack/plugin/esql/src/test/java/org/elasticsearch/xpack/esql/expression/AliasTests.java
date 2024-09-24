@@ -17,10 +17,8 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.tree.SourceTests;
-import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTests;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
-import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
@@ -36,7 +34,7 @@ public class AliasTests extends AbstractWireTestCase<Alias> {
         Source source = SourceTests.randomSource();
         String name = randomAlphaOfLength(5);
         // TODO better randomChild
-        Expression child = ReferenceAttributeTests.randomReferenceAttribute();
+        Expression child = ReferenceAttributeTests.randomReferenceAttribute(false);
         boolean synthetic = randomBoolean();
         return new Alias(source, name, child, new NameId(), synthetic);
     }
@@ -54,7 +52,7 @@ public class AliasTests extends AbstractWireTestCase<Alias> {
         boolean synthetic = instance.synthetic();
         switch (between(0, 2)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
-            case 1 -> child = randomValueOtherThan(child, ReferenceAttributeTests::randomReferenceAttribute);
+            case 1 -> child = randomValueOtherThan(child, () -> ReferenceAttributeTests.randomReferenceAttribute(false));
             case 2 -> synthetic = false == synthetic;
         }
         return new Alias(source, name, child, instance.id(), synthetic);
@@ -65,9 +63,9 @@ public class AliasTests extends AbstractWireTestCase<Alias> {
         return copyInstance(
             instance,
             getNamedWriteableRegistry(),
-            (out, v) -> new PlanStreamOutput(out, new PlanNameRegistry(), null).writeNamedWriteable(v),
+            (out, v) -> new PlanStreamOutput(out, null).writeNamedWriteable(v),
             in -> {
-                PlanStreamInput pin = new PlanStreamInput(in, new PlanNameRegistry(), in.namedWriteableRegistry(), null);
+                PlanStreamInput pin = new PlanStreamInput(in, in.namedWriteableRegistry(), null);
                 Alias deser = (Alias) pin.readNamedWriteable(NamedExpression.class);
                 assertThat(deser.id(), equalTo(pin.mapNameId(Long.parseLong(instance.id().toString()))));
                 return deser;
@@ -81,7 +79,6 @@ public class AliasTests extends AbstractWireTestCase<Alias> {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(NamedExpression.getNamedWriteables());
         entries.addAll(Attribute.getNamedWriteables());
         entries.add(UnsupportedAttribute.ENTRY);
-        entries.addAll(EsField.getNamedWriteables());
         entries.addAll(Expression.getNamedWriteables());
         return new NamedWriteableRegistry(entries);
     }

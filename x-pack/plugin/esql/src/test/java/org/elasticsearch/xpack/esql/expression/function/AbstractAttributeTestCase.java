@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.function;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -16,21 +15,26 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.hamcrest.Matchers.sameInstance;
 
 public abstract class AbstractAttributeTestCase<T extends Attribute> extends AbstractWireSerializingTestCase<
     AbstractAttributeTestCase.ExtraAttribute> {
+
+    /**
+     * We use a single random config for all serialization because it's pretty
+     * heavy to build, especially in {@link #testConcurrentSerialization()}.
+     */
+    private Configuration config;
+
     protected abstract T create();
 
     protected abstract T mutate(T instance);
@@ -50,13 +54,16 @@ public abstract class AbstractAttributeTestCase<T extends Attribute> extends Abs
     protected final NamedWriteableRegistry getNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(Attribute.getNamedWriteables());
         entries.add(UnsupportedAttribute.ENTRY);
-        entries.addAll(EsField.getNamedWriteables());
         return new NamedWriteableRegistry(entries);
     }
 
     @Override
     protected final Writeable.Reader<ExtraAttribute> instanceReader() {
-        return ExtraAttribute::new;
+        return in -> {
+            PlanStreamInput pin = new PlanStreamInput(in, in.namedWriteableRegistry(), config);
+            pin.setTransportVersion(in.getTransportVersion());
+            return new ExtraAttribute(pin);
+        };
     }
 
     /**
@@ -70,15 +77,13 @@ public abstract class AbstractAttributeTestCase<T extends Attribute> extends Abs
             assertThat(a.source(), sameInstance(Source.EMPTY));
         }
 
-        ExtraAttribute(StreamInput in) throws IOException {
-            PlanStreamInput ps = new PlanStreamInput(in, PlanNameRegistry.INSTANCE, in.namedWriteableRegistry(), randomConfiguration());
-            ps.setTransportVersion(in.getTransportVersion());
-            a = ps.readNamedWriteable(Attribute.class);
+        ExtraAttribute(PlanStreamInput in) throws IOException {
+            a = in.readNamedWriteable(Attribute.class);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            new PlanStreamOutput(out, new PlanNameRegistry(), EsqlTestUtils.TEST_CFG).writeNamedWriteable(a);
+            new PlanStreamOutput(out, EsqlTestUtils.TEST_CFG).writeNamedWriteable(a);
         }
 
         @Override

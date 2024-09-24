@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.template.post;
@@ -15,8 +16,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionProvider;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
@@ -60,7 +59,6 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
     private final Set<IndexSettingProvider> indexSettingProviders;
     private final ClusterSettings clusterSettings;
     private final boolean isDslOnlyMode;
-    private final DataStreamGlobalRetentionProvider globalRetentionResolver;
 
     @Inject
     public TransportSimulateTemplateAction(
@@ -73,8 +71,7 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
         NamedXContentRegistry xContentRegistry,
         IndicesService indicesService,
         SystemIndices systemIndices,
-        IndexSettingProviders indexSettingProviders,
-        DataStreamGlobalRetentionProvider globalRetentionResolver
+        IndexSettingProviders indexSettingProviders
     ) {
         super(
             SimulateTemplateAction.NAME,
@@ -94,7 +91,6 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
         this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
         this.clusterSettings = clusterService.getClusterSettings();
         this.isDslOnlyMode = isDataStreamsLifecycleOnlyMode(clusterService.getSettings());
-        this.globalRetentionResolver = globalRetentionResolver;
     }
 
     @Override
@@ -104,7 +100,6 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
         ClusterState state,
         ActionListener<SimulateIndexTemplateResponse> listener
     ) throws Exception {
-        final DataStreamGlobalRetention globalRetention = globalRetentionResolver.provide();
         String uuid = UUIDs.randomBase64UUID().toLowerCase(Locale.ROOT);
         final String temporaryIndexName = "simulate_template_index_" + uuid;
         final ClusterState stateWithTemplate;
@@ -175,19 +170,19 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
             xContentRegistry,
             indicesService,
             systemIndices,
-            indexSettingProviders
+            indexSettingProviders,
+            Map.of()
         );
         if (request.includeDefaults()) {
             listener.onResponse(
                 new SimulateIndexTemplateResponse(
                     template,
                     overlapping,
-                    clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING),
-                    globalRetention
+                    clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING)
                 )
             );
         } else {
-            listener.onResponse(new SimulateIndexTemplateResponse(template, overlapping, globalRetention));
+            listener.onResponse(new SimulateIndexTemplateResponse(template, overlapping));
         }
     }
 

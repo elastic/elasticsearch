@@ -111,7 +111,6 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         for (var entry : innerRetrievers) {
             SearchRequest searchRequest = new SearchRequest().source(entry.source);
             // The can match phase can reorder shards, so we disable it to ensure the stable ordering
-            // TODO: does this break if we query frozen tier? should we update/remove this
             searchRequest.setPreFilterShardSize(Integer.MAX_VALUE);
             multiSearchRequest.add(searchRequest);
         }

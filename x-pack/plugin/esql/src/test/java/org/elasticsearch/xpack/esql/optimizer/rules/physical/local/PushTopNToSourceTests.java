@@ -1,0 +1,427 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
+
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.utils.GeometryValidator;
+import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.geometry.utils.WellKnownText;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDistance;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.stats.DisabledSearchStats;
+import org.elasticsearch.xpack.esql.type.EsFieldTests;
+
+import java.io.IOException;
+import java.nio.ByteOrder;
+import java.text.ParseException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushTopNToSourceTests.TestPhysicalPlanBuilder.from;
+import static org.elasticsearch.xpack.esql.plan.physical.AbstractPhysicalPlanSerializationTests.randomEstimatedRowSize;
+import static org.hamcrest.Matchers.is;
+
+public class PushTopNToSourceTests extends ESTestCase {
+
+    public void testSimpleSortField() {
+        // FROM index | SORT field | LIMIT 10
+        var query = from("index").sort("field").limit(10);
+        assertPushdownSort(query);
+        assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
+    }
+
+    public void testSimpleSortMultipleFields() {
+        // FROM index | SORT field, integer, double | LIMIT 10
+        var query = from("index").sort("field").sort("integer").sort("double").limit(10);
+        assertPushdownSort(query);
+        assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
+    }
+
+    public void testSimpleSortFieldAndEvalLiteral() {
+        // FROM index | EVAL x = 1 | SORT field | LIMIT 10
+        var query = from("index").eval("x", e -> e.i(1)).sort("field").limit(10);
+        assertPushdownSort(query);
+        assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
+    }
+
+    public void testSimpleSortFieldWithAlias() {
+        // FROM index | EVAL x = field | SORT field | LIMIT 10
+        var query = from("index").eval("x", b -> b.field("field")).sort("field").limit(10);
+        assertPushdownSort(query);
+        assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
+    }
+
+    public void testSimpleSortMultipleFieldsWithAliases() {
+        // FROM index | EVAL x = field, y = integer, z = double | SORT field, integer, double | LIMIT 10
+        var query = from("index").eval("x", b -> b.field("field"))
+            .eval("y", b -> b.field("integer"))
+            .eval("z", b -> b.field("double"))
+            .sort("field")
+            .sort("integer")
+            .sort("double")
+            .limit(10);
+        assertPushdownSort(query);
+        assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
+    }
+
+    public void testSimpleSortFieldAsAlias() {
+        // FROM index | EVAL x = field | SORT x | LIMIT 10
+        var query = from("index").eval("x", b -> b.field("field")).sort("x").limit(10);
+        // TODO: For simple field aliasing, perhaps it could be supported
+        assertNoPushdownSort(query, "when sorting on a derived field");
+        assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
+    }
+
+    public void testSimpleSortFieldAndEvalSumLiterals() {
+        // FROM index | EVAL sum = 1 + 2 | SORT field | LIMIT 10
+        var query = from("index").eval("sum", b -> b.add(b.i(1), b.i(2))).sort("field").limit(10);
+        assertPushdownSort(query);
+        assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
+    }
+
+    public void testSimpleSortFieldAndEvalSumLiteralAndField() {
+        // FROM index | EVAL sum = 1 + integer | SORT integer | LIMIT 10
+        var query = from("index").eval("sum", b -> b.add(b.i(1), b.field("integer"))).sort("integer").limit(10);
+        assertPushdownSort(query);
+        assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
+    }
+
+    public void testSimpleSortEvalSumLiteralAndField() {
+        // FROM index | EVAL sum = 1 + integer | SORT sum | LIMIT 10
+        var query = from("index").eval("sum", b -> b.add(b.i(1), b.field("integer"))).sort("sum").limit(10);
+        // TODO: Consider supporting this if we can determine that the eval function maintains the same order
+        assertNoPushdownSort(query, "when sorting on a derived field");
+        assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
+    }
+
+    public void testPartiallyPushableSort() {
+        // FROM index | EVAL sum = 1 + integer | SORT integer, sum, field | LIMIT 10
+        var query = from("index").eval("sum", b -> b.add(b.i(1), b.field("integer"))).sort("integer").sort("sum").sort("field").limit(10);
+        // Both integer and field can be pushed down, but we can only push down the leading sortable fields, so the 'sum' blocks 'field'
+        assertPushdownSort(query, EvalExec.class, List.of(query.orders.get(0)), null);
+        assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
+    }
+
+    public void testSortGeoPointField() {
+        // FROM index | SORT location | LIMIT 10
+        var query = from("index").sort("location", Order.OrderDirection.ASC).limit(10);
+        // NOTE: while geo_point is not sortable, this is checked during logical planning and the physical planner does not know or care
+        assertPushdownSort(query);
+        assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
+    }
+
+    public void testSortGeoDistanceFunction() {
+        // FROM index | EVAL distance = ST_DISTANCE(location, POINT(1 2)) | SORT distance | LIMIT 10
+        var query = from("index").eval("distance", b -> b.distance("location", "POINT(1 2)"))
+            .sort("distance", Order.OrderDirection.ASC)
+            .limit(10);
+        // The pushed-down sort will use the underlying field 'location', not the sorted reference field 'distance'
+        assertPushdownSort(query, Map.of("distance", "location"));
+        assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
+    }
+
+    public void testSortGeoDistanceFunctionAndFieldsWithAliases() {
+        // FROM index | EVAL distance = ST_DISTANCE(location, POINT(1 2)), x = field | SORT distance, field, integer | LIMIT 10
+        var query = from("index").eval("distance", b -> b.distance("location", "POINT(1 2)"))
+            .eval("x", b -> b.field("field"))
+            .sort("distance", Order.OrderDirection.ASC)
+            .sort("field", Order.OrderDirection.DESC)
+            .sort("integer", Order.OrderDirection.DESC)
+            .limit(10);
+        // The pushed-down sort will use the underlying field 'location', not the sorted reference field 'distance'
+        assertPushdownSort(query, EvalExec.class, query.orders, Map.of("distance", "location"));
+        assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
+    }
+
+    public void testSortGeoDistanceFunctionAndFieldsAndAliases() {
+        // FROM index | EVAL distance = ST_DISTANCE(location, POINT(1 2)), x = field | SORT distance, x, integer | LIMIT 10
+        var query = from("index").eval("distance", b -> b.distance("location", "POINT(1 2)"))
+            .eval("x", b -> b.field("field"))
+            .sort("distance", Order.OrderDirection.ASC)
+            .sort("x", Order.OrderDirection.DESC)
+            .sort("integer", Order.OrderDirection.DESC)
+            .limit(10);
+        // We can only push down the leading sorts that pushable, and the rest will be handled by the final SORT
+        var expectedSorts = List.of(query.orders.get(0));
+        // The pushed-down sort will use the underlying field 'location', not the sorted reference field 'distance'
+        assertPushdownSort(query, EvalExec.class, expectedSorts, Map.of("distance", "location"));
+        assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
+    }
+
+    private static void assertPushdownSort(TestPhysicalPlanBuilder builder) {
+        assertPushdownSort(builder, null);
+    }
+
+    private static void assertPushdownSort(TestPhysicalPlanBuilder builder, Map<String, String> fieldMap) {
+        var topNExec = builder.build();
+        var result = pushTopNToSource(topNExec);
+        assertPushdownSort(result, null, builder.orders, fieldMap);
+    }
+
+    private static void assertPushdownSort(
+        TestPhysicalPlanBuilder builder,
+        Class<? extends PhysicalPlan> topClass,
+        List<Order> expectedSorts,
+        Map<String, String> fieldMap
+    ) {
+        var topNExec = builder.build();
+        var result = pushTopNToSource(topNExec);
+        assertPushdownSort(result, topClass, expectedSorts, fieldMap);
+    }
+
+    private static void assertNoPushdownSort(TestPhysicalPlanBuilder builder, String message) {
+        var topNExec = builder.build();
+        var result = pushTopNToSource(topNExec);
+        assertNoPushdownSort(result, message);
+    }
+
+    private static PhysicalPlan pushTopNToSource(TopNExec topNExec) {
+        var configuration = EsqlTestUtils.configuration("from test");
+        var searchStats = new DisabledSearchStats();
+        var ctx = new LocalPhysicalOptimizerContext(configuration, searchStats);
+        var pushTopNToSource = new PushTopNToSource();
+        return pushTopNToSource.rule(topNExec, ctx);
+    }
+
+    private static void assertNoPushdownSort(PhysicalPlan plan, String message) {
+        var esQueryExec = findEsQueryExec(plan);
+        var sorts = esQueryExec.sorts();
+        assertThat("Expect no sorts " + message, sorts.size(), is(0));
+    }
+
+    private static void assertPushdownSort(
+        PhysicalPlan plan,
+        Class<? extends PhysicalPlan> topClass,
+        List<Order> expectedSorts,
+        Map<String, String> fieldMap
+    ) {
+        if (topClass != null) {
+            assertThat("Expect top physical plan class to match", plan.getClass(), is(topClass));
+        }
+        var esQueryExec = findEsQueryExec(plan);
+        var sorts = esQueryExec.sorts();
+        assertThat("Expect sorts count to match", sorts.size(), is(expectedSorts.size()));
+        for (int i = 0; i < expectedSorts.size(); i++) {
+            String name = ((Attribute) expectedSorts.get(i).child()).name();
+            String fieldName = sorts.get(i).field().fieldName();
+            assertThat("Expect sort[" + i + "] name to match", fieldName, is(sortName(name, fieldMap)));
+            assertThat("Expect sort[" + i + "] direction to match", sorts.get(i).direction(), is(expectedSorts.get(i).direction()));
+        }
+    }
+
+    private static String sortName(String name, Map<String, String> fieldMap) {
+        return fieldMap != null ? fieldMap.getOrDefault(name, name) : name;
+    }
+
+    private static EsQueryExec findEsQueryExec(PhysicalPlan plan) {
+        if (plan instanceof EsQueryExec esQueryExec) {
+            return esQueryExec;
+        }
+        // We assume no physical plans with multiple children would be generated
+        return findEsQueryExec(plan.children().get(0));
+    }
+
+    /**
+     * This builder allows for easy creation of physical plans using a syntax like `from("index").sort("field").limit(10)`.
+     * The idea is to create tests that are clearly related to real queries, but also easy to make assertions on.
+     * It only supports a very small subset of possible plans, with FROM, EVAL and SORT+LIMIT, in that order.
+     */
+    static class TestPhysicalPlanBuilder {
+        private final String index;
+        private final LinkedHashMap<String, FieldAttribute> fields;
+        private final LinkedHashMap<String, ReferenceAttribute> refs;
+        private IndexMode indexMode;
+        private final List<Alias> aliases = new ArrayList<>();
+        private final List<Order> orders = new ArrayList<>();
+        private int limit = Integer.MAX_VALUE;
+
+        private TestPhysicalPlanBuilder(String index, IndexMode indexMode) {
+            this.index = index;
+            this.indexMode = indexMode;
+            this.fields = sortableFieldAttributes().stream().collect(LinkedHashMap::new, (m, f) -> m.put(f.name(), f), HashMap::putAll);
+            this.refs = new LinkedHashMap<>();
+        }
+
+        static TestPhysicalPlanBuilder from(String index) {
+            return new TestPhysicalPlanBuilder(index, IndexMode.STANDARD);
+        }
+
+        public TestPhysicalPlanBuilder eval(Alias... aliases) {
+            if (orders.isEmpty() == false) {
+                throw new IllegalArgumentException("Eval must be before sort");
+            }
+            if (aliases.length == 0) {
+                throw new IllegalArgumentException("At least one alias must be provided");
+            }
+            for (Alias alias : aliases) {
+                if (refs.containsKey(alias.name())) {
+                    throw new IllegalArgumentException("Reference already exists: " + alias.name());
+                }
+                refs.put(
+                    alias.name(),
+                    new ReferenceAttribute(Source.EMPTY, alias.name(), alias.dataType(), Nullability.FALSE, alias.id(), alias.synthetic())
+                );
+                this.aliases.add(alias);
+            }
+            return this;
+        }
+
+        public TestPhysicalPlanBuilder eval(String name, Function<TestExpressionBuilder, Expression> builder) {
+            var testExpressionBuilder = new TestExpressionBuilder();
+            Expression expression = builder.apply(testExpressionBuilder);
+            return eval(new Alias(Source.EMPTY, name, expression));
+        }
+
+        public TestPhysicalPlanBuilder sort(String field) {
+            return sort(field, Order.OrderDirection.ASC);
+        }
+
+        public TestPhysicalPlanBuilder sort(String field, Order.OrderDirection direction) {
+            Attribute attr = refs.get(field);
+            if (attr == null) {
+                attr = fields.get(field);
+            }
+            if (attr == null) {
+                throw new IllegalArgumentException("Field not found: " + field);
+            }
+            orders.add(new Order(Source.EMPTY, attr, direction, Order.NullsPosition.LAST));
+            return this;
+        }
+
+        public TestPhysicalPlanBuilder limit(int limit) {
+            this.limit = limit;
+            return this;
+        }
+
+        public TopNExec build() {
+            PhysicalPlan child = randomEsQueryExec(indexMode, fields.values());
+            if (aliases.isEmpty() == false) {
+                child = new EvalExec(Source.EMPTY, child, aliases);
+            }
+            return new TopNExec(Source.EMPTY, child, orders, new Literal(Source.EMPTY, limit, INTEGER), randomEstimatedRowSize());
+        }
+
+        public TestPhysicalPlanBuilder asTimeSeries() {
+            this.indexMode = IndexMode.TIME_SERIES;
+            return this;
+        }
+
+        class TestExpressionBuilder {
+            Expression field(String name) {
+                return fields.get(name);
+            }
+
+            Expression literal(Object value, DataType dataType) {
+                return new Literal(Source.EMPTY, value, dataType);
+            }
+
+            Expression i(int value) {
+                return new Literal(Source.EMPTY, value, DataType.INTEGER);
+            }
+
+            Expression d(double value) {
+                return new Literal(Source.EMPTY, value, DOUBLE);
+            }
+
+            Expression k(String value) {
+                return new Literal(Source.EMPTY, value, KEYWORD);
+            }
+
+            public Expression add(Expression left, Expression right) {
+                return new Add(Source.EMPTY, left, right);
+            }
+
+            public Expression distance(String field, String wkt) {
+                try {
+                    Geometry geometry = WellKnownText.fromWKT(GeometryValidator.NOOP, false, wkt);
+                    BytesRef bytes = new BytesRef(WellKnownBinary.toWKB(geometry, ByteOrder.LITTLE_ENDIAN));
+                    Literal point = new Literal(Source.EMPTY, bytes, GEO_POINT);
+                    return new StDistance(Source.EMPTY, fields.get(field), point);
+                } catch (IOException | ParseException e) {
+                    throw new IllegalArgumentException("Failed to parse WKT: " + wkt, e);
+                }
+            }
+        }
+
+    }
+
+    private static Map<String, EsField> randomMapping() {
+        int size = between(0, 10);
+        Map<String, EsField> result = new HashMap<>(size);
+        while (result.size() < size) {
+            result.put(randomAlphaOfLength(5), EsFieldTests.randomAnyEsField(1));
+        }
+        return result;
+    }
+
+    private static Map<String, IndexMode> randomConcreteIndices() {
+        int size = between(0, 10);
+        Map<String, IndexMode> result = new HashMap<>(size);
+        while (result.size() < size) {
+            result.put(randomAlphaOfLength(5), randomFrom(IndexMode.values()));
+        }
+        return result;
+    }
+
+    private static EsIndex randomEsIndex() {
+        String name = randomAlphaOfLength(5);
+        Map<String, EsField> mapping = randomMapping();
+        return new EsIndex(name, mapping, randomConcreteIndices());
+    }
+
+    private static EsQueryExec randomEsQueryExec(IndexMode indexMode, Collection<FieldAttribute> attrs) {
+        EsIndex index = randomEsIndex();
+        Expression limit = new Literal(Source.EMPTY, between(0, Integer.MAX_VALUE), INTEGER);
+        Integer estimatedRowSize = randomEstimatedRowSize();
+        return new EsQueryExec(Source.EMPTY, index, indexMode, new ArrayList<>(attrs), null, limit, List.of(), estimatedRowSize);
+    }
+
+    private static List<FieldAttribute> sortableFieldAttributes() {
+        ArrayList<FieldAttribute> attributes = new ArrayList<>();
+        attributes.add(makeFieldAttribute("field", KEYWORD, true));
+        attributes.add(makeFieldAttribute("integer", INTEGER, true));
+        attributes.add(makeFieldAttribute("double", DOUBLE, true));
+        attributes.add(makeFieldAttribute("keyword", KEYWORD, true));
+        attributes.add(makeFieldAttribute("location", GEO_POINT, true));
+        return attributes;
+    }
+
+    private static FieldAttribute makeFieldAttribute(String name, DataType type, boolean aggregatable) {
+        return new FieldAttribute(Source.EMPTY, name, new EsField(name, type, new HashMap<>(), aggregatable));
+    }
+}

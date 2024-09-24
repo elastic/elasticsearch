@@ -148,7 +148,7 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
                     } else {
                         // If the SORT refers to a non-pushable reference function, the EVAL must remain before the SORT,
                         // and we can no longer push down anything
-                        return NO_OP;
+                        break;
                     }
                 } else {
                     // As soon as we see a non-pushable sort, we know we need a final SORT command

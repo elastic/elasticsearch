@@ -43,6 +43,8 @@ import java.util.Objects;
  */
 public class Template implements SimpleDiffable<Template>, ToXContentObject {
 
+    public static final Template EMPTY = new Template(null, null, null, null);
+
     private static final ParseField SETTINGS = new ParseField("settings");
     private static final ParseField MAPPINGS = new ParseField("mappings");
     private static final ParseField ALIASES = new ParseField("aliases");
@@ -290,5 +292,58 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             XContentHelper.convertToMap(m2.uncompressed(), true, XContentType.JSON).v2()
         );
         return Maps.deepEquals(thisUncompressedMapping, otherUncompressedMapping);
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static Builder builder(Template template) {
+        return new Builder(template);
+    }
+
+    public static class Builder {
+        private Settings settings = null;
+        private CompressedXContent mappings = null;
+        private Map<String, AliasMetadata> aliases = null;
+        private DataStreamLifecycle lifecycle = null;
+
+        private Builder() {}
+
+        private Builder(Template template) {
+            settings = template.settings;
+            mappings = template.mappings;
+            aliases = template.aliases;
+            lifecycle = template.lifecycle;
+        }
+
+        public Builder settings(Settings settings) {
+            this.settings = settings;
+            return this;
+        }
+
+        public Builder settings(Settings.Builder settings) {
+            this.settings = settings.build();
+            return this;
+        }
+
+        public Builder mappings(CompressedXContent mappings) {
+            this.mappings = mappings;
+            return this;
+        }
+
+        public Builder aliases(Map<String, AliasMetadata> aliases) {
+            this.aliases = aliases;
+            return this;
+        }
+
+        public Builder lifecycle(DataStreamLifecycle lifecycle) {
+            this.lifecycle = lifecycle;
+            return this;
+        }
+
+        public Template build() {
+            return new Template(settings, mappings, aliases, lifecycle);
+        }
     }
 }

@@ -264,12 +264,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             .build();
         var newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA, ds.getBackingIndices());
 
-        var rolledDs = ds.rollover(
-            new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()),
-            newCoordinates.v2(),
-            IndexMode.LOGSDB,
-            null
-        );
+        var rolledDs = ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), IndexMode.LOGSDB, null);
         assertThat(rolledDs.getName(), equalTo(ds.getName()));
         assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
         assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));

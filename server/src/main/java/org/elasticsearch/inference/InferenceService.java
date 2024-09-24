@@ -188,4 +188,21 @@ public interface InferenceService extends Closeable {
      * @return {@link TransportVersion} specifying the version
      */
     TransportVersion getMinimalSupportedVersion();
+
+    /**
+     * The set of tasks where this service provider supports using the streaming API.
+     * @return set of supported task types. Defaults to empty.
+     */
+    default Set<TaskType> supportedStreamingTasks() {
+        return Set.of();
+    }
+
+    /**
+     * Checks the task type against the set of supported streaming tasks returned by {@link #supportedStreamingTasks()}.
+     * @param taskType the task that supports streaming
+     * @return true if the taskType is supported
+     */
+    default boolean canStream(TaskType taskType) {
+        return supportedStreamingTasks().contains(taskType);
+    }
 }

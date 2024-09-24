@@ -39,9 +39,8 @@ public enum RegexpFlag {
 
     /**
      * Enables complement expression of the form: {@code ~&lt;expression&gt;}
-     * TODO Lucene 10 upgrade: Lucenes RegExp class has removed the COMPLEMENT flag in https://issues.apache.org/jira/browse/LUCENE-10010
-     * We can use the deprecated constant for now but need a plan for deprecation / removal
-     * at some point before removal of this functionality in Lucene
+     * We use the deprecated support in Lucene 10. Will be removed in Lucene 11
+     * https://github.com/elastic/elasticsearch/issues/113465
      */
     COMPLEMENT(DEPRECATED_COMPLEMENT),
 

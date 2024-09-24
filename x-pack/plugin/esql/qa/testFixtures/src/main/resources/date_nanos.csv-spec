@@ -245,3 +245,21 @@ d:date_nanos
 2023-10-23T12:27:28.948000000Z
 2023-10-23T12:15:03.360103847Z
 ;
+
+attempt to cast the result of a fold to date nanos
+required_capability: date_nanos_type
+
+ROW d = TO_DATE_NANOS(CONCAT("2023-01-01","T12:12:12"));
+
+d:date_nanos
+2023-01-01T12:12:12.000000000Z
+;
+
+attempt to cast nulls to date nanos
+required_capability: date_nanos_type
+
+ROW a = TO_DATE_NANOS(null), b = TO_DATE_NANOS(null + 1::long), c = TO_DATE_NANOS(CONCAT("2024", null));
+
+a:date_nanos | b:date_nanos | c:date_nanos
+null         | null         | null
+;

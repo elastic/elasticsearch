@@ -20,6 +20,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -66,6 +67,14 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTests {
 
+    private static final S3ErrorResponse S3_SLOW_DOWN_RESPONSE = new S3ErrorResponse(SERVICE_UNAVAILABLE, """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <Error>
+          <Code>SlowDown</Code>
+          <Message>This is a throttling message</Message>
+          <Resource>/bucket/</Resource>
+          <RequestId>4442587FB7D0A2F9</RequestId>
+        </Error>""");
     private final Queue<S3ErrorResponse> errorResponseQueue = new LinkedBlockingQueue<>();
 
     // Always create erroneous handler
@@ -249,7 +258,8 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
         }
     }
 
-    public void testRetrySnapshotDeleteMetrics() throws IOException {
+    public void testRetrySnapshotDeleteMetricsOnEventualSuccess() throws IOException {
+        final int maxRetries = 5;
         final String repositoryName = randomRepositoryName();
         // Disable retries in the client for this repo
         createRepository(
@@ -257,6 +267,8 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
             Settings.builder()
                 .put(repositorySettings(repositoryName))
                 .put(S3ClientSettings.MAX_RETRIES_SETTING.getConcreteSettingForNamespace("placeholder").getKey(), 0)
+                .put(S3Repository.RETRY_THROTTLED_DELETE_INITIAL_DELAY.getKey(), TimeValue.timeValueMillis(10))
+                .put(S3Repository.RETRY_THROTTLED_DELETE_MAX_NUMBER_OF_RETRIES.getKey(), maxRetries)
                 .build(),
             false
         );
@@ -266,16 +278,9 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
         final int numberOfDeletes = randomIntBetween(1, 3);
         final List<Long> numberOfRetriesPerAttempt = new ArrayList<>();
         for (int i = 0; i < numberOfDeletes; i++) {
-            int numFailures = randomIntBetween(1, 4);
+            int numFailures = randomIntBetween(1, maxRetries);
             numberOfRetriesPerAttempt.add((long) numFailures);
-            IntStream.range(0, numFailures).forEach(ignored -> addErrorStatus(new S3ErrorResponse(SERVICE_UNAVAILABLE, """
-                <?xml version="1.0" encoding="UTF-8"?>
-                <Error>
-                  <Code>SlowDown</Code>
-                  <Message>This is a throttling message</Message>
-                  <Resource>/bucket/</Resource>
-                  <RequestId>4442587FB7D0A2F9</RequestId>
-                </Error>""")));
+            IntStream.range(0, numFailures).forEach(ignored -> addErrorStatus(S3_SLOW_DOWN_RESPONSE));
             blobContainer.deleteBlobsIgnoringIfNotExists(
                 randomFrom(OperationPurpose.SNAPSHOT_DATA, OperationPurpose.SNAPSHOT_METADATA),
                 List.of(randomIdentifier()).iterator()
@@ -283,6 +288,36 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
         }
         List<Measurement> longHistogramMeasurement = plugin.getLongHistogramMeasurement(METRIC_DELETE_RETRIES_HISTOGRAM);
         assertThat(longHistogramMeasurement.stream().map(Measurement::getLong).toList(), equalTo(numberOfRetriesPerAttempt));
+    }
+
+    public void testRetrySnapshotDeleteMetricsWhenRetriesExhausted() {
+        final String repositoryName = randomRepositoryName();
+        // Disable retries in the client for this repo
+        int maxRetries = 3;
+        createRepository(
+            repositoryName,
+            Settings.builder()
+                .put(repositorySettings(repositoryName))
+                .put(S3ClientSettings.MAX_RETRIES_SETTING.getConcreteSettingForNamespace("placeholder").getKey(), 0)
+                .put(S3Repository.RETRY_THROTTLED_DELETE_INITIAL_DELAY.getKey(), TimeValue.timeValueMillis(10))
+                .put(S3Repository.RETRY_THROTTLED_DELETE_MAX_NUMBER_OF_RETRIES.getKey(), maxRetries)
+                .build(),
+            false
+        );
+        final String dataNodeName = internalCluster().getNodeNameThat(DiscoveryNode::canContainData);
+        final BlobContainer blobContainer = getBlobContainer(dataNodeName, repositoryName);
+        final TestTelemetryPlugin plugin = getPlugin(dataNodeName);
+        // Keep throttling past the max number of retries
+        IntStream.range(0, maxRetries + 1).forEach(ignored -> addErrorStatus(S3_SLOW_DOWN_RESPONSE));
+        assertThrows(
+            IOException.class,
+            () -> blobContainer.deleteBlobsIgnoringIfNotExists(
+                randomFrom(OperationPurpose.SNAPSHOT_DATA, OperationPurpose.SNAPSHOT_METADATA),
+                List.of(randomIdentifier()).iterator()
+            )
+        );
+        List<Measurement> longHistogramMeasurement = plugin.getLongHistogramMeasurement(METRIC_DELETE_RETRIES_HISTOGRAM);
+        assertThat(longHistogramMeasurement.get(0).getLong(), equalTo(3L));
     }
 
     private void addErrorStatus(RestStatus... statuses) {

@@ -396,15 +396,12 @@ class S3BlobStore implements BlobStore {
                 aex.set(ExceptionsHelper.useOrSuppress(aex.get(), e));
                 return;
             } catch (AmazonClientException e) {
-                if (shouldRetryDelete(purpose) && RetryUtils.isThrottlingException(e) && retries.hasNext()) {
+                if (shouldRetryDelete(purpose) && RetryUtils.isThrottlingException(e)) {
                     // S3 is asking us to slow down. Pause for a bit and retry
-                    try {
-                        Thread.sleep(retries.next().millis());
+                    if (maybeDelayAndRetryDelete(retries)) {
                         retryCounter++;
-                    } catch (InterruptedException iex) {
-                        Thread.currentThread().interrupt();
-                        // If we're interrupted, record the exception and abort retries
-                        logger.warn("Aborting delete retries due to interrupt");
+                    } else {
+                        s3RepositoriesMetrics.retryDeletesHistogram().record(retryCounter);
                         aex.set(ExceptionsHelper.useOrSuppress(aex.get(), e));
                         return;
                     }
@@ -416,6 +413,28 @@ class S3BlobStore implements BlobStore {
                 }
             }
         }
+    }
+
+    /**
+     * If there are remaining retries, pause for the configured interval then return true
+     *
+     * @param retries The retries iterator
+     * @return true to try the deletion again, false otherwise
+     */
+    private boolean maybeDelayAndRetryDelete(Iterator<TimeValue> retries) {
+        if (retries.hasNext()) {
+            try {
+                Thread.sleep(retries.next().millis());
+                return true;
+            } catch (InterruptedException iex) {
+                Thread.currentThread().interrupt();
+                // If we're interrupted, record the exception and abort retries
+                logger.warn("Aborting delete retries due to interrupt");
+            }
+        } else {
+            logger.warn("Exceeded maximum delete retries, aborting");
+        }
+        return false;
     }
 
     private boolean shouldRetryDelete(OperationPurpose operationPurpose) {

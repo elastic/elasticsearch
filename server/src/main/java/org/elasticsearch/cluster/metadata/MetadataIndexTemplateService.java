@@ -312,7 +312,12 @@ public class MetadataIndexTemplateService {
             }
         }
 
-        final Template finalTemplate = Template.builder(template.template()).settings(finalSettings).mappings(wrappedMappings).build();
+        final Template finalTemplate = new Template(
+            finalSettings,
+            wrappedMappings,
+            template.template().aliases(),
+            template.template().lifecycle()
+        );
         final ComponentTemplate finalComponentTemplate = new ComponentTemplate(
             finalTemplate,
             template.version(),
@@ -624,7 +629,7 @@ public class MetadataIndexTemplateService {
             // adjusted (to add _doc) and it should be validated
             CompressedXContent mappings = innerTemplate.mappings();
             CompressedXContent wrappedMappings = wrapMappingsIfNecessary(mappings, xContentRegistry);
-            final Template finalTemplate = Template.builder(innerTemplate).settings(finalSettings).mappings(wrappedMappings).build();
+            final Template finalTemplate = new Template(finalSettings, wrappedMappings, innerTemplate.aliases(), innerTemplate.lifecycle());
             finalIndexTemplate = template.toBuilder().template(finalTemplate).build();
         }
 
@@ -712,7 +717,7 @@ public class MetadataIndexTemplateService {
         // Then apply setting from component templates:
         finalSettings.put(combinedSettings);
         // Then finally apply settings resolved from index template:
-        finalSettings.put(finalTemplate == null ? Settings.EMPTY : finalTemplate.settings());
+        finalSettings.put(finalTemplate == null || finalTemplate.settings() == null ? Settings.EMPTY : finalTemplate.settings());
 
         var templateToValidate = indexTemplate.toBuilder().template(Template.builder(finalTemplate).settings(finalSettings)).build();
 

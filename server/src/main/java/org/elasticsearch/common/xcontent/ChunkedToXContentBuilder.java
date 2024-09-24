@@ -115,7 +115,7 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
      */
     public ChunkedToXContentBuilder xContentObjectFields(Map<String, ? extends ToXContent> map) {
         startObject();
-        map.forEach((k, v) -> field(k).append(v));
+        map.forEach(this::field);
         endObject();
         return this;
     }
@@ -125,7 +125,7 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
      */
     public ChunkedToXContentBuilder xContentObjectFields(String name, Map<String, ? extends ToXContent> map) {
         startObject(name);
-        map.forEach((k, v) -> field(k).append(v));
+        map.forEach(this::field);
         endObject();
         return this;
     }
@@ -283,7 +283,7 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
     /**
      * Creates an array named {@code name}, with the contents set by appending together the contents of {@code items}
      */
-    public <T> ChunkedToXContentBuilder array(String name, Iterator<? extends ToXContent> items) {
+    public ChunkedToXContentBuilder array(String name, Iterator<? extends ToXContent> items) {
         startArray(name);
         items.forEachRemaining(this::append);
         endArray();
@@ -337,6 +337,16 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
     }
 
     public ChunkedToXContentBuilder field(String name, String value) {
+        addChunk((b, p) -> b.field(name, value));
+        return this;
+    }
+
+    public ChunkedToXContentBuilder field(String name, Enum<?> value) {
+        addChunk((b, p) -> b.field(name, value));
+        return this;
+    }
+
+    public ChunkedToXContentBuilder field(String name, ToXContent value) {
         addChunk((b, p) -> b.field(name, value));
         return this;
     }

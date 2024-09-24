@@ -720,9 +720,10 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         DocumentMapper mapper = createMapperService(
             Settings.builder()
                 .put("index.mapping.total_fields.limit", 1)
+                .put("index.mapper.source.mode", "synthetic")
                 .put("index.mapping.total_fields.ignore_dynamic_beyond_limit", true)
                 .build(),
-            syntheticSourceMapping(b -> {
+            mapping(b -> {
                 b.startObject("foo").field("type", "keyword").endObject();
             })
         ).documentMapper();

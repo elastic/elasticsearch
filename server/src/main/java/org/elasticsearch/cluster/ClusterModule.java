@@ -68,7 +68,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.UpdateForV10;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.health.metadata.HealthMetadataService;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;

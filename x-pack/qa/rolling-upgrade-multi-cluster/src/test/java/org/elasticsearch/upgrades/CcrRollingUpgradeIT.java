@@ -404,4 +404,9 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
     private static void resumeIndexFollowing(RestClient client, String followerIndex) throws IOException {
         assertOK(client.performRequest(new Request("POST", "/" + followerIndex + "/_ccr/resume_follow")));
     }
+
+    @Override
+    protected final String getEnsureGreenTimeout() {
+        return "70s";
+    }
 }

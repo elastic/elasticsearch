@@ -93,7 +93,7 @@ public class SourceProviderBenchmark {
     @Param({ "patch", "synthetic", "stored", "exclude" })
     private String mode;
 
-    @Param({ "small", "medium", "large"})
+    @Param({ "small", "medium", "large" })
     private String docSize;
 
     @Setup
@@ -110,7 +110,7 @@ public class SourceProviderBenchmark {
             ParsedDocument doc = mapperService.documentMapper().parse(source);
             assert doc.dynamicMappingsUpdate() == null;
             iw.addDocuments(doc.docs());
-            rootDoc = doc.docs().size() -1;
+            rootDoc = doc.docs().size() - 1;
             iw.commit();
         }
 
@@ -136,9 +136,9 @@ public class SourceProviderBenchmark {
     @Benchmark
     public void loadFilterDoc() throws IOException {
         var provider = SourceProvider.fromLookup(
-                mode.equals("exclude") ? null : new SourceFilter(null, new String[] { "chunks.emb" }),
-                mapperService.mappingLookup(),
-                mapperService.getMapperMetrics().sourceFieldMetrics()
+            mode.equals("exclude") ? null : new SourceFilter(null, new String[] { "chunks.emb" }),
+            mapperService.mappingLookup(),
+            mapperService.getMapperMetrics().sourceFieldMetrics()
         );
         var source = provider.getSource(indexReader.leaves().get(0), rootDoc);
         assert source.internalSourceRef() != null;

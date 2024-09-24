@@ -35,7 +35,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.index.mapper.SourceFieldMetrics.NOOP;
 
@@ -430,7 +429,10 @@ public class NestedObjectMapper extends ObjectMapper {
         if (fieldLoader == SourceLoader.SyntheticFieldLoader.NOTHING) {
             return SourceLoader.SyntheticFieldLoader.NOTHING;
         }
-        SourceLoader sourceLoader = new SourceLoader.Synthetic(() -> super.syntheticFieldLoader(sourceFilter, mappers.values().stream(), true), NOOP);
+        SourceLoader sourceLoader = new SourceLoader.Synthetic(
+            () -> super.syntheticFieldLoader(sourceFilter, mappers.values().stream(), true),
+            NOOP
+        );
         // Some synthetic source use cases require using _ignored_source field
         var requiredStoredFields = IgnoredSourceFieldMapper.ensureLoaded(sourceLoader.requiredStoredFields(), indexSettings);
         var storedFieldLoader = org.elasticsearch.index.fieldvisitor.StoredFieldLoader.create(false, requiredStoredFields);

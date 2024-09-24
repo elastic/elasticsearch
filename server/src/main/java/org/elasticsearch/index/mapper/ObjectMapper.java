@@ -899,7 +899,11 @@ public class ObjectMapper extends Mapper {
         return null;
     }
 
-    protected SourceLoader.SyntheticFieldLoader syntheticFieldLoader(SourceFilter sourceFilter, Stream<Mapper> mappers, boolean isFragment) {
+    protected SourceLoader.SyntheticFieldLoader syntheticFieldLoader(
+        SourceFilter sourceFilter,
+        Stream<Mapper> mappers,
+        boolean isFragment
+    ) {
         var fields = mappers.sorted(Comparator.comparing(Mapper::fullPath))
             .map(m -> createSyntheticField(m, sourceFilter))
             .filter(l -> l != SourceLoader.SyntheticFieldLoader.NOTHING)

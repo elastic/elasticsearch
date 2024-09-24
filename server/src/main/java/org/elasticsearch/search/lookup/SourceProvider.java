@@ -36,4 +36,8 @@ public interface SourceProvider {
     static SourceProvider fromLookup(SourceFilter sourceFilter, MappingLookup lookup, SourceFieldMetrics metrics) {
         return new ConcurrentSegmentSourceProvider(lookup.newSourceLoader(sourceFilter, metrics), lookup.isSourceSynthetic() == false);
     }
+
+    static SourceProvider fromLookup(MappingLookup lookup, SourceFieldMetrics metrics) {
+        return fromLookup(null, lookup, metrics);
+    }
 }

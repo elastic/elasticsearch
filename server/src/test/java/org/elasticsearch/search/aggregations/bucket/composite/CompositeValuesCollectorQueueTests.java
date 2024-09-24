@@ -15,14 +15,29 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesSkipper;
+import org.apache.lucene.index.FieldInfos;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafMetaData;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.StoredFields;
+import org.apache.lucene.index.TermVectors;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -54,8 +69,6 @@ import static org.elasticsearch.index.mapper.NumberFieldMapper.NumberType.DOUBLE
 import static org.elasticsearch.index.mapper.NumberFieldMapper.NumberType.LONG;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
     static class ClassAndName {
@@ -71,11 +84,8 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
     private IndexReader indexReader;
 
     @Before
-    public void setUpMocks() {
-        indexReader = mock(IndexReader.class);
-        IndexReaderContext indexReaderContext = mock(IndexReaderContext.class);
-        when(indexReaderContext.leaves()).thenReturn(List.of());
-        when(indexReader.getContext()).thenReturn(indexReaderContext);
+    public void set() {
+        indexReader = new DummyReader();
     }
 
     public void testRandomLong() throws IOException {
@@ -423,6 +433,128 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                 key[pos] = val;
                 createListCombinations(key, values, pos + 1, maxPos, keys);
             }
+        }
+    }
+
+    static class DummyReader extends LeafReader {
+        @Override
+        public CacheHelper getCoreCacheHelper() {
+            return null;
+        }
+
+        @Override
+        public Terms terms(String field) throws IOException {
+            return null;
+        }
+
+        @Override
+        public NumericDocValues getNumericDocValues(String field) throws IOException {
+            return null;
+        }
+
+        @Override
+        public BinaryDocValues getBinaryDocValues(String field) throws IOException {
+            return null;
+        }
+
+        @Override
+        public SortedDocValues getSortedDocValues(String field) throws IOException {
+            return null;
+        }
+
+        @Override
+        public SortedNumericDocValues getSortedNumericDocValues(String field) throws IOException {
+            return null;
+        }
+
+        @Override
+        public SortedSetDocValues getSortedSetDocValues(String field) throws IOException {
+            return null;
+        }
+
+        @Override
+        public NumericDocValues getNormValues(String field) throws IOException {
+            return null;
+        }
+
+        @Override
+        public DocValuesSkipper getDocValuesSkipper(String field) throws IOException {
+            return null;
+        }
+
+        @Override
+        public FloatVectorValues getFloatVectorValues(String field) throws IOException {
+            return null;
+        }
+
+        @Override
+        public ByteVectorValues getByteVectorValues(String field) throws IOException {
+            return null;
+        }
+
+        @Override
+        public void searchNearestVectors(String field, float[] target, KnnCollector knnCollector, Bits acceptDocs) throws IOException {
+
+        }
+
+        @Override
+        public void searchNearestVectors(String field, byte[] target, KnnCollector knnCollector, Bits acceptDocs) throws IOException {
+
+        }
+
+        @Override
+        public FieldInfos getFieldInfos() {
+            return null;
+        }
+
+        @Override
+        public Bits getLiveDocs() {
+            return null;
+        }
+
+        @Override
+        public PointValues getPointValues(String field) throws IOException {
+            return null;
+        }
+
+        @Override
+        public void checkIntegrity() throws IOException {
+
+        }
+
+        @Override
+        public LeafMetaData getMetaData() {
+            return null;
+        }
+
+        @Override
+        public TermVectors termVectors() throws IOException {
+            return null;
+        }
+
+        @Override
+        public int numDocs() {
+            return 0;
+        }
+
+        @Override
+        public int maxDoc() {
+            return 0;
+        }
+
+        @Override
+        public StoredFields storedFields() throws IOException {
+            return null;
+        }
+
+        @Override
+        protected void doClose() throws IOException {
+
+        }
+
+        @Override
+        public CacheHelper getReaderCacheHelper() {
+            return null;
         }
     }
 }

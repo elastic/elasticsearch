@@ -118,7 +118,7 @@ public class PercolateQueryTests extends ESTestCase {
             )
         );
         TopDocs topDocs = shardSearcher.search(query, 10);
-        assertThat(topDocs.totalHits.value, equalTo(1L));
+        assertThat(topDocs.totalHits.value(), equalTo(1L));
         assertThat(topDocs.scoreDocs.length, equalTo(1));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(0));
         Explanation explanation = shardSearcher.explain(query, 0);
@@ -137,7 +137,7 @@ public class PercolateQueryTests extends ESTestCase {
             )
         );
         topDocs = shardSearcher.search(query, 10);
-        assertThat(topDocs.totalHits.value, equalTo(3L));
+        assertThat(topDocs.totalHits.value(), equalTo(3L));
         assertThat(topDocs.scoreDocs.length, equalTo(3));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(1));
         explanation = shardSearcher.explain(query, 1);
@@ -166,7 +166,7 @@ public class PercolateQueryTests extends ESTestCase {
             )
         );
         topDocs = shardSearcher.search(query, 10);
-        assertThat(topDocs.totalHits.value, equalTo(4L));
+        assertThat(topDocs.totalHits.value(), equalTo(4L));
 
         query = new PercolateQuery(
             "_name",
@@ -178,7 +178,7 @@ public class PercolateQueryTests extends ESTestCase {
             new MatchNoDocsQuery("")
         );
         topDocs = shardSearcher.search(query, 10);
-        assertThat(topDocs.totalHits.value, equalTo(3L));
+        assertThat(topDocs.totalHits.value(), equalTo(3L));
         assertThat(topDocs.scoreDocs.length, equalTo(3));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(3));
         explanation = shardSearcher.explain(query, 3);

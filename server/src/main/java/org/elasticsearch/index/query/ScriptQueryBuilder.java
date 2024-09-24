@@ -18,6 +18,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.ElasticsearchException;
@@ -184,7 +185,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
             return new ConstantScoreWeight(this, boost) {
 
                 @Override
-                public Scorer scorer(LeafReaderContext context) throws IOException {
+                public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                     DocIdSetIterator approximation = DocIdSetIterator.all(context.reader().maxDoc());
                     final FilterScript leafScript = filterScript.newInstance(new DocValuesDocReader(lookup, context));
                     TwoPhaseIterator twoPhase = new TwoPhaseIterator(approximation) {
@@ -201,7 +202,8 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
                             return 1000f;
                         }
                     };
-                    return new ConstantScoreScorer(this, score(), scoreMode, twoPhase);
+                    Scorer scorer = new ConstantScoreScorer(score(), scoreMode, twoPhase);
+                    return new DefaultScorerSupplier(scorer);
                 }
 
                 @Override

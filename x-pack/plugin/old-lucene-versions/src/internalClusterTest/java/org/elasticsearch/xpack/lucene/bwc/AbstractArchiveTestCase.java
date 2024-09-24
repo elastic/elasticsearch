@@ -97,7 +97,7 @@ public abstract class AbstractArchiveTestCase extends AbstractSnapshotIntegTestC
                                     .getAsVersionId(
                                         "version",
                                         IndexVersion::fromId,
-                                        IndexVersion.fromId(randomBoolean() ? 5000099 : 6000099)
+                                        IndexVersion.fromId(randomFrom(5000099, 6000099, 7000099))
                                     )
                             )
                     )

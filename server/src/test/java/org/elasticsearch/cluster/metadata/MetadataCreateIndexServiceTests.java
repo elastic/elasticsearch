@@ -9,6 +9,10 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.TransportVersion;
@@ -602,6 +606,14 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     public void testValidateDotIndex() {
         List<SystemIndexDescriptor> systemIndexDescriptors = new ArrayList<>();
         systemIndexDescriptors.add(SystemIndexDescriptorUtils.createUnmanaged(".test-one*", "test"));
+        Automaton patternAutomaton = new RegExp("\\.test-~(one.*)", RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT).toAutomaton();
+        assertTrue(
+            new CharacterRunAutomaton(Operations.determinize(patternAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)).run(
+                ".test-~(one.*)"
+            )
+        );
+        // TODO remove this smoke test ^^^ once the issue is fixed
+
         systemIndexDescriptors.add(SystemIndexDescriptorUtils.createUnmanaged(".test-~(one*)", "test"));
         systemIndexDescriptors.add(SystemIndexDescriptorUtils.createUnmanaged(".pattern-test*", "test-1"));
 

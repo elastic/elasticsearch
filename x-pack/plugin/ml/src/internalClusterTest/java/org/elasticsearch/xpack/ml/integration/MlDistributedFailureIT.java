@@ -767,7 +767,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             prepareSearch().setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
                 .setQuery(QueryBuilders.idsQuery().addIds(DataCounts.documentId(jobId))),
             searchResponse -> {
-                if (searchResponse.getHits().getTotalHits().value != 1) {
+                if (searchResponse.getHits().getTotalHits().value() != 1) {
                     setOnce.set(new DataCounts(jobId));
                     return;
                 }

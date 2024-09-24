@@ -271,18 +271,17 @@ public enum MissingValues {
                 if (hasOrds) {
                     return values.nextOrd();
                 } else {
-                    // we want to return the next missing ord but set this to
-                    // NO_MORE_ORDS so on the next call we indicate there are no
-                    // more values
-                    long ordToReturn = nextMissingOrd;
-                    nextMissingOrd = SortedSetDocValues.NO_MORE_ORDS;
-                    return ordToReturn;
+                    return nextMissingOrd;
                 }
             }
 
             @Override
             public int docValueCount() {
-                return values.docValueCount();
+                if (hasOrds) {
+                    return values.docValueCount();
+                } else {
+                    return 1;
+                }
             }
 
             @Override
@@ -321,7 +320,11 @@ public enum MissingValues {
 
             @Override
             public int docValueCount() {
-                return values.docValueCount();
+                if (hasOrds) {
+                    return values.docValueCount();
+                } else {
+                    return 1;
+                }
             }
 
             @Override
@@ -339,12 +342,7 @@ public enum MissingValues {
                         return ord + 1;
                     }
                 } else {
-                    // we want to return the next missing ord but set this to
-                    // NO_MORE_ORDS so on the next call we indicate there are no
-                    // more values
-                    long ordToReturn = nextMissingOrd;
-                    nextMissingOrd = SortedSetDocValues.NO_MORE_ORDS;
-                    return ordToReturn;
+                    return nextMissingOrd;
                 }
             }
 

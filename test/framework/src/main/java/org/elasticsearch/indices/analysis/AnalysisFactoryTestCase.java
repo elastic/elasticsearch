@@ -198,7 +198,9 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         entry("daitchmokotoffsoundex", Void.class),
         entry("persianstem", Void.class),
         // not exposed
-        entry("word2vecsynonym", Void.class)
+        entry("word2vecsynonym", Void.class),
+        // not exposed
+        entry("romaniannormalization", Void.class)
     );
 
     static final Map<String, Class<?>> KNOWN_CHARFILTERS = Map.of(

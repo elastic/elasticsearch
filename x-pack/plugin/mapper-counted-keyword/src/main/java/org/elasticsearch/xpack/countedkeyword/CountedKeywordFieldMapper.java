@@ -242,11 +242,8 @@ public class CountedKeywordFieldMapper extends FieldMapper {
 
         @Override
         public long nextOrd() {
-            if (ordsForThisDoc.hasNext()) {
-                return ordsForThisDoc.next();
-            } else {
-                return NO_MORE_ORDS;
-            }
+            assert ordsForThisDoc.hasNext();
+            return ordsForThisDoc.next();
         }
 
         @Override

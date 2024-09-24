@@ -18,7 +18,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
@@ -61,7 +61,7 @@ public final class BinaryDocValuesRangeQuery extends Query {
         return new ConstantScoreWeight(this, boost) {
 
             @Override
-            public Scorer scorer(LeafReaderContext context) throws IOException {
+            public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                 final BinaryDocValues values = context.reader().getBinaryDocValues(fieldName);
                 if (values == null) {
                     return null;
@@ -106,7 +106,8 @@ public final class BinaryDocValuesRangeQuery extends Query {
                         return 4; // at most 4 comparisons
                     }
                 };
-                return new ConstantScoreScorer(this, score(), scoreMode, iterator);
+
+                return new DefaultScorerSupplier(new ConstantScoreScorer(score(), scoreMode, iterator));
             }
 
             @Override

@@ -244,11 +244,11 @@ Which responds with:
           "end_offset": 3,
           "type": "word",
           "position": 1,
-          "leftPOS": "J(Ending Particle)",
+          "leftPOS": "JKS(Subject case marker)",
           "morphemes": null,
           "posType": "MORPHEME",
           "reading": null,
-          "rightPOS": "J(Ending Particle)"
+          "rightPOS": "JKS(Subject case marker)"
         },
         {
           "token": "깊",
@@ -268,11 +268,11 @@ Which responds with:
           "end_offset": 6,
           "type": "word",
           "position": 3,
-          "leftPOS": "E(Verbal endings)",
+          "leftPOS": "ETM(Adnominal form transformative ending)",
           "morphemes": null,
           "posType": "MORPHEME",
           "reading": null,
-          "rightPOS": "E(Verbal endings)"
+          "rightPOS": "ETM(Adnominal form transformative ending)"
         },
         {
           "token": "나무",
@@ -292,11 +292,11 @@ Which responds with:
           "end_offset": 10,
           "type": "word",
           "position": 5,
-          "leftPOS": "J(Ending Particle)",
+          "leftPOS": "JX(Auxiliary postpositional particle)",
           "morphemes": null,
           "posType": "MORPHEME",
           "reading": null,
-          "rightPOS": "J(Ending Particle)"
+          "rightPOS": "JX(Auxiliary postpositional particle)"
         }
       ]
     },
@@ -452,7 +452,7 @@ Which responds with:
 The `nori_number` token filter normalizes Korean numbers
 to regular Arabic decimal numbers in half-width characters.
 
-Korean numbers are often written using a combination of Hangul and Arabic numbers with various kinds punctuation.
+Korean numbers are often written using a combination of Hangul and Arabic numbers with various kinds of punctuation.
 For example, ３．２천 means 3200.
 This filter does this kind of normalization and allows a search for 3200 to match ３．２천 in text,
 but can also be used to make range facets based on the normalized numbers and so on.

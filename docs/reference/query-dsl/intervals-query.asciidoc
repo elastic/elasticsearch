@@ -203,6 +203,7 @@ performance.
 (Optional, string) <<analysis, analyzer>> used to normalize the `pattern`.
 Defaults to the top-level `<field>`'s analyzer.
 
+--
 `use_field`::
 +
 --

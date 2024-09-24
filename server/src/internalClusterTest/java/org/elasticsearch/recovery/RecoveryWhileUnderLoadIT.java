@@ -344,7 +344,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
                 prepareSearch().setSize((int) numberOfDocs).setQuery(matchAllQuery()).setTrackTotalHits(true).addSort("id", SortOrder.ASC),
                 response -> {
                     logSearchResponse(numberOfShards, numberOfDocs, finalI, response);
-                    iterationHitCount[finalI] = response.getHits().getTotalHits().value;
+                    iterationHitCount[finalI] = response.getHits().getTotalHits().value();
                     if (iterationHitCount[finalI] != numberOfDocs) {
                         error[0] = true;
                     }
@@ -391,7 +391,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
                 boolean[] errorOccurred = new boolean[1];
                 for (int i = 0; i < iterations; i++) {
                     assertResponse(prepareSearch().setTrackTotalHits(true).setSize(0).setQuery(matchAllQuery()), response -> {
-                        if (response.getHits().getTotalHits().value != numberOfDocs) {
+                        if (response.getHits().getTotalHits().value() != numberOfDocs) {
                             errorOccurred[0] = true;
                         }
                     });
@@ -421,7 +421,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
         logger.info(
             "iteration [{}] - returned documents: {} (expected {})",
             iteration,
-            searchResponse.getHits().getTotalHits().value,
+            searchResponse.getHits().getTotalHits().value(),
             numberOfDocs
         );
     }

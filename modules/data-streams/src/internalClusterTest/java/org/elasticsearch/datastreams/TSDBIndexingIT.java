@@ -545,7 +545,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         var searchRequest = new SearchRequest(dataStreamName);
         searchRequest.source().trackTotalHits(true);
         assertResponse(client().search(searchRequest), searchResponse -> {
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numBulkRequests * numDocsPerBulk));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numBulkRequests * numDocsPerBulk));
             String id = searchResponse.getHits().getHits()[0].getId();
             assertThat(id, notNullValue());
 

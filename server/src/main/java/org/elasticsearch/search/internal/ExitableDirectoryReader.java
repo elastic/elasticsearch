@@ -14,7 +14,6 @@ import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
-import org.apache.lucene.index.FilterVectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
@@ -32,6 +31,7 @@ import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Wraps an {@link IndexReader} with a {@link QueryCancellation}
@@ -530,7 +530,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
     }
 
-    private static class ExitableFloatVectorValues extends FilterVectorValues {
+    private static class ExitableFloatVectorValues extends FilterFloatVectorValues {
         private int calls;
         private final QueryCancellation queryCancellation;
 
@@ -620,6 +620,49 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
             if ((calls++ & ExitableIntersectVisitor.MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK) == 0) {
                 this.queryCancellation.checkCancelled();
             }
+        }
+    }
+
+    /** Delegates all methods to a wrapped {@link FloatVectorValues}. */
+    private abstract static class FilterFloatVectorValues extends FloatVectorValues {
+
+        /** Wrapped values */
+        protected final FloatVectorValues in;
+
+        /** Sole constructor */
+        protected FilterFloatVectorValues(FloatVectorValues in) {
+            Objects.requireNonNull(in);
+            this.in = in;
+        }
+
+        @Override
+        public int docID() {
+            return in.docID();
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            return in.nextDoc();
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            return in.advance(target);
+        }
+
+        @Override
+        public int dimension() {
+            return in.dimension();
+        }
+
+        @Override
+        public int size() {
+            return in.size();
+        }
+
+        @Override
+        public float[] vectorValue() throws IOException {
+            return in.vectorValue();
         }
     }
 }

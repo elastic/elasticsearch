@@ -143,7 +143,7 @@ public abstract class GeoShapeQueryTestCase extends BaseShapeQueryTestCase<GeoSh
             }
         );
         assertResponse(client().prepareSearch(defaultIndexName).setQuery(querySupplier.get()), response -> {
-            assertEquals(2, response.getHits().getTotalHits().value);
+            assertEquals(2, response.getHits().getTotalHits().value());
             assertNotEquals("1", response.getHits().getAt(0).getId());
             assertNotEquals("1", response.getHits().getAt(1).getId());
         });

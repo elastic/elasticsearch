@@ -650,7 +650,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
         List<Field> fields = new ArrayList<>();
         if (indexed && hasDocValues) {
-            fields.add(new LongField(fieldType().name(), numericValue));
+            fields.add(new LongField(fieldType().name(), numericValue, Field.Store.NO));
         } else if (hasDocValues) {
             fields.add(new SortedNumericDocValuesField(fieldType().name(), numericValue));
         } else if (indexed) {

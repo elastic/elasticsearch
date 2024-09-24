@@ -88,7 +88,7 @@ public class BlendedTermQueryTests extends ESTestCase {
             query.add(BlendedTermQuery.dismaxBlendedQuery(toTerms(fields, "generator"), 0.1f), BooleanClause.Occur.SHOULD);
             TopDocs search = searcher.search(query.build(), 10);
             ScoreDoc[] scoreDocs = search.scoreDocs;
-            assertEquals(Integer.toString(0), reader.document(scoreDocs[0].doc).getField("id").stringValue());
+            assertEquals(Integer.toString(0), reader.storedFields().document(scoreDocs[0].doc).getField("id").stringValue());
         }
         {
             BooleanQuery.Builder query = new BooleanQuery.Builder();
@@ -110,7 +110,7 @@ public class BlendedTermQueryTests extends ESTestCase {
             query.add(gen, BooleanClause.Occur.SHOULD);
             TopDocs search = searcher.search(query.build(), 4);
             ScoreDoc[] scoreDocs = search.scoreDocs;
-            assertEquals(Integer.toString(1), reader.document(scoreDocs[0].doc).getField("id").stringValue());
+            assertEquals(Integer.toString(1), reader.storedFields().document(scoreDocs[0].doc).getField("id").stringValue());
 
         }
         {
@@ -120,8 +120,8 @@ public class BlendedTermQueryTests extends ESTestCase {
             Query rewrite = searcher.rewrite(query);
             assertThat(rewrite, instanceOf(BooleanQuery.class));
             for (BooleanClause clause : (BooleanQuery) rewrite) {
-                assertThat(clause.getQuery(), instanceOf(TermQuery.class));
-                TermQuery termQuery = (TermQuery) clause.getQuery();
+                assertThat(clause.query(), instanceOf(TermQuery.class));
+                TermQuery termQuery = (TermQuery) clause.query();
                 TermStates termStates = termQuery.getTermStates();
                 if (termQuery.getTerm().field().equals("unknown_field")) {
                     assertThat(termStates.docFreq(), equalTo(0));
@@ -131,7 +131,7 @@ public class BlendedTermQueryTests extends ESTestCase {
                     assertThat(termStates.totalTermFreq(), greaterThan(0L));
                 }
             }
-            assertThat(searcher.search(query, 10).totalHits.value, equalTo((long) iters + username.length));
+            assertThat(searcher.search(query, 10).totalHits.value(), equalTo((long) iters + username.length));
         }
         {
             // test with an unknown field and an unknown term
@@ -140,13 +140,13 @@ public class BlendedTermQueryTests extends ESTestCase {
             Query rewrite = searcher.rewrite(query);
             assertThat(rewrite, instanceOf(BooleanQuery.class));
             for (BooleanClause clause : (BooleanQuery) rewrite) {
-                assertThat(clause.getQuery(), instanceOf(TermQuery.class));
-                TermQuery termQuery = (TermQuery) clause.getQuery();
+                assertThat(clause.query(), instanceOf(TermQuery.class));
+                TermQuery termQuery = (TermQuery) clause.query();
                 TermStates termStates = termQuery.getTermStates();
                 assertThat(termStates.docFreq(), equalTo(0));
                 assertThat(termStates.totalTermFreq(), equalTo(0L));
             }
-            assertThat(searcher.search(query, 10).totalHits.value, equalTo(0L));
+            assertThat(searcher.search(query, 10).totalHits.value(), equalTo(0L));
         }
         {
             // test with an unknown field and a term that is present in only one field
@@ -155,8 +155,8 @@ public class BlendedTermQueryTests extends ESTestCase {
             Query rewrite = searcher.rewrite(query);
             assertThat(rewrite, instanceOf(BooleanQuery.class));
             for (BooleanClause clause : (BooleanQuery) rewrite) {
-                assertThat(clause.getQuery(), instanceOf(TermQuery.class));
-                TermQuery termQuery = (TermQuery) clause.getQuery();
+                assertThat(clause.query(), instanceOf(TermQuery.class));
+                TermQuery termQuery = (TermQuery) clause.query();
                 TermStates termStates = termQuery.getTermStates();
                 if (termQuery.getTerm().field().equals("username")) {
                     assertThat(termStates.docFreq(), equalTo(1));
@@ -166,7 +166,7 @@ public class BlendedTermQueryTests extends ESTestCase {
                     assertThat(termStates.totalTermFreq(), equalTo(0L));
                 }
             }
-            assertThat(searcher.search(query, 10).totalHits.value, equalTo(1L));
+            assertThat(searcher.search(query, 10).totalHits.value(), equalTo(1L));
         }
         reader.close();
         w.close();
@@ -250,7 +250,7 @@ public class BlendedTermQueryTests extends ESTestCase {
             Query query = BlendedTermQuery.dismaxBlendedQuery(toTerms(fields, "foo"), 0.1f);
             TopDocs search = searcher.search(query, 10);
             ScoreDoc[] scoreDocs = search.scoreDocs;
-            assertEquals(Integer.toString(0), reader.document(scoreDocs[0].doc).getField("id").stringValue());
+            assertEquals(Integer.toString(0), reader.storedFields().document(scoreDocs[0].doc).getField("id").stringValue());
         }
         reader.close();
         w.close();
@@ -298,7 +298,7 @@ public class BlendedTermQueryTests extends ESTestCase {
             String[] fieldNames = fields.keySet().toArray(new String[0]);
             Query query = BlendedTermQuery.dismaxBlendedQuery(toTerms(fieldNames, "foo"), 0.1f);
             TopDocs search = searcher.search(query, 10);
-            assertTrue(search.totalHits.value > 0);
+            assertTrue(search.totalHits.value() > 0);
             assertTrue(search.scoreDocs.length > 0);
         }
         reader.close();
@@ -332,7 +332,7 @@ public class BlendedTermQueryTests extends ESTestCase {
         Query query = BlendedTermQuery.dismaxBlendedQuery(toTerms(fields, "foo"), 0.1f);
         TopDocs search = searcher.search(query, 10);
         ScoreDoc[] scoreDocs = search.scoreDocs;
-        assertEquals(Integer.toString(0), reader.document(scoreDocs[0].doc).getField("id").stringValue());
+        assertEquals(Integer.toString(0), reader.storedFields().document(scoreDocs[0].doc).getField("id").stringValue());
 
         reader.close();
         w.close();

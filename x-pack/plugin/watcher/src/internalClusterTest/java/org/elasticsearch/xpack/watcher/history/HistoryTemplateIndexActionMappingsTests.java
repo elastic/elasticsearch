@@ -54,7 +54,7 @@ public class HistoryTemplateIndexActionMappingsTests extends AbstractWatcherInte
             ),
             response -> {
                 assertThat(response, notNullValue());
-                assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));
+                assertThat(response.getHits().getTotalHits().value(), is(oneOf(1L, 2L)));
                 InternalAggregations aggs = response.getAggregations();
                 assertThat(aggs, notNullValue());
 

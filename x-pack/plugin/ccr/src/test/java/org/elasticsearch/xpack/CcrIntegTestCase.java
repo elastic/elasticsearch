@@ -703,7 +703,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             request.source(new SearchSourceBuilder().size(0));
             assertResponse(client.search(request), response -> {
                 assertNotNull(response.getHits().getTotalHits());
-                assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(numDocsReplicated));
+                assertThat(response.getHits().getTotalHits().value(), greaterThanOrEqualTo(numDocsReplicated));
             });
         }, 60, TimeUnit.SECONDS);
     }

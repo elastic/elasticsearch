@@ -253,7 +253,7 @@ public class SplitIndexIT extends ESIntegTestCase {
         // now, do a nested query
         assertNoFailuresAndResponse(
             prepareSearch(index).setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"), ScoreMode.Avg)),
-            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numDocs))
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocs))
         );
     }
 

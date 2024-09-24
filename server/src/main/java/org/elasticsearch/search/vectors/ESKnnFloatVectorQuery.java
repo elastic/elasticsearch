@@ -27,7 +27,7 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements Profil
     protected TopDocs mergeLeafResults(TopDocs[] perLeafResults) {
         // if k param is set, we get only top k results from each shard
         TopDocs topK = kParam == null ? super.mergeLeafResults(perLeafResults) : TopDocs.merge(kParam, perLeafResults);
-        vectorOpsCount = topK.totalHits.value;
+        vectorOpsCount = topK.totalHits.value();
         return topK;
     }
 

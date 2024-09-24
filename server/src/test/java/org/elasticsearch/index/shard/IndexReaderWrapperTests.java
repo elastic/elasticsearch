@@ -52,7 +52,7 @@ public class IndexReaderWrapperTests extends ESTestCase {
         writer.addDocument(doc);
         DirectoryReader open = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "_na_", 1));
         IndexSearcher searcher = newSearcher(open);
-        assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value);
+        assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value());
         final AtomicInteger closeCalls = new AtomicInteger(0);
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = reader -> new FieldMaskingReader(
             "field",
@@ -82,7 +82,7 @@ public class IndexReaderWrapperTests extends ESTestCase {
             }
             outerCount.incrementAndGet();
         });
-        assertEquals(0, wrap.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value);
+        assertEquals(0, wrap.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value());
         wrap.close();
         assertFalse("wrapped reader is closed", wrap.getIndexReader().tryIncRef());
         assertEquals(sourceRefCount, open.getRefCount());
@@ -106,7 +106,7 @@ public class IndexReaderWrapperTests extends ESTestCase {
         writer.addDocument(doc);
         DirectoryReader open = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "_na_", 1));
         IndexSearcher searcher = newSearcher(open);
-        assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value);
+        assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value());
         searcher.setSimilarity(iwc.getSimilarity());
         final AtomicInteger closeCalls = new AtomicInteger(0);
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = reader -> new FieldMaskingReader(
@@ -153,7 +153,7 @@ public class IndexReaderWrapperTests extends ESTestCase {
         writer.addDocument(doc);
         DirectoryReader open = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "_na_", 1));
         IndexSearcher searcher = newSearcher(open);
-        assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value);
+        assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value());
         searcher.setSimilarity(iwc.getSimilarity());
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = directoryReader -> directoryReader;
         try (

@@ -242,7 +242,7 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), reader -> {
             LeafReader leaf = reader.leaves().get(0).reader();
-            Terms terms = leaf.getTermVector(0, "field");
+            Terms terms = leaf.termVectors().get(0, "field");
             TermsEnum iterator = terms.iterator();
             BytesRef term;
             Set<String> foundTerms = new HashSet<>();

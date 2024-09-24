@@ -41,7 +41,7 @@ import java.util.List;
 public class SourceIntervalsSourceTests extends ESTestCase {
 
     private static final IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> SOURCE_FETCHER_PROVIDER =
-        context -> docID -> Collections.<Object>singletonList(context.reader().document(docID).get("body"));
+        context -> docID -> Collections.<Object>singletonList(context.reader().storedFields().document(docID).get("body"));
 
     public void testIntervals() throws IOException {
         final FieldType ft = new FieldType(TextField.TYPE_STORED);

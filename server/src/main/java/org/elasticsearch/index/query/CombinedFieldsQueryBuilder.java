@@ -412,8 +412,8 @@ public final class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<Combi
         protected Query newSynonymQuery(String field, TermAndBoost[] terms) {
             CombinedFieldQuery.Builder query = new CombinedFieldQuery.Builder();
             for (TermAndBoost termAndBoost : terms) {
-                assert termAndBoost.boost == BoostAttribute.DEFAULT_BOOST;
-                BytesRef bytes = termAndBoost.term;
+                assert termAndBoost.boost() == BoostAttribute.DEFAULT_BOOST;
+                BytesRef bytes = termAndBoost.term();
                 query.addTerm(bytes);
             }
             for (FieldAndBoost fieldAndBoost : fields) {

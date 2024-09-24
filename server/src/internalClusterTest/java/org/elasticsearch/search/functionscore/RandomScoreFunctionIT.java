@@ -268,7 +268,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
                 .setExplain(true),
             response -> {
                 assertNoFailures(response);
-                assertEquals(1, response.getHits().getTotalHits().value);
+                assertEquals(1, response.getHits().getTotalHits().value());
                 SearchHit firstHit = response.getHits().getAt(0);
                 assertThat(firstHit.getExplanation().toString(), containsString("" + seed));
             }
@@ -283,12 +283,12 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
             prepareSearch("test").setQuery(
                 functionScoreQuery(matchAllQuery(), randomFunction().seed(1234).setField(SeqNoFieldMapper.NAME))
             ),
-            response -> assertEquals(0, response.getHits().getTotalHits().value)
+            response -> assertEquals(0, response.getHits().getTotalHits().value())
         );
 
         assertNoFailuresAndResponse(
             prepareSearch("test").setQuery(functionScoreQuery(matchAllQuery(), randomFunction())),
-            response -> assertEquals(0, response.getHits().getTotalHits().value)
+            response -> assertEquals(0, response.getHits().getTotalHits().value())
         );
     }
 

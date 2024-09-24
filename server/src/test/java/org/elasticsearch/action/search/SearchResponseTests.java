@@ -621,8 +621,8 @@ public class SearchResponseTests extends ESTestCase {
                 if (searchResponse.getHits().getTotalHits() == null) {
                     assertNull(deserialized.getHits().getTotalHits());
                 } else {
-                    assertEquals(searchResponse.getHits().getTotalHits().value, deserialized.getHits().getTotalHits().value);
-                    assertEquals(searchResponse.getHits().getTotalHits().relation, deserialized.getHits().getTotalHits().relation);
+                    assertEquals(searchResponse.getHits().getTotalHits().value(), deserialized.getHits().getTotalHits().value());
+                    assertEquals(searchResponse.getHits().getTotalHits().relation(), deserialized.getHits().getTotalHits().relation());
                 }
                 assertEquals(searchResponse.getHits().getHits().length, deserialized.getHits().getHits().length);
                 assertEquals(searchResponse.getNumReducePhases(), deserialized.getNumReducePhases());

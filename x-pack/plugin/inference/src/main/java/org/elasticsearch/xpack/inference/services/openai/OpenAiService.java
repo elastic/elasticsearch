@@ -11,8 +11,8 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
@@ -32,10 +32,10 @@ import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 
 import java.util.List;
 import java.util.Map;
@@ -245,48 +245,35 @@ public class OpenAiService extends SenderService {
      */
     @Override
     public void checkModelConfig(Model model, ActionListener<Model> listener) {
-        if (model instanceof OpenAiEmbeddingsModel embeddingsModel) {
-            ServiceUtils.getEmbeddingSize(
-                model,
-                this,
-                listener.delegateFailureAndWrap((l, size) -> l.onResponse(updateModelWithEmbeddingDetails(embeddingsModel, size)))
-            );
-        } else {
-            listener.onResponse(model);
-        }
+        // TODO: Remove this function once all services have been updated to use the new model validators
+        ModelValidatorBuilder.buildModelValidator(model.getTaskType()).validate(this, model, listener);
     }
 
-    private OpenAiEmbeddingsModel updateModelWithEmbeddingDetails(OpenAiEmbeddingsModel model, int embeddingSize) {
-        if (model.getServiceSettings().dimensionsSetByUser()
-            && model.getServiceSettings().dimensions() != null
-            && model.getServiceSettings().dimensions() != embeddingSize) {
+    @Override
+    public Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
+        if (model instanceof OpenAiEmbeddingsModel embeddingsModel) {
+            var serviceSettings = embeddingsModel.getServiceSettings();
+            var similarityFromModel = serviceSettings.similarity();
+            var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
+
+            var updatedServiceSettings = new OpenAiEmbeddingsServiceSettings(
+                serviceSettings.modelId(),
+                serviceSettings.uri(),
+                serviceSettings.organizationId(),
+                similarityToUse,
+                embeddingSize,
+                serviceSettings.maxInputTokens(),
+                serviceSettings.dimensionsSetByUser(),
+                serviceSettings.rateLimitSettings()
+            );
+
+            return new OpenAiEmbeddingsModel(embeddingsModel, updatedServiceSettings);
+        } else {
             throw new ElasticsearchStatusException(
-                Strings.format(
-                    "The retrieved embeddings size [%s] does not match the size specified in the settings [%s]. "
-                        + "Please recreate the [%s] configuration with the correct dimensions",
-                    embeddingSize,
-                    model.getServiceSettings().dimensions(),
-                    model.getConfigurations().getInferenceEntityId()
-                ),
+                Strings.format("Can't update embedding details for model with unexpected type %s", model.getClass()),
                 RestStatus.BAD_REQUEST
             );
         }
-
-        var similarityFromModel = model.getServiceSettings().similarity();
-        var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
-
-        OpenAiEmbeddingsServiceSettings serviceSettings = new OpenAiEmbeddingsServiceSettings(
-            model.getServiceSettings().modelId(),
-            model.getServiceSettings().uri(),
-            model.getServiceSettings().organizationId(),
-            similarityToUse,
-            embeddingSize,
-            model.getServiceSettings().maxInputTokens(),
-            model.getServiceSettings().dimensionsSetByUser(),
-            model.getServiceSettings().rateLimitSettings()
-        );
-
-        return new OpenAiEmbeddingsModel(model, serviceSettings);
     }
 
     @Override

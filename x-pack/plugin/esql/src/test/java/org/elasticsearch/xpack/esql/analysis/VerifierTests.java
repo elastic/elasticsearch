@@ -1077,22 +1077,6 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    private void assertMatchCommand(String lineAndColumn, String command, String query) {
-        String message;
-        Class<? extends Exception> exception;
-        var isSnapshot = Build.current().isSnapshot();
-        if (isSnapshot) {
-            message = " MATCH cannot be used after ";
-            exception = VerificationException.class;
-        } else {
-            message = " mismatched input 'match' expecting ";
-            exception = ParsingException.class;
-        }
-
-        var expectedErrorMessage = lineAndColumn + message + (isSnapshot ? command : "");
-        assertThat(error(query, defaultAnalyzer, exception), containsString(expectedErrorMessage));
-    }
-
     public void testQueryStringFunctionsNotAllowedAfterCommands() throws Exception {
         assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
 

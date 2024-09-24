@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentBuilder;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -288,7 +289,11 @@ public class IndicesShardStoresResponse extends ActionResponse implements Chunke
                         indexShards.getValue().entrySet().iterator(),
                         (sb, shardStatusesEntry) -> sb.object(
                             String.valueOf(shardStatusesEntry.getKey()),
-                            storeB -> storeB.array(Fields.STORES, shardStatusesEntry.getValue().iterator())
+                            storeB -> storeB.array(
+                                Fields.STORES,
+                                shardStatusesEntry.getValue().iterator(),
+                                ChunkedToXContentBuilder::xContentObject
+                            )
                         )
                     )
                 )

@@ -52,7 +52,7 @@ public class SyntheticSourceIndexSettingsProvider implements IndexSettingProvide
     }
 
     boolean newIndexHasSyntheticSourceUsage(Settings indexTemplateAndCreateRequestSettings) {
-        // TODO: introduce index setting for source mode. In the mean time index mode is a proxy for synthetic source usage
+        // TODO: build tmp MapperService and check whether SourceFieldMapper#isSynthetic() to determine synthetic source usage.
         // Not using IndexSettings.MODE.get() to avoid validation that may fail at this point.
         var rawIndexMode = indexTemplateAndCreateRequestSettings.get(IndexSettings.MODE.getKey());
         IndexMode indexMode = rawIndexMode != null ? Enum.valueOf(IndexMode.class, rawIndexMode.toUpperCase(Locale.ROOT)) : null;

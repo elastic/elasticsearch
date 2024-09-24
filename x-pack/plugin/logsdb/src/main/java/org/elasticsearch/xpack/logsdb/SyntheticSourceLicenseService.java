@@ -24,7 +24,7 @@ public final class SyntheticSourceLicenseService {
      * A setting that determines whether source mode should always be stored source. Regardless of licence.
      */
     public static final Setting<Boolean> FALLBACK_SETTING = Setting.boolSetting(
-        "xpack.logsdb.synthetic_source_fallback_to_stored_source",
+        "xpack.mapping.synthetic_source_fallback_to_stored_source",
         false,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic

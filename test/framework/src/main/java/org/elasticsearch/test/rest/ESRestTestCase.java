@@ -1721,7 +1721,11 @@ public abstract class ESRestTestCase extends ESTestCase {
      * @param index index to test for
      **/
     public final void ensureGreen(String index) throws IOException {
-        ensureHealth(index, (request) -> {
+        ensureGreen(client(), index);
+    }
+
+    public final void ensureGreen(RestClient client, String index) throws IOException {
+        ensureHealth(client, index, (request) -> {
             request.addParameter("wait_for_status", "green");
             request.addParameter("wait_for_no_relocating_shards", "true");
             final String ensureGreenTimeout = getEnsureGreenTimeout();

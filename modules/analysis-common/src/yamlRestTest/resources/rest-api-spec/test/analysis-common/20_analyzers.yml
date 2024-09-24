@@ -901,6 +901,22 @@
     - length: { tokens: 1 }
     - match:  { tokens.0.token: خورد }
 
+---
+"persian stemming":
+    - requires:
+        cluster_features: ["persian_analyzer_with_stemmer"]
+        reason: "test requires persian analyzer stemming capabilities that come with Lucene 10"
+
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                analyzer:
+                  my_analyzer:
+                    type: persian
+
     - do:
         indices.analyze:
           index: test
@@ -908,8 +924,7 @@
             text: كتابها
             analyzer: my_analyzer
     - length: { tokens: 1 }
-    - match: { tokens.0.token: كتاب     }
-
+    - match: { tokens.0.token: كتاب }
 
 ---
 "portuguese":

@@ -54,6 +54,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.synonyms.PagedResult;
 import org.elasticsearch.synonyms.SynonymRule;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
@@ -82,6 +83,8 @@ public class Analysis {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(Analysis.class);
     private static final Logger logger = LogManager.getLogger(Analysis.class);
+
+    public static final NodeFeature PERSIAN_ANALYZER_WITH_STEMMER = new NodeFeature("persian_analyzer_with_stemmer");
 
     public static void checkForDeprecatedVersion(String name, Settings settings) {
         String sVersion = settings.get("version");

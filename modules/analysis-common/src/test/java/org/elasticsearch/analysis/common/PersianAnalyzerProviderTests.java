@@ -48,7 +48,7 @@ public class PersianAnalyzerProviderTests extends ESTokenStreamTestCase {
             Settings.EMPTY
         );
         Analyzer analyzer = persianAnalyzerProvider.get();
-        assertAnalyzesTo(analyzer, " من کتاب های زیادی خوانده ام.", new String[] { "كتاب", "زياد", "خوانده" });
+        assertAnalyzesTo(analyzer, "من کتاب های زیادی خوانده ام", new String[] { "كتاب", "زياد", "خوانده" });
     }
 
     public void testPersianAnalyzerPreLucene10() throws IOException {
@@ -71,6 +71,6 @@ public class PersianAnalyzerProviderTests extends ESTokenStreamTestCase {
             Settings.EMPTY
         );
         Analyzer analyzer = persianAnalyzerProvider.get();
-        assertAnalyzesTo(analyzer, " من کتاب های زیادی خوانده ام.", new String[] { "كتاب", "زيادي", "خوانده" });
+        assertAnalyzesTo(analyzer, "من کتاب های زیادی خوانده ام", new String[] { "كتاب", "زيادي", "خوانده" });
     }
 }

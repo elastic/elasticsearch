@@ -403,11 +403,17 @@ public class SecurityIndexManager implements ClusterStateListener {
         }, timeout, client.threadPool().generic()));
     }
 
+    // pkg-private for testing
+    List<BiConsumer<State, State>> getStateChangeListeners() {
+        return stateChangeListeners;
+    }
+
     /**
      * This class ensures that if cancel() is called _before_ setCancellable(), the passed-in cancellable is still correctly cancelled on
      * a subsequent setCancellable() call.
      */
-    private abstract static class StateConsumerWithCancellable
+    // pkg-private for testing
+    abstract static class StateConsumerWithCancellable
         implements
             BiConsumer<SecurityIndexManager.State, SecurityIndexManager.State>,
             Scheduler.Cancellable {

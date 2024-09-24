@@ -1563,7 +1563,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public void testSyntheticSourceKeepArrays() throws IOException {
         SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed()).example(1);
-        DocumentMapper mapperAll = createDocumentMapper(syntheticSourceMapping(b -> {
+        DocumentMapper mapperAll = createSyntheticSourceDocumentMapper(mapping(b -> {
             b.startObject("field");
             b.field(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, randomFrom("arrays", "all"));  // Both options keep array source.
             example.mapping().accept(b);

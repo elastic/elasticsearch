@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
@@ -31,6 +30,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
@@ -236,10 +236,7 @@ public class MistralService extends SenderService {
             );
             return new MistralEmbeddingsModel(embeddingsModel, updatedServiceSettings);
         } else {
-            throw new ElasticsearchStatusException(
-                Strings.format("Can't update embedding details for model with unexpected type %s", model.getClass()),
-                RestStatus.BAD_REQUEST
-            );
+            throw ServiceUtils.invalidModelTypeForUpdateEmbeddingsModelDetails(model.getClass());
         }
     }
 }

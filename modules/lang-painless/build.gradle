@@ -66,6 +66,10 @@ esplugin.bundleSpec.into("spi") {
     from(configurations.spi)
 }
 
+tasks.named("yamlRestCompatTestTransform").configure({ task ->
+  task.addAllowedWarning("The mode attribute for _source meta field mapper has been deprecated and will be removed in a future version")
+})
+
 /**********************************************
  *           Context API Generation           *
  **********************************************/

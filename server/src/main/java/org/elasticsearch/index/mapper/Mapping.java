@@ -14,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -126,13 +127,13 @@ public final class Mapping implements ToXContentFragment {
         return sfm != null && sfm.isSynthetic();
     }
 
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(SourceFilter sourceFilter) {
         var stream = Stream.concat(Stream.of(metadataMappers), root.mappers.values().stream());
-        return root.syntheticFieldLoader(stream);
+        return root.syntheticFieldLoader(sourceFilter, stream, false);
     }
 
-    protected SourceLoader.PatchFieldLoader patchFieldLoader() {
-        return root.patchFieldLoader();
+    protected SourceLoader.PatchFieldLoader patchFieldLoader(SourceFilter sourceFilter) {
+        return root.patchFieldLoader(sourceFilter);
     }
 
     /**

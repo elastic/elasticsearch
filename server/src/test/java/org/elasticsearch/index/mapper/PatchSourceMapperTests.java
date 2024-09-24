@@ -383,6 +383,25 @@ public class PatchSourceMapperTests extends MapperServiceTestCase {
         );
     }
 
+    public void testPatchSourceWithIncludes() throws IOException {
+        var mapperService = createMapperService(mapping(b -> {
+            // field
+            b.startObject("field");
+            b.field("type", "patch");
+            b.endObject();
+
+            // another_field
+            b.startObject("another_field");
+            b.field("type", "keyword");
+            b.endObject();
+        }));
+        assertSourcePatch(
+            mapperService,
+            Map.of("field", Map.of("obj", Map.of("key1", "value1")), "another_field", randomAlphaOfLengthBetween(5, 10)),
+            true
+        );
+    }
+
     public static void assertSourcePatch(MapperService mapperService, Map<String, Object> source, boolean needsPatching)
         throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder();

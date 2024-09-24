@@ -9,6 +9,8 @@
 
 package org.elasticsearch.search.lookup;
 
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -39,7 +41,9 @@ public final class SourceFilter {
     private final boolean canFilterBytes;
     private final boolean empty;
     private final String[] includes;
+    private CharacterRunAutomaton includeAut;
     private final String[] excludes;
+    private CharacterRunAutomaton excludeAut;
 
     /**
      * Construct a new filter based on a list of includes and excludes
@@ -80,6 +84,39 @@ public final class SourceFilter {
             bytesFilter = buildBytesFilter();
         }
         return bytesFilter.apply(in);
+    }
+
+    public boolean shouldFilter(String fullPath) {
+        final boolean included;
+        if (includes != null) {
+            if (includeAut == null) {
+                includeAut = XContentMapValues.compileAutomaton(includes, new CharacterRunAutomaton(Automata.makeAnyString()));
+            }
+            int state = step(includeAut, fullPath, 0);
+            included = state != -1 && includeAut.isAccept(state);
+        } else {
+            included = true;
+        }
+
+        boolean excluded;
+        if (excludes != null) {
+            if (excludeAut == null) {
+                excludeAut = XContentMapValues.compileAutomaton(excludes, new CharacterRunAutomaton(Automata.makeEmpty()));
+            }
+            int state = step(excludeAut, fullPath, 0);
+            excluded = state != -1 && excludeAut.isAccept(state);
+        } else {
+            excluded = true;
+        }
+
+        return included == false || excluded;
+    }
+
+    private static int step(CharacterRunAutomaton automaton, String key, int state) {
+        for (int i = 0; state != -1 && i < key.length(); ++i) {
+            state = automaton.step(state, key.charAt(i));
+        }
+        return state;
     }
 
     private Function<Source, Source> buildBytesFilter() {

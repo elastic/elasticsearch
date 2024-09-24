@@ -420,6 +420,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     public void postParse(DocumentParserContext context) throws IOException {
         BytesReference originalSource = context.sourceToParse().source();
         XContentType contentType = context.sourceToParse().getXContentType();
+        // Apply patches before source filters, as filters may alter the original positions of the registered patches.
         final BytesReference patchSource = applyPatches(originalSource, contentType.xContent(), context.getSourcePatches());
         final BytesReference adaptedSource = applyFilters(patchSource, contentType);
 
@@ -465,12 +466,14 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     /**
      * Build something to load source {@code _source}.
      */
-    public SourceLoader newSourceLoader(Mapping mapping, SourceFieldMetrics metrics) {
+    public SourceLoader newSourceLoader(SourceFilter sourceFilter, Mapping mapping, SourceFieldMetrics metrics) {
         if (mode == Mode.SYNTHETIC) {
-            return new SourceLoader.Synthetic(mapping::syntheticFieldLoader, metrics);
+            return new SourceLoader.Synthetic(() -> mapping.syntheticFieldLoader(sourceFilter), metrics);
         }
-        var patchLoader = mapping.patchFieldLoader();
-        return patchLoader == null ? SourceLoader.FROM_STORED_SOURCE : new SourceLoader.PatchSourceLoader(patchLoader);
+        var patchLoader = mapping.patchFieldLoader(sourceFilter);
+        return patchLoader == null
+            ? sourceFilter == null ? SourceLoader.FROM_STORED_SOURCE : new SourceLoader.Stored(sourceFilter)
+            : new SourceLoader.PatchSourceLoader(sourceFilter, patchLoader);
     }
 
     public boolean isSynthetic() {
@@ -512,7 +515,9 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             );
         }
 
-        // TODO handle includes and excludes
+        if (sourceFilter != null && sourceFilter.shouldFilter(fieldMapper.fullPath())) {
+            return;
+        }
         int id = acc.size();
         var patch = new XContentPatch(fieldMapper.fullPath(), location, id);
         if (acc.put(location, patch) != null) {

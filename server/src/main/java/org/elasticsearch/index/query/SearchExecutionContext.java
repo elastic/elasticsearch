@@ -439,9 +439,12 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public SourceLoader newSourceLoader(boolean forceSyntheticSource) {
         if (forceSyntheticSource) {
-            return new SourceLoader.Synthetic(mappingLookup.getMapping()::syntheticFieldLoader, mapperMetrics.sourceFieldMetrics());
+            return new SourceLoader.Synthetic(
+                () -> mappingLookup.getMapping().syntheticFieldLoader(null),
+                mapperMetrics.sourceFieldMetrics()
+            );
         }
-        return mappingLookup.newSourceLoader(mapperMetrics.sourceFieldMetrics());
+        return mappingLookup.newSourceLoader(null, mapperMetrics.sourceFieldMetrics());
     }
 
     /**
@@ -493,7 +496,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public SearchLookup lookup() {
         if (this.lookup == null) {
-            SourceProvider sourceProvider = SourceProvider.fromLookup(mappingLookup, mapperMetrics.sourceFieldMetrics());
+            SourceProvider sourceProvider = SourceProvider.fromLookup(null, mappingLookup, mapperMetrics.sourceFieldMetrics());
             setLookupProviders(sourceProvider, LeafFieldLookupProvider.fromStoredFields());
         }
         return this.lookup;

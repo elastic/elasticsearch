@@ -1,0 +1,36 @@
+{
+  "dynamic": "strict",
+  "_source": {
+    "mode": "synthetic"
+  },
+  "properties": {
+    "wiki_id": {
+      "type": "keyword"
+    },
+    "url": {
+      "type": "keyword"
+    },
+    "title": {
+      "type": "text"
+    },
+    "text": {
+      "type": "text"
+    },
+    "chunks": {
+      "type": "nested",
+      "properties": {
+        "emb": {
+          "type": "dense_vector",
+          "dims": 768,
+          "index_options": {
+            "type": "flat"
+          }
+        },
+        "text": {
+          "type": "text",
+          "index": false
+        }
+      }
+    }
+  }
+}

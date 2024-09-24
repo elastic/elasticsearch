@@ -32,8 +32,7 @@ class ConcurrentSegmentSourceProvider implements SourceProvider {
 
     ConcurrentSegmentSourceProvider(SourceLoader loader, boolean loadSource) {
         this.sourceLoader = loader;
-        var fields = sourceLoader.requiredStoredFields();
-        this.storedFieldLoader = StoredFieldLoader.create(loadSource, fields);
+        this.storedFieldLoader = StoredFieldLoader.create(loadSource, sourceLoader.requiredStoredFields());
     }
 
     @Override

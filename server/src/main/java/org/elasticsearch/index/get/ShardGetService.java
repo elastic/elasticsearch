@@ -307,8 +307,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         Map<String, DocumentField> metadataFields = null;
         DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
         SourceLoader loader = forceSyntheticSource
-            ? new SourceLoader.Synthetic(mappingLookup.getMapping()::syntheticFieldLoader, mapperMetrics.sourceFieldMetrics())
-            : mappingLookup.newSourceLoader(mapperMetrics.sourceFieldMetrics());
+            ? new SourceLoader.Synthetic(() -> mappingLookup.getMapping().syntheticFieldLoader(null), mapperMetrics.sourceFieldMetrics())
+            : mappingLookup.newSourceLoader(null, mapperMetrics.sourceFieldMetrics());
         StoredFieldLoader storedFieldLoader = buildStoredFieldLoader(storedFields, fetchSourceContext, loader);
         LeafStoredFieldLoader leafStoredFieldLoader = storedFieldLoader.getLoader(docIdAndVersion.reader.getContext(), null);
         try {

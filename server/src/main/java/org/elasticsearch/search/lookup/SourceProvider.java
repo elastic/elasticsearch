@@ -33,7 +33,7 @@ public interface SourceProvider {
      * but it is not safe to use this to access documents from the same segment across
      * multiple threads.
      */
-    static SourceProvider fromLookup(MappingLookup lookup, SourceFieldMetrics metrics) {
-        return new ConcurrentSegmentSourceProvider(lookup.newSourceLoader(metrics), lookup.isSourceSynthetic() == false);
+    static SourceProvider fromLookup(SourceFilter sourceFilter, MappingLookup lookup, SourceFieldMetrics metrics) {
+        return new ConcurrentSegmentSourceProvider(lookup.newSourceLoader(sourceFilter, metrics), lookup.isSourceSynthetic() == false);
     }
 }

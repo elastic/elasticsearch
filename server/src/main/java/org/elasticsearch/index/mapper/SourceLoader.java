@@ -12,18 +12,16 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentGenerator;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.ByteArrayOutputStream;
@@ -43,7 +41,7 @@ import java.util.stream.Stream;
  * Loads source {@code _source} during a GET or {@code _search}.
  */
 public interface SourceLoader {
-    record Patch(String fullPath, int id, BytesReference rawValue) {}
+    record Patch(String fullPath, int id, CheckedConsumer<XContentGenerator, IOException> apply) {}
 
     /**
      * Does this {@link SourceLoader} reorder field values?
@@ -84,7 +82,15 @@ public interface SourceLoader {
     /**
      * Load {@code _source} from a stored field.
      */
-    SourceLoader FROM_STORED_SOURCE = new SourceLoader() {
+    SourceLoader FROM_STORED_SOURCE = new Stored(null);
+
+    class Stored implements SourceLoader {
+        final SourceFilter sourceFilter;
+
+        Stored(SourceFilter sourceFilter) {
+            this.sourceFilter = sourceFilter;
+        }
+
         @Override
         public boolean reordersFieldValues() {
             return false;
@@ -95,7 +101,8 @@ public interface SourceLoader {
             return new Leaf() {
                 @Override
                 public Source source(LeafStoredFieldLoader storedFields, int docId) throws IOException {
-                    return Source.fromBytes(storedFields.source());
+                    var res = Source.fromBytes(storedFields.source());
+                    return sourceFilter == null ? res : sourceFilter.filterBytes(res);
                 }
 
                 @Override
@@ -110,7 +117,7 @@ public interface SourceLoader {
         public Set<String> requiredStoredFields() {
             return Set.of();
         }
-    };
+    }
 
     /**
      * Reconstructs {@code _source} from doc values anf stored fields.
@@ -239,9 +246,11 @@ public interface SourceLoader {
      * {@link PatchFieldLoader}.
      */
     class PatchSourceLoader implements SourceLoader {
+        final SourceFilter sourceFilter;
         final PatchFieldLoader field;
 
-        public PatchSourceLoader(PatchFieldLoader field) {
+        public PatchSourceLoader(SourceFilter sourceFilter, PatchFieldLoader field) {
+            this.sourceFilter = sourceFilter;
             this.field = field;
         }
 
@@ -264,17 +273,17 @@ public interface SourceLoader {
                 public Source source(LeafStoredFieldLoader storedFields, int docId) throws IOException {
                     Source source = sourceLeaf.source(storedFields, docId);
                     if (patchLeaf == null) {
-                        return source;
+                        return sourceFilter == null ? source : sourceFilter.filterBytes(source);
                     }
                     List<Patch> patches = new ArrayList<>();
                     patchLeaf.load(docId, patches);
                     var finalPatches = verifyPatches(patches, docId);
                     if (finalPatches.length == 0) {
-                        return source;
+                        return sourceFilter == null ? source : sourceFilter.filterBytes(source);
                     }
                     var patchSource = Source.fromBytes(
                         PatchSourceUtils.patchSource(
-                            source.internalSourceRef(),
+                            sourceFilter == null ? source.internalSourceRef() : sourceFilter.filterBytes(source).internalSourceRef(),
                             source.sourceContentType().xContent(),
                             patches.stream().map(p -> p.fullPath()).collect(Collectors.toSet()),
                             (fullPath, parser, destination) -> {
@@ -288,7 +297,7 @@ public interface SourceLoader {
                                     throw new IOException("No patch found for path " + fullPath);
                                 }
                                 finalPatches[id] = null;
-                                applyPatch(patch, destination);
+                                patch.apply.accept(destination);
                             }
                         ),
                         source.sourceContentType()
@@ -315,24 +324,6 @@ public interface SourceLoader {
                 }
             }
             return ordered;
-        }
-
-        private static void applyPatch(Patch patch, XContentGenerator destination) throws IOException {
-            try (
-                XContentParser patchParser = XContentHelper.createParserNotCompressed(
-                    XContentParserConfiguration.EMPTY,
-                    patch.rawValue,
-                    XContentType.JSON
-                )
-            ) {
-                // skip the start object and field name to expose the actual value
-                var patchToken = patchParser.nextToken();
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, patchToken, patchParser);
-                patchToken = patchParser.nextToken();
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, patchToken, patchParser);
-                patchParser.nextToken();
-                destination.copyCurrentStructure(patchParser);
-            }
         }
     }
 
@@ -425,6 +416,10 @@ public interface SourceLoader {
          * Write values for this document.
          */
         void write(XContentBuilder b) throws IOException;
+
+        default CheckedConsumer<XContentGenerator, IOException> valueWriter() throws IOException {
+            throw new IllegalStateException("Should not be called");
+        }
 
         /**
          * Allows for identifying and tracking additional field values to include in the field source.
@@ -533,13 +528,7 @@ public interface SourceLoader {
                 }
                 fieldLoader.advanceToDoc(doc);
                 if (syntheticField.hasValue()) {
-                    BytesStreamOutput streamOutput = new BytesStreamOutput();
-                    XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), streamOutput);
-                    builder.startObject();
-                    syntheticField.write(builder);
-                    builder.endObject();
-                    BytesReference rawValue = BytesReference.bytes(builder);
-                    acc.add(new Patch(syntheticField.fieldName(), patch, rawValue));
+                    acc.add(new Patch(syntheticField.fieldName(), patch, syntheticField.valueWriter()));
                 } else {
                     throw new IOException("Missing value for patch field [" + syntheticField.fieldName() + "] in doc [" + doc + "]");
                 }

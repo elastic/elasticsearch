@@ -23,6 +23,7 @@ import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -53,16 +54,20 @@ import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
+import static org.elasticsearch.index.mapper.PatchSourceMapperTests.assertSourcePatch;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -2006,6 +2011,45 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         }
     }
 
+    public void testFetchWithPatch() throws IOException {
+        String mappingStr = """
+            {
+                "_doc": {
+                    "properties": {
+                        "obj1": {
+                            "properties": {
+                                "obj2": {
+                                    "properties": {
+                                        "emb": {
+                                            "type": "dense_vector",
+                                            "dims": 3,
+                                            "patch_source": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            """;
+
+        String docStr = """
+            {
+                "obj1.obj2.emb": [1.0, 2.0, 3.0]
+            }
+            """;
+
+        var mapperService = createMapperService(mappingStr);
+        var expected = new SourceToParse("1", new BytesArray(docStr), XContentType.JSON);
+        var parsedDoc = mapperService.documentMapper().parse(expected);
+        withLuceneIndex(mapperService, w -> w.addDocuments(parsedDoc.docs()), reader -> {
+            var provider = SourceProvider.fromLookup(mapperService.mappingLookup(), mapperService.getMapperMetrics().sourceFieldMetrics());
+            var actual = provider.getSource(reader.leaves().get(0).reader().getContext(), 0);
+            assertToXContentEquivalent(actual.internalSourceRef(), expected.source(), expected.getXContentType());
+        });
+    }
+
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
@@ -2059,6 +2103,90 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         @Override
         public List<SyntheticSourceInvalidExample> invalidExample() {
             return List.of();
+        }
+    }
+
+    public void testInvalidPatchSourceWithSynthetic() {
+        var exc = expectThrows(MapperParsingException.class, () -> createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("field");
+            b.field("patch_source", true);
+            minimalMapping(b);
+            b.endObject();
+        })));
+        assertThat(exc.getMessage(), containsString("patch_source"));
+    }
+
+    public void testPatchSource() throws IOException {
+        for (var elementType : ElementType.values()) {
+            var mapperService = createMapperService(mapping(b -> {
+                // field
+                b.startObject("field");
+                b.field("patch_source", true);
+                b.field("type", "dense_vector");
+                b.field("element_type", elementType.toString());
+                b.field("dims", 3 * (elementType.equals(ElementType.BIT) ? 8 : 1));
+                b.field("similarity", "l2_norm");
+                b.endObject();
+            }));
+            final Object vector;
+            if (elementType.equals(ElementType.FLOAT)) {
+                vector = new double[] { 1, 2, 3 };
+            } else {
+                vector = new int[] { 1, 2, 3 };
+            }
+            assertSourcePatch(mapperService, Map.of("field", vector), true);
+        }
+    }
+
+    public void testPatchSourceNested() throws IOException {
+        for (var elementType : ElementType.values()) {
+            var mapperService = createMapperService(mapping(b -> {
+                // nested
+                b.startObject("nested");
+                b.field("type", "nested");
+                b.startObject("properties");
+
+                // nested.field
+                b.startObject("field");
+                b.field("patch_source", true);
+                b.field("type", "dense_vector");
+                b.field("element_type", elementType.toString());
+                b.field("dims", 3 * (elementType.equals(ElementType.BIT) ? 8 : 1));
+                b.field("similarity", "l2_norm");
+                b.endObject();
+
+                // nested.another_field
+                b.startObject("another_field");
+                b.field("type", "long");
+                b.endObject();
+
+                b.endObject();
+                b.endObject();
+
+                // another_field
+                b.startObject("another_field");
+                b.field("type", "long");
+                b.endObject();
+            }));
+            final Object vector1;
+            final Object vector2;
+            if (elementType.equals(ElementType.FLOAT)) {
+                vector1 = new double[] { 1, 2, 3 };
+                vector2 = new double[] { 4, 5, 6 };
+            } else {
+                vector1 = new int[] { 1, 2, 3 };
+                vector2 = new int[] { 4, 5, 6 };
+            }
+            assertSourcePatch(
+                mapperService,
+                Map.of(
+                    "nested",
+                    List.of(Map.of("field", vector1, "another_field", 65), Map.of(), Map.of("field", vector2), Map.of("another_field", 32)),
+                    "another_field",
+                    75
+                ),
+                true
+            );
         }
     }
 }

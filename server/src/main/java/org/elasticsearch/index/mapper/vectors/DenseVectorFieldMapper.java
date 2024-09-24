@@ -37,6 +37,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -71,6 +72,7 @@ import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.search.vectors.VectorSimilarityQuery;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentGenerator;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
 
@@ -165,6 +167,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return dims;
         }, m -> toType(m).fieldType().dims, XContentBuilder::field, Object::toString).setSerializerCheck((id, ic, v) -> v != null)
             .setMergeValidator((previous, current, c) -> previous == null || Objects.equals(previous, current));
+
+        private final Parameter<Boolean> patchSource;
         private final Parameter<VectorSimilarity> similarity;
 
         private final Parameter<IndexOptions> indexOptions;
@@ -179,6 +183,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.indexVersionCreated = indexVersionCreated;
             final boolean indexedByDefault = indexVersionCreated.onOrAfter(INDEXED_BY_DEFAULT_INDEX_VERSION);
             final boolean defaultInt8Hnsw = indexVersionCreated.onOrAfter(DEFAULT_DENSE_VECTOR_TO_INT8_HNSW);
+            this.patchSource = Parameter.boolParam("patch_source", true, m -> toType(m).patchSource, false);
             this.indexed = Parameter.indexParam(m -> toType(m).fieldType().indexed, indexedByDefault);
             if (indexedByDefault) {
                 // Only serialize on newer index versions to prevent breaking existing indices when upgrading
@@ -263,7 +268,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { elementType, dims, indexed, similarity, indexOptions, meta };
+            return new Parameter<?>[] { elementType, dims, indexed, similarity, indexOptions, meta, patchSource };
         }
 
         public Builder similarity(VectorSimilarity vectorSimilarity) {
@@ -281,11 +286,24 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return this;
         }
 
+        public Builder patchSource(boolean value) {
+            this.patchSource.setValue(value);
+            return this;
+        }
+
         @Override
         public DenseVectorFieldMapper build(MapperBuilderContext context) {
             // Validate again here because the dimensions or element type could have been set programmatically,
             // which affects index option validity
             validate();
+            boolean finalPatchSource = patchSource.isConfigured() ? patchSource.get()
+                : context.isSourceSynthetic() ? false
+                : patchSource.getDefaultValue();
+            if (finalPatchSource && context.isSourceSynthetic()) {
+                throw new IllegalArgumentException(
+                    "[patch_source] is not available in synthetic mode and cannot be used on field [" + leafName() + "]."
+                );
+            }
             return new DenseVectorFieldMapper(
                 leafName(),
                 new DenseVectorFieldType(
@@ -300,7 +318,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 ),
                 builderParams(this, context),
                 indexOptions.getValue(),
-                indexVersionCreated
+                indexVersionCreated,
+                finalPatchSource
             );
         }
     }
@@ -1959,17 +1978,20 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     private final IndexOptions indexOptions;
     private final IndexVersion indexCreatedVersion;
+    private final boolean patchSource;
 
     private DenseVectorFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
         BuilderParams params,
         IndexOptions indexOptions,
-        IndexVersion indexCreatedVersion
+        IndexVersion indexCreatedVersion,
+        boolean patchSource
     ) {
         super(simpleName, mappedFieldType, params);
         this.indexOptions = indexOptions;
         this.indexCreatedVersion = indexCreatedVersion;
+        this.patchSource = patchSource;
     }
 
     @Override
@@ -2016,15 +2038,20 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 updatedDenseVectorFieldType,
                 builderParams,
                 indexOptions,
-                indexCreatedVersion
+                indexCreatedVersion,
+                patchSource
             );
             context.addDynamicMapper(update);
             return;
         }
+        var xContentLocation = context.parser().getTokenLocation();
         if (fieldType().indexed) {
             parseKnnVectorAndIndex(context);
         } else {
             parseBinaryDocValuesVectorAndIndex(context);
+        }
+        if (patchSource && context.isWithinCopyTo() == false) {
+            context.addSourceFieldPatch(this, xContentLocation);
         }
     }
 
@@ -2162,6 +2189,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         return new SyntheticSourceSupport.Native(loader);
     }
 
+    @Override
+    protected SourceLoader.PatchFieldLoader patchFieldLoader() {
+        // We don't check patchSource here since the value is dynamic.
+        return new SourceLoader.SyntheticPatchFieldLoader(syntheticSourceSupport().loader());
+    }
+
     private class IndexedSyntheticFieldLoader extends SourceLoader.DocValuesBasedSyntheticFieldLoader {
         private FloatVectorValues values;
         private ByteVectorValues byteVectorValues;
@@ -2203,6 +2236,41 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public boolean hasValue() {
             return hasValue;
+        }
+
+        @Override
+        public CheckedConsumer<XContentGenerator, IOException> valueWriter() throws IOException {
+            if (false == hasValue) {
+                return b -> b.writeNull();
+            }
+            float magnitude = hasMagnitude ? Float.intBitsToFloat((int) magnitudeReader.longValue()) : Float.NaN;
+            if (values != null) {
+                float[] copy = Arrays.copyOf(values.vectorValue(), values.vectorValue().length);
+                return b -> {
+                    if (hasMagnitude) {
+                        b.writeStartArray();
+                        for (var v : copy) {
+                            b.writeNumber(v * magnitude);
+                        }
+                        b.writeEndArray();
+                    } else {
+                        b.writeStartArray();
+                        for (var v : copy) {
+                            b.writeNumber(v);
+                        }
+                        b.writeEndArray();
+                    }
+                };
+            }
+            assert byteVectorValues != null && hasMagnitude == false;
+            byte[] copy = Arrays.copyOf(byteVectorValues.vectorValue(), byteVectorValues.vectorValue().length);
+            return b -> {
+                b.writeStartArray();
+                for (var v : copy) {
+                    b.writeNumber(v);
+                }
+                b.writeEndArray();
+            };
         }
 
         @Override

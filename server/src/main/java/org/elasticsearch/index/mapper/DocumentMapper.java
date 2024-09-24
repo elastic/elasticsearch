@@ -134,7 +134,7 @@ public class DocumentMapper {
          * with the source loading strategy declared on the source field mapper.
          */
         try {
-            sourceMapper().newSourceLoader(mapping(), mapperMetrics.sourceFieldMetrics());
+            sourceMapper().newSourceLoader(null, mapping(), mapperMetrics.sourceFieldMetrics());
         } catch (IllegalArgumentException e) {
             mapperMetrics.sourceFieldMetrics().recordSyntheticSourceIncompatibleMapping();
             throw e;

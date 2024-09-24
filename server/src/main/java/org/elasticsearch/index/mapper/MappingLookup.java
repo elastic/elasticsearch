@@ -16,6 +16,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.inference.InferenceService;
+import org.elasticsearch.search.lookup.SourceFilter;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -497,9 +498,9 @@ public final class MappingLookup {
     /**
      * Build something to load source {@code _source}.
      */
-    public SourceLoader newSourceLoader(SourceFieldMetrics metrics) {
+    public SourceLoader newSourceLoader(SourceFilter sourceFilter, SourceFieldMetrics metrics) {
         SourceFieldMapper sfm = mapping.getMetadataMapperByClass(SourceFieldMapper.class);
-        return sfm == null ? SourceLoader.FROM_STORED_SOURCE : sfm.newSourceLoader(mapping, metrics);
+        return sfm == null ? SourceLoader.FROM_STORED_SOURCE : sfm.newSourceLoader(sourceFilter, mapping, metrics);
     }
 
     /**

@@ -9,60 +9,70 @@
 
 package org.elasticsearch.action.admin.indices.settings.put;
 
+import org.elasticsearch.cluster.ack.IndicesClusterStateUpdateRequest;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.Index;
 
-import java.util.Objects;
+import java.util.Arrays;
 
 /**
  * Cluster state update request that allows to update settings for some indices
  */
-public record UpdateSettingsClusterStateUpdateRequest(
-    TimeValue masterNodeTimeout,
-    TimeValue ackTimeout,
-    Settings settings,
-    OnExisting onExisting,
-    OnStaticSetting onStaticSetting,
-    Index... indices
-) {
+public class UpdateSettingsClusterStateUpdateRequest extends IndicesClusterStateUpdateRequest<UpdateSettingsClusterStateUpdateRequest> {
+
+    private Settings settings;
+
+    private boolean preserveExisting = false;
+
+    private boolean reopenShards = false;
 
     /**
-     * Specifies the behaviour of an update-settings action on existing settings.
+     * Returns <code>true</code> iff the settings update should only add but not update settings. If the setting already exists
+     * it should not be overwritten by this update. The default is <code>false</code>
      */
-    public enum OnExisting {
-        /**
-         * Update all the specified settings, overwriting any settings which already exist. This is the API default.
-         */
-        OVERWRITE,
-
-        /**
-         * Only add new settings, preserving the values of any settings which are already set and ignoring the new values specified in the
-         * request.
-         */
-        PRESERVE
+    public boolean isPreserveExisting() {
+        return preserveExisting;
     }
 
     /**
-     * Specifies the behaviour of an update-settings action which is trying to adjust a non-dynamic setting.
+     * Returns <code>true</code> if non-dynamic setting updates should go through, by automatically unassigning shards in the same cluster
+     * state change as the setting update. The shards will be automatically reassigned after the cluster state update is made. The
+     * default is <code>false</code>.
      */
-    public enum OnStaticSetting {
-        /**
-         * Reject attempts to update non-dynamic settings on open indices. This is the API default.
-         */
-        REJECT,
-
-        /**
-         * Automatically close and reopen the shards of any open indices when updating a non-dynamic setting, forcing the shard to
-         * reinitialize from scratch.
-         */
-        REOPEN_INDICES
+    public boolean reopenShards() {
+        return reopenShards;
     }
 
-    public UpdateSettingsClusterStateUpdateRequest {
-        Objects.requireNonNull(masterNodeTimeout);
-        Objects.requireNonNull(ackTimeout);
-        Objects.requireNonNull(settings);
-        Objects.requireNonNull(indices);
+    public UpdateSettingsClusterStateUpdateRequest reopenShards(boolean reopenShards) {
+        this.reopenShards = reopenShards;
+        return this;
+    }
+
+    /**
+     * Iff set to <code>true</code> this settings update will only add settings not already set on an index. Existing settings remain
+     * unchanged.
+     */
+    public UpdateSettingsClusterStateUpdateRequest setPreserveExisting(boolean preserveExisting) {
+        this.preserveExisting = preserveExisting;
+        return this;
+    }
+
+    /**
+     * Returns the {@link Settings} to update
+     */
+    public Settings settings() {
+        return settings;
+    }
+
+    /**
+     * Sets the {@link Settings} to update
+     */
+    public UpdateSettingsClusterStateUpdateRequest settings(Settings settings) {
+        this.settings = settings;
+        return this;
+    }
+
+    @Override
+    public String toString() {
+        return Arrays.toString(indices()) + settings;
     }
 }

@@ -14,6 +14,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -23,6 +24,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -1320,9 +1322,8 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
                 sourceMode(randomFrom(SourceMode.values()));
             }
             logger.info("source_mode: {}", sourceMode);
-
-            FieldExtractorTestCase.createIndex(name, index -> {
-                sourceMode.sourceMapping(index);
+            Settings settings = Settings.builder().put("index.mapper.source.mode", sourceMode.name().toLowerCase(Locale.ROOT)).build();
+            FieldExtractorTestCase.createIndex(name, settings, index -> {
                 index.startObject("properties");
                 {
                     index.startObject(fieldName);
@@ -1416,8 +1417,18 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     }
 
     private static void createIndex(String name, CheckedConsumer<XContentBuilder, IOException> mapping) throws IOException {
+        createIndex(name, null, mapping);
+    }
+
+    private static void createIndex(String name, Settings settings, CheckedConsumer<XContentBuilder, IOException> mapping)
+        throws IOException {
         Request request = new Request("PUT", "/" + name);
         XContentBuilder index = JsonXContent.contentBuilder().prettyPrint().startObject();
+        if (settings != null) {
+            index.startObject("settings");
+            settings.toXContent(index, ToXContent.EMPTY_PARAMS);
+            index.endObject();
+        }
         index.startObject("mappings");
         mapping.accept(index);
         index.endObject();

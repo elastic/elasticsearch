@@ -500,24 +500,31 @@ public final class Case extends EsqlScalarFunction {
     ) implements EvalOperator.ExpressionEvaluator {
         @Override
         public Block eval(Page page) {
-            try (
-                BooleanBlock lhsOrRhsBlock = (BooleanBlock) condition.condition.eval(page);
-                ToMask lhsOrRhs = lhsOrRhsBlock.toMask();
-                Block lhs = condition.value.eval(page);
-                Block rhs = elseVal.eval(page);
-                Block.Builder builder = resultType.newBlockBuilder(lhs.getTotalValueCount(), blockFactory)
-            ) {
+            try (BooleanBlock lhsOrRhsBlock = (BooleanBlock) condition.condition.eval(page); ToMask lhsOrRhs = lhsOrRhsBlock.toMask()) {
                 if (lhsOrRhs.hadMultivaluedFields()) {
                     condition.registerMultivalue();
                 }
-                for (int p = 0; p < lhs.getPositionCount(); p++) {
-                    if (lhsOrRhs.mask().getBoolean(p)) {
-                        builder.copyFrom(lhs, p, p + 1);
+                if (lhsOrRhs.mask().isConstant()) {
+                    if (lhsOrRhs.mask().getBoolean(0)) {
+                        return condition.value.eval(page);
                     } else {
-                        builder.copyFrom(rhs, p, p + 1);
+                        return elseVal.eval(page);
                     }
                 }
-                return builder.build();
+                try (
+                    Block lhs = condition.value.eval(page);
+                    Block rhs = elseVal.eval(page);
+                    Block.Builder builder = resultType.newBlockBuilder(lhs.getTotalValueCount(), blockFactory)
+                ) {
+                    for (int p = 0; p < lhs.getPositionCount(); p++) {
+                        if (lhsOrRhs.mask().getBoolean(p)) {
+                            builder.copyFrom(lhs, p, p + 1);
+                        } else {
+                            builder.copyFrom(rhs, p, p + 1);
+                        }
+                    }
+                    return builder.build();
+                }
             }
         }
 

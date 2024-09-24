@@ -8,7 +8,7 @@ Use these quick starts to get hands-on experience with the {es} APIs.
 == Requirements
 
 You'll need a running {es} cluster, together with {kib} to use the Dev Tools API Console.
-Get started quickly with a <<run-elasticsearch-locally,local dev environment>> in Docker, or see our <<elasticsearch-intro-deploy,other deployment options>>.
+Get started <<run-elasticsearch-locally,locally in Docker>> , or see our <<elasticsearch-intro-deploy,other deployment options>>.
 
 [discrete]
 [[quickstart-list]]

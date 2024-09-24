@@ -193,42 +193,6 @@ You should receive a response indicating there were no errors.
 ===============
 
 [discrete]
-[[add-vector-content]]
-==== Add vector content
-
-If you have your own dense vector embeddings, you can index them along with your documents. This example shows how to add a document with an embedding to the `books` index.
-
-First, you need to update the mapping to include the `embedding` field.
-The `embedding` field must have a `dense_vector` type to enable k-nearest neighbor search.
-This example uses a 5-dimensional dense vector for simplicity.
-
-[source,console]
-----
-PUT books/_mapping
-{
-  "properties": {
-    "embedding": { "type": "dense_vector", "dims": 5 }
-  }
-}
-----
-// TEST[continued]
-
-Next, you can add a document with an embedding to the `books` index.
-
-[source,console]
-----
-POST books/_doc
-{
-  "name": "Snow Crash",
-  "author": "Neal Stephenson",
-  "release_date": "1992-06-01",
-  "page_count": 470,
-  "embedding": [0.1, 0.2, 0.3, 0.4, 0.5]
-}
-----
-// TEST[continued]
-
-[discrete]
 [[qs-search-data]]
 === Search data
 
@@ -252,10 +216,11 @@ JSON object submitted during indexing.
 [[qs-match-query]]
 ==== `match` query
 
-You can use the `match` query to search for documents that contain a specific value in a specific field.
+You can use the <<query-dsl-match-query,`match` query>> to search for documents that contain a specific value in a specific field.
 This is the standard query for performing full-text search, including fuzzy matching and phrase searches.
 
 Run the following command to search the `books` index for documents containing `brave` in the `name` field:
+
 [source,console]
 ----
 GET books/_search
@@ -263,28 +228,6 @@ GET books/_search
   "query": {
     "match": {
       "name": "brave"
-    }
-  }
-}
-----
-// TEST[continued]
-
-[discrete]
-[[qs-vector-search]]
-==== Vector search
-
-You can use the <<knn-retriever,`knn` retriever>> to perform a k-nearest neighbor search on the `embedding` field.
-
-[source,console]
-----
-GET books/_search
-{
-  "retriever": {
-    "knn": { 
-      "field": "embedding", 
-      "query_vector": [0.1, 0.3, 0.7, 0.4, 0.5], 
-      "k": 10, 
-      "num_candidates": 10 
     }
   }
 }

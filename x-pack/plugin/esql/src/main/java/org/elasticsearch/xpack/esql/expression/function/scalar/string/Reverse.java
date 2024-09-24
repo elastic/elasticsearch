@@ -93,28 +93,24 @@ public class Reverse extends EsqlConfigurationFunction {
     }
 
     @Evaluator
-    static BytesRef process(BytesRef val, @Fixed Locale locale) {
+    static BytesRef process(BytesRef val) {
         return BytesRefs.toBytesRef(new StringBuilder(val.utf8ToString()).reverse());
     }
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         var fieldEvaluator = toEvaluator.apply(field);
-        return new ReverseEvaluator.Factory(source(), fieldEvaluator, configuration().locale());
+        return new ReverseEvaluator.Factory(source(), fieldEvaluator);
     }
 
     public Expression field() {
         return field;
     }
 
-    public Reverse replaceChild(Expression child) {
-        return new Reverse(source(), child, configuration());
-    }
-
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
         assert newChildren.size() == 1;
-        return replaceChild(newChildren.get(0));
+        return new Reverse(source(), newChildren.get(0), configuration());
     }
 
     @Override

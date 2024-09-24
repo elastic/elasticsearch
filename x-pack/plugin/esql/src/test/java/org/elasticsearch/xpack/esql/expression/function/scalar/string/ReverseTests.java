@@ -50,7 +50,7 @@ public class ReverseTests extends AbstractConfigurationFunctionTestCase {
     private static TestCaseSupplier supplier(String name, DataType type, Supplier<String> valueSupplier) {
         return new TestCaseSupplier(name, List.of(type), () -> {
             List<TestCaseSupplier.TypedData> values = new ArrayList<>();
-            String expectedToString = "ReverseEvaluator[val=Attribute[channel=0], locale=en_US]";
+            String expectedToString = "ReverseEvaluator[val=Attribute[channel=0]]";
 
             String value = valueSupplier.get();
             values.add(new TestCaseSupplier.TypedData(new BytesRef(value), type, "0"));

@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
-import java.util.Locale;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -28,14 +27,11 @@ public final class ReverseEvaluator implements EvalOperator.ExpressionEvaluator 
 
   private final EvalOperator.ExpressionEvaluator val;
 
-  private final Locale locale;
-
   private final DriverContext driverContext;
 
-  public ReverseEvaluator(Source source, EvalOperator.ExpressionEvaluator val, Locale locale,
+  public ReverseEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
       DriverContext driverContext) {
     this.val = val;
-    this.locale = locale;
     this.driverContext = driverContext;
     this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
@@ -66,7 +62,7 @@ public final class ReverseEvaluator implements EvalOperator.ExpressionEvaluator 
           result.appendNull();
           continue position;
         }
-        result.appendBytesRef(Reverse.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch), this.locale));
+        result.appendBytesRef(Reverse.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch)));
       }
       return result.build();
     }
@@ -76,7 +72,7 @@ public final class ReverseEvaluator implements EvalOperator.ExpressionEvaluator 
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       BytesRef valScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBytesRef(Reverse.process(valVector.getBytesRef(p, valScratch), this.locale));
+        result.appendBytesRef(Reverse.process(valVector.getBytesRef(p, valScratch)));
       }
       return result.build();
     }
@@ -84,7 +80,7 @@ public final class ReverseEvaluator implements EvalOperator.ExpressionEvaluator 
 
   @Override
   public String toString() {
-    return "ReverseEvaluator[" + "val=" + val + ", locale=" + locale + "]";
+    return "ReverseEvaluator[" + "val=" + val + "]";
   }
 
   @Override
@@ -97,22 +93,19 @@ public final class ReverseEvaluator implements EvalOperator.ExpressionEvaluator 
 
     private final EvalOperator.ExpressionEvaluator.Factory val;
 
-    private final Locale locale;
-
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val, Locale locale) {
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val) {
       this.source = source;
       this.val = val;
-      this.locale = locale;
     }
 
     @Override
     public ReverseEvaluator get(DriverContext context) {
-      return new ReverseEvaluator(source, val.get(context), locale, context);
+      return new ReverseEvaluator(source, val.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "ReverseEvaluator[" + "val=" + val + ", locale=" + locale + "]";
+      return "ReverseEvaluator[" + "val=" + val + "]";
     }
   }
 }

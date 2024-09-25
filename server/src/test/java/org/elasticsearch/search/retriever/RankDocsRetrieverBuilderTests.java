@@ -97,12 +97,8 @@ public class RankDocsRetrieverBuilderTests extends ESTestCase {
         if (randomBoolean()) {
             source.aggregation(new TermsAggregationBuilder("name").field("field"));
         }
-        if (randomBoolean()) {
-            source.explain(true);
-        }
-        if (randomBoolean()) {
-            source.profile(true);
-        }
+        source.explain(randomBoolean());
+        source.profile(randomBoolean());
         source.trackTotalHits(randomBoolean());
         final int preFilters = retriever.preFilterQueryBuilders.size();
         retriever.extractToSearchSourceBuilder(source, randomBoolean());

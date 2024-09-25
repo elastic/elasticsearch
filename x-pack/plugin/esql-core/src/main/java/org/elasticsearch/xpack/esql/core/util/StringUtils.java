@@ -14,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -27,7 +28,6 @@ import java.util.Locale;
 import java.util.StringJoiner;
 
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.transport.RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR;
 import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexName;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.isUnsignedLong;
 
@@ -378,10 +378,8 @@ public final class StringUtils {
     }
 
     public static Tuple<String, String> splitQualifiedIndex(String indexName) {
-        int separatorOffset = indexName.indexOf(REMOTE_CLUSTER_INDEX_SEPARATOR);
-        return separatorOffset > 0
-            ? Tuple.tuple(indexName.substring(0, separatorOffset), indexName.substring(separatorOffset + 1))
-            : Tuple.tuple(null, indexName);
+        String[] split = RemoteClusterAware.splitIndexName(indexName);
+        return Tuple.tuple(split[0], split[1]);
     }
 
     public static String qualifyAndJoinIndices(String cluster, String[] indices) {
@@ -393,7 +391,7 @@ public final class StringUtils {
     }
 
     public static boolean isQualified(String indexWildcard) {
-        return indexWildcard.indexOf(REMOTE_CLUSTER_INDEX_SEPARATOR) > 0;
+        return RemoteClusterAware.isRemoteIndexName(indexWildcard);
     }
 
     public static boolean isInteger(String value) {

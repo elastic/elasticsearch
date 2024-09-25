@@ -53,6 +53,33 @@ public abstract class RemoteClusterAware {
         return RemoteConnectionStrategy.getRemoteClusters(settings);
     }
 
+    public static boolean isRemoteIndexName(String indexName) {
+        if (indexName.isEmpty() || indexName.charAt(0) == '<' || indexName.startsWith("-<")) {
+            // This is date math, but eve if it is not, the remote can't start with '<'.
+            // Thus, whatever it is, this is definitely not a remote index.
+            return false;
+        }
+        // Note remote index name also can not start with ':'
+        return indexName.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR) > 0;
+    }
+
+    public static String[] splitIndexName(String indexName) {
+        if (indexName.isEmpty() || indexName.charAt(0) == '<' || indexName.startsWith("-<")) {
+            // This is date math, but eve if it is not, the remote can't start with '<'.
+            // Thus, whatever it is, this is definitely not a remote index.
+            return new String[] { null, indexName };
+        }
+        int i = indexName.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR);
+        if (i == 0) {
+            throw new IllegalArgumentException("index name [" + indexName + "] is invalid because the remote part is empty");
+        }
+        if (i < 0) {
+            return new String[] { null, indexName };
+        } else {
+            return new String[] { indexName.substring(0, i), indexName.substring(i + 1) };
+        }
+    }
+
     /**
      * Groups indices per cluster by splitting remote cluster-alias, index-name pairs on {@link #REMOTE_CLUSTER_INDEX_SEPARATOR}. All
      * indices per cluster are collected as a list in the returned map keyed by the cluster alias. Local indices are grouped under
@@ -77,18 +104,20 @@ public abstract class RemoteClusterAware {
         for (String index : requestIndices) {
             // ensure that `index` is a remote name and not a datemath expression which includes ':' symbol
             // Remote names can not start with '<' so we are assuming that if the first character is '<' then it is a datemath expression.
-            boolean isDateMathExpression = (index.charAt(0) == '<' || index.startsWith("-<"));
-            int i = index.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR);
-            if (isDateMathExpression == false && i >= 0) {
+            String[] split = splitIndexName(index);
+            if (split[0] != null) {
                 if (isRemoteClusterClientEnabled == false) {
                     assert remoteClusterNames.isEmpty() : remoteClusterNames;
                     throw new IllegalArgumentException("node [" + nodeName + "] does not have the remote cluster client role enabled");
                 }
-                int startIdx = index.charAt(0) == '-' ? 1 : 0;
-                String remoteClusterName = index.substring(startIdx, i);
-                List<String> clusters = ClusterNameExpressionResolver.resolveClusterNames(remoteClusterNames, remoteClusterName);
-                String indexName = index.substring(i + 1);
-                if (startIdx == 1) {
+                String remoteClusterName = split[0];
+                String indexName = split[1];
+                boolean isNegative = remoteClusterName.startsWith("-");
+                List<String> clusters = ClusterNameExpressionResolver.resolveClusterNames(
+                    remoteClusterNames,
+                    isNegative ? remoteClusterName.substring(1) : remoteClusterName
+                );
+                if (isNegative) {
                     if (indexName.equals("*") == false) {
                         throw new IllegalArgumentException(
                             Strings.format(

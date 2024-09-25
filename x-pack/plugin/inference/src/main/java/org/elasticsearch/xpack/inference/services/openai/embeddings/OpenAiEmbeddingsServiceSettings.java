@@ -247,6 +247,7 @@ public class OpenAiEmbeddingsServiceSettings extends FilteredXContentObject impl
         return dimensions;
     }
 
+    @Override
     public Boolean dimensionsSetByUser() {
         return dimensionsSetByUser;
     }

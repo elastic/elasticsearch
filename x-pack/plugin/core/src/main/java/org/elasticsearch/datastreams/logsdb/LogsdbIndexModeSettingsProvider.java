@@ -63,11 +63,10 @@ public class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         if (indexMode != null) {
             return Settings.EMPTY;
         }
-        final boolean useLogsAtSettingsForIndex = usesLogsAtSettingsComponentTemplate(metadata, indexName);
-        final boolean useLogsAtSettingsForDataStream = usesLogsAtSettingsComponentTemplate(metadata, dataStreamName);
-        final boolean isLogsIndex = matchesLogsPattern(indexName);
-        final boolean isLogsDataStream = matchesLogsPattern(dataStreamName);
-        if ((useLogsAtSettingsForIndex && isLogsIndex) || (useLogsAtSettingsForDataStream && isLogsDataStream)) {
+        if (matchesLogsPattern(indexName) && usesLogsAtSettingsComponentTemplate(metadata, indexName)) {
+            return Settings.builder().put("index.mode", IndexMode.LOGSDB.getName()).build();
+        }
+        if (matchesLogsPattern(dataStreamName) && usesLogsAtSettingsComponentTemplate(metadata, dataStreamName)) {
             return Settings.builder().put("index.mode", IndexMode.LOGSDB.getName()).build();
         }
 

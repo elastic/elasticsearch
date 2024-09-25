@@ -43,7 +43,7 @@ public final class DoubleScriptFieldData extends IndexNumericFieldData {
     }
 
     private final String fieldName;
-    DoubleFieldScript.LeafFactory leafFactory;
+    final DoubleFieldScript.LeafFactory leafFactory;
     private final ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory;
 
     private DoubleScriptFieldData(

@@ -236,9 +236,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.AvgTests
   method: "testFold {TestCase=<double> #2}"
   issue: https://github.com/elastic/elasticsearch/issues/113225
-- class: org.elasticsearch.xpack.security.authz.SecurityScrollTests
-  method: testSearchAndClearScroll
-  issue: https://github.com/elastic/elasticsearch/issues/113285
 - class: org.elasticsearch.packaging.test.WindowsServiceTests
   method: test81JavaOptsInJvmOptions
   issue: https://github.com/elastic/elasticsearch/issues/113313
@@ -257,9 +254,6 @@ tests:
 - class: org.elasticsearch.xpack.security.support.SecurityIndexManagerIntegTests
   method: testOnIndexAvailableForSearchIndexAlreadyAvailable
   issue: https://github.com/elastic/elasticsearch/issues/113336
-- class: org.elasticsearch.xpack.security.authz.SecurityScrollTests
-  method: testScrollIsPerUser
-  issue: https://github.com/elastic/elasticsearch/issues/113338
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=analytics/top_metrics/sort by scaled float field}
   issue: https://github.com/elastic/elasticsearch/issues/113340

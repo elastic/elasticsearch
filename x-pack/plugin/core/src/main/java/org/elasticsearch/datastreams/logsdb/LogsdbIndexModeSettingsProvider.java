@@ -78,12 +78,10 @@ public class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     }
 
     private IndexMode resolveIndexMode(final String mode) {
-        return mode == null ? null : Arrays.stream(IndexMode.values())
-            .filter(indexMode -> Objects.equals(indexMode.getName(), mode))
-            .findFirst()
-            .orElse(null);
+        return mode == null
+            ? null
+            : Arrays.stream(IndexMode.values()).filter(indexMode -> Objects.equals(indexMode.getName(), mode)).findFirst().orElse(null);
     }
-
 
     private boolean usesLogsAtSettingsComponentTemplate(final Metadata metadata, final String indexOrDataStreamName) {
         final String template = MetadataIndexTemplateService.findV2Template(metadata, indexOrDataStreamName, false);

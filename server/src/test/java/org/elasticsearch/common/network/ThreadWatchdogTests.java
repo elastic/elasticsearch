@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.network;
@@ -48,22 +49,22 @@ public class ThreadWatchdogTests extends ESTestCase {
             // step 1: thread is idle
             safeAwait(barrier);
 
-            activityTracker.startActivity();
+            startActivity(activityTracker);
 
             safeAwait(barrier);
             // step 2: thread is active
             safeAwait(barrier);
 
             for (int i = between(1, 10); i > 0; i--) {
-                activityTracker.stopActivity();
-                activityTracker.startActivity();
+                stopActivity(activityTracker);
+                startActivity(activityTracker);
             }
 
             safeAwait(barrier);
             // step 3: thread still active, but made progress
             safeAwait(barrier);
 
-            activityTracker.stopActivity();
+            stopActivity(activityTracker);
 
             safeAwait(barrier);
             // step 4: thread is idle again
@@ -116,11 +117,11 @@ public class ThreadWatchdogTests extends ESTestCase {
             threads[i] = new Thread(() -> {
                 safeAwait(barrier);
                 final var activityTracker = watchdog.getActivityTrackerForCurrentThread();
-                activityTracker.startActivity();
+                startActivity(activityTracker);
                 safeAwait(barrier);
                 // wait for main test thread
                 safeAwait(barrier);
-                activityTracker.stopActivity();
+                stopActivity(activityTracker);
             }, threadNames.get(i));
             threads[i].start();
         }
@@ -157,14 +158,14 @@ public class ThreadWatchdogTests extends ESTestCase {
                 threads[i] = new Thread(() -> {
                     final var activityTracker = watchdog.getActivityTrackerForCurrentThread();
                     while (keepGoing.get()) {
-                        activityTracker.startActivity();
+                        startActivity(activityTracker);
                         try {
                             safeAcquire(semaphore);
                             Thread.yield();
                             semaphore.release();
                             Thread.yield();
                         } finally {
-                            activityTracker.stopActivity();
+                            stopActivity(activityTracker);
                             warmUpLatch.countDown();
                         }
                     }
@@ -232,7 +233,7 @@ public class ThreadWatchdogTests extends ESTestCase {
             );
         }
 
-        activityTracker.startActivity();
+        startActivity(activityTracker);
         assertAdvanceTime(deterministicTaskQueue, checkIntervalMillis);
         MockLog.assertThatLogger(
             deterministicTaskQueue::runAllRunnableTasks,
@@ -261,7 +262,7 @@ public class ThreadWatchdogTests extends ESTestCase {
             )
         );
         assertAdvanceTime(deterministicTaskQueue, Math.max(quietTimeMillis, checkIntervalMillis));
-        activityTracker.stopActivity();
+        stopActivity(activityTracker);
         MockLog.assertThatLogger(
             deterministicTaskQueue::runAllRunnableTasks,
             ThreadWatchdog.class,
@@ -301,5 +302,23 @@ public class ThreadWatchdogTests extends ESTestCase {
         final var currentTimeMillis = deterministicTaskQueue.getCurrentTimeMillis();
         deterministicTaskQueue.advanceTime();
         assertEquals(expectedMillis, deterministicTaskQueue.getCurrentTimeMillis() - currentTimeMillis);
+    }
+
+    private static void startActivity(ThreadWatchdog.ActivityTracker activityTracker) {
+        if (randomBoolean()) {
+            activityTracker.startActivity();
+        } else {
+            assertTrue(activityTracker.maybeStartActivity());
+        }
+        if (randomBoolean()) {
+            assertFalse(activityTracker.maybeStartActivity());
+        }
+    }
+
+    private static void stopActivity(ThreadWatchdog.ActivityTracker activityTracker) {
+        if (randomBoolean()) {
+            assertFalse(activityTracker.maybeStartActivity());
+        }
+        activityTracker.stopActivity();
     }
 }

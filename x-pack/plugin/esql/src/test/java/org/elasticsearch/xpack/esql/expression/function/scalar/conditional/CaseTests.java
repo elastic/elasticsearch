@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.conditional;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -27,31 +28,41 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 
 public class CaseTests extends AbstractScalarFunctionTestCase {
-    private static final List<DataType> TYPES = List.of(
-        DataType.KEYWORD,
-        DataType.TEXT,
-        DataType.BOOLEAN,
-        DataType.DATETIME,
-        DataType.DATE_NANOS,
-        DataType.DOUBLE,
-        DataType.INTEGER,
-        DataType.LONG,
-        DataType.UNSIGNED_LONG,
-        DataType.IP,
-        DataType.VERSION,
-        DataType.CARTESIAN_POINT,
-        DataType.GEO_POINT,
-        DataType.CARTESIAN_SHAPE,
-        DataType.GEO_SHAPE,
-        DataType.NULL
-    );
+
+    private static final List<DataType> TYPES;
+    static {
+        List<DataType> t = Stream.of(
+            DataType.KEYWORD,
+            DataType.TEXT,
+            DataType.BOOLEAN,
+            DataType.DATETIME,
+            DataType.DOUBLE,
+            DataType.INTEGER,
+            DataType.LONG,
+            DataType.UNSIGNED_LONG,
+            DataType.IP,
+            DataType.VERSION,
+            DataType.CARTESIAN_POINT,
+            DataType.GEO_POINT,
+            DataType.CARTESIAN_SHAPE,
+            DataType.GEO_SHAPE,
+            DataType.NULL
+        ).collect(Collectors.toList());
+        if (Build.current().isSnapshot()) {
+            t.addAll(DataType.UNDER_CONSTRUCTION.keySet());
+        }
+        TYPES = unmodifiableList(t);
+    }
 
     public CaseTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -112,9 +123,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                 )
             );
         }
-        return
-
-        parameterSuppliersFromTypedData(suppliers);
+        return parameterSuppliersFromTypedData(suppliers);
     }
 
     private static void twoAndThreeArgs(
@@ -180,7 +189,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                             type,
                             typedData,
                             lhs,
-                            startsWith("CaseEvaluator[conditions=[ConditionEvaluator[condition=LiteralsEvaluator"),
+                            startsWith("CaseEagerEvaluator[conditions=[ConditionEvaluator[condition=LiteralsEvaluator"),
                             false,
                             List.of(typedData.get(1)),
                             addBuildEvaluatorWarnings(warnings)
@@ -229,7 +238,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                         type,
                         typedData,
                         lhsOrRhs ? lhs : rhs,
-                        startsWith("CaseEvaluator[conditions=[ConditionEvaluator[condition=LiteralsEvaluator"),
+                        startsWith("CaseEagerEvaluator[conditions=[ConditionEvaluator[condition=LiteralsEvaluator"),
                         false,
                         List.of(typedData.get(lhsOrRhs ? 1 : 2)),
                         addWarnings(warnings)
@@ -251,7 +260,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                         type,
                         typedData,
                         lhsOrRhs ? lhs : null,
-                        startsWith("CaseEvaluator[conditions=[ConditionEvaluator[condition="),
+                        startsWith("CaseEagerEvaluator[conditions=[ConditionEvaluator[condition="),
                         false,
                         null,
                         addWarnings(warnings)
@@ -274,7 +283,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                             type,
                             typedData,
                             lhsOrRhs ? lhs : rhs,
-                            startsWith("CaseEvaluator[conditions=[ConditionEvaluator[condition="),
+                            startsWith("CaseEagerEvaluator[conditions=[ConditionEvaluator[condition="),
                             false,
                             null,
                             addWarnings(warnings)
@@ -285,7 +294,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
         }
         suppliers.add(
             new TestCaseSupplier(
-                TestCaseSupplier.nameFrom(Arrays.asList(DataType.BOOLEAN, DataType.NULL, type)),
+                TestCaseSupplier.nameFrom(Arrays.asList(cond, DataType.NULL, type)),
                 List.of(DataType.BOOLEAN, DataType.NULL, type),
                 () -> {
                     Object rhs = randomLiteral(type).value();
@@ -298,7 +307,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                         type,
                         typedData,
                         lhsOrRhs ? null : rhs,
-                        startsWith("CaseEvaluator[conditions=[ConditionEvaluator[condition="),
+                        startsWith("CaseEagerEvaluator[conditions=[ConditionEvaluator[condition="),
                         false,
                         null,
                         addWarnings(warnings)
@@ -308,7 +317,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
         );
         suppliers.add(
             new TestCaseSupplier(
-                TestCaseSupplier.nameFrom(Arrays.asList(DataType.BOOLEAN, type, DataType.NULL)),
+                TestCaseSupplier.nameFrom(Arrays.asList(cond, type, DataType.NULL)),
                 List.of(DataType.BOOLEAN, type, DataType.NULL),
                 () -> {
                     Object lhs = randomLiteral(type).value();
@@ -321,7 +330,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                         type,
                         typedData,
                         lhsOrRhs ? lhs : null,
-                        startsWith("CaseEvaluator[conditions=[ConditionEvaluator[condition="),
+                        startsWith("CaseEagerEvaluator[conditions=[ConditionEvaluator[condition="),
                         false,
                         null,
                         addWarnings(warnings)
@@ -434,7 +443,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                                 type,
                                 typedData,
                                 r1,
-                                startsWith("CaseEvaluator[conditions=[ConditionEvaluator[condition=LiteralsEvaluator[lit="),
+                                startsWith("CaseLazyEvaluator[conditions=[ConditionEvaluator[condition=LiteralsEvaluator[lit="),
                                 false,
                                 List.of(typedData.get(1)),
                                 addBuildEvaluatorWarnings(warnings)
@@ -490,7 +499,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                                 type,
                                 typedData,
                                 r2,
-                                startsWith("CaseEvaluator[conditions=[ConditionEvaluator[condition=LiteralsEvaluator[lit="),
+                                startsWith("CaseLazyEvaluator[conditions=[ConditionEvaluator[condition=LiteralsEvaluator[lit="),
                                 false,
                                 List.of(typedData.get(3)),
                                 addWarnings(warnings)
@@ -515,7 +524,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                                 type,
                                 typedData,
                                 r2,
-                                startsWith("CaseEvaluator[conditions=[ConditionEvaluator[condition=LiteralsEvaluator[lit="),
+                                startsWith("CaseLazyEvaluator[conditions=[ConditionEvaluator[condition=LiteralsEvaluator[lit="),
                                 false,
                                 List.of(typedData.get(3)),
                                 addWarnings(warnings)
@@ -540,7 +549,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                                 type,
                                 typedData,
                                 r2,
-                                startsWith("CaseEvaluator[conditions=[ConditionEvaluator[condition=LiteralsEvaluator[lit="),
+                                startsWith("CaseLazyEvaluator[conditions=[ConditionEvaluator[condition=LiteralsEvaluator[lit="),
                                 false,
                                 typedData.subList(2, 4),
                                 addWarnings(warnings)
@@ -596,7 +605,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                                 type,
                                 typedData,
                                 r3,
-                                startsWith("CaseEvaluator[conditions=[ConditionEvaluator[condition=LiteralsEvaluator[lit="),
+                                startsWith("CaseLazyEvaluator[conditions=[ConditionEvaluator[condition=LiteralsEvaluator[lit="),
                                 false,
                                 List.of(typedData.get(4)),
                                 addWarnings(warnings)
@@ -623,7 +632,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                                 type,
                                 typedData,
                                 r3,
-                                startsWith("CaseEvaluator[conditions=[ConditionEvaluator[condition=LiteralsEvaluator[lit="),
+                                startsWith("CaseLazyEvaluator[conditions=[ConditionEvaluator[condition=LiteralsEvaluator[lit="),
                                 false,
                                 typedData.subList(2, 5),
                                 addWarnings(warnings)
@@ -637,7 +646,10 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
     }
 
     private static Matcher<String> toStringMatcher(int conditions, boolean trailingNull) {
-        StringBuilder result = new StringBuilder("CaseEvaluator[conditions=[");
+        StringBuilder result = new StringBuilder();
+        result.append("Case");
+        result.append(conditions == 1 ? "Eager" : "Lazy");
+        result.append("Evaluator[conditions=[");
         int channel = 0;
         for (int i = 0; i < conditions; i++) {
             if (i != 0) {

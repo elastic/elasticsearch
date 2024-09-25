@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.datastreams.lifecycle;
 
@@ -344,7 +345,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of("index_*"))
-                .template(new Template(null, CompressedXContent.fromJSON(mapping), null, null))
+                .template(Template.builder().mappings(CompressedXContent.fromJSON(mapping)))
                 .build()
         );
         client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
@@ -1220,7 +1221,12 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(patterns)
-                .template(new Template(settings, mappings == null ? null : CompressedXContent.fromJSON(mappings), null, lifecycle))
+                .template(
+                    Template.builder()
+                        .settings(settings)
+                        .mappings(mappings == null ? null : CompressedXContent.fromJSON(mappings))
+                        .lifecycle(lifecycle)
+                )
                 .metadata(metadata)
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, withFailureStore))
                 .build()
@@ -1267,14 +1273,12 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                         .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                         .indexPatterns(List.of(DataStream.BACKING_INDEX_PREFIX + SYSTEM_DATA_STREAM_NAME + "*"))
                         .template(
-                            new Template(
-                                Settings.EMPTY,
-                                null,
-                                null,
-                                DataStreamLifecycle.newBuilder()
-                                    .dataRetention(TimeValue.timeValueDays(SYSTEM_DATA_STREAM_RETENTION_DAYS))
-                                    .build()
-                            )
+                            Template.builder()
+                                .settings(Settings.EMPTY)
+                                .lifecycle(
+                                    DataStreamLifecycle.newBuilder()
+                                        .dataRetention(TimeValue.timeValueDays(SYSTEM_DATA_STREAM_RETENTION_DAYS))
+                                )
                         )
                         .build(),
                     Map.of(),

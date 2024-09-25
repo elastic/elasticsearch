@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.resolve;
@@ -167,7 +168,10 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
         for (String index : indices) {
             // ensure that `index` is a remote name and not a date math expression which includes ':' symbol
             // since date math expression after evaluation should not contain ':' symbol
-            String indexExpression = IndexNameExpressionResolver.resolveDateMathExpression(index);
+            // NOTE: index expressions can be prefixed with "-" for index exclusion, which will not be parsed by resolveDateMathExpression
+            String indexExpression = IndexNameExpressionResolver.resolveDateMathExpression(
+                index.charAt(0) == '-' ? index.substring(1) : index
+            );
             if (indexExpression.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR) < 0) {
                 return true;
             }

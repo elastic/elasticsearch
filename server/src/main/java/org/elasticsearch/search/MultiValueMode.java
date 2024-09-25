@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
@@ -592,12 +593,7 @@ public enum MultiValueMode implements Writeable {
                     return true;
                 }
                 final int prevParentDoc = parentDocs.prevSetBit(parentDoc - 1);
-                final int firstChildDoc;
-                if (childDocs.docID() > prevParentDoc) {
-                    firstChildDoc = childDocs.docID();
-                } else {
-                    firstChildDoc = childDocs.advance(prevParentDoc + 1);
-                }
+                final int firstChildDoc = getFirstChildDoc(prevParentDoc, childDocs);
 
                 lastSeenParentDoc = parentDoc;
                 lastEmittedValue = pick(values, missingValue, childDocs, firstChildDoc, parentDoc, maxChildren);
@@ -699,12 +695,7 @@ public enum MultiValueMode implements Writeable {
                     return true;
                 }
                 final int prevParentDoc = parentDocs.prevSetBit(parentDoc - 1);
-                final int firstChildDoc;
-                if (childDocs.docID() > prevParentDoc) {
-                    firstChildDoc = childDocs.docID();
-                } else {
-                    firstChildDoc = childDocs.advance(prevParentDoc + 1);
-                }
+                final int firstChildDoc = getFirstChildDoc(prevParentDoc, childDocs);
 
                 lastSeenParentDoc = parentDoc;
                 lastEmittedValue = pick(values, missingValue, childDocs, firstChildDoc, parentDoc, maxChildren);
@@ -712,10 +703,20 @@ public enum MultiValueMode implements Writeable {
             }
 
             @Override
-            public double doubleValue() throws IOException {
+            public double doubleValue() {
                 return lastEmittedValue;
             }
         };
+    }
+
+    private static int getFirstChildDoc(int prevParentDoc, DocIdSetIterator childDocs) throws IOException {
+        final int firstChildDoc;
+        if (childDocs.docID() > prevParentDoc) {
+            firstChildDoc = childDocs.docID();
+        } else {
+            firstChildDoc = childDocs.advance(prevParentDoc + 1);
+        }
+        return firstChildDoc;
     }
 
     protected double pick(
@@ -753,7 +754,7 @@ public enum MultiValueMode implements Writeable {
                 }
 
                 @Override
-                public BytesRef binaryValue() throws IOException {
+                public BytesRef binaryValue() {
                     return this.value;
                 }
             };
@@ -767,14 +768,13 @@ public enum MultiValueMode implements Writeable {
                     if (values.advanceExact(target)) {
                         value = pick(values);
                         return true;
-                    } else {
-                        value = missingValue;
-                        return missingValue != null;
                     }
+                    value = missingValue;
+                    return missingValue != null;
                 }
 
                 @Override
-                public BytesRef binaryValue() throws IOException {
+                public BytesRef binaryValue() {
                     return value;
                 }
             };
@@ -824,12 +824,7 @@ public enum MultiValueMode implements Writeable {
                 }
 
                 final int prevParentDoc = parentDocs.prevSetBit(parentDoc - 1);
-                final int firstChildDoc;
-                if (childDocs.docID() > prevParentDoc) {
-                    firstChildDoc = childDocs.docID();
-                } else {
-                    firstChildDoc = childDocs.advance(prevParentDoc + 1);
-                }
+                final int firstChildDoc = getFirstChildDoc(prevParentDoc, childDocs);
 
                 lastSeenParentDoc = parentDoc;
                 lastEmittedValue = pick(selectedValues, builder, childDocs, firstChildDoc, parentDoc, maxChildren);
@@ -840,7 +835,7 @@ public enum MultiValueMode implements Writeable {
             }
 
             @Override
-            public BytesRef binaryValue() throws IOException {
+            public BytesRef binaryValue() {
                 return lastEmittedValue;
             }
         };
@@ -963,12 +958,7 @@ public enum MultiValueMode implements Writeable {
                 }
 
                 final int prevParentDoc = parentDocs.prevSetBit(parentDoc - 1);
-                final int firstChildDoc;
-                if (childDocs.docID() > prevParentDoc) {
-                    firstChildDoc = childDocs.docID();
-                } else {
-                    firstChildDoc = childDocs.advance(prevParentDoc + 1);
-                }
+                final int firstChildDoc = getFirstChildDoc(prevParentDoc, childDocs);
 
                 docID = lastSeenParentDoc = parentDoc;
                 lastEmittedOrd = pick(selectedValues, childDocs, firstChildDoc, parentDoc, maxChildren);

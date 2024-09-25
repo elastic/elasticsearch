@@ -18,7 +18,7 @@ import java.io.IOException;
 
 record RemoteClusterPlan(PhysicalPlan plan, String[] targetIndices, OriginalIndices originalIndices) {
     static RemoteClusterPlan from(PlanStreamInput planIn) throws IOException {
-        var plan = planIn.readPhysicalPlanNode();
+        var plan = planIn.readNamedWriteable(PhysicalPlan.class);
         var targetIndices = planIn.readStringArray();
         final OriginalIndices originalIndices;
         if (planIn.getTransportVersion().onOrAfter(TransportVersions.ESQL_ORIGINAL_INDICES)) {
@@ -30,7 +30,7 @@ record RemoteClusterPlan(PhysicalPlan plan, String[] targetIndices, OriginalIndi
     }
 
     public void writeTo(PlanStreamOutput out) throws IOException {
-        out.writePhysicalPlanNode(plan);
+        out.writeNamedWriteable(plan);
         out.writeStringArray(targetIndices);
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ORIGINAL_INDICES)) {
             OriginalIndices.writeOriginalIndices(originalIndices, out);

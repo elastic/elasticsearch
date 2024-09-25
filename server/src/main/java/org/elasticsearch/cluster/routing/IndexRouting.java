@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing;
@@ -16,6 +17,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.ByteUtils;
@@ -34,7 +36,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -44,6 +45,7 @@ import java.util.function.IntSupplier;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.expectValueToken;
 
 /**
  * Generates the shard id for {@code (id, routing)} pairs.
@@ -51,6 +53,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 public abstract class IndexRouting {
 
     static final NodeFeature BOOLEAN_ROUTING_PATH = new NodeFeature("routing.boolean_routing_path");
+    static final NodeFeature MULTI_VALUE_ROUTING_PATH = new NodeFeature("routing.multi_value_routing_path");
 
     /**
      * Build the routing from {@link IndexMetadata}.
@@ -300,7 +303,13 @@ public abstract class IndexRouting {
             Builder b = builder();
             for (Map.Entry<String, Object> e : flat.entrySet()) {
                 if (isRoutingPath.test(e.getKey())) {
-                    b.hashes.add(new NameAndHash(new BytesRef(e.getKey()), hash(new BytesRef(e.getValue().toString()))));
+                    if (e.getValue() instanceof List<?> listValue) {
+                        for (Object v : listValue) {
+                            b.addHash(e.getKey(), new BytesRef(v.toString()));
+                        }
+                    } else {
+                        b.addHash(e.getKey(), new BytesRef(e.getValue().toString()));
+                    }
                 }
             }
             return b.createId(suffix, IndexRouting.ExtractFromSource::defaultOnEmpty);
@@ -335,7 +344,7 @@ public abstract class IndexRouting {
 
             public void addMatching(String fieldName, BytesRef string) {
                 if (isRoutingPath.test(fieldName)) {
-                    hashes.add(new NameAndHash(new BytesRef(fieldName), hash(string)));
+                    addHash(fieldName, string);
                 }
             }
 
@@ -343,7 +352,7 @@ public abstract class IndexRouting {
                 byte[] idBytes = new byte[4 + suffix.length];
                 ByteUtils.writeIntLE(buildHash(onEmpty), idBytes, 0);
                 System.arraycopy(suffix, 0, idBytes, 4, suffix.length);
-                return Base64.getUrlEncoder().withoutPadding().encodeToString(idBytes);
+                return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(idBytes);
             }
 
             private void extractObject(@Nullable String path, XContentParser source) throws IOException {
@@ -353,6 +362,13 @@ public abstract class IndexRouting {
                     String subPath = path == null ? fieldName : path + "." + fieldName;
                     source.nextToken();
                     extractItem(subPath, source);
+                }
+            }
+
+            private void extractArray(@Nullable String path, XContentParser source) throws IOException {
+                while (source.currentToken() != Token.END_ARRAY) {
+                    expectValueToken(source.currentToken(), source);
+                    extractItem(path, source);
                 }
             }
 
@@ -366,7 +382,12 @@ public abstract class IndexRouting {
                     case VALUE_STRING:
                     case VALUE_NUMBER:
                     case VALUE_BOOLEAN:
-                        hashes.add(new NameAndHash(new BytesRef(path), hash(new BytesRef(source.text()))));
+                        addHash(path, new BytesRef(source.text()));
+                        source.nextToken();
+                        break;
+                    case START_ARRAY:
+                        source.nextToken();
+                        extractArray(path, source);
                         source.nextToken();
                         break;
                     case VALUE_NULL:
@@ -375,28 +396,24 @@ public abstract class IndexRouting {
                     default:
                         throw new ParsingException(
                             source.getTokenLocation(),
-                            "Routing values must be strings but found [{}]",
+                            "Cannot extract routing path due to unexpected token [{}]",
                             source.currentToken()
                         );
                 }
             }
 
+            private void addHash(String path, BytesRef value) {
+                hashes.add(new NameAndHash(new BytesRef(path), hash(value), hashes.size()));
+            }
+
             private int buildHash(IntSupplier onEmpty) {
-                Collections.sort(hashes);
-                Iterator<NameAndHash> itr = hashes.iterator();
-                if (itr.hasNext() == false) {
+                if (hashes.isEmpty()) {
                     return onEmpty.getAsInt();
                 }
-                NameAndHash prev = itr.next();
-                int hash = hash(prev.name) ^ prev.hash;
-                while (itr.hasNext()) {
-                    NameAndHash next = itr.next();
-                    if (prev.name.equals(next.name)) {
-                        throw new IllegalArgumentException("Duplicate routing dimension for [" + next.name + "]");
-                    }
-                    int thisHash = hash(next.name) ^ next.hash;
-                    hash = 31 * hash + thisHash;
-                    prev = next;
+                Collections.sort(hashes);
+                int hash = 0;
+                for (NameAndHash nah : hashes) {
+                    hash = 31 * hash + (hash(nah.name) ^ nah.hash);
                 }
                 return hash;
             }
@@ -457,10 +474,13 @@ public abstract class IndexRouting {
         }
     }
 
-    private record NameAndHash(BytesRef name, int hash) implements Comparable<NameAndHash> {
+    private record NameAndHash(BytesRef name, int hash, int order) implements Comparable<NameAndHash> {
         @Override
         public int compareTo(NameAndHash o) {
-            return name.compareTo(o.name);
+            int i = name.compareTo(o.name);
+            if (i != 0) return i;
+            // ensures array values are in the order as they appear in the source
+            return Integer.compare(order, o.order);
         }
     }
 }

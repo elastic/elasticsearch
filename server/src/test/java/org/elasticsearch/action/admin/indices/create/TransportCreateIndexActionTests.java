@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.create;
@@ -26,6 +27,7 @@ import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
@@ -146,7 +148,13 @@ public class TransportCreateIndexActionTests extends ESTestCase {
 
         ArgumentCaptor<Exception> exceptionArgumentCaptor = ArgumentCaptor.forClass(Exception.class);
         verify(mockListener, times(0)).onResponse(any());
-        verify(metadataCreateIndexService, times(0)).createIndex(any(), any());
+        verify(metadataCreateIndexService, times(0)).createIndex(
+            any(TimeValue.class),
+            any(TimeValue.class),
+            any(TimeValue.class),
+            any(),
+            any()
+        );
         verify(mockListener, times(1)).onFailure(exceptionArgumentCaptor.capture());
 
         Exception e = exceptionArgumentCaptor.getValue();
@@ -166,7 +174,13 @@ public class TransportCreateIndexActionTests extends ESTestCase {
             CreateIndexClusterStateUpdateRequest.class
         );
         verify(mockListener, times(0)).onFailure(any());
-        verify(metadataCreateIndexService, times(1)).createIndex(createRequestArgumentCaptor.capture(), any());
+        verify(metadataCreateIndexService, times(1)).createIndex(
+            any(TimeValue.class),
+            any(TimeValue.class),
+            any(TimeValue.class),
+            createRequestArgumentCaptor.capture(),
+            any()
+        );
 
         CreateIndexClusterStateUpdateRequest processedRequest = createRequestArgumentCaptor.getValue();
         assertTrue(processedRequest.settings().getAsBoolean(SETTING_INDEX_HIDDEN, false));
@@ -186,7 +200,13 @@ public class TransportCreateIndexActionTests extends ESTestCase {
             CreateIndexClusterStateUpdateRequest.class
         );
         verify(mockListener, times(0)).onFailure(any());
-        verify(metadataCreateIndexService, times(1)).createIndex(createRequestArgumentCaptor.capture(), any());
+        verify(metadataCreateIndexService, times(1)).createIndex(
+            any(TimeValue.class),
+            any(TimeValue.class),
+            any(TimeValue.class),
+            createRequestArgumentCaptor.capture(),
+            any()
+        );
 
         CreateIndexClusterStateUpdateRequest processedRequest = createRequestArgumentCaptor.getValue();
         assertTrue(processedRequest.aliases().contains(new Alias(SYSTEM_ALIAS_NAME).isHidden(true)));

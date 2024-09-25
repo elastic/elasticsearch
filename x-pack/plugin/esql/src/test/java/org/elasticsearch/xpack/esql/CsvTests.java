@@ -248,8 +248,8 @@ public class CsvTests extends ESTestCase {
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.UNION_TYPES.capabilityName())
             );
             assumeFalse(
-                "can't use match command in csv tests",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MATCH_COMMAND.capabilityName())
+                "can't use QSTR function in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.QSTR_FUNCTION.capabilityName())
             );
 
             if (Build.current().isSnapshot()) {

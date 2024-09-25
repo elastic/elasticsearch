@@ -206,8 +206,8 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
             null
         );
         // the compound retriever here produces a score for a doc based on the percentage of the queries that it was matched on and
-        // resolves ties based on actual score, rank, and then the doc (we're forcing 1 shard for consistent results)
-        // so ideal rank would be: 6, 2, 1, 4, 7, 3 and with pagination, we'd just omit the first result
+        // resolves ties based on actual score, and then the doc (we're forcing 1 shard for consistent results)
+        // so ideal rank would be: 6, 2, 1, 3, 4, 7 and with pagination, we'd just omit the first result
         source.retriever(
             new CompoundRetrieverWithRankDocs(
                 rankWindowSize,
@@ -228,9 +228,9 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
             assertThat(resp.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
             assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_2"));
             assertThat(resp.getHits().getAt(1).getId(), equalTo("doc_1"));
-            assertThat(resp.getHits().getAt(2).getId(), equalTo("doc_4"));
-            assertThat(resp.getHits().getAt(3).getId(), equalTo("doc_7"));
-            assertThat(resp.getHits().getAt(4).getId(), equalTo("doc_3"));
+            assertThat(resp.getHits().getAt(2).getId(), equalTo("doc_3"));
+            assertThat(resp.getHits().getAt(3).getId(), equalTo("doc_4"));
+            assertThat(resp.getHits().getAt(4).getId(), equalTo("doc_7"));
         });
     }
 
@@ -310,8 +310,8 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
             null
         );
         // the compound retriever here produces a score for a doc based on the percentage of the queries that it was matched on and
-        // resolves ties based on actual score, rank, and then the doc (we're forcing 1 shard for consistent results)
-        // so ideal rank would be: 6, 2, 1, 4, 7, 3
+        // resolves ties based on actual score, and then the doc (we're forcing 1 shard for consistent results)
+        // so ideal rank would be: 6, 2, 1, 3, 4, 7
         // with collapsing on topic field we would have 6, 2, 1, 7
         source.retriever(
             new CompoundRetrieverWithRankDocs(
@@ -374,8 +374,8 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
             null
         );
         // the compound retriever here produces a score for a doc based on the percentage of the queries that it was matched on and
-        // resolves ties based on actual score, rank, and then the doc (we're forcing 1 shard for consistent results)
-        // so ideal rank would be: 6, 2, 1, 4, 7, 3
+        // resolves ties based on actual score, and then the doc (we're forcing 1 shard for consistent results)
+        // so ideal rank would be: 6, 2, 1, 3, 4, 7
         source.retriever(
             new CompoundRetrieverWithRankDocs(
                 rankWindowSize,
@@ -426,8 +426,8 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
             null
         );
         // the compound retriever here produces a score for a doc based on the percentage of the queries that it was matched on and
-        // resolves ties based on actual score, rank, and then the doc (we're forcing 1 shard for consistent results)
-        // so ideal rank would be: 6, 2, 1, 4, 3, 7
+        // resolves ties based on actual score, and then the doc (we're forcing 1 shard for consistent results)
+        // so ideal rank would be: 6, 2, 1, 3, 4, 7
         source.retriever(
             new CompoundRetrieverWithRankDocs(
                 rankWindowSize,
@@ -505,11 +505,11 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
             assertThat(resp.getHits().getTotalHits().value, equalTo(6L));
             assertThat(resp.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
             assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_4"));
-            assertThat(resp.getHits().getAt(1).getId(), equalTo("doc_6"));
+            assertThat(resp.getHits().getAt(1).getId(), equalTo("doc_1"));
             assertThat(resp.getHits().getAt(2).getId(), equalTo("doc_2"));
-            assertThat(resp.getHits().getAt(3).getId(), equalTo("doc_1"));
-            assertThat(resp.getHits().getAt(4).getId(), equalTo("doc_7"));
-            assertThat(resp.getHits().getAt(5).getId(), equalTo("doc_3"));
+            assertThat(resp.getHits().getAt(3).getId(), equalTo("doc_3"));
+            assertThat(resp.getHits().getAt(4).getId(), equalTo("doc_6"));
+            assertThat(resp.getHits().getAt(5).getId(), equalTo("doc_7"));
         });
     }
 
@@ -544,9 +544,9 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
             assertThat(resp.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
             assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_4"));
             assertThat(resp.getHits().getAt(1).getId(), equalTo("doc_1"));
-            assertThat(resp.getHits().getAt(2).getId(), equalTo("doc_7"));
+            assertThat(resp.getHits().getAt(2).getId(), equalTo("doc_2"));
             assertThat(resp.getHits().getAt(3).getId(), equalTo("doc_6"));
-            assertThat(resp.getHits().getAt(4).getId(), equalTo("doc_2"));
+            assertThat(resp.getHits().getAt(4).getId(), equalTo("doc_7"));
         });
     }
 

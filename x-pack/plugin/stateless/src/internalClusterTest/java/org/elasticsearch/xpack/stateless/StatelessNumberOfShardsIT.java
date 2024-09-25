@@ -78,7 +78,7 @@ public class StatelessNumberOfShardsIT extends AbstractStatelessIntegTestCase {
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of(dataStreamName + "*"))
-                .template(new Template(indexSettings(1, 1).build(), CompressedXContent.fromJSON("""
+                .template(Template.builder().settings(indexSettings(1, 1)).mappings(CompressedXContent.fromJSON("""
                     {
                       "properties": {
                         "@timestamp": {
@@ -89,7 +89,7 @@ public class StatelessNumberOfShardsIT extends AbstractStatelessIntegTestCase {
                           "type": "text"
                         }
                       }
-                    }"""), null, null))
+                    }""")))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build()
         );

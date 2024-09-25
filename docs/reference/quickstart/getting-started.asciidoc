@@ -1,47 +1,20 @@
 [[getting-started]]
-== Quick start guide
+== Quick start: Add data using Elasticsearch APIs
+++++
+<titleabbrev>Basics: Add data using APIs</titleabbrev>
+++++
 
-This guide helps you learn how to:
+In this quick start guide, you'll learn how to do the following tasks:
 
-* Run {es} and {kib} (using {ecloud} or in a local Docker dev environment),
-* add simple (non-timestamped) dataset to {es},
-* run basic searches.
-
-[TIP]
-====
-If you're interested in using {es} with Python, check out Elastic Search Labs. This is the best place to explore AI-powered search use cases, such as working with embeddings, vector search, and retrieval augmented generation (RAG).
-
-* https://www.elastic.co/search-labs/tutorials/search-tutorial/welcome[Tutorial]: this walks you through building a complete search solution with {es}, from the ground up.
-* https://github.com/elastic/elasticsearch-labs[`elasticsearch-labs` repository]: it contains a range of Python https://github.com/elastic/elasticsearch-labs/tree/main/notebooks[notebooks] and https://github.com/elastic/elasticsearch-labs/tree/main/example-apps[example apps].
-====
-
-[discrete]
-[[run-elasticsearch]]
-=== Run {es}
-
-The simplest way to set up {es} is to create a managed deployment with {ess} on
-{ecloud}. If you prefer to manage your own test environment, install and
-run {es} using Docker.
-
-include::{es-ref-dir}/tab-widgets/code.asciidoc[]
-include::{es-ref-dir}/tab-widgets/quick-start-install-widget.asciidoc[]
-
-[discrete]
-[[send-requests-to-elasticsearch]]
-=== Send requests to {es}
-
-You send data and other requests to {es} using REST APIs. This lets you interact
-with {es} using any client that sends HTTP requests, such as
-https://curl.se[curl]. You can also use {kib}'s Console to send requests to
-{es}.
-
-include::{es-ref-dir}/tab-widgets/api-call-widget.asciidoc[]
+* Add a small, non-timestamped dataset to {es} using Elasticsearch REST APIs.
+* Run basic searches.
 
 [discrete]
 [[add-data]]
 === Add data
 
-You add data to {es} as JSON objects called documents. {es} stores these
+You add data to {es} as JSON objects called documents.
+{es} stores these
 documents in searchable indices.
 
 [discrete]
@@ -58,6 +31,13 @@ The request automatically creates the index.
 PUT books
 ----
 // TESTSETUP
+
+[source,console]
+--------------------------------------------------
+DELETE books
+--------------------------------------------------
+// TEARDOWN
+
 ////
 
 [source,console]
@@ -236,10 +216,11 @@ JSON object submitted during indexing.
 [[qs-match-query]]
 ==== `match` query
 
-You can use the `match` query to search for documents that contain a specific value in a specific field.
+You can use the <<query-dsl-match-query,`match` query>> to search for documents that contain a specific value in a specific field.
 This is the standard query for performing full-text search, including fuzzy matching and phrase searches.
 
 Run the following command to search the `books` index for documents containing `brave` in the `name` field:
+
 [source,console]
 ----
 GET books/_search
@@ -252,33 +233,3 @@ GET books/_search
 }
 ----
 // TEST[continued]
-
-[discrete]
-[[whats-next]]
-=== Next steps
-
-Now that {es} is up and running and you've learned the basics, you'll probably want to test out larger datasets, or index your own data.
-
-[discrete]
-[[whats-next-search-learn-more]]
-==== Learn more about search queries
-
-* <<search-with-elasticsearch>>. Jump here to learn about exact value search, full-text search, vector search, and more, using the <<search-search,search API>>.
-
-[discrete]
-[[whats-next-more-data]]
-==== Add more data
-
-* Learn how to {kibana-ref}/sample-data.html[install sample data] using {kib}. This is a quick way to test out {es} on larger workloads.
-* Learn how to use the {kibana-ref}/connect-to-elasticsearch.html#upload-data-kibana[upload data UI] in {kib} to add your own CSV, TSV, or JSON files.
-* Use the https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html[bulk API] to ingest your own datasets to {es}.
-
-[discrete]
-[[whats-next-client-libraries]]
-==== {es} programming language clients
-
-* Check out our https://www.elastic.co/guide/en/elasticsearch/client/index.html[client library] to work with your {es} instance in your preferred programming language.
-* If you're using Python, check out https://www.elastic.co/search-labs[Elastic Search Labs] for a range of examples that use the {es} Python client. This is the best place to explore AI-powered search use cases, such as working with embeddings, vector search, and retrieval augmented generation (RAG).
-** This extensive, hands-on https://www.elastic.co/search-labs/tutorials/search-tutorial/welcome[tutorial] 
-walks you through building a complete search solution with {es}, from the ground up.
-** https://github.com/elastic/elasticsearch-labs[`elasticsearch-labs`] contains a range of executable Python https://github.com/elastic/elasticsearch-labs/tree/main/notebooks[notebooks] and https://github.com/elastic/elasticsearch-labs/tree/main/example-apps[example apps].

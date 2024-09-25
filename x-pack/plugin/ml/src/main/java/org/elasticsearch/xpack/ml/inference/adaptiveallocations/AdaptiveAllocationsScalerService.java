@@ -259,12 +259,17 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
     }
 
     public synchronized void stop() {
+        clusterService.removeListener(this);
         stopScheduling();
         metrics.close();
     }
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        if (event.metadataChanged() == false) {
+            return;
+        }
+
         updateAutoscalers(event.state());
         if (scalers.isEmpty() == false) {
             startScheduling();

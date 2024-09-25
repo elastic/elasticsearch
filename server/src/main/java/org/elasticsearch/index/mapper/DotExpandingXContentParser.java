@@ -455,8 +455,7 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
             if (match) {
                 result.add(path.toString());
             } else {
-                // We only get here if parent has subobjects set to false,
-                // or set to auto with no object in the sub-path configured with subobjects false or auto.
+                // We only get here if parent has subobjects set to false, or set to auto with no object in the sub-path.
                 result.add(String.join(".", subpaths.subList(i, subpaths.size())));
                 return result;
             }

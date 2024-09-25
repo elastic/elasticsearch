@@ -382,19 +382,19 @@ Does not yet support full-text search.
 === Plan for production
 
 {es} is built to be always available and to scale with your needs. It does this
-by being distributed by nature. You can add servers (nodes) to a cluster to
+by being distributed by nature. You can add servers (<<modules-node,nodes>>) to a <<modules-cluster,cluster>> to
 increase capacity and {es} automatically distributes your data and query load
 across all of the available nodes. No need to overhaul your application, {es}
-knows how to balance multi-node clusters to provide scale and high availability.
+knows how to balance multi-node clusters to provide scale and <<high-availability,high availability>>.
 The more nodes, the merrier.
 
-How does this work? Under the covers, an {es} index is really just a logical
+How does this work? Under the covers, an {es} <<documents-indices,index>> is really just a logical
 grouping of one or more physical shards, where each shard is actually a
 self-contained index. By distributing the documents in an index across multiple
 shards, and distributing those shards across multiple nodes, {es} can ensure
 redundancy, which both protects against hardware failures and increases
 query capacity as nodes are added to a cluster. As the cluster grows (or shrinks),
-{es} automatically migrates shards to rebalance the cluster.
+{es} automatically migrates shards to <<shards-rebalancing-heuristics,rebalance>> the cluster.
 
 There are two types of shards: primaries and replicas. Each document in an index
 belongs to one primary shard. A replica shard is a copy of a primary shard.
@@ -423,12 +423,12 @@ number of larger shards might be faster. In short...it depends.
 As a starting point:
 
 * Aim to keep the average shard size between a few GB and a few tens of GB. For
-  use cases with time-based data, it is common to see shards in the 20GB to 40GB
+  use cases with time-based data, it is common to see shards in <<shard-size-recommendation,the 10GB to 50GB>>
   range.
 
-* Avoid the gazillion shards problem. The number of shards a node can hold is
-  proportional to the available heap space. As a general rule, the number of
-  shards per GB of heap space should be less than 20.
+* Avoid the gazillion shards problem. The number of shards a cluster can hold is
+  proportional to the <<cluster-state-publishing,master's>> available heap space. As a general rule, the <<shard-count-recommendation,number of
+  shards per GB of master heap space should be less than 3000>>.
 
 The best way to determine the optimal configuration for your use case is
 through https://www.elastic.co/elasticon/conf/2016/sf/quantitative-cluster-sizing[
@@ -443,7 +443,7 @@ better connections, you typically co-locate the nodes in the same data center or
 nearby data centers. However, to maintain high availability, you
 also need to avoid any single point of failure. In the event of a major outage
 in one location, servers in another location need to be able to take over. The
-answer? {ccr-cap} (CCR).
+answer? <<xpack-ccr,{ccr-cap} (CCR)>.
 
 CCR provides a way to automatically synchronize indices from your primary cluster
 to a secondary remote cluster that can serve as a hot backup. If the primary
@@ -458,11 +458,9 @@ secondary clusters are read-only followers.
 [[admin]]
 ==== Security, management, and monitoring
 
-As with any enterprise system, you need tools to secure, manage, and
-monitor your {es} clusters. Security, monitoring, and administrative features
+As with any enterprise system, you need tools to <<secure-cluster,secure>>, manage, and
+<<monitor-elasticsearch-cluster,monitor>> your {es} clusters. Security, monitoring, and administrative features
 that are integrated into {es} enable you to use {kibana-ref}/introduction.html[{kib}]
 as a control center for managing a cluster. Features like <<downsampling,
 downsampling>> and <<index-lifecycle-management, index lifecycle management>>
 help you intelligently manage your data over time.
-
-Refer to <<monitor-elasticsearch-cluster>> for more information.

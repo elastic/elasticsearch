@@ -105,7 +105,7 @@ Toggle to fetch spam and trash emails.
 Also works with document level security (DLS).
 
 Enable document level security::
-Toggle to enable https://www.elastic.co/guide/en/enterprise-search/master/dls.html[document level security (DLS)^].
+Toggle to enable <<es-dls,document level security (DLS>>.
 DLS is supported for the GMail connector.
 When enabled:
 +
@@ -282,7 +282,7 @@ Toggle to fetch spam and trash emails.
 Also works with DLS.
 
 `Enable document level security`::
-Toggle to enable https://www.elastic.co/guide/en/enterprise-search/master/dls.html[document level security (DLS)^].
+Toggle to enable <<es-dls,document level security (DLS>>.
 DLS is supported for the GMail connector.
 When enabled:
 +

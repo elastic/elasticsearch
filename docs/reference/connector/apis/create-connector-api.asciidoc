@@ -12,9 +12,11 @@ Connectors are {es} integrations that bring content from third-party data source
 * *Managed connectors* are a managed service on {ecloud}
 * *Self-managed connectors* are self-hosted on your infrastructure
 
-Find a list of all supported service types in the {enterprise-search-ref}/connectors.html[connectors documentation^].
+Find a list of all supported service types in the <<es-connectors,connectors>>.
+.
 
-To get started with Connector APIs, check out the {enterprise-search-ref}/connectors-tutorial-api.html[tutorial^].
+To get started with Connector APIs, check out <<es-connectors-tutorial-api, our tutorial>>.
+
 
 [source,console]
 --------------------------------------------------
@@ -43,8 +45,8 @@ DELETE _connector/my-connector
 [[create-connector-api-prereqs]]
 ==== {api-prereq-title}
 
-* To sync data using self-managed connectors, you need to deploy the {enterprise-search-ref}/build-connector.html[Elastic connector service] on your own infrastructure. This service runs automatically on Elastic Cloud for Elastic managed connectors.
-* The `service_type` parameter should reference a supported third-party service. See the available service types for {enterprise-search-ref}/native-connectors.html[native] and {enterprise-search-ref}/build-connector.html[self-managed] connectors. This can also reference the service type of your custom connector.
+* To sync data using self-managed connectors, you need to deploy the <<es-connectors-deploy-connector-service,Elastic connector service>>. on your own infrastructure. This service runs automatically on Elastic Cloud for Elastic managed connectors.
+* The `service_type` parameter should reference a supported third-party service. See the available service types for <<es-native-connectors,native>>. and <<es-build-connector,self-managed>>. connectors. This can also reference the service type of your custom connector.
 
 
 [[create-connector-api-desc]]
@@ -79,7 +81,7 @@ Creates a connector document in the internal index and initializes its configura
 (Optional, string) Language analyzer for the data. Limited to supported languages.
 
 `service_type`::
-(Optional, string) Connector service type. Can reference Elastic-supported third-party services or a custom connector type. See the available service types for {enterprise-search-ref}/native-connectors.html[native] and {enterprise-search-ref}/build-connector.html[self-managed] connectors.
+(Optional, string) Connector service type. Can reference Elastic-supported third-party services or a custom connector type. See the available service types for <<es-native-connectors,native>>. and <<es-build-connector,self-managed>>. connectors.
 
 
 [role="child_attributes"]

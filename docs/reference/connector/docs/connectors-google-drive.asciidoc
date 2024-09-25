@@ -108,7 +108,7 @@ The service account credentials generated from Google Cloud Platform (JSON strin
 Refer to the https://developers.google.com/workspace/guides/create-credentials#create_credentials_for_a_service_account[Google Cloud documentation^] for more information.
 
 Enable document level security::
-Toggle to enable https://www.elastic.co/guide/en/enterprise-search/master/dls.html[document level security (DLS)^].
+Toggle to enable <<es-dls,document level security (DLS>>.
 DLS is supported for the Google Drive connector.
 When enabled:
 +
@@ -297,7 +297,7 @@ Required when domain-wide delegation for data sync is enabled.
 Provide the Google Workspace user email for discovery and syncing of shared drives. Only the shared drives this user has access to will be synced.
 
 `use_document_level_security`::
-Toggle to enable https://www.elastic.co/guide/en/enterprise-search/master/dls.html[document level security (DLS)^].
+Toggle to enable <<es-dls,document level security (DLS>>.
 DLS is supported for the Google Drive connector.
 When enabled:
 +

@@ -109,7 +109,7 @@ Retrieve more information about previous meetings, including their details and p
 [discrete#es-connectors-zoom-connector-content-extraction]
 ====== Content Extraction
 
-Refer to https://www.elastic.co/guide/en/enterprise-search/current/connectors-content-extraction.html[content extraction] in the official docs.
+Refer to <<es-connectors-content-extraction,content extraction>>.
 
 [discrete#es-connectors-zoom-connector-documents-and-syncs]
 ===== Documents and syncs
@@ -141,7 +141,7 @@ This connector also supports <<es-connectors-sync-types-incremental,incremental 
 [discrete#es-connectors-zoom-connector-sync-rules]
 ===== Sync rules
 
-https://www.elastic.co/guide/en/enterprise-search/current/sync-rules.html#sync-rules-basic[Basic sync rules] are identical for all connectors and are available by default.
+<<es-sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
 
 [discrete#es-connectors-zoom-connector-advanced-sync-rules]
 ===== Advanced Sync Rules
@@ -271,7 +271,7 @@ include::_connectors-docker-instructions.asciidoc[]
 [discrete#es-connectors-zoom-client-connector-content-extraction]
 ====== Content Extraction
 
-Refer to https://www.elastic.co/guide/en/enterprise-search/current/connectors-content-extraction.html[content extraction] in the official docs.
+Refer to <<es-connectors-content-extraction,content extraction>>.
 
 [discrete#es-connectors-zoom-client-connector-documents-and-syncs]
 ===== Documents and syncs
@@ -303,7 +303,7 @@ This connector also supports <<es-connectors-sync-types-incremental,incremental 
 [discrete#es-connectors-zoom-client-connector-sync-rules]
 ===== Sync rules
 
-https://www.elastic.co/guide/en/enterprise-search/current/sync-rules.html#sync-rules-basic[Basic sync rules] are identical for all connectors and are available by default.
+<<es-sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
 
 [discrete#es-connectors-zoom-client-connector-advanced-sync-rules]
 ===== Advanced Sync Rules

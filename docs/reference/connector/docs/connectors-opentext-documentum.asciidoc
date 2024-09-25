@@ -90,7 +90,7 @@ MIID+jCCAuKgAwIBAgIGAJJMzlxLMA0GCSqGSIb3DQEBCwUAMHoxCzAJBgNVBAYT
 [discrete#es-connectors-opentext-documentum-connector-content-extraction]
 ===== Content Extraction
 
-Refer to https://www.elastic.co/guide/en/enterprise-search/current/connectors-content-extraction.html[content extraction] in the official docs.
+Refer to <<es-connectors-content-extraction,content extraction>>.
 
 [discrete#es-connectors-opentext-documentum-connector-documents-and-syncs]
 ==== Documents and syncs

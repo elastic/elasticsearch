@@ -37,7 +37,8 @@ For example:
 It can be a lot of work to set up and manage production-ready pipelines from scratch.
 Considerations such as error handling, conditional execution, sequencing, versioning, and modularization must all be taken into account.
 
-To this end, when you create indices for search use cases, (including {enterprise-search-ref}/crawler.html[Elastic web crawler], {enterprise-search-ref}/connectors.html[Elastic connector], and API indices), each index already has a pipeline set up with several processors that optimize your content for search.
+To this end, when you create indices for search use cases, (including {enterprise-search-ref}/crawler.html[Elastic web crawler], <<es-connectors,connectors>>.
+, and API indices), each index already has a pipeline set up with several processors that optimize your content for search.
 
 This pipeline is called `ent-search-generic-ingestion`.
 While it is a "managed" pipeline (meaning it should not be tampered with), you can view its details via the Kibana UI or the Elasticsearch API.
@@ -45,7 +46,8 @@ You can also <<ingest-pipeline-search-details-generic-reference,read more about 
 
 You can control whether you run some of these processors.
 While all features are enabled by default, they are eligible for opt-out.
-For {enterprise-search-ref}/crawler.html[Elastic crawler] and {enterprise-search-ref}/connectors.html[Elastic connectors], you can opt out (or back in) per index, and your choices are saved.
+For {enterprise-search-ref}/crawler.html[Elastic crawler] and <<es-connectors,connectors>>.
+, you can opt out (or back in) per index, and your choices are saved.
 For API indices, you can opt out (or back in) by including specific fields in your documents.
 <<ingest-pipeline-search-pipeline-settings-using-the-api,See below for details>>.
 

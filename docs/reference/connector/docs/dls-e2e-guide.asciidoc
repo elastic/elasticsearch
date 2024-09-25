@@ -32,7 +32,7 @@ If you don't have an Elastic deployment, sign up for a https://cloud.elastic.co/
 [NOTE]
 ====
 We use the SharePoint Online connector in this concrete example.
-Refer to {enterprise-search-ref}/dls.html[document level security] for a list of connectors that support DLS.
+Refer to <<es-dls, Document level security (DLS)>> for a list of connectors that support DLS.
 ====
 
 [discrete#es-dls-e2e-guide-sharepoint-data-overview]

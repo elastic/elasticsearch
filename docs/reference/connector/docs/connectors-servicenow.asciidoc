@@ -259,7 +259,7 @@ include::_connectors-create-client.asciidoc[]
 ===== Usage
 To use this connector as a *self-managed connector*, use the *Customized connector* workflow.
 
-For additional operations, see link:https://www.elastic.co/guide/en/enterprise-search/master/connectors-usage.html[Usage].
+For additional operations, see <<es-connectors-usage, Usage>>.
 
 [discrete#es-connectors-servicenow-client-compatibility]
 ===== Compatibility

@@ -189,14 +189,14 @@ The connector syncs the objects and entities based on GraphQL Query and GraphQL 
 [discrete#es-connectors-graphql-connector-sync-types]
 ==== Sync types
 
-https://www.elastic.co/guide/en/enterprise-search/current/connectors-sync-types.html#connectors-sync-types-full[Full syncs] are supported by default for all connectors.
+<<es-connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
 
-This connector currently does not support https://www.elastic.co/guide/en/enterprise-search/current/connectors-sync-types.html#connectors-sync-types-incremental[incremental syncs].
+This connector currently does not support <<es-connectors-sync-types-incremental,incremental syncs>>.
 
 [discrete#es-connectors-graphql-connector-sync-rules]
 ==== Sync rules
 
-https://www.elastic.co/guide/en/enterprise-search/current/sync-rules.html#sync-rules-basic[Basic sync rules] are identical for all connectors and are available by default.
+<<es-sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
 
 [discrete#es-connectors-graphql-connector-advanced-sync-rules]
 ==== Advanced Sync Rules

@@ -142,7 +142,7 @@ When enabled:
 [discrete#es-connectors-outlook-content-extraction]
 ===== Content Extraction
 
-Refer to <<es-connectors-content-extraction>> in the official docs.
+Refer to <<es-connectors-content-extraction>>.
 
 [discrete#es-connectors-outlook-documents-and-syncs]
 ===== Documents and syncs
@@ -355,7 +355,7 @@ include::_connectors-docker-instructions.asciidoc[]
 [discrete#es-connectors-outlook-client-content-extraction]
 ===== Content Extraction
 
-Refer to <<es-connectors-content-extraction>> in the official docs.
+Refer to <<es-connectors-content-extraction>>.
 
 [discrete#es-connectors-outlook-client-documents-and-syncs]
 ===== Documents and syncs

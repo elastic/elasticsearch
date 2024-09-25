@@ -22,8 +22,8 @@ import com.sun.net.httpserver.HttpHandler;
 
 import org.apache.http.HttpStatus;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;

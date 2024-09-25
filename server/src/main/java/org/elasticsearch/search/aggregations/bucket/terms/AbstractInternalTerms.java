@@ -290,6 +290,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
                 result = new ArrayList<>();
                 thisReduceOrder = reduceBuckets(bucketsList, getThisReduceOrder(), bucket -> {
                     if (result.size() < getRequiredSize()) {
+                        reduceContext.consumeBucketsAndMaybeBreak(1);
                         result.add(bucket.reduced(AbstractInternalTerms.this::reduceBucket, reduceContext));
                     } else {
                         otherDocCount[0] += bucket.getDocCount();
@@ -311,11 +312,10 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
                 result = top.build();
             } else {
                 result = new ArrayList<>();
-                thisReduceOrder = reduceBuckets(
-                    bucketsList,
-                    getThisReduceOrder(),
-                    bucket -> result.add(bucket.reduced(AbstractInternalTerms.this::reduceBucket, reduceContext))
-                );
+                thisReduceOrder = reduceBuckets(bucketsList, getThisReduceOrder(), bucket -> {
+                    reduceContext.consumeBucketsAndMaybeBreak(1);
+                    result.add(bucket.reduced(AbstractInternalTerms.this::reduceBucket, reduceContext));
+                });
             }
             for (B r : result) {
                 if (sumDocCountError == -1) {

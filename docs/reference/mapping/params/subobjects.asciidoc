@@ -111,9 +111,9 @@ PUT my-index-000001/_doc/metric_1
 
 Setting `subobjects: false` disallows the definition of <<object,`object`>> and <<object,`nested`>> sub-fields, which
 can be too restrictive in cases where it's desirable to have <<nested,`nested`>> objects or sub-objects with specific
-behavior (e.g. with `enabled:false`). In this case, it's possible to set `subobjects: auto`, so subobjects are allowed
-to be pre-defined in the mapping (including in dynamic templates), while dynamically-defined fields do not introduce
-intermediate objects. For instance:
+behavior (e.g. with `enabled:false`). In this case, it's possible to set `subobjects: auto`, which
+<<auto-flattening, auto-flattens>> whenever possible and falls back to creating an object mapper otherwise (instead of
+rejecting the mapping as `subobjects: false` does). For instance:
 
 [source,console]
 --------------------------------------------------
@@ -211,6 +211,7 @@ statically-defined sub-objects `inner` and `nested`, were preserved
 
 The `subobjects` setting for existing fields and the top-level mapping definition cannot be updated.
 
+[[auto-flattening]]
 ==== Auto-flattening object mappings
 
 It is generally recommended to define the properties of an object that is configured with `subobjects: false` or

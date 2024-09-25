@@ -13,9 +13,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -458,5 +461,105 @@ public class DotExpandingXContentParserTests extends ESTestCase {
         assertEquals(2, list.size());
         assertEquals("one", list.get(0));
         assertEquals("two", list.get(1));
+    }
+
+    private static DocumentParserContext createContext(XContentBuilder builder) throws IOException {
+        var documentMapper = new MapperServiceTestCase() {
+        }.createDocumentMapper(builder);
+        return new TestDocumentParserContext(documentMapper.mappers(), null);
+    }
+
+    private static List<String> getSubPaths(XContentBuilder builder, String... path) throws IOException {
+        DocumentParserContext context = createContext(builder);
+        return DotExpandingXContentParser.maybeFlattenPaths(Arrays.stream(path).toList(), context, new ContentPath());
+    }
+
+    private static List<String> getSubPaths(XContentBuilder builder, List<String> contentPath, List<String> path) throws IOException {
+        DocumentParserContext context = createContext(builder);
+        ContentPath content = new ContentPath();
+        for (String c : contentPath) {
+            content.add(c);
+        }
+        return DotExpandingXContentParser.maybeFlattenPaths(path, context, content);
+    }
+
+    public void testAutoFlattening() throws Exception {
+        var b = XContentBuilder.builder(XContentType.JSON.xContent());
+        b.startObject().startObject("_doc");
+        {
+            b.field("subobjects", "auto");
+            b.startObject("properties");
+            {
+                b.startObject("path").startObject("properties");
+                {
+                    b.startObject("to").startObject("properties");
+                    {
+                        b.startObject("field").field("type", "integer").endObject();
+                    }
+                    b.endObject().endObject();
+                }
+                b.endObject().endObject();
+                b.startObject("path.auto").field("subobjects", "auto").startObject("properties");
+                {
+                    b.startObject("to").startObject("properties");
+                    {
+                        b.startObject("some.field").field("type", "integer").endObject();
+                    }
+                    b.endObject().endObject();
+                    b.startObject("inner.enabled").field("dynamic", "false").startObject("properties");
+                    {
+                        b.startObject("field").field("type", "integer").endObject();
+                    }
+                    b.endObject().endObject();
+                }
+                b.endObject().endObject();
+                b.startObject("path.disabled").field("subobjects", "false").startObject("properties");
+                {
+                    b.startObject("to").startObject("properties");
+                    {
+                        b.startObject("some.field").field("type", "integer").endObject();
+                    }
+                    b.endObject().endObject();
+                }
+                b.endObject().endObject();
+            }
+            b.endObject();
+        }
+        b.endObject().endObject();
+
+        // inner [subobjects:enabled] gets flattened
+        assertThat(getSubPaths(b, "field"), Matchers.contains("field"));
+        assertThat(getSubPaths(b, "path", "field"), Matchers.contains("path.field"));
+        assertThat(getSubPaths(b, "path", "to", "field"), Matchers.contains("path.to.field"));
+        assertThat(getSubPaths(b, "path", "to", "any"), Matchers.contains("path.to.any"));
+
+        // inner [subobjects:auto] does not get flattened
+        assertThat(getSubPaths(b, "path", "auto", "field"), Matchers.contains("path.auto", "field"));
+        assertThat(getSubPaths(b, "path", "auto", "some", "field"), Matchers.contains("path.auto", "some.field"));
+        assertThat(getSubPaths(b, "path", "auto", "to", "some", "field"), Matchers.contains("path.auto", "to.some.field"));
+        assertThat(getSubPaths(b, "path", "auto", "to", "some", "other"), Matchers.contains("path.auto", "to.some.other"));
+        assertThat(getSubPaths(b, "path", "auto", "inner", "enabled", "field"), Matchers.contains("path.auto", "inner.enabled", "field"));
+        assertThat(
+            getSubPaths(b, "path", "auto", "inner", "enabled", "to", "some", "field"),
+            Matchers.contains("path.auto", "inner.enabled", "to", "some", "field")
+        );
+
+        // inner [subobjects:disabled] gets flattened
+        assertThat(getSubPaths(b, "path", "disabled", "field"), Matchers.contains("path.disabled.field"));
+        assertThat(getSubPaths(b, "path", "disabled", "some", "field"), Matchers.contains("path.disabled.some.field"));
+        assertThat(getSubPaths(b, "path", "disabled", "to", "some", "field"), Matchers.contains("path.disabled.to.some.field"));
+        assertThat(getSubPaths(b, "path", "disabled", "to", "some", "other"), Matchers.contains("path.disabled.to.some.other"));
+
+        // Non-empty content path.
+        assertThat(getSubPaths(b, List.of("path"), List.of("field")), Matchers.contains("field"));
+        assertThat(getSubPaths(b, List.of("path"), List.of("to", "field")), Matchers.contains("to", "field"));
+        assertThat(getSubPaths(b, List.of("path", "to"), List.of("field")), Matchers.contains("field"));
+        assertThat(getSubPaths(b, List.of("path"), List.of("auto", "field")), Matchers.contains("auto", "field"));
+        assertThat(getSubPaths(b, List.of("path", "auto"), List.of("to", "some", "field")), Matchers.contains("to.some.field"));
+        assertThat(
+            getSubPaths(b, List.of("path", "auto"), List.of("inner", "enabled", "to", "some", "field")),
+            Matchers.contains("inner.enabled", "to", "some", "field")
+        );
+        assertThat(getSubPaths(b, List.of("path", "disabled"), List.of("to", "some", "field")), Matchers.contains("to", "some", "field"));
     }
 }

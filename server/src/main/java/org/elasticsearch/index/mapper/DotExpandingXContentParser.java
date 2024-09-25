@@ -133,109 +133,9 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
                 subpaths = extractAndValidateResults(field, list, resultSize);
             }
             if (supportsObjectAutoFlattening && subpaths.length > 1) {
-                subpaths = maybeFlattenPaths(Arrays.asList(subpaths)).toArray(String[]::new);
+                subpaths = maybeFlattenPaths(Arrays.asList(subpaths), context, contentPath).toArray(String[]::new);
             }
             pushSubParser(delegate, subpaths);
-        }
-
-        private List<String> maybeFlattenPaths(List<String> subpaths) {
-            // Check all possible combinations of the subpath elements, to explore if they lead to the expected last mapper.
-            List<String> result = findPathToLeafMapper(subpaths, 0, contentPath.length() > 0 ? contentPath.pathAsText("") : ".");
-            if (result.isEmpty() == false) {
-                return result;
-            }
-            // No match found, check if the subpath elements should be combined due to auto-flattening.
-            String prefix = contentPath.pathAsText("");
-            ObjectMapper parent = contentPath.length() == 0 ? context.root() : context.findObject(prefix.substring(0, prefix.length() - 1));
-            result = new ArrayList<>(subpaths.size());
-            for (int i = 0; i < subpaths.size(); i++) {
-                String fullPath = prefix + String.join(".", subpaths.subList(0, i));
-                if (i > 0) {
-                    parent = context.findObject(fullPath);
-                }
-                boolean match = false;
-                StringBuilder path = new StringBuilder(subpaths.get(i));
-                if (parent == null) {
-                    // We get here for dynamic objects, which always get parsed with subobjects and may get flattened later.
-                    match = true;
-                } else if (parent.subobjects() == ObjectMapper.Subobjects.ENABLED) {
-                    match = true;
-                } else if (parent.subobjects() == ObjectMapper.Subobjects.AUTO) {
-                    // Check if there's any subobject in the remaining path with a subobjects override.
-                    // If found, the path gets updated to contain a subobject's name (containing dots) as a single subpath entry.
-                    for (int j = i; j < subpaths.size() - 1; j++) {
-                        if (j > i) {
-                            path.append(".").append(subpaths.get(j));
-                        }
-                        Mapper mapper = parent.mappers.get(path.toString());
-                        if (mapper instanceof ObjectMapper objectMapper && objectMapper.subobjects() != ObjectMapper.Subobjects.ENABLED) {
-                            i = j;
-                            match = true;
-                            break;
-                        }
-                    }
-                }
-                if (match) {
-                    result.add(path.toString());
-                } else {
-                    // We only get here if parent has subobjects set to false,
-                    // or set to auto with no object in the sub-path configured with subobjects false or auto.
-                    result.add(String.join(".", subpaths.subList(i, subpaths.size())));
-                    return result;
-                }
-            }
-            return result;
-        }
-
-        private List<String> findPathToLeafMapper(List<String> subpaths, int start, String prefix) {
-            if (subpaths.isEmpty() || start > subpaths.size() - 1) {
-                return List.of();
-            }
-            assert prefix.endsWith(".") : prefix;
-            ObjectMapper parent = prefix.length() == 1 ? context.root() : context.findObject(prefix.substring(0, prefix.length() - 1));
-            if (parent == null) {
-                return List.of();
-            }
-            if (parent.subobjects() == ObjectMapper.Subobjects.ENABLED && start < subpaths.size() - 1) {
-                String current = subpaths.get(start);
-                String newPrefix = (prefix.length() == 1 ? current : prefix + current) + ".";
-                var found = findPathToLeafMapper(subpaths, start + 1, newPrefix);
-                if (found.isEmpty() == false) {
-                    found.addFirst(current);
-                }
-                return found;
-            }
-
-            // The parent supports subobject flatteting, check if contains a mapper with name matching the remaining path.
-            String subPath = String.join(".", subpaths.subList(start, subpaths.size()));
-            if (parent.mappers.containsKey(String.join(".", subPath))) {
-                List<String> found = new ArrayList<>();
-                found.add(subPath);
-                return found;
-            }
-            if (parent.subobjects() == ObjectMapper.Subobjects.DISABLED) {
-                // No more subobjects to check for matches.
-                return List.of();
-            }
-
-            // Parent has subobjects auto, check all possible combinations of subpaths for matching objects.
-            StringBuilder builder = new StringBuilder();
-            for (int i = start; i < subpaths.size(); i++) {
-                if (i > start) {
-                    builder.append(".");
-                }
-                builder.append(subpaths.get(i));
-                if (parent.mappers.containsKey(builder.toString())) {
-                    // Found a sub-object, check if it leads to the leaf mapper.
-                    String newPrefix = (prefix.length() == 1 ? builder.toString() : prefix + builder) + ".";
-                    var found = findPathToLeafMapper(subpaths, i + 1, newPrefix);
-                    if (found.isEmpty() == false) {
-                        found.addFirst(builder.toString());
-                        return found;
-                    }
-                }
-            }
-            return List.of();
         }
 
         private void pushSubParser(XContentParser delegate, String[] subpaths) throws IOException {
@@ -520,5 +420,47 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
         public Token nextToken() throws IOException {
             return null;
         }
+    }
+
+    static List<String> maybeFlattenPaths(List<String> subpaths, DocumentParserContext context, ContentPath contentPath) {
+        String prefix = contentPath.pathAsText("");
+        ObjectMapper parent = contentPath.length() == 0 ? context.root() : context.findObject(prefix.substring(0, prefix.length() - 1));
+        List<String> result = new ArrayList<>(subpaths.size());
+        for (int i = 0; i < subpaths.size(); i++) {
+            String fullPath = prefix + String.join(".", subpaths.subList(0, i));
+            if (i > 0) {
+                parent = context.findObject(fullPath);
+            }
+            boolean match = false;
+            StringBuilder path = new StringBuilder(subpaths.get(i));
+            if (parent == null) {
+                // We get here for dynamic objects, which always get parsed with subobjects and may get flattened later.
+                match = true;
+            } else if (parent.subobjects() == ObjectMapper.Subobjects.ENABLED) {
+                match = true;
+            } else if (parent.subobjects() == ObjectMapper.Subobjects.AUTO) {
+                // Check if there's any subobject in the remaining path.
+                for (int j = i; j < subpaths.size() - 1; j++) {
+                    if (j > i) {
+                        path.append(".").append(subpaths.get(j));
+                    }
+                    Mapper mapper = parent.mappers.get(path.toString());
+                    if (mapper instanceof ObjectMapper) {
+                        i = j;
+                        match = true;
+                        break;
+                    }
+                }
+            }
+            if (match) {
+                result.add(path.toString());
+            } else {
+                // We only get here if parent has subobjects set to false,
+                // or set to auto with no object in the sub-path configured with subobjects false or auto.
+                result.add(String.join(".", subpaths.subList(i, subpaths.size())));
+                return result;
+            }
+        }
+        return result;
     }
 }

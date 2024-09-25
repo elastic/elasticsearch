@@ -887,7 +887,7 @@ doubly nested object:
 ---
 subobjects auto:
   - requires:
-      cluster_features: ["mapper.subobjects_auto"]
+      cluster_features: ["mapper.subobjects_auto_fixes"]
       reason: requires tracking ignored source and supporting subobjects auto setting
 
   - do:
@@ -990,7 +990,7 @@ subobjects auto:
 ---
 subobjects auto with path flattening:
   - requires:
-      cluster_features: ["mapper.subobjects_auto"]
+      cluster_features: ["mapper.subobjects_auto_fixes"]
       reason: requires tracking ignored source and supporting subobjects auto setting
 
   - do:
@@ -1042,7 +1042,7 @@ subobjects auto with path flattening:
 ---
 subobjects auto with dynamic template:
   - requires:
-      cluster_features: ["mapper.subobjects_auto"]
+      cluster_features: ["mapper.subobjects_auto_fixes"]
       reason: requires tracking ignored source and supporting subobjects auto setting
 
   - do:

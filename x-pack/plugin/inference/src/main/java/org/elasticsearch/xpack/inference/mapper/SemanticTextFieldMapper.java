@@ -71,6 +71,8 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INFERENCE_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INFERENCE_ID_FIELD;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.MODEL_SETTINGS_FIELD;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.SEARCH_INFERENCE_ID_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.TEXT_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChunksFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbeddingsFieldName;
@@ -83,6 +85,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     public static final NodeFeature SEMANTIC_TEXT_SEARCH_INFERENCE_ID = new NodeFeature("semantic_text.search_inference_id");
 
     public static final String CONTENT_TYPE = "semantic_text";
+    public static final String DEFAULT_INFERENCE_ID = ".elser_default_ingest";
+    public static final String DEFAULT_SEARCH_INFERENCE_ID = ".elser_default_search";
 
     private final IndexSettings indexSettings;
 
@@ -96,25 +100,21 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         private final IndexSettings indexSettings;
 
         private final Parameter<String> inferenceId = Parameter.stringParam(
-            "inference_id",
+            INFERENCE_ID_FIELD,
             false,
             mapper -> ((SemanticTextFieldType) mapper.fieldType()).inferenceId,
             null
-        ).addValidator(v -> {
-            if (Strings.isEmpty(v)) {
-                throw new IllegalArgumentException("field [inference_id] must be specified");
-            }
-        });
+        );
 
         private final Parameter<String> searchInferenceId = Parameter.stringParam(
-            "search_inference_id",
+            SEARCH_INFERENCE_ID_FIELD,
             true,
             mapper -> ((SemanticTextFieldType) mapper.fieldType()).searchInferenceId,
             null
         ).acceptsNull();
 
         private final Parameter<SemanticTextField.ModelSettings> modelSettings = new Parameter<>(
-            "model_settings",
+            MODEL_SETTINGS_FIELD,
             true,
             () -> null,
             (n, c, o) -> SemanticTextField.parseModelSettingsFromMap(o),
@@ -204,6 +204,24 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             }
             var childContext = context.createChildContext(leafName(), ObjectMapper.Dynamic.FALSE);
             final ObjectMapper inferenceField = inferenceFieldBuilder.apply(childContext);
+
+            if (inferenceId.isConfigured() == false && searchInferenceId.isConfigured() == false) {
+                inferenceId.setValue(DEFAULT_INFERENCE_ID);
+                searchInferenceId.setValue(DEFAULT_SEARCH_INFERENCE_ID);
+            } else if (inferenceId.isConfigured() == false) {
+                throw new IllegalArgumentException(
+                    "["
+                        + INFERENCE_ID_FIELD
+                        + "] must be specified for "
+                        + CONTENT_TYPE
+                        + " field ["
+                        + fullName
+                        + "] when ["
+                        + SEARCH_INFERENCE_ID_FIELD
+                        + "] is specified"
+                );
+            }
+
             return new SemanticTextFieldMapper(
                 leafName(),
                 new SemanticTextFieldType(

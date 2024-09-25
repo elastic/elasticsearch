@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
@@ -23,6 +22,7 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.regex.Pattern;
 
 public class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     private static final Logger logger = LogManager.getLogger(LogsdbIndexModeSettingsProvider.class);
@@ -33,7 +33,7 @@ public class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
-    public static final String LOGS_PATTERN = "logs-.+-.+";
+    private static final Pattern LOGS_PATTERN = Pattern.compile("logs-.+-.+");
     private volatile boolean isLogsdbEnabled;
 
     public LogsdbIndexModeSettingsProvider(final Settings settings) {
@@ -76,7 +76,7 @@ public class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     }
 
     private static boolean matchesLogsPattern(final String name) {
-        return name != null && Regex.simpleMatch(LOGS_PATTERN, name);
+        return name != null && LOGS_PATTERN.matcher(name).matches();
     }
 
     private IndexMode resolveIndexMode(final String mode) {

@@ -109,6 +109,7 @@ EOF
 
   # Write the config.json to the Docker config directory
   echo "${CONFIG_JSON}" > ${DOCKER_CONFIG_PATH}/config.json
+  export DOCKER_CONFIG "${DOCKER_CONFIG_PATH}/config.json"
   echo "Docker config.json file created at ${DOCKER_CONFIG_PATH}/config.json"
 fi
 

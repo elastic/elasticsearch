@@ -68,7 +68,7 @@ public class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
             return Settings.EMPTY;
         }
 
-        if (matchesLogsPattern(dataStreamName) && usesLogsAtSettingsComponentTemplate(metadata, dataStreamName)) {
+        if (usesLogsAtSettingsComponentTemplate(metadata, dataStreamName) && matchesLogsPattern(dataStreamName)) {
             return Settings.builder().put("index.mode", IndexMode.LOGSDB.getName()).build();
         }
 

@@ -39,7 +39,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * This abstract retriever defines a compound retriever. The idea is that it is not a leaf-retriever, i.e. it does not
- * perform actual searches itself. Instead, it is a container for a set of child retrievers and i responsible for combining
+ * perform actual searches itself. Instead, it is a container for a set of child retrievers and is responsible for combining
  * the results of the child retrievers according to the implementation of {@code combineQueryPhaseResults}.
  */
 public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilder<T>> extends RetrieverBuilder {
@@ -64,12 +64,12 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
      * Returns a clone of the original retriever, replacing the sub-retrievers with
      * the provided {@code newChildRetrievers}.
      */
-    public abstract T clone(List<RetrieverSource> newChildRetrievers);
+    protected abstract T clone(List<RetrieverSource> newChildRetrievers);
 
     /**
      * Combines the provided {@code rankResults} to return the final top documents.
      */
-    public abstract RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults);
+    protected abstract RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults);
 
     @Override
     public final boolean isCompound() {
@@ -77,7 +77,6 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public final RetrieverBuilder rewrite(QueryRewriteContext ctx) throws IOException {
         if (ctx.getPointInTimeBuilder() == null) {
             throw new IllegalStateException("PIT is required");
@@ -199,7 +198,6 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public boolean doEquals(Object o) {
         CompoundRetrieverBuilder<?> that = (CompoundRetrieverBuilder<?>) o;
         return rankWindowSize == that.rankWindowSize && Objects.equals(innerRetrievers, that.innerRetrievers);
@@ -227,7 +225,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
             if (query != null) {
                 newQuery.must(query);
             }
-            preFilterQueryBuilders.stream().forEach(newQuery::filter);
+            preFilterQueryBuilders.forEach(newQuery::filter);
             sourceBuilder.query(newQuery);
         }
 

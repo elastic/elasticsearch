@@ -31,12 +31,12 @@ public class TestCompoundRetrieverBuilder extends CompoundRetrieverBuilder<TestC
     }
 
     @Override
-    public TestCompoundRetrieverBuilder clone(List<RetrieverSource> newChildRetrievers) {
+    protected TestCompoundRetrieverBuilder clone(List<RetrieverSource> newChildRetrievers) {
         return new TestCompoundRetrieverBuilder(newChildRetrievers, rankWindowSize);
     }
 
     @Override
-    public RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults) {
+    protected RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults) {
         return new RankDoc[0];
     }
 

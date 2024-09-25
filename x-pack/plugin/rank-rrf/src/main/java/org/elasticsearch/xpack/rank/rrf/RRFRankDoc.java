@@ -24,7 +24,7 @@ import static org.elasticsearch.xpack.rank.rrf.RRFRankBuilder.DEFAULT_RANK_CONST
  * {@code RRFRankDoc} supports additional ranking information
  * required for RRF.
  */
-public class RRFRankDoc extends RankDoc {
+public final class RRFRankDoc extends RankDoc {
 
     static final String NAME = "rrf_rank_doc";
 

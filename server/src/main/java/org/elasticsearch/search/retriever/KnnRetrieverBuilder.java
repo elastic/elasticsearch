@@ -115,10 +115,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         this.queryVectorBuilder = queryVectorBuilder;
         this.k = k;
         this.numCands = numCands;
-        if (similarity != null && this.minScore != null) {
-            throw new IllegalArgumentException("Cannot specify both [similarity] and [min_score]");
-        }
-        this.similarity = similarity != null ? similarity : this.minScore;
+        this.similarity = similarity;
     }
 
     // ---- FOR TESTING XCONTENT PARSING ----
@@ -194,11 +191,6 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         if (similarity != null) {
             builder.field(VECTOR_SIMILARITY.getPreferredName(), similarity);
         }
-    }
-
-    @Override
-    public Float minScore() {
-        return similarity != null ? similarity : super.minScore();
     }
 
     @Override

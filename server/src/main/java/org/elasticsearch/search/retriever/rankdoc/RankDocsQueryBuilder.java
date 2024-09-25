@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Objects;
 
 import static org.elasticsearch.TransportVersions.RRF_QUERY_REWRITE;
 
@@ -44,8 +45,13 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
     public RankDocsQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.rankDocs = in.readArray(c -> c.readNamedWriteable(RankDoc.class), RankDoc[]::new);
-        this.queryBuilders = in.readOptionalArray(c -> c.readNamedWriteable(QueryBuilder.class), QueryBuilder[]::new);
-        this.onlyRankDocs = in.getTransportVersion().onOrAfter(RRF_QUERY_REWRITE) && in.readBoolean();
+        if (in.getTransportVersion().onOrAfter(RRF_QUERY_REWRITE)) {
+            this.queryBuilders = in.readOptionalArray(c -> c.readNamedWriteable(QueryBuilder.class), QueryBuilder[]::new);
+            this.onlyRankDocs = in.readBoolean();
+        } else {
+            this.queryBuilders = null;
+            this.onlyRankDocs = false;
+        }
     }
 
     RankDoc[] rankDocs() {
@@ -55,8 +61,8 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeArray(StreamOutput::writeNamedWriteable, rankDocs);
-        out.writeOptionalArray(StreamOutput::writeNamedWriteable, queryBuilders);
         if (out.getTransportVersion().onOrAfter(RRF_QUERY_REWRITE)) {
+            out.writeOptionalArray(StreamOutput::writeNamedWriteable, queryBuilders);
             out.writeBoolean(onlyRankDocs);
         }
     }
@@ -103,12 +109,14 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
 
     @Override
     protected boolean doEquals(RankDocsQueryBuilder other) {
-        return Arrays.equals(rankDocs, other.rankDocs);
+        return Arrays.equals(rankDocs, other.rankDocs)
+            && Arrays.equals(queryBuilders, other.queryBuilders)
+            && onlyRankDocs == other.onlyRankDocs;
     }
 
     @Override
     protected int doHashCode() {
-        return Arrays.hashCode(rankDocs);
+        return Objects.hash(Arrays.hashCode(rankDocs), Arrays.hashCode(queryBuilders), onlyRankDocs);
     }
 
     @Override

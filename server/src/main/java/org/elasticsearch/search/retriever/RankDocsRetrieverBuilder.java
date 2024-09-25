@@ -41,6 +41,9 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
     ) {
         this.rankWindowSize = rankWindowSize;
         this.rankDocs = rankDocs;
+        if (sources == null || sources.isEmpty()) {
+            throw new IllegalArgumentException("sources must not be null or empty");
+        }
         this.sources = sources;
         this.preFilterQueryBuilders = preFilterQueryBuilders;
     }
@@ -50,7 +53,7 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
         return NAME;
     }
 
-    public boolean sourceHasMinScore() {
+    private boolean sourceHasMinScore() {
         return minScore != null || sources.stream().anyMatch(x -> x.minScore() != null);
     }
 

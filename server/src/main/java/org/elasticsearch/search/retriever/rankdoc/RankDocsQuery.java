@@ -52,6 +52,7 @@ public class RankDocsQuery extends Query {
         private final Object contextIdentity;
 
         TopQuery(RankDoc[] docs, Query[] sources, String[] queryNames, int[] segmentStarts, Object contextIdentity) {
+            assert sources.length == queryNames.length;
             this.docs = docs;
             this.sources = sources;
             this.queryNames = queryNames;

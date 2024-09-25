@@ -106,12 +106,12 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
     }
 
     @Override
-    public RRFRetrieverBuilder clone(List<RetrieverSource> newRetrievers) {
+    protected RRFRetrieverBuilder clone(List<RetrieverSource> newRetrievers) {
         return new RRFRetrieverBuilder(newRetrievers, this.rankWindowSize, this.rankConstant);
     }
 
     @Override
-    public RRFRankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults) {
+    protected RRFRankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults) {
         // combine the disjointed sets of TopDocs into a single set or RRFRankDocs
         // each RRFRankDoc will have both the position and score for each query where
         // it was within the result set for that query

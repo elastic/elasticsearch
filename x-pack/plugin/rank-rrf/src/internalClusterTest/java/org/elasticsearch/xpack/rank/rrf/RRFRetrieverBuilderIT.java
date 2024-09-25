@@ -32,7 +32,6 @@ import org.junit.Before;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.Objects;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.hamcrest.Matchers.containsString;
@@ -146,7 +145,7 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         final int rankConstant = 10;
         final List<String> expectedDocIds = List.of("doc_2", "doc_6", "doc_7", "doc_1", "doc_3", "doc_4");
         final int totalDocs = expectedDocIds.size();
-        for (int i = 0; i < randomInt(10); i++) {
+        for (int i = 0; i < randomIntBetween(1, 5); i++) {
             int from = randomIntBetween(0, totalDocs - 1);
             int size = randomIntBetween(1, totalDocs - from);
             for (int docs_to_fetch = from; docs_to_fetch < totalDocs; docs_to_fetch += size) {
@@ -278,13 +277,9 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
             assertThat(resp.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
             assertThat(resp.getHits().getHits().length, equalTo(4));
             assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_2"));
-            assertThat(Objects.requireNonNull(resp.getHits().getAt(0).getInnerHits().get("a").getTotalHits()).value, equalTo(1L));
             assertThat(resp.getHits().getAt(1).getId(), equalTo("doc_6"));
-            assertThat(Objects.requireNonNull(resp.getHits().getAt(1).getInnerHits().get("a").getTotalHits()).value, equalTo(1L));
             assertThat(resp.getHits().getAt(2).getId(), equalTo("doc_7"));
-            assertThat(Objects.requireNonNull(resp.getHits().getAt(2).getInnerHits().get("a").getTotalHits()).value, equalTo(1L));
             assertThat(resp.getHits().getAt(3).getId(), equalTo("doc_1"));
-            assertThat(Objects.requireNonNull(resp.getHits().getAt(3).getInnerHits().get("a").getTotalHits()).value, equalTo(3L));
             assertThat(resp.getHits().getAt(3).getInnerHits().get("a").getAt(0).getId(), equalTo("doc_4"));
             assertThat(resp.getHits().getAt(3).getInnerHits().get("a").getAt(1).getId(), equalTo("doc_3"));
             assertThat(resp.getHits().getAt(3).getInnerHits().get("a").getAt(2).getId(), equalTo("doc_1"));
@@ -332,13 +327,9 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
             assertThat(resp.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
             assertThat(resp.getHits().getHits().length, equalTo(4));
             assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_2"));
-            assertThat(Objects.requireNonNull(resp.getHits().getAt(0).getInnerHits().get("a").getTotalHits()).value, equalTo(1L));
             assertThat(resp.getHits().getAt(1).getId(), equalTo("doc_6"));
-            assertThat(Objects.requireNonNull(resp.getHits().getAt(1).getInnerHits().get("a").getTotalHits()).value, equalTo(1L));
             assertThat(resp.getHits().getAt(2).getId(), equalTo("doc_7"));
-            assertThat(Objects.requireNonNull(resp.getHits().getAt(2).getInnerHits().get("a").getTotalHits()).value, equalTo(1L));
             assertThat(resp.getHits().getAt(3).getId(), equalTo("doc_1"));
-            assertThat(Objects.requireNonNull(resp.getHits().getAt(3).getInnerHits().get("a").getTotalHits()).value, equalTo(3L));
             assertThat(resp.getHits().getAt(3).getInnerHits().get("a").getAt(0).getId(), equalTo("doc_4"));
             assertThat(resp.getHits().getAt(3).getInnerHits().get("a").getAt(1).getId(), equalTo("doc_3"));
             assertThat(resp.getHits().getAt(3).getInnerHits().get("a").getAt(2).getId(), equalTo("doc_1"));

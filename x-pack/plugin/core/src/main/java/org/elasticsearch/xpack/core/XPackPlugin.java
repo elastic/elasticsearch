@@ -132,6 +132,8 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.datastreams.logsdb.LogsdbIndexModeSettingsProvider.CLUSTER_LOGSDB_ENABLED;
+
 @SuppressWarnings("HiddenField")
 public class XPackPlugin extends XPackClientPlugin
     implements
@@ -184,8 +186,7 @@ public class XPackPlugin extends XPackClientPlugin
     private static SetOnce<LongSupplier> epochMillisSupplier = new SetOnce<>();
     private static SetOnce<XPackLicenseState> licenseState = new SetOnce<>();
     private static SetOnce<LicenseService> licenseService = new SetOnce<>();
-
-    private static SetOnce<ClusterService> clusterService = new SetOnce<>();
+    private SetOnce<LogsdbIndexModeSettingsProvider> logsdbIndexModeSettingsProvider = new SetOnce<>();
 
     public XPackPlugin(final Settings settings) {
         super();
@@ -232,10 +233,6 @@ public class XPackPlugin extends XPackClientPlugin
 
     protected void setEpochMillisSupplier(LongSupplier epochMillisSupplier) {
         XPackPlugin.epochMillisSupplier.set(epochMillisSupplier);
-    }
-
-    protected void setClusterService(ClusterService clusterService) {
-        XPackPlugin.clusterService.set(clusterService);
     }
 
     public static SSLService getSharedSslService() {
@@ -345,13 +342,23 @@ public class XPackPlugin extends XPackClientPlugin
         }
 
         setEpochMillisSupplier(services.threadPool()::absoluteTimeInMillis);
-        setClusterService(services.clusterService());
 
         // It is useful to override these as they are what guice is injecting into actions
         components.add(sslService);
         components.add(new PluginComponentBinding<>(MutableLicenseService.class, licenseService));
         components.add(new PluginComponentBinding<>(LicenseService.class, licenseService));
         components.add(getLicenseState());
+
+        try (ClusterService cs = services.clusterService()) {
+            logsdbIndexModeSettingsProvider.set(
+                new LogsdbIndexModeSettingsProvider(cs.getSettings().getAsBoolean(CLUSTER_LOGSDB_ENABLED.getKey(), false))
+            );
+            cs.getClusterSettings()
+                .addSettingsUpdateConsumer(
+                    CLUSTER_LOGSDB_ENABLED,
+                    logsdbIndexModeSettingsProvider.get()::updateClusterIndexModeLogsdbEnabled
+                );
+        }
 
         return components;
     }
@@ -490,7 +497,7 @@ public class XPackPlugin extends XPackClientPlugin
         if (DiscoveryNode.isStateless(settings)) {
             return List.of();
         }
-        return List.of(new DataTier.DefaultHotAllocationSettingProvider(), new LogsdbIndexModeSettingsProvider(clusterService.get()));
+        return List.of(new DataTier.DefaultHotAllocationSettingProvider(), logsdbIndexModeSettingsProvider);
     }
 
     /**

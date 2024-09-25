@@ -10,7 +10,6 @@ package org.elasticsearch.datastreams.logsdb;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
@@ -26,19 +25,18 @@ public class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     private static final Logger logger = LogManager.getLogger(LogsdbIndexModeSettingsProvider.class);
 
     public static final Setting<Boolean> CLUSTER_LOGSDB_ENABLED = Setting.boolSetting(
-        "clutser.logsdb.enabled",
+        "cluster.logsdb.enabled",
         false,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
     private boolean isLogsdbEnabled;
 
-    public LogsdbIndexModeSettingsProvider(final ClusterService clusterService) {
-        this.isLogsdbEnabled = clusterService.getSettings().getAsBoolean(CLUSTER_LOGSDB_ENABLED.getKey(), false);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(CLUSTER_LOGSDB_ENABLED, this::updateClusterIndexModeLogsdbEnabled);
+    public LogsdbIndexModeSettingsProvider(boolean isLogsdbEnabled) {
+        this.isLogsdbEnabled = isLogsdbEnabled;
     }
 
-    private void updateClusterIndexModeLogsdbEnabled(boolean isLogsdbEnabled) {
+    public void updateClusterIndexModeLogsdbEnabled(boolean isLogsdbEnabled) {
         logger.debug("LogsDB " + (isLogsdbEnabled ? "enabled" : "disabled"));
         this.isLogsdbEnabled = isLogsdbEnabled;
     }

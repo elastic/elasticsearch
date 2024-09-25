@@ -17,8 +17,8 @@ In this example we will:
 ==== Set up connector to sync data with access control
 
 You can run SharePoint Online connector in Elastic Cloud (native) or on a self-managed deployment (self-managed connector).
-// Refer to <<es-connectors-sharepoint-online, SharePoint Online connector>> to learn how to set up the SharePoint Online connector and enable DLS.
-// TODO
+Refer to <<es-connectors-sharepoint-online, SharePoint Online connector>> to learn how to set up the SharePoint Online connector and enable DLS.
+
 
 To run the self-managed connector, you'll need to run the *connectors service* in addition to your Elastic deployment.
 Refer to <<es-build-connector>> for details on how to set up a self-managed connector and run the connectors service.

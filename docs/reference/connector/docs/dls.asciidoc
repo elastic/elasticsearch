@@ -18,8 +18,6 @@ Beta features are not subject to the support SLA of official GA features.
 
 This feature is not available for all Elastic subscription levels.
 Refer to the subscriptions pages for https://www.elastic.co/subscriptions/cloud[Elastic Cloud^] and https://www.elastic.co/subscriptions[Elastic Stack^].
-// To change your subscription level or start a trial, see <<es-license-management>>.
-// TODO
 
 DLS is available by default when using the following Elastic connectors:
 
@@ -35,9 +33,8 @@ DLS documentation:
 
 * <<es-dls-overview>>
 * <<es-dls-e2e-guide>> 
-// E2E search applications/search ui guide
-// * <<es-connectors-sharepoint-online-dls, DLS for SharePoint Online connector>>
-// TODO
+E2E search applications/search ui guide
+* <<es-connectors-sharepoint-online-dls, DLS for SharePoint Online connector>>
 
 include::dls-overview.asciidoc[]
 include::dls-e2e-guide.asciidoc[]

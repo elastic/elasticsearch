@@ -92,9 +92,8 @@ You can run the connector service from source or use Docker:
 [discrete#es-build-connector-example]
 === Tutorials
 
-// TODO
-// * Follow our <<es-postgresql-connector-client-tutorial, UI-based tutorial>> to learn how run the self-managed connector service and a set up a self-managed connector, *using the UI*.
-// * Follow our <<es-connectors-tutorial-api, API-based tutorial>> to learn how to set up a self-managed connector *using the* {ref}/connector-apis.html[*connector APIs*].
+* Follow our <<es-postgresql-connector-client-tutorial, UI-based tutorial>> to learn how run the self-managed connector service and a set up a self-managed connector, *using the UI*.
+* Follow our <<es-connectors-tutorial-api, API-based tutorial>> to learn how to set up a self-managed connector *using the* {ref}/connector-apis.html[*connector APIs*].
 
 These examples use the PostgreSQL connector but the basic process is the same for all self-managed connectors.
 

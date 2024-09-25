@@ -1,16 +1,16 @@
 [#es-connectors]
-= Elastic connectors
+= Ingest content Elastic connectors
 ++++
-<titleabbrev>Add data with Connectors</titleabbrev>
+<titleabbrev>Connectors</titleabbrev>
 ++++
 
-A _connector_ is a type of https://www.elastic.co/integrations/data-integrations[Elastic integration^] that syncs data from an original data source to an *Elasticsearch index*. 
+A _connector_ is a type of https://www.elastic.co/integrations/data-integrations[Elastic integration^] that syncs content from an original data source to an *Elasticsearch index*. 
 Connectors enable you to create _searchable_, read-only replicas of your data sources.
 
 [IMPORTANT]
 ====
-These connectors are focused on general content, that is non-timestamped data.
-Refer to https://www.elastic.co/guide/en/cloud/current/ec-cloud-ingest-data.html if you're interested in ingesting timestamped data.
+These connectors are focused on general content, which is non-timestamped data.
+Refer to https://www.elastic.co/guide/en/cloud/current/ec-cloud-ingest-data.html[add data to {es}] if you're interested in ingesting timestamped data.
 ====
 
 Connectors extract the original files, records, or objects; and transforms them into Elasticsearch documents.

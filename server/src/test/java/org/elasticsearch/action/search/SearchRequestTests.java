@@ -31,6 +31,7 @@ import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.rank.TestRankBuilder;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
+import org.elasticsearch.search.retriever.TestCompoundRetrieverBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
@@ -262,40 +263,9 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         }
         {
             // allow_partial_results and compound retriever
-            SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder().retriever(new RetrieverBuilder() {
-                @Override
-                public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
-                    // no-op
-                }
-
-                @Override
-                public String getName() {
-                    return "compound_retriever";
-                }
-
-                @Override
-                protected void doToXContent(XContentBuilder builder, Params params) throws IOException {}
-
-                @Override
-                protected boolean doEquals(Object o) {
-                    return false;
-                }
-
-                @Override
-                protected int doHashCode() {
-                    return 0;
-                }
-
-                @Override
-                public boolean isCompound() {
-                    return true;
-                }
-
-                @Override
-                public QueryBuilder topDocsQuery() {
-                    return null;
-                }
-            }));
+            SearchRequest searchRequest = createSearchRequest().source(
+                new SearchSourceBuilder().retriever(new TestCompoundRetrieverBuilder(randomIntBetween(1, 10)))
+            );
             searchRequest.allowPartialSearchResults(true);
             searchRequest.scroll((Scroll) null);
             ActionRequestValidationException validationErrors = searchRequest.validate();

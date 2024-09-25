@@ -1226,6 +1226,21 @@ message:keyword | message_reversed:keyword
 // end::reverseEmoji-result[]
 ;
 
+reverseMultiValue
+required_capability: fn_reverse
+FROM employees | SORT emp_no | EVAL jobs_reversed = REVERSE(job_positions) | KEEP job*, emp_no | LIMIT 5;
+
+warning:Line 1:53: evaluation of [REVERSE(job_positions)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:53: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+job_positions:keyword                                                   | jobs_reversed:keyword | emp_no:integer
+["Accountant",  "Senior Python Developer"]                              | null                  | 10001
+Senior Team Lead                                                        | daeL maeT roineS      | 10002
+null                                                                    | null                  | 10003
+[Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead]  | null                  | 10004
+null                                                                    | null                  | 10005
+;
+
 values
 required_capability: agg_values
 

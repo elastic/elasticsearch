@@ -25,7 +25,7 @@ GET my-index-000001/_search
   }
 }
 ------------------------------------------------------------
-// TEST[skip:TBD]
+// TEST[skip: Requires inference endpoints]
 
 
 [discrete]
@@ -78,7 +78,7 @@ POST my-index/_doc/lake_tahoe
   ]
 }
 ------------------------------------------------------------
-// TEST[skip:TBD]
+// TEST[skip: Requires inference endpoints]
 
 You can use passage ranking to find the passage that best matches your query:
 
@@ -95,7 +95,7 @@ GET my-index/_search
   }
 }
 ------------------------------------------------------------
-// TEST[skip:TBD]
+// TEST[skip: Requires inference endpoints]
 
 [source,console-result]
 ------------------------------------------------------------
@@ -185,7 +185,7 @@ GET my-index/_search
   }
 }
 ------------------------------------------------------------
-// TEST[skip:TBD]
+// TEST[skip: Requires inference endpoints]
 
 [source,console-result]
 ------------------------------------------------------------
@@ -279,7 +279,7 @@ POST my-index/_search
   }
 }
 ------------------------------------------------------------
-// TEST[skip:TBD]
+// TEST[skip: Requires inference endpoints]
 
 You can also use semantic_text as part of <<rrf,Reciprocal Rank Fusion>> to make ranking relevant results easier:
 
@@ -316,7 +316,7 @@ GET my-index/_search
   }
 }
 ------------------------------------------------------------
-// TEST[skip:TBD]
+// TEST[skip: Requires inference endpoints]
 
 
 [discrete]
@@ -357,7 +357,7 @@ GET test-index/_search
   }
 }
 ------------------------------------------------------------
-// TEST[skip:TBD]
+// TEST[skip: Requires inference endpoints]
 
 You can customize the `sparse_vector` query to include specific settings, like <<sparse-vector-query-with-pruning-config-and-rescore-example,pruning configuration>>.
 
@@ -390,6 +390,6 @@ GET test-index/_search
   }
 }
 ------------------------------------------------------------
-// TEST[skip:TBD]
+// TEST[skip: Requires inference endpoints]
 
 You can customize the `knn` query to include specific settings, like `num_candidates` and `k`.

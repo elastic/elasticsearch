@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.geoip.direct;
@@ -19,8 +20,6 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestUtils.getAckTimeout;
-import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestGetDatabaseConfigurationAction extends BaseRestHandler {
@@ -37,11 +36,7 @@ public class RestGetDatabaseConfigurationAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) {
-        final var req = new GetDatabaseConfigurationAction.Request(
-            getMasterNodeTimeout(request),
-            getAckTimeout(request),
-            Strings.splitStringByCommaToArray(request.param("id"))
-        );
+        final var req = new GetDatabaseConfigurationAction.Request(Strings.splitStringByCommaToArray(request.param("id")));
         return channel -> client.execute(GetDatabaseConfigurationAction.INSTANCE, req, new RestToXContentListener<>(channel));
     }
 }

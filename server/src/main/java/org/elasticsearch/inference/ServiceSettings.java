@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.inference;
@@ -30,6 +31,15 @@ public interface ServiceSettings extends ToXContentObject, VersionedNamedWriteab
      * @return number of dimensions
      */
     default Integer dimensions() {
+        return null;
+    }
+
+    /**
+     * Boolean signifying whether the dimensions were set by the user
+     *
+     * @return boolean signifying whether the dimensions were set by the user
+     */
+    default Boolean dimensionsSetByUser() {
         return null;
     }
 

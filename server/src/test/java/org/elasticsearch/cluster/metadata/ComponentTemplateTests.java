@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -153,45 +154,27 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
                 Template ot = orig.template();
                 yield switch (randomIntBetween(0, 3)) {
                     case 0 -> new ComponentTemplate(
-                        new Template(
-                            randomValueOtherThan(ot.settings(), ComponentTemplateTests::randomSettings),
-                            ot.mappings(),
-                            ot.aliases(),
-                            ot.lifecycle()
-                        ),
+                        Template.builder(ot).settings(randomValueOtherThan(ot.settings(), ComponentTemplateTests::randomSettings)).build(),
                         orig.version(),
                         orig.metadata(),
                         orig.deprecated()
                     );
                     case 1 -> new ComponentTemplate(
-                        new Template(
-                            ot.settings(),
-                            randomValueOtherThan(ot.mappings(), ComponentTemplateTests::randomMappings),
-                            ot.aliases(),
-                            ot.lifecycle()
-                        ),
+                        Template.builder(ot).mappings(randomValueOtherThan(ot.mappings(), ComponentTemplateTests::randomMappings)).build(),
                         orig.version(),
                         orig.metadata(),
                         orig.deprecated()
                     );
                     case 2 -> new ComponentTemplate(
-                        new Template(
-                            ot.settings(),
-                            ot.mappings(),
-                            randomValueOtherThan(ot.aliases(), ComponentTemplateTests::randomAliases),
-                            ot.lifecycle()
-                        ),
+                        Template.builder(ot).aliases(randomValueOtherThan(ot.aliases(), ComponentTemplateTests::randomAliases)).build(),
                         orig.version(),
                         orig.metadata(),
                         orig.deprecated()
                     );
                     case 3 -> new ComponentTemplate(
-                        new Template(
-                            ot.settings(),
-                            ot.mappings(),
-                            ot.aliases(),
-                            randomValueOtherThan(ot.lifecycle(), DataStreamLifecycleTests::randomLifecycle)
-                        ),
+                        Template.builder(ot)
+                            .lifecycle(randomValueOtherThan(ot.lifecycle(), DataStreamLifecycleTests::randomLifecycle))
+                            .build(),
                         orig.version(),
                         orig.metadata(),
                         orig.deprecated()

@@ -39,6 +39,7 @@ Create an {infer} endpoint by using the <<put-inference-api>>:
 
 include::{es-ref-dir}/tab-widgets/inference-api/infer-api-task-widget.asciidoc[]
 
+
 [discrete]
 [[infer-service-mappings]]
 ==== Create the index mapping
@@ -67,12 +68,12 @@ It consists of 200 queries, each accompanied by a list of relevant text passages
 All unique passages, along with their IDs, have been extracted from that data set and compiled into a
 https://github.com/elastic/stack-docs/blob/main/docs/en/stack/ml/nlp/data/msmarco-passagetest2019-unique.tsv[tsv file].
 
-Download the file and upload it to your cluster using the
-{kibana-ref}/connect-to-elasticsearch.html#upload-data-kibana[Data Visualizer]
-in the {ml-app} UI.
-Assign the name `id` to the first column and `content` to the second column.
-The index name is `test-data`.
-Once the upload is complete, you can see an index named `test-data` with 182469 documents.
+Download the file and upload it to your cluster using the {kibana-ref}/connect-to-elasticsearch.html#upload-data-kibana[Data Visualizer] in the {ml-app} UI.
+After your data is analyzed, click **Override settings**.
+Under **Edit field names**, assign `id` to the first column and `content` to the second.
+Click **Apply**, then **Import**.
+Name the index `test-data`, and click **Import**.
+After the upload is complete, you will see an index named `test-data` with 182,469 documents.
 
 [discrete]
 [[reindexing-data-infer]]
@@ -91,7 +92,10 @@ GET _tasks/<task_id>
 ----
 // TEST[skip:TBD]
 
-You can also cancel the reindexing process if you don't want to wait until the reindexing process is fully complete which might take hours for large data sets:
+Reindexing large datasets can take a long time.
+You can test this workflow using only a subset of the dataset.
+Do this by cancelling the reindexing process, and only generating embeddings for the subset that was reindexed.
+The following API request will cancel the reindexing task:
 
 [source,console]
 ----

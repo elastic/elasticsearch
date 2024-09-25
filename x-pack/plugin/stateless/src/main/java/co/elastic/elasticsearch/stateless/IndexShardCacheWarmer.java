@@ -32,9 +32,13 @@ import org.elasticsearch.index.shard.IndexShardNotRecoveringException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
+
+import java.io.FileNotFoundException;
+import java.nio.file.NoSuchFileException;
 
 public class IndexShardCacheWarmer {
 
@@ -72,7 +76,11 @@ public class IndexShardCacheWarmer {
             : "only stateless ingestion shards are supported";
         assert indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.PEER : "Only peer recoveries are supported";
         threadPool.generic().execute(() -> doPreWarmIndexShardCache(description, indexShard, listener.delegateResponse((delegate, e) -> {
-            logger.info(() -> Strings.format("%s %s cache prewarming failed", indexShard.shardId(), description), e);
+            logger.log(
+                e instanceof FileNotFoundException || e instanceof NoSuchFileException ? Level.DEBUG : Level.INFO,
+                () -> Strings.format("%s %s cache prewarming failed", indexShard.shardId(), description),
+                e
+            );
             delegate.onFailure(e);
         })));
     }

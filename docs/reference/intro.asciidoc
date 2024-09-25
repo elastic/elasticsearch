@@ -2,12 +2,12 @@
 == {es} basics
 
 This guide covers the core concepts you need to understand to get started with {es}.
-If you'd prefer to start working with {es} right away, set up a <<run-elasticsearch-locally,local dev environment>> and jump to <<quickstart,hands-on code examples>>.
+If you'd prefer to start working with {es} right away, set up a <<run-elasticsearch-locally,local development environment>> and jump to <<quickstart,hands-on code examples>>.
 
 This guide covers the following topics:
 
 * <<elasticsearch-intro-what-is-es>>: Learn about {es} and some of its main use cases.
-* <<elasticsearch-intro-deploy>>: Understand your options for deploying {es} in different environments, including a fast local dev setup.
+* <<elasticsearch-intro-deploy>>: Understand your options for deploying {es} in different environments, including a fast local development setup.
 * <<documents-indices>>: Understand {es}'s most important primitives and how it stores data.
 * <<es-ingestion-overview>>: Understand your options for ingesting data into {es}.
 * <<search-analyze>>: Understand your options for searching and analyzing data in {es}.
@@ -80,7 +80,7 @@ You can deploy {es} in various ways.
 
 **Quick start option**
 
-* <<run-elasticsearch-locally,*Local dev*>>: Get started quickly with a minimal local Docker setup for development and testing.
+* <<run-elasticsearch-locally,*Local development*>>: Get started quickly with a minimal local Docker setup for development and testing.
 
 **Hosted options**
 
@@ -286,7 +286,7 @@ Query DSL support a wide range of search techniques, including the following:
 * <<knn-search,*Vector search*>>: Search for similar dense vectors using the kNN algorithm for embeddings generated outside of {es}.
 * <<geo-queries,*Geospatial search*>>: Search for locations and calculate spatial relationships using geospatial queries.
 
-Learn about the full range of queries supported by the <<query-dsl,Query DSL>>. 
+Learn about the full range of queries supported by <<query-dsl,Query DSL>>. 
 
 You can also filter data using Query DSL.
 Filters enable you to include or exclude documents by retrieving documents that match specific field-level criteria.

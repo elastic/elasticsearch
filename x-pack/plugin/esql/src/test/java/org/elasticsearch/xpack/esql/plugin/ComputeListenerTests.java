@@ -15,7 +15,6 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverSleeps;
 import org.elasticsearch.core.TimeValue;
@@ -28,6 +27,7 @@ import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.junit.After;
@@ -126,7 +126,16 @@ public class ComputeListenerTests extends ESTestCase {
     public void testEmpty() {
         PlainActionFuture<ComputeResponse> results = new PlainActionFuture<>();
         EsqlExecutionInfo executionInfo = new EsqlExecutionInfo();
-        try (ComputeListener ignored = ComputeListener.createComputeListener(transportService, newTask(), executionInfo, results)) {
+        try (
+            ComputeListener ignored = ComputeListener.create(
+                RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+                transportService,
+                newTask(),
+                executionInfo,
+                System.nanoTime(),
+                results
+            )
+        ) {
             assertFalse(results.isDone());
         }
         assertTrue(results.isDone());
@@ -137,7 +146,16 @@ public class ComputeListenerTests extends ESTestCase {
         PlainActionFuture<ComputeResponse> future = new PlainActionFuture<>();
         List<DriverProfile> allProfiles = new ArrayList<>();
         EsqlExecutionInfo executionInfo = new EsqlExecutionInfo();
-        try (ComputeListener computeListener = ComputeListener.createComputeListener(transportService, newTask(), executionInfo, future)) {
+        try (
+            ComputeListener computeListener = ComputeListener.create(
+                RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+                transportService,
+                newTask(),
+                executionInfo,
+                System.nanoTime(),
+                future
+            )
+        ) {
             int tasks = randomIntBetween(1, 100);
             for (int t = 0; t < tasks; t++) {
                 if (randomBoolean()) {
@@ -167,17 +185,34 @@ public class ComputeListenerTests extends ESTestCase {
         Mockito.verifyNoInteractions(transportService.getTaskManager());
     }
 
-    public void testCollectComputeResultsOnRemoteCluster() {
+    /**
+     * Tests the acquireCompute functionality running on the querying ("local") cluster, that is waiting upon
+     * a ComputeResponse from a remote cluster. The acquireCompute code under test should fill in the
+     * {@link EsqlExecutionInfo.Cluster} with the information in the ComputeResponse from the remote cluster.
+     */
+    public void testAcquireComputeCCSListener() {
         PlainActionFuture<ComputeResponse> future = new PlainActionFuture<>();
         List<DriverProfile> allProfiles = new ArrayList<>();
+        String remoteAlias = "rc1";
         EsqlExecutionInfo executionInfo = new EsqlExecutionInfo();
-        executionInfo.swapCluster("rc1", (k, v) -> new EsqlExecutionInfo.Cluster("rc1", "logs*", false));
-        try (ComputeListener computeListener = ComputeListener.createOnRemote("rc1", transportService, newTask(), executionInfo, future)) {
+        executionInfo.swapCluster(remoteAlias, (k, v) -> new EsqlExecutionInfo.Cluster(remoteAlias, "logs*", false));
+        try (
+            ComputeListener computeListener = ComputeListener.create(
+                // 'whereRunning' for this test is the local cluster, waiting for a response from the remote cluster
+                RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+                transportService,
+                newTask(),
+                executionInfo,
+                System.nanoTime(),
+                future
+            )
+        ) {
             int tasks = randomIntBetween(1, 5);
             for (int t = 0; t < tasks; t++) {
                 ComputeResponse resp = randomResponse(true);
                 allProfiles.addAll(resp.getProfiles());
-                ActionListener<ComputeResponse> subListener = computeListener.acquireCCSCompute("rc1");
+                // Use remoteAlias here to indicate what remote cluster alias the listener is waiting to hear back from
+                ActionListener<ComputeResponse> subListener = computeListener.acquireCompute(remoteAlias);
                 threadPool.schedule(
                     ActionRunnable.wrap(subListener, l -> l.onResponse(resp)),
                     TimeValue.timeValueNanos(between(0, 100)),
@@ -190,32 +225,35 @@ public class ComputeListenerTests extends ESTestCase {
             response.getProfiles().stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)),
             equalTo(allProfiles.stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)))
         );
-        assertThat(response.getTook().nanos(), greaterThanOrEqualTo(0L));
-        assertThat(response.getTook().nanos(), lessThanOrEqualTo(50000L));
-        assertThat(response.getTotalShards(), equalTo(10));
-        assertThat(response.getSuccessfulShards(), equalTo(10));
-        assertThat(response.getSkippedShards(), greaterThanOrEqualTo(0));
-        assertThat(response.getSkippedShards(), lessThanOrEqualTo(3));
-        assertThat(response.getFailedShards(), equalTo(0));
+
+        assertTrue(executionInfo.isCrossClusterSearch());
+        EsqlExecutionInfo.Cluster rc1Cluster = executionInfo.getCluster(remoteAlias);
+        assertThat(rc1Cluster.getTook().millis(), greaterThanOrEqualTo(0L));
+        assertThat(rc1Cluster.getTotalShards(), equalTo(10));
+        assertThat(rc1Cluster.getSuccessfulShards(), equalTo(10));
+        assertThat(rc1Cluster.getSkippedShards(), greaterThanOrEqualTo(0));
+        assertThat(rc1Cluster.getSkippedShards(), lessThanOrEqualTo(3));
+        assertThat(rc1Cluster.getFailedShards(), equalTo(0));
+        assertThat(rc1Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
 
         Mockito.verifyNoInteractions(transportService.getTaskManager());
     }
 
-    public void testAcquireComputeForDataNodes() {
+    /**
+     * Run an acquireCompute cycle on the RemoteCluster.
+     * AcquireCompute will fill in the took time on the EsqlExecutionInfo (the shard info is filled in before this,
+     * so we just hard code them in the Cluster in this test) and then a ComputeResponse will be created in the refs
+     * listener and returned with the shard and took time info.
+     */
+    public void testAcquireComputeRunningOnRemoteClusterFillsInTookTime() {
         PlainActionFuture<ComputeResponse> future = new PlainActionFuture<>();
         List<DriverProfile> allProfiles = new ArrayList<>();
         EsqlExecutionInfo executionInfo = new EsqlExecutionInfo();
-        final int rand = randomIntBetween(0, 2);
-        TimeValue tookTimeInCluster = switch (rand) {
-            case 0 -> new TimeValue(24000, TimeUnit.NANOSECONDS);
-            case 1 -> new TimeValue(999999990, TimeUnit.NANOSECONDS);
-            case 2 -> null;
-            default -> throw new AssertionError("should not happen");
-        };
+        String remoteAlias = "rc1";
         executionInfo.swapCluster(
-            "rc1",
+            remoteAlias,
             (k, v) -> new EsqlExecutionInfo.Cluster(
-                "rc1",
+                remoteAlias,
                 "logs*",
                 false,
                 EsqlExecutionInfo.Cluster.Status.RUNNING,
@@ -223,17 +261,25 @@ public class ComputeListenerTests extends ESTestCase {
                 10,
                 3,
                 0,
-                tookTimeInCluster
+                null  // to be filled in the acquireCompute listener
             )
         );
-        long startTimeNanos = System.nanoTime() - 50000;
-        try (ComputeListener computeListener = ComputeListener.createOnRemote("rc1", transportService, newTask(), executionInfo, future)) {
+        try (
+            ComputeListener computeListener = ComputeListener.create(
+                // whereRunning=remoteAlias simulates running on the remote cluster
+                remoteAlias,
+                transportService,
+                newTask(),
+                executionInfo,
+                System.nanoTime(),
+                future
+            )
+        ) {
             int tasks = randomIntBetween(1, 5);
-            CountDown countDown = new CountDown(tasks);
             for (int t = 0; t < tasks; t++) {
                 ComputeResponse resp = randomResponse(true);
                 allProfiles.addAll(resp.getProfiles());
-                ActionListener<ComputeResponse> subListener = computeListener.acquireComputeForDataNodes("rc1", startTimeNanos, countDown);
+                ActionListener<ComputeResponse> subListener = computeListener.acquireCompute(remoteAlias);
                 threadPool.schedule(
                     ActionRunnable.wrap(subListener, l -> l.onResponse(resp)),
                     TimeValue.timeValueNanos(between(0, 100)),
@@ -246,19 +292,72 @@ public class ComputeListenerTests extends ESTestCase {
             response.getProfiles().stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)),
             equalTo(allProfiles.stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)))
         );
-        if (tookTimeInCluster != null && tookTimeInCluster.nanos() == 999999990L) {
-            // if took time in the cluster obj is larger than the took time in the response, keep the higher value
-            assertThat(response.getTook(), equalTo(tookTimeInCluster));
-        } else {
-            // if took time in the cluster obj is null or smaller than the took time in the response, swap in the value from the response
-            assertThat(response.getTook().nanos(), greaterThanOrEqualTo(5000L));
-            assertThat(response.getTook().nanos(), lessThanOrEqualTo(999999990L));
-        }
         assertThat(response.getTotalShards(), equalTo(10));
         assertThat(response.getSuccessfulShards(), equalTo(10));
         assertThat(response.getSkippedShards(), equalTo(3));
         assertThat(response.getFailedShards(), equalTo(0));
-        assertThat(executionInfo.getCluster("rc1").getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+        // check that the took time was filled in on the ExecutionInfo for the remote cluster and put into the ComputeResponse to be
+        // sent back to the querying cluster
+        assertThat(response.getTook().millis(), greaterThanOrEqualTo(0L));
+        assertThat(executionInfo.getCluster(remoteAlias).getTook().millis(), greaterThanOrEqualTo(0L));
+        assertThat(executionInfo.getCluster(remoteAlias).getTook(), equalTo(response.getTook()));
+
+        // the status in the (remote) executionInfo will still be RUNNING, since the SUCCESSFUL status gets set on the querying
+        // cluster executionInfo in the acquireCompute CCS listener, NOT present in this test - see testCollectComputeResultsInCCSListener
+        assertThat(executionInfo.getCluster(remoteAlias).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.RUNNING));
+
+        Mockito.verifyNoInteractions(transportService.getTaskManager());
+    }
+
+    /**
+     * Run an acquireCompute cycle on the RemoteCluster.
+     * AcquireCompute will fill in the took time on the EsqlExecutionInfo (the shard info is filled in before this,
+     * so we just hard code them in the Cluster in this test) and then a ComputeResponse will be created in the refs
+     * listener and returned with the shard and took time info.
+     */
+    public void testAcquireComputeRunningOnQueryingClusterFillsInTookTime() {
+        PlainActionFuture<ComputeResponse> future = new PlainActionFuture<>();
+        List<DriverProfile> allProfiles = new ArrayList<>();
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo();
+        String localCluster = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+        // we need a remote cluster in the ExecutionInfo in order to simulate a CCS, since ExecutionInfo is only
+        // fully filled in for cross-cluster searches
+        executionInfo.swapCluster(localCluster, (k, v) -> new EsqlExecutionInfo.Cluster(localCluster, "logs*", false));
+        executionInfo.swapCluster("my_remote", (k, v) -> new EsqlExecutionInfo.Cluster("my_remote", "my_remote:logs*", false));
+        try (
+            ComputeListener computeListener = ComputeListener.create(
+                // whereRunning=localCluster simulates running on the querying cluster
+                localCluster,
+                transportService,
+                newTask(),
+                executionInfo,
+                System.nanoTime(),
+                future
+            )
+        ) {
+            int tasks = randomIntBetween(1, 5);
+            for (int t = 0; t < tasks; t++) {
+                ComputeResponse resp = randomResponse(true);
+                allProfiles.addAll(resp.getProfiles());
+                ActionListener<ComputeResponse> subListener = computeListener.acquireCompute(localCluster);
+                threadPool.schedule(
+                    ActionRunnable.wrap(subListener, l -> l.onResponse(resp)),
+                    TimeValue.timeValueNanos(between(0, 100)),
+                    threadPool.generic()
+                );
+            }
+        }
+        ComputeResponse response = future.actionGet(10, TimeUnit.SECONDS);
+        assertThat(
+            response.getProfiles().stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)),
+            equalTo(allProfiles.stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)))
+        );
+        // check that the took time was filled in on the ExecutionInfo for the remote cluster and put into the ComputeResponse to be
+        // sent back to the querying cluster
+        assertNull("took time is not added to the ComputeResponse on the querying cluster", response.getTook());
+        assertThat(executionInfo.getCluster(localCluster).getTook().millis(), greaterThanOrEqualTo(0L));
+        // once all the took times have been gathered from the tasks, the refs callback will set execution status to SUCCESSFUL
+        assertThat(executionInfo.getCluster(localCluster).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
 
         Mockito.verifyNoInteractions(transportService.getTaskManager());
     }
@@ -274,7 +373,16 @@ public class ComputeListenerTests extends ESTestCase {
         PlainActionFuture<ComputeResponse> rootListener = new PlainActionFuture<>();
         CancellableTask rootTask = newTask();
         EsqlExecutionInfo execInfo = new EsqlExecutionInfo();
-        try (ComputeListener computeListener = ComputeListener.createComputeListener(transportService, rootTask, execInfo, rootListener)) {
+        try (
+            ComputeListener computeListener = ComputeListener.create(
+                RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+                transportService,
+                rootTask,
+                execInfo,
+                System.nanoTime(),
+                rootListener
+            )
+        ) {
             for (int i = 0; i < successTasks; i++) {
                 ActionListener<ComputeResponse> subListener = computeListener.acquireCompute();
                 threadPool.schedule(
@@ -330,10 +438,12 @@ public class ComputeListenerTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         EsqlExecutionInfo executionInfo = new EsqlExecutionInfo();
         try (
-            ComputeListener computeListener = ComputeListener.createComputeListener(
+            ComputeListener computeListener = ComputeListener.create(
+                RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
                 transportService,
                 newTask(),
                 executionInfo,
+                System.nanoTime(),
                 ActionListener.runAfter(rootListener, latch::countDown)
             )
         ) {

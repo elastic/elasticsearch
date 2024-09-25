@@ -290,7 +290,6 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
 
     public void testSearchesWhereNonExistentClusterIsSpecifiedWithWildcards() {
         Map<String, Object> testClusterInfo = setupTwoClusters();
-        String localIndex = (String) testClusterInfo.get("local.index");
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
 
         // a query which matches no remote cluster is not a cross cluster search
@@ -301,19 +300,10 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
             assertThat(values.get(0), equalTo(List.of(45L)));
 
             assertNotNull(executionInfo);
-            assertThat(executionInfo.isCrossClusterSearch(), is(false));
-            assertThat(executionInfo.overallTook().millis(), greaterThanOrEqualTo(0L));
-
             assertThat(executionInfo.clusterAliases(), equalTo(Set.of(LOCAL_CLUSTER)));
-
-            EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
-            assertThat(localCluster.getIndexExpression(), equalTo("logs-*"));
-            assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-            assertThat(localCluster.getTook().millis(), greaterThanOrEqualTo(0L));
-            assertThat(localCluster.getTotalShards(), equalTo(localNumShards));
-            assertThat(localCluster.getSuccessfulShards(), equalTo(localNumShards));
-            assertThat(localCluster.getSkippedShards(), equalTo(0));
-            assertThat(localCluster.getFailedShards(), equalTo(0));
+            assertThat(executionInfo.isCrossClusterSearch(), is(false));
+            // since this not a CCS, only the overall took time in the EsqlExecutionInfo matters
+            assertThat(executionInfo.overallTook().millis(), greaterThanOrEqualTo(0L));
         }
 
         // cluster-foo* matches nothing and so should not be present in the EsqlExecutionInfo
@@ -351,8 +341,6 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
 
     public void testMetadataIndex() {
         Map<String, Object> testClusterInfo = setupTwoClusters();
-        String localIndex = (String) testClusterInfo.get("local.index");
-        String remoteIndex = (String) testClusterInfo.get("remote.index");
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
         int remoteNumShards = (Integer) testClusterInfo.get("remote.num_shards");
 
@@ -400,8 +388,6 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
 
     public void testProfile() {
         Map<String, Object> testClusterInfo = setupTwoClusters();
-        String localIndex = (String) testClusterInfo.get("local.index");
-        String remoteIndex = (String) testClusterInfo.get("remote.index");
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
         int remoteNumShards = (Integer) testClusterInfo.get("remote.num_shards");
 
@@ -437,20 +423,11 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
 
                 EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
                 assertNotNull(executionInfo);
-                assertThat(executionInfo.isCrossClusterSearch(), is(false));
-                assertThat(executionInfo.overallTook().millis(), greaterThanOrEqualTo(0L));
-
                 EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER);
                 assertNull(remoteCluster);
-
-                EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
-                assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
-                assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-                assertThat(localCluster.getTook().millis(), greaterThanOrEqualTo(0L));
-                assertThat(localCluster.getTotalShards(), equalTo(localNumShards));
-                assertThat(localCluster.getSuccessfulShards(), equalTo(localNumShards));
-                assertThat(localCluster.getSkippedShards(), equalTo(0));
-                assertThat(localCluster.getFailedShards(), equalTo(0));
+                assertThat(executionInfo.isCrossClusterSearch(), is(false));
+                // since this not a CCS, only the overall took time in the EsqlExecutionInfo matters
+                assertThat(executionInfo.overallTook().millis(), greaterThanOrEqualTo(0L));
             }
         }
         final int remoteOnlyProfiles;

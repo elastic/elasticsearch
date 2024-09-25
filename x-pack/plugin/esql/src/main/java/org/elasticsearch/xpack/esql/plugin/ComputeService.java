@@ -21,7 +21,6 @@ import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
@@ -135,7 +134,7 @@ public class ComputeService {
         CancellableTask rootTask,
         PhysicalPlan physicalPlan,
         Configuration configuration,
-        EsqlExecutionInfo executionInfo,
+        EsqlExecutionInfo execInfo,
         ActionListener<Result> listener
     ) {
         Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
@@ -173,11 +172,13 @@ public class ComputeService {
                 null
             );
             try (
-                var computeListener = ComputeListener.createComputeListener(
+                var computeListener = ComputeListener.create(
+                    RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
                     transportService,
                     rootTask,
-                    executionInfo,
-                    listener.map(r -> new Result(physicalPlan.output(), collectedPages, r.getProfiles(), executionInfo))
+                    execInfo,
+                    configuration.getQueryStartTimeNanos(),
+                    listener.map(r -> new Result(physicalPlan.output(), collectedPages, r.getProfiles(), execInfo))
                 )
             ) {
                 runCompute(rootTask, computeContext, coordinatorPlan, computeListener.acquireCompute());
@@ -199,13 +200,15 @@ public class ComputeService {
             queryPragmas.exchangeBufferSize(),
             transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
         );
+        long start = configuration.getQueryStartTimeNanos();
+        String local = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
         try (
             Releasable ignored = exchangeSource.addEmptySink();
             // this is the top level ComputeListener called once at the end (e.g., once all clusters have finished for a CCS)
-            var computeListener = ComputeListener.createComputeListener(transportService, rootTask, executionInfo, listener.map(r -> {
+            var computeListener = ComputeListener.create(local, transportService, rootTask, execInfo, start, listener.map(r -> {
                 long tookTimeNanos = System.nanoTime() - configuration.getQueryStartTimeNanos();
-                executionInfo.overallTook(new TimeValue(tookTimeNanos, TimeUnit.NANOSECONDS));
-                return new Result(physicalPlan.output(), collectedPages, r.getProfiles(), executionInfo);
+                execInfo.overallTook(new TimeValue(tookTimeNanos, TimeUnit.NANOSECONDS));
+                return new Result(physicalPlan.output(), collectedPages, r.getProfiles(), execInfo);
             }))
         ) {
             // run compute on the coordinator
@@ -214,7 +217,7 @@ public class ComputeService {
                 rootTask,
                 new ComputeContext(sessionId, RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, List.of(), configuration, exchangeSource, null),
                 coordinatorPlan,
-                computeListener.acquireCompute()
+                computeListener.acquireCompute(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)
             );
             // starts computes on data nodes on the main cluster
             if (localConcreteIndices != null && localConcreteIndices.indices().length > 0) {
@@ -227,7 +230,7 @@ public class ComputeService {
                     Set.of(localConcreteIndices.indices()),
                     localOriginalIndices,
                     exchangeSource,
-                    executionInfo,
+                    execInfo,
                     computeListener
                 );
             }
@@ -304,8 +307,6 @@ public class ComputeService {
                         .build()
                 );
 
-                int numDataNodes = dataNodeResult.dataNodes().size();
-                final CountDown countDown = numDataNodes == 0 ? null : new CountDown(numDataNodes);
                 // For each target node, first open a remote exchange on the remote node, then link the exchange source to
                 // the new remote exchange sink, and initialize the computation on the target node via data-node-request.
                 for (DataNode node : dataNodeResult.dataNodes()) {
@@ -319,11 +320,7 @@ public class ComputeService {
                         refs.acquire().delegateFailureAndWrap((l, unused) -> {
                             var remoteSink = exchangeService.newRemoteSink(parentTask, sessionId, transportService, node.connection);
                             exchangeSource.addRemoteSink(remoteSink, queryPragmas.concurrentExchangeClients());
-                            ActionListener<ComputeResponse> computeResponseListener = computeListener.acquireComputeForDataNodes(
-                                clusterAlias,
-                                configuration.getQueryStartTimeNanos(),
-                                countDown
-                            );
+                            ActionListener<ComputeResponse> computeResponseListener = computeListener.acquireCompute(clusterAlias);
                             var dataNodeListener = ActionListener.runBefore(computeResponseListener, () -> l.onResponse(null));
                             transportService.sendChildRequest(
                                 node.connection,
@@ -374,7 +371,7 @@ public class ComputeService {
                         var remotePlan = new RemoteClusterPlan(plan, cluster.concreteIndices, cluster.originalIndices);
                         var clusterRequest = new ClusterComputeRequest(cluster.clusterAlias, sessionId, configuration, remotePlan);
                         var clusterListener = ActionListener.runBefore(
-                            computeListener.acquireCCSCompute(cluster.clusterAlias()),
+                            computeListener.acquireCompute(cluster.clusterAlias()),
                             () -> l.onResponse(null)
                         );
                         transportService.sendChildRequest(
@@ -443,7 +440,9 @@ public class ComputeService {
             if (context.configuration.profile()) {
                 return new ComputeResponse(drivers.stream().map(Driver::profile).toList());
             } else {
-                return new ComputeResponse(List.of());
+                // MP TODO: where does this ComputeResponse go?
+                final ComputeResponse response = new ComputeResponse(List.of());
+                return response;
             }
         });
         listenerCollectingStatus = ActionListener.releaseAfter(listenerCollectingStatus, () -> Releasables.close(drivers));
@@ -781,7 +780,7 @@ public class ComputeService {
                 request.indices(),
                 request.indicesOptions()
             );
-            try (var computeListener = ComputeListener.createComputeListener(transportService, (CancellableTask) task, null, listener)) {
+            try (var computeListener = ComputeListener.create(transportService, (CancellableTask) task, listener)) {
                 runComputeOnDataNode((CancellableTask) task, sessionId, reducePlan, request, computeListener);
             }
         }
@@ -792,25 +791,26 @@ public class ComputeService {
     private class ClusterRequestHandler implements TransportRequestHandler<ClusterComputeRequest> {
         @Override
         public void messageReceived(ClusterComputeRequest request, TransportChannel channel, Task task) {
-            ChannelActionListener<ComputeResponse> listener = new ChannelActionListener<>(channel);
+            ChannelActionListener<ComputeResponse> lnr = new ChannelActionListener<>(channel);
             RemoteClusterPlan remoteClusterPlan = request.remoteClusterPlan();
             var plan = remoteClusterPlan.plan();
             if (plan instanceof ExchangeSinkExec == false) {
-                listener.onFailure(new IllegalStateException("expected exchange sink for a remote compute; got " + plan));
+                lnr.onFailure(new IllegalStateException("expected exchange sink for a remote compute; got " + plan));
                 return;
             }
             String clusterAlias = request.clusterAlias();
             /*
              * This handler runs only on remote cluster coordinators, so it creates a new local EsqlExecutionInfo object to record
              * execution metadata for ES|QL processing local to this cluster. The execution info will be copied into the
-             * ComputeResponse that is sent back to the primary coordinating cluster
+             * ComputeResponse that is sent back to the primary coordinating cluster.
              */
             EsqlExecutionInfo execInfo = new EsqlExecutionInfo();
             execInfo.swapCluster(clusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(clusterAlias, Arrays.toString(request.indices())));
             CancellableTask cancellable = (CancellableTask) task;
-            try (var computeListener = ComputeListener.createOnRemote(clusterAlias, transportService, cancellable, execInfo, listener)) {
+            long start = request.configuration().getQueryStartTimeNanos();
+            try (var computeListener = ComputeListener.create(clusterAlias, transportService, cancellable, execInfo, start, lnr)) {
                 runComputeOnRemoteCluster(
-                    request.clusterAlias(),
+                    clusterAlias,
                     request.sessionId(),
                     (CancellableTask) task,
                     request.configuration(),
@@ -866,7 +866,7 @@ public class ComputeService {
                 parentTask,
                 new ComputeContext(localSessionId, clusterAlias, List.of(), configuration, exchangeSource, exchangeSink),
                 coordinatorPlan,
-                computeListener.acquireCompute()
+                computeListener.acquireCompute(clusterAlias)
             );
             startComputeOnDataNodes(
                 localSessionId,

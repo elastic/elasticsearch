@@ -16,6 +16,7 @@ import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * The compute result of {@link DataNodeRequest} or {@link ClusterComputeRequest}
@@ -30,8 +31,19 @@ final class ComputeResponse extends TransportResponse {
     public final int skippedShards;
     public final int failedShards;
 
+    public UUID uniqueId;
+
     ComputeResponse(List<DriverProfile> profiles) {
         this(profiles, null, null, null, null, null);
+    }
+
+    @Override
+    public String toString() {
+        String id = "null";
+        if (uniqueId != null) {
+            id = uniqueId.toString().substring(0, 8);
+        }
+        return "ComputeResponse{" + " took=" + took + ", totalShards=" + totalShards + ", uniqueId=" + id + '}';
     }
 
     ComputeResponse(
@@ -48,6 +60,7 @@ final class ComputeResponse extends TransportResponse {
         this.successfulShards = successfulShards == null ? 0 : successfulShards.intValue();
         this.skippedShards = skippedShards == null ? 0 : skippedShards.intValue();
         this.failedShards = failedShards == null ? 0 : failedShards.intValue();
+        uniqueId = UUID.randomUUID();
     }
 
     ComputeResponse(StreamInput in) throws IOException {

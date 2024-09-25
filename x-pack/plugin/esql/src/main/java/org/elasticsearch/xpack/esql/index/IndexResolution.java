@@ -20,7 +20,6 @@ public final class IndexResolution {
         return new IndexResolution(index, null, unavailableClusters);
     }
 
-    // MP TODO: still need this?
     public static IndexResolution valid(EsIndex index) {
         return valid(index, Collections.emptySet());
     }

@@ -185,6 +185,10 @@ public class IndexResolver {
     public static String parseClusterAlias(String indexExpression) {
         assert indexExpression != null : "Must not pass null indexExpression";
         String trimmed = indexExpression.trim();
+        if (trimmed.startsWith("<") || trimmed.startsWith("-<")) {
+            return RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+        }
+
         String sep = String.valueOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR);
         if (trimmed.startsWith(sep) || trimmed.endsWith(sep)) {
             throw new IllegalArgumentException(

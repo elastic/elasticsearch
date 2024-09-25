@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.settings;
 
 import org.elasticsearch.common.settings.Setting;
 
-public class IndexSettings {
+public class ClusterSettings {
     public static final Setting<Boolean> CLUSTER_LOGSDB_ENABLED = Setting.boolSetting(
         "cluster.logsdb.enabled",
         false,

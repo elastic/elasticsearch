@@ -302,7 +302,9 @@ public class RankDocsQuery extends Query {
 
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-        assert tailQuery != null;
+        if (tailQuery == null) {
+            throw new IllegalArgumentException("[tailQuery] should not be null; maybe missing a rewrite?");
+        }
         var combined = new BooleanQuery.Builder().add(topQuery, onlyRankDocs ? BooleanClause.Occur.MUST : BooleanClause.Occur.SHOULD)
             .add(tailQuery, BooleanClause.Occur.FILTER)
             .build();

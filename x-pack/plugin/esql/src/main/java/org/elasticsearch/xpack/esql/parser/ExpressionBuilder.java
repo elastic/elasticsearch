@@ -354,16 +354,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                     objects.add(unquotedIdentifier);
                     nameString.append(unquotedIdentifier);
                     continue;
-                    /*
-                    if (identifier != null) {
-                        if (identifier.contains(WILDCARD) && (identifier.charAt(0) == '`') == false) {
-                            // identifier with star need to be quoted
-                            patternContext = "`" + identifier.replace("`", "``") + "`";
-                        } else {
-                            patternContext = identifier;
-                        }
-                    }
-                     */
                 } else if (exp instanceof UnresolvedNamePattern up) {
                     patternContext = up.name();
                 }

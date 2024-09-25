@@ -301,6 +301,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/70_locale/Date format with Italian locale}
   issue: https://github.com/elastic/elasticsearch/issues/113540
+- class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
+  method: testPutE5WithTrainedModelAndInference
+  issue: https://github.com/elastic/elasticsearch/issues/113565
 
 # Examples:
 #

@@ -1869,7 +1869,7 @@ synthetic_source with copy_to pointing to ambiguous field and subobjects false:
 ---
 synthetic_source with copy_to pointing to ambiguous field and subobjects auto:
   - requires:
-      cluster_features: ["mapper.source.synthetic_source_copy_to_inside_objects_fix"]
+      cluster_features: ["mapper.subobjects_auto_fixes"]
       reason: requires copy_to support in synthetic source
 
   - do:

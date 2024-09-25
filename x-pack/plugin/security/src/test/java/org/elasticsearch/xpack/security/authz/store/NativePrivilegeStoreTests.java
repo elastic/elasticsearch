@@ -901,6 +901,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             true,
             true,
             true,
+            false,
             null,
             null,
             null,

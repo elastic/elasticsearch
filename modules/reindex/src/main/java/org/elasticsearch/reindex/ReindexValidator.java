@@ -168,6 +168,8 @@ public class ReindexValidator {
         // to distinguish between those two, given `expression` is pre-evaluated using date-math resolver
         // after evaluation date-math `expression` should not contain ':' symbol
         // otherwise if `expression` is legit remote name, ':' symbol remains
+        // NOTE: index expressions can be prefixed with "-", which will not be parsed by resolveDateMathExpression,
+        // but in this particular case it doesn't seem to be relevant.
         return IndexNameExpressionResolver.resolveDateMathExpression(expression)
             .contains(String.valueOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR));
     }

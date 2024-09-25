@@ -59,10 +59,15 @@ public class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
             return Settings.EMPTY;
         }
 
+        if (dataStreamName == null) {
+            return Settings.EMPTY;
+        }
+
         final IndexMode indexMode = resolveIndexMode(settings.get("index.mode"));
         if (indexMode != null) {
             return Settings.EMPTY;
         }
+
         if (matchesLogsPattern(dataStreamName) && usesLogsAtSettingsComponentTemplate(metadata, dataStreamName)) {
             return Settings.builder().put("index.mode", IndexMode.LOGSDB.getName()).build();
         }

@@ -749,10 +749,12 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         @Override
         public SyntheticSourceExample example(int maxValues) throws IOException {
             if (randomBoolean()) {
+                // Create a singleton value
                 var value = randomObject();
                 return new SyntheticSourceExample(value, mergeIntoExpectedMap(List.of(value)), this::mapping);
             }
 
+            // Create an array of flattened field values
             var values = new ArrayList<Map<String, Object>>();
             for (int i = 0; i < maxValues; i++) {
                 values.add(randomObject());
@@ -826,6 +828,27 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
                 b.field("ignore_above", ignoreAbove);
             }
         }
+    }
+
+    public void testSyntheticSourceWithOnlyIgnoredValues() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+            b.startObject("field").field("type", "flattened").field("ignore_above", 1).endObject();
+        }));
+
+        var syntheticSource = syntheticSource(mapper, b -> {
+            b.startObject("field");
+            {
+                b.field("key1", "val1");
+                b.startObject("obj1");
+                {
+                    b.field("key2", "val2");
+                    b.field("key3", List.of("val3", "val4"));
+                }
+                b.endObject();
+            }
+            b.endObject();
+        });
+        assertThat(syntheticSource, equalTo("{\"field\":{\"key1\":\"val1\",\"obj1\":{\"key2\":\"val2\",\"key3\":[\"val3\",\"val4\"]}}}"));
     }
 
     @Override

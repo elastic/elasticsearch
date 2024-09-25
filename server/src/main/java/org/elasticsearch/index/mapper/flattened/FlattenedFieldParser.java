@@ -147,7 +147,6 @@ class FlattenedFieldParser {
             if (context.documentParserContext().mappingLookup().isSourceSynthetic()) {
                 fields.add(new StoredField(keyedIgnoredValuesFieldFullPath, bytesKeyedValue));
             }
-
             return;
         }
 

@@ -24,7 +24,7 @@ import java.util.Map;
 import java.util.TreeSet;
 import java.util.stream.Stream;
 
-public class FlattenedSortedSetDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
+class FlattenedSortedSetDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
     private final String fieldFullPath;
     private final String keyedFieldFullPath;
     private final String keyedIgnoredValuesFieldFullPath;
@@ -42,7 +42,7 @@ public class FlattenedSortedSetDocValuesSyntheticFieldLoader implements SourceLo
      *                                             due to ignore_above
      * @param leafName                             the name of the leaf field to use in the rendered {@code _source}
      */
-    public FlattenedSortedSetDocValuesSyntheticFieldLoader(
+    FlattenedSortedSetDocValuesSyntheticFieldLoader(
         String fieldFullPath,
         String keyedFieldFullPath,
         @Nullable String keyedIgnoredValuesFieldFullPath,
@@ -175,6 +175,15 @@ public class FlattenedSortedSetDocValuesSyntheticFieldLoader implements SourceLo
             this.ignoredValues = ignoredValues;
         }
 
+        /**
+         * Returns next keyed field value to be included in synthetic source.
+         * This function merges keyed values from doc values and ignored values (due to ignore_above)
+         * that are loaded from stored fields and provided as input.
+         * Sort order of keyed values is preserved during merge so the output is the same as if
+         * it was using only doc values.
+         * @return
+         * @throws IOException
+         */
         @Override
         public BytesRef next() throws IOException {
             if (currentFromDocValues == null) {

@@ -240,11 +240,7 @@ class FlattenedFieldSyntheticWriterHelper {
         KeyValue prev = KeyValue.EMPTY;
         final List<String> values = new ArrayList<>();
         values.add(curr.value());
-        while (true) {
-            BytesRef nextValue = sortedKeyedValues.next();
-            if (nextValue == null) {
-                break;
-            }
+        for (BytesRef nextValue = sortedKeyedValues.next(); nextValue != null; nextValue = sortedKeyedValues.next()) {
             KeyValue next = new KeyValue(nextValue);
             writeObject(b, curr, next, curr.start(prev), curr.end(next), values);
             values.add(next.value());

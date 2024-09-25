@@ -514,7 +514,7 @@ class NodeConstruction {
         // so we might be late here already
         SettingsModule settingsModule = new SettingsModule(
             settings,
-            additionalSettings,
+            additionalSettings.stream().distinct().collect(Collectors.toList()),
             pluginsService.flatMap(Plugin::getSettingsFilter).toList()
         );
         modules.add(settingsModule);

@@ -218,11 +218,11 @@ public class RankDocsQuery extends Query {
     }
 
     private final RankDoc[] docs;
-    // topQuery is used to match just the top docs, based on the RankDoc array provided when constructing the object
-    // this is the only clause that actually contributes to scoring
+    // topQuery is used to match just the top docs from all the original queries. This match is based on the RankDoc array
+    // provided when constructing the object. This is the only clause that actually contributes to scoring
     private final Query topQuery;
-    // tailQuery is used to match the original documents that were used to compute the top docs
-    // this is useful if we want to compute aggregations, total hits etc based on all matching documents, and not just the top
+    // tailQuery is used to match <b>all</b> the original documents that were used to compute the top docs.
+    // This is useful if we want to compute aggregations, total hits etc based on all matching documents, and not just the top
     // RankDocs provided. This query does not contribute to scoring, as it is set as filter when creating the weight
     private final Query tailQuery;
     private final boolean onlyRankDocs;

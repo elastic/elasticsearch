@@ -16,14 +16,14 @@ import java.io.IOException;
 public class ReverseSerializationTests extends AbstractExpressionSerializationTests<Reverse> {
     @Override
     protected Reverse createTestInstance() {
-        return new Reverse(randomSource(), randomChild(), configuration());
+        return new Reverse(randomSource(), randomChild());
     }
 
     @Override
     protected Reverse mutateInstance(Reverse instance) throws IOException {
         Source source = instance.source();
         Expression child = randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild);
-        return new Reverse(source, child, configuration());
+        return new Reverse(source, child);
     }
 
     @Override

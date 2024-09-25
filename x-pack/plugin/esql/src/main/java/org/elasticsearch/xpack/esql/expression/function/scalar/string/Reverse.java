@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -22,19 +21,16 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
-public class Reverse extends EsqlConfigurationFunction {
+public class Reverse extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Reverse", Reverse::new);
 
     private final Expression field;
@@ -52,15 +48,14 @@ public class Reverse extends EsqlConfigurationFunction {
             name = "str",
             type = { "keyword", "text" },
             description = "String expression. If `null`, the function returns `null`."
-        ) Expression field,
-        Configuration configuration
+        ) Expression field
     ) {
-        super(source, List.of(field), configuration);
+        super(source, List.of(field));
         this.field = field;
     }
 
     private Reverse(StreamInput in) throws IOException {
-        this(Source.EMPTY, in.readNamedWriteable(Expression.class), ((PlanStreamInput) in).configuration());
+        this(Source.EMPTY, in.readNamedWriteable(Expression.class));
     }
 
     @Override
@@ -110,11 +105,11 @@ public class Reverse extends EsqlConfigurationFunction {
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
         assert newChildren.size() == 1;
-        return new Reverse(source(), newChildren.get(0), configuration());
+        return new Reverse(source(), newChildren.get(0));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Reverse::new, field, configuration());
+        return NodeInfo.create(this, Reverse::new, field);
     }
 }

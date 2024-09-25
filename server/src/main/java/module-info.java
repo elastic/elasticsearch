@@ -25,7 +25,6 @@ module org.elasticsearch.server {
     requires org.elasticsearch.nativeaccess;
     requires org.elasticsearch.geo;
     requires org.elasticsearch.lz4;
-    requires org.elasticsearch.pluginclassloader;
     requires org.elasticsearch.securesm;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.logging;
@@ -160,7 +159,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.client.internal.support;
     exports org.elasticsearch.client.internal.transport;
     exports org.elasticsearch.cluster;
-    exports org.elasticsearch.cluster.ack;
     exports org.elasticsearch.cluster.action.index;
     exports org.elasticsearch.cluster.action.shard;
     exports org.elasticsearch.cluster.block;
@@ -405,7 +403,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.telemetry;
     exports org.elasticsearch.telemetry.metric;
 
-    provides java.util.spi.CalendarDataProvider with org.elasticsearch.common.time.IsoCalendarDataProvider;
     provides org.elasticsearch.xcontent.ErrorOnUnknown with org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
     provides org.elasticsearch.xcontent.XContentBuilderExtension with org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
     provides org.elasticsearch.cli.CliToolProvider

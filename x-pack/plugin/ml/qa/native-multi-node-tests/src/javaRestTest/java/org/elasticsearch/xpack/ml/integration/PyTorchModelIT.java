@@ -1120,6 +1120,28 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    public void testDeploymentThreadsIncludedInUsage() throws IOException {
+        String modelId = "deployment_threads_in_usage";
+        createPassThroughModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId);
+
+        Request request = new Request("GET", "/_xpack/usage");
+        var usage = entityAsMap(client().performRequest(request).getEntity());
+
+        var ml = (Map<String, Object>) usage.get("ml");
+        assertNotNull(usage.toString(), ml);
+        var inference = (Map<String, Object>) ml.get("inference");
+        var deployments = (Map<String, Object>) inference.get("deployments");
+        var deploymentStats = (List<Map<String, Object>>) deployments.get("stats_by_model");
+        for (var stat : deploymentStats) {
+            assertThat(stat.toString(), (Integer) stat.get("num_threads"), greaterThanOrEqualTo(1));
+            assertThat(stat.toString(), (Integer) stat.get("num_allocations"), greaterThanOrEqualTo(1));
+        }
+    }
+
     private void putModelDefinition(String modelId) throws IOException {
         putModelDefinition(modelId, BASE_64_ENCODED_MODEL, RAW_MODEL_SIZE);
     }

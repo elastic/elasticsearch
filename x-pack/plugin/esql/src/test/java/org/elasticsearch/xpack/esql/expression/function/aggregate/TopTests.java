@@ -46,7 +46,9 @@ public class TopTests extends AbstractAggregationTestCase {
                     MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true),
                     MultiRowTestCaseSupplier.dateCases(1, 1000),
                     MultiRowTestCaseSupplier.booleanCases(1, 1000),
-                    MultiRowTestCaseSupplier.ipCases(1, 1000)
+                    MultiRowTestCaseSupplier.ipCases(1, 1000),
+                    MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
+                    MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT)
                 )
                     .flatMap(List::stream)
                     .map(fieldCaseSupplier -> TopTests.makeSupplier(fieldCaseSupplier, limitCaseSupplier, order))

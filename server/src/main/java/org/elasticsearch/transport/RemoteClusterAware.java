@@ -10,7 +10,6 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.metadata.ClusterNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -77,10 +76,10 @@ public abstract class RemoteClusterAware {
         Set<String> clustersToRemove = new HashSet<>();
         for (String index : requestIndices) {
             // ensure that `index` is a remote name and not a datemath expression which includes ':' symbol
-            // since datemath expression after evaluation should not contain ':' symbol
-            String probe = IndexNameExpressionResolver.resolveDateMathExpression(index);
-            int i = probe.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR);
-            if (i >= 0) {
+            // Remote names can not start with '<' so we are assuming that if the first character is '<' then it is a datemath expression.
+            boolean isDateMathExpression = (index.charAt(0) == '<' || index.startsWith("-<"));
+            int i = index.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR);
+            if (isDateMathExpression == false && i >= 0) {
                 if (isRemoteClusterClientEnabled == false) {
                     assert remoteClusterNames.isEmpty() : remoteClusterNames;
                     throw new IllegalArgumentException("node [" + nodeName + "] does not have the remote cluster client role enabled");

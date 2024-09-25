@@ -47,6 +47,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuil
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.xpack.vectortile.feature.FeatureFactory;
 
 import java.io.IOException;
@@ -87,7 +88,11 @@ public class RestVectorTileAction extends BaseRestHandler {
     // internal label position runtime field name
     static final String LABEL_POSITION_FIELD_NAME = INTERNAL_AGG_PREFIX + "label_position";
 
-    public RestVectorTileAction() {}
+    private final SearchUsageHolder searchUsageHolder;
+
+    public RestVectorTileAction(SearchUsageHolder searchUsageHolder) {
+        this.searchUsageHolder = searchUsageHolder;
+    }
 
     @Override
     public List<Route> routes() {
@@ -103,7 +108,7 @@ public class RestVectorTileAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         // This will allow to cancel the search request if the http channel is closed
         final RestCancellableNodeClient cancellableNodeClient = new RestCancellableNodeClient(client, restRequest.getHttpChannel());
-        final VectorTileRequest request = VectorTileRequest.parseRestRequest(restRequest);
+        final VectorTileRequest request = VectorTileRequest.parseRestRequest(restRequest, searchUsageHolder::updateUsage);
         final SearchRequestBuilder searchRequestBuilder = searchRequestBuilder(cancellableNodeClient, request);
         return channel -> searchRequestBuilder.execute(new RestResponseListener<>(channel) {
 

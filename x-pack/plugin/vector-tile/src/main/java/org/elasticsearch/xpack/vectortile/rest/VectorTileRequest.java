@@ -12,6 +12,7 @@ import org.elasticsearch.common.geo.SimpleVectorTileFormatter;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.Script;
@@ -25,6 +26,7 @@ import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.sort.ScriptSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.usage.SearchUsage;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -33,6 +35,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -75,7 +78,7 @@ class VectorTileRequest {
         public static final int TRACK_TOTAL_HITS_UP_TO = DEFAULT_TRACK_TOTAL_HITS_UP_TO;
     }
 
-    private static final ObjectParser<VectorTileRequest, RestRequest> PARSER;
+    private static final ObjectParser<VectorTileRequest, SearchUsage> PARSER;
 
     static {
         PARSER = new ObjectParser<>("vector-tile");
@@ -89,7 +92,7 @@ class VectorTileRequest {
         }, SearchSourceBuilder.FETCH_FIELDS_FIELD, ObjectParser.ValueType.OBJECT_ARRAY);
         PARSER.declareField(
             VectorTileRequest::setQueryBuilder,
-            (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p),
+            (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p, c::trackQueryUsage),
             SearchSourceBuilder.QUERY_FIELD,
             ObjectParser.ValueType.OBJECT
         );
@@ -130,7 +133,7 @@ class VectorTileRequest {
         }, SearchSourceBuilder.TRACK_TOTAL_HITS_FIELD, ObjectParser.ValueType.VALUE);
     }
 
-    static VectorTileRequest parseRestRequest(RestRequest restRequest) throws IOException {
+    static VectorTileRequest parseRestRequest(RestRequest restRequest, Consumer<SearchUsage> searchUsageConsumer) throws IOException {
         final VectorTileRequest request = new VectorTileRequest(
             Strings.splitStringByCommaToArray(restRequest.param(INDEX_PARAM)),
             restRequest.param(FIELD_PARAM),
@@ -138,11 +141,15 @@ class VectorTileRequest {
             Integer.parseInt(restRequest.param(X_PARAM)),
             Integer.parseInt(restRequest.param(Y_PARAM))
         );
+        final SearchUsage searchUsage = new SearchUsage();
         if (restRequest.hasContentOrSourceParam()) {
             try (XContentParser contentParser = restRequest.contentOrSourceParamParser()) {
-                PARSER.parse(contentParser, request, restRequest);
+                PARSER.parse(contentParser, request, searchUsage);
             }
         }
+        // The API generates a query on the fly that we track here.
+        searchUsage.trackQueryUsage(GeoShapeQueryBuilder.NAME);
+        searchUsageConsumer.accept(searchUsage);
         // Following the same strategy of the _search API, some parameters can be defined in the body or as URL parameters.
         // URL parameters takes precedence so we check them here.
         if (restRequest.hasParam(SearchSourceBuilder.SIZE_FIELD.getPreferredName())) {

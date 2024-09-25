@@ -1341,7 +1341,8 @@ public class RoleDescriptorTests extends ESTestCase {
             || roleDescriptor.hasConfigurableClusterPrivileges()
             || roleDescriptor.hasApplicationPrivileges()
             || roleDescriptor.hasRunAs()
-            || roleDescriptor.hasRemoteIndicesPrivileges();
+            || roleDescriptor.hasRemoteIndicesPrivileges()
+            || roleDescriptor.hasWorkflowsRestriction();
         assertThat(roleDescriptor.hasUnsupportedPrivilegesInsideAPIKeyConnectedRemoteCluster(), equalTo(expected));
     }
 

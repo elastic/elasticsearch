@@ -11,12 +11,14 @@ package org.elasticsearch.indices;
 
 import org.apache.lucene.index.IndexWriter;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
@@ -44,14 +46,14 @@ class PostRecoveryMerger {
     private static final boolean TRIGGER_MERGE_AFTER_RECOVERY;
 
     static {
-        final var propertyValue = System.getProperty("es.trigger_merge_after_recovery");
+        final var propertyValue = System.getProperty("es.trigger_merge_after_recovery_8_515_00_0");
         if (propertyValue == null) {
             TRIGGER_MERGE_AFTER_RECOVERY = true;
         } else if ("false".equals(propertyValue)) {
             TRIGGER_MERGE_AFTER_RECOVERY = false;
         } else {
             throw new IllegalStateException(
-                "system property [es.trigger_merge_after_recovery] may only be set to [false], but was [" + propertyValue + "]"
+                "system property [es.trigger_merge_after_recovery_8_515_00_0] may only be set to [false], but was [" + propertyValue + "]"
             );
         }
     }
@@ -81,6 +83,7 @@ class PostRecoveryMerger {
     }
 
     PeerRecoveryTargetService.RecoveryListener maybeMergeAfterRecovery(
+        IndexMetadata indexMetadata,
         ShardRouting shardRouting,
         PeerRecoveryTargetService.RecoveryListener recoveryListener
     ) {
@@ -89,6 +92,10 @@ class PostRecoveryMerger {
         }
 
         if (shardRouting.isPromotableToPrimary() == false) {
+            return recoveryListener;
+        }
+
+        if (indexMetadata.getCreationVersion().before(IndexVersions.MERGE_ON_RECOVERY_VERSION)) {
             return recoveryListener;
         }
 

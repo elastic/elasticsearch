@@ -135,8 +135,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 ? null
                 : DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build();
             case 10 -> failureIndices = randomValueOtherThan(failureIndices, DataStreamTestHelper::randomIndexInstances);
-            case 11 -> dataStreamOptions = DataStreamOptions.EMPTY.equals(dataStreamOptions)
-                ? new DataStreamOptions(new DataStreamFailureStore(randomBoolean()))
+            case 11 -> dataStreamOptions = dataStreamOptions.isEmpty() ? new DataStreamOptions(new DataStreamFailureStore(randomBoolean()))
                 : randomBoolean() ? (randomBoolean() ? null : DataStreamOptions.EMPTY)
                 : new DataStreamOptions(new DataStreamFailureStore(dataStreamOptions.failureStore().enabled() == false));
             case 12 -> {

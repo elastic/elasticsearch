@@ -66,6 +66,10 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
         return SimpleDiffable.readDiffFrom(DataStreamOptions::read, in);
     }
 
+    public boolean isEmpty() {
+        return this.equals(EMPTY);
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(failureStore);

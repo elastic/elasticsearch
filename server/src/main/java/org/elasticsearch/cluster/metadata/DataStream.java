@@ -1082,7 +1082,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             out.writeOptionalWriteable(failureIndices.autoShardingEvent);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.ADD_DATA_STREAM_OPTIONS)) {
-            out.writeOptionalWriteable(DataStreamOptions.EMPTY.equals(dataStreamOptions) ? null : dataStreamOptions);
+            out.writeOptionalWriteable(dataStreamOptions.isEmpty() ? null : dataStreamOptions);
         }
     }
 
@@ -1240,7 +1240,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
                 failureIndices.autoShardingEvent.toXContent(builder, params);
                 builder.endObject();
             }
-            if (DataStreamOptions.EMPTY.equals(dataStreamOptions) == false) {
+            if (dataStreamOptions.isEmpty() == false) {
                 builder.field(DATA_STREAM_OPTIONS_FIELD.getPreferredName());
                 dataStreamOptions.toXContent(builder, params);
             }

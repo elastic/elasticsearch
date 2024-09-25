@@ -33,7 +33,6 @@ DLS documentation:
 
 * <<es-dls-overview>>
 * <<es-dls-e2e-guide>> 
-E2E search applications/search ui guide
 * <<es-connectors-sharepoint-online-dls, DLS for SharePoint Online connector>>
 
 include::dls-overview.asciidoc[]

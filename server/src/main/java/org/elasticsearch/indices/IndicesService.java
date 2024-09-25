@@ -262,6 +262,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final TimestampFieldMapperService timestampFieldMapperService;
     private final CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> requestCacheKeyDifferentiator;
     private final MapperMetrics mapperMetrics;
+    private final PostRecoveryMerger postRecoveryMerger;
 
     @Override
     protected void doStart() {
@@ -378,6 +379,8 @@ public class IndicesService extends AbstractLifecycleComponent
         clusterService.getClusterSettings().addSettingsUpdateConsumer(ALLOW_EXPENSIVE_QUERIES, this::setAllowExpensiveQueries);
 
         this.timestampFieldMapperService = new TimestampFieldMapperService(settings, threadPool, this);
+
+        this.postRecoveryMerger = new PostRecoveryMerger(settings, threadPool.executor(ThreadPool.Names.FORCE_MERGE), this::getShardOrNull);
     }
 
     private static final String DANGLING_INDICES_UPDATE_THREAD_NAME = "DanglingIndices#updateTask";
@@ -890,23 +893,29 @@ public class IndicesService extends AbstractLifecycleComponent
         RecoveryState recoveryState = indexService.createRecoveryState(shardRouting, targetNode, sourceNode);
         IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer);
         indexShard.addShardFailureCallback(onShardFailure);
-        indexShard.startRecovery(recoveryState, recoveryTargetService, recoveryListener, repositoriesService, (mapping, listener) -> {
-            assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
-                : "mapping update consumer only required by local shards recovery";
-            AcknowledgedRequest<PutMappingRequest> putMappingRequestAcknowledgedRequest = new PutMappingRequest().setConcreteIndex(
-                shardRouting.index()
-            )
-                .setConcreteIndex(shardRouting.index()) // concrete index - no name clash, it uses uuid
-                .source(mapping.source().string(), XContentType.JSON);
-            // concrete index - no name clash, it uses uuid
-            client.execute(
-                featureService.clusterHasFeature(clusterService.state(), SUPPORTS_AUTO_PUT)
-                    ? TransportAutoPutMappingAction.TYPE
-                    : TransportPutMappingAction.TYPE,
-                putMappingRequestAcknowledgedRequest.ackTimeout(TimeValue.MAX_VALUE).masterNodeTimeout(TimeValue.MAX_VALUE),
-                new RefCountAwareThreadedActionListener<>(threadPool.generic(), listener.map(ignored -> null))
-            );
-        }, this, clusterStateVersion);
+        indexShard.startRecovery(
+            recoveryState,
+            recoveryTargetService,
+            postRecoveryMerger.maybeMergeAfterRecovery(indexService.getMetadata(), shardRouting, recoveryListener),
+            repositoriesService,
+            (mapping, listener) -> {
+                assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
+                    : "mapping update consumer only required by local shards recovery";
+                AcknowledgedRequest<PutMappingRequest> putMappingRequestAcknowledgedRequest = new PutMappingRequest()
+                    // concrete index - no name clash, it uses uuid
+                    .setConcreteIndex(shardRouting.index())
+                    .source(mapping.source().string(), XContentType.JSON);
+                client.execute(
+                    featureService.clusterHasFeature(clusterService.state(), SUPPORTS_AUTO_PUT)
+                        ? TransportAutoPutMappingAction.TYPE
+                        : TransportPutMappingAction.TYPE,
+                    putMappingRequestAcknowledgedRequest.ackTimeout(TimeValue.MAX_VALUE).masterNodeTimeout(TimeValue.MAX_VALUE),
+                    new RefCountAwareThreadedActionListener<>(threadPool.generic(), listener.map(ignored -> null))
+                );
+            },
+            this,
+            clusterStateVersion
+        );
     }
 
     @Override

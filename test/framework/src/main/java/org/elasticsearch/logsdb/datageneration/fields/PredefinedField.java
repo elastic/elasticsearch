@@ -21,7 +21,7 @@ public interface PredefinedField {
 
     FieldDataGenerator generator(DataSource dataSource);
 
-    record WithType(String fieldName, FieldType fieldType) implements PredefinedField {
+    record WithType(String fieldName, FieldType fieldType, DynamicMapping dynamicMapping) implements PredefinedField {
         @Override
         public String name() {
             return fieldName;
@@ -31,7 +31,7 @@ public interface PredefinedField {
         public FieldDataGenerator generator(DataSource dataSource) {
             // copy_to currently not supported for predefined fields, use WithGenerator if needed
             var mappingParametersGenerator = dataSource.get(
-                new DataSourceRequest.LeafMappingParametersGenerator(fieldName, fieldType, Set.of())
+                new DataSourceRequest.LeafMappingParametersGenerator(fieldName, fieldType, Set.of(), dynamicMapping)
             );
             return fieldType().generator(fieldName, dataSource, mappingParametersGenerator);
         }

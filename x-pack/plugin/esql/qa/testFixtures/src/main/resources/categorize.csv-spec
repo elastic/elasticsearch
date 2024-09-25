@@ -2,8 +2,9 @@ categorize
 required_capability: categorize
 
 FROM sample_data
-  | STATS count=COUNT(), values=VALUES(message) BY category=CATEGORIZE(message)
-  | SORT count DESC, category ASC
+  | SORT message ASC
+  | STATS count=COUNT(), values=MV_SORT(VALUES(message)) BY category=CATEGORIZE(message)
+  | SORT category
 ;
 
 count:long | values:keyword                                                        | category:integer

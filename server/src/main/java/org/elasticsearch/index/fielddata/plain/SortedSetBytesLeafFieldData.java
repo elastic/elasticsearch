@@ -41,9 +41,6 @@ public final class SortedSetBytesLeafFieldData extends AbstractLeafOrdinalsField
     }
 
     @Override
-    public void close() {}
-
-    @Override
     public long ramBytesUsed() {
         return 0; // unknown
     }

@@ -54,7 +54,8 @@ public class TDigestState implements Releasable {
     private final Type type;
 
     /**
-     * @deprecated this method will be removed after all usages are replaced
+     * @deprecated No-op circuit-breaked factory for TDigestState. Used in _search aggregations.
+     *             Please use the {@link #create(CircuitBreaker, double)} method instead on new usages.
      */
     @Deprecated
     public static TDigestState create(double compression) {
@@ -76,12 +77,13 @@ public class TDigestState implements Releasable {
      * @param compression the compression factor for the underlying {@link org.elasticsearch.tdigest.TDigest} object
      * @return a TDigestState object that's optimized for performance
      */
-    public static TDigestState createOptimizedForAccuracy(CircuitBreaker breaker, double compression) {
+    static TDigestState createOptimizedForAccuracy(CircuitBreaker breaker, double compression) {
         return new TDigestState(breaker, Type.valueForHighAccuracy(), compression);
     }
 
     /**
-     * @deprecated this method will be removed after all usages are replaced
+     * @deprecated No-op circuit-breaked factory for TDigestState. Used in _search aggregations.
+     *             Please use the {@link #create(CircuitBreaker, double, TDigestExecutionHint)} method instead on new usages.
      */
     @Deprecated
     public static TDigestState create(double compression, TDigestExecutionHint executionHint) {
@@ -108,7 +110,10 @@ public class TDigestState implements Releasable {
      * input TDigestState object doesn't get altered in any way.
      * @param state the TDigestState object providing the initialization params
      * @return a TDigestState object
+     * @deprecated No-op circuit-breaked factory for TDigestState. Used in _search aggregations.
+     *             Please use one of the other methods receiving a CircuitBreaker instead on new usages.
      */
+    @Deprecated
     public static TDigestState createUsingParamsFrom(TDigestState state) {
         return new TDigestState(DEFAULT_NOOP_BREAKER, state.type, state.compression);
     }
@@ -144,7 +149,8 @@ public class TDigestState implements Releasable {
     }
 
     /**
-     * @deprecated this method will be removed after all usages are replaced
+     * @deprecated No-op circuit-breaked factory for TDigestState. Used in _search aggregations.
+     *             Please use the {@link #read(CircuitBreaker, StreamInput)} method instead on new usages.
      */
     @Deprecated
     public static TDigestState read(StreamInput in) throws IOException {
@@ -155,7 +161,6 @@ public class TDigestState implements Releasable {
         double compression = in.readDouble();
         TDigestState state;
         long size = 0;
-        var arrays = new MemoryTrackingTDigestArrays(breaker);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             state = new TDigestState(breaker, Type.valueOf(in.readString()), compression);
             size = in.readVLong();

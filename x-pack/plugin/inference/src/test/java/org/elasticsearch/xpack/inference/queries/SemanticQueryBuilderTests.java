@@ -169,14 +169,14 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
             queryTokens.add(randomAlphaOfLength(QUERY_TOKEN_LENGTH));
         }
 
-        InnerChunkBuilder innerChunkBuilder = null;
+        SemanticQueryInnerHitBuilder innerHitBuilder = null;
         if (randomBoolean()) {
-            innerChunkBuilder = new InnerChunkBuilder();
-            innerChunkBuilder.setFrom(randomIntBetween(0, 100));
-            innerChunkBuilder.setSize(randomIntBetween(0, 100));
+            innerHitBuilder = new SemanticQueryInnerHitBuilder();
+            innerHitBuilder.setFrom(randomIntBetween(0, 100));
+            innerHitBuilder.setSize(randomIntBetween(0, 100));
         }
 
-        SemanticQueryBuilder builder = new SemanticQueryBuilder(SEMANTIC_TEXT_FIELD, String.join(" ", queryTokens), innerChunkBuilder);
+        SemanticQueryBuilder builder = new SemanticQueryBuilder(SEMANTIC_TEXT_FIELD, String.join(" ", queryTokens), innerHitBuilder);
         if (randomBoolean()) {
             builder.boost((float) randomDoubleBetween(0.1, 10.0, true));
         }
@@ -202,7 +202,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
             case TEXT_EMBEDDING -> assertTextEmbeddingLuceneQuery(nestedQuery.getChildQuery());
         }
 
-        if (queryBuilder.innerChunk() != null) {
+        if (queryBuilder.innerHit() != null) {
             // Rewrite to a nested query
             QueryBuilder rewrittenQueryBuilder = rewriteQuery(queryBuilder, createQueryRewriteContext(), createSearchExecutionContext());
             assertThat(rewrittenQueryBuilder, instanceOf(NestedQueryBuilder.class));
@@ -212,9 +212,9 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
             InnerHitContextBuilder.extractInnerHits(nestedQueryBuilder, innerHitInternals);
             assertThat(innerHitInternals.size(), equalTo(1));
 
-            InnerHitContextBuilder innerHits = innerHitInternals.get(queryBuilder.innerChunk().getFieldName());
+            InnerHitContextBuilder innerHits = innerHitInternals.get(queryBuilder.innerHit().getFieldName());
             assertNotNull(innerHits);
-            assertThat(innerHits.innerHitBuilder(), equalTo(queryBuilder.innerChunk().toInnerHitBuilder()));
+            assertThat(innerHits.innerHitBuilder(), equalTo(queryBuilder.innerHit().toInnerHitBuilder()));
         }
     }
 
@@ -339,14 +339,14 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
               }
             }""", queryBuilder);
 
-        InnerChunkBuilder innerChunkBuilder = new InnerChunkBuilder().setFrom(1).setSize(2);
-        queryBuilder = new SemanticQueryBuilder("foo", "bar", innerChunkBuilder);
+        SemanticQueryInnerHitBuilder innerHitBuilder = new SemanticQueryInnerHitBuilder().setFrom(1).setSize(2);
+        queryBuilder = new SemanticQueryBuilder("foo", "bar", innerHitBuilder);
         checkGeneratedJson("""
             {
               "semantic": {
                 "field": "foo",
                 "query": "bar",
-                "chunks": {
+                "inner_hits": {
                   "from": 1,
                   "size": 2
                 }

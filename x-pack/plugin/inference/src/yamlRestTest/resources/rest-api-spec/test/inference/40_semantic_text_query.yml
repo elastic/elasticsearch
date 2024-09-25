@@ -123,7 +123,7 @@ setup:
   - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
 
 ---
-"Query using a sparse embedding model and inner chunks":
+"Query using a sparse embedding model and inner hits":
   - requires:
       cluster_features: "semantic_text.inner_hits"
       reason: semantic_text inner hits support added in 8.16.0
@@ -151,7 +151,7 @@ setup:
             semantic:
               field: "inference_field"
               query: "inference test"
-              chunks: {}
+              inner_hits: {}
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
@@ -177,7 +177,7 @@ setup:
             semantic:
               field: "inference_field"
               query: "inference test"
-              chunks: {
+              inner_hits: {
                 "size": 1
               }
 
@@ -201,7 +201,7 @@ setup:
             semantic:
               field: "inference_field"
               query: "inference test"
-              chunks: {
+              inner_hits: {
                 "from": 1
               }
 
@@ -227,7 +227,7 @@ setup:
             semantic:
               field: "inference_field"
               query: "inference test"
-              chunks: {
+              inner_hits: {
                 "from": 1,
                 "size": 1
               }
@@ -252,7 +252,7 @@ setup:
             semantic:
               field: "inference_field"
               query: "inference test"
-              chunks: {
+              inner_hits: {
                 "from": 3
               }
 
@@ -392,7 +392,7 @@ setup:
   - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
 
 ---
-"Query using a dense embedding model and inner chunks":
+"Query using a dense embedding model and inner hits":
   - requires:
       cluster_features: "semantic_text.inner_hits"
       reason: semantic_text inner hits support added in 8.16.0
@@ -420,7 +420,7 @@ setup:
             semantic:
               field: "inference_field"
               query: "inference test"
-              chunks: {}
+              inner_hits: {}
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
@@ -446,7 +446,7 @@ setup:
             semantic:
               field: "inference_field"
               query: "inference test"
-              chunks: {
+              inner_hits: {
                 "size": 1
               }
 
@@ -470,7 +470,7 @@ setup:
             semantic:
               field: "inference_field"
               query: "inference test"
-              chunks: {
+              inner_hits: {
                 "from": 1
               }
 
@@ -496,7 +496,7 @@ setup:
             semantic:
               field: "inference_field"
               query: "inference test"
-              chunks: {
+              inner_hits: {
                 "from": 1,
                 "size": 1
               }
@@ -521,7 +521,7 @@ setup:
             semantic:
               field: "inference_field"
               query: "inference test"
-              chunks: {
+              inner_hits: {
                 "from": 3
               }
 
@@ -761,7 +761,7 @@ setup:
   - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
 
 ---
-"Query multiple semantic text fields with inner chunks":
+"Query multiple semantic text fields with inner hits":
   - requires:
       cluster_features: "semantic_text.inner_hits"
       reason: semantic_text inner hits support added in 8.16.0
@@ -798,11 +798,11 @@ setup:
                 - semantic:
                     field: "inference_field_1"
                     query: "inference test"
-                    chunks: { }
+                    inner_hits: { }
                 - semantic:
                     field: "inference_field_2"
                     query: "inference test"
-                    chunks: { }
+                    inner_hits: { }
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
@@ -1176,7 +1176,7 @@ setup:
   - match: { error.reason: "Inference endpoint not found [invalid-inference-id]" }
 
 ---
-"Query using inner chunks with invalid args":
+"Query using inner hits with invalid args":
   - requires:
       cluster_features: "semantic_text.inner_hits"
       reason: semantic_text inner hits support added in 8.16.0
@@ -1190,7 +1190,7 @@ setup:
             semantic:
               field: "inference_field"
               query: "inference test"
-              chunks: {
+              inner_hits: {
                 "from": -1
               }
 
@@ -1206,7 +1206,7 @@ setup:
             semantic:
               field: "inference_field"
               query: "inference test"
-              chunks: {
+              inner_hits: {
                 "size": -1
               }
 

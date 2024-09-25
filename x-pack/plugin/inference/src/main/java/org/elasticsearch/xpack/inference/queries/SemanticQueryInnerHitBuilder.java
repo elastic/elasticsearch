@@ -26,23 +26,26 @@ import java.util.Objects;
 import static org.elasticsearch.index.query.InnerHitBuilder.DEFAULT_FROM;
 import static org.elasticsearch.index.query.InnerHitBuilder.DEFAULT_SIZE;
 
-public class InnerChunkBuilder implements Writeable, ToXContentObject {
-    private static final ObjectParser<InnerChunkBuilder, Void> PARSER = new ObjectParser<>("inner_chunks", InnerChunkBuilder::new);
+public class SemanticQueryInnerHitBuilder implements Writeable, ToXContentObject {
+    private static final ObjectParser<SemanticQueryInnerHitBuilder, Void> PARSER = new ObjectParser<>(
+        "semantic_query_inner_hits",
+        SemanticQueryInnerHitBuilder::new
+    );
 
     static {
-        PARSER.declareInt(InnerChunkBuilder::setFrom, SearchSourceBuilder.FROM_FIELD);
-        PARSER.declareInt(InnerChunkBuilder::setSize, SearchSourceBuilder.SIZE_FIELD);
+        PARSER.declareInt(SemanticQueryInnerHitBuilder::setFrom, SearchSourceBuilder.FROM_FIELD);
+        PARSER.declareInt(SemanticQueryInnerHitBuilder::setSize, SearchSourceBuilder.SIZE_FIELD);
     }
 
     private String fieldName;
     private int from = DEFAULT_FROM;
     private int size = DEFAULT_SIZE;
 
-    public InnerChunkBuilder() {
+    public SemanticQueryInnerHitBuilder() {
         this.fieldName = null;
     }
 
-    public InnerChunkBuilder(StreamInput in) throws IOException {
+    public SemanticQueryInnerHitBuilder(StreamInput in) throws IOException {
         fieldName = in.readOptionalString();
         from = in.readVInt();
         size = in.readVInt();
@@ -67,7 +70,7 @@ public class InnerChunkBuilder implements Writeable, ToXContentObject {
         return from;
     }
 
-    public InnerChunkBuilder setFrom(int from) {
+    public SemanticQueryInnerHitBuilder setFrom(int from) {
         this.from = from;
         return this;
     }
@@ -76,7 +79,7 @@ public class InnerChunkBuilder implements Writeable, ToXContentObject {
         return size;
     }
 
-    public InnerChunkBuilder setSize(int size) {
+    public SemanticQueryInnerHitBuilder setSize(int size) {
         this.size = size;
         return this;
     }
@@ -105,15 +108,15 @@ public class InnerChunkBuilder implements Writeable, ToXContentObject {
         return builder;
     }
 
-    public static InnerChunkBuilder fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new InnerChunkBuilder(), null);
+    public static SemanticQueryInnerHitBuilder fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, new SemanticQueryInnerHitBuilder(), null);
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        InnerChunkBuilder that = (InnerChunkBuilder) o;
+        SemanticQueryInnerHitBuilder that = (SemanticQueryInnerHitBuilder) o;
         return from == that.from && size == that.size && Objects.equals(fieldName, that.fieldName);
     }
 

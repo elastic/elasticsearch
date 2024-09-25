@@ -32,7 +32,6 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.datastreams.logsdb.LogsdbIndexModeSettingsProvider;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettingProvider;
@@ -132,8 +131,6 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.datastreams.logsdb.LogsdbIndexModeSettingsProvider.CLUSTER_LOGSDB_ENABLED;
-
 @SuppressWarnings("HiddenField")
 public class XPackPlugin extends XPackClientPlugin
     implements
@@ -186,7 +183,6 @@ public class XPackPlugin extends XPackClientPlugin
     private static SetOnce<LongSupplier> epochMillisSupplier = new SetOnce<>();
     private static SetOnce<XPackLicenseState> licenseState = new SetOnce<>();
     private static SetOnce<LicenseService> licenseService = new SetOnce<>();
-    private final SetOnce<LogsdbIndexModeSettingsProvider> logsdbIndexModeSettingsProvider = new SetOnce<>();
 
     public XPackPlugin(final Settings settings) {
         super();
@@ -349,15 +345,6 @@ public class XPackPlugin extends XPackClientPlugin
         components.add(new PluginComponentBinding<>(LicenseService.class, licenseService));
         components.add(getLicenseState());
 
-        try (ClusterService clusterService = services.clusterService()) {
-            logsdbIndexModeSettingsProvider.set(new LogsdbIndexModeSettingsProvider(clusterService.getSettings()));
-            clusterService.getClusterSettings()
-                .addSettingsUpdateConsumer(
-                    CLUSTER_LOGSDB_ENABLED,
-                    logsdbIndexModeSettingsProvider.get()::updateClusterIndexModeLogsdbEnabled
-                );
-        }
-
         return components;
     }
 
@@ -495,7 +482,7 @@ public class XPackPlugin extends XPackClientPlugin
         if (DiscoveryNode.isStateless(settings)) {
             return List.of();
         }
-        return List.of(new DataTier.DefaultHotAllocationSettingProvider(), logsdbIndexModeSettingsProvider.get());
+        return Collections.singleton(new DataTier.DefaultHotAllocationSettingProvider());
     }
 
     /**

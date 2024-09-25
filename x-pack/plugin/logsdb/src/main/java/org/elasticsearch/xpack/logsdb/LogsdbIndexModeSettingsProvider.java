@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.datastreams.logsdb;
+package org.elasticsearch.xpack.logsdb;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

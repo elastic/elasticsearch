@@ -5,9 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.datastreams.logsdb;
-
-import junit.framework.TestCase;
+package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplateMetadata;
@@ -15,6 +13,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -22,7 +21,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 
-public class LogsdbIndexModeSettingsProviderTests extends TestCase {
+public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
 
     public static final String DEFAULT_MAPPING = """
         {

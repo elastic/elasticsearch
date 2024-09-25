@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.logsdb;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettingProvider;
@@ -17,12 +19,15 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import java.util.Collection;
 import java.util.List;
 
+import static org.elasticsearch.xpack.logsdb.LogsdbIndexModeSettingsProvider.CLUSTER_LOGSDB_ENABLED;
 import static org.elasticsearch.xpack.logsdb.SyntheticSourceLicenseService.FALLBACK_SETTING;
 
 public class LogsDBPlugin extends Plugin {
 
     private final Settings settings;
     private final SyntheticSourceLicenseService licenseService;
+
+    private final SetOnce<LogsdbIndexModeSettingsProvider> logsdbIndexModeSettingsProvider = new SetOnce<>();
 
     public LogsDBPlugin(Settings settings) {
         this.settings = settings;
@@ -34,6 +39,14 @@ public class LogsDBPlugin extends Plugin {
         licenseService.setLicenseState(XPackPlugin.getSharedLicenseState());
         var clusterSettings = services.clusterService().getClusterSettings();
         clusterSettings.addSettingsUpdateConsumer(FALLBACK_SETTING, licenseService::setSyntheticSourceFallback);
+        try (ClusterService clusterService = services.clusterService()) {
+            logsdbIndexModeSettingsProvider.set(new LogsdbIndexModeSettingsProvider(clusterService.getSettings()));
+            clusterService.getClusterSettings()
+                .addSettingsUpdateConsumer(
+                    CLUSTER_LOGSDB_ENABLED,
+                    logsdbIndexModeSettingsProvider.get()::updateClusterIndexModeLogsdbEnabled
+                );
+        }
         // Nothing to share here:
         return super.createComponents(services);
     }

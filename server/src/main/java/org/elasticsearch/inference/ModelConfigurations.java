@@ -79,6 +79,16 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         TaskType taskType,
         String service,
         ServiceSettings serviceSettings,
+        ChunkingSettings chunkingSettings
+    ) {
+        this(inferenceEntityId, taskType, service, serviceSettings, EmptyTaskSettings.INSTANCE, chunkingSettings);
+    }
+
+    public ModelConfigurations(
+        String inferenceEntityId,
+        TaskType taskType,
+        String service,
+        ServiceSettings serviceSettings,
         TaskSettings taskSettings
     ) {
         this.inferenceEntityId = Objects.requireNonNull(inferenceEntityId);

@@ -896,7 +896,7 @@ public class IndicesService extends AbstractLifecycleComponent
         indexShard.startRecovery(
             recoveryState,
             recoveryTargetService,
-            postRecoveryMerger.maybeMergeAfterRecovery(shardRouting, recoveryListener),
+            postRecoveryMerger.maybeMergeAfterRecovery(indexService.getMetadata(), shardRouting, recoveryListener),
             repositoriesService,
             (mapping, listener) -> {
                 assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS

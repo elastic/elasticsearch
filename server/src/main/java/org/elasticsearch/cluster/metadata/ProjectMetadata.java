@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.allocation.IndexMetadataUpdater;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
@@ -29,7 +28,6 @@ import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
-import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
@@ -69,8 +67,6 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.cluster.metadata.Metadata.ALL;
-import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_API;
-import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_PARAM;
 import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
 
 public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<ProjectMetadata>, ChunkedToXContent {
@@ -2017,30 +2013,24 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params p) {
-        Metadata.XContentContext context = Metadata.XContentContext.valueOf(p.param(CONTEXT_MODE_PARAM, CONTEXT_MODE_API));
+        Metadata.XContentContext context = Metadata.XContentContext.from(p);
 
-        Iterator<? extends ToXContent> indices = context == Metadata.XContentContext.API
-            ? ChunkedToXContentHelper.wrapWithObject("indices", indices().values().iterator())
-            : Collections.emptyIterator();
-
-        Iterator<ToXContent> customs = Iterators.flatMap(
-            customs().entrySet().iterator(),
-            entry -> entry.getValue().context().contains(context)
-                ? ChunkedToXContentHelper.wrapWithObject(entry.getKey(), entry.getValue().toXContentChunked(p))
-                : Collections.emptyIterator()
-        );
-
-        return Iterators.concat(
-            ChunkedToXContentHelper.wrapWithObject(
+        return ChunkedToXContent.builder(p)
+            .object(
                 "templates",
-                Iterators.map(
-                    templates().values().iterator(),
-                    template -> (builder, params) -> IndexTemplateMetadata.Builder.toXContentWithTypes(template, builder, params)
-                )
-            ),
-            indices,
-            customs
-        );
+                templates().values().iterator(),
+                template -> (builder, params) -> IndexTemplateMetadata.Builder.toXContentWithTypes(template, builder, params)
+            )
+            .execute(b -> {
+                if (context == Metadata.XContentContext.API) {
+                    b.xContentObject("indices", indices().values().iterator());
+                }
+            })
+            .forEach(customs.entrySet().iterator(), (b, e) -> {
+                if (e.getValue().context().contains(context)) {
+                    b.xContentObject(e.getKey(), e.getValue());
+                }
+            });
     }
 
     public static ProjectMetadata readFrom(StreamInput in) throws IOException {

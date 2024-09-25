@@ -40,7 +40,7 @@ template:
             type: double
             time_series_metric: gauge
             ignore_malformed: true
-      - summary_metrics:
+      - summary:
           mapping:
             type: aggregate_metric_double
             metrics: sum, value_count

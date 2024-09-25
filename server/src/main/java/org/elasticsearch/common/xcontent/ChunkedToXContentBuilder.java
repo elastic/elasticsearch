@@ -111,7 +111,7 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
     }
 
     /**
-     * Creates an object with the contents of each field created from {@code map}
+     * Creates an object with the contents of each field created from each entry in {@code map}
      */
     public ChunkedToXContentBuilder xContentObjectFields(Map<String, ? extends ToXContent> map) {
         startObject();
@@ -121,7 +121,7 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
     }
 
     /**
-     * Creates an object named {@code name}, with the contents of each field created from {@code map}
+     * Creates an object named {@code name}, with the contents of each field created from each entry in {@code map}
      */
     public ChunkedToXContentBuilder xContentObjectFields(String name, Map<String, ? extends ToXContent> map) {
         startObject(name);
@@ -131,7 +131,7 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
     }
 
     /**
-     * Creates an object with the contents of each field each another object created from {@code map}
+     * Creates an object with the contents of each field each another object created from each entry in {@code map}
      */
     public ChunkedToXContentBuilder xContentObjectFieldObjects(Map<String, ? extends ToXContent> map) {
         startObject();
@@ -141,7 +141,7 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
     }
 
     /**
-     * Creates an object named {@code name}, with the contents of each field each another object created from {@code map}
+     * Creates an object named {@code name}, with the contents of each field each another object created from each entry in {@code map}
      */
     public ChunkedToXContentBuilder xContentObjectFieldObjects(String name, Map<String, ? extends ToXContent> map) {
         startObject(name);

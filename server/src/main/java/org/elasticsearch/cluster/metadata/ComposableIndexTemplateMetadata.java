@@ -103,8 +103,8 @@ public class ComposableIndexTemplateMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return ChunkedToXContent.builder(ignored).xContentObjectFieldObjects(INDEX_TEMPLATE.getPreferredName(), indexTemplates);
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return ChunkedToXContent.builder(params).xContentObjectFields(INDEX_TEMPLATE.getPreferredName(), indexTemplates);
     }
 
     @Override

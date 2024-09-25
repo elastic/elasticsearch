@@ -57,8 +57,8 @@ public class FeatureMigrationResults implements Metadata.Custom {
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return ChunkedToXContent.builder(ignored).xContentObjectFieldObjects(RESULTS_FIELD.getPreferredName(), featureStatuses);
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return ChunkedToXContent.builder(params).xContentObjectFields(RESULTS_FIELD.getPreferredName(), featureStatuses);
     }
 
     /**

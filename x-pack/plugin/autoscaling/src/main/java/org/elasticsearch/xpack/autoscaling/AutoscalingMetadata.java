@@ -118,8 +118,8 @@ public class AutoscalingMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return ChunkedToXContent.builder(ignored).xContentObjectFieldObjects(POLICIES_FIELD.getPreferredName(), policies);
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return ChunkedToXContent.builder(params).xContentObjectFields(POLICIES_FIELD.getPreferredName(), policies);
     }
 
     @Override

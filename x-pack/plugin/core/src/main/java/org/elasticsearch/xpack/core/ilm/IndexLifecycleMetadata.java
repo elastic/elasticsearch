@@ -104,9 +104,9 @@ public class IndexLifecycleMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return ChunkedToXContent.builder(ignored)
-            .xContentObjectFieldObjects(POLICIES_FIELD.getPreferredName(), policyMetadatas)
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return ChunkedToXContent.builder(params)
+            .xContentObjectFields(POLICIES_FIELD.getPreferredName(), policyMetadatas)
             .field(OPERATION_MODE_FIELD.getPreferredName(), operationMode);
     }
 

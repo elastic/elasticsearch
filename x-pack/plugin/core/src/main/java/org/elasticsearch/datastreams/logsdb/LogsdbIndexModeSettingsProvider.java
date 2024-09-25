@@ -9,7 +9,9 @@ package org.elasticsearch.datastreams.logsdb;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
@@ -61,30 +63,41 @@ public class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         if (indexMode != null) {
             return Settings.EMPTY;
         }
-        if (usesLogsAtSettingsComponentTemplate(metadata) == false) {
-            return Settings.EMPTY;
-        }
-        if (isLogsDataStreamOrIndexName(indexName, dataStreamName)) {
+        final boolean useLogsAtSettingsForIndex = usesLogsAtSettingsComponentTemplate(metadata, indexName);
+        final boolean useLogsAtSettingsForDataStream = usesLogsAtSettingsComponentTemplate(metadata, dataStreamName);
+        final boolean isLogsIndex = matchesLogsPattern(indexName);
+        final boolean isLogsDataStream = matchesLogsPattern(dataStreamName);
+        if ((useLogsAtSettingsForIndex && isLogsIndex) || (useLogsAtSettingsForDataStream && isLogsDataStream)) {
             return Settings.builder().put("index.mode", IndexMode.LOGSDB.getName()).build();
         }
 
         return Settings.EMPTY;
     }
 
-    private static boolean isLogsDataStreamOrIndexName(final String indexName, final String dataStreamName) {
-        return (indexName != null && Regex.simpleMatch(LOGS_PATTERN, indexName))
-            || (dataStreamName != null && Regex.simpleMatch(LOGS_PATTERN, dataStreamName));
+    private static boolean matchesLogsPattern(String name) {
+        return name != null && Regex.simpleMatch(LOGS_PATTERN, name);
     }
 
     private IndexMode resolveIndexMode(final String mode) {
-        if (mode == null) {
-            return null;
-        }
-        return Arrays.stream(IndexMode.values()).filter(indexMode -> Objects.equals(indexMode.getName(), mode)).findFirst().orElse(null);
+        return mode == null ? null : Arrays.stream(IndexMode.values())
+            .filter(indexMode -> Objects.equals(indexMode.getName(), mode))
+            .findFirst()
+            .orElse(null);
     }
 
-    private boolean usesLogsAtSettingsComponentTemplate(final Metadata metadata) {
-        return metadata.componentTemplates().get("logs@settings") != null;
+
+    private boolean usesLogsAtSettingsComponentTemplate(final Metadata metadata, final String indexOrDataStreamName) {
+        final String template = MetadataIndexTemplateService.findV2Template(metadata, indexOrDataStreamName, false);
+        if (template == null) {
+            return false;
+        }
+        final ComposableIndexTemplate composableIndexTemplate = metadata.templatesV2().get(template);
+        if (composableIndexTemplate == null) {
+            return false;
+        }
+        return composableIndexTemplate.composedOf()
+            .stream()
+            .anyMatch(componentTemplate -> Objects.equals("logs@settings", componentTemplate));
     }
 
 }

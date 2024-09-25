@@ -222,6 +222,42 @@ public class LogsdbIndexModeSettingsProviderTests extends TestCase {
         assertIndexMode(additionalIndexSettings, null);
     }
 
+    public void testCaseSensitivity() throws IOException {
+        final LogsdbIndexModeSettingsProvider provider = new LogsdbIndexModeSettingsProvider(
+            Settings.builder().put("cluster.logsdb.enabled", true).build()
+        );
+
+        final Settings additionalIndexSettings = provider.getAdditionalIndexSettings(
+            null,
+            "LOGS-apache-production",
+            false,
+            Metadata.EMPTY_METADATA,
+            Instant.now().truncatedTo(ChronoUnit.SECONDS),
+            Settings.EMPTY,
+            List.of(new CompressedXContent(DEFAULT_MAPPING))
+        );
+
+        assertIndexMode(additionalIndexSettings, null);
+    }
+
+    public void testMultipleHyphensInDataStreamName() throws IOException {
+        final LogsdbIndexModeSettingsProvider provider = new LogsdbIndexModeSettingsProvider(
+            Settings.builder().put("cluster.logsdb.enabled", true).build()
+        );
+
+        final Settings additionalIndexSettings = provider.getAdditionalIndexSettings(
+            null,
+            "logs-apache-production-eu",
+            false,
+            Metadata.EMPTY_METADATA,
+            Instant.now().truncatedTo(ChronoUnit.SECONDS),
+            Settings.EMPTY,
+            List.of(new CompressedXContent(DEFAULT_MAPPING))
+        );
+
+        assertIndexMode(additionalIndexSettings, null);
+    }
+
     public void testBeforeAndAFterSettingUpdate() throws IOException {
         final LogsdbIndexModeSettingsProvider provider = new LogsdbIndexModeSettingsProvider(
             Settings.builder().put("cluster.logsdb.enabled", false).build()

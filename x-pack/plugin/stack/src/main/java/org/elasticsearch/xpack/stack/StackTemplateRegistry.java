@@ -36,6 +36,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.datastreams.logsdb.LogsdbIndexModeSettingsProvider.CLUSTER_LOGSDB_ENABLED;
+
 public class StackTemplateRegistry extends IndexTemplateRegistry {
     private static final Logger logger = LogManager.getLogger(StackTemplateRegistry.class);
 
@@ -56,15 +58,6 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
-    );
-
-    /**
-     * if index.mode "logsdb" is applied by default in logs@settings for 'logs-*-*'
-     */
-    public static final Setting<Boolean> CLUSTER_LOGSDB_ENABLED = Setting.boolSetting(
-        "cluster.logsdb.enabled",
-        false,
-        Setting.Property.NodeScope
     );
 
     private final ClusterService clusterService;

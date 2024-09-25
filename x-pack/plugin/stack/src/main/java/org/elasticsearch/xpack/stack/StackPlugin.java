@@ -14,6 +14,8 @@ import org.elasticsearch.plugins.Plugin;
 import java.util.Collection;
 import java.util.List;
 
+import static org.elasticsearch.datastreams.logsdb.LogsdbIndexModeSettingsProvider.CLUSTER_LOGSDB_ENABLED;
+
 public class StackPlugin extends Plugin implements ActionPlugin {
     private final Settings settings;
 
@@ -23,7 +25,7 @@ public class StackPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(StackTemplateRegistry.STACK_TEMPLATES_ENABLED, StackTemplateRegistry.CLUSTER_LOGSDB_ENABLED);
+        return List.of(StackTemplateRegistry.STACK_TEMPLATES_ENABLED, CLUSTER_LOGSDB_ENABLED);
     }
 
     @Override

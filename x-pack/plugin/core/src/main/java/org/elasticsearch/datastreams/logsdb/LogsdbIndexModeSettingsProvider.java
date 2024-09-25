@@ -25,8 +25,8 @@ import java.util.List;
 public class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     private static final Logger logger = LogManager.getLogger(LogsdbIndexModeSettingsProvider.class);
 
-    public static final Setting<Boolean> CLUSTER_INDEX_MODE_LOGSDB_ENABLED = Setting.boolSetting(
-        "cluster.index.mode.logsdb.enabled",
+    public static final Setting<Boolean> CLUSTER_LOGSDB_ENABLED = Setting.boolSetting(
+        "clutser.logsdb.enabled",
         false,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
@@ -34,9 +34,8 @@ public class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     private boolean isLogsdbEnabled;
 
     public LogsdbIndexModeSettingsProvider(final ClusterService clusterService) {
-        this.isLogsdbEnabled = clusterService.getSettings().getAsBoolean(CLUSTER_INDEX_MODE_LOGSDB_ENABLED.getKey(), false);
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(CLUSTER_INDEX_MODE_LOGSDB_ENABLED, this::updateClusterIndexModeLogsdbEnabled);
+        this.isLogsdbEnabled = clusterService.getSettings().getAsBoolean(CLUSTER_LOGSDB_ENABLED.getKey(), false);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(CLUSTER_LOGSDB_ENABLED, this::updateClusterIndexModeLogsdbEnabled);
     }
 
     private void updateClusterIndexModeLogsdbEnabled(boolean isLogsdbEnabled) {

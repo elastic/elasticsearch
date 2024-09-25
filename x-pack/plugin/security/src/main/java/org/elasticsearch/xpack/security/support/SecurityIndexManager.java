@@ -421,6 +421,9 @@ public class SecurityIndexManager implements ClusterStateListener {
             return false;
         }
         final IndexRoutingTable routingTable = state.routingTable().index(metadata.getIndex());
+        if (routingTable == null) {
+            return false;
+        }
         if (false == routingTable.shardsWithState(ShardRoutingState.INITIALIZING).isEmpty()) {
             return true;
         }

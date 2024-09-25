@@ -663,6 +663,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         );
         manager.clusterChanged(event(markShardsAvailable(indexAvailable)));
         assertThat(manager.indexExists(), is(true));
+        assertThat(manager.indexInitializing(), is(false));
         assertThat(manager.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS), is(true));
         assertThat(manager.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS), is(true));
 
@@ -681,6 +682,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
 
         manager.clusterChanged(event(indexClosed.build()));
         assertThat(manager.indexExists(), is(true));
+        assertThat(manager.indexInitializing(), is(false));
         assertThat(manager.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS), is(false));
         assertThat(manager.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS), is(false));
     }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.metadata;
 
@@ -69,7 +70,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     public static final FeatureFlag FAILURE_STORE_FEATURE_FLAG = new FeatureFlag("failure_store");
     public static final TransportVersion ADDED_FAILURE_STORE_TRANSPORT_VERSION = TransportVersions.V_8_12_0;
-    public static final TransportVersion ADDED_AUTO_SHARDING_EVENT_VERSION = TransportVersions.DATA_STREAM_AUTO_SHARDING_EVENT;
+    public static final TransportVersion ADDED_AUTO_SHARDING_EVENT_VERSION = TransportVersions.V_8_14_0;
 
     public static boolean isFailureStoreFeatureFlagEnabled() {
         return FAILURE_STORE_FEATURE_FLAG.isEnabled();
@@ -275,6 +276,18 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     public boolean rolloverOnWrite() {
         return backingIndices.rolloverOnWrite;
+    }
+
+    /**
+     * We define that a data stream is considered internal either if it is a system index or if
+     * its name starts with a dot.
+     *
+     * Note: Dot-prefixed internal data streams is a naming convention for internal data streams,
+     * but it's not yet enforced.
+     * @return true if it's a system index or has a dot-prefixed name.
+     */
+    public boolean isInternal() {
+        return isSystem() || name.charAt(0) == '.';
     }
 
     /**
@@ -796,12 +809,12 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     ) {
         if (lifecycle == null
             || lifecycle.isEnabled() == false
-            || lifecycle.getEffectiveDataRetention(isSystem() ? null : globalRetention) == null) {
+            || lifecycle.getEffectiveDataRetention(globalRetention, isInternal()) == null) {
             return List.of();
         }
 
         List<Index> indicesPastRetention = getNonWriteIndicesOlderThan(
-            lifecycle.getEffectiveDataRetention(isSystem() ? null : globalRetention),
+            lifecycle.getEffectiveDataRetention(globalRetention, isInternal()),
             indexMetadataSupplier,
             this::isIndexManagedByDataStreamLifecycle,
             nowSupplier
@@ -1202,7 +1215,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         }
         if (lifecycle != null) {
             builder.field(LIFECYCLE.getPreferredName());
-            lifecycle.toXContent(builder, params, rolloverConfiguration, isSystem() ? null : globalRetention);
+            lifecycle.toXContent(builder, params, rolloverConfiguration, globalRetention, isInternal());
         }
         builder.field(ROLLOVER_ON_WRITE_FIELD.getPreferredName(), backingIndices.rolloverOnWrite);
         if (backingIndices.autoShardingEvent != null) {
@@ -1374,6 +1387,25 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         } catch (Exception e) {
             throw new IllegalArgumentException("Error extracting data stream timestamp field: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Resolve the index abstraction to a data stream. This handles alias resolution as well as data stream resolution. This does <b>NOT</b>
+     * resolve a data stream by providing a concrete backing index.
+     */
+    public static DataStream resolveDataStream(IndexAbstraction indexAbstraction, Metadata metadata) {
+        // We do not consider concrete indices - only data streams and data stream aliases.
+        if (indexAbstraction == null || indexAbstraction.isDataStreamRelated() == false) {
+            return null;
+        }
+
+        // Locate the write index for the abstraction, and check if it has a data stream associated with it.
+        Index writeIndex = indexAbstraction.getWriteIndex();
+        if (writeIndex == null) {
+            return null;
+        }
+        IndexAbstraction writeAbstraction = metadata.getIndicesLookup().get(writeIndex.getName());
+        return writeAbstraction.getParentDataStream();
     }
 
     /**

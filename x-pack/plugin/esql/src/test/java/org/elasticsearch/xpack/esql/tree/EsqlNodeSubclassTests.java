@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.tree;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.PathUtils;
@@ -20,7 +21,6 @@ import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttributeTests;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedNamedExpression;
@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.tree.SourceTests;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
@@ -44,12 +45,14 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.PhasedTests;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.Stat;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.mockito.exceptions.base.MockitoException;
 
 import java.io.IOException;
@@ -83,6 +86,7 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -113,7 +117,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
     private static final Predicate<String> CLASSNAME_FILTER = className -> {
         boolean esqlCore = className.startsWith("org.elasticsearch.xpack.esql.core") != false;
         boolean esqlProper = className.startsWith("org.elasticsearch.xpack.esql") != false;
-        return esqlCore || esqlProper;
+        return (esqlCore || esqlProper) && className.equals(PhasedTests.Dummy.class.getName()) == false;
     };
 
     /**
@@ -124,7 +128,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
     @SuppressWarnings("rawtypes")
     public static List<Object[]> nodeSubclasses() throws IOException {
         return subclassesOf(Node.class, CLASSNAME_FILTER).stream()
-            .filter(c -> testClassFor(c) == null)
+            .filter(c -> testClassFor(c) == null || c != PhasedTests.Dummy.class)
             .map(c -> new Object[] { c })
             .toList();
     }
@@ -477,6 +481,9 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             // ZoneId is a sealed class (cannot be mocked) starting with Java 19
             return randomZone();
         }
+        if (argClass == Configuration.class) {
+            return randomConfiguration();
+        }
         try {
             return mock(argClass);
         } catch (MockitoException e) {
@@ -653,13 +660,16 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         return randomFrom(Set.of("%{a} %{b}", "%{b} %{c}", "%{a} %{b} %{c}", "%{b} %{c} %{d}", "%{x}"));
     }
 
-    static String randomGrokPattern() {
+    public static String randomGrokPattern() {
         return randomFrom(
             Set.of("%{NUMBER:b:int} %{NUMBER:c:float} %{NUMBER:d:double} %{WORD:e:boolean}", "[a-zA-Z0-9._-]+", "%{LOGLEVEL}")
         );
     }
 
-    static List<DataType> DATA_TYPES = DataType.types().stream().toList();
+    static List<DataType> DATA_TYPES = DataType.types()
+        .stream()
+        .filter(d -> DataType.UNDER_CONSTRUCTION.containsKey(d) == false || Build.current().isSnapshot())
+        .toList();
 
     static EsQueryExec.FieldSort randomFieldSort() {
         return new EsQueryExec.FieldSort(

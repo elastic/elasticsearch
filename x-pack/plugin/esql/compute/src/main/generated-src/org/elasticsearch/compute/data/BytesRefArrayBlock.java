@@ -124,6 +124,48 @@ final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlo
     }
 
     @Override
+    public BytesRefBlock keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return this;
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return this;
+            }
+            return (BytesRefBlock) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+        BytesRef scratch = new BytesRef();
+        try (BytesRefBlock.Builder builder = blockFactory().newBytesRefBlockBuilder(getPositionCount())) {
+            // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
+            for (int p = 0; p < getPositionCount(); p++) {
+                if (false == mask.getBoolean(p)) {
+                    builder.appendNull();
+                    continue;
+                }
+                int valueCount = getValueCount(p);
+                if (valueCount == 0) {
+                    builder.appendNull();
+                    continue;
+                }
+                int start = getFirstValueIndex(p);
+                if (valueCount == 1) {
+                    builder.appendBytesRef(getBytesRef(start, scratch));
+                    continue;
+                }
+                int end = start + valueCount;
+                builder.beginPositionEntry();
+                for (int i = start; i < end; i++) {
+                    builder.appendBytesRef(getBytesRef(i, scratch));
+                }
+                builder.endPositionEntry();
+            }
+            return builder.build();
+        }
+    }
+
+    @Override
     public ReleasableIterator<BytesRefBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
         return new BytesRefLookup(this, positions, targetBlockSize);
     }

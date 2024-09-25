@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index;
@@ -12,14 +13,18 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentDimensions;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -103,7 +108,7 @@ public enum IndexMode {
 
         @Override
         public DocumentDimensions buildDocumentDimensions(IndexSettings settings) {
-            return new DocumentDimensions.OnlySingleValueAllowed();
+            return DocumentDimensions.Noop.INSTANCE;
         }
 
         @Override
@@ -222,7 +227,7 @@ public enum IndexMode {
             return true;
         }
     },
-    LOGS("logs") {
+    LOGSDB("logsdb") {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
             IndexMode.validateTimeSeriesSettings(settings);
@@ -277,7 +282,7 @@ public enum IndexMode {
 
         @Override
         public DocumentDimensions buildDocumentDimensions(IndexSettings settings) {
-            return new DocumentDimensions.OnlySingleValueAllowed();
+            return DocumentDimensions.Noop.INSTANCE;
         }
 
         @Override
@@ -288,13 +293,18 @@ public enum IndexMode {
         @Override
         public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {
             if (sourceFieldMapper.isSynthetic() == false) {
-                throw new IllegalArgumentException("Indices with with index mode [logs] only support synthetic source");
+                throw new IllegalArgumentException("Indices with with index mode [" + IndexMode.LOGSDB + "] only support synthetic source");
             }
         }
 
         @Override
         public boolean isSyntheticSourceEnabled() {
             return true;
+        }
+
+        @Override
+        public String getDefaultCodec() {
+            return CodecService.BEST_COMPRESSION_CODEC;
         }
     };
 
@@ -348,6 +358,10 @@ public enum IndexMode {
                     .startObject("properties")
                     .startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH)
                     .field("type", DateFieldMapper.CONTENT_TYPE)
+                    .endObject()
+                    .startObject("host.name")
+                    .field("type", KeywordFieldMapper.CONTENT_TYPE)
+                    .field("ignore_above", 1024)
                     .endObject()
                     .endObject()
                     .endObject())
@@ -461,6 +475,10 @@ public enum IndexMode {
      */
     public abstract boolean isSyntheticSourceEnabled();
 
+    public String getDefaultCodec() {
+        return CodecService.DEFAULT_CODEC;
+    }
+
     /**
      * Parse a string into an {@link IndexMode}.
      */
@@ -468,7 +486,7 @@ public enum IndexMode {
         return switch (value) {
             case "standard" -> IndexMode.STANDARD;
             case "time_series" -> IndexMode.TIME_SERIES;
-            case "logs" -> IndexMode.LOGS;
+            case "logsdb" -> IndexMode.LOGSDB;
             default -> throw new IllegalArgumentException(
                 "["
                     + value
@@ -477,6 +495,25 @@ public enum IndexMode {
                     + "]"
             );
         };
+    }
+
+    public static IndexMode readFrom(StreamInput in) throws IOException {
+        int mode = in.readByte();
+        return switch (mode) {
+            case 0 -> STANDARD;
+            case 1 -> TIME_SERIES;
+            case 2 -> LOGSDB;
+            default -> throw new IllegalStateException("unexpected index mode [" + mode + "]");
+        };
+    }
+
+    public static void writeTo(IndexMode indexMode, StreamOutput out) throws IOException {
+        final int code = switch (indexMode) {
+            case STANDARD -> 0;
+            case TIME_SERIES -> 1;
+            case LOGSDB -> 2;
+        };
+        out.writeByte((byte) code);
     }
 
     @Override

@@ -14,27 +14,29 @@ import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.search.sort.SortOrder;
 
+import java.util.List;
+
 import static org.hamcrest.Matchers.equalTo;
 
-public class FloatBucketedSortTests extends BucketedSortTestCase<FloatBucketedSort> {
+public class FloatBucketedSortTests extends BucketedSortTestCase<FloatBucketedSort, Float> {
     @Override
     protected FloatBucketedSort build(SortOrder sortOrder, int bucketSize) {
         return new FloatBucketedSort(bigArrays(), sortOrder, bucketSize);
     }
 
     @Override
-    protected Object expectedValue(double v) {
-        return v;
+    protected Float randomValue() {
+        return randomFloatBetween(-Float.MAX_VALUE, Float.MAX_VALUE, true);
     }
 
     @Override
-    protected double randomValue() {
-        return randomFloatBetween(Float.MIN_VALUE, Float.MAX_VALUE, true);
+    protected List<Float> threeSortedValues() {
+        return List.of(-Float.MAX_VALUE, randomFloatBetween(-Float.MAX_VALUE, Float.MAX_VALUE, true), Float.MAX_VALUE);
     }
 
     @Override
-    protected void collect(FloatBucketedSort sort, double value, int bucket) {
-        sort.collect((float) value, bucket);
+    protected void collect(FloatBucketedSort sort, Float value, int bucket) {
+        sort.collect(value, bucket);
     }
 
     @Override
@@ -48,11 +50,11 @@ public class FloatBucketedSortTests extends BucketedSortTestCase<FloatBucketedSo
     }
 
     @Override
-    protected void assertBlockTypeAndValues(Block block, Object... values) {
+    protected void assertBlockTypeAndValues(Block block, List<Float> values) {
         assertThat(block.elementType(), equalTo(ElementType.FLOAT));
         var typedBlock = (FloatBlock) block;
-        for (int i = 0; i < values.length; i++) {
-            assertThat((double) typedBlock.getFloat(i), equalTo(values[i]));
+        for (int i = 0; i < values.size(); i++) {
+            assertThat(typedBlock.getFloat(i), equalTo(values.get(i)));
         }
     }
 }

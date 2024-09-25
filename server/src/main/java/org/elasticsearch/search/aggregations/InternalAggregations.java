@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations;
 
@@ -226,34 +227,11 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
         }
         if (context.isFinalReduce()) {
             List<InternalAggregation> reducedInternalAggs = reduced.getInternalAggregations();
-            List<InternalAggregation> internalAggregations = null;
-            for (int i = 0; i < reducedInternalAggs.size(); i++) {
-                InternalAggregation agg = reducedInternalAggs.get(i);
-                InternalAggregation internalAggregation = agg.reducePipelines(
-                    agg,
-                    context,
-                    context.pipelineTreeRoot().subTree(agg.getName())
-                );
-                if (internalAggregation.equals(agg) == false) {
-                    if (internalAggregations == null) {
-                        internalAggregations = new ArrayList<>(reducedInternalAggs);
-                    }
-                    internalAggregations.set(i, internalAggregation);
-                }
-            }
+            reducedInternalAggs = reducedInternalAggs.stream()
+                .map(agg -> agg.reducePipelines(agg, context, context.pipelineTreeRoot().subTree(agg.getName())))
+                .collect(Collectors.toCollection(ArrayList::new));
 
-            var pipelineAggregators = context.pipelineTreeRoot().aggregators();
-            if (pipelineAggregators.isEmpty()) {
-                if (internalAggregations == null) {
-                    return reduced;
-                }
-                return from(internalAggregations);
-            }
-            if (internalAggregations != null) {
-                reducedInternalAggs = internalAggregations;
-            }
-            reducedInternalAggs = new ArrayList<>(reducedInternalAggs);
-            for (PipelineAggregator pipelineAggregator : pipelineAggregators) {
+            for (PipelineAggregator pipelineAggregator : context.pipelineTreeRoot().aggregators()) {
                 SiblingPipelineAggregator sib = (SiblingPipelineAggregator) pipelineAggregator;
                 InternalAggregation newAgg = sib.doReduce(from(reducedInternalAggs), context);
                 reducedInternalAggs.add(newAgg);
@@ -290,7 +268,7 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
             return from(reduced);
         }
         // general case
-        try (AggregatorsReducer reducer = new AggregatorsReducer(context, aggregationsList.size())) {
+        try (AggregatorsReducer reducer = new AggregatorsReducer(aggregationsList.get(0), context, aggregationsList.size())) {
             for (InternalAggregations aggregations : aggregationsList) {
                 reducer.accept(aggregations);
             }

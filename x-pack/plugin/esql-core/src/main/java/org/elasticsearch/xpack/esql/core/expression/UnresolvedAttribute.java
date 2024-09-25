@@ -28,26 +28,15 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
         this(source, name, null);
     }
 
-    public UnresolvedAttribute(Source source, String name, String qualifier) {
-        this(source, name, qualifier, null);
-    }
-
-    public UnresolvedAttribute(Source source, String name, String qualifier, String unresolvedMessage) {
-        this(source, name, qualifier, null, unresolvedMessage, null);
+    public UnresolvedAttribute(Source source, String name, String unresolvedMessage) {
+        this(source, name, null, unresolvedMessage, null);
     }
 
     @SuppressWarnings("this-escape")
-    public UnresolvedAttribute(
-        Source source,
-        String name,
-        String qualifier,
-        NameId id,
-        String unresolvedMessage,
-        Object resolutionMetadata
-    ) {
-        super(source, name, qualifier, id);
+    public UnresolvedAttribute(Source source, String name, NameId id, String unresolvedMessage, Object resolutionMetadata) {
+        super(source, name, id);
         this.customMessage = unresolvedMessage != null;
-        this.unresolvedMsg = unresolvedMessage == null ? errorMessage(qualifiedName(), null) : unresolvedMessage;
+        this.unresolvedMsg = unresolvedMessage == null ? errorMessage(name(), null) : unresolvedMessage;
         this.resolutionMetadata = resolutionMetadata;
     }
 
@@ -63,7 +52,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
 
     @Override
     protected NodeInfo<UnresolvedAttribute> info() {
-        return NodeInfo.create(this, UnresolvedAttribute::new, name(), qualifier(), id(), unresolvedMsg, resolutionMetadata);
+        return NodeInfo.create(this, UnresolvedAttribute::new, name(), id(), unresolvedMsg, resolutionMetadata);
     }
 
     public Object resolutionMetadata() {
@@ -80,20 +69,17 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     }
 
     @Override
-    protected Attribute clone(
-        Source source,
-        String name,
-        DataType dataType,
-        String qualifier,
-        Nullability nullability,
-        NameId id,
-        boolean synthetic
-    ) {
+    protected Attribute clone(Source source, String name, DataType dataType, Nullability nullability, NameId id, boolean synthetic) {
         return this;
     }
 
     public UnresolvedAttribute withUnresolvedMessage(String unresolvedMessage) {
-        return new UnresolvedAttribute(source(), name(), qualifier(), id(), unresolvedMessage, resolutionMetadata());
+        return new UnresolvedAttribute(source(), name(), id(), unresolvedMessage, resolutionMetadata());
+    }
+
+    @Override
+    protected TypeResolution resolveType() {
+        return new TypeResolution("unresolved attribute [" + name() + "]");
     }
 
     @Override
@@ -103,7 +89,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
 
     @Override
     public String toString() {
-        return UNRESOLVED_PREFIX + qualifiedName();
+        return UNRESOLVED_PREFIX + name();
     }
 
     @Override

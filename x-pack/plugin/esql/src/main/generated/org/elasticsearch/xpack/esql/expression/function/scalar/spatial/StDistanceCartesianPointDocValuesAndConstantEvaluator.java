@@ -66,7 +66,7 @@ public final class StDistanceCartesianPointDocValuesAndConstantEvaluator impleme
           continue position;
         }
         try {
-          result.appendDouble(StDistance.processCartesianPointDocValuesAndConstant(leftValueBlock.getLong(leftValueBlock.getFirstValueIndex(p)), rightValue));
+          result.appendDouble(StDistance.processCartesianPointDocValuesAndConstant(leftValueBlock.getLong(leftValueBlock.getFirstValueIndex(p)), this.rightValue));
         } catch (IllegalArgumentException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -80,7 +80,7 @@ public final class StDistanceCartesianPointDocValuesAndConstantEvaluator impleme
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendDouble(StDistance.processCartesianPointDocValuesAndConstant(leftValueVector.getLong(p), rightValue));
+          result.appendDouble(StDistance.processCartesianPointDocValuesAndConstant(leftValueVector.getLong(p), this.rightValue));
         } catch (IllegalArgumentException e) {
           warnings.registerException(e);
           result.appendNull();

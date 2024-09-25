@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.flattened;
@@ -12,12 +13,12 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.mapper.SortedSetDocValuesSyntheticFieldLoader;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class FlattenedSortedSetDocValuesSyntheticFieldLoader extends SortedSetDocValuesSyntheticFieldLoader {
+public class FlattenedSortedSetDocValuesSyntheticFieldLoader extends SourceLoader.DocValuesBasedSyntheticFieldLoader {
     private DocValuesFieldValues docValues = NO_VALUES;
     private final String fieldFullPath;
     private final String keyedFieldFullPath;
@@ -31,7 +32,6 @@ public class FlattenedSortedSetDocValuesSyntheticFieldLoader extends SortedSetDo
      * @param leafName                the name of the leaf field to use in the rendered {@code _source}
      */
     public FlattenedSortedSetDocValuesSyntheticFieldLoader(String fieldFullPath, String keyedFieldFullPath, String leafName) {
-        super(fieldFullPath, leafName, null, false);
         this.fieldFullPath = fieldFullPath;
         this.keyedFieldFullPath = keyedFieldFullPath;
         this.leafName = leafName;
@@ -67,16 +67,6 @@ public class FlattenedSortedSetDocValuesSyntheticFieldLoader extends SortedSetDo
         b.startObject(leafName);
         docValues.write(b);
         b.endObject();
-    }
-
-    @Override
-    protected BytesRef convert(BytesRef value) {
-        return value;
-    }
-
-    @Override
-    protected BytesRef preserve(BytesRef value) {
-        return BytesRef.deepCopyOf(value);
     }
 
     private interface DocValuesFieldValues {

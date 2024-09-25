@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.indices.rollover;
 
@@ -116,7 +117,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         } else {
             lazy = false;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_ROLLOVER)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             indicesOptions = IndicesOptions.readIndicesOptions(in);
         }
     }
@@ -168,7 +169,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeBoolean(lazy);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_ROLLOVER)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             indicesOptions.writeIndicesOptions(out);
         }
     }

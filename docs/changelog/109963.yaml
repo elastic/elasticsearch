@@ -1,6 +1,0 @@
-pr: 109963
-summary: Propagate mapper builder context flags across nested mapper builder context
-  creation
-area: Mapping
-type: bug
-issues: []

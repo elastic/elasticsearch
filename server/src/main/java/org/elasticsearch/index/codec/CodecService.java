@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.codec;
@@ -28,7 +29,7 @@ import java.util.stream.Collectors;
  * data-structures per field. Elasticsearch exposes the full
  * {@link Codec} capabilities through this {@link CodecService}.
  */
-public class CodecService {
+public class CodecService implements CodecProvider {
 
     public static final FeatureFlag ZSTD_STORED_FIELDS_FEATURE_FLAG = new FeatureFlag("zstd_stored_fields");
 
@@ -53,15 +54,11 @@ public class CodecService {
         }
         codecs.put(LEGACY_DEFAULT_CODEC, legacyBestSpeedCodec);
 
+        codecs.put(
+            BEST_COMPRESSION_CODEC,
+            new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION, mapperService, bigArrays)
+        );
         Codec legacyBestCompressionCodec = new LegacyPerFieldMapperCodec(Lucene99Codec.Mode.BEST_COMPRESSION, mapperService, bigArrays);
-        if (ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled()) {
-            codecs.put(
-                BEST_COMPRESSION_CODEC,
-                new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION, mapperService, bigArrays)
-            );
-        } else {
-            codecs.put(BEST_COMPRESSION_CODEC, legacyBestCompressionCodec);
-        }
         codecs.put(LEGACY_BEST_COMPRESSION_CODEC, legacyBestCompressionCodec);
 
         codecs.put(LUCENE_DEFAULT_CODEC, Codec.getDefault());
@@ -86,8 +83,9 @@ public class CodecService {
     }
 
     /**
-     * Returns all registered available codec names
+     * Returns all registered available codec names.
      */
+    @Override
     public String[] availableCodecs() {
         return codecs.keySet().toArray(new String[0]);
     }
@@ -96,6 +94,7 @@ public class CodecService {
 
         private final DeduplicatingFieldInfosFormat deduplicatingFieldInfosFormat;
 
+        @SuppressWarnings("this-escape")
         protected DeduplicateFieldInfosCodec(String name, Codec delegate) {
             super(name, delegate);
             this.deduplicatingFieldInfosFormat = new DeduplicatingFieldInfosFormat(super.fieldInfosFormat());
@@ -104,6 +103,10 @@ public class CodecService {
         @Override
         public final FieldInfosFormat fieldInfosFormat() {
             return deduplicatingFieldInfosFormat;
+        }
+
+        public final Codec delegate() {
+            return delegate;
         }
 
     }

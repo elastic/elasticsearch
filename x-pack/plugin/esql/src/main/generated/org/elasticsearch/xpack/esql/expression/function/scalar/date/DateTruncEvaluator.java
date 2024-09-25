@@ -64,7 +64,7 @@ public final class DateTruncEvaluator implements EvalOperator.ExpressionEvaluato
           result.appendNull();
           continue position;
         }
-        result.appendLong(DateTrunc.process(fieldValBlock.getLong(fieldValBlock.getFirstValueIndex(p)), rounding));
+        result.appendLong(DateTrunc.process(fieldValBlock.getLong(fieldValBlock.getFirstValueIndex(p)), this.rounding));
       }
       return result.build();
     }
@@ -73,7 +73,7 @@ public final class DateTruncEvaluator implements EvalOperator.ExpressionEvaluato
   public LongVector eval(int positionCount, LongVector fieldValVector) {
     try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendLong(p, DateTrunc.process(fieldValVector.getLong(p), rounding));
+        result.appendLong(p, DateTrunc.process(fieldValVector.getLong(p), this.rounding));
       }
       return result.build();
     }

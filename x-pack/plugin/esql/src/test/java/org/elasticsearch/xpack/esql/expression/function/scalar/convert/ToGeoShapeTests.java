@@ -66,7 +66,7 @@ public class ToGeoShapeTests extends AbstractScalarFunctionTestCase {
                 List.of()
             );
         }
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "geo_point or geo_shape or string");
     }
 
     @Override

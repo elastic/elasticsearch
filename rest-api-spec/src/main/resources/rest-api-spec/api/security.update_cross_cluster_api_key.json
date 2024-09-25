@@ -4,7 +4,7 @@
       "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-update-cross-cluster-api-key.html",
       "description": "Updates attributes of an existing cross-cluster API key."
     },
-    "stability": "beta",
+    "stability": "stable",
     "visibility": "public",
     "headers": {
       "accept": [

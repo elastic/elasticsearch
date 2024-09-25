@@ -30,9 +30,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
-import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsFeatureFlag;
 import org.elasticsearch.xpack.ml.inference.adaptiveallocations.AdaptiveAllocationsScalerService;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
@@ -68,6 +68,7 @@ public final class MlInitializationService implements ClusterStateListener {
         ClusterService clusterService,
         Client client,
         InferenceAuditor inferenceAuditor,
+        MeterRegistry meterRegistry,
         MlAssignmentNotifier mlAssignmentNotifier,
         boolean isAnomalyDetectionEnabled,
         boolean isDataFrameAnalyticsEnabled,
@@ -87,7 +88,7 @@ public final class MlInitializationService implements ClusterStateListener {
                 isDataFrameAnalyticsEnabled,
                 isNlpEnabled
             ),
-            new AdaptiveAllocationsScalerService(threadPool, clusterService, client, inferenceAuditor, isNlpEnabled),
+            new AdaptiveAllocationsScalerService(threadPool, clusterService, client, inferenceAuditor, meterRegistry, isNlpEnabled),
             clusterService
         );
     }
@@ -124,17 +125,13 @@ public final class MlInitializationService implements ClusterStateListener {
 
     public void onMaster() {
         mlDailyMaintenanceService.start();
-        if (AdaptiveAllocationsFeatureFlag.isEnabled()) {
-            adaptiveAllocationsScalerService.start();
-        }
+        adaptiveAllocationsScalerService.start();
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(this::makeMlInternalIndicesHidden);
     }
 
     public void offMaster() {
         mlDailyMaintenanceService.stop();
-        if (AdaptiveAllocationsFeatureFlag.isEnabled()) {
-            adaptiveAllocationsScalerService.stop();
-        }
+        adaptiveAllocationsScalerService.stop();
     }
 
     @Override

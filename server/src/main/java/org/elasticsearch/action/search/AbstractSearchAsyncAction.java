@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -319,7 +320,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             Runnable r = () -> {
                 final Thread thread = Thread.currentThread();
                 try {
-                    executePhaseOnShard(shardIt, shard, new SearchActionListener<Result>(shard, shardIndex) {
+                    executePhaseOnShard(shardIt, shard, new SearchActionListener<>(shard, shardIndex) {
                         @Override
                         public void innerOnResponse(Result result) {
                             try {
@@ -707,9 +708,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             final String scrollId = request.scroll() != null ? TransportSearchHelper.buildScrollId(queryResults) : null;
             final BytesReference searchContextId;
             if (buildPointInTimeFromSearchResults()) {
-                searchContextId = SearchContextId.encode(queryResults.asList(), aliasFilter, minTransportVersion);
+                searchContextId = SearchContextId.encode(queryResults.asList(), aliasFilter, minTransportVersion, failures);
             } else {
-                if (request.source() != null && request.source().pointInTimeBuilder() != null) {
+                if (request.source() != null
+                    && request.source().pointInTimeBuilder() != null
+                    && request.source().pointInTimeBuilder().singleSession() == false) {
                     searchContextId = request.source().pointInTimeBuilder().getEncodedId();
                 } else {
                     searchContextId = null;

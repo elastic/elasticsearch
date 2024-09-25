@@ -278,6 +278,47 @@ POST /_query
 ----
 // TEST[setup:library]
 
+The parameters can be named parameters or positional parameters.
+
+Named parameters use question mark placeholders (`?`) followed by a string.
+
+[source,console]
+----
+POST /_query
+{
+  "query": """
+    FROM library
+    | EVAL year = DATE_EXTRACT("year", release_date)
+    | WHERE page_count > ?page_count AND author == ?author
+    | STATS count = COUNT(*) by year
+    | WHERE count > ?count
+    | LIMIT 5
+  """,
+  "params": [{"page_count" : 300}, {"author" : "Frank Herbert"}, {"count" : 0}]
+}
+----
+// TEST[setup:library]
+
+Positional parameters use question mark placeholders (`?`) followed by an
+integer.
+
+[source,console]
+----
+POST /_query
+{
+  "query": """
+    FROM library
+    | EVAL year = DATE_EXTRACT("year", release_date)
+    | WHERE page_count > ?1 AND author == ?2
+    | STATS count = COUNT(*) by year
+    | WHERE count > ?3
+    | LIMIT 5
+  """,
+  "params": [300, "Frank Herbert", 0]
+}
+----
+// TEST[setup:library]
+
 [discrete]
 [[esql-rest-async-query]]
 ==== Running an async {esql} query

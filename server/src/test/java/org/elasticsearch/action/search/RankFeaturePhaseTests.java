@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.search;
 
@@ -106,7 +107,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         Transport.Connection connection,
                         final RankFeatureShardRequest request,
                         SearchTask task,
-                        final SearchActionListener<RankFeatureResult> listener
+                        final ActionListener<RankFeatureResult> listener
                     ) {
                         // make sure to match the context id generated above, otherwise we throw
                         if (request.contextId().getId() == 123 && Arrays.equals(request.getDocIds(), new int[] { 1, 2 })) {
@@ -212,7 +213,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         Transport.Connection connection,
                         final RankFeatureShardRequest request,
                         SearchTask task,
-                        final SearchActionListener<RankFeatureResult> listener
+                        final ActionListener<RankFeatureResult> listener
                     ) {
                         // make sure to match the context id generated above, otherwise we throw
                         // first shard
@@ -327,7 +328,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         Transport.Connection connection,
                         final RankFeatureShardRequest request,
                         SearchTask task,
-                        final SearchActionListener<RankFeatureResult> listener
+                        final ActionListener<RankFeatureResult> listener
                     ) {
                         // make sure to match the context id generated above, otherwise we throw
                         if (request.contextId().getId() == 123 && Arrays.equals(request.getDocIds(), new int[] { 1, 2 })) {
@@ -419,7 +420,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         Transport.Connection connection,
                         final RankFeatureShardRequest request,
                         SearchTask task,
-                        final SearchActionListener<RankFeatureResult> listener
+                        final ActionListener<RankFeatureResult> listener
                     ) {
                         // make sure to match the context id generated above, otherwise we throw
                         // first shard
@@ -511,7 +512,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         Transport.Connection connection,
                         final RankFeatureShardRequest request,
                         SearchTask task,
-                        final SearchActionListener<RankFeatureResult> listener
+                        final ActionListener<RankFeatureResult> listener
                     ) {
                         // make sure to match the context id generated above, otherwise we throw
                         if (request.contextId().getId() == 123 && Arrays.equals(request.getDocIds(), new int[] { 1, 2 })) {
@@ -535,7 +536,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
             // override the RankFeaturePhase to raise an exception
             RankFeaturePhase rankFeaturePhase = new RankFeaturePhase(results, null, mockSearchPhaseContext, null) {
                 @Override
-                void innerRun() {
+                void innerRun(RankFeaturePhaseRankCoordinatorContext rankFeaturePhaseRankCoordinatorContext) {
                     throw new IllegalArgumentException("simulated failure");
                 }
 
@@ -637,7 +638,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         Transport.Connection connection,
                         final RankFeatureShardRequest request,
                         SearchTask task,
-                        final SearchActionListener<RankFeatureResult> listener
+                        final ActionListener<RankFeatureResult> listener
                     ) {
 
                         RankFeatureResult rankFeatureResult = new RankFeatureResult();
@@ -779,7 +780,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         Transport.Connection connection,
                         final RankFeatureShardRequest request,
                         SearchTask task,
-                        final SearchActionListener<RankFeatureResult> listener
+                        final ActionListener<RankFeatureResult> listener
                     ) {
                         RankFeatureResult rankFeatureResult = new RankFeatureResult();
                         // make sure to match the context id generated above, otherwise we throw
@@ -1141,7 +1142,13 @@ public class RankFeaturePhaseTests extends ESTestCase {
             ) {
                 // this is called after the RankFeaturePhaseCoordinatorContext has been executed
                 phaseDone.set(true);
-                finalResults[0] = reducedQueryPhase.sortedTopDocs().scoreDocs();
+                try {
+                    finalResults[0] = reducedQueryPhase == null
+                        ? queryPhaseResults.reduce().sortedTopDocs().scoreDocs()
+                        : reducedQueryPhase.sortedTopDocs().scoreDocs();
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
                 logger.debug("Skipping moving to next phase");
             }
         };

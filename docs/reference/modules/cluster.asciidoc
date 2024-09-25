@@ -1,9 +1,7 @@
 [[modules-cluster]]
 === Cluster-level shard allocation and routing settings
 
-_Shard allocation_ is the process of allocating shards to nodes. This can
-happen during initial recovery, replica allocation, rebalancing, or
-when nodes are added or removed.
+include::{es-ref-dir}/modules/shard-allocation-desc.asciidoc[]
 
 One of the main roles of the master is to decide which shards to allocate to
 which nodes, and when to move shards between nodes in order to rebalance the

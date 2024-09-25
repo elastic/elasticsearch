@@ -13,8 +13,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopBooleanAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.TopBytesRefAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.TopIpAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -47,7 +49,7 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
     private static final String ORDER_DESC = "DESC";
 
     @FunctionInfo(
-        returnType = { "boolean", "double", "integer", "long", "date" },
+        returnType = { "boolean", "double", "integer", "long", "date", "ip", "keyword", "text" },
         description = "Collects the top values for a field. Includes repeated values.",
         isAggregation = true,
         examples = @Example(file = "stats_top", tag = "top")
@@ -56,7 +58,7 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
         Source source,
         @Param(
             name = "field",
-            type = { "boolean", "double", "integer", "long", "date" },
+            type = { "boolean", "double", "integer", "long", "date", "ip", "keyword", "text" },
             description = "The field to collect the top values for."
         ) Expression field,
         @Param(name = "limit", type = { "integer" }, description = "The maximum number of values to collect.") Expression limit,
@@ -121,9 +123,17 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
 
         var typeResolution = isType(
             field(),
-            dt -> dt == DataType.BOOLEAN || dt == DataType.DATETIME || dt.isNumeric() && dt != DataType.UNSIGNED_LONG,
+            dt -> dt == DataType.BOOLEAN
+                || dt == DataType.DATETIME
+                || dt == DataType.IP
+                || DataType.isString(dt)
+                || (dt.isNumeric() && dt != DataType.UNSIGNED_LONG),
             sourceText(),
             FIRST,
+            "boolean",
+            "date",
+            "ip",
+            "string",
             "numeric except unsigned_long or counter types"
         ).and(isNotNullAndFoldable(limitField(), sourceText(), SECOND))
             .and(isType(limitField(), dt -> dt == DataType.INTEGER, sourceText(), SECOND, "integer"))
@@ -179,6 +189,12 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
         }
         if (type == DataType.BOOLEAN) {
             return new TopBooleanAggregatorFunctionSupplier(inputChannels, limitValue(), orderValue());
+        }
+        if (type == DataType.IP) {
+            return new TopIpAggregatorFunctionSupplier(inputChannels, limitValue(), orderValue());
+        }
+        if (DataType.isString(type)) {
+            return new TopBytesRefAggregatorFunctionSupplier(inputChannels, limitValue(), orderValue());
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);
     }

@@ -4,7 +4,7 @@
 
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-str | pattern | caseInsensitive | result
-keyword | keyword | boolean | boolean
-text | text | boolean | boolean
+str | pattern | result
+keyword | keyword | boolean
+text | text | boolean
 |===

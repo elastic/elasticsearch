@@ -241,7 +241,6 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/110406")
     public void testBoxplotHistogram() throws Exception {
         int compression = TestUtil.nextInt(random(), 200, 300);
         setupTDigestHistogram(compression);

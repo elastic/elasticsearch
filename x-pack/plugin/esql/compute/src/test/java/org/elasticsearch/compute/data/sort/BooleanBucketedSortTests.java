@@ -14,27 +14,29 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.search.sort.SortOrder;
 
+import java.util.List;
+
 import static org.hamcrest.Matchers.equalTo;
 
-public class BooleanBucketedSortTests extends BucketedSortTestCase<BooleanBucketedSort> {
+public class BooleanBucketedSortTests extends BucketedSortTestCase<BooleanBucketedSort, Boolean> {
     @Override
     protected BooleanBucketedSort build(SortOrder sortOrder, int bucketSize) {
         return new BooleanBucketedSort(bigArrays(), sortOrder, bucketSize);
     }
 
     @Override
-    protected Object expectedValue(double v) {
-        return toBoolean(v);
+    protected Boolean randomValue() {
+        return randomBoolean();
     }
 
     @Override
-    protected double randomValue() {
-        return randomBoolean() ? 0d : 1d;
+    protected List<Boolean> threeSortedValues() {
+        return List.of(false, true, true);
     }
 
     @Override
-    protected void collect(BooleanBucketedSort sort, double value, int bucket) {
-        sort.collect(toBoolean(value), bucket);
+    protected void collect(BooleanBucketedSort sort, Boolean value, int bucket) {
+        sort.collect(value, bucket);
     }
 
     @Override
@@ -48,15 +50,11 @@ public class BooleanBucketedSortTests extends BucketedSortTestCase<BooleanBucket
     }
 
     @Override
-    protected void assertBlockTypeAndValues(Block block, Object... values) {
+    protected void assertBlockTypeAndValues(Block block, List<Boolean> values) {
         assertThat(block.elementType(), equalTo(ElementType.BOOLEAN));
         var typedBlock = (BooleanBlock) block;
-        for (int i = 0; i < values.length; i++) {
-            assertThat(typedBlock.getBoolean(i), equalTo(values[i]));
+        for (int i = 0; i < values.size(); i++) {
+            assertThat(typedBlock.getBoolean(i), equalTo(values.get(i)));
         }
-    }
-
-    private boolean toBoolean(double value) {
-        return value > 0;
     }
 }

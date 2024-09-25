@@ -1,7 +1,7 @@
 [[logs-data-stream]]
 == Logs data stream
 
-preview::[Logs data streams and the logs index mode are in tech preview and may be changed or removed in the future. Don't use logs data streams or logs index mode in production.]
+preview::[Logs data streams and the logsdb index mode are in tech preview and may be changed or removed in the future. Don't use logs data streams or logsdb index mode in production.]
 
 A logs data stream is a data stream type that stores log data more efficiently.
 
@@ -20,7 +20,7 @@ The following features are enabled in a logs data stream:
 [[how-to-use-logsds]]
 === Create a logs data stream
 
-To create a logs data stream, set your index template  `index.mode` to `logs`:
+To create a logs data stream, set your index template  `index.mode` to `logsdb`:
 
 [source,console]
 ----
@@ -30,7 +30,7 @@ PUT _index_template/my-index-template
   "data_stream": { },
   "template": {
      "settings": {
-        "index.mode": "logs" <1>
+        "index.mode": "logsdb" <1>
      }
   },
   "priority": 101 <2>

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.xcontent;
@@ -20,7 +21,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.plugins.internal.DocumentSizeObserver;
+import org.elasticsearch.plugins.internal.XContentParserDecorator;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -152,14 +153,14 @@ public class XContentHelper {
         BytesReference bytes,
         boolean ordered,
         XContentType xContentType,
-        DocumentSizeObserver documentSizeObserver
+        XContentParserDecorator parserDecorator
     ) {
         return parseToType(
             ordered ? XContentParser::mapOrdered : XContentParser::map,
             bytes,
             xContentType,
             XContentParserConfiguration.EMPTY,
-            documentSizeObserver
+            parserDecorator
         );
     }
 
@@ -207,7 +208,7 @@ public class XContentHelper {
         @Nullable XContentType xContentType,
         @Nullable XContentParserConfiguration config
     ) throws ElasticsearchParseException {
-        return parseToType(extractor, bytes, xContentType, config, DocumentSizeObserver.EMPTY_INSTANCE);
+        return parseToType(extractor, bytes, xContentType, config, XContentParserDecorator.NOOP);
     }
 
     public static <T> Tuple<XContentType, T> parseToType(
@@ -215,11 +216,11 @@ public class XContentHelper {
         BytesReference bytes,
         @Nullable XContentType xContentType,
         @Nullable XContentParserConfiguration config,
-        DocumentSizeObserver documentSizeObserver
+        XContentParserDecorator parserDecorator
     ) throws ElasticsearchParseException {
         config = config != null ? config : XContentParserConfiguration.EMPTY;
         try (
-            XContentParser parser = documentSizeObserver.wrapParser(
+            XContentParser parser = parserDecorator.decorate(
                 xContentType != null ? createParser(config, bytes, xContentType) : createParser(config, bytes)
             )
         ) {

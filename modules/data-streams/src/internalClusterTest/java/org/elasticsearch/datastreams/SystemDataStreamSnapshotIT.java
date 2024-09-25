@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.datastreams;
 
@@ -58,7 +59,11 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
         createRepository(REPO, "fs", location);
 
         {
-            CreateDataStreamAction.Request request = new CreateDataStreamAction.Request(SYSTEM_DATA_STREAM_NAME);
+            CreateDataStreamAction.Request request = new CreateDataStreamAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                SYSTEM_DATA_STREAM_NAME
+            );
             final AcknowledgedResponse response = client().execute(CreateDataStreamAction.INSTANCE, request).get();
             assertTrue(response.isAcknowledged());
         }
@@ -71,7 +76,10 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(indexRepsonse.status().getStatus(), oneOf(200, 201));
 
         {
-            GetDataStreamAction.Request request = new GetDataStreamAction.Request(new String[] { SYSTEM_DATA_STREAM_NAME });
+            GetDataStreamAction.Request request = new GetDataStreamAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                new String[] { SYSTEM_DATA_STREAM_NAME }
+            );
             GetDataStreamAction.Response response = client().execute(GetDataStreamAction.INSTANCE, request).get();
             assertThat(response.getDataStreams(), hasSize(1));
             assertTrue(response.getDataStreams().get(0).getDataStream().isSystem());
@@ -87,7 +95,10 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
         // We have to delete the data stream directly, as the feature reset API doesn't clean up system data streams yet
         // See https://github.com/elastic/elasticsearch/issues/75818
         {
-            DeleteDataStreamAction.Request request = new DeleteDataStreamAction.Request(new String[] { SYSTEM_DATA_STREAM_NAME });
+            DeleteDataStreamAction.Request request = new DeleteDataStreamAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                new String[] { SYSTEM_DATA_STREAM_NAME }
+            );
             AcknowledgedResponse response = client().execute(DeleteDataStreamAction.INSTANCE, request).get();
             assertTrue(response.isAcknowledged());
         }
@@ -127,7 +138,10 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertEquals(restoreSnapshotResponse.getRestoreInfo().totalShards(), restoreSnapshotResponse.getRestoreInfo().successfulShards());
 
         {
-            GetDataStreamAction.Request request = new GetDataStreamAction.Request(new String[] { SYSTEM_DATA_STREAM_NAME });
+            GetDataStreamAction.Request request = new GetDataStreamAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                new String[] { SYSTEM_DATA_STREAM_NAME }
+            );
             GetDataStreamAction.Response response = client().execute(GetDataStreamAction.INSTANCE, request).get();
             assertThat(response.getDataStreams(), hasSize(1));
             assertTrue(response.getDataStreams().get(0).getDataStream().isSystem());
@@ -144,7 +158,10 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     private void assertSystemDataStreamDoesNotExist() {
         try {
-            GetDataStreamAction.Request request = new GetDataStreamAction.Request(new String[] { SYSTEM_DATA_STREAM_NAME });
+            GetDataStreamAction.Request request = new GetDataStreamAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                new String[] { SYSTEM_DATA_STREAM_NAME }
+            );
             GetDataStreamAction.Response response = client().execute(GetDataStreamAction.INSTANCE, request).get();
             assertThat(response.getDataStreams(), hasSize(0));
         } catch (Exception e) {
@@ -161,7 +178,11 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
         createRepository(REPO, "fs", location);
 
         {
-            CreateDataStreamAction.Request request = new CreateDataStreamAction.Request(SYSTEM_DATA_STREAM_NAME);
+            CreateDataStreamAction.Request request = new CreateDataStreamAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                SYSTEM_DATA_STREAM_NAME
+            );
             final AcknowledgedResponse response = client().execute(CreateDataStreamAction.INSTANCE, request).get();
             assertTrue(response.isAcknowledged());
         }
@@ -181,7 +202,10 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(indexResponse.status().getStatus(), oneOf(200, 201));
 
         {
-            GetDataStreamAction.Request request = new GetDataStreamAction.Request(new String[] { SYSTEM_DATA_STREAM_NAME });
+            GetDataStreamAction.Request request = new GetDataStreamAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                new String[] { SYSTEM_DATA_STREAM_NAME }
+            );
             GetDataStreamAction.Response response = client().execute(GetDataStreamAction.INSTANCE, request).get();
             assertThat(response.getDataStreams(), hasSize(1));
             assertTrue(response.getDataStreams().get(0).getDataStream().isSystem());
@@ -201,7 +225,10 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
         // We have to delete the data stream directly, as the feature reset API doesn't clean up system data streams yet
         // See https://github.com/elastic/elasticsearch/issues/75818
         {
-            DeleteDataStreamAction.Request request = new DeleteDataStreamAction.Request(new String[] { SYSTEM_DATA_STREAM_NAME });
+            DeleteDataStreamAction.Request request = new DeleteDataStreamAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                new String[] { SYSTEM_DATA_STREAM_NAME }
+            );
             AcknowledgedResponse response = client().execute(DeleteDataStreamAction.INSTANCE, request).get();
             assertTrue(response.isAcknowledged());
         }
@@ -221,7 +248,10 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertEquals(restoreSnapshotResponse.getRestoreInfo().totalShards(), restoreSnapshotResponse.getRestoreInfo().successfulShards());
 
         {
-            GetDataStreamAction.Request request = new GetDataStreamAction.Request(new String[] { SYSTEM_DATA_STREAM_NAME });
+            GetDataStreamAction.Request request = new GetDataStreamAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                new String[] { SYSTEM_DATA_STREAM_NAME }
+            );
             GetDataStreamAction.Response response = client().execute(GetDataStreamAction.INSTANCE, request).get();
             assertThat(response.getDataStreams(), hasSize(1));
             assertTrue(response.getDataStreams().get(0).getDataStream().isSystem());

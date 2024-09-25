@@ -51,7 +51,7 @@ setup:
                 type: text
 
 ---
-"Calculates text expansion and embedding results for new documents":
+"Calculates sparse embedding and text embedding results for new documents":
   - do:
       index:
         index: test-index
@@ -73,6 +73,93 @@ setup:
   - exists: _source.dense_field.inference.chunks.0.embeddings
   - match: { _source.dense_field.inference.chunks.0.text: "another inference test" }
   - match: { _source.non_inference_field: "non inference test" }
+
+---
+"Calculates sparse embedding and text embedding results for new documents with integer value":
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          sparse_field: 75
+          dense_field: 100
+
+  - do:
+      get:
+        index: test-index
+        id: doc_1
+
+  - match: { _source.sparse_field.text: "75" }
+  - exists: _source.sparse_field.inference.chunks.0.embeddings
+  - match: { _source.sparse_field.inference.chunks.0.text: "75" }
+  - match: { _source.dense_field.text: "100" }
+  - exists: _source.dense_field.inference.chunks.0.embeddings
+  - match: { _source.dense_field.inference.chunks.0.text: "100" }
+
+---
+"Calculates sparse embedding and text embedding results for new documents with boolean value":
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          sparse_field: true
+          dense_field: false
+
+  - do:
+      get:
+        index: test-index
+        id: doc_1
+
+  - match: { _source.sparse_field.text: "true" }
+  - exists: _source.sparse_field.inference.chunks.0.embeddings
+  - match: { _source.sparse_field.inference.chunks.0.text: "true" }
+  - match: { _source.dense_field.text: "false" }
+  - exists: _source.dense_field.inference.chunks.0.embeddings
+  - match: { _source.dense_field.inference.chunks.0.text: "false" }
+
+---
+"Calculates sparse embedding and text embedding results for new documents with a collection of mixed data types":
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          sparse_field: [false, 75, "inference test", 13.49]
+          dense_field: [true, 49.99, "another inference test", 5654]
+
+  - do:
+      get:
+        index: test-index
+        id: doc_1
+
+  - length: { _source.sparse_field.text: 4 }
+  - match: { _source.sparse_field.text.0: "false" }
+  - match: { _source.sparse_field.text.1: "75" }
+  - match: { _source.sparse_field.text.2: "inference test" }
+  - match: { _source.sparse_field.text.3: "13.49" }
+  - exists: _source.sparse_field.inference.chunks.0.embeddings
+  - exists: _source.sparse_field.inference.chunks.1.embeddings
+  - exists: _source.sparse_field.inference.chunks.2.embeddings
+  - exists: _source.sparse_field.inference.chunks.3.embeddings
+  - match: { _source.sparse_field.inference.chunks.0.text: "false" }
+  - match: { _source.sparse_field.inference.chunks.1.text: "75" }
+  - match: { _source.sparse_field.inference.chunks.2.text: "inference test" }
+  - match: { _source.sparse_field.inference.chunks.3.text: "13.49" }
+
+  - length: { _source.dense_field.text: 4 }
+  - match: { _source.dense_field.text.0: "true" }
+  - match: { _source.dense_field.text.1: "49.99" }
+  - match: { _source.dense_field.text.2: "another inference test" }
+  - match: { _source.dense_field.text.3: "5654" }
+  - exists: _source.dense_field.inference.chunks.0.embeddings
+  - exists: _source.dense_field.inference.chunks.1.embeddings
+  - exists: _source.dense_field.inference.chunks.2.embeddings
+  - exists: _source.dense_field.inference.chunks.3.embeddings
+  - match: { _source.dense_field.inference.chunks.0.text: "true" }
+  - match: { _source.dense_field.inference.chunks.1.text: "49.99" }
+  - match: { _source.dense_field.inference.chunks.2.text: "another inference test" }
+  - match: { _source.dense_field.inference.chunks.3.text: "5654" }
 
 ---
 "Inference fields do not create new mappings":

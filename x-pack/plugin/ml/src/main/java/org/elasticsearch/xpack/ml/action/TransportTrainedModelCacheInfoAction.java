@@ -7,16 +7,15 @@
 
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -35,7 +34,8 @@ public class TransportTrainedModelCacheInfoAction extends TransportNodesAction<
     TrainedModelCacheInfoAction.Request,
     TrainedModelCacheInfoAction.Response,
     TransportTrainedModelCacheInfoAction.NodeModelCacheInfoRequest,
-    CacheInfo> {
+    CacheInfo,
+    Void> {
 
     private final ModelLoadingService modelLoadingService;
 
@@ -94,7 +94,6 @@ public class TransportTrainedModelCacheInfoAction extends TransportNodesAction<
 
         public NodeModelCacheInfoRequest(StreamInput in) throws IOException {
             super(in);
-            skipLegacyNodesRequestHeader(TransportVersions.DROP_UNUSED_NODES_REQUESTS, in);
         }
 
         @Override
@@ -105,7 +104,6 @@ public class TransportTrainedModelCacheInfoAction extends TransportNodesAction<
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            sendLegacyNodesRequestHeader(TransportVersions.DROP_UNUSED_NODES_REQUESTS, out);
         }
     }
 }

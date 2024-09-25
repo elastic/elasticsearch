@@ -14,28 +14,29 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.search.sort.SortOrder;
 
+import java.util.List;
+
 import static org.hamcrest.Matchers.equalTo;
 
-public class LongBucketedSortTests extends BucketedSortTestCase<LongBucketedSort> {
+public class LongBucketedSortTests extends BucketedSortTestCase<LongBucketedSort, Long> {
     @Override
     protected LongBucketedSort build(SortOrder sortOrder, int bucketSize) {
         return new LongBucketedSort(bigArrays(), sortOrder, bucketSize);
     }
 
     @Override
-    protected Object expectedValue(double v) {
-        return (long) v;
+    protected Long randomValue() {
+        return randomLong();
     }
 
     @Override
-    protected double randomValue() {
-        // 2L^50 fits in the mantisa of a double which the test sort of needs.
-        return randomLongBetween(-2L ^ 50, 2L ^ 50);
+    protected List<Long> threeSortedValues() {
+        return List.of(Long.MIN_VALUE, randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE), Long.MAX_VALUE);
     }
 
     @Override
-    protected void collect(LongBucketedSort sort, double value, int bucket) {
-        sort.collect((long) value, bucket);
+    protected void collect(LongBucketedSort sort, Long value, int bucket) {
+        sort.collect(value, bucket);
     }
 
     @Override
@@ -49,11 +50,11 @@ public class LongBucketedSortTests extends BucketedSortTestCase<LongBucketedSort
     }
 
     @Override
-    protected void assertBlockTypeAndValues(Block block, Object... values) {
+    protected void assertBlockTypeAndValues(Block block, List<Long> values) {
         assertThat(block.elementType(), equalTo(ElementType.LONG));
         var typedBlock = (LongBlock) block;
-        for (int i = 0; i < values.length; i++) {
-            assertThat(typedBlock.getLong(i), equalTo(values[i]));
+        for (int i = 0; i < values.size(); i++) {
+            assertThat(typedBlock.getLong(i), equalTo(values.get(i)));
         }
     }
 }

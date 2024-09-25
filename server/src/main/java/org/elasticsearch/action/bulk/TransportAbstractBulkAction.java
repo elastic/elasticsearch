@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.bulk;
@@ -23,6 +24,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -38,6 +40,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -56,7 +60,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
     protected final SystemIndices systemIndices;
     private final IngestService ingestService;
     private final IngestActionForwarder ingestForwarder;
-    protected final LongSupplier relativeTimeProvider;
+    protected final LongSupplier relativeTimeNanosProvider;
     protected final Executor writeExecutor;
     protected final Executor systemWriteExecutor;
     private final ActionType<BulkResponse> bulkAction;
@@ -71,7 +75,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         IngestService ingestService,
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
-        LongSupplier relativeTimeProvider
+        LongSupplier relativeTimeNanosProvider
     ) {
         super(action.name(), transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
@@ -83,7 +87,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         this.systemWriteExecutor = threadPool.executor(ThreadPool.Names.SYSTEM_WRITE);
         this.ingestForwarder = new IngestActionForwarder(transportService);
         clusterService.addStateApplier(this.ingestForwarder);
-        this.relativeTimeProvider = relativeTimeProvider;
+        this.relativeTimeNanosProvider = relativeTimeNanosProvider;
         this.bulkAction = action;
     }
 
@@ -111,7 +115,12 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
             clusterService.state().metadata().getIndicesLookup(),
             systemIndices
         );
-        final Releasable releasable = indexingPressure.markCoordinatingOperationStarted(indexingOps, indexingBytes, isOnlySystem);
+        final Releasable releasable;
+        if (bulkRequest.incrementalState().indexingPressureAccounted()) {
+            releasable = () -> {};
+        } else {
+            releasable = indexingPressure.markCoordinatingOperationStarted(indexingOps, indexingBytes, isOnlySystem);
+        }
         final ActionListener<BulkResponse> releasingListener = ActionListener.runBefore(listener, releasable::close);
         final Executor executor = isOnlySystem ? systemWriteExecutor : writeExecutor;
         ensureClusterStateThenForkAndExecute(task, bulkRequest, executor, releasingListener);
@@ -162,19 +171,21 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
     private void forkAndExecute(Task task, BulkRequest bulkRequest, Executor executor, ActionListener<BulkResponse> releasingListener) {
         executor.execute(new ActionRunnable<>(releasingListener) {
             @Override
-            protected void doRun() {
+            protected void doRun() throws IOException {
                 applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, releasingListener);
             }
         });
     }
 
-    private boolean applyPipelines(Task task, BulkRequest bulkRequest, Executor executor, ActionListener<BulkResponse> listener) {
+    private boolean applyPipelines(Task task, BulkRequest bulkRequest, Executor executor, ActionListener<BulkResponse> listener)
+        throws IOException {
         boolean hasIndexRequestsWithPipelines = false;
         final Metadata metadata = clusterService.state().getMetadata();
+        Map<String, ComponentTemplate> templateSubstitutions = bulkRequest.getComponentTemplateSubstitutions();
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
             IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
             if (indexRequest != null) {
-                IngestService.resolvePipelinesAndUpdateIndexRequest(actionRequest, indexRequest, metadata);
+                IngestService.resolvePipelinesAndUpdateIndexRequest(actionRequest, indexRequest, metadata, templateSubstitutions);
                 hasIndexRequestsWithPipelines |= IngestService.hasPipeline(indexRequest);
             }
 
@@ -216,13 +227,13 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         Metadata metadata,
         ActionListener<BulkResponse> listener
     ) {
-        final long ingestStartTimeInNanos = System.nanoTime();
+        final long ingestStartTimeInNanos = relativeTimeNanos();
         final BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(original);
         getIngestService(original).executeBulkRequest(
             original.numberOfActions(),
             () -> bulkRequestModifier,
             bulkRequestModifier::markItemAsDropped,
-            (indexName) -> shouldStoreFailure(indexName, metadata, threadPool.absoluteTimeInMillis()),
+            (indexName) -> resolveFailureStore(indexName, metadata, threadPool.absoluteTimeInMillis()),
             bulkRequestModifier::markItemForFailureStore,
             bulkRequestModifier::markItemAsFailed,
             (originalThread, exception) -> {
@@ -230,7 +241,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                     logger.debug("failed to execute pipeline for a bulk request", exception);
                     listener.onFailure(exception);
                 } else {
-                    long ingestTookInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - ingestStartTimeInNanos);
+                    long ingestTookInMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeNanos() - ingestStartTimeInNanos);
                     BulkRequest bulkRequest = bulkRequestModifier.getBulkRequest();
                     ActionListener<BulkResponse> actionListener = bulkRequestModifier.wrapActionListenerIfNeeded(
                         ingestTookInMillis,
@@ -244,7 +255,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                     } else {
                         ActionRunnable<BulkResponse> runnable = new ActionRunnable<>(actionListener) {
                             @Override
-                            protected void doRun() {
+                            protected void doRun() throws IOException {
                                 applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, actionListener);
                             }
 
@@ -274,13 +285,15 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
     /**
      * Determines if an index name is associated with either an existing data stream or a template
      * for one that has the failure store enabled.
+     *
      * @param indexName The index name to check.
      * @param metadata Cluster state metadata.
      * @param epochMillis A timestamp to use when resolving date math in the index name.
      * @return true if this is not a simulation, and the given index name corresponds to a data stream with a failure store
-     * or if it matches a template that has a data stream failure store enabled.
+     * or if it matches a template that has a data stream failure store enabled. Returns false if the index name corresponds to a
+     * data stream, but it doesn't have the failure store enabled. Returns null when it doesn't correspond to a data stream.
      */
-    protected abstract boolean shouldStoreFailure(String indexName, Metadata metadata, long epochMillis);
+    protected abstract Boolean resolveFailureStore(String indexName, Metadata metadata, long epochMillis);
 
     /**
      * Retrieves the {@link IndexRequest} from the provided {@link DocWriteRequest} for index or upsert actions.  Upserts are
@@ -307,12 +320,12 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         return ingestService;
     }
 
-    protected long relativeTime() {
-        return relativeTimeProvider.getAsLong();
+    protected long relativeTimeNanos() {
+        return relativeTimeNanosProvider.getAsLong();
     }
 
     protected long buildTookInMillis(long startTimeNanos) {
-        return TimeUnit.NANOSECONDS.toMillis(relativeTime() - startTimeNanos);
+        return TimeUnit.NANOSECONDS.toMillis(relativeTimeNanos() - startTimeNanos);
     }
 
     private void applyPipelinesAndDoInternalExecute(
@@ -320,10 +333,10 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         BulkRequest bulkRequest,
         Executor executor,
         ActionListener<BulkResponse> listener
-    ) {
-        final long relativeStartTime = threadPool.relativeTimeInMillis();
+    ) throws IOException {
+        final long relativeStartTimeNanos = relativeTimeNanos();
         if (applyPipelines(task, bulkRequest, executor, listener) == false) {
-            doInternalExecute(task, bulkRequest, executor, listener, relativeStartTime);
+            doInternalExecute(task, bulkRequest, executor, listener, relativeStartTimeNanos);
         }
     }
 
@@ -341,6 +354,6 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         Executor executor,
         ActionListener<BulkResponse> listener,
         long relativeStartTimeNanos
-    );
+    ) throws IOException;
 
 }

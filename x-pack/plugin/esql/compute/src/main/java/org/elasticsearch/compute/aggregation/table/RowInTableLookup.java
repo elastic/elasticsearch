@@ -37,6 +37,9 @@ public abstract sealed class RowInTableLookup implements Releasable permits Empt
     public abstract String toString();
 
     public static RowInTableLookup build(BlockFactory blockFactory, Block[] keys) {
+        if (keys.length < 1) {
+            throw new IllegalArgumentException("expected [keys] to be non-empty");
+        }
         int positions = keys[0].getPositionCount();
         for (int k = 0; k < keys.length; k++) {
             if (positions != keys[k].getPositionCount()) {

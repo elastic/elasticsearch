@@ -89,8 +89,9 @@ one at a time. If you expand the `force_merge` threadpool on a node then it
 will force merge its shards in parallel.
 
 Force merge makes the storage for the shard being merged temporarily
-increase, up to double its size in case `max_num_segments` parameter is set to
-`1`, as all segments need to be rewritten into a new one.
+increase, as it may require free space up to triple its size in case
+`max_num_segments` parameter is set to `1`, to rewrite all segments into a new
+one.
 
 [[forcemerge-api-path-params]]
 ==== {api-path-parms-title}

@@ -77,13 +77,11 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -464,17 +462,15 @@ public class EnrichLookupService {
             super(in);
             this.sessionId = in.readString();
             this.shardId = new ShardId(in);
-            String inputDataType = (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_EXTENDED_ENRICH_INPUT_TYPE))
-                ? in.readString()
-                : "unknown";
-            this.inputDataType = EsqlDataTypes.fromTypeName(inputDataType);
+            String inputDataType = (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) ? in.readString() : "unknown";
+            this.inputDataType = DataType.fromTypeName(inputDataType);
             this.matchType = in.readString();
             this.matchField = in.readString();
             try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
                 this.inputPage = new Page(bsi);
             }
             this.toRelease = inputPage;
-            PlanStreamInput planIn = new PlanStreamInput(in, PlanNameRegistry.INSTANCE, in.namedWriteableRegistry(), null);
+            PlanStreamInput planIn = new PlanStreamInput(in, in.namedWriteableRegistry(), null);
             this.extractFields = planIn.readNamedWriteableCollectionAsList(NamedExpression.class);
         }
 
@@ -483,13 +479,13 @@ public class EnrichLookupService {
             super.writeTo(out);
             out.writeString(sessionId);
             out.writeWriteable(shardId);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_EXTENDED_ENRICH_INPUT_TYPE)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
                 out.writeString(inputDataType.typeName());
             }
             out.writeString(matchType);
             out.writeString(matchField);
             out.writeWriteable(inputPage);
-            PlanStreamOutput planOut = new PlanStreamOutput(out, PlanNameRegistry.INSTANCE, null);
+            PlanStreamOutput planOut = new PlanStreamOutput(out, null);
             planOut.writeNamedWriteableCollection(extractFields);
         }
 

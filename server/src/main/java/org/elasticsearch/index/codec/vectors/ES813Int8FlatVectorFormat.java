@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.codec.vectors;
@@ -15,7 +16,6 @@ import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
-import org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsFormat;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
@@ -45,8 +45,7 @@ public class ES813Int8FlatVectorFormat extends KnnVectorsFormat {
      */
     public ES813Int8FlatVectorFormat(Float confidenceInterval, int bits, boolean compress) {
         super(NAME);
-        // TODO can we just switch this to ES814ScalarQuantizedVectorsFormat ?
-        this.format = new Lucene99ScalarQuantizedVectorsFormat(confidenceInterval, bits, compress);
+        this.format = new ES814ScalarQuantizedVectorsFormat(confidenceInterval, bits, compress);
     }
 
     @Override

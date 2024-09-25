@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.inference.InputType;
@@ -29,22 +30,46 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class TextSimilarityRankTests extends ESSingleNodeTestCase {
 
     /**
-     * {@code TextSimilarityRankBuilder} that simulates an inference call that returns a different number of results as the input.
+     * {@code TextSimilarityRankBuilder} that sets top_n in the inference endpoint's task settings.
+     * See {@code TextSimilarityTestPlugin -> TestFilter -> handleGetInferenceModelActionRequest} for the logic that extracts the top_n
+     * value.
      */
-    public static class InvalidInferenceResultCountProvidingTextSimilarityRankBuilder extends TextSimilarityRankBuilder {
+    public static class TopNConfigurationAcceptingTextSimilarityRankBuilder extends TextSimilarityRankBuilder {
 
-        public InvalidInferenceResultCountProvidingTextSimilarityRankBuilder(
+        public TopNConfigurationAcceptingTextSimilarityRankBuilder(
             String field,
             String inferenceId,
             String inferenceText,
             int rankWindowSize,
-            Float minScore
+            Float minScore,
+            int topN
+        ) {
+            super(field, inferenceId + "-task-settings-top-" + topN, inferenceText, rankWindowSize, minScore);
+        }
+    }
+
+    /**
+     * {@code TextSimilarityRankBuilder} that simulates an inference call returning N results.
+     */
+    public static class InferenceResultCountAcceptingTextSimilarityRankBuilder extends TextSimilarityRankBuilder {
+
+        private final int inferenceResultCount;
+
+        public InferenceResultCountAcceptingTextSimilarityRankBuilder(
+            String field,
+            String inferenceId,
+            String inferenceText,
+            int rankWindowSize,
+            Float minScore,
+            int inferenceResultCount
         ) {
             super(field, inferenceId, inferenceText, rankWindowSize, minScore);
+            this.inferenceResultCount = inferenceResultCount;
         }
 
         @Override
@@ -62,12 +87,13 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
                 protected InferenceAction.Request generateRequest(List<String> docFeatures) {
                     return new InferenceAction.Request(
                         TaskType.RERANK,
-                        inferenceId,
+                        this.inferenceId,
                         inferenceText,
                         docFeatures,
-                        Map.of("invalidInferenceResultCount", true),
+                        Map.of("inferenceResultCount", inferenceResultCount),
                         InputType.SEARCH,
-                        InferenceAction.Request.DEFAULT_TIMEOUT
+                        InferenceAction.Request.DEFAULT_TIMEOUT,
+                        false
                     );
                 }
             };
@@ -151,17 +177,38 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
         );
     }
 
-    public void testRerankInferenceResultMismatch() {
-        ElasticsearchAssertions.assertFailures(
+    public void testRerankTopNConfigurationAndRankWindowSizeMismatch() {
+        SearchPhaseExecutionException ex = expectThrows(
+            SearchPhaseExecutionException.class,
             // Execute search with text similarity reranking
             client.prepareSearch()
                 .setRankBuilder(
-                    new InvalidInferenceResultCountProvidingTextSimilarityRankBuilder("text", "my-rerank-model", "my query", 100, 1.5f)
+                    // Simulate reranker configuration with top_n=3 in task_settings, which is different from rank_window_size=10
+                    // (Note: top_n comes from inferenceId, there's no other easy way of passing this to the mocked get model request)
+                    new TopNConfigurationAcceptingTextSimilarityRankBuilder("text", "my-rerank-model", "my query", 100, 1.5f, 3)
                 )
-                .setQuery(QueryBuilders.matchAllQuery()),
-            RestStatus.INTERNAL_SERVER_ERROR,
-            containsString("Failed to execute phase [rank-feature], Computing updated ranks for results failed")
+                .setQuery(QueryBuilders.matchAllQuery())
         );
+        assertThat(ex.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(
+            ex.getDetailedMessage(),
+            containsString("Reduce rank_window_size to be less than or equal to the configured top N value")
+        );
+    }
+
+    public void testRerankInputSizeAndInferenceResultsMismatch() {
+        SearchPhaseExecutionException ex = expectThrows(
+            SearchPhaseExecutionException.class,
+            // Execute search with text similarity reranking
+            client.prepareSearch()
+                .setRankBuilder(
+                    // Simulate reranker returning different number of results from input
+                    new InferenceResultCountAcceptingTextSimilarityRankBuilder("text", "my-rerank-model", "my query", 100, 1.5f, 4)
+                )
+                .setQuery(QueryBuilders.matchAllQuery())
+        );
+        assertThat(ex.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+        assertThat(ex.getDetailedMessage(), containsString("Reranker input document count and returned score count mismatch"));
     }
 
     private static void assertHitHasRankScoreAndText(SearchHit hit, int expectedRank, float expectedScore, String expectedText) {

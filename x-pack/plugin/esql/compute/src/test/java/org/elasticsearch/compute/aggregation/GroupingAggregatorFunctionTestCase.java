@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
@@ -32,7 +33,9 @@ import org.elasticsearch.compute.operator.NullInsertingSourceOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PositionMergingSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
@@ -49,11 +52,14 @@ import static org.elasticsearch.compute.data.BlockTestUtils.append;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
+/**
+ * Shared tests for testing grouped aggregations.
+ */
 public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperatorTestCase {
     protected abstract AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels);
 
     protected final int aggregatorIntermediateBlockCount() {
-        try (var agg = aggregatorFunction(List.of()).aggregator(driverContext())) {
+        try (var agg = aggregatorFunction(List.of()).groupingAggregator(driverContext())) {
             return agg.intermediateBlockCount();
         }
     }
@@ -61,6 +67,18 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     protected abstract String expectedDescriptionOfAggregator();
 
     protected abstract void assertSimpleGroup(List<Page> input, Block result, int position, Long group);
+
+    /**
+     * Returns the datatype this aggregator accepts. If null, all datatypes are accepted.
+     * <p>
+     *     Used to generate correct input for aggregators that require specific types.
+     *     For example, IP aggregators require BytesRefs with a fixed size.
+     * </p>
+     */
+    @Nullable
+    protected DataType acceptedDataType() {
+        return null;
+    };
 
     @Override
     protected final Operator.OperatorFactory simpleWithMode(AggregatorMode mode) {
@@ -86,14 +104,18 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     @Override
     protected final Matcher<String> expectedToStringOfSimple() {
         String hash = "blockHash=LongBlockHash{channel=0, entries=0, seenNull=false}";
-        String type = getClass().getSimpleName().replace("Tests", "");
         return equalTo(
             "HashAggregationOperator["
                 + hash
                 + ", aggregators=[GroupingAggregator[aggregatorFunction="
-                + type
-                + "[channels=[1]], mode=SINGLE]]]"
+                + expectedToStringOfSimpleAggregator()
+                + ", mode=SINGLE]]]"
         );
+    }
+
+    protected String expectedToStringOfSimpleAggregator() {
+        String type = getClass().getSimpleName().replace("Tests", "");
+        return type + "[channels=[1]]";
     }
 
     private SeenGroups seenGroups(List<Page> input) {
@@ -202,7 +224,12 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                     // Append a small random value to make sure we don't overflow on things like sums
                     append(builder, switch (elementType) {
                         case BOOLEAN -> randomBoolean();
-                        case BYTES_REF -> new BytesRef(randomAlphaOfLength(3));
+                        case BYTES_REF -> {
+                            if (acceptedDataType() == DataType.IP) {
+                                yield new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
+                            }
+                            yield new BytesRef(randomAlphaOfLength(3));
+                        }
                         case FLOAT -> randomFloat();
                         case DOUBLE -> randomDouble();
                         case INT -> 1;
@@ -524,7 +551,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                     @Override
                     public AddInput prepareProcessPage(SeenGroupIds ignoredSeenGroupIds, Page page) {
                         return new AddInput() {
-                            AddInput delegateAddInput = delegate.prepareProcessPage(bigArrays -> {
+                            final AddInput delegateAddInput = delegate.prepareProcessPage(bigArrays -> {
                                 BitArray seen = new BitArray(0, bigArrays);
                                 seen.or(seenGroupIds);
                                 return seen;
@@ -575,7 +602,17 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                                     delegateAddInput.add(positionOffset + offset, blockFactory.newIntArrayVector(chunk, count));
                                 }
                             }
+
+                            @Override
+                            public void close() {
+                                delegateAddInput.close();
+                            }
                         };
+                    }
+
+                    @Override
+                    public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
+                        delegate.selectedMayContainUnseenGroups(seenGroupIds);
                     }
 
                     @Override

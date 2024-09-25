@@ -1,18 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.azure;
 
-import com.azure.storage.blob.models.BlobStorageException;
+import com.azure.core.exception.HttpResponseException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.core.util.Throwables;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -69,13 +70,13 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         try {
             return blobStore.getInputStream(blobKey, position, length);
         } catch (Exception e) {
-            Throwable rootCause = Throwables.getRootCause(e);
-            if (rootCause instanceof BlobStorageException blobStorageException) {
-                if (blobStorageException.getStatusCode() == RestStatus.NOT_FOUND.getStatus()) {
+            if (ExceptionsHelper.unwrap(e, HttpResponseException.class) instanceof HttpResponseException httpResponseException) {
+                final var httpStatusCode = httpResponseException.getResponse().getStatusCode();
+                if (httpStatusCode == RestStatus.NOT_FOUND.getStatus()) {
                     throw new NoSuchFileException("Blob [" + blobKey + "] not found");
                 }
-                if (blobStorageException.getStatusCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()) {
-                    throw new RequestedRangeNotSatisfiedException(blobKey, position, length == null ? -1 : length, blobStorageException);
+                if (httpStatusCode == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()) {
+                    throw new RequestedRangeNotSatisfiedException(blobKey, position, length == null ? -1 : length, e);
                 }
             }
             throw new IOException("Unable to get input stream for blob [" + blobKey + "]", e);
@@ -102,6 +103,17 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         throws IOException {
         logger.trace("writeBlob({}, stream, {})", buildKey(blobName), blobSize);
         blobStore.writeBlob(buildKey(blobName), inputStream, blobSize, failIfAlreadyExists);
+    }
+
+    @Override
+    public void writeBlobAtomic(
+        OperationPurpose purpose,
+        String blobName,
+        InputStream inputStream,
+        long blobSize,
+        boolean failIfAlreadyExists
+    ) throws IOException {
+        writeBlob(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
     }
 
     @Override

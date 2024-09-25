@@ -136,6 +136,17 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         );
     }
 
+    /**
+     * A long-lived object which defines a trained model deployment/assignment.
+     *
+     * @param taskParams the parameters provided by the StartTrainedModelDeploymentAction during the creation of the deployment/assignment
+     * @param nodeRoutingTable shows where allocations for this assignment/deployment are located (on which nodes)
+     * @param assignmentState used to track the state of the assignment for rebalancing, autoscaling, and more
+     * @param reason may contain a human-readable explanation for the current state
+     * @param startTime the time when the assignment was created
+     * @param maxAssignedAllocations used for adaptive allocations
+     * @param adaptiveAllocationsSettings how the assignment should scale based on usage
+     */
     TrainedModelAssignment(
         StartTrainedModelDeploymentAction.TaskParams taskParams,
         Map<String, RoutingInfo> nodeRoutingTable,
@@ -178,6 +189,9 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         return nodeRoutingTable.containsKey(nodeId);
     }
 
+    /**
+     * @return shows where allocations for this assignment/deployment are located (on which nodes)
+     */
     public Map<String, RoutingInfo> getNodeRoutingTable() {
         return Collections.unmodifiableMap(nodeRoutingTable);
     }
@@ -308,6 +322,10 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
 
     public int totalTargetAllocations() {
         return nodeRoutingTable.values().stream().mapToInt(RoutingInfo::getTargetAllocations).sum();
+    }
+
+    public int totalTargetProcessors() {
+        return nodeRoutingTable.values().stream().mapToInt(r -> r.getTargetAllocations() * getTaskParams().getThreadsPerAllocation()).sum();
     }
 
     public int totalFailedAllocations() {

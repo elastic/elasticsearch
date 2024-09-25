@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.geoip;
@@ -24,6 +25,7 @@ import java.net.URL;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
+import java.util.Arrays;
 import java.util.Objects;
 
 import static java.net.HttpURLConnection.HTTP_MOVED_PERM;
@@ -33,6 +35,31 @@ import static java.net.HttpURLConnection.HTTP_OK;
 import static java.net.HttpURLConnection.HTTP_SEE_OTHER;
 
 class HttpClient {
+
+    /**
+     * A PasswordAuthenticationHolder is just a wrapper around a PasswordAuthentication to implement AutoCloseable.
+     * This construction makes it possible to use a PasswordAuthentication in a try-with-resources statement, which
+     * makes it easier to ensure cleanup of the PasswordAuthentication is performed after it's finished being used.
+     */
+    static final class PasswordAuthenticationHolder implements AutoCloseable {
+        private PasswordAuthentication auth;
+
+        PasswordAuthenticationHolder(String username, char[] passwordChars) {
+            this.auth = new PasswordAuthentication(username, passwordChars); // clones the passed-in chars
+        }
+
+        public PasswordAuthentication get() {
+            Objects.requireNonNull(auth);
+            return auth;
+        }
+
+        @Override
+        public void close() {
+            final PasswordAuthentication clear = this.auth;
+            this.auth = null; // set to null and then clear it
+            Arrays.fill(clear.getPassword(), '\0'); // zero out the password chars
+        }
+    }
 
     // a private sentinel value for representing the idea that there's no auth for some request.
     // this allows us to have a not-null requirement on the methods that do accept an auth.

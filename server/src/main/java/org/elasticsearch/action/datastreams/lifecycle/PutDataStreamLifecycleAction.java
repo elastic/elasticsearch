@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.datastreams.lifecycle;
@@ -45,9 +46,14 @@ public class PutDataStreamLifecycleAction {
 
     public static final class Request extends AcknowledgedRequest<Request> implements IndicesRequest.Replaceable, ToXContentObject {
 
-        public static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
+        public interface Factory {
+            Request create(@Nullable TimeValue dataRetention, @Nullable Boolean enabled, @Nullable Downsampling downsampling);
+        }
+
+        public static final ConstructingObjectParser<Request, Factory> PARSER = new ConstructingObjectParser<>(
             "put_data_stream_lifecycle_request",
-            args -> new Request(null, ((TimeValue) args[0]), (Boolean) args[1], (Downsampling) args[2])
+            false,
+            (args, factory) -> factory.create((TimeValue) args[0], (Boolean) args[1], (Downsampling) args[2])
         );
 
         static {
@@ -62,13 +68,13 @@ public class PutDataStreamLifecycleAction {
                 if (p.currentToken() == XContentParser.Token.VALUE_NULL) {
                     return Downsampling.NULL;
                 } else {
-                    return new Downsampling(AbstractObjectParser.parseArray(p, c, Downsampling.Round::fromXContent));
+                    return new Downsampling(AbstractObjectParser.parseArray(p, null, Downsampling.Round::fromXContent));
                 }
             }, DOWNSAMPLING_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_OR_NULL);
         }
 
-        public static Request parseRequest(XContentParser parser) {
-            return PARSER.apply(parser, null);
+        public static Request parseRequest(XContentParser parser, Factory factory) {
+            return PARSER.apply(parser, factory);
         }
 
         private String[] names;
@@ -90,22 +96,35 @@ public class PutDataStreamLifecycleAction {
             out.writeWriteable(lifecycle);
         }
 
-        public Request(String[] names, @Nullable TimeValue dataRetention) {
-            this(names, dataRetention, null, null);
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String[] names, @Nullable TimeValue dataRetention) {
+            this(masterNodeTimeout, ackTimeout, names, dataRetention, null, null);
         }
 
-        public Request(String[] names, DataStreamLifecycle lifecycle) {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String[] names, DataStreamLifecycle lifecycle) {
+            super(masterNodeTimeout, ackTimeout);
             this.names = names;
             this.lifecycle = lifecycle;
         }
 
-        public Request(String[] names, @Nullable TimeValue dataRetention, @Nullable Boolean enabled) {
-            this(names, dataRetention, enabled, null);
+        public Request(
+            TimeValue masterNodeTimeout,
+            TimeValue ackTimeout,
+            String[] names,
+            @Nullable TimeValue dataRetention,
+            @Nullable Boolean enabled
+        ) {
+            this(masterNodeTimeout, ackTimeout, names, dataRetention, enabled, null);
         }
 
-        public Request(String[] names, @Nullable TimeValue dataRetention, @Nullable Boolean enabled, @Nullable Downsampling downsampling) {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+        public Request(
+            TimeValue masterNodeTimeout,
+            TimeValue ackTimeout,
+            String[] names,
+            @Nullable TimeValue dataRetention,
+            @Nullable Boolean enabled,
+            @Nullable Downsampling downsampling
+        ) {
+            super(masterNodeTimeout, ackTimeout);
             this.names = names;
             this.lifecycle = DataStreamLifecycle.newBuilder()
                 .dataRetention(dataRetention)

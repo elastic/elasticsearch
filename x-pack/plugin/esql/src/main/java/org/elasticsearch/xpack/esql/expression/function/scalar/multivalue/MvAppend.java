@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -132,14 +131,14 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isType(field1, EsqlDataTypes::isRepresentable, sourceText(), FIRST, "representable");
+        TypeResolution resolution = isType(field1, DataType::isRepresentable, sourceText(), FIRST, "representable");
         if (resolution.unresolved()) {
             return resolution;
         }
         dataType = field1.dataType();
         if (dataType == DataType.NULL) {
             dataType = field2.dataType();
-            return isType(field2, EsqlDataTypes::isRepresentable, sourceText(), SECOND, "representable");
+            return isType(field2, DataType::isRepresentable, sourceText(), SECOND, "representable");
         }
         return isType(field2, t -> t == dataType, sourceText(), SECOND, dataType.typeName());
     }

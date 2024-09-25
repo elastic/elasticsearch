@@ -448,3 +448,63 @@ POST /my-bit-vectors/_search?filter_path=hits.hits
 }
 ----
 
+==== Updatable field type
+
+To better accommodate scaling and performance needs, updating the `type` setting in `index_options` is possible with the <<indices-put-mapping,Update Mapping API>>, according to the following graph (jumps allowed):
+
+[source,txt]
+----
+flat --> int8_flat --> int4_flat --> hnsw --> int8_hnsw --> int4_hnsw
+----
+
+For updating all HNSW types (`hnsw`, `int8_hnsw`, `int4_hnsw`) the number of connections `m` must either stay the same or increase. For scalar quantized formats  (`int8_flat`, `int4_flat`, `int8_hnsw`, `int4_hnsw`) the `confidence_interval` must always be consistent (once defined, it cannot change).
+
+Updating `type` in `index_options` will fail in all other scenarios.
+
+Switching `types` won't re-index vectors that have already been indexed (they will keep using their original `type`), vectors being indexed after the change will use the new `type` instead.
+
+For example, it's possible to define a dense vector field that utilizes the `flat` type (raw float32 arrays) for a first batch of data to be indexed.
+
+[source,console]
+--------------------------------------------------
+PUT my-index-000001
+{
+    "mappings": {
+        "properties": {
+            "text_embedding": {
+                "type": "dense_vector",
+                "dims": 384,
+                "index_options": {
+                    "type": "flat"
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+Changing the `type` to `int4_hnsw` makes sure vectors indexed after the change will use an int4 scalar quantized representation and HNSW (e.g., for KNN queries).
+That includes new segments created by <<index-modules-merge,merging>> previously created segments.
+
+[source,console]
+--------------------------------------------------
+PUT /my-index-000001/_mapping
+{
+    "properties": {
+        "text_embedding": {
+            "type": "dense_vector",
+            "dims": 384,
+            "index_options": {
+                "type": "int4_hnsw"
+            }
+        }
+    }
+}
+--------------------------------------------------
+// TEST[setup:my_index]
+
+Vectors indexed before this change will keep using the `flat` type (raw float32 representation and brute force search for KNN queries).
+
+In order to have all the vectors updated to the new type, either reindexing or force merging should be used.
+
+For debugging purposes, it's possible to inspect how many segments (and docs) exist for each `type` with the <<index-segments-api-request,Index Segments API>>.

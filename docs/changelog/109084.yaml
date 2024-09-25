@@ -1,5 +1,0 @@
-pr: 109084
-summary: Add AVX-512 optimised vector distance functions for int7 on x64
-area: Search
-type: enhancement
-issues: []

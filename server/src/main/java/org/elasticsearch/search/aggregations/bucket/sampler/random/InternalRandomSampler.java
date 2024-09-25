@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.sampler.random;
@@ -55,7 +56,7 @@ public class InternalRandomSampler extends InternalSingleBucketAggregation imple
         super(in);
         this.seed = in.readInt();
         this.probability = in.readDouble();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.RANDOM_AGG_SHARD_SEED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             this.shardSeed = in.readOptionalInt();
         } else {
             this.shardSeed = null;
@@ -67,7 +68,7 @@ public class InternalRandomSampler extends InternalSingleBucketAggregation imple
         super.doWriteTo(out);
         out.writeInt(seed);
         out.writeDouble(probability);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.RANDOM_AGG_SHARD_SEED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             out.writeOptionalInt(shardSeed);
         }
     }
@@ -91,7 +92,7 @@ public class InternalRandomSampler extends InternalSingleBucketAggregation imple
     protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
             long docCount = 0L;
-            final AggregatorsReducer subAggregatorReducer = new AggregatorsReducer(reduceContext, size);
+            final AggregatorsReducer subAggregatorReducer = new AggregatorsReducer(getAggregations(), reduceContext, size);
 
             @Override
             public void accept(InternalAggregation aggregation) {

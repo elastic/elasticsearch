@@ -133,10 +133,7 @@ public class WatchStoreUtilsTests extends ESTestCase {
 
     private IndexMetadata createIndexMetaData(String indexName, AliasMetadata aliasMetadata) {
         IndexMetadata.Builder indexMetadataBuilder = new IndexMetadata.Builder(indexName);
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_PRIORITY, 5)
-            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+        Settings settings = indexSettings(1, 1).put(IndexMetadata.SETTING_PRIORITY, 5)
             .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
             .build();
         indexMetadataBuilder.settings(settings);

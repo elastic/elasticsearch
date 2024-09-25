@@ -69,7 +69,7 @@ public final class StDistanceGeoSourceAndConstantEvaluator implements EvalOperat
           continue position;
         }
         try {
-          result.appendDouble(StDistance.processGeoSourceAndConstant(leftValueBlock.getBytesRef(leftValueBlock.getFirstValueIndex(p), leftValueScratch), rightValue));
+          result.appendDouble(StDistance.processGeoSourceAndConstant(leftValueBlock.getBytesRef(leftValueBlock.getFirstValueIndex(p), leftValueScratch), this.rightValue));
         } catch (IllegalArgumentException | IOException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -84,7 +84,7 @@ public final class StDistanceGeoSourceAndConstantEvaluator implements EvalOperat
       BytesRef leftValueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendDouble(StDistance.processGeoSourceAndConstant(leftValueVector.getBytesRef(p, leftValueScratch), rightValue));
+          result.appendDouble(StDistance.processGeoSourceAndConstant(leftValueVector.getBytesRef(p, leftValueScratch), this.rightValue));
         } catch (IllegalArgumentException | IOException e) {
           warnings.registerException(e);
           result.appendNull();

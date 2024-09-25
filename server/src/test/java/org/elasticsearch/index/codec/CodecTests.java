@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.codec;
@@ -38,7 +39,9 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -62,7 +65,6 @@ public class CodecTests extends ESTestCase {
     }
 
     public void testBestCompression() throws Exception {
-        assumeTrue("Only when zstd_stored_fields feature flag is enabled", CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled());
         Codec codec = createCodecService().codec("best_compression");
         assertEquals(
             "Zstd814StoredFieldsFormat(compressionMode=ZSTD(level=3), chunkSize=245760, maxDocsPerChunk=2048, blockShift=10)",
@@ -94,6 +96,29 @@ public class CodecTests extends ESTestCase {
             w.addDocument(doc);
             try (DirectoryReader r = DirectoryReader.open(w)) {}
         }
+    }
+
+    public void testCodecRetrievalForUnknownCodec() throws Exception {
+        CodecService codecService = createCodecService();
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> codecService.codec("unknown_codec"));
+        assertEquals("failed to find codec [unknown_codec]", exception.getMessage());
+    }
+
+    public void testAvailableCodecsContainsExpectedCodecs() throws Exception {
+        CodecService codecService = createCodecService();
+        String[] availableCodecs = codecService.availableCodecs();
+        List<String> codecList = Arrays.asList(availableCodecs);
+        int expectedCodecCount = Codec.availableCodecs().size() + 5;
+
+        assertTrue(codecList.contains(CodecService.DEFAULT_CODEC));
+        assertTrue(codecList.contains(CodecService.LEGACY_DEFAULT_CODEC));
+        assertTrue(codecList.contains(CodecService.BEST_COMPRESSION_CODEC));
+        assertTrue(codecList.contains(CodecService.LEGACY_BEST_COMPRESSION_CODEC));
+        assertTrue(codecList.contains(CodecService.LUCENE_DEFAULT_CODEC));
+
+        assertFalse(codecList.contains("unknown_codec"));
+
+        assertEquals(expectedCodecCount, availableCodecs.length);
     }
 
     private CodecService createCodecService() throws IOException {

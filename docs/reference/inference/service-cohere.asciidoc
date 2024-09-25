@@ -131,6 +131,7 @@ Specify whether to return doc text within the results.
 `top_n`::
 (Optional, integer)
 The number of most relevant documents to return, defaults to the number of the documents.
+If this {infer} endpoint is used in a `text_similarity_reranker` retriever query and `top_n` is set, it must be greater than or equal to `rank_window_size` in the query.
 =====
 +
 .`task_settings` for the `text_embedding` task type

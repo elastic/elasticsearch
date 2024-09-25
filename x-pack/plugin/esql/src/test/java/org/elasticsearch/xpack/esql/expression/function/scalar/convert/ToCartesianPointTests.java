@@ -72,7 +72,7 @@ public class ToCartesianPointTests extends AbstractScalarFunctionTestCase {
             );
         }
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "cartesian_point or string");
     }
 
     @Override

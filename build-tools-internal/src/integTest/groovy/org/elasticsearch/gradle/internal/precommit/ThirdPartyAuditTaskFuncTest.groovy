@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.precommit
@@ -18,6 +19,7 @@ import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.elasticsearch.gradle.internal.conventions.precommit.LicenseHeadersPrecommitPlugin
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin
+import org.gradle.testkit.runner.GradleRunner
 import org.gradle.testkit.runner.TaskOutcome
 
 
@@ -209,6 +211,10 @@ class ThirdPartyAuditTaskFuncTest extends AbstractGradleInternalPluginFuncTest {
                 .intercept(FixedValue.nullValue())
                 .make()
         loggingDynamicType.toJar(targetFile(dir("${baseGroupFolderPath}/broken-log4j/0.0.1/"), "broken-log4j-0.0.1.jar"))
+    }
+
+    GradleRunner gradleRunner(Object... arguments) {
+        return super.gradleRunner(arguments).withEnvironment([RUNTIME_JAVA_HOME: System.getProperty("java.home")])
     }
 
     static File targetFile(File dir, String fileName) {

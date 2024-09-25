@@ -66,7 +66,7 @@ public final class ToUpperEvaluator implements EvalOperator.ExpressionEvaluator 
           result.appendNull();
           continue position;
         }
-        result.appendBytesRef(ToUpper.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch), locale));
+        result.appendBytesRef(ToUpper.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch), this.locale));
       }
       return result.build();
     }
@@ -76,7 +76,7 @@ public final class ToUpperEvaluator implements EvalOperator.ExpressionEvaluator 
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       BytesRef valScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBytesRef(ToUpper.process(valVector.getBytesRef(p, valScratch), locale));
+        result.appendBytesRef(ToUpper.process(valVector.getBytesRef(p, valScratch), this.locale));
       }
       return result.build();
     }

@@ -89,7 +89,7 @@ public final class ReplaceConstantEvaluator implements EvalOperator.ExpressionEv
           continue position;
         }
         try {
-          result.appendBytesRef(Replace.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), regex, newStrBlock.getBytesRef(newStrBlock.getFirstValueIndex(p), newStrScratch)));
+          result.appendBytesRef(Replace.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), this.regex, newStrBlock.getBytesRef(newStrBlock.getFirstValueIndex(p), newStrScratch)));
         } catch (PatternSyntaxException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -106,7 +106,7 @@ public final class ReplaceConstantEvaluator implements EvalOperator.ExpressionEv
       BytesRef newStrScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendBytesRef(Replace.process(strVector.getBytesRef(p, strScratch), regex, newStrVector.getBytesRef(p, newStrScratch)));
+          result.appendBytesRef(Replace.process(strVector.getBytesRef(p, strScratch), this.regex, newStrVector.getBytesRef(p, newStrScratch)));
         } catch (PatternSyntaxException e) {
           warnings.registerException(e);
           result.appendNull();

@@ -73,7 +73,7 @@ public class ToCartesianShapeTests extends AbstractScalarFunctionTestCase {
             );
         }
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "cartesian_point or cartesian_shape or string");
     }
 
     @Override

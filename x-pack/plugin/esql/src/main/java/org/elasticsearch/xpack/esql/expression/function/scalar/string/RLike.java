@@ -16,6 +16,9 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -27,7 +30,16 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
 public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLike implements EvaluatorMapper {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "RLike", RLike::new);
 
-    public RLike(Source source, Expression value, RLikePattern pattern) {
+    @FunctionInfo(returnType = "boolean", description = """
+        Use `RLIKE` to filter data based on string patterns using using
+        <<regexp-syntax,regular expressions>>. `RLIKE` usually acts on a field placed on
+        the left-hand side of the operator, but it can also act on a constant (literal)
+        expression. The right-hand side of the operator represents the pattern.""", examples = @Example(file = "docs", tag = "rlike"))
+    public RLike(
+        Source source,
+        @Param(name = "str", type = { "keyword", "text" }, description = "A literal value.") Expression value,
+        @Param(name = "pattern", type = { "keyword", "text" }, description = "A regular expression.") RLikePattern pattern
+    ) {
         super(source, value, pattern);
     }
 

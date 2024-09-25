@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -59,23 +60,23 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
     }
 
     public static ComposableIndexTemplate randomInstance() {
-        Settings settings = null;
-        CompressedXContent mappings = null;
-        Map<String, AliasMetadata> aliases = null;
         Template template = null;
         ComposableIndexTemplate.DataStreamTemplate dataStreamTemplate = randomDataStreamTemplate();
-
+        Template.Builder builder = Template.builder();
         if (dataStreamTemplate != null || randomBoolean()) {
             if (randomBoolean()) {
-                settings = randomSettings();
+                builder.settings(randomSettings());
             }
             if (dataStreamTemplate != null || randomBoolean()) {
-                mappings = randomMappings(dataStreamTemplate);
+                builder.mappings(randomMappings(dataStreamTemplate));
             }
             if (dataStreamTemplate == null && randomBoolean()) {
-                aliases = randomAliases();
+                builder.aliases(randomAliases());
             }
-            template = new Template(settings, mappings, aliases);
+            if (dataStreamTemplate != null && randomBoolean()) {
+                builder.lifecycle(DataStreamLifecycleTests.randomLifecycle());
+            }
+            template = builder.build();
         }
 
         Map<String, Object> meta = null;
@@ -168,7 +169,12 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
                     .template(
                         randomValueOtherThan(
                             orig.template(),
-                            () -> new Template(randomSettings(), randomMappings(orig.getDataStreamTemplate()), randomAliases())
+                            () -> Template.builder()
+                                .settings(randomSettings())
+                                .mappings(randomMappings(orig.getDataStreamTemplate()))
+                                .aliases(randomAliases())
+                                .lifecycle(orig.getDataStreamTemplate() == null ? null : DataStreamLifecycleTests.randomLifecycle())
+                                .build()
                         )
                     )
                     .build();
@@ -243,9 +249,9 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
             template.toXContent(builder, withEffectiveRetention, rolloverConfiguration);
             String serialized = Strings.toString(builder);
             assertThat(serialized, containsString("rollover"));
-            for (String label : rolloverConfiguration.resolveRolloverConditions(lifecycle.getEffectiveDataRetention(globalRetention))
-                .getConditions()
-                .keySet()) {
+            for (String label : rolloverConfiguration.resolveRolloverConditions(
+                lifecycle.getEffectiveDataRetention(globalRetention, randomBoolean())
+            ).getConditions().keySet()) {
                 assertThat(serialized, containsString(label));
             }
             /*
@@ -260,5 +266,9 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
     public void testBuilderRoundtrip() {
         ComposableIndexTemplate template = randomInstance();
         assertEquals(template, template.toBuilder().build());
+
+        if (template.template() != null) {
+            assertEquals(template.template(), Template.builder(template.template()).build());
+        }
     }
 }

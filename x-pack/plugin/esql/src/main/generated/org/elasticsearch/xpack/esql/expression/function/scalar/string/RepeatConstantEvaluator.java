@@ -71,7 +71,7 @@ public final class RepeatConstantEvaluator implements EvalOperator.ExpressionEva
           continue position;
         }
         try {
-          result.appendBytesRef(Repeat.processConstantNumber(scratch, strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), number));
+          result.appendBytesRef(Repeat.processConstantNumber(this.scratch, strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), this.number));
         } catch (IllegalArgumentException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -86,7 +86,7 @@ public final class RepeatConstantEvaluator implements EvalOperator.ExpressionEva
       BytesRef strScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendBytesRef(Repeat.processConstantNumber(scratch, strVector.getBytesRef(p, strScratch), number));
+          result.appendBytesRef(Repeat.processConstantNumber(this.scratch, strVector.getBytesRef(p, strScratch), this.number));
         } catch (IllegalArgumentException e) {
           warnings.registerException(e);
           result.appendNull();

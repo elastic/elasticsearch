@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.vectors;
@@ -22,6 +23,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.query.InnerHitsRewriteContext;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -304,6 +306,22 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
                 assertEquals(bwcQuery.hashCode(), deserializedQuery.hashCode());
             }
         }
+    }
+
+    public void testRewriteForInnerHits() throws IOException {
+        SearchExecutionContext context = createSearchExecutionContext();
+        InnerHitsRewriteContext innerHitsRewriteContext = new InnerHitsRewriteContext(context.getParserConfig(), System::currentTimeMillis);
+        KnnVectorQueryBuilder queryBuilder = createTestQueryBuilder();
+        queryBuilder.boost(randomFloat());
+        queryBuilder.queryName(randomAlphaOfLength(10));
+        QueryBuilder rewritten = queryBuilder.rewrite(innerHitsRewriteContext);
+        assertTrue(rewritten instanceof ExactKnnQueryBuilder);
+        ExactKnnQueryBuilder exactKnnQueryBuilder = (ExactKnnQueryBuilder) rewritten;
+        assertEquals(queryBuilder.queryVector(), exactKnnQueryBuilder.getQuery());
+        assertEquals(queryBuilder.getFieldName(), exactKnnQueryBuilder.getField());
+        assertEquals(queryBuilder.boost(), exactKnnQueryBuilder.boost(), 0.0001f);
+        assertEquals(queryBuilder.queryName(), exactKnnQueryBuilder.queryName());
+        assertEquals(queryBuilder.getVectorSimilarity(), exactKnnQueryBuilder.vectorSimilarity());
     }
 
     public void testRewriteWithQueryVectorBuilder() throws Exception {

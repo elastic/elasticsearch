@@ -1,6 +1,0 @@
-pr: 109957
-summary: Add request metric to `RestController` to track success/failure (by status
-  code)
-area: Infra/Metrics
-type: enhancement
-issues: []

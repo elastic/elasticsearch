@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.io.stream;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,22 +20,27 @@ import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.LongBigArrayBlock;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.Column;
-import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter;
-import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.join.Join;
-import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.IdentityHashMap;
 import java.util.Map;
-import java.util.function.Function;
 
 /**
  * A customized stream output used to serialize ESQL physical plan fragments. Complements stream
  * output with methods that write plan nodes, Attributes, Expressions, etc.
  */
-public final class PlanStreamOutput extends StreamOutput {
+public final class PlanStreamOutput extends StreamOutput implements org.elasticsearch.xpack.esql.core.util.PlanStreamOutput {
+
+    /**
+     * max number of attributes that can be cached for serialization
+     * <p>
+     * TODO should this be a cluster setting...?
+     */
+    protected static final int MAX_SERIALIZED_ATTRIBUTES = 1_000_000;
 
     /**
      * Cache of written blocks. We use an {@link IdentityHashMap} for this
@@ -44,27 +50,33 @@ public final class PlanStreamOutput extends StreamOutput {
      */
     private final Map<Block, BytesReference> cachedBlocks = new IdentityHashMap<>();
 
-    private final StreamOutput delegate;
-    private final PlanNameRegistry registry;
+    /**
+     * Cache for field attributes.
+     * Field attributes can be a significant part of the query execution plan, especially
+     * for queries like `from *`, that can have thousands of output columns.
+     * Attributes can be shared by many plan nodes (eg. ExcahngeSink output, Project output, EsRelation fields);
+     * in addition, multiple Attributes can share the same parent field.
+     * This cache allows to send each attribute only once; from the second occurrence, only an id will be sent
+     */
+    protected final Map<Attribute, Integer> cachedAttributes = new IdentityHashMap<>();
 
-    private final Function<Class<?>, String> nameSupplier;
+    /**
+     * Cache for EsFields.
+     */
+    protected final Map<EsField, Integer> cachedEsFields = new IdentityHashMap<>();
+
+    private final StreamOutput delegate;
 
     private int nextCachedBlock = 0;
 
-    public PlanStreamOutput(StreamOutput delegate, PlanNameRegistry registry, @Nullable EsqlConfiguration configuration)
-        throws IOException {
-        this(delegate, registry, configuration, PlanNamedTypes::name);
+    private final int maxSerializedAttributes;
+
+    public PlanStreamOutput(StreamOutput delegate, @Nullable Configuration configuration) throws IOException {
+        this(delegate, configuration, MAX_SERIALIZED_ATTRIBUTES);
     }
 
-    public PlanStreamOutput(
-        StreamOutput delegate,
-        PlanNameRegistry registry,
-        @Nullable EsqlConfiguration configuration,
-        Function<Class<?>, String> nameSupplier
-    ) throws IOException {
+    public PlanStreamOutput(StreamOutput delegate, @Nullable Configuration configuration, int maxSerializedAttributes) throws IOException {
         this.delegate = delegate;
-        this.registry = registry;
-        this.nameSupplier = nameSupplier;
         if (configuration != null) {
             for (Map.Entry<String, Map<String, Column>> table : configuration.tables().entrySet()) {
                 for (Map.Entry<String, Column> column : table.getValue().entrySet()) {
@@ -72,33 +84,7 @@ public final class PlanStreamOutput extends StreamOutput {
                 }
             }
         }
-    }
-
-    public void writeLogicalPlanNode(LogicalPlan logicalPlan) throws IOException {
-        assert logicalPlan.children().size() <= 1 || (logicalPlan instanceof Join && logicalPlan.children().size() == 2);
-        writeNamed(LogicalPlan.class, logicalPlan);
-    }
-
-    public void writePhysicalPlanNode(PhysicalPlan physicalPlan) throws IOException {
-        assert physicalPlan.children().size() <= 1;
-        writeNamed(PhysicalPlan.class, physicalPlan);
-    }
-
-    public void writeOptionalPhysicalPlanNode(PhysicalPlan physicalPlan) throws IOException {
-        if (physicalPlan == null) {
-            writeBoolean(false);
-        } else {
-            writeBoolean(true);
-            writePhysicalPlanNode(physicalPlan);
-        }
-    }
-
-    public <T> void writeNamed(Class<T> type, T value) throws IOException {
-        String name = nameSupplier.apply(value.getClass());
-        @SuppressWarnings("unchecked")
-        PlanWriter<T> writer = (PlanWriter<T>) registry.getWriter(type, name);
-        writeString(name);
-        writer.write(this, value);
+        this.maxSerializedAttributes = maxSerializedAttributes;
     }
 
     @Override
@@ -137,7 +123,7 @@ public final class PlanStreamOutput extends StreamOutput {
      * <p>
      *     These {@link Block}s are not tracked by {@link BlockFactory} and closing them
      *     does nothing so they should be small. We do make sure not to send duplicates,
-     *     reusing blocks sent as part of the {@link EsqlConfiguration#tables()} if
+     *     reusing blocks sent as part of the {@link Configuration#tables()} if
      *     possible, otherwise sending a {@linkplain Block} inline.
      * </p>
      */
@@ -158,6 +144,71 @@ public final class PlanStreamOutput extends StreamOutput {
         nextCachedBlock++;
     }
 
+    @Override
+    public boolean writeAttributeCacheHeader(Attribute attribute) throws IOException {
+        if (getTransportVersion().onOrAfter(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION)
+            || getTransportVersion().isPatchFrom(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION_8_15)) {
+            Integer cacheId = attributeIdFromCache(attribute);
+            if (cacheId != null) {
+                writeZLong(cacheId);
+                return false;
+            }
+
+            cacheId = cacheAttribute(attribute);
+            writeZLong(-1 - cacheId);
+        }
+        return true;
+    }
+
+    private Integer attributeIdFromCache(Attribute attr) {
+        return cachedAttributes.get(attr);
+    }
+
+    private int cacheAttribute(Attribute attr) {
+        if (cachedAttributes.containsKey(attr)) {
+            throw new IllegalArgumentException("Attribute already present in the serialization cache [" + attr + "]");
+        }
+        int id = cachedAttributes.size();
+        if (id >= maxSerializedAttributes) {
+            throw new InvalidArgumentException("Limit of the number of serialized attributes exceeded [{}]", maxSerializedAttributes);
+        }
+        cachedAttributes.put(attr, id);
+        return id;
+    }
+
+    @Override
+    public boolean writeEsFieldCacheHeader(EsField field) throws IOException {
+        if (getTransportVersion().onOrAfter(TransportVersions.ESQL_ES_FIELD_CACHED_SERIALIZATION)
+            || getTransportVersion().isPatchFrom(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION_8_15)) {
+            Integer cacheId = esFieldIdFromCache(field);
+            if (cacheId != null) {
+                writeZLong(cacheId);
+                return false;
+            }
+
+            cacheId = cacheEsField(field);
+            writeZLong(-1 - cacheId);
+        }
+        writeString(field.getWriteableName());
+        return true;
+    }
+
+    private Integer esFieldIdFromCache(EsField field) {
+        return cachedEsFields.get(field);
+    }
+
+    private int cacheEsField(EsField attr) {
+        if (cachedEsFields.containsKey(attr)) {
+            throw new IllegalArgumentException("EsField already present in the serialization cache [" + attr + "]");
+        }
+        int id = cachedEsFields.size();
+        if (id >= maxSerializedAttributes) {
+            throw new InvalidArgumentException("Limit of the number of serialized EsFields exceeded [{}]", maxSerializedAttributes);
+        }
+        cachedEsFields.put(attr, id);
+        return id;
+    }
+
     /**
      * The byte representing a {@link Block} sent for the first time. The byte
      * will be followed by a {@link StreamOutput#writeVInt} encoded identifier
@@ -175,7 +226,7 @@ public final class PlanStreamOutput extends StreamOutput {
 
     /**
      * The byte representing a {@link Block} that was part of the
-     * {@link EsqlConfiguration#tables()} map. It is followed a string for
+     * {@link Configuration#tables()} map. It is followed a string for
      * the table name and then a string for the column name.
      */
     static final byte FROM_CONFIG_KEY = 2;
@@ -193,7 +244,7 @@ public final class PlanStreamOutput extends StreamOutput {
     }
 
     /**
-     * Build the key for reading a {@link Block} from the {@link EsqlConfiguration}.
+     * Build the key for reading a {@link Block} from the {@link Configuration}.
      * This is important because some operations like {@code LOOKUP} frequently read
      * {@linkplain Block}s directly from the configuration.
      * <p>

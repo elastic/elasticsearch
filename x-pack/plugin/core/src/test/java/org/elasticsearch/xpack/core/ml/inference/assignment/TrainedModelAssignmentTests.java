@@ -12,6 +12,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -49,6 +50,29 @@ public class TrainedModelAssignmentTests extends AbstractXContentSerializingTest
             builder.setReason(randomAlphaOfLength(10));
         }
         return builder.build();
+    }
+
+    public static TrainedModelAssignment.Builder randomInstanceBuilder(
+        @Nullable StartTrainedModelDeploymentAction.TaskParams taskParams,
+        AssignmentState assignmentState
+    ) {
+        TrainedModelAssignment.Builder builder = TrainedModelAssignment.Builder.empty(
+            taskParams != null ? taskParams : randomParams(),
+            null
+        );
+        List<String> nodes = Stream.generate(() -> randomAlphaOfLength(10)).limit(randomInt(5)).toList();
+        for (String node : nodes) {
+            builder.addRoutingEntry(node, RoutingInfoTests.randomInstance());
+        }
+        if (assignmentState == null) {
+            builder.setAssignmentState(randomFrom(AssignmentState.values()));
+        } else {
+            builder.setAssignmentState(assignmentState);
+        }
+        if (randomBoolean()) {
+            builder.setReason(randomAlphaOfLength(10));
+        }
+        return builder;
     }
 
     @Override

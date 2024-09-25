@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest;
@@ -39,11 +40,11 @@ public interface RestHandler {
     }
 
     /**
-     * Indicates if the RestHandler supports content as a stream. A stream would be multiple objects delineated by
-     * {@link XContent#streamSeparator()}. If a handler returns true this will affect the types of content that can be sent to
-     * this endpoint.
+     * Indicates if the RestHandler supports bulk content. A bulk request contains multiple objects
+     * delineated by {@link XContent#bulkSeparator()}. If a handler returns true this will affect
+     * the types of content that can be sent to this endpoint.
      */
-    default boolean supportsContentStream() {
+    default boolean supportsBulkContent() {
         return false;
     }
 

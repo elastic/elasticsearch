@@ -1549,7 +1549,11 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         try {
             driverRunner.runToCompletion(drivers, future);
-            future.actionGet(TimeValue.timeValueSeconds(30));
+            /*
+             * We use a 3-minute timer because many of the cases can
+             * take 40 seconds in CI. Locally it's taking 9 seconds.
+             */
+            future.actionGet(TimeValue.timeValueMinutes(3));
         } finally {
             terminate(threadPool);
         }

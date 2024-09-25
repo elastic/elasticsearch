@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.ingest.geoip;
 
@@ -24,6 +25,7 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
@@ -34,7 +36,6 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
-import java.io.BufferedInputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -52,7 +53,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -64,6 +64,7 @@ import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.ingest.geoip.EnterpriseGeoIpTaskState.getEnterpriseGeoIpTaskState;
 import static org.elasticsearch.ingest.geoip.GeoIpTaskState.getGeoIpTaskState;
 
 /**
@@ -85,7 +86,7 @@ import static org.elasticsearch.ingest.geoip.GeoIpTaskState.getGeoIpTaskState;
  * if there is an old instance of this database then that is closed.
  * 4) Cleanup locally loaded databases that are no longer mentioned in {@link GeoIpTaskState}.
  */
-public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeable {
+public final class DatabaseNodeService implements IpDatabaseProvider {
 
     private static final Logger logger = LogManager.getLogger(DatabaseNodeService.class);
 
@@ -183,13 +184,14 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
         if (state == null) {
             return true;
         }
+
         GeoIpTaskState.Metadata metadata = state.getDatabases().get(databaseFile);
         // we never remove metadata from cluster state, if metadata is null we deal with built-in database, which is always valid
         if (metadata == null) {
             return true;
         }
 
-        boolean valid = metadata.isValid(currentState.metadata().settings());
+        boolean valid = metadata.isNewEnough(currentState.metadata().settings());
         if (valid && metadata.isCloseToExpiration()) {
             HeaderWarning.addWarning(
                 "database [{}] was not updated for over 25 days, geoip processor will stop working if there is no update for 30 days",
@@ -218,7 +220,7 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
     }
 
     @Override
-    public GeoIpDatabase getDatabase(String name) {
+    public IpDatabase getDatabase(String name) {
         return getDatabaseReaderLazyLoader(name);
     }
 
@@ -233,9 +235,21 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
         return databases.get(key);
     }
 
-    @Override
-    public void close() throws IOException {
-        IOUtils.close(databases.values());
+    public void shutdown() throws IOException {
+        // this is a little 'fun' looking, but it's just adapting IOUtils.close() into something
+        // that can call a bunch of shutdown methods (rather than close methods)
+        final var loadersToShutdown = databases.values().stream().map(ShutdownCloseable::new).toList();
+        databases.clear();
+        IOUtils.close(loadersToShutdown);
+    }
+
+    private record ShutdownCloseable(DatabaseReaderLazyLoader loader) implements Closeable {
+        @Override
+        public void close() throws IOException {
+            if (loader != null) {
+                loader.shutdown();
+            }
+        }
     }
 
     void checkDatabases(ClusterState state) {
@@ -269,20 +283,52 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
             }
         }
 
-        GeoIpTaskState taskState = getGeoIpTaskState(state);
-        if (taskState == null) {
-            // Note: an empty state will purge stale entries in databases map
-            taskState = GeoIpTaskState.EMPTY;
+        // we'll consult each of the geoip downloaders to build up a list of database metadatas to work with
+        List<Tuple<String, GeoIpTaskState.Metadata>> validMetadatas = new ArrayList<>();
+
+        // process the geoip task state for the (ordinary) geoip downloader
+        {
+            GeoIpTaskState taskState = getGeoIpTaskState(state);
+            if (taskState == null) {
+                // Note: an empty state will purge stale entries in databases map
+                taskState = GeoIpTaskState.EMPTY;
+            }
+            validMetadatas.addAll(
+                taskState.getDatabases()
+                    .entrySet()
+                    .stream()
+                    .filter(e -> e.getValue().isNewEnough(state.getMetadata().settings()))
+                    .map(entry -> Tuple.tuple(entry.getKey(), entry.getValue()))
+                    .toList()
+            );
         }
 
-        taskState.getDatabases().entrySet().stream().filter(e -> e.getValue().isValid(state.getMetadata().settings())).forEach(e -> {
-            String name = e.getKey();
-            GeoIpTaskState.Metadata metadata = e.getValue();
+        // process the geoip task state for the enterprise geoip downloader
+        {
+            EnterpriseGeoIpTaskState taskState = getEnterpriseGeoIpTaskState(state);
+            if (taskState == null) {
+                // Note: an empty state will purge stale entries in databases map
+                taskState = EnterpriseGeoIpTaskState.EMPTY;
+            }
+            validMetadatas.addAll(
+                taskState.getDatabases()
+                    .entrySet()
+                    .stream()
+                    .filter(e -> e.getValue().isNewEnough(state.getMetadata().settings()))
+                    .map(entry -> Tuple.tuple(entry.getKey(), entry.getValue()))
+                    .toList()
+            );
+        }
+
+        // run through all the valid metadatas, regardless of source, and retrieve them
+        validMetadatas.forEach(e -> {
+            String name = e.v1();
+            GeoIpTaskState.Metadata metadata = e.v2();
             DatabaseReaderLazyLoader reference = databases.get(name);
             String remoteMd5 = metadata.md5();
             String localMd5 = reference != null ? reference.getMd5() : null;
             if (Objects.equals(localMd5, remoteMd5)) {
-                logger.debug("Current reference of [{}] is up to date [{}] with was recorded in CS [{}]", name, localMd5, remoteMd5);
+                logger.debug("[{}] is up to date [{}] with cluster state [{}]", name, localMd5, remoteMd5);
                 return;
             }
 
@@ -293,15 +339,14 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
             }
         });
 
+        // TODO perhaps we need to handle the license flap persistent task state better than we do
+        // i think the ideal end state is that we *do not* drop the files that the enterprise downloader
+        // handled if they fall out -- which means we need to track that in the databases map itself
+
+        // start with the list of all databases we currently know about in this service,
+        // then drop the ones that didn't check out as valid from the task states
         List<String> staleEntries = new ArrayList<>(databases.keySet());
-        staleEntries.removeAll(
-            taskState.getDatabases()
-                .entrySet()
-                .stream()
-                .filter(e -> e.getValue().isValid(state.getMetadata().settings()))
-                .map(Map.Entry::getKey)
-                .collect(Collectors.toSet())
-        );
+        staleEntries.removeAll(validMetadatas.stream().map(Tuple::v1).collect(Collectors.toSet()));
         removeStaleEntries(staleEntries);
     }
 
@@ -346,11 +391,7 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
                 Path databaseFile = geoipTmpDirectory.resolve(databaseName);
                 // tarball contains <database_name>.mmdb, LICENSE.txt, COPYRIGHTS.txt and optional README.txt files.
                 // we store mmdb file as is and prepend database name to all other entries to avoid conflicts
-                try (
-                    TarInputStream is = new TarInputStream(
-                        new GZIPInputStream(new BufferedInputStream(Files.newInputStream(databaseTmpGzFile)), 8192)
-                    )
-                ) {
+                try (TarInputStream is = new TarInputStream(new GZIPInputStream(Files.newInputStream(databaseTmpGzFile), 8192))) {
                     TarInputStream.TarEntry entry;
                     while ((entry = is.getNextEntry()) != null) {
                         // there might be ./ entry in tar, we should skip it
@@ -391,7 +432,7 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
             DatabaseReaderLazyLoader loader = new DatabaseReaderLazyLoader(cache, file, recordedMd5);
             DatabaseReaderLazyLoader existing = databases.put(databaseFileName, loader);
             if (existing != null) {
-                existing.close();
+                existing.shutdown();
             } else {
                 // Loaded a database for the first time, so reload pipelines for which a database was not available:
                 Predicate<GeoIpProcessor.DatabaseUnavailableProcessor> predicate = p -> databaseFileName.equals(p.getDatabaseName());
@@ -429,7 +470,7 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
                 logger.debug("database [{}] no longer exists, cleaning up...", staleEntry);
                 DatabaseReaderLazyLoader existing = databases.remove(staleEntry);
                 assert existing != null;
-                existing.close(true);
+                existing.shutdown(true);
             } catch (Exception e) {
                 logger.error(() -> "failed to clean database [" + staleEntry + "]", e);
             }

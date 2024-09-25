@@ -150,7 +150,7 @@ public class OpenAiEmbeddingsServiceSettings extends FilteredXContentObject impl
         @Nullable RateLimitSettings rateLimitSettings
     ) {
         this.uri = uri;
-        this.modelId = modelId;
+        this.modelId = Objects.requireNonNull(modelId);
         this.organizationId = organizationId;
         this.similarity = similarity;
         this.dimensions = dimensions;
@@ -247,6 +247,7 @@ public class OpenAiEmbeddingsServiceSettings extends FilteredXContentObject impl
         return dimensions;
     }
 
+    @Override
     public Boolean dimensionsSetByUser() {
         return dimensionsSetByUser;
     }

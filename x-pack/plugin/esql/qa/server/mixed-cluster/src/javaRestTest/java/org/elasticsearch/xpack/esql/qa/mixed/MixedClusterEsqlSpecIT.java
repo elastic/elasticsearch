@@ -11,7 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.TestFeatureService;
-import org.elasticsearch.xpack.esql.core.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -72,6 +72,10 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     protected void shouldSkipTest(String testName) throws IOException {
         super.shouldSkipTest(testName);
         assumeTrue("Test " + testName + " is skipped on " + bwcVersion, isEnabled(testName, instructions, bwcVersion));
+        assumeFalse(
+            "Skip META tests on mixed version clusters because we change it too quickly",
+            testCase.requiredCapabilities.contains("meta")
+        );
         if (mode == ASYNC) {
             assumeTrue("Async is not supported on " + bwcVersion, supportsAsync());
         }

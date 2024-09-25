@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.snapshots;
 
@@ -651,7 +652,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         try {
             awaitClusterState(clusterState -> {
                 final List<SnapshotsInProgress.Entry> entries = SnapshotsInProgress.get(clusterState).forRepo(repoName);
-                return entries.size() == 2 && entries.get(1).shardsByRepoShardId().isEmpty() == false;
+                return entries.size() == 2 && entries.get(1).shardSnapshotStatusByRepoShardId().isEmpty() == false;
             });
             assertFalse(blockedSnapshot.isDone());
         } finally {
@@ -688,9 +689,9 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> waiting for snapshot clone to be fully initialized");
         awaitClusterState(state -> {
             for (SnapshotsInProgress.Entry entry : SnapshotsInProgress.get(state).forRepo(repoName)) {
-                if (entry.shardsByRepoShardId().isEmpty() == false) {
+                if (entry.shardSnapshotStatusByRepoShardId().isEmpty() == false) {
                     assertEquals(sourceSnapshot, entry.source().getName());
-                    for (SnapshotsInProgress.ShardSnapshotStatus value : entry.shardsByRepoShardId().values()) {
+                    for (SnapshotsInProgress.ShardSnapshotStatus value : entry.shardSnapshotStatusByRepoShardId().values()) {
                         assertSame(value, SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED);
                     }
                     return true;
@@ -895,7 +896,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         return BlobStoreRepository.INDEX_SHARD_SNAPSHOTS_FORMAT.read(
             repository.getMetadata().name(),
             repository.shardContainer(repositoryShardId.index(), repositoryShardId.shardId()),
-            generation.toBlobNamePart(),
+            generation.getGenerationUUID(),
             NamedXContentRegistry.EMPTY
         );
     }

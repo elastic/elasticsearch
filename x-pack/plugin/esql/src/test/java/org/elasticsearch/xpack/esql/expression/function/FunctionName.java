@@ -13,7 +13,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Tests that extend {@link AbstractScalarFunctionTestCase} can use this annotation to specify the name of the function
+ * Tests that extend {@link AbstractFunctionTestCase} can use this annotation to specify the name of the function
  * to use when generating documentation files while running tests.
  * If this is not used, the name will be deduced from the test class name, by removing the "Test" suffix, and converting
  * the class name to snake case. This annotation can be used to override that behavior, for cases where the deduced name

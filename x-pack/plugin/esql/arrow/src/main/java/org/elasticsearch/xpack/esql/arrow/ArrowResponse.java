@@ -326,7 +326,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
      */
     static final Map<String, BlockConverter> ESQL_CONVERTERS = Map.ofEntries(
         // For reference:
-        // - EsqlDataTypes: list of ESQL data types (not all are present in outputs)
+        // - DataType: list of ESQL data types (not all are present in outputs)
         // - PositionToXContent: conversions for ESQL JSON output
         // - EsqlDataTypeConverter: conversions to ESQL datatypes
         // Missing: multi-valued values

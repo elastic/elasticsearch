@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.core.expression.predicate;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DateUtils;
+import org.elasticsearch.xpack.esql.core.util.DateUtils;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.datastreams;
@@ -327,10 +328,14 @@ public class ResolveClusterDataStreamIT extends AbstractMultiClustersTestCase {
                 aliases.put(dataStreamLocalAlias, AliasMetadata.builder(dataStreamLocalAlias).writeIndex(randomBoolean()).build());
             }
             putComposableIndexTemplate(client, "id1", List.of(dataStreamLocal + "*"), aliases);
-            CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("metrics-foo");
+            CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                "metrics-foo"
+            );
             assertAcked(client.execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get());
 
-            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { "*" });
+            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "*" });
             GetDataStreamAction.Response getDataStreamResponse = client.execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
                 .actionGet();
             DataStream fooDataStream = getDataStreamResponse.getDataStreams().get(0).getDataStream();
@@ -358,10 +363,14 @@ public class ResolveClusterDataStreamIT extends AbstractMultiClustersTestCase {
                 aliases.put(dataStreamRemote1Alias, AliasMetadata.builder(dataStreamRemote1Alias).writeIndex(randomBoolean()).build());
             }
             putComposableIndexTemplate(client, "id2", List.of(dataStreamRemote1 + "*"), aliases);
-            CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("metrics-bar");
+            CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                "metrics-bar"
+            );
             assertAcked(client.execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get());
 
-            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { "*" });
+            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "*" });
             GetDataStreamAction.Response getDataStreamResponse = client.execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
                 .actionGet();
 
@@ -397,7 +406,7 @@ public class ResolveClusterDataStreamIT extends AbstractMultiClustersTestCase {
         assertFalse(
             client(REMOTE_CLUSTER_2).admin()
                 .cluster()
-                .prepareHealth(remoteIndex2)
+                .prepareHealth(TEST_REQUEST_TIMEOUT, remoteIndex2)
                 .setWaitForYellowStatus()
                 .setTimeout(TimeValue.timeValueSeconds(10))
                 .get()
@@ -444,7 +453,7 @@ public class ResolveClusterDataStreamIT extends AbstractMultiClustersTestCase {
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(patterns)
-                .template(new Template(null, null, aliases, null))
+                .template(Template.builder().aliases(aliases))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build()
         );

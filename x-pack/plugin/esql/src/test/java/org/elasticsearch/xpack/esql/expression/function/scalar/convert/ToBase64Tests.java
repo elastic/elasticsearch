@@ -24,6 +24,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.hamcrest.Matchers.equalTo;
 
 @FunctionName("to_base64")
@@ -55,7 +56,7 @@ public class ToBase64Tests extends AbstractScalarFunctionTestCase {
             );
         }));
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "string");
     }
 
     @Override

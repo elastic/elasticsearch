@@ -52,39 +52,50 @@ public class RRFRankDocTests extends AbstractWireSerializingTestCase<RRFRankDoc>
     @Override
     protected RRFRankDoc mutateInstance(RRFRankDoc instance) throws IOException {
         int doc = instance.doc;
-        if (rarely()) {
-            doc = randomNonNegativeInt();
-        }
         int shardIndex = instance.shardIndex;
-        if (frequently()) {
-            shardIndex = shardIndex == -1 ? randomNonNegativeInt() : -1;
-        }
         float score = instance.score;
-        if (frequently()) {
-            score = randomFloat();
-        }
         int rankConstant = instance.rankConstant;
-        if (frequently()) {
-            rankConstant = randomIntBetween(1, 100);
-        }
         int rank = instance.rank;
-        if (frequently()) {
-            rank = rank == NO_RANK ? randomIntBetween(1, 10000) : NO_RANK;
-        }
         int queries = instance.positions.length;
         int[] positions = new int[queries];
         float[] scores = new float[queries];
-        for (int i = 0; i < queries; i++) {
-            if (rarely()) {
-                positions[i] = instance.positions[i] == NO_RANK ? randomIntBetween(1, 10000) : NO_RANK;
-            } else {
-                positions[i] = instance.positions[i];
-            }
-            if (rarely()) {
-                scores[i] = randomFloat();
-            } else {
-                scores[i] = instance.scores[i];
-            }
+
+        switch (randomInt(6)) {
+            case 0:
+                doc = randomNonNegativeInt();
+                break;
+            case 1:
+                shardIndex = shardIndex == -1 ? randomNonNegativeInt() : -1;
+                break;
+            case 2:
+                score = randomFloat();
+                break;
+            case 3:
+                rankConstant = randomIntBetween(1, 100);
+                break;
+            case 4:
+                rank = rank == NO_RANK ? randomIntBetween(1, 10000) : NO_RANK;
+                break;
+            case 5:
+                for (int i = 0; i < queries; i++) {
+                    if (rarely()) {
+                        positions[i] = instance.positions[i] == NO_RANK ? randomIntBetween(1, 10000) : NO_RANK;
+                    } else {
+                        positions[i] = instance.positions[i];
+                    }
+                }
+                break;
+            case 6:
+                for (int i = 0; i < queries; i++) {
+                    if (rarely()) {
+                        scores[i] = randomFloat();
+                    } else {
+                        scores[i] = instance.scores[i];
+                    }
+                }
+                break;
+            default:
+                throw new AssertionError();
         }
         RRFRankDoc mutated = new RRFRankDoc(doc, shardIndex, queries, rankConstant);
         System.arraycopy(positions, 0, mutated.positions, 0, instance.positions.length);

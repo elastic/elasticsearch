@@ -72,6 +72,7 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
     ) {
         if ("validate-index-name".equals(indexName)) {
             // This index name is used when validating component and index templates, we should skip this check in that case.
+            // (See MetadataIndexTemplateService#validateIndexTemplateV2(...) method)
             return false;
         }
 

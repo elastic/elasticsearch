@@ -176,6 +176,17 @@ public interface InferenceService extends Closeable {
     };
 
     /**
+     * Update a text embedding model's dimensions based on a provided embedding
+     * size and set the default similarity if required. The default behaviour is to just return the model.
+     * @param model The original model without updated embedding details
+     * @param embeddingSize The embedding size to update the model with
+     * @return The model with updated embedding details
+     */
+    default Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
+        return model;
+    }
+
+    /**
      * Return true if this model is hosted in the local Elasticsearch cluster
      * @return True if in cluster
      */

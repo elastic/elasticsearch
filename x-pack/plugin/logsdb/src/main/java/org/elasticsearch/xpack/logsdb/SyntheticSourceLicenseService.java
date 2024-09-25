@@ -18,7 +18,7 @@ import org.elasticsearch.license.XPackLicenseState;
  */
 public final class SyntheticSourceLicenseService {
 
-    public static final String LOGSDB_FEATURE_FAMILY = "logsdb";
+    private static final String MAPPINGS_FEATURE_FAMILY = "mappings";
 
     /**
      * A setting that determines whether source mode should always be stored source. Regardless of licence.
@@ -31,7 +31,7 @@ public final class SyntheticSourceLicenseService {
     );
 
     private static final LicensedFeature.Momentary SYNTHETIC_SOURCE_FEATURE = LicensedFeature.momentary(
-        LOGSDB_FEATURE_FAMILY,
+        MAPPINGS_FEATURE_FAMILY,
         "synthetic-source",
         License.OperationMode.ENTERPRISE
     );

@@ -3,7 +3,7 @@
 #
 
 singleMatchWithTextField
-required_capability: match_operator
+required_capability: match_function
 from books | where author matchstr "William Faulkner" | keep book_no, author | sort book_no | LIMIT 5;
 
 book_no:keyword | author:text
@@ -15,7 +15,7 @@ book_no:keyword | author:text
 ;
 
 singleMatchWithKeywordField
-required_capability: match_operator
+required_capability: match_function
 from books | where author.keyword matchstr "William Faulkner" | keep book_no, author | sort book_no;
 
 book_no:keyword | author:text
@@ -31,7 +31,7 @@ book_no:keyword | author:text
 ;
 
 multipleMatch
-required_capability: match_operator
+required_capability: match_function
 from books
 | where (description matchstr "Sauron" OR description matchstr "Dark Lord") AND
   (author matchstr "J. R. R. Tolkien" OR author matchstr "John Ronald Reuel Tolkien")
@@ -48,7 +48,7 @@ book_no:keyword | title:text                                                    
 ;
 
 multipleWhereWithMatch
-required_capability: match_operator
+required_capability: match_function
 from books
 | where title matchstr "short stories"
 | where author matchstr "Ursula K. Le Guin"
@@ -61,7 +61,7 @@ book_no:keyword | title:text                                | author:text
 ;
 
 combinedMatchWithFunctions
-required_capability: match_operator
+required_capability: match_function
 from books
 | where title matchstr "Tolkien" AND author matchstr "Tolkien" AND year > 2000
 | where mv_count(author) == 1
@@ -74,7 +74,7 @@ book_no:keyword | title:text               | author:text    | year:integer
 ;
 
 matchWithStats
-required_capability: match_operator
+required_capability: match_function
 from books
 | where author matchstr "faulkner" AND year > 1990
 | where mv_count(author) == 1

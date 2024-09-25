@@ -1253,6 +1253,22 @@ Chirstian           | Chirstian             | true          | 10004
 Kyoichi             | Kyoichi               | true          | 10005
 ;
 
+reverseRowNull
+required_capability: fn_reverse
+ROW x = null | EVAL y = REVERSE(x);
+
+x:null      | y:null
+null        | null
+;
+
+
+reverseRowInlineCastWithNull
+required_capability: fn_reverse
+ROW x = 1 | EVAL y = REVERSE((null + 1)::string);
+
+x:integer   | y:string
+1           | null
+;
 
 
 values

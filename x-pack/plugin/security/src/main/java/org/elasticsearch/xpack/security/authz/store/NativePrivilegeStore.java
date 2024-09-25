@@ -160,7 +160,8 @@ public class NativePrivilegeStore {
         getPrivileges(applications, names, waitForAvailableSecurityIndex, listener);
     }
 
-    public void getPrivileges(
+    // pck-private for tests
+    void getPrivileges(
         Collection<String> applications,
         Collection<String> names,
         boolean waitForAvailableSecurityIndex,

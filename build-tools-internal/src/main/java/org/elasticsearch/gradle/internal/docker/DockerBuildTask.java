@@ -79,9 +79,9 @@ public abstract class DockerBuildTask extends DefaultTask {
         // Print the user's home directory
         System.out.println("User's home directory: " + userHome);
         System.out.println("User's home directory: " + userHome);
-
+        System.out.println("System.getenv(\"DOCKER_CONFIG\"): " + System.getenv("DOCKER_CONFIG"));
         boolean exists = new File(userHome + "/.docker/config.json").exists();
-        System.out.println("userHome + \"/.docker/config.json\" exists = " + exists);
+        System.out.println(userHome + "/.docker/config.json\" exists = " + exists);
         workerExecutor.noIsolation().submit(DockerBuildAction.class, params -> {
             params.getDockerContext().set(dockerContext);
             params.getMarkerFile().set(markerFile);

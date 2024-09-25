@@ -80,9 +80,4 @@ public class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         return Arrays.stream(IndexMode.values()).filter(indexMode -> Objects.equals(indexMode.getName(), mode)).findFirst().orElse(null);
     }
 
-    private boolean usesLogsComponentTemplate(final Settings settings) {
-        List<String> componentTemplates = settings.getAsList("index.templates");
-        return settings.getAsList("index.templates").contains("logs@settings");
-    }
-
 }

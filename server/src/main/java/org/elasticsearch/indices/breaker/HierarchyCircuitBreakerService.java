@@ -11,6 +11,7 @@ package org.elasticsearch.indices.breaker;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -450,7 +451,6 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         appendBytesSafe(message, memoryUsed.totalUsage);
         message.append("], which is larger than the limit of [");
         appendBytesSafe(message, parentLimit);
-        message.append("]");
         if (trackRealMemoryUsage) {
             final long realUsage = memoryUsed.baseUsage;
             message.append(", real usage: [");
@@ -474,7 +474,8 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 appendBytesSafe(message, (long) (breaker.getUsed() * breaker.getOverhead()));
             }
         });
-        message.append("]");
+        message.append("]; for more information, see ");
+        message.append(ReferenceDocs.CIRCUIT_BREAKER);
         return message.toString();
     }
 

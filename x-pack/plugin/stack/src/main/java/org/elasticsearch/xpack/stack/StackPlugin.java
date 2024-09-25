@@ -14,7 +14,7 @@ import org.elasticsearch.plugins.Plugin;
 import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.datastreams.logsdb.LogsdbIndexModeSettingsProvider.CLUSTER_LOGSDB_ENABLED;
+import static org.elasticsearch.xpack.core.settings.IndexSettings.CLUSTER_LOGSDB_ENABLED;
 
 public class StackPlugin extends Plugin implements ActionPlugin {
     private final Settings settings;

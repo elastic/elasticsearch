@@ -20,6 +20,7 @@ import org.elasticsearch.index.IndexSettingProvider;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 public class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     private static final Logger logger = LogManager.getLogger(LogsdbIndexModeSettingsProvider.class);
@@ -30,10 +31,10 @@ public class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
-    private boolean isLogsdbEnabled;
+    private volatile boolean isLogsdbEnabled;
 
-    public LogsdbIndexModeSettingsProvider(boolean isLogsdbEnabled) {
-        this.isLogsdbEnabled = isLogsdbEnabled;
+    public LogsdbIndexModeSettingsProvider(final Settings settings) {
+        this.isLogsdbEnabled = CLUSTER_LOGSDB_ENABLED.get(settings);
     }
 
     public void updateClusterIndexModeLogsdbEnabled(boolean isLogsdbEnabled) {
@@ -64,7 +65,8 @@ public class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     }
 
     private static boolean isLogsDataStreamOrIndexName(final String indexName, final String dataStreamName) {
-        return Regex.simpleMatch("logs-[^-]+-[^-]+", indexName) || Regex.simpleMatch("logs-[^-]+-[^-]+", dataStreamName);
+        return (indexName != null && Regex.simpleMatch("logs-[^-]+-[^-]+", indexName))
+            || (dataStreamName != null && Regex.simpleMatch("logs-[^-]+-[^-]+", dataStreamName));
     }
 
     private IndexMode resolveIndexMode(final String mode) {
@@ -72,7 +74,7 @@ public class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
             return IndexMode.STANDARD;
         }
         return Arrays.stream(IndexMode.values())
-            .filter(indexMode -> indexMode.getName().equals(mode))
+            .filter(indexMode -> Objects.equals(indexMode.getName(), mode))
             .findFirst()
             .orElse(IndexMode.STANDARD);
     }

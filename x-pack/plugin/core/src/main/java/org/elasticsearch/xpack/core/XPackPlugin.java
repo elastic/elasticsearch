@@ -350,9 +350,7 @@ public class XPackPlugin extends XPackClientPlugin
         components.add(getLicenseState());
 
         try (ClusterService cs = services.clusterService()) {
-            logsdbIndexModeSettingsProvider.set(
-                new LogsdbIndexModeSettingsProvider(cs.getSettings().getAsBoolean(CLUSTER_LOGSDB_ENABLED.getKey(), false))
-            );
+            logsdbIndexModeSettingsProvider.set(new LogsdbIndexModeSettingsProvider(cs.getSettings()));
             cs.getClusterSettings()
                 .addSettingsUpdateConsumer(
                     CLUSTER_LOGSDB_ENABLED,

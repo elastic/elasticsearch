@@ -63,9 +63,6 @@ public class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         if (indexMode != null) {
             return Settings.EMPTY;
         }
-        if (matchesLogsPattern(indexName) && usesLogsAtSettingsComponentTemplate(metadata, indexName)) {
-            return Settings.builder().put("index.mode", IndexMode.LOGSDB.getName()).build();
-        }
         if (matchesLogsPattern(dataStreamName) && usesLogsAtSettingsComponentTemplate(metadata, dataStreamName)) {
             return Settings.builder().put("index.mode", IndexMode.LOGSDB.getName()).build();
         }
@@ -83,8 +80,8 @@ public class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
             : Arrays.stream(IndexMode.values()).filter(indexMode -> Objects.equals(indexMode.getName(), mode)).findFirst().orElse(null);
     }
 
-    private boolean usesLogsAtSettingsComponentTemplate(final Metadata metadata, final String indexOrDataStreamName) {
-        final String template = MetadataIndexTemplateService.findV2Template(metadata, indexOrDataStreamName, false);
+    private boolean usesLogsAtSettingsComponentTemplate(final Metadata metadata, final String name) {
+        final String template = MetadataIndexTemplateService.findV2Template(metadata, name, false);
         if (template == null) {
             return false;
         }

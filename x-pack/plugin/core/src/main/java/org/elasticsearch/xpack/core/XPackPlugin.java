@@ -186,7 +186,7 @@ public class XPackPlugin extends XPackClientPlugin
     private static SetOnce<LongSupplier> epochMillisSupplier = new SetOnce<>();
     private static SetOnce<XPackLicenseState> licenseState = new SetOnce<>();
     private static SetOnce<LicenseService> licenseService = new SetOnce<>();
-    private SetOnce<LogsdbIndexModeSettingsProvider> logsdbIndexModeSettingsProvider = new SetOnce<>();
+    private final SetOnce<LogsdbIndexModeSettingsProvider> logsdbIndexModeSettingsProvider = new SetOnce<>();
 
     public XPackPlugin(final Settings settings) {
         super();
@@ -495,7 +495,7 @@ public class XPackPlugin extends XPackClientPlugin
         if (DiscoveryNode.isStateless(settings)) {
             return List.of();
         }
-        return List.of(new DataTier.DefaultHotAllocationSettingProvider(), logsdbIndexModeSettingsProvider);
+        return List.of(new DataTier.DefaultHotAllocationSettingProvider(), logsdbIndexModeSettingsProvider.get());
     }
 
     /**

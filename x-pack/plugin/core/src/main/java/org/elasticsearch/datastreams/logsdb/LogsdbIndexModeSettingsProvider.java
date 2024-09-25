@@ -58,7 +58,10 @@ public class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         }
 
         final IndexMode indexMode = resolveIndexMode(settings.get("index.mode"));
-        if (indexMode == null && isLogsDataStreamOrIndexName(indexName, dataStreamName)) {
+        if (indexMode != null) {
+            return Settings.EMPTY;
+        }
+        if (isLogsDataStreamOrIndexName(indexName, dataStreamName)) {
             return Settings.builder().put("index.mode", IndexMode.LOGSDB.getName()).build();
         }
 
@@ -75,6 +78,11 @@ public class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
             return IndexMode.STANDARD;
         }
         return Arrays.stream(IndexMode.values()).filter(indexMode -> Objects.equals(indexMode.getName(), mode)).findFirst().orElse(null);
+    }
+
+    private boolean usesLogsComponentTemplate(final Settings settings) {
+        List<String> componentTemplates = settings.getAsList("index.templates");
+        return settings.getAsList("index.templates").contains("logs@settings");
     }
 
 }

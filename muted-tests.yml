@@ -287,8 +287,6 @@ tests:
 - class: org.elasticsearch.validation.DotPrefixClientYamlTestSuiteIT
   method: test {p0=dot_prefix/10_basic/Deprecated index template with a dot prefix index pattern}
   issue: https://github.com/elastic/elasticsearch/issues/113529
-- class: org.elasticsearch.xpack.esql.expression.function.fulltext.QueryStringFunctionTests
-  issue: https://github.com/elastic/elasticsearch/issues/113496
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search/180_locale_dependent_mapping/Test Index and Search locale dependent mappings / dates}
   issue: https://github.com/elastic/elasticsearch/issues/113537

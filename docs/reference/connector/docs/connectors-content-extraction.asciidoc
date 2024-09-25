@@ -100,7 +100,7 @@ $ docker run \
   -p 8090:8090 \
   -it \
   --name extraction-service \
-  docker.elastic.co/enterprise-search/data-extraction-service:$EXTRACTION_SERVICE_VERSION
+  docker.elastic.co/integrations/data-extraction-service:$EXTRACTION_SERVICE_VERSION
 ----
 
 [discrete#es-connectors-extraction-service-configuration]
@@ -195,7 +195,7 @@ $ docker run \
   -it \
   -v /app/files:/app/files \
   --name extraction-service \
-  docker.elastic.co/enterprise-search/data-extraction-service:$EXTRACTION_SERVICE_VERSION
+  docker.elastic.co/integrations/data-extraction-service:$EXTRACTION_SERVICE_VERSION
 ----
 +
 [NOTE]
@@ -256,7 +256,7 @@ $ docker run \
   -v extraction-service-volume:/app/files \
   --network "elastic" \
   --name extraction-service \
-  docker.elastic.co/enterprise-search/data-extraction-service:$EXTRACTION_SERVICE_VERSION
+  docker.elastic.co/integrations/data-extraction-service:$EXTRACTION_SERVICE_VERSION
 ----
 +
 4. Next, you can follow the instructions for {connectors-python}/docs/DOCKER.md[running the self-managed connector in docker^] until step `4. Update the configuration file for your self-managed connector`.

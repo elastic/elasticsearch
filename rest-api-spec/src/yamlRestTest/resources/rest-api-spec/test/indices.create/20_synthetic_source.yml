@@ -988,6 +988,58 @@ subobjects auto:
 
 
 ---
+subobjects auto with path flattening:
+  - requires:
+      cluster_features: ["mapper.subobjects_auto"]
+      reason: requires tracking ignored source and supporting subobjects auto setting
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            subobjects: auto
+            properties:
+              id:
+                type: integer
+              attributes:
+                type: object
+                subobjects: auto
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{  "id": 1, "attributes": { "foo": { "bar": 10 } } }'
+          - '{ "create": { } }'
+          - '{  "id": 2, "attributes": { "foo": { "bar": 20 } } }'
+          - '{ "create": { } }'
+          - '{  "id": 3, "attributes": { "foo": { "bar": 30 } } }'
+          - '{ "create": { } }'
+          - '{  "id": 4, "attributes": { "foo": { "bar": 40 } } }'
+
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test
+        sort: id
+
+  - match: { hits.hits.0._source.id: 1  }
+  - match: { hits.hits.0._source.attributes.foo\.bar: 10  }
+  - match: { hits.hits.1._source.id: 2 }
+  - match: { hits.hits.1._source.attributes.foo\.bar: 20 }
+  - match: { hits.hits.2._source.id: 3 }
+  - match: { hits.hits.2._source.attributes.foo\.bar: 30 }
+  - match: { hits.hits.3._source.id: 4 }
+  - match: { hits.hits.3._source.attributes.foo\.bar: 40 }
+
+
+---
 subobjects auto with dynamic template:
   - requires:
       cluster_features: ["mapper.subobjects_auto"]
@@ -1007,6 +1059,7 @@ subobjects auto with dynamic template:
                   mapping:
                     type: object
                     enabled: false
+                    subobjects: auto
             properties:
               id:
                 type: integer

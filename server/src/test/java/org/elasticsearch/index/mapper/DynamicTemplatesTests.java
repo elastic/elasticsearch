@@ -1619,10 +1619,9 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
 
         assertNotNull(doc.rootDoc().get("metrics.time.max"));
         assertNotNull(doc.docs().get(0).get("metrics.time.foo"));
-        assertThat(
-            ((ObjectMapper) doc.dynamicMappingsUpdate().getRoot().getMapper("metrics")).getMapper("time"),
-            instanceOf(NestedObjectMapper.class)
-        );
+        var metrics = ((ObjectMapper) doc.dynamicMappingsUpdate().getRoot().getMapper("metrics"));
+        assertThat(metrics.getMapper("time"), instanceOf(NestedObjectMapper.class));
+        assertThat(metrics.getMapper("time.max"), instanceOf(NumberFieldMapper.class));
     }
 
     public void testDynamicSubobject() throws IOException {
@@ -2057,7 +2056,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
                 "dynamic_templates": [
                   {
                     "test": {
-                      "path_match": "attributes.resource.*",
+                      "path_match": "attributes.*",
                       "match_mapping_type": "object",
                       "mapping": {
                         "type": "flattened"
@@ -2070,7 +2069,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             """;
         String docJson = """
             {
-              "attributes.resource": {
+              "attributes": {
                 "complex.attribute": {
                   "a": "b"
                 },
@@ -2083,10 +2082,10 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson));
         merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
 
-        Mapper fooBarMapper = mapperService.documentMapper().mappers().getMapper("attributes.resource.foo.bar");
+        Mapper fooBarMapper = mapperService.documentMapper().mappers().getMapper("attributes.foo.bar");
         assertNotNull(fooBarMapper);
         assertEquals("text", fooBarMapper.typeName());
-        Mapper fooStructuredMapper = mapperService.documentMapper().mappers().getMapper("attributes.resource.complex.attribute");
+        Mapper fooStructuredMapper = mapperService.documentMapper().mappers().getMapper("attributes.complex.attribute");
         assertNotNull(fooStructuredMapper);
         assertEquals("flattened", fooStructuredMapper.typeName());
     }

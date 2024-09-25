@@ -26,7 +26,7 @@ public class DotExpandingXContentParserTests extends ESTestCase {
         final ContentPath contentPath = new ContentPath();
         try (
             XContentParser inputParser = createParser(JsonXContent.jsonXContent, withDots);
-            XContentParser expandedParser = DotExpandingXContentParser.expandDots(inputParser, contentPath)
+            XContentParser expandedParser = DotExpandingXContentParser.expandDots(inputParser, contentPath, null)
         ) {
             expandedParser.allowDuplicateKeys(true);
 
@@ -37,7 +37,7 @@ public class DotExpandingXContentParserTests extends ESTestCase {
                 expectedParser.allowDuplicateKeys(true);
                 try (
                     var p = createParser(JsonXContent.jsonXContent, withDots);
-                    XContentParser actualParser = DotExpandingXContentParser.expandDots(p, contentPath)
+                    XContentParser actualParser = DotExpandingXContentParser.expandDots(p, contentPath, null)
                 ) {
                     XContentParser.Token currentToken;
                     while ((currentToken = actualParser.nextToken()) != null) {
@@ -127,7 +127,7 @@ public class DotExpandingXContentParserTests extends ESTestCase {
     public void testDotsCollapsingFlatPaths() throws IOException {
         ContentPath contentPath = new ContentPath();
         XContentParser parser = DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, """
-            {"metrics.service.time": 10, "metrics.service.time.max": 500, "metrics.foo": "value"}"""), contentPath);
+            {"metrics.service.time": 10, "metrics.service.time.max": 500, "metrics.foo": "value"}"""), contentPath, null);
         parser.nextToken();
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals("metrics", parser.currentName());
@@ -197,7 +197,7 @@ public class DotExpandingXContentParserTests extends ESTestCase {
                 },
                 "foo" : "value"
               }
-            }"""), contentPath);
+            }"""), contentPath, null);
         parser.nextToken();
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals("metrics", parser.currentName());
@@ -235,7 +235,7 @@ public class DotExpandingXContentParserTests extends ESTestCase {
 
     public void testSkipChildren() throws IOException {
         XContentParser parser = DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, """
-            { "test.with.dots" : "value", "nodots" : "value2" }"""), new ContentPath());
+            { "test.with.dots" : "value", "nodots" : "value2" }"""), new ContentPath(), null);
         parser.nextToken();     // start object
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals("test", parser.currentName());
@@ -258,7 +258,7 @@ public class DotExpandingXContentParserTests extends ESTestCase {
 
     public void testSkipChildrenWithinInnerObject() throws IOException {
         XContentParser parser = DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, """
-            { "test.with.dots" : {"obj" : {"field":"value"}}, "nodots" : "value2" }"""), new ContentPath());
+            { "test.with.dots" : {"obj" : {"field":"value"}}, "nodots" : "value2" }"""), new ContentPath(), null);
 
         parser.nextToken();     // start object
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
@@ -306,7 +306,8 @@ public class DotExpandingXContentParserTests extends ESTestCase {
         XContentParser expectedParser = createParser(JsonXContent.jsonXContent, jsonInput);
         XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
             createParser(JsonXContent.jsonXContent, jsonInput),
-            new ContentPath()
+            new ContentPath(),
+            null
         );
 
         assertEquals(expectedParser.getTokenLocation(), dotExpandedParser.getTokenLocation());
@@ -364,7 +365,8 @@ public class DotExpandingXContentParserTests extends ESTestCase {
     public void testParseMapUOE() throws Exception {
         XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
             createParser(JsonXContent.jsonXContent, ""),
-            new ContentPath()
+            new ContentPath(),
+            null
         );
         expectThrows(UnsupportedOperationException.class, dotExpandedParser::map);
     }
@@ -372,7 +374,8 @@ public class DotExpandingXContentParserTests extends ESTestCase {
     public void testParseMapOrderedUOE() throws Exception {
         XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
             createParser(JsonXContent.jsonXContent, ""),
-            new ContentPath()
+            new ContentPath(),
+            null
         );
         expectThrows(UnsupportedOperationException.class, dotExpandedParser::mapOrdered);
     }
@@ -380,7 +383,8 @@ public class DotExpandingXContentParserTests extends ESTestCase {
     public void testParseMapStringsUOE() throws Exception {
         XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
             createParser(JsonXContent.jsonXContent, ""),
-            new ContentPath()
+            new ContentPath(),
+            null
         );
         expectThrows(UnsupportedOperationException.class, dotExpandedParser::mapStrings);
     }
@@ -388,7 +392,8 @@ public class DotExpandingXContentParserTests extends ESTestCase {
     public void testParseMapSupplierUOE() throws Exception {
         XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
             createParser(JsonXContent.jsonXContent, ""),
-            new ContentPath()
+            new ContentPath(),
+            null
         );
         expectThrows(UnsupportedOperationException.class, () -> dotExpandedParser.map(HashMap::new, XContentParser::text));
     }
@@ -403,7 +408,8 @@ public class DotExpandingXContentParserTests extends ESTestCase {
         contentPath.setWithinLeafObject(true);
         XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
             createParser(JsonXContent.jsonXContent, jsonInput),
-            contentPath
+            contentPath,
+            null
         );
         assertEquals(XContentParser.Token.START_OBJECT, dotExpandedParser.nextToken());
         assertEquals(XContentParser.Token.FIELD_NAME, dotExpandedParser.nextToken());
@@ -418,7 +424,8 @@ public class DotExpandingXContentParserTests extends ESTestCase {
     public void testParseListUOE() throws Exception {
         XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
             createParser(JsonXContent.jsonXContent, ""),
-            new ContentPath()
+            new ContentPath(),
+            null
         );
         expectThrows(UnsupportedOperationException.class, dotExpandedParser::list);
     }
@@ -426,7 +433,8 @@ public class DotExpandingXContentParserTests extends ESTestCase {
     public void testParseListOrderedUOE() throws Exception {
         XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
             createParser(JsonXContent.jsonXContent, ""),
-            new ContentPath()
+            new ContentPath(),
+            null
         );
         expectThrows(UnsupportedOperationException.class, dotExpandedParser::listOrderedMap);
     }
@@ -440,7 +448,8 @@ public class DotExpandingXContentParserTests extends ESTestCase {
         contentPath.setWithinLeafObject(true);
         XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
             createParser(JsonXContent.jsonXContent, jsonInput),
-            contentPath
+            contentPath,
+            null
         );
         assertEquals(XContentParser.Token.START_OBJECT, dotExpandedParser.nextToken());
         assertEquals(XContentParser.Token.FIELD_NAME, dotExpandedParser.nextToken());

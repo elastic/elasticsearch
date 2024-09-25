@@ -389,6 +389,12 @@ public final class DocumentParser {
             rootBuilder.addRuntimeField(runtimeField);
         }
         RootObjectMapper root = rootBuilder.build(MapperBuilderContext.root(context.mappingLookup().isSourceSynthetic(), false));
+
+        // Repeat the check, in case the dynamic mappers don't produce a mapping update.
+        if (root.mappers.isEmpty() && root.runtimeFields().isEmpty()) {
+            return null;
+        }
+
         return context.mappingLookup().getMapping().mappingUpdate(root);
     }
 
@@ -638,7 +644,7 @@ public final class DocumentParser {
     private static void doParseObject(DocumentParserContext context, String currentFieldName, Mapper objectMapper) throws IOException {
         context.path().add(currentFieldName);
         boolean withinLeafObject = context.path().isWithinLeafObject();
-        if (objectMapper instanceof ObjectMapper objMapper && objMapper.subobjects() != ObjectMapper.Subobjects.ENABLED) {
+        if (objectMapper instanceof ObjectMapper objMapper && objMapper.subobjects() == ObjectMapper.Subobjects.DISABLED) {
             context.path().setWithinLeafObject(true);
         }
         parseObjectOrField(context, objectMapper);
@@ -1012,11 +1018,14 @@ public final class DocumentParser {
         // don't create a dynamic mapping for it and don't index it.
         String fieldPath = context.path().pathAsText(fieldName);
         MappedFieldType fieldType = context.mappingLookup().getFieldType(fieldPath);
-        if (fieldType != null) {
-            // we haven't found a mapper with this name above, which means if a field type is found it is for sure a runtime field.
-            assert fieldType.hasDocValues() == false && fieldType.isAggregatable() && fieldType.isSearchable();
+
+        if (fieldType != null && fieldType.hasDocValues() == false && fieldType.isAggregatable() && fieldType.isSearchable()) {
+            // We haven't found a mapper with this name above, which means it is a runtime field.
             return noopFieldMapper(fieldPath);
         }
+        // No match or the matching field type corresponds a mapper with flattened name (containing dots).
+        // In the latter case, returning null leads to creating a dynamic mapper that get deduplicated
+        // when building the dynamic update for the doc at hand.
         return null;
     }
 
@@ -1160,11 +1169,10 @@ public final class DocumentParser {
                 mappingLookup.getMapping().getRoot(),
                 ObjectMapper.Dynamic.getRootDynamic(mappingLookup)
             );
-            if (mappingLookup.getMapping().getRoot().subobjects() == ObjectMapper.Subobjects.ENABLED) {
-                this.parser = DotExpandingXContentParser.expandDots(parser, this.path);
-            } else {
-                this.parser = parser;
-            }
+            // If root supports no subobjects, there's no point in expanding dots in names to subobjects.
+            this.parser = (mappingLookup.getMapping().getRoot().subobjects() == ObjectMapper.Subobjects.DISABLED)
+                ? parser
+                : DotExpandingXContentParser.expandDots(parser, this.path, this);
             this.document = new LuceneDocument();
             this.documents.add(document);
             this.maxAllowedNumNestedDocs = indexSettings().getMappingNestedDocsLimit();

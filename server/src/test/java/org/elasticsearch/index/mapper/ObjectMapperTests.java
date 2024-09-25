@@ -556,6 +556,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                         b.endObject();
                     }
                     b.endObject();
+                    b.startObject("foo").field("type", "keyword").endObject();
                 }
                 b.endObject();
             }

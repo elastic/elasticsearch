@@ -1,5 +1,5 @@
 [[quickstart]]
-= API quick starts
+= Quick starts
 
 Use these quick starts to get hands-on experience with the {es} APIs.
 Unless otherwise noted, these examples will use queries written in <<query-dsl,Query DSL>> syntax.

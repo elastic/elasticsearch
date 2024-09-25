@@ -210,7 +210,7 @@ If you're building a website or app, then you can call Elasticsearch APIs using 
 [[es-ingestion-overview-timestamped]]
 ==== Timestamped data
 
-Timestamped data in {es} refers to datasets that include a timestamp field, typically named `@timestamp` when using the https://www.elastic.co/guide/en/ecs/current/ecs-reference.html[Elastic Common Schema (ECS)].
+Timestamped data in {es} refers to datasets that include a timestamp field. If you use the {ecs-ref}/ecs-reference.html[Elastic Common Schema (ECS)], this field is named `@timestamp`.
 This could be data like logs, metrics, and traces.
 
 For timestamped data, you have the following options for adding data to {es} data streams:
@@ -370,7 +370,7 @@ Does not yet support full-text search.
 | <<sql-apis,`_sql`>>
 
 | {kibana-ref}/kuery-query.html[Kibana Query Language (KQL)]
-| Kibana Query Language (KQL) is a text-based query language for filtering data that is only available in the {kib} UI.
+| Kibana Query Language (KQL) is a text-based query language for filtering data when you access it through the {kib} UI.
 | Use KQL to filter documents where a value for a field exists, matches a given value, or is within a given range.
 | N/A
 

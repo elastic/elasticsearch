@@ -9,7 +9,7 @@
 *DO NOT USE THESE INSTRUCTIONS FOR PRODUCTION DEPLOYMENTS*
 
 The instructions on this page are for *local development only*. Do not use these instructions for production deployments, because they are not secure.
-While this approach is convenient for experimenting and learning, you should never run the Elasticsearch in this way in a production environment.
+While this approach is convenient for experimenting and learning, you should never run Elasticsearch in this way in a production environment.
 ====
 
 Follow this tutorial if you want to quickly set up {es} in Docker for local development or testing.

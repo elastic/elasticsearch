@@ -1,5 +1,5 @@
 [#es-connectors]
-= Ingest content Elastic connectors
+= Ingest content with Elastic connectors
 ++++
 <titleabbrev>Connectors</titleabbrev>
 ++++

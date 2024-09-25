@@ -212,5 +212,6 @@
   "examples" : [
     "ROW a = 10, b = 20\n| EVAL l = LEAST(a, b)"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

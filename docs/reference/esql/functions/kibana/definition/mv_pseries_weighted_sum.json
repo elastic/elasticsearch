@@ -26,5 +26,6 @@
   "examples" : [
     "ROW a = [70.0, 45.0, 21.0, 21.0, 21.0]\n| EVAL sum = MV_PSERIES_WEIGHTED_SUM(a, 1.5)\n| KEEP sum"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

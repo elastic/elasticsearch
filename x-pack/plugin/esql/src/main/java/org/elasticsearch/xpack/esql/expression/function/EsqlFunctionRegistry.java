@@ -405,6 +405,17 @@ public class EsqlFunctionRegistry {
         return snapshotRegistry;
     }
 
+    public boolean isSnapshotOnly(String functionName) {
+        for (FunctionDefinition[] defs : snapshotFunctions()) {
+            for (FunctionDefinition def : defs) {
+                if (def.name().equalsIgnoreCase(functionName)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     public static String normalizeName(String name) {
         return name.toLowerCase(Locale.ROOT);
     }
@@ -562,6 +573,7 @@ public class EsqlFunctionRegistry {
             }
             register(snapshotFunctions());
         }
+
     }
 
     void register(FunctionDefinition[]... groupFunctions) {

@@ -57,5 +57,6 @@
     "ROW a=[3, 5, 1]\n| EVAL median_a = MV_MEDIAN(a)",
     "ROW a=[3, 7, 1, 6]\n| EVAL median_a = MV_MEDIAN(a)"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

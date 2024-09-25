@@ -56,5 +56,6 @@
   "examples" : [
     "ROW d = 1000.0 \n| EVAL s = LOG10(d)"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

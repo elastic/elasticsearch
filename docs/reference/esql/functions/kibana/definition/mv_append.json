@@ -239,5 +239,6 @@
       "returnType" : "version"
     }
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

@@ -32,5 +32,6 @@
   "examples" : [
     "ROW message = \"Some Text\"\n| EVAL message_upper = TO_UPPER(message)"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

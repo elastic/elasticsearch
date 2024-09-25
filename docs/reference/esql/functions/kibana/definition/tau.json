@@ -12,5 +12,6 @@
   "examples" : [
     "ROW TAU()"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

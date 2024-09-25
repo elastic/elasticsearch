@@ -12,5 +12,6 @@
   "examples" : [
     "ROW E()"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

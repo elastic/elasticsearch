@@ -321,5 +321,6 @@
     "row a = [1, 2, 2, 3]\n| eval a1 = mv_slice(a, 1), a2 = mv_slice(a, 2, 3)",
     "row a = [1, 2, 2, 3]\n| eval a1 = mv_slice(a, -2), a2 = mv_slice(a, -3, -1)"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

@@ -598,5 +598,6 @@
     "FROM sample_data\n| EVAL successful = CASE(\n    STARTS_WITH(message, \"Connected to\"), 1,\n    message == \"Connection error\", 0\n  )\n| STATS success_rate = AVG(successful)",
     "FROM sample_data\n| EVAL error = CASE(message LIKE \"*error*\", 1, 0)\n| EVAL hour = DATE_TRUNC(1 hour, @timestamp)\n| STATS error_rate = AVG(error) by hour\n| SORT hour"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

@@ -298,5 +298,6 @@
     "ROW base = 2.0, exponent = 2\n| EVAL result = POW(base, exponent)",
     "ROW base = 4, exponent = 0.5\n| EVAL s = POW(base, exponent)"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

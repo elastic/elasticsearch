@@ -129,5 +129,6 @@
     "ROW a=[2, 1]\n| EVAL min_a = MV_MIN(a)",
     "ROW a=[\"foo\", \"bar\"]\n| EVAL min_a = MV_MIN(a)"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

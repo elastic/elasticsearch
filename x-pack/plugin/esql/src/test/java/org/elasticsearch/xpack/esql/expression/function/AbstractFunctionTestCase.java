@@ -129,6 +129,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         entry("is_null", IsNull.class),
         entry("is_not_null", IsNotNull.class)
     );
+    private static EsqlFunctionRegistry prodRegistry = new EsqlFunctionRegistry();
+    private static EsqlFunctionRegistry snapshotRegistry = prodRegistry.snapshotRegistry();
 
     protected TestCaseSupplier.TestCase testCase;
 
@@ -1149,10 +1151,15 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             builder.endArray();
         }
         builder.field("preview", info.preview());
+        builder.field("snapshot_only", isSnapshotOnly(name));
 
         String rendered = Strings.toString(builder.endObject());
         LogManager.getLogger(getTestClass()).info("Writing kibana function definition for [{}]:\n{}", functionName(), rendered);
         writeToTempDir("kibana/definition", rendered, "json");
+    }
+
+    private static boolean isSnapshotOnly(String functionName) {
+        return prodRegistry.isSnapshotOnly(functionName);
     }
 
     private static String removeAsciidocLinks(String asciidoc) {
@@ -1194,9 +1201,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     private static FunctionDefinition definition(String name) {
-        EsqlFunctionRegistry registry = new EsqlFunctionRegistry().snapshotRegistry();
-        if (registry.functionExists(name)) {
-            return registry.resolveFunction(name);
+        if (snapshotRegistry.functionExists(name)) {
+            return snapshotRegistry.resolveFunction(name);
         }
         return null;
     }

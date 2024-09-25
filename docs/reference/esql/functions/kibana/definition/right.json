@@ -44,5 +44,6 @@
   "examples" : [
     "FROM employees\n| KEEP last_name\n| EVAL right = RIGHT(last_name, 3)\n| SORT last_name ASC\n| LIMIT 5"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

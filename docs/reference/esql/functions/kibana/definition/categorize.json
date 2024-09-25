@@ -29,5 +29,6 @@
       "returnType" : "integer"
     }
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : true
 }

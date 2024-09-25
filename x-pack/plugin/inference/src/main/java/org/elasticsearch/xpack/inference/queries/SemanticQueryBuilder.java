@@ -130,13 +130,13 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         } else if (innerHitBuilder != null) {
             throw new IllegalStateException(
                 "Transport version must be at least ["
-                    + SEMANTIC_QUERY_INNER_HITS
+                    + SEMANTIC_QUERY_INNER_HITS.toReleaseVersion()
                     + "] to use [ "
                     + INNER_HITS_FIELD.getPreferredName()
                     + "] in ["
                     + NAME
                     + "], current transport version is ["
-                    + out.getTransportVersion()
+                    + out.getTransportVersion().toReleaseVersion()
                     + "]. Are you running a mixed-version cluster?"
             );
         }

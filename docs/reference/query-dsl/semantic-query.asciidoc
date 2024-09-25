@@ -43,7 +43,7 @@ The query text to be searched for on the field.
 `inner_hits`::
 (Optional, object)
 Retrieves the specific passages that match the query.
-See <<semantic-query-passage-ranking, Passage ranking with the `semantic` query>> for more information.
+See <<semantic-query-passage-ranking, passage ranking with the `semantic` query>> for more information.
 +
 .Properties of `inner_hits`
 [%collapsible%open]

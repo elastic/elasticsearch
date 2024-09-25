@@ -39,7 +39,8 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
     NodesReloadSecureSettingsRequest,
     NodesReloadSecureSettingsResponse,
     NodesReloadSecureSettingsRequest.NodeRequest,
-    NodesReloadSecureSettingsResponse.NodeResponse> {
+    NodesReloadSecureSettingsResponse.NodeResponse,
+    Void> {
 
     public static final ActionType<NodesReloadSecureSettingsResponse> TYPE = new ActionType<>("cluster:admin/nodes/reload_secure_settings");
 

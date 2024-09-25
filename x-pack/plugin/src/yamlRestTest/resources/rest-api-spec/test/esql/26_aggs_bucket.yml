@@ -35,6 +35,20 @@
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
+          query: 'FROM test_bucket | SORT ts'
+  - match: { columns.0.name: ts }
+  - match: { columns.0.type: date }
+  - length: { values: 4 }
+  - match: { values.0.0: "2024-07-16T08:10:00.000Z" }
+  - match: { values.1.0: "2024-07-16T09:20:00.000Z" }
+  - match: { values.2.0: "2024-07-16T10:30:00.000Z" }
+  - match: { values.3.0: "2024-07-16T11:40:00.000Z" }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
           query: 'FROM test_bucket | STATS c = COUNT(*) BY b = BUCKET(ts, 4, "2024-07-16T08:00:00Z", "2024-07-16T12:00:00Z") | SORT b'
   - match: { columns.0.name: c }
   - match: { columns.0.type: long }
@@ -118,6 +132,40 @@
           - { "ts": "2024-08-16" }
           - { "index": { "_index": "test_bucket" } }
           - { "ts": "2024-09-16" }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test_bucket | STATS c = COUNT(*)'
+  - match: { columns.0.name: c }
+  - match: { columns.0.type: long }
+  - match: { values.0.0: 4 }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test_bucket | SORT ts'
+  - match: { columns.0.name: ts }
+  - match: { columns.0.type: date }
+  - length: { values: 4 }
+  - match: { values.0.0: "2024-06-16T00:00:00.000Z" }
+  - match: { values.1.0: "2024-07-16T00:00:00.000Z" }
+  - match: { values.2.0: "2024-08-16T00:00:00.000Z" }
+  - match: { values.3.0: "2024-09-16T00:00:00.000Z" }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test_bucket | STATS c = COUNT(*)'
+  - match: { columns.0.name: c }
+  - match: { columns.0.type: long }
+  - match: { values.0.0: 4 }
 
   - do:
       allowed_warnings_regex:

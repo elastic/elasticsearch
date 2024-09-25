@@ -90,7 +90,7 @@ Enabling comment indexing could impact connector performance due to increased ne
 [discrete#es-connectors-notion-connector-content-extraction]
 ====== Content Extraction
 
-Refer to <<es-connectors-content-extraction,content extraction>>
+Refer to <<es-connectors-content-extraction,content extraction>>.
 
 [discrete#es-connectors-notion-connector-documents-and-syncs]
 ===== Documents and syncs
@@ -448,7 +448,7 @@ Enabling comment indexing could impact connector performance due to increased ne
 [discrete#es-connectors-notion-client-connector-content-extraction]
 ====== Content Extraction
 
-Refer to <<es-connectors-content-extraction,content extraction>>
+Refer to <<es-connectors-content-extraction,content extraction>>.
 
 [discrete#es-connectors-notion-client-connector-documents-and-syncs]
 ===== Documents and syncs

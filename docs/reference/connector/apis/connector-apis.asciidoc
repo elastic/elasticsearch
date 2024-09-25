@@ -12,8 +12,7 @@ Connectors are {es} integrations that bring content from third-party data source
 * *Managed connectors* are a managed service on {ecloud}
 * *Self-managed connectors* are self-hosted on your infrastructure
 
-Find a list of all supported service types in the <<es-connectors,connectors>>.
-.
+Find a list of all supported service types in the <<es-connectors,connectors documentation>>.
 
 This API provides an alternative to relying solely on {kib} UI for connector and sync job management. The API comes with a set of
 validations and assertions to ensure that the state representation in the internal index remains valid.

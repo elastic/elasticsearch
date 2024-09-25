@@ -10,6 +10,7 @@
 package org.elasticsearch.search.retriever.rankdoc;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
@@ -124,7 +125,9 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
                 int numDocs = atLeast(20);
                 for (int i = 0; i < seg; i++) {
                     for (int j = 0; j < numDocs; j++) {
-                        iw.addDocument(new Document());
+                        Document doc = new Document();
+                        doc.add(new NumericDocValuesField("active", 1));
+                        iw.addDocument(doc);
                     }
                     if (frequently()) {
                         iw.flush();
@@ -145,10 +148,16 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
                 IndexSearcher searcher = new IndexSearcher(reader);
                 for (int totalHitsThreshold = 0; totalHitsThreshold < reader.maxDoc(); totalHitsThreshold += randomIntBetween(1, 10)) {
                     // Tests that the query matches only the {@link RankDoc} when the hit threshold is reached.
-                    RankDocsQuery q = new RankDocsQuery(reader, rankDocs, new Query[] { new MatchAllDocsQuery() }, new String[1], false);
+                    RankDocsQuery q = new RankDocsQuery(
+                        reader,
+                        rankDocs,
+                        new Query[] { NumericDocValuesField.newSlowExactQuery("active", 1) },
+                        new String[1],
+                        false
+                    );
                     var topDocsManager = new TopScoreDocCollectorManager(topSize, null, totalHitsThreshold);
                     var col = searcher.search(q, topDocsManager);
-                    assertThat(col.totalHits.value, lessThanOrEqualTo((long) (Math.max(topSize, totalHitsThreshold) + topSize)));
+                    assertThat(col.totalHits.value, lessThanOrEqualTo((long) (1 + Math.max(topSize, totalHitsThreshold) + topSize)));
                     assertEqualTopDocs(col.scoreDocs, rankDocs);
                 }
 

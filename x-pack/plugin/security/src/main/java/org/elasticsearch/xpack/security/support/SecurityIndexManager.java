@@ -428,6 +428,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             return true;
         }
         for (ShardRouting s : routingTable.shardsWithState(ShardRoutingState.UNASSIGNED)) {
+            // at least one shard unavailable because index is creating, without past failed allocations
             if (s.unassignedInfo() != null
                 && s.unassignedInfo().failedAllocations() == 0
                 && s.unassignedInfo().reason() == UnassignedInfo.Reason.INDEX_CREATED) {

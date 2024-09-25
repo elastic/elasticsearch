@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
+import org.junit.BeforeClass;
 
 import java.util.Arrays;
 import java.util.LinkedList;
@@ -26,10 +27,16 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.MATCH_FUNCTION;
 import static org.hamcrest.Matchers.equalTo;
 
 @FunctionName("matchstr")
 public class MatchFunctionTests extends AbstractFunctionTestCase {
+
+    @BeforeClass
+    public static void checkFunctionEnabled() {
+        assumeTrue("MATCH function should be enabled ", MATCH_FUNCTION.isEnabled());
+    }
 
     public MatchFunctionTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.retriever;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
@@ -234,6 +235,14 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
      * Elements from retrievers are expected to be "extracted" into the {@link SearchSourceBuilder}.
      */
     public abstract void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed);
+
+    public ActionRequestValidationException validate(
+        SearchSourceBuilder source,
+        ActionRequestValidationException validationException,
+        boolean allowPartialSearchResults
+    ) {
+        return validationException;
+    }
 
     // ---- FOR TESTING XCONTENT PARSING ----
 

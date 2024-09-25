@@ -9,7 +9,6 @@
 
 package org.elasticsearch.search.retriever;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -146,8 +145,6 @@ public class RankDocsRetrieverBuilderTests extends ESTestCase {
         if (retriever.rankWindowSize < size) {
             if (compoundAdded) {
                 expectThrows(AssertionError.class, () -> Rewriteable.rewrite(source, queryRewriteContext));
-            } else {
-                expectThrows(ActionRequestValidationException.class, () -> Rewriteable.rewrite(source, queryRewriteContext));
             }
         } else {
             if (compoundAdded) {

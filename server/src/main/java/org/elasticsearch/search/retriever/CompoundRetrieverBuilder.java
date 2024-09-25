@@ -12,6 +12,7 @@ package org.elasticsearch.search.retriever;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -33,6 +34,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * This abstract retriever defines a compound retriever. The idea is that it is not a leaf-retriever, i.e. it does not
@@ -164,6 +167,35 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
     @Override
     public final void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
         throw new IllegalStateException("Should not be called, missing a rewrite?");
+    }
+
+    @Override
+    public ActionRequestValidationException validate(
+        SearchSourceBuilder source,
+        ActionRequestValidationException validationException,
+        boolean allowPartialSearchResults
+    ) {
+        validationException = super.validate(source, validationException, allowPartialSearchResults);
+        if (source.size() > rankWindowSize) {
+            validationException = addValidationError(
+                "["
+                    + this.getName()
+                    + "] requires [rank_window_size: "
+                    + rankWindowSize
+                    + "]"
+                    + " be greater than or equal to [size: "
+                    + source.size()
+                    + "]",
+                validationException
+            );
+        }
+        if (allowPartialSearchResults) {
+            validationException = addValidationError(
+                "cannot specify a compound retriever and [allow_partial_search_results]",
+                validationException
+            );
+        }
+        return validationException;
     }
 
     @Override

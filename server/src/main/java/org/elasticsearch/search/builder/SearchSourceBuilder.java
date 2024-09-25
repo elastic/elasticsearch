@@ -2207,12 +2207,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         boolean allowPartialSearchResults
     ) {
         if (retriever() != null) {
-            if (allowPartialSearchResults && retriever().isCompound()) {
-                validationException = addValidationError(
-                    "cannot specify a compound retriever and [allow_partial_search_results]",
-                    validationException
-                );
-            }
+            validationException = retriever().validate(this, validationException, allowPartialSearchResults);
             List<String> specified = new ArrayList<>();
             if (subSearches().isEmpty() == false) {
                 specified.add(QUERY_FIELD.getPreferredName());

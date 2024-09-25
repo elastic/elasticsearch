@@ -157,7 +157,13 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
                     );
                     var topDocsManager = new TopScoreDocCollectorManager(topSize, null, totalHitsThreshold);
                     var col = searcher.search(q, topDocsManager);
-                    assertThat(col.totalHits.value, lessThanOrEqualTo((long) (1 + Math.max(topSize, totalHitsThreshold) + topSize)));
+                    // depending on the doc-ids of the RankDocs (i.e. the actual docs to have score) we could visit them last,
+                    // so worst case is we could end up collecting up to 1 + max(topSize , totalHitsThreshold) + rankDocs.length documents
+                    // as we could have already filled the priority queue with non-optimal docs
+                    assertThat(
+                        col.totalHits.value,
+                        lessThanOrEqualTo((long) (1 + Math.max(topSize, totalHitsThreshold) + rankDocs.length))
+                    );
                     assertEqualTopDocs(col.scoreDocs, rankDocs);
                 }
 

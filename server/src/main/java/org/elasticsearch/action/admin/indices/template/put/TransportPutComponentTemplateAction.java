@@ -78,7 +78,7 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
             Settings.Builder builder = Settings.builder().put(template.settings()).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
             Settings settings = builder.build();
             indexScopedSettings.validate(settings, true);
-            template = new Template(settings, template.mappings(), template.aliases(), template.lifecycle());
+            template = Template.builder(template).settings(settings).build();
             componentTemplate = new ComponentTemplate(
                 template,
                 componentTemplate.version(),

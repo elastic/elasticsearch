@@ -159,8 +159,8 @@ public abstract class SortBuilder<T extends SortBuilder<T>>
         List<DocValueFormat> sortFormats = new ArrayList<>(sortBuilders.size());
         for (SortBuilder<?> builder : sortBuilders) {
             SortFieldAndFormat sf = builder.build(context);
-            sortFields.add(sf.field);
-            sortFormats.add(sf.format);
+            sortFields.add(sf.field());
+            sortFormats.add(sf.format());
         }
         if (sortFields.isEmpty() == false) {
             // optimize if we just sort on score non reversed, we don't really

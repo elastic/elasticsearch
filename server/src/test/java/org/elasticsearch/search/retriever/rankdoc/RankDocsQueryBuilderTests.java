@@ -17,7 +17,6 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopScoreDocCollectorManager;
@@ -169,7 +168,13 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
 
                 {
                     // Return all docs (rank + tail)
-                    RankDocsQuery q = new RankDocsQuery(reader, rankDocs, new Query[] { new MatchAllDocsQuery() }, new String[1], false);
+                    RankDocsQuery q = new RankDocsQuery(
+                        reader,
+                        rankDocs,
+                        new Query[] { NumericDocValuesField.newSlowExactQuery("active", 1) },
+                        new String[1],
+                        false
+                    );
                     var topDocsManager = new TopScoreDocCollectorManager(topSize, null, Integer.MAX_VALUE);
                     var col = searcher.search(q, topDocsManager);
                     assertThat(col.totalHits.value, equalTo((long) reader.maxDoc()));
@@ -178,7 +183,13 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
 
                 {
                     // Only rank docs
-                    RankDocsQuery q = new RankDocsQuery(reader, rankDocs, new Query[] { new MatchAllDocsQuery() }, new String[1], true);
+                    RankDocsQuery q = new RankDocsQuery(
+                        reader,
+                        rankDocs,
+                        new Query[] { NumericDocValuesField.newSlowExactQuery("active", 1) },
+                        new String[1],
+                        true
+                    );
                     var topDocsManager = new TopScoreDocCollectorManager(topSize, null, Integer.MAX_VALUE);
                     var col = searcher.search(q, topDocsManager);
                     assertThat(col.totalHits.value, equalTo((long) topSize));

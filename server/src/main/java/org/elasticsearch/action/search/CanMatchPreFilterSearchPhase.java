@@ -526,7 +526,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
                 iter.skip(true);
             }
         }
-        if (false == shouldSortShards(results.minAndMaxes)) {
+        if (shouldSortShards(results.minAndMaxes) == false) {
             return shardsIts;
         }
         FieldSortBuilder fieldSort = FieldSortBuilder.getPrimaryFieldSortOrNull(request.source());

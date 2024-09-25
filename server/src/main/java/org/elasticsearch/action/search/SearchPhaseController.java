@@ -465,13 +465,10 @@ public final class SearchPhaseController {
                     searchHit.setRank(((RankDoc) shardDoc).rank);
                     searchHit.score(shardDoc.score);
                 } else if (sortedTopDocs.isSortedByField) {
-                    if (shardDoc instanceof FieldDoc fieldDoc) {
-                        searchHit.sortValues(fieldDoc.fields, reducedQueryPhase.sortValueFormats);
-                        if (sortScoreIndex != -1) {
-                            searchHit.score(((Number) fieldDoc.fields[sortScoreIndex]).floatValue());
-                        }
-                    } else {
-                        throw new IllegalArgumentException("Unsupported ScoreDoc type: " + shardDoc.getClass());
+                    FieldDoc fieldDoc = (FieldDoc) shardDoc;
+                    searchHit.sortValues(fieldDoc.fields, reducedQueryPhase.sortValueFormats);
+                    if (sortScoreIndex != -1) {
+                        searchHit.score(((Number) fieldDoc.fields[sortScoreIndex]).floatValue());
                     }
                 } else {
                     searchHit.score(shardDoc.score);
@@ -641,7 +638,7 @@ public final class SearchPhaseController {
         final SearchProfileResultsBuilder profileBuilder = profileShardResults.isEmpty()
             ? null
             : new SearchProfileResultsBuilder(profileShardResults);
-        SortedTopDocs sortedTopDocs;
+        final SortedTopDocs sortedTopDocs;
         if (queryPhaseRankCoordinatorContext == null) {
             sortedTopDocs = sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions);
         } else {
@@ -814,7 +811,7 @@ public final class SearchPhaseController {
         int numShards,
         Consumer<Exception> onPartialMergeFailure
     ) {
-        final int size = request.source() == null || request.source().size() == -1 ? DEFAULT_SIZE : request.source().size();
+        final int size = request.source() == null || request.source().size() == -1 ? SearchService.DEFAULT_SIZE : request.source().size();
         // Use CountOnlyQueryPhaseResultConsumer for requests without aggs, suggest, etc. things only wanting a total count and
         // returning no hits
         if (size == 0
@@ -842,7 +839,7 @@ public final class SearchPhaseController {
     public static final class TopDocsStats {
         final int trackTotalHitsUpTo;
         long totalHits;
-        private Relation totalHitsRelation;
+        private TotalHits.Relation totalHitsRelation;
         public long fetchHits;
         private float maxScore = Float.NEGATIVE_INFINITY;
         public boolean timedOut;
@@ -883,7 +880,7 @@ public final class SearchPhaseController {
             if (trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                 totalHits += topDocs.topDocs.totalHits.value;
                 if (topDocs.topDocs.totalHits.relation == Relation.GREATER_THAN_OR_EQUAL_TO) {
-                    totalHitsRelation = Relation.GREATER_THAN_OR_EQUAL_TO;
+                    totalHitsRelation = TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
                 }
             }
             fetchHits += topDocs.topDocs.scoreDocs.length;

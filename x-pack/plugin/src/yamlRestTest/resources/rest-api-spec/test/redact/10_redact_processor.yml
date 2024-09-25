@@ -116,4 +116,5 @@
             "docs": [{"_source": {"to_redact": "this-email@address.com will be redacted"}}]
           }
   - length: { docs: 1 }
+  - match: { docs.0.doc._source.to_redact: "<EMAIL> will be redacted" }
   - match: { docs.0.doc._ingest._redact._is_redacted: true }

@@ -48,7 +48,7 @@ public class LogsdbRestIT extends ESRestTestCase {
             List<Map<?, ?>> features = (List<Map<?, ?>>) response.get("features");
             logger.info("response's features: {}", features);
             assertThat(features, Matchers.not(Matchers.empty()));
-            Map<?, ?> feature = features.stream().filter(map -> "logsdb".equals(map.get("family"))).findFirst().get();
+            Map<?, ?> feature = features.stream().filter(map -> "mappings".equals(map.get("family"))).findFirst().get();
             assertThat(feature.get("name"), equalTo("synthetic-source"));
             assertThat(feature.get("license_level"), equalTo("enterprise"));
         }

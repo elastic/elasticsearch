@@ -357,9 +357,9 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
         // This acts as a lock, if this method for a specific db is executed later and downloaded for this db is still ongoing then
         // FileAlreadyExistsException is thrown and this method silently returns.
         // (this method is never invoked concurrently and is invoked by a cluster state applier thread)
-        final Path databaseTmpGzFile;
+        final Path retrievedFile;
         try {
-            databaseTmpGzFile = Files.createFile(geoipTmpDirectory.resolve(databaseName + ".tmp.gz"));
+            retrievedFile = Files.createFile(geoipTmpDirectory.resolve(databaseName + ".tmp.retrieved"));
         } catch (FileAlreadyExistsException e) {
             logger.debug("database update [{}] already in progress, skipping...", databaseName);
             return;
@@ -374,24 +374,21 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
         DatabaseReaderLazyLoader lazyLoader = databases.get(databaseName);
         if (lazyLoader != null && recordedMd5.equals(lazyLoader.getMd5())) {
             logger.debug("deleting tmp file because database [{}] has already been updated.", databaseName);
-            Files.delete(databaseTmpGzFile);
+            Files.delete(retrievedFile);
             return;
         }
 
         final Path databaseTmpFile = Files.createFile(geoipTmpDirectory.resolve(databaseName + ".tmp"));
-        logger.debug("retrieving database [{}] from [{}] to [{}]", databaseName, GeoIpDownloader.DATABASES_INDEX, databaseTmpGzFile);
-        retrieveDatabase(
-            databaseName,
-            recordedMd5,
-            metadata,
-            bytes -> Files.write(databaseTmpGzFile, bytes, StandardOpenOption.APPEND),
-            () -> {
-                logger.debug("decompressing [{}]", databaseTmpGzFile.getFileName());
+        logger.debug("retrieving database [{}] from [{}] to [{}]", databaseName, GeoIpDownloader.DATABASES_INDEX, retrievedFile);
+        retrieveDatabase(databaseName, recordedMd5, metadata, bytes -> Files.write(retrievedFile, bytes, StandardOpenOption.APPEND), () -> {
+            final Path databaseFile = geoipTmpDirectory.resolve(databaseName);
 
-                Path databaseFile = geoipTmpDirectory.resolve(databaseName);
+            boolean isTarGz = MMDBUtil.isGzip(retrievedFile);
+            if (isTarGz) {
                 // tarball contains <database_name>.mmdb, LICENSE.txt, COPYRIGHTS.txt and optional README.txt files.
                 // we store mmdb file as is and prepend database name to all other entries to avoid conflicts
-                try (TarInputStream is = new TarInputStream(new GZIPInputStream(Files.newInputStream(databaseTmpGzFile), 8192))) {
+                logger.debug("decompressing [{}]", retrievedFile.getFileName());
+                try (TarInputStream is = new TarInputStream(new GZIPInputStream(Files.newInputStream(retrievedFile), 8192))) {
                     TarInputStream.TarEntry entry;
                     while ((entry = is.getNextEntry()) != null) {
                         // there might be ./ entry in tar, we should skip it
@@ -407,23 +404,25 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
                         }
                     }
                 }
-
-                logger.debug("moving database from [{}] to [{}]", databaseTmpFile, databaseFile);
-                Files.move(databaseTmpFile, databaseFile, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-                updateDatabase(databaseName, recordedMd5, databaseFile);
-                Files.delete(databaseTmpGzFile);
-            },
-            failure -> {
-                logger.error(() -> "failed to retrieve database [" + databaseName + "]", failure);
-                try {
-                    Files.deleteIfExists(databaseTmpFile);
-                    Files.deleteIfExists(databaseTmpGzFile);
-                } catch (IOException ioe) {
-                    ioe.addSuppressed(failure);
-                    logger.error("Unable to delete tmp database file after failure", ioe);
-                }
+            } else {
+                // it's a little bit silly, but yes we're copying this file here
+                Files.copy(retrievedFile, databaseTmpFile, StandardCopyOption.REPLACE_EXISTING);
             }
-        );
+            // finally, atomically move some-database.mmdb.tmp to some-database.mmdb
+            logger.debug("moving database from [{}] to [{}]", databaseTmpFile, databaseFile);
+            Files.move(databaseTmpFile, databaseFile, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            updateDatabase(databaseName, recordedMd5, databaseFile);
+            Files.delete(retrievedFile);
+        }, failure -> {
+            logger.error(() -> "failed to retrieve database [" + databaseName + "]", failure);
+            try {
+                Files.deleteIfExists(databaseTmpFile);
+                Files.deleteIfExists(retrievedFile);
+            } catch (IOException ioe) {
+                ioe.addSuppressed(failure);
+                logger.error("unable to delete tmp database file after failure", ioe);
+            }
+        });
     }
 
     void updateDatabase(String databaseFileName, String recordedMd5, Path file) {

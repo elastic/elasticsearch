@@ -78,7 +78,7 @@ public class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
 
     private IndexMode resolveIndexMode(final String mode) {
         if (mode == null) {
-            return IndexMode.STANDARD;
+            return null;
         }
         return Arrays.stream(IndexMode.values()).filter(indexMode -> Objects.equals(indexMode.getName(), mode)).findFirst().orElse(null);
     }

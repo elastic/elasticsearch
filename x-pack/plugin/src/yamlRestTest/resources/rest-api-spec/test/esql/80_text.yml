@@ -3,7 +3,7 @@ setup:
   - requires:
       cluster_features: ["gte_v8.11.0"]
       reason: "ESQL is available in 8.11+"
-      test_runner_features: allowed_warnings_regex
+      test_runner_features: [allowed_warnings_regex, capabilities]
 
   - do:
       indices.create:
@@ -387,11 +387,12 @@ setup:
   - match: { values.1: [ "baz" ] }
 ---
 "reverse text":
-  - capabilities:
-    - method: POST
-      path: /_query
-      parameters: [method, path, parameters, capabilities]
-      capabilities: [fn_reverse]
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [method, path, parameters, capabilities]
+          capabilities: [fn_reverse]
       reason: "reverse not yet added"
   - do:
       allowed_warnings_regex:

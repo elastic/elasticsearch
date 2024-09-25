@@ -21,6 +21,8 @@
 
 package org.elasticsearch.tdigest;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tdigest.arrays.TDigestArrays;
@@ -33,7 +35,9 @@ import java.util.Iterator;
 /**
  * A tree of t-digest centroids.
  */
-final class AVLGroupTree extends AbstractCollection<Centroid> implements Releasable {
+final class AVLGroupTree extends AbstractCollection<Centroid> implements Releasable, Accountable {
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(AVLGroupTree.class);
+
     /* For insertions into the tree */
     private double centroid;
     private long count;
@@ -85,6 +89,11 @@ final class AVLGroupTree extends AbstractCollection<Centroid> implements Releasa
         centroids = arrays.newDoubleArray(tree.capacity());
         counts = arrays.newLongArray(tree.capacity());
         aggregatedCounts = arrays.newLongArray(tree.capacity());
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + centroids.ramBytesUsed() + counts.ramBytesUsed() + aggregatedCounts.ramBytesUsed() + tree.ramBytesUsed();
     }
 
     /**

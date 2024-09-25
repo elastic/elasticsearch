@@ -8,6 +8,8 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -27,7 +29,8 @@ import java.util.Iterator;
  * through factory method params, providing one optimized for performance (e.g. MergingDigest or HybridDigest) by default, or optionally one
  * that produces highly accurate results regardless of input size but its construction over the sample population takes 2x-10x longer.
  */
-public class TDigestState implements Releasable {
+public class TDigestState implements Releasable, Accountable {
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TDigestState.class);
 
     protected static final CircuitBreaker DEFAULT_NOOP_BREAKER = new NoopCircuitBreaker("default-tdigest-state-noop-breaker");
 
@@ -128,6 +131,11 @@ public class TDigestState implements Releasable {
         };
         this.type = type;
         this.compression = compression;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + tdigest.ramBytesUsed();
     }
 
     public final double compression() {

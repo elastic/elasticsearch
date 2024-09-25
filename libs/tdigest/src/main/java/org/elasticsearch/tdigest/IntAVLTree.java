@@ -21,13 +21,13 @@
 
 package org.elasticsearch.tdigest;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tdigest.arrays.TDigestArrays;
 import org.elasticsearch.tdigest.arrays.TDigestByteArray;
 import org.elasticsearch.tdigest.arrays.TDigestIntArray;
-
-import java.util.Arrays;
 
 /**
  * An AVL-tree structure stored in parallel arrays.
@@ -35,7 +35,8 @@ import java.util.Arrays;
  * want to add data to the nodes, typically by using arrays and node
  * identifiers as indices.
  */
-abstract class IntAVLTree implements Releasable {
+abstract class IntAVLTree implements Releasable, Accountable {
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(IntAVLTree.class);
     /**
      * We use <code>0</code> instead of <code>-1</code> so that left(NIL) works without
      * condition.
@@ -55,7 +56,7 @@ abstract class IntAVLTree implements Releasable {
     private final TDigestByteArray depth;
 
     IntAVLTree(TDigestArrays arrays, int initialCapacity) {
-        nodeAllocator = new NodeAllocator();
+        nodeAllocator = new NodeAllocator(arrays);
         root = NIL;
         parent = arrays.newIntArray(initialCapacity);
         left = arrays.newIntArray(initialCapacity);
@@ -65,6 +66,12 @@ abstract class IntAVLTree implements Releasable {
 
     IntAVLTree(TDigestArrays arrays) {
         this(arrays, 16);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + nodeAllocator.ramBytesUsed() + parent.ramBytesUsed() + left.ramBytesUsed() + right.ramBytesUsed() + depth
+            .ramBytesUsed();
     }
 
     /**
@@ -531,14 +538,20 @@ abstract class IntAVLTree implements Releasable {
     /**
      * A stack of int values.
      */
-    private static class IntStack {
+    private static class IntStack implements Releasable, Accountable {
+        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(IntStack.class);
 
-        private int[] stack;
+        private final TDigestIntArray stack;
         private int size;
 
-        IntStack() {
-            stack = new int[0];
+        IntStack(TDigestArrays arrays) {
+            stack = arrays.newIntArray(0);
             size = 0;
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return SHALLOW_SIZE + stack.ramBytesUsed();
         }
 
         int size() {
@@ -546,27 +559,36 @@ abstract class IntAVLTree implements Releasable {
         }
 
         int pop() {
-            return stack[--size];
+            int value = stack.get(--size);
+            stack.resize(size);
+            return value;
         }
 
         void push(int v) {
-            if (size >= stack.length) {
-                final int newLength = oversize(size + 1);
-                stack = Arrays.copyOf(stack, newLength);
-            }
-            stack[size++] = v;
+            stack.resize(++size);
+            stack.set(size - 1, v);
         }
 
+        @Override
+        public void close() {
+            stack.close();
+        }
     }
 
-    private static class NodeAllocator {
+    private static class NodeAllocator implements Releasable, Accountable {
+        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(NodeAllocator.class);
 
         private int nextNode;
         private final IntStack releasedNodes;
 
-        NodeAllocator() {
+        NodeAllocator(TDigestArrays arrays) {
             nextNode = NIL + 1;
-            releasedNodes = new IntStack();
+            releasedNodes = new IntStack(arrays);
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return SHALLOW_SIZE + releasedNodes.ramBytesUsed();
         }
 
         int newNode() {
@@ -586,6 +608,10 @@ abstract class IntAVLTree implements Releasable {
             return nextNode - releasedNodes.size() - 1;
         }
 
+        @Override
+        public void close() {
+            releasedNodes.close();
+        }
     }
 
     @Override

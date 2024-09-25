@@ -21,6 +21,7 @@
 
 package org.elasticsearch.tdigest;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tdigest.arrays.TDigestArrays;
 import org.elasticsearch.tdigest.arrays.TDigestDoubleArray;
@@ -67,6 +68,8 @@ import java.util.Iterator;
  * what the AVLTreeDigest uses and no dynamic allocation is required at all.
  */
 public class MergingDigest extends AbstractTDigest {
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(MergingDigest.class);
+
     private int mergeCount = 0;
 
     private final double publicCompression;
@@ -218,6 +221,12 @@ public class MergingDigest extends AbstractTDigest {
         order = arrays.newIntArray(bufferSize);
 
         lastUsedCell = 0;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + weight.ramBytesUsed() + mean.ramBytesUsed() + tempWeight.ramBytesUsed() + tempMean.ramBytesUsed() + order
+            .ramBytesUsed();
     }
 
     @Override

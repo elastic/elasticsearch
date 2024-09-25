@@ -21,6 +21,7 @@
 
 package org.elasticsearch.tdigest;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tdigest.arrays.TDigestArrays;
 
@@ -32,6 +33,8 @@ import java.util.Random;
 import static org.elasticsearch.tdigest.IntAVLTree.NIL;
 
 public class AVLTreeDigest extends AbstractTDigest {
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(AVLTreeDigest.class);
+
     private final TDigestArrays arrays;
 
     final Random gen = new Random();
@@ -57,9 +60,14 @@ public class AVLTreeDigest extends AbstractTDigest {
         summary = new AVLGroupTree(arrays);
     }
 
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + summary.ramBytesUsed();
+    }
+
     /**
      * Sets the seed for the RNG.
-     * In cases where a predicatable tree should be created, this function may be used to make the
+     * In cases where a predictable tree should be created, this function may be used to make the
      * randomness in this AVLTree become more deterministic.
      *
      * @param seed The random seed to use for RNG purposes

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.tdigest;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tdigest.arrays.TDigestArrays;
 import org.elasticsearch.tdigest.arrays.TDigestDoubleArray;
@@ -33,6 +34,8 @@ import java.util.Iterator;
  * samples, at the expense of allocating much more memory.
  */
 public class SortingDigest extends AbstractTDigest {
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(SortingDigest.class);
+
     // Tracks all samples. Gets sorted on quantile and cdf calls.
     final TDigestDoubleArray values;
 
@@ -41,6 +44,11 @@ public class SortingDigest extends AbstractTDigest {
 
     public SortingDigest(TDigestArrays arrays) {
         values = arrays.newDoubleArray(0);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + values.ramBytesUsed();
     }
 
     @Override

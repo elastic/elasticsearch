@@ -19,6 +19,7 @@
 
 package org.elasticsearch.tdigest;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tdigest.arrays.TDigestArrays;
 
@@ -34,6 +35,7 @@ import java.util.Collection;
  * bounded memory allocation and acceptable speed and accuracy for larger ones.
  */
 public class HybridDigest extends AbstractTDigest {
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(HybridDigest.class);
 
     private final TDigestArrays arrays;
 
@@ -74,6 +76,13 @@ public class HybridDigest extends AbstractTDigest {
         // at the point where implementations switch, e.g. for default compression 100 SortingDigest allocates ~16kB and MergingDigest
         // allocates ~15kB.
         this(arrays, compression, Math.round(compression) * 20);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + (sortingDigest != null ? sortingDigest.ramBytesUsed() : 0) + (mergingDigest != null
+            ? mergingDigest.ramBytesUsed()
+            : 0);
     }
 
     @Override

@@ -31,14 +31,14 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_PAT
 /**
  * An index setting provider that overwrites the source mode from synthetic to stored if synthetic source isn't allowed to be used.
  */
-public class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider {
+final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider {
 
     private static final Logger LOGGER = LogManager.getLogger(SyntheticSourceIndexSettingsProvider.class);
 
     private final SyntheticSourceLicenseService syntheticSourceLicenseService;
     private final CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory;
 
-    public SyntheticSourceIndexSettingsProvider(
+    SyntheticSourceIndexSettingsProvider(
         SyntheticSourceLicenseService syntheticSourceLicenseService,
         CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory
     ) {

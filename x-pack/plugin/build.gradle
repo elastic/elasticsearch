@@ -78,8 +78,4 @@ tasks.named("precommit").configure {
   dependsOn 'enforceYamlTestConvention', 'enforceApiSpecsConvention'
 }
 
-tasks.named("yamlRestCompatTestTransform").configure({ task ->
-  task.skipTestsByFilePattern("**/esql/180_match_operator.yml", "match operator changed name - do not check compatibility")
-})
-
 

@@ -332,7 +332,12 @@ public class EsqlCapabilities {
         /**
          * Compute year differences in full calendar years.
          */
-        DATE_DIFF_YEAR_CALENDARIAL;
+        DATE_DIFF_YEAR_CALENDARIAL,
+
+        /**
+         * MATCH operator got renamed
+         */
+        MATCH_OPERATOR_RENAMED(true);
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

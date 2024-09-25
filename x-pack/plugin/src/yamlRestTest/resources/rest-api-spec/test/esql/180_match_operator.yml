@@ -5,7 +5,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ method, path, parameters, capabilities ]
-          capabilities: [ match_operator ]
+          capabilities: [ match_operator_renamed ]
       cluster_features: [ "gte_v8.16.0" ]
       reason: "Match operator added in 8.16.0"
       test_runner_features: [capabilities, allowed_warnings_regex]

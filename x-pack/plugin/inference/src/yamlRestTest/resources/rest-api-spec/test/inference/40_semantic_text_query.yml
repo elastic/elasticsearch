@@ -814,6 +814,48 @@ setup:
   - length: { hits.hits.0.inner_hits.inference_field_2.hits.hits: 3 }
 
 ---
+"Query semantic text field in object with inner hits":
+  - requires:
+      cluster_features: "semantic_text.inner_hits"
+      reason: semantic_text inner hits support added in 8.16.0
+
+  - do:
+      indices.create:
+        index: test-semantic-text-in-object-index
+        body:
+          mappings:
+            properties:
+              container:
+                properties:
+                  inference_field:
+                    type: semantic_text
+                    inference_id: sparse-inference-id
+
+  - do:
+      index:
+        index: test-semantic-text-in-object-index
+        id: doc_1
+        body:
+          container.inference_field: ["inference test", "another inference test", "yet another inference test"]
+        refresh: true
+
+  - do:
+      search:
+        index: test-semantic-text-in-object-index
+        body:
+          query:
+            semantic:
+              field: "container.inference_field"
+              query: "inference test"
+              inner_hits: {}
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - exists: hits.hits.0.inner_hits.container\.inference_field
+  - match: { hits.hits.0.inner_hits.container\.inference_field.hits.total.value: 3 }
+  - length: { hits.hits.0.inner_hits.container\.inference_field.hits.hits: 3 }
+
+---
 "Query the wrong field type":
   - do:
       index:

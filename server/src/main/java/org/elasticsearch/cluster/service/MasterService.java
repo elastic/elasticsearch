@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.service;
@@ -46,7 +47,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
@@ -655,7 +655,7 @@ public class MasterService extends AbstractLifecycleComponent {
             }
         }
 
-        public void onAckFailure(@Nullable Exception e) {
+        public void onAckFailure(Exception e) {
             try (ThreadContext.StoredContext ignore = context.get()) {
                 restoreResponseHeaders.run();
                 listener.onAckFailure(e);
@@ -687,6 +687,7 @@ public class MasterService extends AbstractLifecycleComponent {
     private static class TaskAckListener {
 
         private final ContextPreservingAckListener contextPreservingAckListener;
+        private final TimeValue ackTimeout;
         private final CountDown countDown;
         private final DiscoveryNode masterNode;
         private final ThreadPool threadPool;
@@ -701,6 +702,7 @@ public class MasterService extends AbstractLifecycleComponent {
             ThreadPool threadPool
         ) {
             this.contextPreservingAckListener = contextPreservingAckListener;
+            this.ackTimeout = Objects.requireNonNull(contextPreservingAckListener.ackTimeout());
             this.clusterStateVersion = clusterStateVersion;
             this.threadPool = threadPool;
             this.masterNode = nodes.getMasterNode();
@@ -715,14 +717,7 @@ public class MasterService extends AbstractLifecycleComponent {
             this.countDown = new CountDown(countDown + 1); // we also wait for onCommit to be called
         }
 
-        @UpdateForV9 // properly forbid ackTimeout == null after enough time has passed to be sure it's not used in production
         public void onCommit(TimeValue commitTime) {
-            TimeValue ackTimeout = contextPreservingAckListener.ackTimeout();
-            if (ackTimeout == null) {
-                assert false : "ackTimeout must always be present: " + contextPreservingAckListener;
-                ackTimeout = TimeValue.ZERO;
-            }
-
             if (ackTimeout.millis() < 0) {
                 if (countDown.countDown()) {
                     finish();

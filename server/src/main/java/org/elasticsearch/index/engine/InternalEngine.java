@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.engine;
@@ -3372,12 +3373,20 @@ public class InternalEngine extends Engine {
         return ShardLongFieldRange.UNKNOWN;
     }
 
+    /**
+     * Add a listener for the translog location. The listener is notified when a commit covering the translog location
+     * is flushed (see also {@link #flushHoldingLock}). NOTE that flush does _not_ imply commit durability.
+     * If commit durability is desired, the caller must handle it separately.
+     */
     @Override
     public void addFlushListener(Translog.Location location, ActionListener<Long> listener) {
         this.flushListener.addOrNotify(location, new ActionListener<>() {
             @Override
             public void onResponse(Long generation) {
-                waitForCommitDurability(generation, listener.map(v -> generation));
+                // No need to wait for commit durability since the ONLY caller is PostWriteRefresh which
+                // requires the commit generation to be visible to search shards. Visibility does not require
+                // special logic for durability since nodes can talk to each other directly (RCO).
+                checkGenerationFlushed(generation, listener.map(v -> generation));
             }
 
             @Override
@@ -3387,7 +3396,7 @@ public class InternalEngine extends Engine {
         });
     }
 
-    protected void waitForCommitDurability(long generation, ActionListener<Void> listener) {
+    private void checkGenerationFlushed(long generation, ActionListener<Void> listener) {
         try {
             ensureOpen();
         } catch (AlreadyClosedException e) {
@@ -3399,6 +3408,14 @@ public class InternalEngine extends Engine {
         } else {
             listener.onResponse(null);
         }
+    }
+
+    /**
+     * This method is meant to be overridden by subclasses that require special logic to ensure commit durability.
+     * The default implementation is basically a NOOP.
+     */
+    protected void waitForCommitDurability(long generation, ActionListener<Void> listener) {
+        checkGenerationFlushed(generation, listener);
     }
 
     public long getLastUnsafeSegmentGenerationForGets() {

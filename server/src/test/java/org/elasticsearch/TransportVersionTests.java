@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch;
@@ -15,6 +16,7 @@ import java.lang.reflect.Modifier;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -197,5 +199,41 @@ public class TransportVersionTests extends ESTestCase {
         assertEquals("1000099", TransportVersion.fromId(1_00_00_99).toString());
         assertEquals("2000099", TransportVersion.fromId(2_00_00_99).toString());
         assertEquals("5000099", TransportVersion.fromId(5_00_00_99).toString());
+    }
+
+    /**
+     * Until 9.0 bumps its transport version to 9_000_00_0, all transport changes must be backported to 8.x.
+     * This test ensures transport versions are dense, so that we have confidence backports have not been missed.
+     * Note that it does not ensure patches are not missed, but it should catch the majority of misordered
+     * or missing transport versions.
+     */
+    public void testDenseTransportVersions() {
+        Set<Integer> missingVersions = new TreeSet<>();
+        TransportVersion previous = null;
+        for (var tv : TransportVersions.getAllVersions()) {
+            if (tv.before(TransportVersions.V_8_14_0)) {
+                continue;
+            }
+            if (previous == null) {
+                previous = tv;
+                continue;
+            }
+
+            if (previous.id() + 1000 < tv.id()) {
+                int nextId = previous.id();
+                do {
+                    nextId = (nextId + 1000) / 1000 * 1000;
+                    missingVersions.add(nextId);
+                } while (nextId + 1000 < tv.id());
+            }
+            previous = tv;
+        }
+        if (missingVersions.isEmpty() == false) {
+            StringBuilder msg = new StringBuilder("Missing transport versions:\n");
+            for (Integer id : missingVersions) {
+                msg.append("  " + id + "\n");
+            }
+            fail(msg.toString());
+        }
     }
 }

@@ -20,11 +20,10 @@ import java.util.List;
 public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
 
     private SyntheticSourceIndexSettingsProvider provider;
-    private SyntheticSourceLicenseService syntheticSourceLicenseService;
 
     @Before
     public void setup() {
-        syntheticSourceLicenseService = new SyntheticSourceLicenseService(Settings.EMPTY);
+        SyntheticSourceLicenseService syntheticSourceLicenseService = new SyntheticSourceLicenseService(Settings.EMPTY);
         provider = new SyntheticSourceIndexSettingsProvider(
             syntheticSourceLicenseService,
             im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName())
@@ -86,6 +85,27 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
             boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, false, settings, List.of(new CompressedXContent(mapping)));
             assertFalse(result);
         }
+    }
+
+    public void testValidateIndexName() throws IOException {
+        String indexName = "validate-index-name";
+        String mapping = """
+            {
+                "_doc": {
+                    "_source": {
+                        "mode": "synthetic"
+                    },
+                    "properties": {
+                        "my_field": {
+                            "type": "keyword"
+                        }
+                    }
+                }
+            }
+            """;
+        Settings settings = Settings.EMPTY;
+        boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, false, settings, List.of(new CompressedXContent(mapping)));
+        assertFalse(result);
     }
 
     public void testNewIndexHasSyntheticSourceUsageLogsdbIndex() throws IOException {

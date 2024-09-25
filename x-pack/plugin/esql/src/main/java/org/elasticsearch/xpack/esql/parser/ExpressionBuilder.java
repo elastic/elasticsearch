@@ -303,11 +303,16 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             if (idCtx.ID_PATTERN() != null && idCtx.ID_PATTERN().getText().equals(WILDCARD)) {
                 unresolvedStar = true;
             }
-            if (idCtx.params() != null) {
-                Expression exp = expression(idCtx.params());
+            if (idCtx.parameter() != null) {
+                Expression exp = expression(idCtx.parameter());
                 if (exp instanceof Literal lit) {
                     if (lit.value() != null) {
-                        throw new ParsingException(src, "Constant [{}] is unsupported for [{}]", lit.value(), ctx.getText());
+                        throw new ParsingException(
+                            src,
+                            "Query parameter [{}][{}] declared as a constant, cannot be used as an identifier or pattern",
+                            ctx.getText(),
+                            lit.value()
+                        );
                     }
                 } else if (exp instanceof UnresolvedNamePattern up) {
                     if (up.name() != null && up.name().equals(WILDCARD)) {
@@ -321,6 +326,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         }
 
         boolean hasPattern = false;
+        boolean isIdentifier = false;
         // Builds a list of either strings (which map verbatim) or Automatons which match any string
         List<Object> objects = new ArrayList<>(patterns.size());
         for (int i = 0, s = patterns.size(); i < s; i++) {
@@ -331,17 +337,24 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             }
 
             String patternContext = "";
-            if (patterns.get(i).ID_PATTERN() != null) {
-                patternContext = patterns.get(i).ID_PATTERN().getText();
-            } else if (patterns.get(i).params() != null) {
-                Expression exp = expression(patterns.get(i).params());
+            EsqlBaseParser.IdentifierPatternContext pattern = patterns.get(i);
+            if (pattern.ID_PATTERN() != null) {
+                patternContext = pattern.ID_PATTERN().getText();
+            } else if (pattern.parameter() != null) {
+                Expression exp = expression(pattern.parameter());
                 if (exp instanceof Literal lit) {
                     // only Literal.NULL can happen with missing params, params for constants are not allowed
                     if (lit.value() != null) {
-                        throw new ParsingException(src, "Constant [{}] is unsupported for [{}]", patterns.get(i), ctx.getText());
+                        throw new ParsingException(src, "Constant [{}] is unsupported for [{}]", pattern, ctx.getText());
                     }
-                } else if (exp instanceof UnresolvedAttribute ua) {
-                    String identifier = ua.name();
+                } else if (exp instanceof UnresolvedAttribute ua) { // identifier provided in QueryParam is treated as unquoted string
+                    String unquotedIdentifier = ua.name();
+                    String quotedIdentifier = quoteIdString(unquotedIdentifier);
+                    patternString.append(quotedIdentifier);
+                    objects.add(unquotedIdentifier);
+                    nameString.append(unquotedIdentifier);
+                    continue;
+                    /*
                     if (identifier != null) {
                         if (identifier.contains(WILDCARD) && (identifier.charAt(0) == '`') == false) {
                             // identifier with star need to be quoted
@@ -350,11 +363,12 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                             patternContext = identifier;
                         }
                     }
+                     */
                 } else if (exp instanceof UnresolvedNamePattern up) {
                     patternContext = up.name();
                 }
             } else {
-                throw new ParsingException(src, "Unsupported field name pattern [{}]", patterns.get(i));
+                throw new ParsingException(src, "Unsupported field name pattern [{}]", pattern);
             }
             if (patternContext.isEmpty()) { // empty pattern can happen with missing params
                 continue;
@@ -583,7 +597,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     public Expression visitFunctionExpression(EsqlBaseParser.FunctionExpressionContext ctx) {
         String name = visitIdentifier(ctx.identifier());
         List<Expression> args = expressions(ctx.booleanExpression());
-        if (name != null && "count".equals(EsqlFunctionRegistry.normalizeName(name))) {
+        if ("count".equals(EsqlFunctionRegistry.normalizeName(name))) {
             // to simplify the registration, handle in the parser the special count cases
             if (args.isEmpty() || ctx.ASTERISK() != null) {
                 args = singletonList(new Literal(source(ctx), "*", DataType.KEYWORD));
@@ -770,17 +784,21 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         return visitParam(ctx, param);
     }
 
-    private Expression visitParam(EsqlBaseParser.ParamsContext ctx, QueryParam param) {
+    private Expression visitParam(EsqlBaseParser.ParameterContext ctx, QueryParam param) {
         Source source = source(ctx);
         DataType type = param.type();
-        if (param.isPattern()) {
-            // let visitQualifiedNamePattern create a real UnresolvedNamePattern with Automaton
-            return new UnresolvedNamePattern(source, null, (String) param.value(), (String) param.value());
-        } else if (param.isField()) {
-            return new UnresolvedAttribute(source, (String) param.value());
-        } else {
-            return new Literal(source, param.value(), type);
+        var value = param.value();
+        ParserUtils.ParamClassification classification = param.classification();
+        // RequestXContent does not allow null value for identifier or pattern
+        if (value != null && classification != ParserUtils.ParamClassification.CONSTANT) {
+            if (classification == ParserUtils.ParamClassification.PATTERN) {
+                // let visitQualifiedNamePattern create a real UnresolvedNamePattern with Automaton
+                return new UnresolvedNamePattern(source, null, value.toString(), value.toString());
+            } else {
+                return new UnresolvedAttribute(source, value.toString());
+            }
         }
+        return new Literal(source, value, type);
     }
 
     QueryParam paramByToken(TerminalNode node) {

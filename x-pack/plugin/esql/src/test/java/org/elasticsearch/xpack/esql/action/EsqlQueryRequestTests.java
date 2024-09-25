@@ -48,6 +48,9 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramForConstant;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramForIdentifier;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramForPattern;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
@@ -112,21 +115,22 @@ public class EsqlQueryRequestTests extends ESTestCase {
              {"_n6" : null},
              {"_n7" : false}] }""";
 
-        List<QueryParam> params = new ArrayList<>(14);
-        params.add(new QueryParam("n1", "f1", NULL, true));
-        params.add(new QueryParam("n2", "f1*", NULL, true));
-        params.add(new QueryParam("n3", "f.1*", NULL, false, true));
-        params.add(new QueryParam("n4", "*", NULL, false, true));
-        params.add(new QueryParam("n5", "esql", NULL, true));
-        params.add(new QueryParam("n_6", "null", NULL, true));
-        params.add(new QueryParam("n7_", "f.1.1", NULL, true));
-        params.add(new QueryParam("_n1", "8.15.0", KEYWORD));
-        params.add(new QueryParam("__n2", 0.05, DOUBLE));
-        params.add(new QueryParam("__3", -799810013, INTEGER));
-        params.add(new QueryParam("__4n", "127.0.0.1", KEYWORD));
-        params.add(new QueryParam("_n5", "esql", KEYWORD));
-        params.add(new QueryParam("_n6", null, NULL));
-        params.add(new QueryParam("_n7", false, BOOLEAN));
+        List<QueryParam> params = List.of(
+            paramForIdentifier("n1", "f1"),
+            paramForIdentifier("n2", "f1*"),
+            paramForPattern("n3", "f.1*"),
+            paramForPattern("n4", "*"),
+            paramForIdentifier("n5", "esql"),
+            paramForIdentifier("n_6", "null"),
+            paramForIdentifier("n7_", "f.1.1"),
+            paramForConstant("_n1", "8.15.0"),
+            paramForConstant("__n2", 0.05),
+            paramForConstant("__3", -799810013),
+            paramForConstant("__4n", "127.0.0.1"),
+            paramForConstant("_n5", "esql"),
+            paramForConstant("_n6", null),
+            paramForConstant("_n7", false)
+        );
         String json = String.format(Locale.ROOT, """
             {
                 "query": "%s",
@@ -219,7 +223,8 @@ public class EsqlQueryRequestTests extends ESTestCase {
             "params":[ {"n1" : {"v" : "v1"}}, {"n2" : {"value" : "v2", "id" : true}}, {"n3" : {"value" : "v3", "pattern" : true }},
             {"n4" : {"value" : 1, "identifier" : true}}, {"n5" : {"value" : true, "identifierPattern" : true}},
             {"n6" : {"identifierPattern" : true}}, {"n7" : {"v" : "v7", "identifier" : true}},
-            {"n8" : {"value" : "v8", "identifierPattern" : true}}]""";
+            {"n8" : {"value" : "v8", "identifierPattern" : true}}, {"n9" : {"value" : "v9", "identifierPattern" : "wrong pattern"}},
+            {"n10" : {"value" : "v10", "identifier" : 0}}]""";
         String json3 = String.format(Locale.ROOT, """
             {
                 %s
@@ -241,16 +246,31 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertThat(e3.getCause().getMessage(), containsString("[2:79] [pattern] is not a valid param attribute"));
         assertThat(
             e3.getCause().getMessage(),
-            containsString("[3:1] [1] is not a valid value for an identifier, " + "a valid identifier can only be a string")
+            containsString("[3:1] [1] is not a valid value for identifier parameter, a valid value for identifier parameter is a string")
         );
         assertThat(
             e3.getCause().getMessage(),
             containsString(
-                "[3:46] [true] is not a valid value for an identifier pattern, " + "a valid identifier pattern can only be a string"
+                "[3:46] [true] is not a valid value for pattern parameter, a valid value for pattern parameter is a string and contains *"
             )
         );
         assertThat(e3.getCause().getMessage(), containsString("[4:40] [n7={identifier=true, v=v7}] does not have a value provided"));
-        assertThat(e3.getCause().getMessage(), containsString("[5:1] [v8] is not an identifier pattern"));
+        assertThat(
+            e3.getCause().getMessage(),
+            containsString(
+                "[5:1] [v8] is not a valid value for pattern parameter, a valid value for pattern parameter is a string and contains *"
+            )
+        );
+        assertThat(
+            e3.getCause().getMessage(),
+            containsString(
+                "[5:56] [wrong pattern] is not a valid value for an identifier pattern field, a valid value is either true or false"
+            )
+        );
+        assertThat(
+            e3.getCause().getMessage(),
+            containsString("[6:1] [0] is not a valid value for an identifier field, a valid value is either true or false")
+        );
     }
 
     // Test for https://github.com/elastic/elasticsearch/issues/110028
@@ -261,7 +281,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         var paramName = randomAlphaOfLength(5);
         var paramValue = randomAlphaOfLength(5);
         request1.params().addParsingError(new ParsingException(Source.EMPTY, exceptionMessage));
-        request1.params().addTokenParam(null, new QueryParam(paramName, paramValue, KEYWORD));
+        request1.params().addTokenParam(null, paramForConstant(paramName, paramValue));
 
         EsqlQueryRequest request2 = new EsqlQueryRequest();
         assertThat(request2.params(), equalTo(new QueryParams()));
@@ -574,12 +594,12 @@ public class EsqlQueryRequestTests extends ESTestCase {
             for (int i = 0; i < len; i++) {
                 @SuppressWarnings("unchecked")
                 Supplier<QueryParam> supplier = randomFrom(
-                    () -> new QueryParam(null, randomBoolean(), BOOLEAN),
-                    () -> new QueryParam(null, randomInt(), INTEGER),
-                    () -> new QueryParam(null, randomLong(), LONG),
-                    () -> new QueryParam(null, randomDouble(), DOUBLE),
-                    () -> new QueryParam(null, null, NULL),
-                    () -> new QueryParam(null, randomAlphaOfLength(10), KEYWORD)
+                    () -> paramForConstant(null, randomBoolean()),
+                    () -> paramForConstant(null, randomInt()),
+                    () -> paramForConstant(null, randomLong()),
+                    () -> paramForConstant(null, randomDouble()),
+                    () -> paramForConstant(null, null),
+                    () -> paramForConstant(null, randomAlphaOfLength(10))
                 );
                 arr.add(supplier.get());
             }

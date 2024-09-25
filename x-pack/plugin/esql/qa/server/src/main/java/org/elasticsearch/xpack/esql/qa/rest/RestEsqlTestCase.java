@@ -733,7 +733,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             );
             error = re.getMessage();
             assertThat(error, containsString("VerificationException"));
-            assertThat(error, containsString("Unknown column [n1]"));
+            assertThat(error, containsString("Unknown column [`n1`]"));
         }
     }
 

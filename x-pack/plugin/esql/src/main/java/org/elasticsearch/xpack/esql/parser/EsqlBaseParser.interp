@@ -287,7 +287,7 @@ qualifiedNamePatterns
 identifier
 identifierPattern
 constant
-params
+parameter
 limitCommand
 sortCommand
 orderExpression

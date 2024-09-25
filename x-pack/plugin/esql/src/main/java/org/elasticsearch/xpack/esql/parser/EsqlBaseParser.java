@@ -62,7 +62,7 @@ public class EsqlBaseParser extends ParserConfig {
     RULE_metricsCommand = 23, RULE_evalCommand = 24, RULE_statsCommand = 25, 
     RULE_qualifiedName = 26, RULE_qualifiedNamePattern = 27, RULE_qualifiedNamePatterns = 28, 
     RULE_identifier = 29, RULE_identifierPattern = 30, RULE_constant = 31, 
-    RULE_params = 32, RULE_limitCommand = 33, RULE_sortCommand = 34, RULE_orderExpression = 35, 
+    RULE_parameter = 32, RULE_limitCommand = 33, RULE_sortCommand = 34, RULE_orderExpression = 35, 
     RULE_keepCommand = 36, RULE_dropCommand = 37, RULE_renameCommand = 38, 
     RULE_renameClause = 39, RULE_dissectCommand = 40, RULE_grokCommand = 41, 
     RULE_mvExpandCommand = 42, RULE_commandOptions = 43, RULE_commandOption = 44, 
@@ -81,7 +81,7 @@ public class EsqlBaseParser extends ParserConfig {
       "clusterString", "indexString", "metadata", "metadataOption", "deprecated_metadata", 
       "metricsCommand", "evalCommand", "statsCommand", "qualifiedName", "qualifiedNamePattern", 
       "qualifiedNamePatterns", "identifier", "identifierPattern", "constant", 
-      "params", "limitCommand", "sortCommand", "orderExpression", "keepCommand", 
+      "parameter", "limitCommand", "sortCommand", "orderExpression", "keepCommand", 
       "dropCommand", "renameCommand", "renameClause", "dissectCommand", "grokCommand", 
       "mvExpandCommand", "commandOptions", "commandOption", "booleanValue", 
       "numericValue", "decimalValue", "integerValue", "string", "comparisonOperator", 
@@ -3015,8 +3015,8 @@ public class EsqlBaseParser extends ParserConfig {
   public static class IdentifierContext extends ParserRuleContext {
     public TerminalNode UNQUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.UNQUOTED_IDENTIFIER, 0); }
     public TerminalNode QUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.QUOTED_IDENTIFIER, 0); }
-    public ParamsContext params() {
-      return getRuleContext(ParamsContext.class,0);
+    public ParameterContext parameter() {
+      return getRuleContext(ParameterContext.class,0);
     }
     @SuppressWarnings("this-escape")
     public IdentifierContext(ParserRuleContext parent, int invokingState) {
@@ -3064,7 +3064,7 @@ public class EsqlBaseParser extends ParserConfig {
         enterOuterAlt(_localctx, 3);
         {
         setState(401);
-        params();
+        parameter();
         }
         break;
       default:
@@ -3085,8 +3085,8 @@ public class EsqlBaseParser extends ParserConfig {
   @SuppressWarnings("CheckReturnValue")
   public static class IdentifierPatternContext extends ParserRuleContext {
     public TerminalNode ID_PATTERN() { return getToken(EsqlBaseParser.ID_PATTERN, 0); }
-    public ParamsContext params() {
-      return getRuleContext(ParamsContext.class,0);
+    public ParameterContext parameter() {
+      return getRuleContext(ParameterContext.class,0);
     }
     @SuppressWarnings("this-escape")
     public IdentifierPatternContext(ParserRuleContext parent, int invokingState) {
@@ -3127,7 +3127,7 @@ public class EsqlBaseParser extends ParserConfig {
         enterOuterAlt(_localctx, 2);
         {
         setState(405);
-        params();
+        parameter();
         }
         break;
       default:
@@ -3282,6 +3282,27 @@ public class EsqlBaseParser extends ParserConfig {
     }
   }
   @SuppressWarnings("CheckReturnValue")
+  public static class InputParameterContext extends ConstantContext {
+    public ParameterContext parameter() {
+      return getRuleContext(ParameterContext.class,0);
+    }
+    @SuppressWarnings("this-escape")
+    public InputParameterContext(ConstantContext ctx) { copyFrom(ctx); }
+    @Override
+    public void enterRule(ParseTreeListener listener) {
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterInputParameter(this);
+    }
+    @Override
+    public void exitRule(ParseTreeListener listener) {
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitInputParameter(this);
+    }
+    @Override
+    public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitInputParameter(this);
+      else return visitor.visitChildren(this);
+    }
+  }
+  @SuppressWarnings("CheckReturnValue")
   public static class StringLiteralContext extends ConstantContext {
     public StringContext string() {
       return getRuleContext(StringContext.class,0);
@@ -3329,27 +3350,6 @@ public class EsqlBaseParser extends ParserConfig {
     @Override
     public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
       if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitNumericArrayLiteral(this);
-      else return visitor.visitChildren(this);
-    }
-  }
-  @SuppressWarnings("CheckReturnValue")
-  public static class InputParamsContext extends ConstantContext {
-    public ParamsContext params() {
-      return getRuleContext(ParamsContext.class,0);
-    }
-    @SuppressWarnings("this-escape")
-    public InputParamsContext(ConstantContext ctx) { copyFrom(ctx); }
-    @Override
-    public void enterRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterInputParams(this);
-    }
-    @Override
-    public void exitRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitInputParams(this);
-    }
-    @Override
-    public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitInputParams(this);
       else return visitor.visitChildren(this);
     }
   }
@@ -3447,11 +3447,11 @@ public class EsqlBaseParser extends ParserConfig {
         }
         break;
       case 6:
-        _localctx = new InputParamsContext(_localctx);
+        _localctx = new InputParameterContext(_localctx);
         enterOuterAlt(_localctx, 6);
         {
         setState(415);
-        params();
+        parameter();
         }
         break;
       case 7:
@@ -3560,24 +3560,24 @@ public class EsqlBaseParser extends ParserConfig {
   }
 
   @SuppressWarnings("CheckReturnValue")
-  public static class ParamsContext extends ParserRuleContext {
+  public static class ParameterContext extends ParserRuleContext {
     @SuppressWarnings("this-escape")
-    public ParamsContext(ParserRuleContext parent, int invokingState) {
+    public ParameterContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
-    @Override public int getRuleIndex() { return RULE_params; }
+    @Override public int getRuleIndex() { return RULE_parameter; }
    
     @SuppressWarnings("this-escape")
-    public ParamsContext() { }
-    public void copyFrom(ParamsContext ctx) {
+    public ParameterContext() { }
+    public void copyFrom(ParameterContext ctx) {
       super.copyFrom(ctx);
     }
   }
   @SuppressWarnings("CheckReturnValue")
-  public static class InputNamedOrPositionalParamContext extends ParamsContext {
+  public static class InputNamedOrPositionalParamContext extends ParameterContext {
     public TerminalNode NAMED_OR_POSITIONAL_PARAM() { return getToken(EsqlBaseParser.NAMED_OR_POSITIONAL_PARAM, 0); }
     @SuppressWarnings("this-escape")
-    public InputNamedOrPositionalParamContext(ParamsContext ctx) { copyFrom(ctx); }
+    public InputNamedOrPositionalParamContext(ParameterContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
       if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterInputNamedOrPositionalParam(this);
@@ -3593,10 +3593,10 @@ public class EsqlBaseParser extends ParserConfig {
     }
   }
   @SuppressWarnings("CheckReturnValue")
-  public static class InputParamContext extends ParamsContext {
+  public static class InputParamContext extends ParameterContext {
     public TerminalNode PARAM() { return getToken(EsqlBaseParser.PARAM, 0); }
     @SuppressWarnings("this-escape")
-    public InputParamContext(ParamsContext ctx) { copyFrom(ctx); }
+    public InputParamContext(ParameterContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
       if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterInputParam(this);
@@ -3612,9 +3612,9 @@ public class EsqlBaseParser extends ParserConfig {
     }
   }
 
-  public final ParamsContext params() throws RecognitionException {
-    ParamsContext _localctx = new ParamsContext(_ctx, getState());
-    enterRule(_localctx, 64, RULE_params);
+  public final ParameterContext parameter() throws RecognitionException {
+    ParameterContext _localctx = new ParameterContext(_ctx, getState());
+    enterRule(_localctx, 64, RULE_parameter);
     try {
       setState(454);
       _errHandler.sync(this);

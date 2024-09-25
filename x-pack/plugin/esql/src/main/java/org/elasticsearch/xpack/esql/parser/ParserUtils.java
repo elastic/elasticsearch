@@ -25,6 +25,11 @@ import java.util.function.Function;
 import static java.util.Collections.emptyList;
 
 public final class ParserUtils {
+    public enum ParamClassification {
+        CONSTANT,
+        IDENTIFIER,
+        PATTERN
+    }
 
     private ParserUtils() {}
 

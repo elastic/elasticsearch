@@ -27,22 +27,31 @@ abstract class IdentifierBuilder extends AbstractBuilder {
 
     @Override
     public String visitIdentifier(IdentifierContext ctx) {
-        String errorUnsupported = "Unsupported query parameter [{}][{}]";
-        String errorUnsupportedOrUnknown = "Unsupported or unknown query parameter [{}]";
+        String invalidParam = "Query parameter [{}]{}, cannot be used as an identifier";
         if (ctx == null) {
             return null;
         } else if (ctx.QUOTED_IDENTIFIER() != null || ctx.UNQUOTED_IDENTIFIER() != null) {
             return unquoteIdentifier(ctx.QUOTED_IDENTIFIER(), ctx.UNQUOTED_IDENTIFIER());
         } else {
-            Expression exp = typedParsing(this, ctx.params(), Expression.class);
+            Expression exp = typedParsing(this, ctx.parameter(), Expression.class);
             switch (exp) {
-                case Literal lit -> throw new ParsingException(source(ctx), errorUnsupportedOrUnknown, ctx.getText());
-                case UnresolvedNamePattern up -> throw new ParsingException(source(ctx), errorUnsupported, ctx.getText(), up.name());
+                case Literal lit -> throw new ParsingException(
+                    source(ctx),
+                    invalidParam,
+                    ctx.getText(),
+                    lit.value() != null ? "[" + lit.value() + "] declared as a constant" : " is null or undefined"
+                );
+                case UnresolvedNamePattern up -> throw new ParsingException(
+                    source(ctx),
+                    invalidParam,
+                    ctx.getText(),
+                    "[" + up.name() + "] declared as a pattern"
+                );
                 case UnresolvedAttribute ua -> {
                     if (ua.name() != null) {
                         return ua.name();
-                    } else {
-                        throw new ParsingException(source(ctx), errorUnsupported, ctx.getText());
+                    } else { // this should not happen
+                        throw new ParsingException(source(ctx), invalidParam, ctx.getText(), "[" + ua.name() + "]");
                     }
                 }
                 default -> {
@@ -64,6 +73,10 @@ abstract class IdentifierBuilder extends AbstractBuilder {
 
     protected static String unquoteIdString(String quotedString) {
         return quotedString.substring(1, quotedString.length() - 1).replace("``", "`");
+    }
+
+    protected static String quoteIdString(String unquotedString) {
+        return "`" + unquotedString.replace("`", "``") + "`";
     }
 
     @Override

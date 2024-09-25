@@ -425,7 +425,9 @@ public class SecurityIndexManager implements ClusterStateListener {
             return true;
         }
         for (ShardRouting s : routingTable.shardsWithState(ShardRoutingState.UNASSIGNED)) {
-            if (s.unassignedInfo() != null && s.unassignedInfo().reason() == UnassignedInfo.Reason.INDEX_CREATED) {
+            if (s.unassignedInfo() != null
+                && s.unassignedInfo().failedAllocations() == 0
+                && s.unassignedInfo().reason() == UnassignedInfo.Reason.INDEX_CREATED) {
                 return true;
             }
         }

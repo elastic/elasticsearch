@@ -545,13 +545,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         List<String> patterns = new ArrayList<>(template.indexPatterns());
         patterns.add("new-pattern");
-        template = ComposableIndexTemplate.builder()
+        template = template.toBuilder()
             .indexPatterns(patterns)
-            .template(template.template())
-            .componentTemplates(template.composedOf())
-            .priority(template.priority())
-            .version(template.version())
-            .metadata(template.metadata())
             .build();
         state = metadataIndexTemplateService.addIndexTemplateV2(state, false, "foo", template);
 

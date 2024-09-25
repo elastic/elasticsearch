@@ -500,7 +500,9 @@ public class MachineLearning extends Plugin
 
     /**
      * Hard-coded timeout used for {@link org.elasticsearch.action.support.master.MasterNodeRequest#masterNodeTimeout()} for requests to
-     * the master node from ML code.
+     * the master node from ML code. Wherever possible, prefer to use a user-controlled timeout instead of this.
+     *
+     * @see <a href="https://github.com/elastic/elasticsearch/issues/107984">#107984</a>
      */
     public static final TimeValue HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT = TimeValue.THIRTY_SECONDS;
 

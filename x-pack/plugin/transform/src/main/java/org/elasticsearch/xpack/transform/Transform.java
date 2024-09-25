@@ -140,7 +140,9 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     /**
      * Hard-coded timeout used for {@link org.elasticsearch.action.support.master.MasterNodeRequest#masterNodeTimeout()} for requests to
-     * the master node from transforms code.
+     * the master node from transforms code. Wherever possible, prefer to use a user-controlled timeout instead of this.
+     *
+     * @see <a href="https://github.com/elastic/elasticsearch/issues/107984">#107984</a>
      */
     public static final TimeValue HARD_CODED_TRANSFORM_MASTER_NODE_TIMEOUT = TimeValue.THIRTY_SECONDS;
 

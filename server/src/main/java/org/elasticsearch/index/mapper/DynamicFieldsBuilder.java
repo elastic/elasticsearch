@@ -409,10 +409,7 @@ final class DynamicFieldsBuilder {
         }
 
         boolean newDynamicBinaryField(DocumentParserContext context, String name) throws IOException {
-            return createDynamicField(
-                new BinaryFieldMapper.Builder(name, context.indexSettings().isSyntheticSourceMode()),
-                context
-            );
+            return createDynamicField(new BinaryFieldMapper.Builder(name, context.indexSettings().isSyntheticSourceMode()), context);
         }
     }
 

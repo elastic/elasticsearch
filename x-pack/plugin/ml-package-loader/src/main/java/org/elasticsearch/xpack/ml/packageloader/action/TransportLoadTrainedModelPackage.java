@@ -24,9 +24,11 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -36,14 +38,12 @@ import org.elasticsearch.xpack.core.ml.action.AuditMlNotificationAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
 import org.elasticsearch.xpack.core.ml.packageloader.action.LoadTrainedModelPackageAction;
 import org.elasticsearch.xpack.core.ml.packageloader.action.LoadTrainedModelPackageAction.Request;
-import org.elasticsearch.xpack.ml.packageloader.MachineLearningPackageLoader;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -56,6 +56,7 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
     private static final Logger logger = LogManager.getLogger(TransportLoadTrainedModelPackage.class);
 
     private final Client client;
+    private final CircuitBreakerService circuitBreakerService;
 
     @Inject
     public TransportLoadTrainedModelPackage(
@@ -64,7 +65,8 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Client client
+        Client client,
+        CircuitBreakerService circuitBreakerService
     ) {
         super(
             LoadTrainedModelPackageAction.NAME,
@@ -78,6 +80,7 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = new OriginSettingClient(client, ML_ORIGIN);
+        this.circuitBreakerService = circuitBreakerService;
     }
 
     @Override
@@ -97,11 +100,14 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
                 parentTaskAssigningClient,
                 request.getModelId(),
                 request.getModelPackageConfig(),
-                downloadTask
+                downloadTask,
+                threadPool,
+                circuitBreakerService
             );
 
-            threadPool.executor(MachineLearningPackageLoader.UTILITY_THREAD_POOL_NAME)
-                .execute(() -> importModel(client, taskManager, request, modelImporter, listener, downloadTask));
+            var downloadCompleteListener = request.isWaitForCompletion() ? listener : ActionListener.<AcknowledgedResponse>noop();
+
+            importModel(client, taskManager, request, modelImporter, downloadCompleteListener, downloadTask);
         } catch (Exception e) {
             taskManager.unregister(downloadTask);
             listener.onFailure(e);
@@ -135,43 +141,38 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
         ActionListener<AcknowledgedResponse> listener,
         Task task
     ) {
-        String modelId = request.getModelId();
-        final AtomicReference<Exception> exceptionRef = new AtomicReference<>();
+        final String modelId = request.getModelId();
+        final long relativeStartNanos = System.nanoTime();
 
-        try {
-            final long relativeStartNanos = System.nanoTime();
+        logAndWriteNotificationAtLevel(auditClient, modelId, "starting model import", Level.INFO);
 
-            logAndWriteNotificationAtInfo(auditClient, modelId, "starting model import");
-
-            modelImporter.doImport();
-
+        var finishListener = ActionListener.<AcknowledgedResponse>wrap(success -> {
             final long totalRuntimeNanos = System.nanoTime() - relativeStartNanos;
-            logAndWriteNotificationAtInfo(
+            logAndWriteNotificationAtLevel(
                 auditClient,
                 modelId,
-                format("finished model import after [%d] seconds", TimeUnit.NANOSECONDS.toSeconds(totalRuntimeNanos))
+                format("finished model import after [%d] seconds", TimeUnit.NANOSECONDS.toSeconds(totalRuntimeNanos)),
+                Level.INFO
             );
-        } catch (ElasticsearchException e) {
-            recordError(auditClient, modelId, exceptionRef, e);
-        } catch (MalformedURLException e) {
-            recordError(auditClient, modelId, "an invalid URL", exceptionRef, e, RestStatus.INTERNAL_SERVER_ERROR);
-        } catch (URISyntaxException e) {
-            recordError(auditClient, modelId, "an invalid URL syntax", exceptionRef, e, RestStatus.INTERNAL_SERVER_ERROR);
-        } catch (IOException e) {
-            recordError(auditClient, modelId, "an IOException", exceptionRef, e, RestStatus.SERVICE_UNAVAILABLE);
-        } catch (Exception e) {
-            recordError(auditClient, modelId, "an Exception", exceptionRef, e, RestStatus.INTERNAL_SERVER_ERROR);
-        } finally {
-            taskManager.unregister(task);
+            listener.onResponse(AcknowledgedResponse.TRUE);
+        }, exception -> listener.onFailure(processException(auditClient, modelId, exception)));
 
-            if (request.isWaitForCompletion()) {
-                if (exceptionRef.get() != null) {
-                    listener.onFailure(exceptionRef.get());
-                } else {
-                    listener.onResponse(AcknowledgedResponse.TRUE);
-                }
+        modelImporter.doImport(ActionListener.runAfter(finishListener, () -> taskManager.unregister(task)));
+    }
 
-            }
+    static Exception processException(Client auditClient, String modelId, Exception e) {
+        if (e instanceof TaskCancelledException te) {
+            return recordError(auditClient, modelId, te, Level.WARNING);
+        } else if (e instanceof ElasticsearchException es) {
+            return recordError(auditClient, modelId, es, Level.ERROR);
+        } else if (e instanceof MalformedURLException) {
+            return recordError(auditClient, modelId, "an invalid URL", e, Level.ERROR, RestStatus.BAD_REQUEST);
+        } else if (e instanceof URISyntaxException) {
+            return recordError(auditClient, modelId, "an invalid URL syntax", e, Level.ERROR, RestStatus.BAD_REQUEST);
+        } else if (e instanceof IOException) {
+            return recordError(auditClient, modelId, "an IOException", e, Level.ERROR, RestStatus.SERVICE_UNAVAILABLE);
+        } else {
+            return recordError(auditClient, modelId, "an Exception", e, Level.ERROR, RestStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -199,32 +200,21 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
         }, false);
     }
 
-    private static void recordError(Client client, String modelId, AtomicReference<Exception> exceptionRef, ElasticsearchException e) {
-        logAndWriteNotificationAtError(client, modelId, e.getDetailedMessage());
-        exceptionRef.set(e);
+    private static Exception recordError(Client client, String modelId, ElasticsearchException e, Level level) {
+        String message = format("Model importing failed due to [%s]", e.getDetailedMessage());
+        logAndWriteNotificationAtLevel(client, modelId, message, level);
+        return e;
     }
 
-    private static void recordError(
-        Client client,
-        String modelId,
-        String failureType,
-        AtomicReference<Exception> exceptionRef,
-        Exception e,
-        RestStatus status
-    ) {
+    private static Exception recordError(Client client, String modelId, String failureType, Exception e, Level level, RestStatus status) {
         String message = format("Model importing failed due to %s [%s]", failureType, e);
-        logAndWriteNotificationAtError(client, modelId, message);
-        exceptionRef.set(new ElasticsearchStatusException(message, status, e));
+        logAndWriteNotificationAtLevel(client, modelId, message, level);
+        return new ElasticsearchStatusException(message, status, e);
     }
 
-    private static void logAndWriteNotificationAtError(Client client, String modelId, String message) {
-        writeNotification(client, modelId, message, Level.ERROR);
-        logger.error(format("[%s] %s", modelId, message));
-    }
-
-    private static void logAndWriteNotificationAtInfo(Client client, String modelId, String message) {
-        writeNotification(client, modelId, message, Level.INFO);
-        logger.info(format("[%s] %s", modelId, message));
+    private static void logAndWriteNotificationAtLevel(Client client, String modelId, String message, Level level) {
+        writeNotification(client, modelId, message, level);
+        logger.log(level.log4jLevel(), format("[%s] %s", modelId, message));
     }
 
     private static void writeNotification(Client client, String modelId, String message, Level level) {

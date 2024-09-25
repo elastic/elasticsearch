@@ -266,6 +266,9 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testDeleteJob_TimingStatsDocumentIsDeleted
   issue: https://github.com/elastic/elasticsearch/issues/113370
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search/500_date_range/from, to, include_lower, include_upper deprecated}
+  issue: https://github.com/elastic/elasticsearch/pull/113286
 - class: org.elasticsearch.xpack.esql.EsqlAsyncSecurityIT
   method: testLimitedPrivilege
   issue: https://github.com/elastic/elasticsearch/issues/113419
@@ -292,6 +295,12 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search/180_locale_dependent_mapping/Test Index and Search locale dependent mappings / dates}
   issue: https://github.com/elastic/elasticsearch/issues/113537
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/70_locale/Date format with default locale}
+  issue: https://github.com/elastic/elasticsearch/issues/113539
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/70_locale/Date format with Italian locale}
+  issue: https://github.com/elastic/elasticsearch/issues/113540
 
 # Examples:
 #

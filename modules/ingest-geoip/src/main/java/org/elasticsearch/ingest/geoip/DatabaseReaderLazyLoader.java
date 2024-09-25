@@ -10,7 +10,6 @@
 package org.elasticsearch.ingest.geoip;
 
 import com.maxmind.db.DatabaseRecord;
-import com.maxmind.db.Metadata;
 import com.maxmind.db.Network;
 import com.maxmind.db.NoCache;
 import com.maxmind.db.Reader;
@@ -279,7 +278,7 @@ class DatabaseReaderLazyLoader implements IpDatabase {
         }
     }
 
-    Metadata getMetadata() throws IOException {
-        return loader.get().getMetadata();
+    Long getBuilDateMillis() throws IOException {
+        return loader.get().getMetadata().getBuildDate().getTime();
     }
 }

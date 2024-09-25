@@ -8,8 +8,6 @@
  */
 package org.elasticsearch.ingest.geoip;
 
-import com.maxmind.db.Metadata;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
@@ -551,14 +549,13 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
         for (Map.Entry<String, DatabaseReaderLazyLoader> entry : configDatabases.getConfigDatabases().entrySet()) {
             DatabaseReaderLazyLoader databaseReaderLazyLoader = entry.getValue();
             try {
-                final Metadata metadata = databaseReaderLazyLoader.getMetadata();
                 allDatabases.put(
                     entry.getKey(),
                     new ConfigDatabaseDetail(
                         entry.getKey(),
                         databaseReaderLazyLoader.getMd5(),
-                        metadata.getBuildDate().getTime(),
-                        metadata.getDatabaseType()
+                        databaseReaderLazyLoader.getBuilDateMillis(),
+                        databaseReaderLazyLoader.getDatabaseType()
                     )
                 );
             } catch (FileNotFoundException e) {

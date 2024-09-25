@@ -46,7 +46,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
@@ -119,13 +118,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     public static final String THREAD_POOL_METRIC_NAME_ACTIVE = ".threads.active.current";
     public static final String THREAD_POOL_METRIC_NAME_LARGEST = ".threads.largest.current";
     public static final String THREAD_POOL_METRIC_NAME_REJECTED = ".threads.rejected.total";
-
-    private static final Set<String> SYSTEM_THREAD_POOLS = Set.of(
-        Names.SYSTEM_READ,
-        Names.SYSTEM_WRITE,
-        Names.SYSTEM_CRITICAL_READ,
-        Names.SYSTEM_CRITICAL_WRITE
-    );
 
     public enum ThreadPoolType {
         @Deprecated(forRemoval = true)
@@ -1096,6 +1088,13 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         return true;
     }
 
+    public static boolean assertTestThreadPool() {
+        final var threadName = Thread.currentThread().getName();
+        final var executorName = EsExecutors.executorName(threadName);
+        assert threadName.startsWith("TEST-") || threadName.startsWith("LuceneTestCase") : threadName + " is not a test thread";
+        return true;
+    }
+
     public static boolean assertInSystemContext(ThreadPool threadPool) {
         final var threadName = Thread.currentThread().getName();
         assert threadName.startsWith("TEST-") || threadName.startsWith("LuceneTestCase") || threadPool.getThreadContext().isSystemContext()
@@ -1115,11 +1114,5 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                 : testingMethod.getClassName() + "#" + testingMethod.getMethodName() + " is called recursively";
         }
         return true;
-    }
-
-    public static boolean isSystemThreadPool() {
-        final var threadName = Thread.currentThread().getName();
-        final var executorName = EsExecutors.executorName(threadName);
-        return executorName != null && SYSTEM_THREAD_POOLS.contains(executorName);
     }
 }

@@ -14,6 +14,8 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.ZipException;
 
 public final class MMDBUtil {
 
@@ -97,5 +99,14 @@ public final class MMDBUtil {
 
     private static int fromBytes(byte b1) {
         return b1 & 0xFF;
+    }
+
+    public static boolean isGzip(Path path) throws IOException {
+        try (InputStream is = Files.newInputStream(path); InputStream gzis = new GZIPInputStream(is)) {
+            gzis.read(); // nooping, the point is just whether it's a gzip or not
+            return true;
+        } catch (ZipException e) {
+            return false;
+        }
     }
 }

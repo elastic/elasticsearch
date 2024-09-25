@@ -78,20 +78,12 @@ public class RRFRankDocTests extends AbstractWireSerializingTestCase<RRFRankDoc>
                 break;
             case 5:
                 for (int i = 0; i < queries; i++) {
-                    if (rarely()) {
-                        positions[i] = instance.positions[i] == NO_RANK ? randomIntBetween(1, 10000) : NO_RANK;
-                    } else {
-                        positions[i] = instance.positions[i];
-                    }
+                    positions[i] = instance.positions[i] == NO_RANK ? randomIntBetween(1, 10000) : NO_RANK;
                 }
                 break;
             case 6:
                 for (int i = 0; i < queries; i++) {
-                    if (rarely()) {
-                        scores[i] = randomFloat();
-                    } else {
-                        scores[i] = instance.scores[i];
-                    }
+                    scores[i] = randomFloat();
                 }
                 break;
             default:

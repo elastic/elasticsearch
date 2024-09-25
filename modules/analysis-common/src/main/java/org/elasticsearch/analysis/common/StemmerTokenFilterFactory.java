@@ -48,9 +48,13 @@ import org.apache.lucene.analysis.ru.RussianLightStemFilter;
 import org.apache.lucene.analysis.snowball.SnowballFilter;
 import org.apache.lucene.analysis.sv.SwedishLightStemFilter;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.tartarus.snowball.ext.ArmenianStemmer;
 import org.tartarus.snowball.ext.BasqueStemmer;
@@ -82,10 +86,14 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private static final TokenStream EMPTY_TOKEN_STREAM = new EmptyTokenStream();
 
-    private String language;
+    private final String language;
+    private final IndexVersion version;
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(StemmerTokenFilterFactory.class);
 
     StemmerTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) throws IOException {
         super(name, settings);
+        this.version = indexSettings.getIndexVersionCreated();
         this.language = Strings.capitalize(settings.get("language", settings.get("name", "porter")));
         // check that we have a valid language by trying to create a TokenStream
         create(EMPTY_TOKEN_STREAM).close();
@@ -165,9 +173,19 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
 
                 // German stemmers
             } else if ("german".equalsIgnoreCase(language)) {
-                return new SnowballFilter(tokenStream, new GermanStemmer());
+                if (this.version.onOrAfter(IndexVersions.UPGRADE_TO_LUCENE_10_0_0)) {
+                    return new SnowballFilter(tokenStream, new GermanStemmer());
+                } else {
+                    // use pre-L10 GermanStemmer that doesn't normalize umlauts etc...
+                    return new SnowballFilter(tokenStream, new LegacyGermanStemmer());
+                }
             } else if ("german2".equalsIgnoreCase(language)) {
-                // TODO Lucene 10 upgrade: how about bw comp for users relying on german2 stemmer that is now folded into german stemmer?
+                DEPRECATION_LOGGER.warn(
+                    DeprecationCategory.ANALYSIS,
+                    "german2_stemmer_deprecation",
+                    "The 'german2' stemmer has been deprecated and folged into the 'german' Stemmer. "
+                        + "Replace all usages of 'german2' with 'german'."
+                );
                 return new SnowballFilter(tokenStream, new GermanStemmer());
             } else if ("light_german".equalsIgnoreCase(language) || "lightGerman".equalsIgnoreCase(language)) {
                 return new GermanLightStemFilter(tokenStream);

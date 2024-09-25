@@ -20,6 +20,7 @@ import org.elasticsearch.test.ESTokenStreamTestCase;
 
 import java.io.IOException;
 
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class RemoveDuplicatesFilterFactoryTests extends ESTokenStreamTestCase {

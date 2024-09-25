@@ -20,6 +20,8 @@ import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
+
 public class FlattenGraphTokenFilterFactoryTests extends ESTokenStreamTestCase {
 
     public void testBasic() throws IOException {

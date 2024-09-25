@@ -12,7 +12,6 @@ package org.elasticsearch.test;
 import com.carrotsearch.randomizedtesting.annotations.Listeners;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
-import org.apache.lucene.tests.analysis.BaseTokenStreamTestCase;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
@@ -29,7 +28,7 @@ import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
  * Basic test case for token streams. the assertion methods in this class will
  * run basic checks to enforce correct behavior of the token streams.
  */
-public abstract class ESTokenStreamTestCase extends BaseTokenStreamTestCase {
+public abstract class ESTokenStreamTestCase extends ESTestCase {
 
     static {
         try {

@@ -18,6 +18,9 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.regex.Pattern;
 
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertAnalyzesTo;
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.checkRandomData;
+
 /**
  * Verifies the behavior of PatternAnalyzer.
  */

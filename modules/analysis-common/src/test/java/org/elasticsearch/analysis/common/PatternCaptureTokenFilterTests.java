@@ -19,6 +19,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static org.elasticsearch.test.ESTestCase.createTestAnalysis;
 import static org.hamcrest.Matchers.containsString;
 

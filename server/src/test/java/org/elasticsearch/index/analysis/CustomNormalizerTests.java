@@ -27,6 +27,7 @@ import java.util.function.Function;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 
 public class CustomNormalizerTests extends ESTokenStreamTestCase {
     private static final AnalysisPlugin MOCK_ANALYSIS_PLUGIN = new MockAnalysisPlugin();

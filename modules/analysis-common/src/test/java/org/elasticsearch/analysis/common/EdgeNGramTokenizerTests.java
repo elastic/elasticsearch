@@ -29,6 +29,9 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.util.Collections;
 
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertAnalyzesTo;
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
+
 public class EdgeNGramTokenizerTests extends ESTokenStreamTestCase {
 
     private static IndexAnalyzers buildAnalyzers(IndexVersion version, String tokenizer) throws IOException {

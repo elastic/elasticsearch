@@ -17,6 +17,7 @@ import org.apache.lucene.analysis.snowball.SnowballFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalysisTestsHelper;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -28,7 +29,7 @@ import org.elasticsearch.test.index.IndexVersionUtils;
 import java.io.IOException;
 import java.io.StringReader;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.scaledRandomIntBetween;
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertAnalyzesTo;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -106,15 +107,38 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
     }
 
     public void testGermanVsGerman2Stemmer() throws IOException {
-        Analyzer analyzer = createGermanStemmer("german");
-        assertAnalyzesTo(analyzer, "Buecher Bücher", new String[] { "Buech", "Buch" });
+        {
+            IndexVersion v = IndexVersionUtils.randomVersionBetween(
+                random(),
+                IndexVersionUtils.getFirstVersion(),
+                IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_0_0)
+            );
+            Analyzer analyzer = createGermanStemmer("german", v);
+            assertAnalyzesTo(analyzer, "Buecher Bücher", new String[] { "Buech", "Buch" });
 
-        analyzer = createGermanStemmer("german2");
-        assertAnalyzesTo(analyzer, "Buecher Bücher", new String[] { "Buch", "Buch"});
+            analyzer = createGermanStemmer("german2", v);
+            assertAnalyzesTo(analyzer, "Buecher Bücher", new String[] { "Buch", "Buch" });
+        }
+        {
+            IndexVersion v = IndexVersionUtils.randomVersionBetween(
+                random(),
+                IndexVersions.UPGRADE_TO_LUCENE_10_0_0,
+                IndexVersion.current()
+            );
+            Analyzer analyzer = createGermanStemmer("german", v);
+            assertAnalyzesTo(analyzer, "Buecher Bücher", new String[] { "Buch", "Buch" });
+
+            analyzer = createGermanStemmer("german2", v);
+            assertAnalyzesTo(analyzer, "Buecher Bücher", new String[] { "Buch", "Buch" });
+            assertWarnings(
+                "The 'german2' stemmer has been deprecated and folged into the 'german' Stemmer. "
+                    + "Replace all usages of 'german2' with 'german'."
+            );
+        }
     }
 
-    public Analyzer createGermanStemmer(String variant) throws IOException {
-        IndexVersion v = IndexVersionUtils.randomVersion(random());
+    public Analyzer createGermanStemmer(String variant, IndexVersion v) throws IOException {
+
         Settings settings = Settings.builder()
             .put("index.analysis.filter.my_german.type", "stemmer")
             .put("index.analysis.filter.my_german.language", variant)

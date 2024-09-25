@@ -23,6 +23,7 @@ import org.elasticsearch.test.ESTokenStreamTestCase;
 
 import java.io.IOException;
 
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertAnalyzesTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**

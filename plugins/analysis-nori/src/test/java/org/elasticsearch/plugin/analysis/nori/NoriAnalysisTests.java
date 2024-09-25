@@ -33,6 +33,7 @@ import java.io.StringReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 

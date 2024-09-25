@@ -31,7 +31,7 @@ POST _connector/_sync_job
 [[create-connector-sync-job-api-prereqs]]
 ==== {api-prereq-title}
 
-* To sync data using self-managed connectors, you need to deploy the {enterprise-search-ref}/build-connector.html[Elastic connector service] on your own infrastructure. This service runs automatically on Elastic Cloud for managed connectors.
+* To sync data using self-managed connectors, you need to deploy the {enterprise-search-ref}/build-connector.html[Elastic connector service] on your own infrastructure. This service runs automatically on Elastic Cloud for Elastic managed connectors.
 * The `id` parameter should reference an existing connector.
 
 [[create-connector-sync-job-api-desc]]

@@ -14,7 +14,7 @@ This tutorial is an example of:
 * How to use the <<es-connectors-mongodb,MongoDB connector>>, which is compatible with MongoDB Atlas and on premises MongoDB servers.
 See <<es-connectors-mongodb-compatibility>>.
 * How to use any connector available as a <<es-native-connectors,managed connector>>.
-The workflow in this tutorial applies to all managed connectors.
+The workflow in this tutorial applies to all Elastic managed connectors.
 
 This tutorial has three main sections:
 
@@ -113,7 +113,7 @@ Skip this step if your team already has an Elastic Cloud deployment.
 Log in to https://cloud.elastic.co/[Elastic Cloud^], and use the UI to create a deployment.
 You'll need to run version *8.5.0+* or later.
 
-Read <<es-native-connectors-prerequisites, prerequisites for managed connectors>> for full details.
+Read <<es-native-connectors-prerequisites, prerequisites for Elastic managed connectors>> for full details.
 
 Once you're deployment is created, navigate to *Search*.
 
@@ -187,7 +187,7 @@ Expand a document to view its fields.
 == Learn more
 
 * Refer to the <<es-connectors-mongodb, Elastic MongoDB connector reference documentation>> for detailed information about the connector, including how *sync rules* work.
-* For an overview of all managed connectors, see <<es-native-connectors>>.
-* Learn about <<es-sync-rules>> for managed connectors.
+* For an overview of all Elastic managed connectors, see <<es-native-connectors>>.
+* Learn about <<es-sync-rules>> for Elastic managed connectors.
 * Learn about {ref}/ingest-pipeline-search.html[ingest pipelines for Search indices]
 * Refer to the official https://www.mongodb.com/docs/atlas/[MongoDB Atlas documentation^] for MongoDB-specific questions.

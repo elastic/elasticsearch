@@ -4,6 +4,11 @@
 <titleabbrev>Connectors</titleabbrev>
 ++++
 
+.Connectors documentation history
+****
+Please note that the connectors documentation lived in the Enterprise Search documentation prior to version 8.16.0.
+****
+
 A _connector_ is a type of https://www.elastic.co/integrations/data-integrations[Elastic integration^] that syncs content from an original data source to an *Elasticsearch index*. 
 Connectors enable you to create _searchable_, read-only replicas of your data sources.
 
@@ -22,14 +27,14 @@ You can also access the source code for these (and additional) connectors, and r
 * **Self-managed connectors** are self-managed on your own infrastructure.
 
 [discrete#es-connectors-native]
-== Managed connectors {ess-icon}
+== Elastic managed connectors {ess-icon}
 
 _Managed connectors_ are available directly within your Elastic Cloud deployment, as a managed service.
 No additional infrastructure is required.
 
-See <<es-native-connectors>> for details on how to configure and use managed connectors.
+See <<es-native-connectors>> for details on how to configure and use Elastic managed connectors.
 
-.*Expand* to see list of available managed connectors
+.*Expand* to see list of available Elastic managed connectors
 [%collapsible]
 ====
 include::_connectors-list-native.asciidoc[]

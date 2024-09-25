@@ -39,7 +39,7 @@ For tables with millions of records, this can lead to memory exhaustion if the c
 To mitigate this issue, you can:
 +
 ** *Increase RAM allocation*:
-*** *Elastic Cloud*: Upgrade the Enterprise Search instance to a larger size. Note that for managed connectors running on Elastic Cloud, the connector service runs on the Enterprise Search node. It only has access to up to 40% of the node’s RAM allocation.
+*** *Elastic Cloud*: Upgrade the Enterprise Search instance to a larger size. Note that for Elastic managed connectors running on Elastic Cloud, the connector service runs on the Enterprise Search node. It only has access to up to 40% of the node’s RAM allocation.
 *** *Self-managed*: Increase RAM allocation for the machine/container running the connector service.
 +
 .RAM *sizing guidelines*
@@ -152,7 +152,7 @@ POST /.elastic-connectors/_update/connector_id
 +
 As a result, true document volume will be under-reported by a factor of 1024.
 +
-* *The following managed connectors will not run correctly on Elastic Cloud in 8.9.0.*
+* *The following Elastic managed connectors will not run correctly on Elastic Cloud in 8.9.0.*
 They are still available as self-managed connectors.
 ** Azure Blob Storage
 ** Confluence Cloud & Server

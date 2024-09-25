@@ -228,7 +228,7 @@ This will ensure your _searchable_ data in Elasticsearch is always up to date wi
 ==== Learn more
 
 * <<es-build-connector, Overview of self-managed connectors and frameworks>>
-* {connectors-python}[Elastic Elastic connector framework repository^]
+* {connectors-python}[Elastic connector framework repository^]
 * <<es-connectors-postgresql, Elastic PostgreSQL connector reference>>
 * <<es-connectors, Overview of all Elastic connectors>>
-* <<es-native-connectors, Managed connectors available in Elastic Cloud>>
+* <<es-native-connectors, Elastic managed connectors in Elastic Cloud>>

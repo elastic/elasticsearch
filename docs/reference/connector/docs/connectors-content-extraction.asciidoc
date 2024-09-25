@@ -55,7 +55,7 @@ Expand the archive file and make individual uncompressed files available for the
 [NOTE]
 ====
 Currently, content extraction from large files via the Extraction Service is available for a subset of our **self-managed connectors**.
-It is not available for managed connectors running on Elastic Cloud.
+It is not available for Elastic managed connectors running on Elastic Cloud.
 This feature is in *beta*.
 ====
 

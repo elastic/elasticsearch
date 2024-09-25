@@ -587,7 +587,7 @@ The full host in this example will look like this:
 A bug introduced in *8.12.0* causes the Connectors docker image to error out if run using MongoDB as its source.
 The command line will output the error `cannot import name 'coroutine' from 'asyncio'`.
 ** This issue is fixed in versions *8.12.2* and *8.13.0*.
-** This bug does not affect managed connectors.
+** This bug does not affect Elastic managed connectors.
 
 See <<es-connectors-known-issues>> for any issues affecting all connectors.
 

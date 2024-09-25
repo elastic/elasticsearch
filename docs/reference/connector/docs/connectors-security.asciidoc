@@ -23,7 +23,7 @@ Enterprise Search service account tokens can also read the `.elastic-connectors`
 [discrete#es-native-connectors-security-api-key]
 ==== Access to internally stored API keys
 
-API keys for managed connectors are stored in the internal system index `.connector-secrets`.
+API keys for Elastic managed connectors are stored in the internal system index `.connector-secrets`.
 Access to this index is restricted to authorized API calls only.
 The cluster privilege `write_connector_secrets` is required to store or update secrets through the API.
 Only the Enterprise Search instance has permission to read from this index.

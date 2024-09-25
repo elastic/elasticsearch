@@ -197,7 +197,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             return decision;
         }
 
-        if (allocation.metadata().getProject().index(shardRouting.index()).ignoreDiskWatermarks()) {
+        if (allocation.getProject(shardRouting.index()).index(shardRouting.index()).ignoreDiskWatermarks()) {
             return YES_DISK_WATERMARKS_IGNORED;
         }
 

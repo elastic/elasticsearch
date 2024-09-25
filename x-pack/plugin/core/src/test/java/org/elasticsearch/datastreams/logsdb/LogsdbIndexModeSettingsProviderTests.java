@@ -268,10 +268,7 @@ public class LogsdbIndexModeSettingsProviderTests extends TestCase {
         assertIndexMode(laterSettings, null);
     }
 
-    private static Metadata buildMetadata(
-        final List<String> indexPatterns,
-        final List<String> componentTemplates
-    ) throws IOException {
+    private static Metadata buildMetadata(final List<String> indexPatterns, final List<String> componentTemplates) throws IOException {
         final Template template = new Template(Settings.EMPTY, new CompressedXContent(DEFAULT_MAPPING), null);
         final ComposableIndexTemplate composableTemplate = ComposableIndexTemplate.builder()
             .indexPatterns(indexPatterns)

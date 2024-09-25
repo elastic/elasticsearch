@@ -24,6 +24,7 @@ module org.elasticsearch.xcore {
     requires org.elasticsearch.xcore.templates;
 
     exports org.elasticsearch.index.engine.frozen;
+    exports org.elasticsearch.datastreams.logsdb;
     exports org.elasticsearch.license;
     exports org.elasticsearch.license.internal to org.elasticsearch.internal.license;
     exports org.elasticsearch.protocol.xpack.common;

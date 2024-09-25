@@ -73,7 +73,7 @@ public class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         return Settings.EMPTY;
     }
 
-    private static boolean matchesLogsPattern(String name) {
+    private static boolean matchesLogsPattern(final String name) {
         return name != null && Regex.simpleMatch(LOGS_PATTERN, name);
     }
 

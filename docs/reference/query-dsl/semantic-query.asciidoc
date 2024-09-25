@@ -40,23 +40,23 @@ The `semantic_text` field to perform the query on.
 (Required, string)
 The query text to be searched for on the field.
 
-`chunks`::
+`inner_hits`::
 (Optional, object)
-The passage ranking configuration.
+Retrieves the specific passages that match the query.
 See <<semantic-query-passage-ranking, Passage ranking with the `semantic` query>> for more information.
 +
-.Properties of `chunks`
+.Properties of `inner_hits`
 [%collapsible%open]
 ====
 `from`::
 (Optional, integer)
-The offset from the first chunk to fetch.
-Used to paginate through the chunks.
+The offset from the first matching passage to fetch.
+Used to paginate through the passages.
 Defaults to `0`.
 
 `size`::
 (Optional, integer)
-The maximum number of chunks to return.
+The maximum number of matching passages to return.
 Defaults to `3`.
 ====
 
@@ -65,7 +65,7 @@ Refer to <<semantic-search-semantic-text,this tutorial>> to learn more about sem
 [discrete]
 [[semantic-query-passage-ranking]]
 ==== Passage ranking with the `semantic` query
-The `chunks` parameter can be used for _passage ranking_, which allows you to determine which chunk(s) in the document best match the query.
+The `inner_hits` parameter can be used for _passage ranking_, which allows you to determine which passages in the document best match the query.
 For example, if you have a document that covers varying topics:
 
 [source,console]
@@ -80,7 +80,7 @@ POST my-index/_doc/lake_tahoe
 ------------------------------------------------------------
 // TEST[skip:TBD]
 
-You can use passage ranking to find the chunk that best matches your query:
+You can use passage ranking to find the passage that best matches your query:
 
 [source,console]
 ------------------------------------------------------------
@@ -90,7 +90,7 @@ GET my-index/_search
     "semantic": {
       "field": "inference_field",
       "query": "mountain lake",
-      "chunks": { }
+      "inner_hits": { }
     }
   }
 }
@@ -166,8 +166,8 @@ GET my-index/_search
 ------------------------------------------------------------
 <1> Ranked passages will be returned using the <<inner-hits,`inner_hits` response format>>, with `<inner_hits_name>` set to the `semantic_text` field name.
 
-By default, the top three matching chunks will be returned.
-You can use the `size` parameter to control the number of chunks returned and the `from` parameter to page through the matching chunks:
+By default, the top three matching passages will be returned.
+You can use the `size` parameter to control the number of passages returned and the `from` parameter to page through the matching passages:
 
 [source,console]
 ------------------------------------------------------------
@@ -177,7 +177,7 @@ GET my-index/_search
     "semantic": {
       "field": "inference_field",
       "query": "mountain lake",
-      "chunks": {
+      "inner_hits": {
         "from": 1,
         "size": 1
       }

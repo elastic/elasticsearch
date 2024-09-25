@@ -1,0 +1,5 @@
+pr: 113276
+summary: Adding component template substitutions to the simulate ingest API
+area: Ingest Node
+type: enhancement
+issues: []

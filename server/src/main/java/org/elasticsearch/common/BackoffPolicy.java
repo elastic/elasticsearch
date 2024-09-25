@@ -6,7 +6,7 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-package org.elasticsearch.action.bulk;
+package org.elasticsearch.common;
 
 import org.elasticsearch.core.TimeValue;
 
@@ -15,8 +15,8 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 
 /**
- * Provides a backoff policy for bulk requests. Whenever a bulk request is rejected due to resource constraints (i.e. the client's internal
- * thread pool is full), the backoff policy decides how long the bulk processor will wait before the operation is retried internally.
+ * Provides a set of generic backoff policies. Backoff policies are used to calculate the number of times an action will be retried
+ * and the intervals between those retries.
  *
  * Notes for implementing custom subclasses:
  *

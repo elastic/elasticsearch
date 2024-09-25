@@ -95,6 +95,8 @@ public class OpenAIServiceMixedIT extends BaseMixedTestCase {
         final String inferenceId = "mixed-cluster-completions";
         final String upgradedClusterId = "upgraded-cluster-completions";
 
+        // queue a response as PUT will call the service
+        openAiChatCompletionsServer.enqueue(new MockResponse().setResponseCode(200).setBody(chatCompletionsResponse()));
         put(inferenceId, chatCompletionsConfig(getUrl(openAiChatCompletionsServer)), TaskType.COMPLETION);
 
         var configsMap = get(TaskType.COMPLETION, inferenceId);

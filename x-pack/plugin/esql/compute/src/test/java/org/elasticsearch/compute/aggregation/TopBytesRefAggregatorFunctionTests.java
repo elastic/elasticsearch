@@ -7,30 +7,23 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.List;
 
-public class TopIpGroupingAggregatorFunctionTests extends AbstractTopBytesRefGroupingAggregatorFunctionTests {
+public class TopBytesRefAggregatorFunctionTests extends AbstractTopBytesRefAggregatorFunctionTests {
     @Override
     protected BytesRef randomValue() {
-        return new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
+        return new BytesRef(randomAlphaOfLength(10));
     }
 
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new TopIpAggregatorFunctionSupplier(inputChannels, LIMIT, true);
-    }
-
-    @Override
-    protected DataType acceptedDataType() {
-        return DataType.IP;
+        return new TopBytesRefAggregatorFunctionSupplier(inputChannels, LIMIT, true);
     }
 
     @Override
     protected String expectedDescriptionOfAggregator() {
-        return "top of ips";
+        return "top of bytes";
     }
 }

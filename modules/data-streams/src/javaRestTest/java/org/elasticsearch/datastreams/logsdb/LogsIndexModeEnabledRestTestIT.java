@@ -224,4 +224,49 @@ public class LogsIndexModeEnabledRestTestIT extends LogsIndexModeRestTestIT {
         assertThat(firstBackingIndex, Matchers.not(equalTo(secondBackingIndex)));
         assertThat(getDataStreamBackingIndices(client, "logs-custom-dev").size(), equalTo(2));
     }
+
+    public void testLogsAtSettingWithStandardOverride() throws IOException {
+        assertOK(putComponentTemplate(client, "logs@custom", """
+            {
+              "template": {
+                "settings": {
+                  "index": {
+                    "mode": "standard"
+                    }
+                  }
+                }
+              }
+            """));
+        assertOK(createDataStream(client, "logs-custom-dev"));
+        final String indexMode = (String) getSetting(client, getDataStreamBackingIndex(client, "logs-custom-dev", 0), "index.mode");
+        assertThat(indexMode, equalTo(IndexMode.STANDARD.getName()));
+    }
+
+    public void testLogsAtSettingWithTimeSeriesOverride() throws IOException {
+        assertOK(putComponentTemplate(client, "logs@custom", """
+            {
+              "template": {
+                "settings": {
+                  "index": {
+                    "routing_path": [ "hostname" ],
+                    "mode": "time_series",
+                    "sort.field": [],
+                    "sort.order": []
+                  }
+                },
+                "mappings": {
+                  "properties": {
+                    "hostname": {
+                       "type": "keyword",
+                       "time_series_dimension": true
+                    }
+                  }
+                }
+              }
+            }
+            """));
+        assertOK(createDataStream(client, "logs-custom-dev"));
+        final String indexMode = (String) getSetting(client, getDataStreamBackingIndex(client, "logs-custom-dev", 0), "index.mode");
+        assertThat(indexMode, equalTo(IndexMode.TIME_SERIES.getName()));
+    }
 }

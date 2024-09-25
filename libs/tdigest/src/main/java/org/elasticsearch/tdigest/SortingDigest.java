@@ -27,6 +27,7 @@ import org.elasticsearch.tdigest.arrays.TDigestDoubleArray;
 import java.util.AbstractCollection;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Simple implementation of the TDigest interface that stores internally and sorts all samples to calculate quantiles and CDFs.
@@ -36,6 +37,9 @@ import java.util.Iterator;
 public class SortingDigest extends AbstractTDigest {
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(SortingDigest.class);
 
+    private final TDigestArrays arrays;
+    private final AtomicBoolean closed = new AtomicBoolean(false);
+
     // Tracks all samples. Gets sorted on quantile and cdf calls.
     final TDigestDoubleArray values;
 
@@ -43,6 +47,7 @@ public class SortingDigest extends AbstractTDigest {
     private boolean isSorted = true;
 
     public SortingDigest(TDigestArrays arrays) {
+        this.arrays = arrays;
         values = arrays.newDoubleArray(0);
     }
 

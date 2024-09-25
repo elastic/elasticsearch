@@ -30,6 +30,7 @@ import org.elasticsearch.tdigest.arrays.TDigestIntArray;
 import java.util.AbstractCollection;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Maintains a t-digest by collecting new points in a buffer that is then sorted occasionally and merged
@@ -69,6 +70,9 @@ import java.util.Iterator;
  */
 public class MergingDigest extends AbstractTDigest {
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(MergingDigest.class);
+
+    private final TDigestArrays arrays;
+    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     private int mergeCount = 0;
 
@@ -140,6 +144,8 @@ public class MergingDigest extends AbstractTDigest {
      * @param size        Size of main buffer
      */
     public MergingDigest(TDigestArrays arrays, double compression, int bufferSize, int size) {
+        this.arrays = arrays;
+
         // ensure compression >= 10
         // default size = 2 * ceil(compression)
         // default bufferSize = 5 * size

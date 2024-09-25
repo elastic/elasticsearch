@@ -29,6 +29,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.tdigest.IntAVLTree.NIL;
 
@@ -36,6 +37,7 @@ public class AVLTreeDigest extends AbstractTDigest {
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(AVLTreeDigest.class);
 
     private final TDigestArrays arrays;
+    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     final Random gen = new Random();
     private final double compression;

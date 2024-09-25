@@ -83,6 +83,11 @@ public abstract class TDigestTestCase extends ESTestCase {
         }
 
         @Override
+        public void adjustBreaker(long size) {
+            delegate.adjustBreaker(size);
+        }
+
+        @Override
         public TDigestDoubleArray newDoubleArray(int size) {
             return register(delegate.newDoubleArray(size));
         }

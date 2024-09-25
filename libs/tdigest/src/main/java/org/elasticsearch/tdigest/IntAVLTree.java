@@ -29,6 +29,8 @@ import org.elasticsearch.tdigest.arrays.TDigestArrays;
 import org.elasticsearch.tdigest.arrays.TDigestByteArray;
 import org.elasticsearch.tdigest.arrays.TDigestIntArray;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 /**
  * An AVL-tree structure stored in parallel arrays.
  * This class only stores the tree structure, so you need to extend it if you
@@ -48,6 +50,8 @@ abstract class IntAVLTree implements Releasable, Accountable {
         return size + (size >>> 3);
     }
 
+    private final TDigestArrays arrays;
+    private final AtomicBoolean closed = new AtomicBoolean(false);
     private final NodeAllocator nodeAllocator;
     private int root;
     private final TDigestIntArray parent;
@@ -56,6 +60,7 @@ abstract class IntAVLTree implements Releasable, Accountable {
     private final TDigestByteArray depth;
 
     IntAVLTree(TDigestArrays arrays, int initialCapacity) {
+        this.arrays = arrays;
         nodeAllocator = new NodeAllocator(arrays);
         root = NIL;
         parent = arrays.newIntArray(initialCapacity);
@@ -541,10 +546,14 @@ abstract class IntAVLTree implements Releasable, Accountable {
     private static class IntStack implements Releasable, Accountable {
         private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(IntStack.class);
 
+        private final TDigestArrays arrays;
+        private final AtomicBoolean closed = new AtomicBoolean(false);
+
         private final TDigestIntArray stack;
         private int size;
 
         IntStack(TDigestArrays arrays) {
+            this.arrays = arrays;
             stack = arrays.newIntArray(0);
             size = 0;
         }
@@ -578,10 +587,14 @@ abstract class IntAVLTree implements Releasable, Accountable {
     private static class NodeAllocator implements Releasable, Accountable {
         private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(NodeAllocator.class);
 
+        private final TDigestArrays arrays;
+        private final AtomicBoolean closed = new AtomicBoolean(false);
+
         private int nextNode;
         private final IntStack releasedNodes;
 
         NodeAllocator(TDigestArrays arrays) {
+            this.arrays = arrays;
             nextNode = NIL + 1;
             releasedNodes = new IntStack(arrays);
         }

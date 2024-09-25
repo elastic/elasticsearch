@@ -31,12 +31,16 @@ import org.elasticsearch.tdigest.arrays.TDigestLongArray;
 
 import java.util.AbstractCollection;
 import java.util.Iterator;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * A tree of t-digest centroids.
  */
 final class AVLGroupTree extends AbstractCollection<Centroid> implements Releasable, Accountable {
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(AVLGroupTree.class);
+
+    private final TDigestArrays arrays;
+    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     /* For insertions into the tree */
     private double centroid;
@@ -47,6 +51,7 @@ final class AVLGroupTree extends AbstractCollection<Centroid> implements Releasa
     private final IntAVLTree tree;
 
     AVLGroupTree(TDigestArrays arrays) {
+        this.arrays = arrays;
         tree = new IntAVLTree(arrays) {
 
             @Override

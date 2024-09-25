@@ -46,6 +46,15 @@ public class MemoryTrackingTDigestArrays implements TDigestArrays {
     }
 
     @Override
+    public void adjustBreaker(long size) {
+        if (size > 0) {
+            breaker.addEstimateBytesAndMaybeBreak(size, "tdigest-adjust-breaker");
+        } else {
+            breaker.addWithoutBreaking(size);
+        }
+    }
+
+    @Override
     public MemoryTrackingTDigestDoubleArray newDoubleArray(int initialSize) {
         breaker.addEstimateBytesAndMaybeBreak(
             MemoryTrackingTDigestDoubleArray.estimatedRamBytesUsed(initialSize),

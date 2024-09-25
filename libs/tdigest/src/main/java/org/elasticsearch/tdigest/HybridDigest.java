@@ -24,6 +24,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tdigest.arrays.TDigestArrays;
 
 import java.util.Collection;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Uses a {@link SortingDigest} implementation under the covers for small sample populations, then switches to {@link MergingDigest}.
@@ -38,6 +39,7 @@ public class HybridDigest extends AbstractTDigest {
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(HybridDigest.class);
 
     private final TDigestArrays arrays;
+    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     // See MergingDigest's compression param.
     private final double compression;

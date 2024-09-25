@@ -38,7 +38,8 @@ public class FlattenedSortedSetDocValuesSyntheticFieldLoader implements SourceLo
      *
      * @param fieldFullPath                        full path to the original field
      * @param keyedFieldFullPath                   full path to the keyed field to load doc values from
-     * @param keyedIgnoredValuesFieldFullPath      full path to the keyed field that stores values that are not present in doc values due to ignore_above
+     * @param keyedIgnoredValuesFieldFullPath      full path to the keyed field that stores values that are not present in doc values
+     *                                             due to ignore_above
      * @param leafName                             the name of the leaf field to use in the rendered {@code _source}
      */
     public FlattenedSortedSetDocValuesSyntheticFieldLoader(

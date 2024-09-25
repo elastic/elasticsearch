@@ -30,7 +30,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.MATCH_FUNCTION;
 import static org.hamcrest.Matchers.equalTo;
 
-@FunctionName("matchstr")
+@FunctionName("match")
 public class MatchFunctionTests extends AbstractFunctionTestCase {
 
     @BeforeClass

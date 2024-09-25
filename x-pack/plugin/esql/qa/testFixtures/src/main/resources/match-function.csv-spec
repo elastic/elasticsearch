@@ -7,7 +7,7 @@ required_capability: match_function
 
 // tag::match-with-field[]
 from books 
-| where matchstr(author, "Faulkner")
+| where match(author, "Faulkner")
 | keep book_no, author 
 | sort book_no 
 | limit 5;
@@ -27,7 +27,7 @@ matchWithMultipleFunctions
 required_capability: match_function
 
 from books 
-| where matchstr(title, "Return") AND matchstr(author, "Tolkien")  
+| where match(title, "Return") AND match(author, "Tolkien")  
 | keep book_no, title;
 ignoreOrder:true
 
@@ -40,7 +40,7 @@ matchWithQueryExpressions
 required_capability: match_function
 
 from books 
-| where matchstr(title, CONCAT("Return ", " King"))  
+| where match(title, CONCAT("Return ", " King"))  
 | keep book_no, title;
 ignoreOrder:true
 
@@ -53,7 +53,7 @@ matchWithDisjunction
 required_capability: match_function
 
 from books 
-| where matchstr(title, "Return") or year > 2020
+| where match(title, "Return") or year > 2020
 | keep book_no, title;
 ignoreOrder:true
 
@@ -67,7 +67,7 @@ matchWithConjunction
 required_capability: match_function
 
 from books 
-| where matchstr(title, "Rings") and ratings > 4.6
+| where match(title, "Rings") and ratings > 4.6
 | keep book_no, title;
 ignoreOrder:true
 
@@ -80,7 +80,7 @@ matchWithFunctionPushedToLucene
 required_capability: match_function
 
 from hosts 
-| where matchstr(host, "beta") and cidr_match(ip1, "127.0.0.2/32", "127.0.0.3/32") 
+| where match(host, "beta") and cidr_match(ip1, "127.0.0.2/32", "127.0.0.3/32") 
 | keep card, host, ip0, ip1;
 ignoreOrder:true
 
@@ -92,7 +92,7 @@ matchWithFunctionNotPushedToLucene
 required_capability: match_function
 
 from books 
-| where matchstr(title, "rings") and length(description) > 600 
+| where match(title, "rings") and length(description) > 600 
 | keep book_no, title;
 ignoreOrder:true
 
@@ -105,8 +105,8 @@ matchWithMultipleWhereClauses
 required_capability: match_function
 
 from books 
-| where matchstr(title, "rings") 
-| where matchstr(title, "lord") 
+| where match(title, "rings") 
+| where match(title, "lord") 
 | keep book_no, title;
 ignoreOrder:true
 

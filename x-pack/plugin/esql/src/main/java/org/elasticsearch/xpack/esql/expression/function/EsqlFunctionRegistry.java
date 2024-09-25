@@ -392,7 +392,7 @@ public class EsqlFunctionRegistry {
                 def(Rate.class, Rate::withUnresolvedTimestamp, "rate"),
                 // Full text functions
                 def(QueryStringFunction.class, QueryStringFunction::new, "qstr"),
-                def(MatchFunction.class, MatchFunction::new, "matchstr") } };
+                def(MatchFunction.class, MatchFunction::new, "match") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

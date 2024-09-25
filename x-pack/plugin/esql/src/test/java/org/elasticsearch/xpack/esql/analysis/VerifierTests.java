@@ -1045,7 +1045,10 @@ public class VerifierTests extends ESTestCase {
     public void testMatchInsideEval() throws Exception {
         assumeTrue("Match operator is available just for snapshots", Build.current().isSnapshot());
 
-        assertEquals("1:36: EVAL does not support MATCH expressions", error("row title = \"brown fox\" | eval x = title matchstr \"fox\" "));
+        assertEquals(
+            "1:36: EVAL does not support MATCH expressions",
+            error("row title = \"brown fox\" | eval x = title matchstr \"fox\" ")
+        );
     }
 
     public void testMatchFilter() throws Exception {
@@ -1088,8 +1091,8 @@ public class VerifierTests extends ESTestCase {
     public void testMatchFunctionNotAllowedAfterCommands() throws Exception {
         assumeTrue("skipping because MATCHSTR is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
 
-        assertEquals("1:13: [MATCHSTR] function cannot be used after SHOW", error("show info | where matchstr(version, \"8.*\")"));
-        checkFullTextFunctionNotAllowedAfterCommands("MATCHSTR", "matchstr(first_name, \"Anna\")");
+        assertEquals("1:13: [MATCHSTR] function cannot be used after SHOW", error("show info | where match(version, \"8.*\")"));
+        checkFullTextFunctionNotAllowedAfterCommands("MATCHSTR", "match(first_name, \"Anna\")");
     }
 
     private void checkFullTextFunctionNotAllowedAfterCommands(String functionName, String functionInvocation) throws Exception {
@@ -1172,7 +1175,7 @@ public class VerifierTests extends ESTestCase {
     public void testMatchFunctionOnlyAllowedInWhere() throws Exception {
         assumeTrue("skipping because MATCHSTR is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
 
-        checkFullTextFunctionsOnlyAllowedInWhere("MATCHSTR", "matchstr(first_name, \"Anna\")");
+        checkFullTextFunctionsOnlyAllowedInWhere("MATCHSTR", "match(first_name, \"Anna\")");
     }
 
     private void checkFullTextFunctionsOnlyAllowedInWhere(String functionName, String functionInvocation) throws Exception {
@@ -1206,16 +1209,16 @@ public class VerifierTests extends ESTestCase {
         assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
 
         assertEquals(
-            "1:19: first argument of [matchstr(null, \"Anna\")] cannot be null, received [null]",
-            error("from test | where matchstr(null, \"Anna\")")
+            "1:19: first argument of [match(null, \"Anna\")] cannot be null, received [null]",
+            error("from test | where match(null, \"Anna\")")
         );
         assertEquals(
-            "1:19: second argument of [matchstr(first_name, null)] cannot be null, received [null]",
-            error("from test | where matchstr(first_name, null)")
+            "1:19: second argument of [match(first_name, null)] cannot be null, received [null]",
+            error("from test | where match(first_name, null)")
         );
         assertEquals(
-            "1:19: second argument of [matchstr(first_name, first_name)] must be a constant, received [first_name]",
-            error("from test | where matchstr(first_name, first_name)")
+            "1:19: second argument of [match(first_name, first_name)] must be a constant, received [first_name]",
+            error("from test | where match(first_name, first_name)")
         );
         // Other value types are tested in QueryStringFunctionTests
     }
@@ -1224,8 +1227,8 @@ public class VerifierTests extends ESTestCase {
         assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
 
         assertEquals(
-            "1:19: second argument of [matchstr(\"first_name\", null)] cannot be null, received [null]",
-            error("from test | where matchstr(\"first_name\", null)")
+            "1:19: second argument of [match(\"first_name\", null)] cannot be null, received [null]",
+            error("from test | where match(\"first_name\", null)")
         );
     }
 

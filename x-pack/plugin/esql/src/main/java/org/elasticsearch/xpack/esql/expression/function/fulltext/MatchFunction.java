@@ -39,7 +39,7 @@ public class MatchFunction extends FullTextFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
-        "Matchstr",
+        "Match",
         MatchFunction::new
     );
 

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.settings;
+package org.elasticsearch.xpack.cluster.settings;
 
 import org.elasticsearch.common.settings.Setting;
 

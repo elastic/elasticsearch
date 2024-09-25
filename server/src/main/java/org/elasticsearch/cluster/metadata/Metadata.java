@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.coordination.PublicationTransportHandler;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
@@ -36,7 +35,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
-import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
@@ -584,71 +582,48 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params p) {
-        XContentContext context = XContentContext.from(p);
-        final Iterator<? extends ToXContent> start = context == XContentContext.API
-            ? ChunkedToXContentHelper.startObject("metadata")
-            : Iterators.single((builder, params) -> builder.startObject("meta-data").field("version", version()));
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        XContentContext context = XContentContext.from(params);
 
-        final Iterator<? extends ToXContent> persistentSettings = context != XContentContext.API && persistentSettings().isEmpty() == false
-            ? Iterators.single((builder, params) -> {
-                builder.startObject("settings");
-                persistentSettings().toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
-                return builder.endObject();
+        var builder = ChunkedToXContent.builder(params)
+            .append(
+                context == XContentContext.API
+                    ? (b, p) -> b.startObject("metadata")
+                    : (b, p) -> b.startObject("meta-data").field("version", version())
+            )
+            .append((b, p) -> {
+                b.field("cluster_uuid", clusterUUID);
+                b.field("cluster_uuid_committed", clusterUUIDCommitted);
+                b.startObject("cluster_coordination");
+                coordinationMetadata().toXContent(b, p);
+                return b.endObject();
             })
-            : Collections.emptyIterator();
+            .execute(xb -> {
+                if (context != XContentContext.API && persistentSettings().isEmpty() == false) {
+                    xb.append((b, p) -> {
+                        b.startObject("settings");
+                        persistentSettings().toXContent(b, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
+                        return b.endObject();
+                    });
+                }
+            });
 
-        boolean multiProject = p.paramAsBoolean("multi-project", false);
+        boolean multiProject = params.paramAsBoolean("multi-project", false);
         if (multiProject) {
-            return Iterators.concat(start, Iterators.single((builder, params) -> {
-                builder.field("cluster_uuid", clusterUUID);
-                builder.field("cluster_uuid_committed", clusterUUIDCommitted);
-                builder.startObject("cluster_coordination");
-                coordinationMetadata().toXContent(builder, params);
-                return builder.endObject();
-            }),
-                persistentSettings,
-                ChunkedToXContentHelper.array(
-                    "projects",
-                    Iterators.flatMap(
-                        projectMetadata.entrySet().iterator(),
-                        e -> Iterators.concat(
-                            ChunkedToXContentHelper.startObject(),
-                            Iterators.single((builder, params) -> builder.field("id", e.getKey())),
-                            e.getValue().toXContentChunked(p),
-                            ChunkedToXContentHelper.endObject()
-                        )
-                    )
-                ),
-                Iterators.flatMap(
-                    customs.entrySet().iterator(),
-                    entry -> entry.getValue().context().contains(context)
-                        ? ChunkedToXContentHelper.wrapWithObject(entry.getKey(), entry.getValue().toXContentChunked(p))
-                        : Collections.emptyIterator()
-                ),
-                ChunkedToXContentHelper.wrapWithObject("reserved_state", reservedStateMetadata().values().iterator()),
-                ChunkedToXContentHelper.endObject()
+            builder.array(
+                "projects",
+                projectMetadata.entrySet().iterator(),
+                (b, e) -> b.object(ob -> ob.field("id", e.getKey()).append(e.getValue()))
             );
         } else {
-            return Iterators.concat(start, Iterators.single((builder, params) -> {
-                builder.field("cluster_uuid", clusterUUID);
-                builder.field("cluster_uuid_committed", clusterUUIDCommitted);
-                builder.startObject("cluster_coordination");
-                coordinationMetadata().toXContent(builder, params);
-                return builder.endObject();
-            }),
-                persistentSettings,
-                getSingleProject().toXContentChunked(p),
-                Iterators.flatMap(
-                    customs.entrySet().iterator(),
-                    entry -> entry.getValue().context().contains(context)
-                        ? ChunkedToXContentHelper.wrapWithObject(entry.getKey(), entry.getValue().toXContentChunked(p))
-                        : Collections.emptyIterator()
-                ),
-                ChunkedToXContentHelper.wrapWithObject("reserved_state", reservedStateMetadata().values().iterator()),
-                ChunkedToXContentHelper.endObject()
-            );
+            builder.append(getSingleProject());
         }
+
+        return builder.forEach(customs.entrySet().iterator(), (b, e) -> {
+            if (e.getValue().context().contains(context)) {
+                b.xContentObject(e.getKey(), e.getValue());
+            }
+        }).xContentObject("reserved_state", reservedStateMetadata().values().iterator()).append((b, p) -> b.endObject());
     }
 
     private static final DiffableUtils.KeySerializer<ProjectId> PROJECT_ID_SERIALIZER = DiffableUtils.getWriteableKeySerializer(

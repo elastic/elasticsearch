@@ -266,5 +266,9 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
     public void testBuilderRoundtrip() {
         ComposableIndexTemplate template = randomInstance();
         assertEquals(template, template.toBuilder().build());
+
+        if (template.template() != null) {
+            assertEquals(template.template(), Template.builder(template.template()).build());
+        }
     }
 }

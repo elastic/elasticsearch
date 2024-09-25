@@ -1,29 +1,16 @@
 [[getting-started]]
-== Quick start: Add data using Elasticsearch APIs
+== Quick start: Indices, documents, and mappings
 ++++
-<titleabbrev>Basics: Add data using APIs</titleabbrev>
+<titleabbrev>Basics: Indices, documents, and mappings</titleabbrev>
 ++++
 
 In this quick start guide, you'll learn how to do the following tasks:
 
-* Add a small, non-timestamped dataset to {es} using Elasticsearch REST APIs.
-* Run basic searches.
-
-[discrete]
-[[add-data]]
-=== Add data
-
-You add data to {es} as JSON objects called documents.
-{es} stores these
-documents in searchable indices.
-
-[discrete]
-[[add-single-document]]
-==== Add a single document
-
-Submit the following indexing request to add a single document to the
-`books` index.
-The request automatically creates the index.
+* Create an index
+* Add documents
+* Inspect a document's structure
+* Use dynamic and explicit mappings of data types
+* Do basic searches
 
 ////
 [source,console]
@@ -39,6 +26,46 @@ DELETE books
 // TEARDOWN
 
 ////
+
+[discrete]
+[[getting-started-index-creation]]
+=== Create an index
+
+Create a new index named `books`:
+
+[source,console]
+----
+PUT /books
+----
+// TEST
+
+List all indices to confirm creation:
+
+[source,console]
+----
+GET /_cat/indices
+----
+// TEST[continued]
+
+[discrete]
+[[getting-started-add-documents]]
+=== Add documents
+
+You add data to {es} as JSON objects called documents.
+{es} stores these
+documents in searchable indices.
+
+[discrete]
+[[getting-started-add-single-document]]
+==== Add a single document
+
+Submit the following indexing request to add a single document to the
+`books` index.
+
+[TIP]
+====
+If the index didn't already exist, the request would automatically create it.
+====
 
 [source,console]
 ----
@@ -72,12 +99,11 @@ The response includes metadata that {es} generates for the document including a 
 ===============
 
 [discrete]
-[[add-multiple-documents]]
+[[getting-started-add-multiple-documents]]
 ==== Add multiple documents
 
-Use the `_bulk` endpoint to add multiple documents in one request. Bulk data
-must be newline-delimited JSON (NDJSON). Each line must end in a newline
-character (`\n`), including the last line.
+Use the <<docs-bulk,`_bulk` endpoint>> to add multiple documents in one request. Bulk data
+must be newline-delimited JSON (NDJSON).
 
 [source,console]
 ----
@@ -193,31 +219,92 @@ You should receive a response indicating there were no errors.
 ===============
 
 [discrete]
-[[qs-search-data]]
+[[getting-started-mappings-and-data-types]]
+=== Mappings and data types
+
+[discrete]
+[[getting-started-dynamic-mapping]]
+==== Dynamic mapping
+
+When using dynamic mapping, {es} automatically creates mappings for new fields by default.
+The documents we've added so far have used dynamic mapping, because we didn't specify a mapping when creating the index.
+
+Let's add a new document to the `books` index with a field that doesn't exist, to see how dynamic mapping works.
+
+[source,console]
+----
+PUT /books/_doc
+{"name": "The Great Gatsby", "author": "F. Scott Fitzgerald", "release_date": "1925-04-10", "page_count": 180, "new_field": "This is a dynamically added field"}
+----
+// TEST[continued]
+
+View the mapping for the `books` index. The new field `new_field` has been added to the mapping with a `keyword` data type.
+
+[source,console]
+----
+GET /books/_mapping
+----
+// TEST[continued]
+
+[discrete]
+[[getting-started-explicit-mapping]]
+==== Explicit mapping
+
+Create an index named `my-explicit-mappings-books` with explicit mappings:
+
+[source,console]
+----
+PUT /my-explicit-mappings-books
+{
+  "mappings": {
+    "dynamic": false,  <1>
+    "properties": {
+      "name": { "type": "text" },
+      "author": { "type": "text" },
+      "release_date": { "type": "date", "format": "yyyy-MM-dd" },
+      "page_count": { "type": "integer" }
+    }
+  }
+}
+----
+// TEST[continued]
+<1> Disables dynamic mapping for the index. Documents containing fields not defined in the mapping will be rejected.
+
+[discrete]
+[[getting-started-combined-mapping]]
+=== Combine dynamic and explicit mappings
+
+As long as an index has the `dynamic` flag set to `true`, you can add new fields to documents without updating the mapping.
+This allows you to combine dynamic and explicit mappings.
+
+[discrete]
+[[getting-started-search-data]]
 === Search data
 
 Indexed documents are available for search in near real-time.
+// TODO: You'll find more detailed quick start guides in TODO
 
 [discrete]
-[[search-all-documents]]
+[[getting-started-search-all-documents]]
 ==== Search all documents
 
 Run the following command to search the `books` index for all documents:
+
 [source,console]
 ----
 GET books/_search
 ----
 // TEST[continued]
 
-The `_source` of each hit contains the original
+The `_source` metadata field of each hit contains the original
 JSON object submitted during indexing.
 
 [discrete]
-[[qs-match-query]]
+[[getting-started-match-query]]
 ==== `match` query
 
 You can use the <<query-dsl-match-query,`match` query>> to search for documents that contain a specific value in a specific field.
-This is the standard query for performing full-text search, including fuzzy matching and phrase searches.
+This is the standard query for full-text searches.
 
 Run the following command to search the `books` index for documents containing `brave` in the `name` field:
 

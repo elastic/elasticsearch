@@ -25,12 +25,12 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.cluster.settings.ClusterSettings.CLUSTER_LOGSDB_ENABLED;
 
-public class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
+final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     private static final Logger logger = LogManager.getLogger(LogsdbIndexModeSettingsProvider.class);
     private static final String LOGS_PATTERN = "logs-*-*";
     private volatile boolean isLogsdbEnabled;
 
-    public LogsdbIndexModeSettingsProvider(final Settings settings) {
+    LogsdbIndexModeSettingsProvider(final Settings settings) {
         this.isLogsdbEnabled = CLUSTER_LOGSDB_ENABLED.get(settings);
     }
 

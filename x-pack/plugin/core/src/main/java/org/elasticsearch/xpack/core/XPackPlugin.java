@@ -32,6 +32,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.datastreams.logsdb.LogsdbIndexModeSettingsProvider;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettingProvider;
@@ -184,6 +185,8 @@ public class XPackPlugin extends XPackClientPlugin
     private static SetOnce<XPackLicenseState> licenseState = new SetOnce<>();
     private static SetOnce<LicenseService> licenseService = new SetOnce<>();
 
+    private static SetOnce<ClusterService> clusterService = new SetOnce<>();
+
     public XPackPlugin(final Settings settings) {
         super();
         // FIXME: The settings might be changed after this (e.g. from "additionalSettings" method in other plugins)
@@ -229,6 +232,10 @@ public class XPackPlugin extends XPackClientPlugin
 
     protected void setEpochMillisSupplier(LongSupplier epochMillisSupplier) {
         XPackPlugin.epochMillisSupplier.set(epochMillisSupplier);
+    }
+
+    protected void setClusterService(ClusterService clusterService) {
+        XPackPlugin.clusterService.set(clusterService);
     }
 
     public static SSLService getSharedSslService() {
@@ -338,6 +345,7 @@ public class XPackPlugin extends XPackClientPlugin
         }
 
         setEpochMillisSupplier(services.threadPool()::absoluteTimeInMillis);
+        setClusterService(services.clusterService());
 
         // It is useful to override these as they are what guice is injecting into actions
         components.add(sslService);
@@ -482,7 +490,7 @@ public class XPackPlugin extends XPackClientPlugin
         if (DiscoveryNode.isStateless(settings)) {
             return List.of();
         }
-        return Collections.singleton(new DataTier.DefaultHotAllocationSettingProvider());
+        return List.of(new DataTier.DefaultHotAllocationSettingProvider(), new LogsdbIndexModeSettingsProvider(clusterService.get()));
     }
 
     /**

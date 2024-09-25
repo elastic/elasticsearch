@@ -385,8 +385,28 @@ setup:
   - length: { values: 2 }
   - match: { values.0: [ [ "foo", "bar" ] ] }
   - match: { values.1: [ "baz" ] }
+---
+"reverse text":
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
+      reason: "making sure REVERSE works on permutations of text fields"
+      test_runner_features: allowed_warnings_regex
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | SORT name | EVAL job_reversed = REVERSE(job), tag_reversed = REVERSE(tag) | KEEP job_reversed, tag_reversed'
 
+  - match: { columns.0.name: "job_reversed" }
+  - match: { columns.0.type: "text" }
 
+  - match: { columns.1.name: "tag_reversed" }
+  - match: { columns.1.type: "text" }
+
+  - length: { values: 2 }
+  - match: { values.0: [ "rotceriD TI", "rab oof" ] }
+  - match: { values.1: [ "tsilaicepS lloryaP", "zab" ] }
 ---
 "stats text with raw":
   - do:

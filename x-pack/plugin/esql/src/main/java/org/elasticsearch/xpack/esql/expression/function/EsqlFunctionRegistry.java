@@ -299,7 +299,7 @@ public class EsqlFunctionRegistry {
                 def(Tanh.class, Tanh::new, "tanh"),
                 def(Tau.class, Tau::new, "tau") },
             // string
-            new FunctionDefinition[]{
+            new FunctionDefinition[] {
                 def(Concat.class, Concat::new, "concat"),
                 def(EndsWith.class, EndsWith::new, "ends_with"),
                 def(LTrim.class, LTrim::new, "ltrim"),

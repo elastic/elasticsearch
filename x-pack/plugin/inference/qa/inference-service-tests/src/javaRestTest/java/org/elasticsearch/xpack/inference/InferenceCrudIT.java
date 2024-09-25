@@ -17,8 +17,12 @@ import org.elasticsearch.inference.TaskType;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.equalToIgnoringCase;
 import static org.hamcrest.Matchers.hasSize;
 
 public class InferenceCrudIT extends InferenceBaseRestTest {
@@ -221,5 +225,59 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         }
         deletePipeline(pipelineId);
         deleteIndex(indexName);
+    }
+
+    public void testUnsupportedStream() throws Exception {
+        String modelId = "streaming";
+        putModel(modelId, mockCompletionServiceModelConfig(TaskType.SPARSE_EMBEDDING));
+        var singleModel = getModel(modelId);
+        assertEquals(modelId, singleModel.get("inference_id"));
+        assertEquals(TaskType.SPARSE_EMBEDDING.toString(), singleModel.get("task_type"));
+
+        try {
+            var events = streamInferOnMockService(modelId, TaskType.SPARSE_EMBEDDING, List.of(randomAlphaOfLength(10)));
+            assertThat(events.size(), equalTo(2));
+            events.forEach(event -> {
+                switch (event.name()) {
+                    case EVENT -> assertThat(event.value(), equalToIgnoringCase("error"));
+                    case DATA -> assertThat(
+                        event.value(),
+                        containsString(
+                            "Streaming is not allowed for service [streaming_completion_test_service] and task [sparse_embedding]"
+                        )
+                    );
+                }
+            });
+        } finally {
+            deleteModel(modelId);
+        }
+    }
+
+    public void testSupportedStream() throws Exception {
+        String modelId = "streaming";
+        putModel(modelId, mockCompletionServiceModelConfig(TaskType.COMPLETION));
+        var singleModel = getModel(modelId);
+        assertEquals(modelId, singleModel.get("inference_id"));
+        assertEquals(TaskType.COMPLETION.toString(), singleModel.get("task_type"));
+
+        var input = IntStream.range(1, randomInt(10)).mapToObj(i -> randomAlphaOfLength(10)).toList();
+
+        try {
+            var events = streamInferOnMockService(modelId, TaskType.COMPLETION, input);
+
+            var expectedResponses = Stream.concat(
+                input.stream().map(String::toUpperCase).map(str -> "{\"completion\":[{\"delta\":\"" + str + "\"}]}"),
+                Stream.of("[DONE]")
+            ).iterator();
+            assertThat(events.size(), equalTo((input.size() + 1) * 2));
+            events.forEach(event -> {
+                switch (event.name()) {
+                    case EVENT -> assertThat(event.value(), equalToIgnoringCase("message"));
+                    case DATA -> assertThat(event.value(), equalTo(expectedResponses.next()));
+                }
+            });
+        } finally {
+            deleteModel(modelId);
+        }
     }
 }

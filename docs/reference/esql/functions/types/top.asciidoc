@@ -10,5 +10,7 @@ date | integer | keyword | date
 double | integer | keyword | double
 integer | integer | keyword | integer
 ip | integer | keyword | ip
+keyword | integer | keyword | keyword
 long | integer | keyword | long
+text | integer | keyword | text
 |===

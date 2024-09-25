@@ -7,6 +7,8 @@ synthetic source:
       indices.create:
         index: synthetic_source_test
         body:
+          settings:
+            index.mapper.source.mode: synthetic
           mappings:
             properties:
               name:

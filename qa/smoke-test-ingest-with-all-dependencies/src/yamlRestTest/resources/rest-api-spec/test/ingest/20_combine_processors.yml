@@ -5,7 +5,7 @@ setup:
 "Test with date processor":
   - do:
       allowed_warnings_regex:
-        - 'Date format \\[dd/MMM/yyyy:HH:mm:ss xx] contains textual field specifiers that could change in JDK 23.*'
+        - 'Date format \[dd/MMM/yyyy:HH:mm:ss xx] contains textual field specifiers that could change in JDK 23.*'
       ingest.put_pipeline:
         id: "_id"
         body:  >
@@ -47,7 +47,7 @@ setup:
 
   - do:
       allowed_warnings_regex:
-        - 'Date format \\[dd/MMM/yyyy:HH:mm:ss xx] contains textual field specifiers that could change in JDK 23.*'
+        - 'Date format \[dd/MMM/yyyy:HH:mm:ss xx] contains textual field specifiers that could change in JDK 23.*'
       index:
         index: test
         id: "1"
@@ -78,7 +78,7 @@ setup:
 "Test with date processor and ECS-v1":
   - do:
       allowed_warnings_regex:
-        - 'Date format \\[dd/MMM/yyyy:HH:mm:ss xx] contains textual field specifiers that could change in JDK 23.*'
+        - 'Date format \[dd/MMM/yyyy:HH:mm:ss xx] contains textual field specifiers that could change in JDK 23.*'
       ingest.put_pipeline:
         id: "_id"
         body:  >
@@ -109,7 +109,7 @@ setup:
 
   - do:
       allowed_warnings_regex:
-        - 'Date format \\[dd/MMM/yyyy:HH:mm:ss xx] contains textual field specifiers that could change in JDK 23.*'
+        - 'Date format \[dd/MMM/yyyy:HH:mm:ss xx] contains textual field specifiers that could change in JDK 23.*'
       index:
         index: test
         id: "1"

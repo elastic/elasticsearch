@@ -101,7 +101,7 @@ teardown:
 
   - do:
       allowed_warnings_regex:
-        - 'Date format \\[dd/MMM/yyyy:H:m:s Z] contains textual field specifiers that could change in JDK 23.*'
+        - 'Date format \[dd/MMM/yyyy:H:m:s Z] contains textual field specifiers that could change in JDK 23.*'
       ingest.put_pipeline:
         id: "my_pipeline"
         # sample formats from beats, featuring mongodb, icinga, apache
@@ -171,7 +171,7 @@ teardown:
 
   - do:
       allowed_warnings_regex:
-        - 'Date format \\[dd/MMM/yyyy:H:m:s Z] contains textual field specifiers that could change in JDK 23.*'
+        - 'Date format \[dd/MMM/yyyy:H:m:s Z] contains textual field specifiers that could change in JDK 23.*'
       index:
         index: test
         id: "1"
@@ -212,7 +212,7 @@ teardown:
 "Test week based date parsing":
   - do:
       allowed_warnings_regex:
-        - 'Date format \\[YYYY-ww] contains week-date field specifiers that are changing in JDK 23.*'
+        - 'Date format \[YYYY-ww] contains week-date field specifiers that are changing in JDK 23.*'
       indices.create:
         index: test
         body:
@@ -224,7 +224,7 @@ teardown:
 
   - do:
       allowed_warnings_regex:
-        - 'Date format \\[YYYY-ww] contains week-date field specifiers that are changing in JDK 23.*'
+        - 'Date format \[YYYY-ww] contains week-date field specifiers that are changing in JDK 23.*'
       ingest.put_pipeline:
         id: "my_pipeline"
         body:  >

@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
@@ -23,7 +24,6 @@ import java.util.List;
 
 public class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     private static final Logger logger = LogManager.getLogger(LogsdbIndexModeSettingsProvider.class);
-    private static final PatternMatcher logsNameMatcher = PatternMatcher.forLogs();
 
     public static final Setting<Boolean> CLUSTER_INDEX_MODE_LOGSDB_ENABLED = Setting.boolSetting(
         "cluster.index.mode.logsdb.enabled",
@@ -67,7 +67,7 @@ public class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     }
 
     private static boolean isLogsDataStreamOrIndexName(final String indexName, final String dataStreamName) {
-        return logsNameMatcher.matches(indexName) || logsNameMatcher.matches(dataStreamName);
+        return Regex.simpleMatch("logs-[^-]+-[^-]+", indexName) || Regex.simpleMatch("logs-[^-]+-[^-]+", dataStreamName);
     }
 
     private IndexMode resolveIndexMode(final String mode) {

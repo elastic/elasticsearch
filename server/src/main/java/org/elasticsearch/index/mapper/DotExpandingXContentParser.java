@@ -445,7 +445,9 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
                         path.append(".").append(subpaths.get(j));
                     }
                     Mapper mapper = parent.mappers.get(path.toString());
-                    if (mapper instanceof ObjectMapper) {
+                    if (mapper instanceof ObjectMapper objectMapper
+                        && (ObjectMapper.isFlatteningCandidate(objectMapper.subobjects, objectMapper)
+                            || objectMapper.checkFlattenable(null).isPresent())) {
                         i = j;
                         match = true;
                         break;
@@ -455,7 +457,7 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
             if (match) {
                 result.add(path.toString());
             } else {
-                // We only get here if parent has subobjects set to false, or set to auto with no object in the sub-path.
+                // We only get here if parent has subobjects set to false, or set to auto with no non-flattenable object in the sub-path.
                 result.add(String.join(".", subpaths.subList(i, subpaths.size())));
                 return result;
             }

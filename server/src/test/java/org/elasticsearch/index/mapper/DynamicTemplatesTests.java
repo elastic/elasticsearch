@@ -2090,6 +2090,59 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         assertEquals("flattened", fooStructuredMapper.typeName());
     }
 
+    public void testSubobjectsAutoWithObjectInDynamicTemplate() throws IOException {
+        String mapping = """
+            {
+              "_doc": {
+                "properties": {
+                  "attributes": {
+                    "type": "object",
+                    "subobjects": "auto"
+                  }
+                },
+                "dynamic_templates": [
+                  {
+                    "test": {
+                      "path_match": "attributes.*",
+                      "match_mapping_type": "object",
+                      "mapping": {
+                        "type": "object",
+                        "dynamic": "false",
+                        "properties": {
+                          "id": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+            """;
+        String docJson = """
+            {
+              "attributes": {
+                "to": {
+                  "id": 10
+                },
+                "foo.bar": "baz"
+              }
+            }
+            """;
+
+        MapperService mapperService = createMapperService(mapping);
+        ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson));
+        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
+
+        Mapper fooBarMapper = mapperService.documentMapper().mappers().getMapper("attributes.foo.bar");
+        assertNotNull(fooBarMapper);
+        assertEquals("text", fooBarMapper.typeName());
+        Mapper innerObject = mapperService.documentMapper().mappers().objectMappers().get("attributes.to");
+        assertNotNull(innerObject);
+        assertEquals("integer", mapperService.documentMapper().mappers().getMapper("attributes.to.id").typeName());
+    }
+
     public void testMatchWithArrayOfFieldNames() throws IOException {
         String mapping = """
             {

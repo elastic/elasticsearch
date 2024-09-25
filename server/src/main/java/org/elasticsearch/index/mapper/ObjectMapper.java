@@ -44,7 +44,8 @@ public class ObjectMapper extends Mapper {
 
     public static final String CONTENT_TYPE = "object";
     static final String STORE_ARRAY_SOURCE_PARAM = "store_array_source";
-    static final NodeFeature SUBOBJECTS_AUTO = new NodeFeature("mapper.subobjects_auto_fixes");
+    static final NodeFeature SUBOBJECTS_AUTO = new NodeFeature("mapper.subobjects_auto");
+    static final NodeFeature SUBOBJECTS_AUTO_FIXES = new NodeFeature("mapper.subobjects_auto_fixes");
 
     /**
      * Enhances the previously boolean option for subobjects support with an intermediate mode `auto` that uses
@@ -176,9 +177,9 @@ public class ObjectMapper extends Mapper {
             // If the mapper to add has no dots, or the current object mapper has subobjects set to false,
             // we just add it as it is for sure a leaf mapper
             if (name.contains(".") == false || (subobjects.isPresent() && (subobjects.get() == Subobjects.DISABLED))) {
-                if (subobjects.orElse(Subobjects.ENABLED) == Subobjects.AUTO
-                    && mapper instanceof ObjectMapper
-                    && mapper instanceof NestedObjectMapper == false) {
+                if (mapper instanceof ObjectMapper objectMapper
+                    && isFlatteningCandidate(subobjects, objectMapper)
+                    && objectMapper.checkFlattenable(null).isEmpty()) {
                     // Subobjects auto doesn't allow for adding subobjects dynamically.
                     return;
                 }
@@ -217,7 +218,7 @@ public class ObjectMapper extends Mapper {
                     String candidateFullObject = candidateObjectPrefix.isEmpty()
                         ? candidateObject.toString()
                         : candidateObjectPrefix + candidateObject.toString();
-                    ObjectMapper parent = context.mappingLookup().objectMappers().get(candidateFullObject);
+                    ObjectMapper parent = context.findObject(candidateFullObject);
                     if (parent != null) {
                         var parentBuilder = parent.newBuilder(context.indexSettings().getIndexVersionCreated());
                         parentBuilder.addDynamic(name.substring(candidateObject.length() + 1), candidateFullObject, mapper, context);
@@ -746,7 +747,7 @@ public class ObjectMapper extends Mapper {
         return flattenedMappers;
     }
 
-    private static boolean isFlatteningCandidate(Optional<Subobjects> subobjects, ObjectMapper mapper) {
+    static boolean isFlatteningCandidate(Optional<Subobjects> subobjects, ObjectMapper mapper) {
         return subobjects.isPresent() && subobjects.get() != Subobjects.ENABLED && mapper instanceof NestedObjectMapper == false;
     }
 
@@ -796,13 +797,13 @@ public class ObjectMapper extends Mapper {
         path.remove();
     }
 
-    private Optional<String> checkFlattenable(MapperBuilderContext context) {
-        if (dynamic != null && context.getDynamic() != dynamic) {
+    Optional<String> checkFlattenable(MapperBuilderContext context) {
+        if (dynamic != null && (context == null || context.getDynamic() != dynamic)) {
             return Optional.of(
                 "the value of [dynamic] ("
                     + dynamic
                     + ") is not compatible with the value from its parent context ("
-                    + context.getDynamic()
+                    + (context != null ? context.getDynamic() : "")
                     + ")"
             );
         }

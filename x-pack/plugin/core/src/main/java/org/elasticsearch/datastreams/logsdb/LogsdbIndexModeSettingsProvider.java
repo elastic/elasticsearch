@@ -31,6 +31,7 @@ public class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+    public static final String LOGS_PATTERN = "logs-[^-]+-[^-]+";
     private volatile boolean isLogsdbEnabled;
 
     public LogsdbIndexModeSettingsProvider(final Settings settings) {
@@ -65,8 +66,8 @@ public class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     }
 
     private static boolean isLogsDataStreamOrIndexName(final String indexName, final String dataStreamName) {
-        return (indexName != null && Regex.simpleMatch("logs-[^-]+-[^-]+", indexName))
-            || (dataStreamName != null && Regex.simpleMatch("logs-[^-]+-[^-]+", dataStreamName));
+        return (indexName != null && Regex.simpleMatch(LOGS_PATTERN, indexName))
+            || (dataStreamName != null && Regex.simpleMatch(LOGS_PATTERN, dataStreamName));
     }
 
     private IndexMode resolveIndexMode(final String mode) {

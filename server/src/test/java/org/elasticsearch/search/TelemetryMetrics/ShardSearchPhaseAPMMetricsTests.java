@@ -26,21 +26,17 @@ import org.junit.Before;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.stream.Stream;
 
-import static org.elasticsearch.action.search.SearchTransportAPMMetrics.FETCH_ID_SCROLL_ACTION_METRIC;
-import static org.elasticsearch.action.search.SearchTransportAPMMetrics.FREE_CONTEXT_SCROLL_ACTION_METRIC;
-import static org.elasticsearch.action.search.SearchTransportAPMMetrics.QUERY_SCROLL_ACTION_METRIC;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
-import static org.elasticsearch.index.search.stats.ShardSearchAPMMetrics.FETCH_PHASE;
-import static org.elasticsearch.index.search.stats.ShardSearchAPMMetrics.PHASE_ATTRIBUTE_NAME;
-import static org.elasticsearch.index.search.stats.ShardSearchAPMMetrics.QUERY_PHASE;
-import static org.elasticsearch.index.search.stats.ShardSearchAPMMetrics.SEARCH_PHASES_DURATION_METRIC;
-import static org.elasticsearch.index.search.stats.ShardSearchAPMMetrics.SYSTEM_THREAD_ATTRIBUTE_NAME;
+import static org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics.FETCH_SEARCH_PHASE_METRIC;
+import static org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics.QUERY_SEARCH_PHASE_METRIC;
+import static org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics.SYSTEM_THREAD_ATTRIBUTE_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertScrollResponsesAndHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
 
-public class SearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
+public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
 
     private static final String indexName = "test_search_metrics2";
     private final int num_primaries = randomIntBetween(2, 7);
@@ -65,6 +61,7 @@ public class SearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
         prepareIndex(indexName).setId("2").setSource("body", "doc2").setRefreshPolicy(IMMEDIATE).get();
 
         prepareIndex(TestSystemIndexPlugin.INDEX_NAME).setId("1").setSource("body", "doc1").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex(TestSystemIndexPlugin.INDEX_NAME).setId("2").setSource("body", "doc2").setRefreshPolicy(IMMEDIATE).get();
     }
 
     @After
@@ -90,8 +87,8 @@ public class SearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
             client().prepareSearch(indexName).setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setQuery(simpleQueryStringQuery("doc1")),
             "1"
         );
-        checkNumberOfMeasurementsForPhase(QUERY_PHASE, isSystemIndex);
-        assertNotEquals(0, getNumberOfMeasurementsForPhase(FETCH_PHASE));
+        checkNumberOfMeasurementsForPhase(QUERY_SEARCH_PHASE_METRIC, isSystemIndex);
+        assertNotEquals(0, getNumberOfMeasurementsForPhase(FETCH_SEARCH_PHASE_METRIC));
         checkMetricsAttributes(isSystemIndex);
     }
 
@@ -108,8 +105,8 @@ public class SearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
             client().prepareSearch(indexName).setSearchType(SearchType.QUERY_THEN_FETCH).setQuery(simpleQueryStringQuery("doc1")),
             "1"
         );
-        checkNumberOfMeasurementsForPhase(QUERY_PHASE, isSystemIndex);
-        assertNotEquals(0, getNumberOfMeasurementsForPhase(FETCH_PHASE));
+        checkNumberOfMeasurementsForPhase(QUERY_SEARCH_PHASE_METRIC, isSystemIndex);
+        assertNotEquals(0, getNumberOfMeasurementsForPhase(FETCH_SEARCH_PHASE_METRIC));
         checkMetricsAttributes(isSystemIndex);
     }
 
@@ -131,19 +128,18 @@ public class SearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
                 .setQuery(simpleQueryStringQuery("doc1 doc2")),
             2,
             (respNum, response) -> {
-                if (respNum == 1) {
-                    checkNumberOfMeasurementsForPhase(QUERY_PHASE, isSystemIndex);
-                    assertNotEquals(0, getNumberOfMeasurementsForPhase(FETCH_PHASE));
-                } else if (respNum == 2) {
-                    checkNumberOfMeasurementsForPhase(QUERY_SCROLL_ACTION_METRIC, isSystemIndex);
-                    assertNotEquals(0, getNumberOfMeasurementsForPhase(FETCH_ID_SCROLL_ACTION_METRIC));
+                // No hits, no fetching done
+                assertEquals(isSystemIndex ? 1 : num_primaries, getNumberOfMeasurementsForPhase(QUERY_SEARCH_PHASE_METRIC));
+                if (response.getHits().getHits().length > 0) {
+                    assertNotEquals(0, getNumberOfMeasurementsForPhase(FETCH_SEARCH_PHASE_METRIC));
+                } else {
+                    assertEquals(isSystemIndex ? 1 : 0, getNumberOfMeasurementsForPhase(FETCH_SEARCH_PHASE_METRIC));
                 }
+                checkMetricsAttributes(isSystemIndex);
                 resetMeter();
             }
         );
 
-        checkNumberOfMeasurementsForPhase(FREE_CONTEXT_SCROLL_ACTION_METRIC, isSystemIndex);
-        checkMetricsAttributes(isSystemIndex);
     }
 
     private void resetMeter() {
@@ -160,18 +156,20 @@ public class SearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
     }
 
     private int getNumberOfMeasurementsForPhase(String phase) {
-        final List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(SEARCH_PHASES_DURATION_METRIC);
-        return (int) measurements.stream().filter(m -> m.attributes().get(PHASE_ATTRIBUTE_NAME) == phase).count();
+        final List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(phase);
+        return measurements.size();
     }
 
     private void checkMetricsAttributes(boolean isSystem) {
-        final List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(SEARCH_PHASES_DURATION_METRIC);
-        assertTrue(measurements.stream().allMatch(m -> checkMeasurementAttributes(m, isSystem)));
+        final List<Measurement> queryMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(QUERY_SEARCH_PHASE_METRIC);
+        final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(QUERY_SEARCH_PHASE_METRIC);
+        assertTrue(
+            Stream.concat(queryMeasurements.stream(), fetchMeasurements.stream()).allMatch(m -> checkMeasurementAttributes(m, isSystem))
+        );
     }
 
     private boolean checkMeasurementAttributes(Measurement m, boolean isSystem) {
-        return (m.attributes().get(PHASE_ATTRIBUTE_NAME) != null)
-            && (((boolean) m.attributes().get(SYSTEM_THREAD_ATTRIBUTE_NAME)) == isSystem);
+        return ((boolean) m.attributes().get(SYSTEM_THREAD_ATTRIBUTE_NAME)) == isSystem;
     }
 
     public static class TestSystemIndexPlugin extends Plugin implements SystemIndexPlugin {
@@ -186,7 +184,12 @@ public class SearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
                 SystemIndexDescriptor.builder()
                     .setIndexPattern(INDEX_NAME + "*")
                     .setPrimaryIndex(INDEX_NAME)
-                    .setSettings(Settings.EMPTY)
+                    .setSettings(
+                        Settings.builder()
+                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                            .build()
+                    )
                     .setMappings("""
                           {
                             "_meta": {
@@ -200,14 +203,14 @@ public class SearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
                         """)
                     .setThreadPools(ExecutorNames.DEFAULT_SYSTEM_INDEX_THREAD_POOLS)
                     .setVersionMetaKey("version")
-                    .setOrigin(SearchPhaseAPMMetricsTests.class.getSimpleName())
+                    .setOrigin(ShardSearchPhaseAPMMetricsTests.class.getSimpleName())
                     .build()
             );
         }
 
         @Override
         public String getFeatureName() {
-            return SearchPhaseAPMMetricsTests.class.getSimpleName();
+            return ShardSearchPhaseAPMMetricsTests.class.getSimpleName();
         }
 
         @Override

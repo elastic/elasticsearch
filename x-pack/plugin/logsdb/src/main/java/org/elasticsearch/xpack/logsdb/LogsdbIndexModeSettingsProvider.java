@@ -49,11 +49,7 @@ public class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         final Settings settings,
         final List<CompressedXContent> combinedTemplateMappings
     ) {
-        if (isLogsdbEnabled == false) {
-            return Settings.EMPTY;
-        }
-
-        if (dataStreamName == null) {
+        if (isLogsdbEnabled == false || dataStreamName == null) {
             return Settings.EMPTY;
         }
 

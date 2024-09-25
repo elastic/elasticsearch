@@ -7,9 +7,7 @@
 
 package org.elasticsearch.xpack.logsdb;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettingProvider;
@@ -27,11 +25,12 @@ public class LogsDBPlugin extends Plugin {
     private final Settings settings;
     private final SyntheticSourceLicenseService licenseService;
 
-    private final SetOnce<LogsdbIndexModeSettingsProvider> logsdbIndexModeSettingsProvider = new SetOnce<>();
+    private final LogsdbIndexModeSettingsProvider logsdbIndexModeSettingsProvider;
 
     public LogsDBPlugin(Settings settings) {
         this.settings = settings;
         this.licenseService = new SyntheticSourceLicenseService(settings);
+        this.logsdbIndexModeSettingsProvider = new LogsdbIndexModeSettingsProvider(settings);
     }
 
     @Override
@@ -39,14 +38,10 @@ public class LogsDBPlugin extends Plugin {
         licenseService.setLicenseState(XPackPlugin.getSharedLicenseState());
         var clusterSettings = services.clusterService().getClusterSettings();
         clusterSettings.addSettingsUpdateConsumer(FALLBACK_SETTING, licenseService::setSyntheticSourceFallback);
-        try (ClusterService clusterService = services.clusterService()) {
-            logsdbIndexModeSettingsProvider.set(new LogsdbIndexModeSettingsProvider(clusterService.getSettings()));
-            clusterService.getClusterSettings()
-                .addSettingsUpdateConsumer(
-                    CLUSTER_LOGSDB_ENABLED,
-                    logsdbIndexModeSettingsProvider.get()::updateClusterIndexModeLogsdbEnabled
-                );
-        }
+        clusterSettings.addSettingsUpdateConsumer(
+            CLUSTER_LOGSDB_ENABLED,
+            logsdbIndexModeSettingsProvider::updateClusterIndexModeLogsdbEnabled
+        );
         // Nothing to share here:
         return super.createComponents(services);
     }

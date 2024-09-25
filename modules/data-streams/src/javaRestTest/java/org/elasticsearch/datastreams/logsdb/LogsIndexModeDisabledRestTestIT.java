@@ -23,6 +23,22 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class LogsIndexModeDisabledRestTestIT extends LogsIndexModeRestTestIT {
 
+    private static final String MAPPINGS = """
+        {
+          "template": {
+            "mappings": {
+              "properties": {
+                "@timestamp": {
+                  "type": "date"
+                },
+                "message": {
+                  "type": "text"
+                }
+              }
+            }
+          }
+        }""";
+
     @ClassRule()
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
@@ -52,6 +68,33 @@ public class LogsIndexModeDisabledRestTestIT extends LogsIndexModeRestTestIT {
         assertOK(createDataStream(client, "logs-custom-dev"));
         final String indexMode = (String) getSetting(client, getDataStreamBackingIndex(client, "logs-custom-dev", 0), "index.mode");
         assertThat(indexMode, Matchers.not(equalTo(IndexMode.LOGSDB.getName())));
+    }
+
+    public void testTogglingLogsdb() throws IOException {
+        putComponentTemplate(client, "logs@settings", MAPPINGS);
+        assertOK(createDataStream(client, "logs-custom-dev"));
+        final String indexModeBefore = (String) getSetting(client, getDataStreamBackingIndex(client, "logs-custom-dev", 0), "index.mode");
+        assertThat(indexModeBefore, Matchers.not(equalTo(IndexMode.LOGSDB.getName())));
+        assertOK(putClusterSetting(client, "cluster.logsdb.enabled", "true"));
+        final String indexModeAfter = (String) getSetting(client, getDataStreamBackingIndex(client, "logs-custom-dev", 0), "index.mode");
+        assertThat(indexModeAfter, Matchers.not(equalTo(IndexMode.LOGSDB.getName())));
+        assertOK(rolloverDataStream(client, "logs-custom-dev"));
+        final String indexModeLater = (String) getSetting(client, getDataStreamBackingIndex(client, "logs-custom-dev", 1), "index.mode");
+        assertThat(indexModeLater, equalTo(IndexMode.LOGSDB.getName()));
+        assertOK(putClusterSetting(client, "cluster.logsdb.enabled", "false"));
+        assertOK(rolloverDataStream(client, "logs-custom-dev"));
+        final String indexModeFinal = (String) getSetting(client, getDataStreamBackingIndex(client, "logs-custom-dev", 2), "index.mode");
+        assertThat(indexModeFinal, Matchers.not(equalTo(IndexMode.LOGSDB.getName())));
+
+    }
+
+    public void testEnablingLogsdb() throws IOException {
+        putComponentTemplate(client, "logs@settings", MAPPINGS);
+        assertOK(putClusterSetting(client, "cluster.logsdb.enabled", true));
+        assertOK(createDataStream(client, "logs-custom-dev"));
+        final String indexMode = (String) getSetting(client, getDataStreamBackingIndex(client, "logs-custom-dev", 0), "index.mode");
+        assertThat(indexMode, equalTo(IndexMode.LOGSDB.getName()));
+        assertOK(putClusterSetting(client, "cluster.logsdb.enabled", false));
     }
 
 }

@@ -87,4 +87,11 @@ public abstract class LogsIndexModeRestTestIT extends ESRestTestCase {
         bulkRequest.addParameter("refresh", "true");
         return client.performRequest(bulkRequest);
     }
+
+    protected static Response putClusterSetting(final RestClient client, final String settingName, final Object settingValue)
+        throws IOException {
+        final Request request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity("{ \"transient\": { \"" + settingName + "\": " + settingValue + " } }");
+        return client.performRequest(request);
+    }
 }

@@ -18,7 +18,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -160,15 +159,10 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
             ),
             new IndexTemplateConfig(
                 LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME,
-                "/logs@settings.json",
+                logsDbEnabled ? "/logs@settings-logsdb.json" : "/logs@settings.json",
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE,
-                Map.of(
-                    "xpack.stack.template.deprecated",
-                    "false",
-                    "xpack.stack.template.logsdb.index.mode",
-                    logsDbEnabled ? IndexMode.LOGSDB.getName() : IndexMode.STANDARD.getName()
-                )
+                Map.of("xpack.stack.template.deprecated", "false")
             ),
             new IndexTemplateConfig(
                 METRICS_MAPPINGS_COMPONENT_TEMPLATE_NAME,

@@ -91,7 +91,6 @@ public record DatabaseConfiguration(String id, String name, Provider provider) i
             Provider provider;
             if (a[1] != null) {
                 provider = (Maxmind) a[1];
-
             } else if (a[2] != null) {
                 provider = (Web) a[2];
             } else {

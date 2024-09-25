@@ -33,11 +33,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
-import java.util.HashMap;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.ingest.IngestGeoIpFeatures.GET_DATABASE_CONFIGURATION_ACTION_MULTI_NODE;
 
@@ -83,9 +85,19 @@ public class TransportGetDatabaseConfigurationAction extends TransportNodesActio
              * TransportGetDatabaseConfigurationAction used to be a TransportMasterNodeAction, and not all nodes in the cluster have been
              * updated. So we don't want to send node requests to the other nodes because they will blow up. Instead, we just return
              * the information that we used to return from the master node (it doesn't make any difference that this might not be the master
-             * node, because we're only reading the clsuter state).
+             * node, because we're only reading the cluster state). Because older nodes only know about the Maxmind provider type, we filter
+             * out all others here to avoid causing problems on those nodes.
              */
-            newResponseAsync(task, request, createActionContext(task, request), List.of(), List.of(), listener);
+            newResponseAsync(
+                task,
+                request,
+                createActionContext(task, request).stream()
+                    .filter(database -> database.database().provider() instanceof DatabaseConfiguration.Maxmind)
+                    .toList(),
+                List.of(),
+                List.of(),
+                listener
+            );
         } else {
             super.doExecute(task, request, listener);
         }
@@ -201,16 +213,21 @@ public class TransportGetDatabaseConfigurationAction extends TransportNodesActio
     ) {
         /*
          * Each node reports the list of databases that are in its config/ingest-geoip directory. For the sake of this API we assume all
-         * local databases with the same name are the same database, and deduplicate by name.
+         * local databases with the same name are the same database, and deduplicate by name and just return the newest.
          */
-        Map<String, DatabaseConfigurationMetadata> resultsFromNodes = new HashMap<>();
-        for (GetDatabaseConfigurationAction.NodeResponse nodeResponse : nodeResponses) {
-            List<DatabaseConfigurationMetadata> databases = nodeResponse.getDatabases();
-            for (DatabaseConfigurationMetadata database : databases) {
-                resultsFromNodes.put(database.database().name(), database);
-            }
-        }
-        return resultsFromNodes.values();
+        return nodeResponses.stream()
+            .flatMap(response -> response.getDatabases().stream())
+            .collect(
+                Collectors.groupingBy(
+                    database -> database.database().name(),
+                    Collectors.maxBy(Comparator.comparing(DatabaseConfigurationMetadata::modifiedDate))
+                )
+            )
+            .values()
+            .stream()
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .toList();
     }
 
     @Override
@@ -267,7 +284,7 @@ public class TransportGetDatabaseConfigurationAction extends TransportNodesActio
                     new DatabaseConfigurationMetadata(
                         new DatabaseConfiguration(
                             databaseId,
-                            configDatabase.name(),
+                            getDatabaseNameForFileName(configDatabase.name()),
                             new DatabaseConfiguration.Local(configDatabase.type())
                         ),
                         -1,

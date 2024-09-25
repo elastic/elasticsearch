@@ -63,6 +63,7 @@ class DatabaseReaderLazyLoader implements IpDatabase {
 
     // cache the database type so that we do not re-read it on every pipeline execution
     final SetOnce<String> databaseType;
+    final SetOnce<Long> buildDate;
 
     private volatile boolean deleteDatabaseFileOnShutdown;
     private final AtomicInteger currentUsages = new AtomicInteger(0);
@@ -74,6 +75,7 @@ class DatabaseReaderLazyLoader implements IpDatabase {
         this.loader = createDatabaseLoader(databasePath);
         this.databaseReader = new SetOnce<>();
         this.databaseType = new SetOnce<>();
+        this.buildDate = new SetOnce<>();
     }
 
     /**
@@ -278,7 +280,14 @@ class DatabaseReaderLazyLoader implements IpDatabase {
         }
     }
 
-    Long getBuilDateMillis() throws IOException {
-        return loader.get().getMetadata().getBuildDate().getTime();
+    long getBuilDateMillis() throws IOException {
+        if (buildDate.get() == null) {
+            synchronized (buildDate) {
+                if (buildDate.get() == null) {
+                    buildDate.set(loader.get().getMetadata().getBuildDate().getTime());
+                }
+            }
+        }
+        return buildDate.get();
     }
 }

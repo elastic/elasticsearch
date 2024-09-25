@@ -212,8 +212,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.rest.ServerSentEventsRestActionListenerTests
   method: testResponse
   issue: https://github.com/elastic/elasticsearch/issues/113148
-- class: org.elasticsearch.validation.DotPrefixClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/113152
 - class: org.elasticsearch.packaging.test.WindowsServiceTests
   method: test30StartStop
   issue: https://github.com/elastic/elasticsearch/issues/113160
@@ -223,9 +221,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.rest.ServerSentEventsRestActionListenerTests
   method: testErrorMidStream
   issue: https://github.com/elastic/elasticsearch/issues/113179
-- class: org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests
-  method: testHasPrivilegesOtherThanIndex
-  issue: https://github.com/elastic/elasticsearch/issues/113202
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {categorize.Categorize SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/113054
@@ -307,6 +302,12 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testOutOfOrderData
   issue: https://github.com/elastic/elasticsearch/issues/113477
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  method: test {p0=mixed_cluster/100_analytics_usage/Basic test for usage stats on analytics indices}
+  issue: https://github.com/elastic/elasticsearch/issues/113497
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry)}
+  issue: https://github.com/elastic/elasticsearch/issues/113502
 
 # Examples:
 #

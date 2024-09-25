@@ -269,11 +269,6 @@ public class EsqlCapabilities {
         COMBINE_BINARY_COMPARISONS,
 
         /**
-         * MATCH command support
-         */
-        MATCH_COMMAND(true),
-
-        /**
          * Support for nanosecond dates as a data type
          */
         DATE_NANOS_TYPE(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),

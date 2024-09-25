@@ -33,7 +33,7 @@ public class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
-    public static final String LOGS_PATTERN = "logs-[^-]+-[^-]+";
+    public static final String LOGS_PATTERN = "logs-.+-.+";
     private volatile boolean isLogsdbEnabled;
 
     public LogsdbIndexModeSettingsProvider(final Settings settings) {

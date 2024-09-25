@@ -52,4 +52,54 @@ public class BackoffPolicyTests extends ESTestCase {
             assertEquals(expectedRetries, retries.get());
         }
     }
+
+    public void testExponentialBackOff() {
+        long initialDelayMillis = randomLongBetween(0, 100);
+        int maxNumberOfRetries = randomIntBetween(0, 10);
+        BackoffPolicy exponentialBackoff = BackoffPolicy.exponentialBackoff(timeValueMillis(initialDelayMillis), maxNumberOfRetries);
+        int numberOfBackoffsToPerform = randomIntBetween(1, 3);
+        for (int i = 0; i < numberOfBackoffsToPerform; i++) {
+            Iterator<TimeValue> iterator = exponentialBackoff.iterator();
+            TimeValue lastTimeValue = null;
+            int counter = 0;
+            while (iterator.hasNext()) {
+                TimeValue timeValue = iterator.next();
+                if (lastTimeValue == null) {
+                    assertEquals(timeValueMillis(initialDelayMillis), timeValue);
+                } else {
+                    // intervals should be always increasing
+                    assertTrue(timeValue.compareTo(lastTimeValue) > 0);
+                }
+                lastTimeValue = timeValue;
+                counter++;
+            }
+            assertEquals(maxNumberOfRetries, counter);
+        }
+    }
+
+    public void testNoBackoff() {
+        BackoffPolicy noBackoff = BackoffPolicy.noBackoff();
+        int numberOfBackoffsToPerform = randomIntBetween(1, 3);
+        for (int i = 0; i < numberOfBackoffsToPerform; i++) {
+            Iterator<TimeValue> iterator = noBackoff.iterator();
+            assertFalse(iterator.hasNext());
+        }
+    }
+
+    public void testConstantBackoff() {
+        long delayMillis = randomLongBetween(0, 100);
+        int maxNumberOfRetries = randomIntBetween(0, 10);
+        BackoffPolicy exponentialBackoff = BackoffPolicy.constantBackoff(timeValueMillis(delayMillis), maxNumberOfRetries);
+        int numberOfBackoffsToPerform = randomIntBetween(1, 3);
+        for (int i = 0; i < numberOfBackoffsToPerform; i++) {
+            final Iterator<TimeValue> iterator = exponentialBackoff.iterator();
+            int counter = 0;
+            while (iterator.hasNext()) {
+                TimeValue timeValue = iterator.next();
+                assertEquals(timeValueMillis(delayMillis), timeValue);
+                counter++;
+            }
+            assertEquals(maxNumberOfRetries, counter);
+        }
+    }
 }

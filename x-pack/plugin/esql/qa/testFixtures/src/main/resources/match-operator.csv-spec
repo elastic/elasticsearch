@@ -1,10 +1,10 @@
 ###############################################
-# Tests for MATCH operator
+# Tests for matchstr operator
 #
 
 singleMatchWithTextField
-required_capability: match_operator
-from books | where author match "William Faulkner" | keep book_no, author | sort book_no | LIMIT 5;
+required_capability: match_operator_renamed
+from books | where author matchstr "William Faulkner" | keep book_no, author | sort book_no | LIMIT 5;
 
 book_no:keyword | author:text
 2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
@@ -15,8 +15,8 @@ book_no:keyword | author:text
 ;
 
 singleMatchWithKeywordField
-required_capability: match_operator
-from books | where author.keyword match "William Faulkner" | keep book_no, author | sort book_no;
+required_capability: match_operator_renamed
+from books | where author.keyword matchstr "William Faulkner" | keep book_no, author | sort book_no;
 
 book_no:keyword | author:text
 2713            | William Faulkner
@@ -31,10 +31,10 @@ book_no:keyword | author:text
 ;
 
 multipleMatch
-required_capability: match_operator
+required_capability: match_operator_renamed
 from books
-| where (description match "Sauron" OR description match "Dark Lord") AND
-  (author match "J. R. R. Tolkien" OR author match "John Ronald Reuel Tolkien")
+| where (description matchstr "Sauron" OR description matchstr "Dark Lord") AND
+  (author matchstr "J. R. R. Tolkien" OR author matchstr "John Ronald Reuel Tolkien")
 | keep book_no, title, author
 | sort book_no
 | limit 4
@@ -48,10 +48,10 @@ book_no:keyword | title:text                                                    
 ;
 
 multipleWhereWithMatch
-required_capability: match_operator
+required_capability: match_operator_renamed
 from books
-| where title match "short stories"
-| where author match "Ursula K. Le Guin"
+| where title matchstr "short stories"
+| where author matchstr "Ursula K. Le Guin"
 | keep book_no, title, author
 | sort book_no
 ;
@@ -61,9 +61,9 @@ book_no:keyword | title:text                                | author:text
 ;
 
 combinedMatchWithFunctions
-required_capability: match_operator
+required_capability: match_operator_renamed
 from books
-| where title match "Tolkien" AND author match "Tolkien" AND year > 2000
+| where title matchstr "Tolkien" AND author matchstr "Tolkien" AND year > 2000
 | where mv_count(author) == 1
 | keep book_no, title, author, year
 | sort book_no
@@ -74,9 +74,9 @@ book_no:keyword | title:text               | author:text    | year:integer
 ;
 
 matchWithStats
-required_capability: match_operator
+required_capability: match_operator_renamed
 from books
-| where author match "faulkner" AND year > 1990
+| where author matchstr "faulkner" AND year > 1990
 | where mv_count(author) == 1
 | stats count(*) BY author.keyword
 | sort author.keyword

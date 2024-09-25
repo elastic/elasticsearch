@@ -56,4 +56,5 @@ tasks.named("precommit").configure {
 
 tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTest("tsdb/140_routing_path/multi-value routing path field", "Multi-value routing paths are allowed now. See #112645")
+  task.skipTest("search/540_ignore_above_synthetic_source/ignore_above mapping level setting on arrays", "Temporary mute while backporting to 8.x")
 })

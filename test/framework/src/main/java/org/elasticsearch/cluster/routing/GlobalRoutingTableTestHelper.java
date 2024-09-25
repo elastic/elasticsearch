@@ -37,6 +37,19 @@ public final class GlobalRoutingTableTestHelper {
     /**
      * Update the existing {@link GlobalRoutingTable}
      * @param newIndicesConsumer Called for indices that do not exist in the routing table
+     */
+    public static GlobalRoutingTable updateRoutingTable(
+        ClusterState clusterState,
+        BiConsumer<RoutingTable.Builder, IndexMetadata> newIndicesConsumer
+    ) {
+        return updateRoutingTable(clusterState, newIndicesConsumer, (ignoreBuilder, ignoreIndex) -> {
+            // no-op
+        });
+    }
+
+    /**
+     * Update the existing {@link GlobalRoutingTable}
+     * @param newIndicesConsumer Called for indices that do not exist in the routing table
      * @param updateIndicesConsumer Called for indices that already exist in the routing table
      */
     public static GlobalRoutingTable updateRoutingTable(

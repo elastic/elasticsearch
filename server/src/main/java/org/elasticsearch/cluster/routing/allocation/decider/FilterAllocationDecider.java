@@ -233,7 +233,7 @@ public class FilterAllocationDecider extends AllocationDecider {
     @Override
     public Optional<Set<String>> getForcedInitialShardAllocationToNodes(ShardRouting shardRouting, RoutingAllocation allocation) {
         if (shardRouting.unassigned() && shardRouting.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
-            var indexMetadata = allocation.metadata().getProject().getIndexSafe(shardRouting.index());
+            var indexMetadata = allocation.getProject(shardRouting.index()).getIndexSafe(shardRouting.index());
             var initialRecoveryFilters = DiscoveryNodeFilters.trimTier(indexMetadata.getInitialRecoveryFilters());
 
             if (initialRecoveryFilters != null) {

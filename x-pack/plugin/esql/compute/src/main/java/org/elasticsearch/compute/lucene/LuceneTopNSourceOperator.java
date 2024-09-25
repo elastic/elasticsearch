@@ -249,13 +249,15 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
     }
 
     static class PerShardCollector {
-        private final ShardContext shardContext;
-        private final TopFieldCollector topFieldCollector;
+        protected ShardContext shardContext;
+        protected TopFieldCollector topFieldCollector;
         private int leafIndex;
         private LeafCollector leafCollector;
         private Thread currentThread;
 
-        PerShardCollector(ShardContext shardContext, Sort sort, int limit) throws IOException {
+        PerShardCollector() {}
+
+        PerShardCollector(ShardContext shardContext, Sort sort, int limit) {
             this.shardContext = shardContext;
             // We don't use CollectorManager here as we don't retrieve the total hits and sort by score.
             this.topFieldCollector = TopFieldCollector.create(sort, limit, 0);

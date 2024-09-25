@@ -13,6 +13,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TopFieldCollectorManager;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -123,8 +124,10 @@ public final class ScoringLuceneTopNSourceOperator extends LuceneTopNSourceOpera
     }
 
     static class ScoringPerShardCollector extends PerShardCollector {
-        ScoringPerShardCollector(ShardContext shardContext, Sort sort, int limit) throws IOException {
-            super(shardContext, sort, limit);
+        ScoringPerShardCollector(ShardContext shardContext, Sort sort, int limit) {
+            this.shardContext = shardContext;
+            // TODO: numHits should be configurable
+            this.topFieldCollector = new TopFieldCollectorManager(sort, 100, limit).newCollector();
         }
     }
 }

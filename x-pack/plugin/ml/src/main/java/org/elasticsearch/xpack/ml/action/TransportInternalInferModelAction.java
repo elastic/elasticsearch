@@ -264,7 +264,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
             if (starting) {
                 message += "; starting deployment of one allocation";
             }
-            logger.trace(message);
+            logger.debug(message);
             listener.onFailure(ExceptionsHelper.conflictStatusException(message));
             return;
         }

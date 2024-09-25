@@ -387,10 +387,12 @@ setup:
   - match: { values.1: [ "baz" ] }
 ---
 "reverse text":
-  - requires:
-      cluster_features: ["gte_v8.14.0"]
-      reason: "making sure REVERSE works on permutations of text fields"
-      test_runner_features: allowed_warnings_regex
+  - capabilities:
+    - method: POST
+      path: /_query
+      parameters: [method, path, parameters, capabilities]
+      capabilities: [fn_reverse]
+      reason: "reverse not yet added"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"

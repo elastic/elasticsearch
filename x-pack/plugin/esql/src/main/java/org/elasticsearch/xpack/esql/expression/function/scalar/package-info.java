@@ -196,6 +196,9 @@
  *         for your function. Now add something like {@code required_capability: my_function}
  *         to all of your csv-spec tests. Run those csv-spec tests as integration tests to double
  *         check that they run on the main branch.
+ *         <br><br>
+ *         **Note:** you may notice tests gated based on Elasticsearch version. This was the old way
+ *         of doing things. Now, we use specific capabilities for each function.
  *     </li>
  *     <li>
  *         Open the PR. The subject and description of the PR are important because those'll turn

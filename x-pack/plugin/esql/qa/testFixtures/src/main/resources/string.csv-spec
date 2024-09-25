@@ -1270,6 +1270,24 @@ x:integer   | y:string
 1           | null
 ;
 
+reverseWithTextFields
+required_capability: fn_reverse
+FROM books 
+| EVAL title_reversed = REVERSE(title), author_reversed_twice = REVERSE(REVERSE(author)), eq = author_reversed_twice == author 
+| KEEP title, title_reversed, author, author_reversed_twice, eq, book_no
+| SORT book_no
+| LIMIT 2;
+
+warning:Line 2:25: evaluation of [REVERSE(title)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 2:73: evaluation of [REVERSE(author)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:73: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+title:text                                      | title_reversed:text                           | author:text               | author_reversed_twice:text    | eq:boolean    | book_no:keyword
+The brothers Karamazov                          | vozamaraK srehtorb ehT                        | Fyodor Dostoevsky         | Fyodor Dostoevsky             | true          | 1211
+Realms of Tolkien: Images of Middle-earth       | htrae-elddiM fo segamI :neikloT fo smlaeR     | J. R. R. Tolkien          | J. R. R. Tolkien              | true          | 1463
+;
+
 
 values
 required_capability: agg_values

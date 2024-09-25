@@ -15,7 +15,6 @@ import org.gradle.api.GradleException;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.file.RegularFileProperty;
-import org.gradle.api.internal.provider.sources.process.ProcessOutputValueSource;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.model.ObjectFactory;
@@ -37,7 +36,6 @@ import org.gradle.workers.WorkParameters;
 import org.gradle.workers.WorkerExecutor;
 
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Arrays;
@@ -74,15 +72,6 @@ public abstract class DockerBuildTask extends DefaultTask {
 
     @TaskAction
     public void build() {
-        // Get the user's home directory
-        String userHome = System.getProperty("user.home");
-
-        // Print the user's home directory
-        System.out.println("User's home directory: " + userHome);
-        System.out.println("User's home directory: " + userHome);
-        System.out.println("System.getenv(\"DOCKER_CONFIG\"): " + System.getenv("DOCKER_CONFIG"));
-        boolean exists = new File(userHome + "/.docker/config.json").exists();
-        System.out.println(userHome + "/.docker/config.json\" exists = " + exists);
         workerExecutor.noIsolation().submit(DockerBuildAction.class, params -> {
             params.getDockerContext().set(dockerContext);
             params.getMarkerFile().set(markerFile);
@@ -196,8 +185,7 @@ public abstract class DockerBuildTask extends DefaultTask {
 
         private void maybeConfigureDockerConfig(ExecSpec spec) {
             String dockerConfig = System.getenv("DOCKER_CONFIG");
-            System.out.println("dockerConfig = " + dockerConfig);
-            if(dockerConfig != null) {
+            if (dockerConfig != null) {
                 spec.environment("DOCKER_CONFIG", dockerConfig);
             }
         }

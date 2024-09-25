@@ -101,8 +101,8 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
         // Create MapperService just to extract keyword dimension fields:
         try (var mapperService = mapperServiceFactory.apply(tmpIndexMetadata.build())) {
             // combinedTemplateMappings can be null when creating system indices
+            // combinedTemplateMappings can be empty when creating a normal index that doesn't match any template and without mapping.
             if (combinedTemplateMappings == null || combinedTemplateMappings.isEmpty()) {
-                // this can happen when creating a normal index that doesn't match any template and without mapping.
                 combinedTemplateMappings = List.of(new CompressedXContent("{}"));
             }
             mapperService.merge(MapperService.SINGLE_MAPPING_NAME, combinedTemplateMappings, MapperService.MergeReason.INDEX_TEMPLATE);

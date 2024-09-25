@@ -963,7 +963,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
         var plan = plannerOptimizer.plan("""
             from test
-            | where first_name match "Anna"
+            | where first_name matchstr "Anna"
             """);
 
         var limit = as(plan, LimitExec.class);
@@ -995,11 +995,11 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
         String query = """
             from test
-            | where first_name match "Anna" OR first_name match "Anneke"
+            | where first_name matchstr "Anna" OR first_name matchstr "Anneke"
             | sort emp_no
             | where emp_no > 10000
             | eval description = concat("emp_no: ", to_str(emp_no), ", name: ", first_name, " ", last_name)
-            | where last_name match "Xinglin"
+            | where last_name matchstr "Xinglin"
             """;
         var plan = plannerOptimizer.plan(query);
 

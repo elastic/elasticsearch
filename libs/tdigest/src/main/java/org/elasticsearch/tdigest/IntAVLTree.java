@@ -629,6 +629,6 @@ abstract class IntAVLTree implements Releasable, Accountable {
 
     @Override
     public void close() {
-        Releasables.close(parent, left, right, depth);
+        Releasables.close(nodeAllocator, parent, left, right, depth);
     }
 }

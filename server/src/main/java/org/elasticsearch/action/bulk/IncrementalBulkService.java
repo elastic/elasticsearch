@@ -120,6 +120,7 @@ public class IncrementalBulkService {
             this.client = client;
             this.threadContext = threadContext;
             this.requestContext = threadContext.newStoredContext();
+            assert threadContext.isSystemContext() == false;
             this.indexingPressure = indexingPressure;
             this.waitForActiveShards = waitForActiveShards != null ? ActiveShardCount.parseString(waitForActiveShards) : null;
             this.timeout = timeout;
@@ -140,6 +141,7 @@ public class IncrementalBulkService {
                         incrementalRequestSubmitted = true;
                         try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
                             requestContext.restore();
+                            assert threadContext.isSystemContext() == false;
                             final ArrayList<Releasable> toRelease = new ArrayList<>(releasables);
                             releasables.clear();
                             client.bulk(bulkRequest, ActionListener.runAfter(new ActionListener<>() {
@@ -157,6 +159,7 @@ public class IncrementalBulkService {
                                     handleBulkFailure(isFirstRequest, e);
                                 }
                             }, () -> {
+                                assert threadContext.isSystemContext() == false;
                                 requestContext = threadContext.newStoredContext();
                                 toRelease.forEach(Releasable::close);
                                 nextItems.run();
@@ -184,6 +187,7 @@ public class IncrementalBulkService {
                 if (internalAddItems(items, releasable)) {
                     try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
                         requestContext.restore();
+                        assert threadContext.isSystemContext() == false;
                         final ArrayList<Releasable> toRelease = new ArrayList<>(releasables);
                         releasables.clear();
                         client.bulk(bulkRequest, ActionListener.runBefore(new ActionListener<>() {
@@ -201,7 +205,10 @@ public class IncrementalBulkService {
                                 handleBulkFailure(isFirstRequest, e);
                                 errorResponse(listener);
                             }
-                        }, () -> toRelease.forEach(Releasable::close)));
+                        }, () -> {
+                            assert threadContext.isSystemContext() == false;
+                            toRelease.forEach(Releasable::close);
+                        }));
                     }
                 } else {
                     errorResponse(listener);

@@ -142,6 +142,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
             ClusterState state,
             ActionListener<CreateIndexResponse> listener
         ) {
+            assert transportService.getThreadPool().getThreadContext().isSystemContext() == false;
             taskQueue.submitTask(
                 "auto create [" + request.index() + "]",
                 new CreateIndexTask(request, listener),

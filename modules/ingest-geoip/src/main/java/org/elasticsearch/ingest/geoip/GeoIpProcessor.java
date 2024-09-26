@@ -106,14 +106,14 @@ public final class GeoIpProcessor extends AbstractProcessor {
     }
 
     @Override
-    public IngestDocument execute(IngestDocument ingestDocument) throws IOException {
-        Object ip = ingestDocument.getFieldValue(field, Object.class, ignoreMissing);
+    public IngestDocument execute(IngestDocument document) throws IOException {
+        Object ip = document.getFieldValue(field, Object.class, ignoreMissing);
 
         if (isValid.get() == false) {
-            ingestDocument.appendFieldValue("tags", "_geoip_expired_database", false);
-            return ingestDocument;
+            document.appendFieldValue("tags", "_geoip_expired_database", false);
+            return document;
         } else if (ip == null && ignoreMissing) {
-            return ingestDocument;
+            return document;
         } else if (ip == null) {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot extract geoip information.");
         }
@@ -121,44 +121,44 @@ public final class GeoIpProcessor extends AbstractProcessor {
         try (IpDatabase ipDatabase = this.supplier.get()) {
             if (ipDatabase == null) {
                 if (ignoreMissing == false) {
-                    tag(ingestDocument, databaseFile);
+                    tag(document, databaseFile);
                 }
-                return ingestDocument;
+                return document;
             }
 
             if (ip instanceof String ipString) {
-                Map<String, Object> geoData = getGeoData(ipDatabase, ipString);
-                if (geoData.isEmpty() == false) {
-                    ingestDocument.setFieldValue(targetField, geoData);
+                Map<String, Object> data = getGeoData(ipDatabase, ipString);
+                if (data.isEmpty() == false) {
+                    document.setFieldValue(targetField, data);
                 }
             } else if (ip instanceof List<?> ipList) {
                 boolean match = false;
-                List<Map<String, Object>> geoDataList = new ArrayList<>(ipList.size());
+                List<Map<String, Object>> dataList = new ArrayList<>(ipList.size());
                 for (Object ipAddr : ipList) {
                     if (ipAddr instanceof String == false) {
                         throw new IllegalArgumentException("array in field [" + field + "] should only contain strings");
                     }
-                    Map<String, Object> geoData = getGeoData(ipDatabase, (String) ipAddr);
-                    if (geoData.isEmpty()) {
-                        geoDataList.add(null);
+                    Map<String, Object> data = getGeoData(ipDatabase, (String) ipAddr);
+                    if (data.isEmpty()) {
+                        dataList.add(null);
                         continue;
                     }
                     if (firstOnly) {
-                        ingestDocument.setFieldValue(targetField, geoData);
-                        return ingestDocument;
+                        document.setFieldValue(targetField, data);
+                        return document;
                     }
                     match = true;
-                    geoDataList.add(geoData);
+                    dataList.add(data);
                 }
                 if (match) {
-                    ingestDocument.setFieldValue(targetField, geoDataList);
+                    document.setFieldValue(targetField, dataList);
                 }
             } else {
                 throw new IllegalArgumentException("field [" + field + "] should contain only string or array of strings");
             }
         }
 
-        return ingestDocument;
+        return document;
     }
 
     private Map<String, Object> getGeoData(IpDatabase ipDatabase, String ipAddress) throws IOException {

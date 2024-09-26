@@ -183,7 +183,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                     clusterService.localNode(),
                     transportShardAction,
                     internalRequest.request(),
-                    new ActionListenerResponseHandler<>(listener, reader, TransportResponseHandler.TRANSPORT_WORKER)
+                    new ActionListenerResponseHandler<>(listener, reader, executor)
                 );
             } else {
                 perform(null);
@@ -236,7 +236,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                     node,
                     transportShardAction,
                     internalRequest.request(),
-                    new ActionListenerResponseHandler<>(listener, reader, TransportResponseHandler.TRANSPORT_WORKER) {
+                    new ActionListenerResponseHandler<>(listener, reader, executor) {
                         @Override
                         public void handleException(TransportException exp) {
                             onFailure(shardRouting, exp);

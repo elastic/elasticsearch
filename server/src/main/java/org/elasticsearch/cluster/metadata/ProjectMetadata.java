@@ -403,6 +403,9 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         }
     }
 
+    /**
+     * @return The identifer of this project
+     */
     public ProjectId id() {
         return this.id;
     }

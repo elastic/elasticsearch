@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry
 import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -40,6 +41,7 @@ import static org.elasticsearch.action.support.replication.ClusterStateCreationU
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestCase {
@@ -231,9 +233,12 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
         final String indexName = "test";
         final ClusterState clusterState = state(indexName, randomBoolean(), ShardRoutingState.INITIALIZING);
 
-        final IndexMetadata indexMetadata = clusterState.metadata().getProject().index(indexName);
+        final ProjectMetadata project = clusterState.metadata().getProject();
+
+        final IndexMetadata indexMetadata = project.index(indexName);
+        assertThat(indexMetadata, notNullValue());
         final ShardId shardId = new ShardId(indexMetadata.getIndex(), 0);
-        final ShardRouting shardRouting = clusterState.routingTable().shardRoutingTable(shardId).primaryShard();
+        final ShardRouting shardRouting = clusterState.routingTable(project.id()).shardRoutingTable(shardId).primaryShard();
         final String allocationId = shardRouting.allocationId().getId();
         final long primaryTerm = indexMetadata.primaryTerm(shardId.id());
 
@@ -257,7 +262,7 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
         assertNotSame(clusterState, resultingState);
         for (final var task : tasks) {
             assertThat(
-                resultingState.routingTable()
+                resultingState.routingTable(project.id())
                     .shardRoutingTable(task.getEntry().shardId)
                     .getByAllocationId(task.getEntry().allocationId)
                     .state(),

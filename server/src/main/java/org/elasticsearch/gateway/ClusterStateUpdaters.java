@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
@@ -143,7 +144,11 @@ public class ClusterStateUpdaters {
                 .coordinationMetadata(state.metadata().coordinationMetadata())
                 .build();
 
-            return ClusterState.builder(state).metadata(metadata).blocks(blocks.build()).build();
+            return ClusterState.builder(state)
+                .routingTable(GlobalRoutingTable.EMPTY_ROUTING_TABLE) // metadata has been rebuilt from scratch, so clear the routing table
+                .metadata(metadata)
+                .blocks(blocks.build())
+                .build();
         }
         return state;
     }

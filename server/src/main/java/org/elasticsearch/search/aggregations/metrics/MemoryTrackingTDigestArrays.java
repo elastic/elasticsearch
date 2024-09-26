@@ -13,7 +13,6 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.tdigest.arrays.TDigestArrays;
 import org.elasticsearch.tdigest.arrays.TDigestByteArray;
@@ -28,16 +27,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * TDigestArrays with raw arrays and circuit breaking.
  */
 public class MemoryTrackingTDigestArrays implements TDigestArrays {
-
-    /**
-     * Default no-op CB instance of the wrapper.
-     *
-     * @deprecated This instance shouldn't be used, and will be removed after all usages are replaced.
-     */
-    @Deprecated
-    public static final MemoryTrackingTDigestArrays INSTANCE = new MemoryTrackingTDigestArrays(
-        new NoopCircuitBreaker("default-wrapper-tdigest-arrays")
-    );
 
     private final CircuitBreaker breaker;
 

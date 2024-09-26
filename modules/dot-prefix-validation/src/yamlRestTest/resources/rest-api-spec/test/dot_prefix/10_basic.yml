@@ -164,11 +164,13 @@ teardown:
 ---
 "Deprecated index template with a dot prefix index pattern":
   - requires:
-      test_runner_features: ["warnings", "headers"]
+      test_runner_features: ["warnings", "headers", "allowed_warnings"]
 
   - do:
       warnings:
         - "Index [.data-*] name begins with a dot (.), which is deprecated, and will not be allowed in a future Elasticsearch version."
+      allowed_warnings:
+        - "index template [my-template] has index patterns [regular, .data-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
       indices.put_index_template:
         name: my-template
         body:
@@ -177,7 +179,8 @@ teardown:
 
   - do:
       headers: { X-elastic-product-origin: kibana }
-      warnings:
+      allowed_warnings:
+        - "index template [my-template2] has index patterns [other, .data2-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template2] will take precedence during new index creation"
       indices.put_index_template:
         name: my-template2
         body:

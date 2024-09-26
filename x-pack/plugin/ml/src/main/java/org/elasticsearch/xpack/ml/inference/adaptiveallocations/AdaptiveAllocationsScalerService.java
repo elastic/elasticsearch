@@ -421,7 +421,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
     }
 
     public boolean maybeStartAllocation(TrainedModelAssignment assignment) {
-        if (assignment.getAdaptiveAllocationsSettings() != null
+        if (ScaleToZeroFeatureFlag.isEnabled() && assignment.getAdaptiveAllocationsSettings() != null
             && assignment.getAdaptiveAllocationsSettings().getEnabled() == Boolean.TRUE) {
             lastScaleUpTimesMillis.put(assignment.getDeploymentId(), System.currentTimeMillis());
             updateNumberOfAllocations(assignment.getDeploymentId(), 1);

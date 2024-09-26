@@ -11,10 +11,10 @@ package org.elasticsearch.client.internal;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportResponse;
 
 /**
@@ -22,10 +22,10 @@ import org.elasticsearch.transport.TransportResponse;
  */
 public class RedirectToLocalClusterRemoteClusterClient implements RemoteClusterClient {
 
-    private final ElasticsearchClient delegate;
+    private final ElasticsearchClient localNodeClient;
 
-    public RedirectToLocalClusterRemoteClusterClient(ElasticsearchClient delegate) {
-        this.delegate = delegate;
+    public RedirectToLocalClusterRemoteClusterClient(ElasticsearchClient localNodeClient) {
+        this.localNodeClient = localNodeClient;
     }
 
     @SuppressWarnings("unchecked")
@@ -35,6 +35,21 @@ public class RedirectToLocalClusterRemoteClusterClient implements RemoteClusterC
         Request request,
         ActionListener<Response> listener
     ) {
-        delegate.execute(new ActionType<ActionResponse>(action.name()), request, listener.map(r -> (Response) r));
+        localNodeClient.execute(new ActionType<>(action.name()), request, listener.map(r -> (Response) r));
+    }
+
+    @Override
+    public <Request extends ActionRequest, Response extends TransportResponse> void execute(
+        Transport.Connection connection,
+        RemoteClusterActionType<Response> action,
+        Request request,
+        ActionListener<Response> listener
+    ) {
+        throw new AssertionError("not implemented on RedirectToLocalClusterRemoteClusterClient");
+    }
+
+    @Override
+    public <Request extends ActionRequest> void getConnection(Request request, ActionListener<Transport.Connection> listener) {
+        throw new AssertionError("not implemented on RedirectToLocalClusterRemoteClusterClient");
     }
 }

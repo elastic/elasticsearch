@@ -545,14 +545,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         List<String> patterns = new ArrayList<>(template.indexPatterns());
         patterns.add("new-pattern");
-        template = ComposableIndexTemplate.builder()
-            .indexPatterns(patterns)
-            .template(template.template())
-            .componentTemplates(template.composedOf())
-            .priority(template.priority())
-            .version(template.version())
-            .metadata(template.metadata())
-            .build();
+        template = template.toBuilder().indexPatterns(patterns).build();
         state = metadataIndexTemplateService.addIndexTemplateV2(state, false, "foo", template);
 
         assertNotNull(state.metadata().templatesV2().get("foo"));
@@ -1621,7 +1614,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         String name,
         DataStreamLifecycle lifecycle
     ) throws Exception {
-        ComponentTemplate ct = new ComponentTemplate(new Template(null, null, null, lifecycle), null, null);
+        ComponentTemplate ct = new ComponentTemplate(Template.builder().lifecycle(lifecycle).build(), null, null);
         return service.addComponentTemplate(state, true, name, ct);
     }
 
@@ -1634,7 +1627,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     ) throws Exception {
         ComposableIndexTemplate it = ComposableIndexTemplate.builder()
             .indexPatterns(List.of(randomAlphaOfLength(10) + "*"))
-            .template(new Template(null, null, null, lifecycleZ))
+            .template(Template.builder().lifecycle(lifecycleZ))
             .componentTemplates(composeOf)
             .priority(0L)
             .version(1L)
@@ -1858,7 +1851,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ClusterState state = ClusterState.EMPTY_STATE;
 
         ComponentTemplate ct = new ComponentTemplate(
-            new Template(null, null, null, DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build()),
+            Template.builder().lifecycle(DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999())).build(),
             null,
             null
         );

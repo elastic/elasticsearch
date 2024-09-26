@@ -17,7 +17,10 @@ import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
+import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
+import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 
 import java.io.IOException;
@@ -55,9 +58,9 @@ public abstract class SenderService implements InferenceService {
     ) {
         init();
         if (query != null) {
-            doInfer(model, query, input, taskSettings, inputType, timeout, listener);
+            doInfer(model, new QueryAndDocsInputs(query, input), taskSettings, inputType, timeout, listener);
         } else {
-            doInfer(model, input, taskSettings, inputType, timeout, listener);
+            doInfer(model, new DocumentsOnlyInput(input), taskSettings, inputType, timeout, listener);
         }
     }
 
@@ -86,22 +89,13 @@ public abstract class SenderService implements InferenceService {
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
         init();
-        doChunkedInfer(model, null, input, taskSettings, inputType, chunkingOptions, timeout, listener);
+        // a non-null query is not supported and is dropped by all providers
+        doChunkedInfer(model, new DocumentsOnlyInput(input), taskSettings, inputType, chunkingOptions, timeout, listener);
     }
 
     protected abstract void doInfer(
         Model model,
-        List<String> input,
-        Map<String, Object> taskSettings,
-        InputType inputType,
-        TimeValue timeout,
-        ActionListener<InferenceServiceResults> listener
-    );
-
-    protected abstract void doInfer(
-        Model model,
-        String query,
-        List<String> input,
+        InferenceInputs inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -110,8 +104,7 @@ public abstract class SenderService implements InferenceService {
 
     protected abstract void doChunkedInfer(
         Model model,
-        @Nullable String query,
-        List<String> input,
+        DocumentsOnlyInput inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         ChunkingOptions chunkingOptions,

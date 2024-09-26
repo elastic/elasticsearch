@@ -98,6 +98,11 @@ public class EsqlCapabilities {
         AGG_TOP_IP_SUPPORT,
 
         /**
+         * Support for {@code keyword} and {@code text} fields in {@code TOP} aggregation.
+         */
+        AGG_TOP_STRING_SUPPORT,
+
+        /**
          * {@code CASE} properly handling multivalue conditions.
          */
         CASE_MV,
@@ -252,14 +257,16 @@ public class EsqlCapabilities {
         MATCH_OPERATOR(true),
 
         /**
+         * Support for the {@code META} keyword. Tests with this tag are
+         * intentionally excluded from mixed version clusters because we
+         * continually add functions, so they constantly fail if we don't.
+         */
+        META,
+
+        /**
          * Add CombineBinaryComparisons rule.
          */
         COMBINE_BINARY_COMPARISONS,
-
-        /**
-         * MATCH command support
-         */
-        MATCH_COMMAND(true),
 
         /**
          * Support for nanosecond dates as a data type

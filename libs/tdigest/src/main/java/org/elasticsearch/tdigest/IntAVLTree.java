@@ -38,7 +38,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * identifiers as indices.
  */
 abstract class IntAVLTree implements Releasable, Accountable {
-    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(IntAVLTree.class);
+    static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(IntAVLTree.class);
     /**
      * We use <code>0</code> instead of <code>-1</code> so that left(NIL) works without
      * condition.
@@ -61,6 +61,7 @@ abstract class IntAVLTree implements Releasable, Accountable {
 
     IntAVLTree(TDigestArrays arrays, int initialCapacity) {
         this.arrays = arrays;
+        arrays.adjustBreaker(NodeAllocator.SHALLOW_SIZE);
         nodeAllocator = new NodeAllocator(arrays);
         root = NIL;
         parent = arrays.newIntArray(initialCapacity);
@@ -580,7 +581,10 @@ abstract class IntAVLTree implements Releasable, Accountable {
 
         @Override
         public void close() {
-            stack.close();
+            if (closed.compareAndSet(false, true)) {
+                arrays.adjustBreaker(-SHALLOW_SIZE);
+                stack.close();
+            }
         }
     }
 
@@ -596,6 +600,7 @@ abstract class IntAVLTree implements Releasable, Accountable {
         NodeAllocator(TDigestArrays arrays) {
             this.arrays = arrays;
             nextNode = NIL + 1;
+            arrays.adjustBreaker(IntStack.SHALLOW_SIZE);
             releasedNodes = new IntStack(arrays);
         }
 
@@ -623,12 +628,18 @@ abstract class IntAVLTree implements Releasable, Accountable {
 
         @Override
         public void close() {
-            releasedNodes.close();
+            if (closed.compareAndSet(false, true)) {
+                arrays.adjustBreaker(-SHALLOW_SIZE);
+                releasedNodes.close();
+            }
         }
     }
 
     @Override
     public void close() {
-        Releasables.close(nodeAllocator, parent, left, right, depth);
+        if (closed.compareAndSet(false, true)) {
+            arrays.adjustBreaker(-SHALLOW_SIZE);
+            Releasables.close(nodeAllocator, parent, left, right, depth);
+        }
     }
 }

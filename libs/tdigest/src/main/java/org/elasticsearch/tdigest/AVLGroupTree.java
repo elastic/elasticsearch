@@ -50,8 +50,14 @@ final class AVLGroupTree extends AbstractCollection<Centroid> implements Releasa
     private final TDigestLongArray aggregatedCounts;
     private final IntAVLTree tree;
 
-    AVLGroupTree(TDigestArrays arrays) {
+    static AVLGroupTree create(TDigestArrays arrays) {
+        arrays.adjustBreaker(AVLGroupTree.SHALLOW_SIZE);
+        return new AVLGroupTree(arrays);
+    }
+
+    private AVLGroupTree(TDigestArrays arrays) {
         this.arrays = arrays;
+        arrays.adjustBreaker(IntAVLTree.SHALLOW_SIZE);
         tree = new IntAVLTree(arrays) {
 
             @Override
@@ -285,6 +291,9 @@ final class AVLGroupTree extends AbstractCollection<Centroid> implements Releasa
 
     @Override
     public void close() {
-        Releasables.close(centroids, counts, aggregatedCounts, tree);
+        if (closed.compareAndSet(false, true)) {
+            arrays.adjustBreaker(-SHALLOW_SIZE);
+            Releasables.close(centroids, counts, aggregatedCounts, tree);
+        }
     }
 }

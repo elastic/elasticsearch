@@ -24,7 +24,7 @@ package org.elasticsearch.tdigest;
 public class AVLGroupTreeTests extends TDigestTestCase {
 
     public void testSimpleAdds() {
-        AVLGroupTree x = new AVLGroupTree(arrays());
+        AVLGroupTree x = AVLGroupTree.create(arrays());
         assertEquals(IntAVLTree.NIL, x.floor(34));
         assertEquals(IntAVLTree.NIL, x.first());
         assertEquals(IntAVLTree.NIL, x.last());
@@ -43,7 +43,7 @@ public class AVLGroupTreeTests extends TDigestTestCase {
     }
 
     public void testBalancing() {
-        AVLGroupTree x = new AVLGroupTree(arrays());
+        AVLGroupTree x = AVLGroupTree.create(arrays());
         for (int i = 0; i < 101; i++) {
             x.add(new Centroid(i));
         }
@@ -57,7 +57,7 @@ public class AVLGroupTreeTests extends TDigestTestCase {
 
     public void testFloor() {
         // mostly tested in other tests
-        AVLGroupTree x = new AVLGroupTree(arrays());
+        AVLGroupTree x = AVLGroupTree.create(arrays());
         for (int i = 0; i < 101; i++) {
             x.add(new Centroid(i / 2));
         }
@@ -70,7 +70,7 @@ public class AVLGroupTreeTests extends TDigestTestCase {
     }
 
     public void testHeadSum() {
-        AVLGroupTree x = new AVLGroupTree(arrays());
+        AVLGroupTree x = AVLGroupTree.create(arrays());
         for (int i = 0; i < 1000; ++i) {
             x.add(randomDouble(), randomIntBetween(1, 10));
         }
@@ -85,7 +85,7 @@ public class AVLGroupTreeTests extends TDigestTestCase {
     }
 
     public void testFloorSum() {
-        AVLGroupTree x = new AVLGroupTree(arrays());
+        AVLGroupTree x = AVLGroupTree.create(arrays());
         int total = 0;
         for (int i = 0; i < 1000; ++i) {
             int count = randomIntBetween(1, 10);

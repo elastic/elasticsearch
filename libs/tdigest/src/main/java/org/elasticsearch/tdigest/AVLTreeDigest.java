@@ -59,7 +59,7 @@ public class AVLTreeDigest extends AbstractTDigest {
     AVLTreeDigest(TDigestArrays arrays, double compression) {
         this.arrays = arrays;
         this.compression = compression;
-        summary = new AVLGroupTree(arrays);
+        summary = AVLGroupTree.create(arrays);
     }
 
     @Override
@@ -165,7 +165,7 @@ public class AVLTreeDigest extends AbstractTDigest {
         needsCompression = false;
 
         try (AVLGroupTree centroids = summary) {
-            this.summary = new AVLGroupTree(arrays);
+            this.summary = AVLGroupTree.create(arrays);
 
             final int[] nodes = new int[centroids.size()];
             nodes[0] = centroids.first();

@@ -111,6 +111,9 @@ release version. For any transport versions it encounters without a direct map,
 it performs a best guess based on the information it has. The csv file
 is updated automatically as part of performing a release.
 
+In releases that do not have a release version number, that method becomes
+a no-op.
+
 ### Managing patches and backports
 
 Backporting transport version changes to previous releases
@@ -178,6 +181,9 @@ Unlike transport version, version constants cannot be collapsed together,
 as an index keeps its creation version id once it is created.
 Fortunately, new index versions are only created once a month or so,
 so we don’t have a large list of index versions that need managing.
+
+Similar to transport version, index version has a `toReleaseVersion` to map
+onto release versions, in appropriate situations.
 
 ## Cluster Features
 

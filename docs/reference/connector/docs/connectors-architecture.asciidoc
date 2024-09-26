@@ -1,5 +1,5 @@
 [#es-connectors-overview-architecture]
-== Internal knowledge search architecture
+=== Internal knowledge search architecture
 ++++
 <titleabbrev>Internal knowledge search</titleabbrev>
 ++++
@@ -7,7 +7,7 @@
 The following section provides a high-level overview of common architecture approaches for the internal knowledge search use case (AKA workplace search).
 
 [discrete#es-connectors-overview-architecture-hybrid]
-=== Hybrid architecture
+==== Hybrid architecture
 
 Data is synced to an Elastic Cloud deployment through managed connectors and/or self-managed connectors. 
 A self-managed search application exposes the relevant data that your end users are authorized to see in a search experience.
@@ -26,7 +26,7 @@ The following diagram provides a high-level overview of the hybrid internal know
 image::images/hybrid-architecture.png[align="center",width="50%"]
 
 [discrete#es-connectors-overview-architecture-self-managed]
-=== Self-managed architecture
+==== Self-managed architecture
 
 Data is synced to an Elastic deployment through self-managed connectors. 
 A self-managed search application exposes the relevant data that your end users are authorized to see in a search experience.

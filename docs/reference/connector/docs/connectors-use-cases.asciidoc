@@ -1,0 +1,8 @@
+[#es-connectors-use-cases]
+== Connectors use cases
+
+Learn how to use connectors for your use case.
+
+* <<es-connectors-overview-architecture,Internal knowledge search>>
+
+include::connectors-architecture.asciidoc[]

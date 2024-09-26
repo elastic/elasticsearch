@@ -1086,10 +1086,10 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchFunctionNotAllowedAfterCommands() throws Exception {
-        assumeTrue("skipping because MATCHSTR is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
+        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
 
-        assertEquals("1:13: [MATCHSTR] function cannot be used after SHOW", error("show info | where match(version, \"8.*\")"));
-        checkFullTextFunctionNotAllowedAfterCommands("MATCHSTR", "match(first_name, \"Anna\")");
+        assertEquals("1:13: [MATCH] function cannot be used after SHOW", error("show info | where match(version, \"8.*\")"));
+        checkFullTextFunctionNotAllowedAfterCommands("MATCH", "match(first_name, \"Anna\")");
     }
 
     private void checkFullTextFunctionNotAllowedAfterCommands(String functionName, String functionInvocation) throws Exception {
@@ -1170,9 +1170,9 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchFunctionOnlyAllowedInWhere() throws Exception {
-        assumeTrue("skipping because MATCHSTR is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
+        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
 
-        checkFullTextFunctionsOnlyAllowedInWhere("MATCHSTR", "match(first_name, \"Anna\")");
+        checkFullTextFunctionsOnlyAllowedInWhere("MATCH", "match(first_name, \"Anna\")");
     }
 
     private void checkFullTextFunctionsOnlyAllowedInWhere(String functionName, String functionInvocation) throws Exception {

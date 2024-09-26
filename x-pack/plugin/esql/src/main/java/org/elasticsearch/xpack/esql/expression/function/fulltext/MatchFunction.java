@@ -81,17 +81,17 @@ public class MatchFunction extends FullTextFunction {
 
     @Override
     public String functionName() {
-        return "MATCHSTR";
+        return "MATCH";
     }
 
     @Override
     public Query asQuery() {
         Object queryAsObject = query().fold();
         if (queryAsObject instanceof BytesRef == false) {
-            throw new IllegalArgumentException("Query in MATCHSTR function needs to be resolved to a string");
+            throw new IllegalArgumentException("Query in MATCH function needs to be resolved to a string");
         }
         if (field instanceof FieldAttribute == false) {
-            throw new IllegalArgumentException("Field in MATCHSTR function needs to be a field");
+            throw new IllegalArgumentException("Field in MATCH function needs to be a field");
         }
 
         return new MatchQuery(source(), ((FieldAttribute) field).name(), ((BytesRef) queryAsObject).utf8ToString());

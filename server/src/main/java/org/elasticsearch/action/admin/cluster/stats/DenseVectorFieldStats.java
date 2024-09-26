@@ -44,6 +44,7 @@ public final class DenseVectorFieldStats extends FieldStats {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        assert false : "writeTo should not be called on DenseVectorFieldStats";
         super.writeTo(out);
         out.writeVInt(indexedVectorCount);
         out.writeVInt(indexedVectorDimMin);

@@ -302,6 +302,9 @@ tests:
 - class: org.elasticsearch.integration.KibanaUserRoleIntegTests
   method: testFieldMappings
   issue: https://github.com/elastic/elasticsearch/issues/113592
+- class: org.elasticsearch.integration.KibanaUserRoleIntegTests
+  method: testSearchAndMSearch
+  issue: https://github.com/elastic/elasticsearch/issues/113593
 
 # Examples:
 #

@@ -287,7 +287,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     }
 
     /**
-     * The {@link SuccessfulRequestTracker} calls this when a successful request is detected
+     * The {@link SuccessfulRequestTracker} calls this when a request completes successfully
      */
     interface SuccessfulRequestHandler {
 

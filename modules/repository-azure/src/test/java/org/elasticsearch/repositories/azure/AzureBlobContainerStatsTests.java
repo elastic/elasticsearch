@@ -40,7 +40,7 @@ public class AzureBlobContainerStatsTests extends AbstractAzureServerTestCase {
         // LIST_BLOBS
         blobStore.listBlobsByPrefix(purpose, randomIdentifier(), randomIdentifier());
         // GET_BLOB_PROPERTIES
-        boolean b = blobStore.blobExists(purpose, blobName);
+        blobStore.blobExists(purpose, blobName);
         // PUT_BLOCK & PUT_BLOCK_LIST
         byte[] blobContent = randomByteArrayOfLength((int) blobStore.getUploadBlockSize());
         blobStore.writeBlob(purpose, randomIdentifier(), false, os -> {
@@ -55,6 +55,39 @@ public class AzureBlobContainerStatsTests extends AbstractAzureServerTestCase {
         assertEquals(statsMapString, Long.valueOf(1L), stats.get(statsKey(purpose, AzureBlobStore.Operation.GET_BLOB_PROPERTIES)));
         assertEquals(statsMapString, Long.valueOf(1L), stats.get(statsKey(purpose, AzureBlobStore.Operation.PUT_BLOCK)));
         assertEquals(statsMapString, Long.valueOf(1L), stats.get(statsKey(purpose, AzureBlobStore.Operation.PUT_BLOCK_LIST)));
+    }
+
+    public void testOperationPurposeIsNotReflectedInBlobStoreStatsWhenNotServerless() throws IOException {
+        serverlessMode = false;
+        AzureBlobContainer blobContainer = asInstanceOf(AzureBlobContainer.class, createBlobContainer(between(1, 3)));
+        AzureBlobStore blobStore = blobContainer.getBlobStore();
+
+        int repeatTimes = randomIntBetween(1, 3);
+        for (int i = 0; i < repeatTimes; i++) {
+            OperationPurpose purpose = randomFrom(OperationPurpose.values());
+
+            String blobName = randomIdentifier();
+            // PUT_BLOB
+            blobStore.writeBlob(purpose, blobName, BytesReference.fromByteBuffer(ByteBuffer.wrap(randomBlobContent())), false);
+            // LIST_BLOBS
+            blobStore.listBlobsByPrefix(purpose, randomIdentifier(), randomIdentifier());
+            // GET_BLOB_PROPERTIES
+            blobStore.blobExists(purpose, blobName);
+            // PUT_BLOCK & PUT_BLOCK_LIST
+            byte[] blobContent = randomByteArrayOfLength((int) blobStore.getUploadBlockSize());
+            blobStore.writeBlob(purpose, randomIdentifier(), false, os -> {
+                os.write(blobContent);
+                os.flush();
+            });
+        }
+
+        Map<String, Long> stats = blobStore.stats();
+        String statsMapString = stats.toString();
+        assertEquals(statsMapString, Long.valueOf(repeatTimes), stats.get(AzureBlobStore.Operation.PUT_BLOB.getKey()));
+        assertEquals(statsMapString, Long.valueOf(repeatTimes), stats.get(AzureBlobStore.Operation.LIST_BLOBS.getKey()));
+        assertEquals(statsMapString, Long.valueOf(repeatTimes), stats.get(AzureBlobStore.Operation.GET_BLOB_PROPERTIES.getKey()));
+        assertEquals(statsMapString, Long.valueOf(repeatTimes), stats.get(AzureBlobStore.Operation.PUT_BLOCK.getKey()));
+        assertEquals(statsMapString, Long.valueOf(repeatTimes), stats.get(AzureBlobStore.Operation.PUT_BLOCK_LIST.getKey()));
     }
 
     private static String statsKey(OperationPurpose purpose, AzureBlobStore.Operation operation) {

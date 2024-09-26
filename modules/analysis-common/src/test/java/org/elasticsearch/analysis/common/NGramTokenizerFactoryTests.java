@@ -183,6 +183,9 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
                 assertThat(edgeNGramTokenFilter, instanceOf(EdgeNGramTokenFilter.class));
             }
         }
+        assertWarnings(
+            "The [side] parameter is deprecated and will be removed. Use a [reverse] before and after the [edge_ngram] instead."
+        );
     }
 
     /*`

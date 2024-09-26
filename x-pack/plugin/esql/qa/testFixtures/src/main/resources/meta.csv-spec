@@ -97,6 +97,8 @@ double tau()
 "boolean to_boolean(field:boolean|keyword|text|double|long|unsigned_long|integer)"
 "cartesian_point to_cartesianpoint(field:cartesian_point|keyword|text)"
 "cartesian_shape to_cartesianshape(field:cartesian_point|cartesian_shape|keyword|text)"
+"date_nanos to_date_nanos(field:date|date_nanos|keyword|text|double|long|unsigned_long)"
+"date_nanos to_datenanos(field:date|date_nanos|keyword|text|double|long|unsigned_long)"
 "date_period to_dateperiod(field:date_period|keyword|text)"
 "date to_datetime(field:date|date_nanos|keyword|text|double|long|unsigned_long|integer)"
 "double to_dbl(field:boolean|date|keyword|text|double|long|unsigned_long|integer|counter_double|counter_integer|counter_long)"
@@ -227,6 +229,8 @@ to_bool       |field                               |"boolean|keyword|text|double
 to_boolean    |field                               |"boolean|keyword|text|double|long|unsigned_long|integer"                                                                          |Input value. The input can be a single- or multi-valued column or an expression.
 to_cartesianpo|field                               |"cartesian_point|keyword|text"                                                                                                    |Input value. The input can be a single- or multi-valued column or an expression.
 to_cartesiansh|field                               |"cartesian_point|cartesian_shape|keyword|text"                                                                                    |Input value. The input can be a single- or multi-valued column or an expression.
+to_date_nanos |field                               |"date|date_nanos|keyword|text|double|long|unsigned_long"                                                                          |Input value. The input can be a single- or multi-valued column or an expression.
+to_datenanos  |field                               |"date|date_nanos|keyword|text|double|long|unsigned_long"                                                                          |Input value. The input can be a single- or multi-valued column or an expression.
 to_dateperiod |field                               |"date_period|keyword|text"                                                                                                        |Input value. The input is a valid constant date period expression.
 to_datetime   |field                               |"date|date_nanos|keyword|text|double|long|unsigned_long|integer"                                                                             |Input value. The input can be a single- or multi-valued column or an expression.
 to_dbl        |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer|counter_double|counter_integer|counter_long"                         |Input value. The input can be a single- or multi-valued column or an expression.
@@ -357,6 +361,8 @@ to_bool       |Converts an input value to a boolean value. A string value of *tr
 to_boolean    |Converts an input value to a boolean value. A string value of *true* will be case-insensitive converted to the Boolean *true*. For anything else, including the empty string, the function will return *false*. The numerical value of *0* will be converted to *false*, anything else will be converted to *true*.
 to_cartesianpo|Converts an input value to a `cartesian_point` value. A string will only be successfully converted if it respects the {wikipedia}/Well-known_text_representation_of_geometry[WKT Point] format.
 to_cartesiansh|Converts an input value to a `cartesian_shape` value. A string will only be successfully converted if it respects the {wikipedia}/Well-known_text_representation_of_geometry[WKT] format.
+to_date_nanos |Converts an input to a nanosecond-resolution date value (aka date_nanos).
+to_datenanos  |Converts an input to a nanosecond-resolution date value (aka date_nanos).
 to_dateperiod |Converts an input value into a `date_period` value.
 to_datetime   |Converts an input value to a date value. A string will only be successfully converted if it's respecting the format `yyyy-MM-dd'T'HH:mm:ss.SSS'Z'`. To convert dates in other formats, use <<esql-date_parse>>.
 to_dbl        |Converts an input value to a double value. If the input parameter is of a date type, its value will be interpreted as milliseconds since the {wikipedia}/Unix_time[Unix epoch], converted to double. Boolean *true* will be converted to double *1.0*, *false* to *0.0*.
@@ -489,6 +495,8 @@ to_bool       |boolean                                                          
 to_boolean    |boolean                                                                                                                     |false                       |false           |false
 to_cartesianpo|cartesian_point                                                                                                             |false                       |false           |false
 to_cartesiansh|cartesian_shape                                                                                                             |false                       |false           |false
+to_date_nanos |date_nanos                                                                                                                  |false                       |false           |false
+to_datenanos  |date_nanos                                                                                                                  |false                       |false           |false
 to_dateperiod |date_period                                                                                                                 |false                       |false           |false
 to_datetime   |date                                                                                                                        |false                       |false           |false
 to_dbl        |double                                                                                                                      |false                       |false           |false
@@ -536,5 +544,5 @@ required_capability: meta
 meta functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
 
 a:long | b:long | c:long
-119    | 119    | 119
+121    | 121    | 121
 ;

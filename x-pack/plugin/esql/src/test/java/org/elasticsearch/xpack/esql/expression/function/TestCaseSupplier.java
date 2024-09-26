@@ -623,6 +623,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
     /**
      * Generate positive test cases for a unary function operating on an {@link DataType#DATETIME}.
+     * This variant defaults to maximum range of possible values
      */
     public static void forUnaryDatetime(
         List<TestCaseSupplier> suppliers,
@@ -635,6 +636,29 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             suppliers,
             expectedEvaluatorToString,
             dateCases(),
+            expectedType,
+            n -> expectedValue.apply(Instant.ofEpochMilli(n.longValue())),
+            warnings
+        );
+    }
+
+    /**
+     * Generate positive test cases for a unary function operating on an {@link DataType#DATETIME}.
+     * This variant accepts a range of values
+     */
+    public static void forUnaryDatetime(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        long min,
+        long max,
+        Function<Instant, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unaryNumeric(
+            suppliers,
+            expectedEvaluatorToString,
+            dateCases(min, max),
             expectedType,
             n -> expectedValue.apply(Instant.ofEpochMilli(n.longValue())),
             warnings
@@ -1044,26 +1068,45 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
      * </p>
      */
     public static List<TypedDataSupplier> dateCases() {
-        return List.of(
-            new TypedDataSupplier("<1970-01-01T00:00:00Z>", () -> 0L, DataType.DATETIME),
-            new TypedDataSupplier(
-                "<date>",
-                () -> ESTestCase.randomLongBetween(0, 10 * (long) 10e11), // 1970-01-01T00:00:00Z - 2286-11-20T17:46:40Z
-                DataType.DATETIME
-            ),
-            new TypedDataSupplier(
-                "<far future date>",
-                // 2286-11-20T17:46:40Z - +292278994-08-17T07:12:55.807Z
-                () -> ESTestCase.randomLongBetween(10 * (long) 10e11, Long.MAX_VALUE),
-                DataType.DATETIME
-            ),
-            new TypedDataSupplier(
-                "<near the end of time>",
-                // very close to +292278994-08-17T07:12:55.807Z, the maximum supported millis since epoch
-                () -> ESTestCase.randomLongBetween(Long.MAX_VALUE / 100 * 99, Long.MAX_VALUE),
-                DataType.DATETIME
-            )
-        );
+        return dateCases(Long.MIN_VALUE, Long.MAX_VALUE);
+    }
+
+    /**
+     * Generate cases for {@link DataType#DATETIME}.
+     * <p>
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#dateCases}.
+     * </p>
+     */
+    public static List<TypedDataSupplier> dateCases(long min, long max) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        if (min <= 0 && max >= 0) {
+            cases.add(new TypedDataSupplier("<1970-01-01T00:00:00Z>", () -> 0L, DataType.DATETIME));
+        }
+
+        // 1970-01-01T00:00:00Z - 2286-11-20T17:46:40Z
+        long lower1 = Math.max(min, 0);
+        long upper1 = Math.min(max, 10 * (long) 10e11);
+        if (lower1 < upper1) {
+            cases.add(new TypedDataSupplier("<date>", () -> ESTestCase.randomLongBetween(lower1, upper1), DataType.DATETIME));
+        }
+
+        // 2286-11-20T17:46:40Z - +292278994-08-17T07:12:55.807Z
+        long lower2 = Math.max(min, 10 * (long) 10e11);
+        long upper2 = Math.min(max, Long.MAX_VALUE);
+        if (lower2 < upper2) {
+            cases.add(new TypedDataSupplier("<far future date>", () -> ESTestCase.randomLongBetween(lower2, upper2), DataType.DATETIME));
+        }
+
+        // very close to +292278994-08-17T07:12:55.807Z, the maximum supported millis since epoch
+        long lower3 = Math.max(min, Long.MAX_VALUE / 100 * 99);
+        long upper3 = Math.min(max, Long.MAX_VALUE);
+        if (lower3 < upper3) {
+            cases.add(
+                new TypedDataSupplier("<near the end of time>", () -> ESTestCase.randomLongBetween(lower3, upper3), DataType.DATETIME)
+            );
+        }
+
+        return cases;
     }
 
     /**

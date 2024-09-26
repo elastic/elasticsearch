@@ -77,6 +77,9 @@ tasks.named("yamlRestTestV7CompatTest").configure {
     'ml/evaluate_data_frame/Test outlier_detection auc_roc include curve',
     'ml/evaluate_data_frame/Test classification auc_roc',
     'ml/evaluate_data_frame/Test classification auc_roc with default top_classes_field',
+    'security/authz/13_index_datemath/Test indexing documents with datemath, when forbidden',
+    'security/authz/13_index_datemath/Test indexing documents with datemath, when permitted',
+    'security/authz/13_index_datemath/Test bulk indexing with datemath when only some are allowed',
   ].join(',')
 }
 
@@ -195,4 +198,8 @@ tasks.register('enforceYamlTestConvention').configure {
 tasks.named("precommit").configure {
   dependsOn 'enforceYamlTestConvention', 'enforceApiSpecsConvention'
 }
+
+tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
+  task.skipTest("security/10_forbidden/Test bulk response with invalid credentials", "warning does not exist for compatibility")
+})
 

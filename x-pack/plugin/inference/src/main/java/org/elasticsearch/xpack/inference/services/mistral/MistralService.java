@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.mistral.MistralActionCreator;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
+import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -54,7 +55,7 @@ public class MistralService extends SenderService {
     @Override
     protected void doInfer(
         Model model,
-        List<String> input,
+        InferenceInputs inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -64,30 +65,16 @@ public class MistralService extends SenderService {
 
         if (model instanceof MistralEmbeddingsModel mistralEmbeddingsModel) {
             var action = mistralEmbeddingsModel.accept(actionCreator, taskSettings);
-            action.execute(new DocumentsOnlyInput(input), timeout, listener);
+            action.execute(inputs, timeout, listener);
         } else {
             listener.onFailure(createInvalidModelException(model));
         }
     }
 
     @Override
-    protected void doInfer(
-        Model model,
-        String query,
-        List<String> input,
-        Map<String, Object> taskSettings,
-        InputType inputType,
-        TimeValue timeout,
-        ActionListener<InferenceServiceResults> listener
-    ) {
-        throw new UnsupportedOperationException("Mistral service does not support inference with query input");
-    }
-
-    @Override
     protected void doChunkedInfer(
         Model model,
-        String query,
-        List<String> input,
+        DocumentsOnlyInput inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         ChunkingOptions chunkingOptions,
@@ -98,7 +85,7 @@ public class MistralService extends SenderService {
 
         if (model instanceof MistralEmbeddingsModel mistralEmbeddingsModel) {
             var batchedRequests = new EmbeddingRequestChunker(
-                input,
+                inputs.getInputs(),
                 MistralConstants.MAX_BATCH_SIZE,
                 EmbeddingRequestChunker.EmbeddingType.FLOAT
             ).batchRequestsWithListeners(listener);

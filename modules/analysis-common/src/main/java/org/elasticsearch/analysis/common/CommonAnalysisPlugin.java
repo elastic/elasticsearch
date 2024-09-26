@@ -366,7 +366,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
             if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.V_8_0_0)) {
                 throw new IllegalArgumentException(
                     "The [edgeNGram] tokenizer name was deprecated in 7.6. "
-                        + "Please use the tokenizer name to [edge_nGram] for indices created in versions 8 or higher instead."
+                        + "Please use the tokenizer name to [edge_ngram] for indices created in versions 8 or higher instead."
                 );
             } else if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.V_7_6_0)) {
                 deprecationLogger.warn(

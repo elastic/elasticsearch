@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
@@ -123,6 +124,7 @@ public class SerializationTestUtils {
         entries.addAll(AggregateFunction.getNamedWriteables());
         entries.addAll(Block.getNamedWriteables());
         entries.addAll(LogicalPlan.getNamedWriteables());
+        entries.addAll(FullTextFunction.getNamedWriteables());
         entries.addAll(PhysicalPlan.getNamedWriteables());
         return new NamedWriteableRegistry(entries);
     }

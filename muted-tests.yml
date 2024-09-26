@@ -166,15 +166,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testPutJob_GivenFarequoteConfig
   issue: https://github.com/elastic/elasticsearch/issues/112382
-- class: org.elasticsearch.xpack.security.authc.kerberos.KerberosTicketValidatorTests
-  method: testWhenKeyTabWithInvalidContentFailsValidation
-  issue: https://github.com/elastic/elasticsearch/issues/112631
-- class: org.elasticsearch.xpack.security.authc.kerberos.KerberosTicketValidatorTests
-  method: testValidKebrerosTicket
-  issue: https://github.com/elastic/elasticsearch/issues/112632
-- class: org.elasticsearch.xpack.security.authc.kerberos.KerberosTicketValidatorTests
-  method: testKerbTicketGeneratedForDifferentServerFailsValidation
-  issue: https://github.com/elastic/elasticsearch/issues/112639
 - class: org.elasticsearch.packaging.test.PackagesSecurityAutoConfigurationTests
   method: test20SecurityNotAutoConfiguredOnReInstallation
   issue: https://github.com/elastic/elasticsearch/issues/112635

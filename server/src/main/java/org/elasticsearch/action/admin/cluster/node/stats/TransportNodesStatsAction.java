@@ -46,7 +46,8 @@ public class TransportNodesStatsAction extends TransportNodesAction<
     NodesStatsRequest,
     NodesStatsResponse,
     TransportNodesStatsAction.NodeStatsRequest,
-    NodeStats> {
+    NodeStats,
+    Void> {
 
     public static final ActionType<NodesStatsResponse> TYPE = new ActionType<>("cluster:monitor/nodes/stats");
 
@@ -83,6 +84,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
     protected void newResponseAsync(
         Task task,
         NodesStatsRequest request,
+        Void actionContext,
         List<NodeStats> responses,
         List<FailedNodeException> failures,
         ActionListener<NodesStatsResponse> listener

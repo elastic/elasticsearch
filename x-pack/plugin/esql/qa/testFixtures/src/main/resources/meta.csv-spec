@@ -1,5 +1,7 @@
-metaFunctionsSynopsis#[skip:-8.15.99]
+metaFunctionsSynopsis
 required_capability: date_nanos_type
+required_capability: meta
+
 meta functions | keep synopsis;
 
 synopsis:keyword
@@ -118,14 +120,16 @@ double tau()
 "keyword|text to_upper(str:keyword|text)"
 "version to_ver(field:keyword|text|version)"
 "version to_version(field:keyword|text|version)"
-"boolean|double|integer|long|date|ip top(field:boolean|double|integer|long|date|ip, limit:integer, order:keyword)"
+"boolean|double|integer|long|date|ip|keyword|text top(field:boolean|double|integer|long|date|ip|keyword|text, limit:integer, order:keyword)"
 "keyword|text trim(string:keyword|text)"
 "boolean|date|double|integer|ip|keyword|long|text|version values(field:boolean|date|double|integer|ip|keyword|long|text|version)"
 "double weighted_avg(number:double|integer|long, weight:double|integer|long)"
 ;
 
-metaFunctionsArgs#[skip:-8.15.99]
+metaFunctionsArgs
+required_capability: meta
 required_capability: date_nanos_type
+
   META functions
 | EVAL name = SUBSTRING(name, 0, 14)
 | KEEP name, argNames, argTypes, argDescriptions;
@@ -246,13 +250,15 @@ to_unsigned_lo|field                               |"boolean|date|keyword|text|d
 to_upper      |str                                 |"keyword|text"                                                                                                                    |String expression. If `null`, the function returns `null`.
 to_ver        |field                               |"keyword|text|version"                                                                                                            |Input value. The input can be a single- or multi-valued column or an expression.
 to_version    |field                               |"keyword|text|version"                                                                                                            |Input value. The input can be a single- or multi-valued column or an expression.
-top           |[field, limit, order]               |["boolean|double|integer|long|date|ip", integer, keyword]                                                                         |[The field to collect the top values for.,The maximum number of values to collect.,The order to calculate the top values. Either `asc` or `desc`.]
+top           |[field, limit, order]               |["boolean|double|integer|long|date|ip|keyword|text", integer, keyword]                                                                         |[The field to collect the top values for.,The maximum number of values to collect.,The order to calculate the top values. Either `asc` or `desc`.]
 trim          |string                              |"keyword|text"                                                                                                                    |String expression. If `null`, the function returns `null`.
 values        |field                               |"boolean|date|double|integer|ip|keyword|long|text|version"                                                                        |[""]
 weighted_avg  |[number, weight]                    |["double|integer|long", "double|integer|long"]                                                                                    |[A numeric value., A numeric weight.]
 ;
 
-metaFunctionsDescription#[skip:-8.15.99]
+metaFunctionsDescription
+required_capability: meta
+
   META functions
 | EVAL name = SUBSTRING(name, 0, 14)
 | KEEP name, description
@@ -380,8 +386,10 @@ values        |Returns all values in a group as a multivalued field. The order o
 weighted_avg  |The weighted average of a numeric expression.
 ;
 
-metaFunctionsRemaining#[skip:-8.15.99]
+metaFunctionsRemaining
+required_capability: meta
 required_capability: date_nanos_type
+
   META functions
 | EVAL name = SUBSTRING(name, 0, 14)
 | KEEP name, *
@@ -504,13 +512,15 @@ to_unsigned_lo|unsigned_long                                                    
 to_upper      |"keyword|text"                                                                                                              |false                       |false           |false
 to_ver        |version                                                                                                                     |false                       |false           |false
 to_version    |version                                                                                                                     |false                       |false           |false
-top           |"boolean|double|integer|long|date|ip"                                                                                       |[false, false, false]       |false           |true
+top           |"boolean|double|integer|long|date|ip|keyword|text"                                                                                       |[false, false, false]       |false           |true
 trim          |"keyword|text"                                                                                                              |false                       |false           |false
 values        |"boolean|date|double|integer|ip|keyword|long|text|version"                                                                  |false                       |false           |true
 weighted_avg  |"double"                                                                                                                    |[false, false]              |false           |true
 ;
 
-metaFunctionsFiltered#[skip:-8.15.99]
+metaFunctionsFiltered
+required_capability: meta
+
 META FUNCTIONS
 | WHERE STARTS_WITH(name, "sin")
 ;
@@ -520,7 +530,9 @@ sin          |"double sin(angle:double|integer|long|unsigned_long)"   |angle    
 sinh         |"double sinh(number:double|integer|long|unsigned_long)" |number            |"double|integer|long|unsigned_long" | "Numeric expression. If `null`, the function returns `null`."   | double             | "Returns the {wikipedia}/Hyperbolic_functions[hyperbolic sine] of a number." | false                | false            | false
 ;
 
-countFunctions#[skip:-8.15.99]
+countFunctions
+required_capability: meta
+
 meta functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
 
 a:long | b:long | c:long

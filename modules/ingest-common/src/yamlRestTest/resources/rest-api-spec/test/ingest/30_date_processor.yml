@@ -1,6 +1,6 @@
 setup:
   - requires:
-      test_runner_features: allowed_warnings
+      test_runner_features: allowed_warnings_regex
 ---
 teardown:
   - do:
@@ -100,8 +100,8 @@ teardown:
 "Test date processor with no timezone configured":
 
   - do:
-      allowed_warnings:
-        - 'Date format [dd/MMM/yyyy:H:m:s Z] contains textual field specifiers that could change in JDK 23'
+      allowed_warnings_regex:
+        - 'Date format \[dd/MMM/yyyy:H:m:s Z] contains textual field specifiers that could change in JDK 23.*'
       ingest.put_pipeline:
         id: "my_pipeline"
         # sample formats from beats, featuring mongodb, icinga, apache
@@ -170,8 +170,8 @@ teardown:
   - match: { acknowledged: true }
 
   - do:
-      allowed_warnings:
-        - 'Date format [dd/MMM/yyyy:H:m:s Z] contains textual field specifiers that could change in JDK 23'
+      allowed_warnings_regex:
+        - 'Date format \[dd/MMM/yyyy:H:m:s Z] contains textual field specifiers that could change in JDK 23.*'
       index:
         index: test
         id: "1"
@@ -211,6 +211,8 @@ teardown:
 ---
 "Test week based date parsing":
   - do:
+      allowed_warnings_regex:
+        - 'Date format \[YYYY-ww] contains week-date field specifiers that are changing in JDK 23.*'
       indices.create:
         index: test
         body:
@@ -221,6 +223,8 @@ teardown:
                 format: YYYY-ww
 
   - do:
+      allowed_warnings_regex:
+        - 'Date format \[YYYY-ww] contains week-date field specifiers that are changing in JDK 23.*'
       ingest.put_pipeline:
         id: "my_pipeline"
         body:  >
@@ -270,69 +274,3 @@ teardown:
         id: "1"
   - match: { _source.date_source_field: "2020-33" }
   - match: { _source.date_target_field: "2020-08-10T00:00:00.000Z" }
-
----
-"Test week based date parsing with locale":
-  #locale is used when parsing as well on a pipeline. As per US locale, start of the 33rd week 2020 is on 09August2020 (sunday)
-  - do:
-      indices.create:
-        index: test
-        body:
-          mappings:
-            properties:
-              date_source_field:
-                type: date
-                format: YYYY-ww
-                locale: en-US
-
-  - do:
-      ingest.put_pipeline:
-        id: "my_pipeline"
-        body:  >
-          {
-            "description": "_description",
-            "processors": [
-              {
-                "date" : {
-                  "field" : "date_source_field",
-                  "target_field" : "date_target_field",
-                  "formats" : ["YYYY-ww"],
-                  "locale" : "en-US"
-                }
-              }
-            ]
-          }
-  - match: { acknowledged: true }
-
-  - do:
-      ingest.simulate:
-        id: "my_pipeline"
-        body: >
-          {
-            "docs": [
-              {
-                "_source": {
-                  "date_source_field": "2020-33"
-                }
-              }
-            ]
-          }
-  - length: { docs: 1 }
-  - match: { docs.0.doc._source.date_source_field: "2020-33" }
-  - match: { docs.0.doc._source.date_target_field: "2020-08-09T00:00:00.000Z" }
-  - length: { docs.0.doc._ingest: 1 }
-  - is_true: docs.0.doc._ingest.timestamp
-
-  - do:
-      index:
-        index: test
-        id: "1"
-        pipeline: "my_pipeline"
-        body: {date_source_field: "2020-33"}
-
-  - do:
-      get:
-        index: test
-        id: "1"
-  - match: { _source.date_source_field: "2020-33" }
-  - match: { _source.date_target_field: "2020-08-09T00:00:00.000Z" }

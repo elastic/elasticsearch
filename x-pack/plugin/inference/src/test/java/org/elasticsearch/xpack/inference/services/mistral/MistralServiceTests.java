@@ -501,33 +501,6 @@ public class MistralServiceTests extends ESTestCase {
         }
     }
 
-    public void testInfer_ThrowsWhenQueryIsPresent() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var service = new MistralService(senderFactory, createWithEmptySettings(threadPool))) {
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(testEmbeddingResultJson));
-
-            var model = MistralEmbeddingModelTests.createModel("id", "mistral-embed", "apikey", null, null, null, null);
-            model.setURI(getUrl(webServer));
-
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            UnsupportedOperationException exception = expectThrows(
-                UnsupportedOperationException.class,
-                () -> service.infer(
-                    model,
-                    "should throw",
-                    List.of("abc"),
-                    new HashMap<>(),
-                    InputType.INGEST,
-                    InferenceAction.Request.DEFAULT_TIMEOUT,
-                    listener
-                )
-            );
-
-            assertThat(exception.getMessage(), is("Mistral service does not support inference with query input"));
-        }
-    }
-
     public void testInfer_UnauthorisedResponse() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 

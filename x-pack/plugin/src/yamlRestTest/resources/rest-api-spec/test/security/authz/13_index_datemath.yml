@@ -1,5 +1,7 @@
 ---
 setup:
+  - requires:
+      test_runner_features: allowed_warnings_regex
   - skip:
       features: headers
 
@@ -54,6 +56,8 @@ teardown:
           }
 
   - do:
+      allowed_warnings_regex:
+        - 'Date format \[YYYY\.MM] contains week-date field specifiers that are changing in JDK 23.*'
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       bulk:
         body:
@@ -89,6 +93,8 @@ teardown:
           }
 
   - do:
+      allowed_warnings_regex:
+        - 'Date format \[YYYY\.MM] contains week-date field specifiers that are changing in JDK 23.*'
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       bulk:
         body:
@@ -115,6 +121,8 @@ teardown:
 ---
 "Test bulk indexing with datemath when only some are allowed":
   - do:
+      allowed_warnings_regex:
+        - 'Date format \[YYYY] contains week-date field specifiers that are changing in JDK 23.*'
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       bulk:
         body:

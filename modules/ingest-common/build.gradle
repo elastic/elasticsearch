@@ -55,6 +55,7 @@ tasks.named("yamlRestTest").configure {
   systemProperty 'tests.rest.blacklist', [
     // for some reason, allowed_warnings on the test isn't working here
     'ingest/30_date_processor/Test date processor with no timezone configured',
+    'ingest/30_date_processor/Test week based date parsing',
   ].join(',')
 }
 
@@ -62,6 +63,7 @@ tasks.named("yamlRestTestV7CompatTest").configure {
   systemProperty 'tests.rest.blacklist', [
     // for some reason, allowed_warnings on the test isn't working here
     'ingest/30_date_processor/Test date processor with no timezone configured',
+    'ingest/30_date_processor/Test week based date parsing',
   ].join(',')
 }
 

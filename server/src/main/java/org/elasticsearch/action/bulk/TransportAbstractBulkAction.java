@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -39,6 +40,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -168,19 +171,21 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
     private void forkAndExecute(Task task, BulkRequest bulkRequest, Executor executor, ActionListener<BulkResponse> releasingListener) {
         executor.execute(new ActionRunnable<>(releasingListener) {
             @Override
-            protected void doRun() {
+            protected void doRun() throws IOException {
                 applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, releasingListener);
             }
         });
     }
 
-    private boolean applyPipelines(Task task, BulkRequest bulkRequest, Executor executor, ActionListener<BulkResponse> listener) {
+    private boolean applyPipelines(Task task, BulkRequest bulkRequest, Executor executor, ActionListener<BulkResponse> listener)
+        throws IOException {
         boolean hasIndexRequestsWithPipelines = false;
         final Metadata metadata = clusterService.state().getMetadata();
+        Map<String, ComponentTemplate> templateSubstitutions = bulkRequest.getComponentTemplateSubstitutions();
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
             IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
             if (indexRequest != null) {
-                IngestService.resolvePipelinesAndUpdateIndexRequest(actionRequest, indexRequest, metadata);
+                IngestService.resolvePipelinesAndUpdateIndexRequest(actionRequest, indexRequest, metadata, templateSubstitutions);
                 hasIndexRequestsWithPipelines |= IngestService.hasPipeline(indexRequest);
             }
 
@@ -250,7 +255,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                     } else {
                         ActionRunnable<BulkResponse> runnable = new ActionRunnable<>(actionListener) {
                             @Override
-                            protected void doRun() {
+                            protected void doRun() throws IOException {
                                 applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, actionListener);
                             }
 
@@ -328,7 +333,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         BulkRequest bulkRequest,
         Executor executor,
         ActionListener<BulkResponse> listener
-    ) {
+    ) throws IOException {
         final long relativeStartTimeNanos = relativeTimeNanos();
         if (applyPipelines(task, bulkRequest, executor, listener) == false) {
             doInternalExecute(task, bulkRequest, executor, listener, relativeStartTimeNanos);
@@ -349,6 +354,6 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         Executor executor,
         ActionListener<BulkResponse> listener,
         long relativeStartTimeNanos
-    );
+    ) throws IOException;
 
 }

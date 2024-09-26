@@ -209,6 +209,9 @@ public interface SourceLoader {
                 if (docValuesLoader != null) {
                     docValuesLoader.advanceToDoc(docId);
                 }
+
+                loader.prepare();
+
                 // TODO accept a requested xcontent type
                 if (loader.hasValue()) {
                     loader.write(b);
@@ -298,6 +301,16 @@ public interface SourceLoader {
          * @param docIdsInLeaf can be null.
          */
         DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException;
+
+        /**
+         Perform any preprocessing needed before producing synthetic source
+         and deduce whether this mapper (and its children, if any) have values to write.
+         The expectation is for this method to be called before {@link SyntheticFieldLoader#hasValue()}
+         and {@link SyntheticFieldLoader#write(XContentBuilder)} are used.
+         */
+        default void prepare() {
+            // Noop
+        }
 
         /**
          * Has this field loaded any values for this document?

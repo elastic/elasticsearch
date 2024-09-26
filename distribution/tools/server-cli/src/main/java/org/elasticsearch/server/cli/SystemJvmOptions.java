@@ -76,11 +76,11 @@ final class SystemJvmOptions {
     @UpdateForV9    // only use CLDR in v9+
     private static String getLocaleProviders() {
         /*
-         * Specify SPI to load IsoCalendarDataProvider (see #48209), specifying the first day of week as Monday.
-         * When on pre-23, use COMPAT instead to maintain existing date formats as much as we can.
-         * When on JDK 23+, use the default CLDR locale database, as COMPAT was removed in JDK 23.
+         * When on pre-23, use COMPAT instead to maintain existing date formats as much as we can,
+         * and specify SPI to load IsoCalendarDataProvider (see #48209), specifying the first day of week as Monday.
+         * When on JDK 23+, use the default CLDR locale database for everything, as COMPAT was removed in JDK 23.
          */
-        return Runtime.version().feature() >= 23 ? "SPI,CLDR" : "SPI,COMPAT";
+        return Runtime.version().feature() >= 23 ? "CLDR" : "SPI,COMPAT";
     }
 
     /*

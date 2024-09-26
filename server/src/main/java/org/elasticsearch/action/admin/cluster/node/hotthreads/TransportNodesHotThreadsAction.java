@@ -39,7 +39,8 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<
     NodesHotThreadsRequest,
     NodesHotThreadsResponse,
     TransportNodesHotThreadsAction.NodeRequest,
-    NodeHotThreads> {
+    NodeHotThreads,
+    Void> {
 
     public static final ActionType<NodesHotThreadsResponse> TYPE = new ActionType<>("cluster:monitor/nodes/hot_threads");
 

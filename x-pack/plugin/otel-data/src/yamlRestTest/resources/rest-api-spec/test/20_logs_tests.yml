@@ -51,3 +51,20 @@ setup:
   - match: { hits.hits.0.fields.resource\.attributes\.host\.ip: ["0.0.0.0", "127.0.0.1"] }
   - match: { hits.hits.0.fields.attributes\.foo: [1, 2, 3] }
   - match: { hits.hits.0.fields.attributes\.bar: [a, b, c] }
+---
+"Exception aliases":
+  - do:
+      bulk:
+        index: logs-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z","data_stream":{"dataset":"generic.otel","namespace":"default"}, "attributes": { "exception.type": "MyException", "exception.message": "foo"},"trace_id":"abc123xyz456def789ghi012jkl345"}'
+  - is_false: errors
+  - do:
+      search:
+        index: logs-generic.otel-default
+        body:
+          fields: ["exception.type"]
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields.exception\.type: ["MyException"] }
